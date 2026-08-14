@@ -28,6 +28,125 @@
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '-';
         };
 
+        $formatReferralType = function (?string $type): array {
+            $raw = strtolower(trim((string) $type));
+            return match ($raw) {
+                'customer_referral', 'customer' => [
+                    'label' => 'Customer',
+                    'badgeClass' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                    'dotClass' => 'bg-emerald-500',
+                ],
+                'b2b_referral', 'b2b' => [
+                    'label' => 'B2B Referral',
+                    'badgeClass' => 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                    'dotClass' => 'bg-indigo-500',
+                ],
+                'b2g_referral', 'b2g' => [
+                    'label' => 'B2G Referral',
+                    'badgeClass' => 'bg-purple-50 text-purple-700 border-purple-200',
+                    'dotClass' => 'bg-purple-500',
+                ],
+                'collaborative_projects', 'collaborative' => [
+                    'label' => 'Collaboration',
+                    'badgeClass' => 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                    'dotClass' => 'bg-cyan-500',
+                ],
+                'referral_partnerships', 'partnerships' => [
+                    'label' => 'Partnership',
+                    'badgeClass' => 'bg-sky-50 text-sky-700 border-sky-200',
+                    'dotClass' => 'bg-sky-500',
+                ],
+                'vendor_referrals', 'vendor' => [
+                    'label' => 'Vendor',
+                    'badgeClass' => 'bg-teal-50 text-teal-700 border-teal-200',
+                    'dotClass' => 'bg-teal-500',
+                ],
+                'business' => [
+                    'label' => 'Business',
+                    'badgeClass' => 'bg-blue-50 text-blue-700 border-blue-200',
+                    'dotClass' => 'bg-blue-500',
+                ],
+                'service' => [
+                    'label' => 'Service',
+                    'badgeClass' => 'bg-violet-50 text-violet-700 border-violet-200',
+                    'dotClass' => 'bg-violet-500',
+                ],
+                'others', 'other' => [
+                    'label' => 'Other',
+                    'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                    'dotClass' => 'bg-slate-400',
+                ],
+                '' => [
+                    'label' => '—',
+                    'badgeClass' => '',
+                    'dotClass' => '',
+                ],
+                default => [
+                    'label' => ucwords(str_replace('_', ' ', $raw)),
+                    'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                    'dotClass' => 'bg-slate-500',
+                ],
+            };
+        };
+
+        $getHotBadge = function ($value): array {
+            $val = (int) $value;
+            if ($val <= 0) {
+                return [
+                    'value' => null,
+                    'label' => '—',
+                    'badgeClass' => '',
+                    'iconClass' => '',
+                    'title' => '',
+                ];
+            }
+
+            return match ($val) {
+                5 => [
+                    'value' => 5,
+                    'label' => '5',
+                    'badgeClass' => 'bg-rose-50 text-rose-700 border-rose-200',
+                    'iconClass' => 'text-rose-600 animate-pulse',
+                    'title' => 'Hotness: 5/5 (Very High)',
+                ],
+                4 => [
+                    'value' => 4,
+                    'label' => '4',
+                    'badgeClass' => 'bg-orange-50 text-orange-700 border-orange-200',
+                    'iconClass' => 'text-orange-500',
+                    'title' => 'Hotness: 4/5 (High)',
+                ],
+                3 => [
+                    'value' => 3,
+                    'label' => '3',
+                    'badgeClass' => 'bg-amber-50 text-amber-700 border-amber-200',
+                    'iconClass' => 'text-amber-500',
+                    'title' => 'Hotness: 3/5 (Medium)',
+                ],
+                2 => [
+                    'value' => 2,
+                    'label' => '2',
+                    'badgeClass' => 'bg-yellow-50 text-yellow-800 border-yellow-200',
+                    'iconClass' => 'text-yellow-600',
+                    'title' => 'Hotness: 2/5 (Low)',
+                ],
+                1 => [
+                    'value' => 1,
+                    'label' => '1',
+                    'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                    'iconClass' => 'text-slate-400',
+                    'title' => 'Hotness: 1/5 (Cold)',
+                ],
+                default => [
+                    'value' => $val,
+                    'label' => (string) $val,
+                    'badgeClass' => 'bg-rose-50 text-rose-700 border-rose-200',
+                    'iconClass' => 'text-rose-500',
+                    'title' => "Hotness: {$val}",
+                ],
+            };
+        };
+
         $peerName = trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) ?: $member->display_name ?: 'Unnamed Peer';
     @endphp
 
@@ -114,8 +233,16 @@
                                     </div>
                                 </td>
                                 <td class="px-3 py-2.5 text-xs font-semibold t1"><x-admin-grid-text :text="$referral->referral_of ?? '-'" /></td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $referral->referral_type ?? '-' }}</span>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @php $typeInfo = $formatReferralType($referral->referral_type ?? null); @endphp
+                                    @if(!empty($typeInfo['label']) && $typeInfo['label'] !== '—')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border {{ $typeInfo['badgeClass'] }}">
+                                            <span class="w-1.5 h-1.5 rounded-full {{ $typeInfo['dotClass'] }}"></span>
+                                            <span>{{ $typeInfo['label'] }}</span>
+                                        </span>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                     {{ $referral->referral_date ? $formatDate($referral->referral_date) : '-' }}
@@ -123,13 +250,15 @@
                                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $referral->phone ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $referral->email ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2 max-w-[160px]"><x-admin-grid-text :text="$referral->address ?? '-'" /></td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    @if($referral->hot_value)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">
-                                            <i class="bi bi-fire admin-icon text-rose-500 me-1" aria-hidden="true"></i><span>{{ $referral->hot_value }}</span>
+                                <td class="px-3 py-2.5 text-xs text-center align-middle whitespace-nowrap">
+                                    @php $hotInfo = $getHotBadge($referral->hot_value ?? null); @endphp
+                                    @if($hotInfo['value'] !== null)
+                                        <span class="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border {{ $hotInfo['badgeClass'] }}" title="{{ $hotInfo['title'] }}">
+                                            <i class="bi bi-fire text-[11px] {{ $hotInfo['iconClass'] }}" aria-hidden="true"></i>
+                                            <span>{{ $hotInfo['label'] }}</span>
                                         </span>
                                     @else
-                                        <span class="t3">-</span>
+                                        <span class="t3">—</span>
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2 max-w-[160px]"><x-admin-grid-text :text="$referral->remarks ?? '-'" /></td>

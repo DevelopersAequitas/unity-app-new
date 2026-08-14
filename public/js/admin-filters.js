@@ -91,6 +91,30 @@
                             select.dispatchEvent(new Event('change', { bubbles: true }));
                             isDispatching = false;
                         });
+
+                        window.jQuery(select).on('select2:unselecting select2:clear', function (e) {
+                            const self = this;
+                            setTimeout(function () {
+                                self.value = '';
+                                self.selectedIndex = 0;
+                                window.jQuery(self).val('').trigger('change.select2-native');
+                                self.dispatchEvent(new Event('change', { bubbles: true }));
+                                try { window.jQuery(self).select2('close'); } catch (err) {}
+
+                                const form = self.form || self.closest('form');
+                                if (form) {
+                                    if (typeof window.triggerFilterRefresh === 'function') {
+                                        window.triggerFilterRefresh(form);
+                                    } else if (typeof window.ajaxRefreshGrid === 'function') {
+                                        window.ajaxRefreshGrid(form, 1);
+                                    } else if (typeof form.requestSubmit === 'function') {
+                                        form.requestSubmit();
+                                    } else {
+                                        form.submit();
+                                    }
+                                }
+                            }, 10);
+                        });
                     }
                 });
             }
@@ -219,7 +243,7 @@
         }
 
         const firstOption = select.options[0];
-        if (firstOption && firstOption.value === '') {
+        if (firstOption && (firstOption.value === '' || firstOption.value === 'any' || firstOption.value === 'all')) {
             return (firstOption.textContent || '').trim();
         }
 
@@ -248,7 +272,7 @@
             return false;
         }
 
-        if (select.classList.contains('js-no-searchable-select')) {
+        if (select.classList.contains('js-no-searchable-select') || select.classList.contains('js-no-select2')) {
             return false;
         }
 
@@ -586,12 +610,76 @@
         });
     }
 
+    function bindSelect2ClearHandler() {
+        // Prevent Select2 from capturing mousedown and popping open the dropdown menu
+        document.addEventListener('mousedown', function (e) {
+            const clearBtn = e.target && e.target.closest ? e.target.closest('.select2-selection__clear') : null;
+            if (!clearBtn) return;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+
+        // Execute clear action on click
+        document.addEventListener('click', function (e) {
+            const clearBtn = e.target && e.target.closest ? e.target.closest('.select2-selection__clear') : null;
+            if (!clearBtn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const container = clearBtn.closest('.select2-container');
+            if (!container) return;
+
+            let select = container.previousElementSibling;
+            if (!(select instanceof HTMLSelectElement)) {
+                select = container.nextElementSibling;
+            }
+            if (!(select instanceof HTMLSelectElement) && window.jQuery) {
+                select = window.jQuery(container).prev('select')[0] || window.jQuery(container).next('select')[0];
+            }
+            if (!(select instanceof HTMLSelectElement)) {
+                const containerId = container.id || '';
+                if (containerId.startsWith('select2-') && containerId.endsWith('-container')) {
+                    const selectId = containerId.slice(8, -10);
+                    const byId = document.getElementById(selectId);
+                    if (byId instanceof HTMLSelectElement) select = byId;
+                }
+            }
+
+            if (select instanceof HTMLSelectElement) {
+                select.value = '';
+                select.selectedIndex = 0;
+                if (window.jQuery) {
+                    try {
+                        window.jQuery(select).val('').trigger('change');
+                        window.jQuery(select).select2('close');
+                    } catch (err) {}
+                }
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+
+                const form = select.form || select.closest('form');
+                if (form) {
+                    if (typeof window.triggerFilterRefresh === 'function') {
+                        window.triggerFilterRefresh(form);
+                    } else if (typeof window.ajaxRefreshGrid === 'function') {
+                        window.ajaxRefreshGrid(form, 1);
+                    } else if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit();
+                    } else {
+                        form.submit();
+                    }
+                }
+            }
+        }, true);
+    }
+
     function boot() {
         injectGlobalOverflowFix();
         markAdminFilterForms();
         initFilterSelects();
         initAdminSelects();
         bindEnterSubmit();
+        bindSelect2ClearHandler();
         observeDynamicFilters();
     }
 

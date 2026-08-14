@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -30,6 +31,31 @@ class Role extends Model
         'status',
         'is_assignable',
     ];
+
+    // ── Dynamic RBAC Relationships ──────────────────────────────
+
+    public function roleModuleAccess(): HasMany
+    {
+        return $this->hasMany(RoleModuleAccess::class, 'role_id');
+    }
+
+    public function rolePagePermissions(): HasMany
+    {
+        return $this->hasMany(RolePagePermission::class, 'role_id');
+    }
+
+    public function pageGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(PageGroup::class, 'role_page_groups', 'role_id', 'page_group_id')
+            ->withTimestamps();
+    }
+
+    public function roleDataScopes(): HasMany
+    {
+        return $this->hasMany(RoleDataScope::class, 'role_id');
+    }
+
+    // ── Existing Relationships ──────────────────────────────────
 
     public function parents(): BelongsToMany
     {
@@ -125,9 +151,22 @@ class Role extends Model
 
     public static function idByKey(string $key): ?string
     {
-        return static::query()
+        $id = static::query()
             ->where('key', $key)
             ->value('id');
+
+        if ($id) {
+            return $id;
+        }
+
+        $normalizedKey = str_replace(' ', '_', strtolower(trim($key)));
+
+        $roles = static::query()->get(['id', 'key']);
+        $match = $roles->first(function ($r) use ($normalizedKey) {
+            return str_replace(' ', '_', strtolower(trim((string) $r->key))) === $normalizedKey;
+        });
+
+        return $match?->id;
     }
 
     public static function mustIdByKey(string $key): string
@@ -135,13 +174,20 @@ class Role extends Model
         $roleId = static::idByKey($key);
 
         if (! $roleId) {
+            $normalizedKey = str_replace(' ', '_', strtolower(trim($key)));
+
             // Check if it's a known/standard role and create it dynamically
             $standardRoles = [
                 'global_admin' => 'Global Admin',
                 'global_founder' => 'Global Founder',
                 'industry_director' => 'Industry Director',
                 'ded' => 'DED',
+                'eed' => 'EED',
                 'circle_leader' => 'Circle Leader',
+                'circle_director' => 'Circle Director',
+                'circle_founder' => 'Circle Founder',
+                'cd' => 'Circle Director',
+                'cf' => 'Circle Founder',
                 'chair' => 'Chair',
                 'vice_chair' => 'Vice Chair',
                 'secretary' => 'Secretary',
@@ -155,12 +201,12 @@ class Role extends Model
                 'read_only' => 'Read Only Staff',
             ];
 
-            if (array_key_exists($key, $standardRoles)) {
+            if (array_key_exists($normalizedKey, $standardRoles)) {
                 $role = static::query()->create([
                     'id' => (string) Str::uuid(),
                     'key' => $key,
-                    'name' => $standardRoles[$key],
-                    'description' => $standardRoles[$key].' Role',
+                    'name' => $standardRoles[$normalizedKey],
+                    'description' => $standardRoles[$normalizedKey].' Role',
                 ]);
 
                 return $role->id;

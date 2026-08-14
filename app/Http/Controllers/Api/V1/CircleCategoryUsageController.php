@@ -12,6 +12,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\JoinedCircleCategory;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -454,7 +455,7 @@ class CircleCategoryUsageController extends Controller
 
         if (! $member) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Member not found.',
                 'data' => null,
             ], 404);
@@ -463,7 +464,7 @@ class CircleCategoryUsageController extends Controller
         $circleId = (string) $request->query('circle_id', '');
         if ($circleId === '') {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'circle_id is required.',
                 'data' => null,
             ], 422);
@@ -472,7 +473,7 @@ class CircleCategoryUsageController extends Controller
         $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
         if (! $circle) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Circle not found.',
                 'data' => null,
             ], 404);
@@ -481,108 +482,60 @@ class CircleCategoryUsageController extends Controller
         $mainCategoryId = $this->resolveCircleMainCategoryId($circle->id);
         if (! $mainCategoryId) {
             return response()->json([
-                'success' => true,
-                'message' => null,
+                'status' => 'success',
+                'message' => 'Available categories fetched successfully',
                 'data' => [
-                    'circle' => [
-                        'id' => $circle->id,
-                        'name' => $circle->name,
-                    ],
-                    'level1_category' => null,
                     'available_categories' => [],
                 ],
             ]);
         }
 
-        $mainCategory = CircleCategory::query()
-            ->select(['id', 'name'])
-            ->where('id', $mainCategoryId)
-            ->first();
-
         $closedMap = $this->getClosedLevel4CategoriesMap($circle->id);
-        $closedLevel4Ids = array_keys($closedMap);
 
-        $level2 = CircleCategoryLevel2::query()
+        $level2Ids = CircleCategoryLevel2::query()
             ->where('circle_category_id', $mainCategoryId)
+            ->pluck('id');
+
+        $level3Ids = $level2Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel3::query()
+                ->whereIn('level2_id', $level2Ids)
+                ->pluck('id');
+
+        $level4Categories = CircleCategoryLevel4::query()
+            ->where(function ($q) use ($level3Ids, $mainCategoryId): void {
+                if ($level3Ids->isNotEmpty()) {
+                    $q->whereIn('level3_id', $level3Ids);
+                }
+                $q->orWhere('circle_category_id', $mainCategoryId);
+            })
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get(['id', 'name']);
 
-        $level2Ids = $level2->pluck('id')->values();
+        $availableCategories = $level4Categories->map(function (CircleCategoryLevel4 $row) use ($closedMap): array {
+            $l4Id = (int) $row->id;
+            $isClosed = isset($closedMap[$l4Id]);
+            $occ = $closedMap[$l4Id] ?? null;
 
-        $level3 = $level2Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel3::query()
-                ->whereIn('level2_id', $level2Ids)
-                ->orderBy('sort_order')
-                ->orderBy('id')
-                ->get(['id', 'name', 'level2_id']);
-
-        $level3Ids = $level3->pluck('id')->values();
-
-        $level4Query = CircleCategoryLevel4::query()
-            ->whereIn('level3_id', $level3Ids)
-            ->orderBy('sort_order')
-            ->orderBy('id');
-
-        if ($closedLevel4Ids !== []) {
-            $level4Query->whereNotIn('id', $closedLevel4Ids);
-        }
-
-        $level4 = $level3Ids->isEmpty()
-            ? collect()
-            : $level4Query->get(['id', 'name', 'level3_id']);
-
-        $level4ByLevel3 = [];
-        foreach ($level4 as $row) {
-            $parentId = (int) ($row->level3_id ?? 0);
-            if ($parentId <= 0) {
-                continue;
-            }
-
-            $level4ByLevel3[$parentId][] = [
-                'id' => $row->id,
+            return [
+                'id' => $l4Id,
                 'name' => $row->name,
                 'level' => 4,
+                'is_closed' => $isClosed,
+                'occupied_by' => $isClosed && $occ ? [
+                    'user_id' => $occ['user_id'] ?? null,
+                    'user_name' => $occ['user_name'] ?? null,
+                    'company_name' => $occ['company_name'] ?? null,
+                    'occupied_at' => $occ['occupied_at'] ?? null,
+                ] : null,
             ];
-        }
-
-        $level3ByLevel2 = [];
-        foreach ($level3 as $row) {
-            $parentId = (int) ($row->level2_id ?? 0);
-            if ($parentId <= 0) {
-                continue;
-            }
-
-            $level3ByLevel2[$parentId][] = [
-                'id' => $row->id,
-                'name' => $row->name,
-                'level' => 3,
-                'children' => $level4ByLevel3[$row->id] ?? [],
-            ];
-        }
-
-        $availableCategories = [];
-        foreach ($level2 as $row) {
-            $availableCategories[] = [
-                'id' => $row->id,
-                'name' => $row->name,
-                'level' => 2,
-                'children' => $level3ByLevel2[$row->id] ?? [],
-            ];
-        }
+        })->values()->all();
 
         return response()->json([
-            'success' => true,
-            'message' => null,
+            'status' => 'success',
+            'message' => 'Available categories fetched successfully',
             'data' => [
-                'circle' => [
-                    'id' => $circle->id,
-                    'name' => $circle->name,
-                ],
-                'level1_category' => $mainCategory
-                    ? ['id' => $mainCategory->id, 'name' => $mainCategory->name]
-                    : null,
                 'available_categories' => $availableCategories,
             ],
         ]);
@@ -591,7 +544,7 @@ class CircleCategoryUsageController extends Controller
     /**
      * Get array of closed (occupied) level4 category details for a given circle.
      *
-     * @return array<int, array{level4_category_id: int, user_id: string|null, user_name: string|null, company_name: string|null}>
+     * @return array<int, array{level4_category_id: int, user_id: string|null, user_name: string|null, company_name: string|null, occupied_at: string|null}>
      */
     private function getClosedLevel4CategoriesMap(string $circleId): array
     {
@@ -609,16 +562,21 @@ class CircleCategoryUsageController extends Controller
                 $l4Id = (int) $row->level4_category_id;
                 if ($l4Id > 0 && ! isset($closedMap[$l4Id])) {
                     $u = $row->user;
-                    $userName = trim(($u?->display_name ?? '').' '.($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    $userName = trim((string) ($u?->display_name ?? ''));
                     if ($userName === '') {
                         $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
                     }
+
+                    $occupiedAt = $row->created_at
+                        ? $row->created_at->toIso8601String()
+                        : ($row->updated_at ? $row->updated_at->toIso8601String() : null);
 
                     $closedMap[$l4Id] = [
                         'level4_category_id' => $l4Id,
                         'user_id' => $row->user_id ? (string) $row->user_id : null,
                         'user_name' => $userName !== '' ? $userName : null,
                         'company_name' => $u?->company_name ?? null,
+                        'occupied_at' => $occupiedAt,
                     ];
                 }
             }
@@ -630,7 +588,7 @@ class CircleCategoryUsageController extends Controller
                 ->whereNull('deleted_at')
                 ->whereNotNull('level_4_category_id')
                 ->where('level_4_category_id', '>', 0)
-                ->get(['id', 'user_id', 'level_4_category_id']);
+                ->get(['id', 'user_id', 'level_4_category_id', 'created_at']);
 
             $userIds = $members->pluck('user_id')->filter()->unique()->values()->all();
             $users = [];
@@ -645,9 +603,18 @@ class CircleCategoryUsageController extends Controller
                 $l4Id = (int) $m->level_4_category_id;
                 if ($l4Id > 0 && ! isset($closedMap[$l4Id])) {
                     $u = $m->user_id ? ($users[(string) $m->user_id] ?? null) : null;
-                    $userName = trim(($u?->display_name ?? '').' '.($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    $userName = trim((string) ($u?->display_name ?? ''));
                     if ($userName === '') {
                         $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    }
+
+                    $occupiedAt = null;
+                    if (isset($m->created_at) && $m->created_at) {
+                        try {
+                            $occupiedAt = Carbon::parse($m->created_at)->toIso8601String();
+                        } catch (\Throwable) {
+                            $occupiedAt = null;
+                        }
                     }
 
                     $closedMap[$l4Id] = [
@@ -655,6 +622,7 @@ class CircleCategoryUsageController extends Controller
                         'user_id' => $m->user_id ? (string) $m->user_id : null,
                         'user_name' => $userName !== '' ? $userName : null,
                         'company_name' => $u?->company_name ?? null,
+                        'occupied_at' => $occupiedAt,
                     ];
                 }
             }

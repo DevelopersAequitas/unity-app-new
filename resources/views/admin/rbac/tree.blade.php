@@ -85,14 +85,30 @@
         padding: 12px !important;
     }
 
-    /* Tree Styling */
+    /* Tree Styling & Scrollable Canvas Container */
+    .hierarchy-container {
+        width: 100%;
+        max-height: 70vh;
+        min-height: 350px;
+        overflow: auto;
+        scrollbar-width: thin;
+        position: relative;
+    }
+    .hierarchy-tree {
+        display: flex;
+        justify-content: center;
+        width: max-content;
+        min-width: 100%;
+        padding: 24px 30px 40px 30px;
+    }
     .hierarchy-tree ul {
-        padding-top: 15px; 
+        padding-top: 16px; 
         position: relative;
         transition: all 0.5s;
         list-style-type: none;
         display: flex;
         justify-content: center;
+        margin: 0 auto;
     }
     .hierarchy-tree li {
         display: flex;
@@ -101,7 +117,7 @@
         text-align: center;
         list-style-type: none;
         position: relative;
-        padding: 24px 8px 0;
+        padding: 16px 6px 0;
         transition: all 0.5s;
     }
     
@@ -113,7 +129,7 @@
         right: 50%;
         border-top: 2px solid var(--neu-connector);
         width: 50%; 
-        height: 24px;
+        height: 16px;
     }
     .hierarchy-tree li::after {
         right: auto; 
@@ -143,18 +159,18 @@
         left: 50%;
         border-left: 2px solid var(--neu-connector);
         width: 0; 
-        height: 24px;
+        height: 16px;
     }
 
     /* Neumorphic Node Boxes */
     .node-box {
         display: inline-block;
-        padding: 18px 24px;
-        min-width: 170px;
-        border-radius: 18px;
+        padding: 10px 16px;
+        min-width: 130px;
+        border-radius: 14px;
         background: var(--neu-bg);
         border: none;
-        box-shadow: 7px 7px 14px var(--neu-shadow-d), -7px -7px 14px var(--neu-shadow-l);
+        box-shadow: 4px 4px 10px var(--neu-shadow-d), -4px -4px 10px var(--neu-shadow-l);
         text-decoration: none;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
@@ -162,27 +178,27 @@
         color: var(--neu-ink);
     }
     .node-box:hover {
-        transform: translateY(-4px);
-        box-shadow: 9px 9px 18px var(--neu-shadow-d), -9px -9px 18px var(--neu-shadow-l), 0 0 0 2px var(--neu-accent) inset;
+        transform: translateY(-2px);
+        box-shadow: 6px 6px 14px var(--neu-shadow-d), -6px -6px 14px var(--neu-shadow-l), 0 0 0 2px var(--neu-accent) inset;
     }
     .node-box.node-root {
         background: linear-gradient(135deg, var(--neu-accent), #818cf8);
-        box-shadow: 6px 6px 16px var(--neu-shadow-d), -4px -4px 12px var(--neu-shadow-l);
+        box-shadow: 4px 4px 12px var(--neu-shadow-d), -3px -3px 8px var(--neu-shadow-l);
         color: #fff;
     }
 
     /* Node Icon */
     .node-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
-        margin: 0 auto 9px;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        margin: 0 auto 5px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.1rem;
+        font-size: 0.9rem;
         background: var(--neu-bg);
-        box-shadow: inset 3px 3px 7px var(--neu-shadow-d), inset -3px -3px 7px var(--neu-shadow-l);
+        box-shadow: inset 2px 2px 5px var(--neu-shadow-d), inset -2px -2px 5px var(--neu-shadow-l);
         color: var(--neu-accent);
         transition: all 0.3s;
     }
@@ -197,13 +213,13 @@
 
     .node-title {
         font-family: 'Outfit', sans-serif;
-        font-weight: 800;
-        font-size: 0.95rem;
+        font-weight: 700;
+        font-size: 0.85rem;
     }
     .node-meta {
-        font-size: 0.72rem;
+        font-size: 0.68rem;
         color: var(--neu-sub);
-        margin-top: 2px;
+        margin-top: 1px;
     }
     .node-root .node-meta {
         color: #e0e7ff;
@@ -211,11 +227,11 @@
 
     .node-badge {
         display: inline-block;
-        margin-top: 9px;
-        font-size: 0.62rem;
+        margin-top: 5px;
+        font-size: 0.58rem;
         font-weight: 700;
-        padding: 4px 10px;
-        border-radius: 20px;
+        padding: 2px 8px;
+        border-radius: 12px;
         text-transform: uppercase;
     }
     .badge-system { background-color: #fee2e2; color: #ef4444; }
@@ -267,16 +283,68 @@
     <!-- Header -->
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
-            <h1 class="h3 mb-1 fw-bold" style="font-family: 'Outfit', sans-serif;">Role Hierarchy & Profiles</h1>
-            <p class="text-muted small mb-0">Manage dynamic role hierarchies, clone profiles and coordinate scopes cascade mappings.</p>
+            <h1 class="h3 mb-1 fw-bold text-dark" style="font-family: 'Outfit', sans-serif;">
+                <i class="bi bi-diagram-3-fill text-primary me-2"></i>Role Hierarchy & Architecture
+            </h1>
+            <p class="text-muted small mb-0">Manage dynamic role hierarchies, clone profiles, assign peer scopes, and inspect permission inheritance.</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
+            @include('admin.rbac.partials.header_nav')
             <button class="btn btn-light border d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#cloneProfileModal">
                 <i class="bi bi-copy"></i> Clone Profile
             </button>
             <button class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#createRoleModal">
                 <i class="bi bi-plus-circle"></i> Create New Role
             </button>
+        </div>
+    </div>
+
+
+    {{-- Stats Bar --}}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">TOTAL ROLES</div>
+                        <div class="fs-4 fw-bold text-primary">{{ count($roles) }}</div>
+                    </div>
+                    <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-shield-lock fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">ROOT ROLES</div>
+                        <div class="fs-4 fw-bold text-indigo">{{ count($roots) }}</div>
+                    </div>
+                    <div class="p-2 bg-indigo-subtle text-indigo rounded-3"><i class="bi bi-tree fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">ASSIGNED PEERS</div>
+                        <div class="fs-4 fw-bold text-success">{{ count($peers) }}</div>
+                    </div>
+                    <div class="p-2 bg-success-subtle text-success rounded-3"><i class="bi bi-person-lines-fill fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">ACTIVE SCOPES</div>
+                        <div class="fs-4 fw-bold text-warning">{{ count($districts) + count($circles) + count($industries) }}</div>
+                    </div>
+                    <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-geo-alt fs-4"></i></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -287,96 +355,28 @@
         </div>
     @endif
 
-    <div class="row">
-        <!-- Hierarchy Visualizer -->
-        <div class="col-lg-8 mb-4">
+    <!-- Top Row: Role Assignment -->
+    <div class="row mb-4">
+        <!-- Assign Role to Peer Card -->
+        <div class="col-md-6 col-lg-5">
             <div class="card glass-card h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                    <h5 class="card-title fw-bold mb-0">Hierarchy Map</h5>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted fs-7">Relocate nodes using Relocate Settings</span>
-                        <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
-                           class="btn btn-sm btn-light border d-flex align-items-center gap-1"
-                           style="font-size:0.78rem;white-space:nowrap;"
-                           title="Open full-screen map in new tab">
-                            <i class="bi bi-box-arrow-up-right"></i> Full Map
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body px-4 pb-4 overflow-auto" style="min-height: 500px;">
-                    <div class="hierarchy-tree d-flex justify-content-center">
-                        @if(empty($roots))
-                            <div class="text-center text-muted my-5">
-                                <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
-                                No active role mappings found. Create a root role first.
-                            </div>
-                        @else
-                            @php
-                                $GLOBALS['rendered_subtrees'] = [];
-                            @endphp
-                            <ul>
-                                @foreach($roots as $root)
-                                    @include('admin.rbac.tree_node', ['role' => $root])
-                                @endforeach
-                            </ul>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Relocator & Configuration Detail -->
-        <div class="col-lg-4 mb-4">
-            <div class="card glass-card">
                 <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title fw-bold mb-0">Relocate Settings</h5>
-                </div>
-                <div class="card-body p-4">
-                    <form id="relocateForm">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="relocate_role_id" class="form-label fw-semibold fs-7">Select Role to Move</label>
-                            <select id="relocate_role_id" name="role_id" class="form-select rounded-3" required>
-                                <option value="">-- Choose Role --</option>
-                                @foreach($roles as $r)
-                                    <option value="{{ $r->id }}">{{ $r->name }} (depth: {{ $r->hierarchy_depth }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="relocate_parents" class="form-label fw-semibold fs-7">Choose Parents (Reports to)</label>
-                            <select id="relocate_parents" name="parent_role_ids[]" class="form-select rounded-3" multiple style="min-height: 150px;">
-                                @foreach($roles as $r)
-                                    <option value="{{ $r->id }}">{{ $r->name }}</option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted fs-8">Hold Ctrl/Cmd to select multiple parent nodes.</small>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100 rounded-3 py-2">
-                            <i class="bi bi-arrows-move me-1"></i> Update Hierarchy
-                        </button>
-                    </form>
-
-                    <div id="relocateMessage" class="mt-3 text-center fs-7" style="display: none;"></div>
-                </div>
-            </div>
-
-            <!-- Assign Role to Peer Card -->
-            <div class="card glass-card mt-4">
-                <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title fw-bold mb-0">Assign Role to Peer</h5>
+                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-person-check me-2"></i>Assign Role to Peer</h5>
                 </div>
                 <div class="card-body p-4">
                     <form action="{{ route('admin.rbac.roles.assign') }}" method="POST" id="assignRoleForm">
                         @csrf
                         <div class="mb-3">
                             <label for="assign_user_id" class="form-label fw-semibold fs-7">Select Peer (Admin)</label>
-                            <select id="assign_user_id" name="admin_user_id" class="form-select rounded-3" required>
+                            <select id="assign_user_id" name="admin_user_id" class="form-select rounded-3" required onchange="onAssignRoleChange()">
                                 <option value="">-- Choose Peer --</option>
                                 @foreach($peers as $p)
-                                    <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->email }})</option>
+                                    <option value="{{ $p->id }}"
+                                            data-district-id="{{ $p->district_id ?? '' }}"
+                                            data-industry-id="{{ $p->industry_id ?? '' }}"
+                                            data-circle-ids="{{ json_encode(array_values(array_unique($p->circle_ids ?? []))) }}">
+                                        {{ $p->name }} ({{ $p->email }})
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
@@ -396,7 +396,7 @@
                             <!-- District Selector (for DED) -->
                             <div class="mb-3 scope-selector" id="district_selector" style="display: none;">
                                 <label for="assign_district_id" class="form-label fw-semibold fs-7">Select District</label>
-                                <select id="assign_district_id" name="scope_id" class="form-select rounded-3">
+                                <select id="assign_district_id" name="scope_id" class="form-select rounded-3" disabled>
                                     <option value="">-- Choose District --</option>
                                     @foreach($districts as $d)
                                         <option value="{{ $d->id }}">{{ $d->name }}</option>
@@ -407,7 +407,7 @@
                             <!-- Industry Selector (for ID/IED) -->
                             <div class="mb-3 scope-selector" id="industry_selector" style="display: none;">
                                 <label for="assign_industry_id" class="form-label fw-semibold fs-7">Select Industry</label>
-                                <select id="assign_industry_id" name="scope_id" class="form-select rounded-3">
+                                <select id="assign_industry_id" name="scope_id" class="form-select rounded-3" disabled>
                                     <option value="">-- Choose Industry --</option>
                                     @foreach($industries as $i)
                                         <option value="{{ $i->id }}">{{ $i->name }}</option>
@@ -418,7 +418,7 @@
                             <!-- Circle Selector (for CD/CF/Chair/Vice Chair/Secretary) -->
                             <div class="mb-3 scope-selector" id="circle_selector" style="display: none;">
                                 <label for="assign_circle_id" class="form-label fw-semibold fs-7">Select Circle</label>
-                                <select id="assign_circle_id" name="scope_id" class="form-select rounded-3">
+                                <select id="assign_circle_id" name="scope_id" class="form-select rounded-3" disabled>
                                     <option value="">-- Choose Circle --</option>
                                     @foreach($circles as $c)
                                         <option value="{{ $c->id }}">{{ $c->name }}</option>
@@ -427,53 +427,56 @@
                             </div>
                         </div>
 
-                        <!-- Dynamic Permissions & Sidebar Sections Checklist -->
-                        <div class="mb-3" id="permissions_container" style="display: none;">
-                            <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                <label for="assign_permission_type" class="form-label fw-bold fs-7 mb-2 d-block">Permission Level</label>
-                                <select id="assign_permission_type" name="permission_type" class="form-select rounded-3 mb-3">
-                                    <option value="edit">Edit (Full Access)</option>
-                                    <option value="view">Only View (Read-only)</option>
-                                </select>
-
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label fw-bold fs-7 mb-0">Dashboard Sections</label>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="assign_select_all_sections" checked>
-                                        <label class="form-check-label fs-8 fw-semibold" for="assign_select_all_sections">Select All</label>
-                                    </div>
-                                </div>
-
-                                <div class="border rounded-3 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
-                                    @php
-                                        $sections = [
-                                            'Dashboard', 'Activities', 'Referral Report', 'Posts & Timeline', 
-                                            'Pending Requests', 'Support Tickets', 'Events Management', 
-                                            'Brand Partners', 'Peers', 'Unity Contacts', 'Leadership', 
-                                            'Industries', 'Circles', 'Circulars', 'Coins', 'Life Impact', 'Leads'
-                                        ];
-                                    @endphp
-                                    <div class="row g-1">
-                                        @foreach($sections as $sec)
-                                            <div class="col-12">
-                                                <div class="form-check py-1">
-                                                    <input class="form-check-input section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="sec_{{ Str::slug($sec, '_') }}" checked>
-                                                    <label class="form-check-label fs-8 text-dark" for="sec_{{ Str::slug($sec, '_') }}">
-                                                        {{ $sec }}
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                </div>
-                                <small class="text-muted fs-8 mt-1 d-block">Uncheck sections to hide them from their sidebar.</small>
-                            </div>
-                        </div>
 
                         <button type="submit" class="btn btn-success w-100 rounded-3 py-2 mt-2">
                             <i class="bi bi-person-check me-1"></i> Assign Role & Scope
                         </button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row: Hierarchy Map (Full Width) -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card glass-card">
+                <div class="card-header bg-transparent border-bottom pt-4 pb-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-color: rgba(0,0,0,0.08) !important;">
+                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Hierarchy Map</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="position-relative" style="width: 240px;">
+                            <i class="bi bi-search position-absolute top-50 translate-middle-y text-muted" style="z-index: 5; pointer-events: none; font-size: 0.85rem; left: 14px;"></i>
+                            <input type="text" id="roleTreeSearch" class="form-control" placeholder="Filter role node..." oninput="filterRoleTree()" style="font-size: 0.82rem; height: 38px !important; padding-left: 38px !important; padding-right: 32px !important;">
+                            <button type="button" id="clearSearchBtn" class="btn btn-link position-absolute top-50 translate-middle-y text-muted p-0 d-none" onclick="clearRoleSearch()" style="z-index: 5; text-decoration: none; right: 12px;" title="Clear search">
+                                <i class="bi bi-x-circle-fill text-secondary" style="font-size: 0.85rem;"></i>
+                            </button>
+                        </div>
+                        <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
+                           class="btn btn-sm btn-light border d-flex align-items-center gap-1"
+                           style="font-size:0.78rem;white-space:nowrap;"
+                           title="Open full-screen map in new tab">
+                            <i class="bi bi-box-arrow-up-right"></i> Full Map
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0 hierarchy-container">
+                    <div class="hierarchy-tree">
+                        @if(empty($roots))
+                            <div class="text-center text-muted my-5">
+                                <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
+                                No active role mappings found. Create a root role first.
+                            </div>
+                        @else
+                            @php
+                                $GLOBALS['rendered_subtrees'] = [];
+                            @endphp
+                            <ul>
+                                @foreach($roots as $root)
+                                    @include('admin.rbac.tree_node', ['role' => $root])
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
@@ -496,24 +499,8 @@
                         <input type="text" id="role_name" name="name" class="form-control rounded-3" placeholder="e.g. Area Director" required>
                     </div>
                     <div class="mb-3">
-                        <label for="role_key" class="form-label fw-semibold fs-7">Unique Key</label>
-                        <input type="text" id="role_key" name="key" class="form-control rounded-3" placeholder="e.g. area_director" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="role_type" class="form-label fw-semibold fs-7">Role Type</label>
-                        <select id="role_type" name="role_type" class="form-select rounded-3" required>
-                            <option value="user">User (Chairs, Members)</option>
-                            <option value="admin">Admin (DED, ID, IED, CD, CF)</option>
-                            <option value="system">System (Super Admin)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="scope_rule" class="form-label fw-semibold fs-7">Scope Rule</label>
-                        <select id="scope_rule" name="scope_rule" class="form-select rounded-3" required>
-                            <option value="mandatory">Mandatory</option>
-                            <option value="optional">Optional</option>
-                            <option value="not_applicable">Not Applicable</option>
-                        </select>
+                        <label for="role_key" class="form-label fw-semibold fs-7">Unique Key <span class="text-muted fs-8">(auto-generated)</span></label>
+                        <input type="text" id="role_key" name="key" class="form-control rounded-3" placeholder="e.g. area_director" readonly style="background:#f0f2f7;cursor:not-allowed;" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold fs-7">Parent Roles (Optional)</label>
@@ -598,42 +585,19 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const relocateForm = document.getElementById('relocateForm');
-        const messageDiv = document.getElementById('relocateMessage');
+        // Auto-generate Unique Key from Role Name
+        const roleNameInput  = document.getElementById('role_name');
+        const roleKeyInput   = document.getElementById('role_key');
 
-        relocateForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            messageDiv.style.display = 'none';
-            messageDiv.className = 'mt-3 text-center fs-7 text-muted';
-            messageDiv.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Relocating...';
-            messageDiv.style.display = 'block';
-
-            const formData = new FormData(relocateForm);
-            
-            fetch("{{ route('admin.rbac.roles.update-parent') }}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    messageDiv.className = 'mt-3 text-center fs-7 text-success';
-                    messageDiv.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.message;
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    messageDiv.className = 'mt-3 text-center fs-7 text-danger';
-                    messageDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + data.message;
-                }
-            })
-            .catch(error => {
-                messageDiv.className = 'mt-3 text-center fs-7 text-danger';
-                messageDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> An unexpected error occurred.';
-                console.error(error);
+        if (roleNameInput && roleKeyInput) {
+            roleNameInput.addEventListener('input', function () {
+                roleKeyInput.value = this.value
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9\s_]/g, '')   // keep alphanumeric, spaces, underscores
+                    .replace(/\s+/g, '_');            // spaces → underscores
             });
-        });
+        }
     });
 </script>
 @endpush
@@ -777,18 +741,40 @@ function openDeleteModal(id, name) {
 }
 function onAssignRoleChange() {
     const roleSelect = document.getElementById('assign_role_id');
-    const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-    const key = selectedOption ? (selectedOption.getAttribute('data-key') || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim() : '';
+    const selectedRoleOpt = roleSelect && roleSelect.selectedIndex >= 0 ? roleSelect.options[roleSelect.selectedIndex] : null;
+    const key = selectedRoleOpt ? (selectedRoleOpt.getAttribute('data-key') || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim() : '';
+
+    const peerSelect = document.getElementById('assign_user_id');
+    const selectedPeerOpt = peerSelect && peerSelect.selectedIndex >= 0 ? peerSelect.options[peerSelect.selectedIndex] : null;
+
+    const peerDistrictId = selectedPeerOpt ? (selectedPeerOpt.getAttribute('data-district-id') || '') : '';
+    const peerIndustryId = selectedPeerOpt ? (selectedPeerOpt.getAttribute('data-industry-id') || '') : '';
+    let peerCircleIds = [];
+    try {
+        const circleData = selectedPeerOpt ? selectedPeerOpt.getAttribute('data-circle-ids') : '[]';
+        peerCircleIds = JSON.parse(circleData || '[]');
+    } catch (e) {
+        peerCircleIds = [];
+    }
 
     const container = document.getElementById('scope_container');
     const districtSel = document.getElementById('district_selector');
     const industrySel = document.getElementById('industry_selector');
     const circleSel = document.getElementById('circle_selector');
 
+    const districtInput = document.getElementById('assign_district_id');
+    const industryInput = document.getElementById('assign_industry_id');
+    const circleInput = document.getElementById('assign_circle_id');
+
     // Reset inputs
-    document.getElementById('assign_district_id').value = '';
-    document.getElementById('assign_industry_id').value = '';
-    document.getElementById('assign_circle_id').value = '';
+    districtInput.value = '';
+    industryInput.value = '';
+    circleInput.value = '';
+
+    // Disable all by default so unselected inputs don't submit empty scope_id values
+    districtInput.disabled = true;
+    industryInput.disabled = true;
+    circleInput.disabled = true;
 
     // Hide all
     container.style.display = 'none';
@@ -797,9 +783,9 @@ function onAssignRoleChange() {
     circleSel.style.display = 'none';
 
     // Remove required flags
-    document.getElementById('assign_district_id').required = false;
-    document.getElementById('assign_industry_id').required = false;
-    document.getElementById('assign_circle_id').required = false;
+    districtInput.required = false;
+    industryInput.required = false;
+    circleInput.required = false;
 
     const isDed = key === 'ded' || key.includes('ded') || key.includes('district');
     const isId = key === 'id' || key === 'ied' || key.includes('industry');
@@ -811,22 +797,57 @@ function onAssignRoleChange() {
     if (isDed) {
         container.style.display = 'block';
         districtSel.style.display = 'block';
-        document.getElementById('assign_district_id').required = true;
+        districtInput.disabled = false;
+        districtInput.required = true;
+
+        if (peerDistrictId) {
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(districtInput).val(peerDistrictId).trigger('change');
+            } else {
+                districtInput.value = peerDistrictId;
+            }
+        } else if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $(districtInput).val('').trigger('change');
+        }
     } else if (isId) {
         container.style.display = 'block';
         industrySel.style.display = 'block';
-        document.getElementById('assign_industry_id').required = true;
+        industryInput.disabled = false;
+        industryInput.required = true;
+
+        if (peerIndustryId) {
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(industryInput).val(peerIndustryId).trigger('change');
+            } else {
+                industryInput.value = peerIndustryId;
+            }
+        } else if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $(industryInput).val('').trigger('change');
+        }
     } else if (isCircle) {
         container.style.display = 'block';
         circleSel.style.display = 'block';
-        document.getElementById('assign_circle_id').required = true;
+        circleInput.disabled = false;
+        circleInput.required = true;
+
+        if (peerCircleIds && peerCircleIds.length > 0) {
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(circleInput).val(peerCircleIds[0]).trigger('change');
+            } else {
+                circleInput.value = peerCircleIds[0];
+            }
+        } else if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $(circleInput).val('').trigger('change');
+        }
     }
 
     const permissionsContainer = document.getElementById('permissions_container');
-    if (roleSelect && roleSelect.value) {
-        permissionsContainer.style.display = 'block';
-    } else {
-        permissionsContainer.style.display = 'none';
+    if (permissionsContainer) {
+        if (roleSelect && roleSelect.value) {
+            permissionsContainer.style.display = 'block';
+        } else {
+            permissionsContainer.style.display = 'none';
+        }
     }
 }
 
@@ -902,39 +923,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </select>
                             </div>
 
-                            <!-- Dynamic Permissions & Sidebar Sections Checklist -->
-                            <div class="mb-3" id="quick_permissions_container" style="display:none;">
-                                <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                    <label for="quick_permission_type" class="form-label fw-bold fs-8 mb-2 d-block">Permission Level</label>
-                                    <select id="quick_permission_type" name="permission_type" class="form-select rounded-3 select-sm mb-3">
-                                        <option value="edit">Edit (Full Access)</option>
-                                        <option value="view">Only View (Read-only)</option>
-                                    </select>
-
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <label class="form-label fw-bold fs-8 mb-0">Dashboard Sections</label>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="quick_select_all_sections" checked>
-                                            <label class="form-check-label fs-9 fw-semibold" for="quick_select_all_sections">Select All</label>
-                                        </div>
-                                    </div>
-
-                                    <div class="border rounded-3 p-2 bg-white" style="max-height: 150px; overflow-y: auto;">
-                                        <div class="row g-1">
-                                            @foreach($sections as $sec)
-                                                <div class="col-12">
-                                                    <div class="form-check py-1">
-                                                        <input class="form-check-input quick-section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="quick_sec_{{ Str::slug($sec, '_') }}" checked>
-                                                        <label class="form-check-label fs-9 text-dark" for="quick_sec_{{ Str::slug($sec, '_') }}">
-                                                            {{ $sec }}
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
 
                             <div id="quickAssignButtons" class="mt-2">
                                 <button type="submit" id="quickAssignSubmitBtn" class="btn btn-success btn-sm w-100 rounded-3 py-2">
@@ -958,6 +946,7 @@ document.addEventListener('DOMContentLoaded', function() {
 let currentOpenRoleId = '';
 let activeRoleKey = '';
 let activeScopeRule = '';
+let availablePeersData = [];
 
 const globalDistricts = @json($districts);
 const globalIndustries = @json($industries);
@@ -965,7 +954,9 @@ const globalCircles = @json($circles);
 
 document.addEventListener('DOMContentLoaded', function() {
     if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
-        $('#assign_user_id').select2({ width: '100%' });
+        $('#assign_user_id').select2({ width: '100%' }).on('change', function() {
+            onAssignRoleChange();
+        });
         $('#assign_role_id').select2({ width: '100%' }).on('change', function() {
             onAssignRoleChange();
         });
@@ -976,31 +967,18 @@ document.addEventListener('DOMContentLoaded', function() {
         $('#quick_assign_user').select2({
             dropdownParent: $('#roleAssignmentsModal'),
             width: '100%'
+        }).on('change', function() {
+            onQuickAssignUserChange();
         });
         $('#quick_scope_id').select2({
             dropdownParent: $('#roleAssignmentsModal'),
             width: '100%'
         });
-    }
-
-    // Select All logic for assignRoleForm
-    const selectAllCheckbox = document.getElementById('assign_select_all_sections');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            document.querySelectorAll('.section-checkbox').forEach(cb => {
-                cb.checked = selectAllCheckbox.checked;
-            });
-        });
-    }
-
-    // Select All logic for quickAssignForm
-    const quickSelectAllCheckbox = document.getElementById('quick_select_all_sections');
-    if (quickSelectAllCheckbox) {
-        quickSelectAllCheckbox.addEventListener('change', function() {
-            document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
-                cb.checked = quickSelectAllCheckbox.checked;
-            });
-        });
+    } else {
+        const peerSelect = document.getElementById('quick_assign_user');
+        if (peerSelect) {
+            peerSelect.addEventListener('change', onQuickAssignUserChange);
+        }
     }
 });
 
@@ -1012,12 +990,6 @@ function openAssignmentsModal(roleId, roleName, roleKey, scopeRule) {
     document.getElementById('roleAssignmentsModalLabel').textContent = roleName + ' Assignments';
     document.getElementById('roleAssignmentsModalSubtext').textContent = 'Key: ' + roleKey + ' • Rule: ' + scopeRule;
     document.getElementById('quick_assign_role_id').value = roleId;
-
-    // Reset quick permissions fields
-    const quickPermissionsContainer = document.getElementById('quick_permissions_container');
-    if (quickPermissionsContainer) {
-        quickPermissionsContainer.style.display = 'block';
-    }
     
     cancelEditAssignment();
 
@@ -1065,30 +1037,6 @@ function startEditAssignment(userId, userName, scopeId, permissionType, allowedS
         }
     }
 
-    const permTypeSelect = document.getElementById('quick_permission_type');
-    if (permTypeSelect) {
-        permTypeSelect.value = permissionType;
-    }
-
-    document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
-        cb.checked = false;
-    });
-
-    if (Array.isArray(allowedSections)) {
-        allowedSections.forEach(sec => {
-            const cb = document.querySelector(`.quick-section-checkbox[value="${sec}"]`);
-            if (cb) {
-                cb.checked = true;
-            }
-        });
-    }
-
-    const totalCbs = document.querySelectorAll('.quick-section-checkbox').length;
-    const checkedCbs = document.querySelectorAll('.quick-section-checkbox:checked').length;
-    const selectAllCb = document.getElementById('quick_select_all_sections');
-    if (selectAllCb) {
-        selectAllCb.checked = (totalCbs === checkedCbs && totalCbs > 0);
-    }
 }
 
 function cancelEditAssignment() {
@@ -1111,20 +1059,6 @@ function cancelEditAssignment() {
     } else {
         document.getElementById('quick_scope_id').value = '';
     }
-
-    const permTypeSelect = document.getElementById('quick_permission_type');
-    if (permTypeSelect) {
-        permTypeSelect.value = 'edit';
-    }
-
-    document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
-        cb.checked = true;
-    });
-
-    const selectAllCb = document.getElementById('quick_select_all_sections');
-    if (selectAllCb) {
-        selectAllCb.checked = true;
-    }
 }
 
 function fetchAssignments() {
@@ -1140,6 +1074,7 @@ function fetchAssignments() {
         .then(data => {
             if (data.success) {
                 countBadge.textContent = data.assignments.length;
+                availablePeersData = data.available_peers || [];
 
                 if (data.assignments.length === 0) {
                     listContainer.innerHTML = '<div class="text-center py-4 text-muted fs-8">No peers assigned to this role yet.</div>';
@@ -1161,7 +1096,6 @@ function fetchAssignments() {
                                     <div class="text-muted small text-truncate">${assign.email}</div>
                                     <div class="d-flex flex-wrap gap-1 mt-1">
                                         <span class="badge bg-light text-secondary border fs-9 text-wrap text-start">${assign.scope_name}</span>
-                                        <span class="badge bg-light text-info border fs-9">${assign.permission_type === 'view' ? 'Only View' : 'Edit Access'}</span>
                                     </div>
                                 </div>
                                 <div class="flex-shrink-0">
@@ -1208,6 +1142,10 @@ function fetchAssignments() {
 
                 setupModalScopeSelect();
             }
+        })
+        .catch(err => {
+            console.error('Error loading assignments:', err);
+            listContainer.innerHTML = '<div class="text-center py-4 text-danger fs-8">Failed to load assigned peers.</div>';
         });
 }
 
@@ -1271,6 +1209,69 @@ function setupModalScopeSelect() {
     }
 }
 
+function onQuickAssignUserChange() {
+    const peerSelect = document.getElementById('quick_assign_user');
+    const selectedUserId = peerSelect ? peerSelect.value : '';
+    if (!selectedUserId) {
+        setupModalScopeSelect();
+        return;
+    }
+
+    const peer = availablePeersData.find(p => String(p.id) === String(selectedUserId));
+    if (!peer) {
+        return;
+    }
+
+    const normalizedKey = (activeRoleKey || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim();
+    const isDed = normalizedKey === 'ded' || normalizedKey.includes('ded') || normalizedKey.includes('district');
+    const isId = normalizedKey === 'id' || normalizedKey === 'ied' || normalizedKey.includes('industry');
+    const isCircle = ['cd', 'cf', 'chair', 'vice chair', 'secretary', 'circle leader'].includes(normalizedKey) || 
+                     normalizedKey.includes('circle') || 
+                     normalizedKey.includes('chair') || 
+                     normalizedKey.includes('secretary');
+
+    const scopeSelect = $('#quick_scope_id');
+
+    if (isDed) {
+        if (peer.district_id) {
+            scopeSelect.val(peer.district_id).trigger('change');
+        } else {
+            scopeSelect.val('').trigger('change');
+        }
+    } else if (isId) {
+        if (peer.industry_id) {
+            scopeSelect.val(peer.industry_id).trigger('change');
+        } else {
+            scopeSelect.val('').trigger('change');
+        }
+    } else if (isCircle) {
+        const userCircles = (peer.circle_ids || []).map(id => String(id).toLowerCase());
+        const scopeSelect = $('#quick_scope_id');
+
+        scopeSelect.empty();
+        scopeSelect.append(new Option('-- Choose Circle --', ''));
+
+        // Filter globalCircles to only include circles joined by this peer
+        let matchedCircles = [];
+        if (userCircles.length > 0) {
+            matchedCircles = globalCircles.filter(c => userCircles.includes(String(c.id).toLowerCase()));
+        }
+
+        const circlesToDisplay = matchedCircles.length > 0 ? matchedCircles : globalCircles;
+
+        circlesToDisplay.forEach(c => {
+            scopeSelect.append(new Option(c.name, c.id));
+        });
+
+        // Automatically select the peer's circle if available
+        if (matchedCircles.length > 0) {
+            scopeSelect.val(matchedCircles[0].id).trigger('change');
+        } else {
+            scopeSelect.val('').trigger('change');
+        }
+    }
+}
+
 document.getElementById('quickAssignForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const msg = document.getElementById('quickAssignMessage');
@@ -1331,6 +1332,63 @@ function removePeerAssignment(userId, userName) {
         }
     });
 }
+
+function filterRoleTree() {
+    const searchInput = document.getElementById('roleTreeSearch');
+    const q = (searchInput?.value || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('clearSearchBtn');
+    
+    if (clearBtn) {
+        if (q.length > 0) {
+            clearBtn.classList.remove('d-none');
+        } else {
+            clearBtn.classList.add('d-none');
+        }
+    }
+
+    const nodes = document.querySelectorAll('.hierarchy-tree .node-box');
+    nodes.forEach(node => {
+        const titleText = node.querySelector('.node-title')?.innerText.toLowerCase() || '';
+        const metaText  = node.querySelector('.node-meta')?.innerText.toLowerCase() || '';
+        const badgeText = node.querySelector('.node-badge')?.innerText.toLowerCase() || '';
+        const fullText  = (titleText + ' ' + metaText + ' ' + badgeText).toLowerCase();
+
+        if (!q || fullText.includes(q)) {
+            node.style.opacity = '1';
+            if (q) {
+                node.style.transform = 'scale(1.05)';
+                node.style.boxShadow = '0 0 0 3px #6366f1, 0 10px 20px rgba(99, 102, 241, 0.3)';
+            } else {
+                node.style.transform = '';
+                node.style.boxShadow = '';
+            }
+        } else {
+            node.style.opacity = '0.2';
+            node.style.transform = 'scale(0.96)';
+            node.style.boxShadow = '';
+        }
+    });
+}
+
+function clearRoleSearch() {
+    const searchInput = document.getElementById('roleTreeSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        filterRoleTree();
+        searchInput.focus();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('roleTreeSearch');
+    if (searchInput) {
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                clearRoleSearch();
+            }
+        });
+    }
+});
 </script>
 @endpush
 @endsection

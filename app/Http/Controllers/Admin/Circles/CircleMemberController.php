@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\Circles\UpdateCircleMemberRequest;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
+use App\Support\AdminAccess;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,13 +86,61 @@ class CircleMemberController extends Controller
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
-        $circleMember->update([
-            'role' => $request->validated()['role'],
-        ]);
+        $newRole = (string) $request->validated()['role'];
+        $oldRole = (string) $circleMember->role;
+
+        DB::transaction(function () use ($circle, $circleMember, $newRole, $oldRole): void {
+            $circleMember->update([
+                'role' => $newRole,
+            ]);
+
+            $user = $circleMember->user;
+            if ($user) {
+                $this->syncCircleLeadershipColumns($circle, $user->id, $newRole, $oldRole);
+
+                $adminUser = DB::table('admin_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)])->first();
+                if ($adminUser) {
+                    AdminAccess::clearAdminUserCache($adminUser->id);
+                }
+            }
+        });
 
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
             ->with('success', 'Member role updated.');
+    }
+
+    private function syncCircleLeadershipColumns(Circle $circle, string $userId, string $newRole, string $oldRole): void
+    {
+        $map = [
+            'chair' => 'chair_user_id',
+            'vice_chair' => 'vice_chair_user_id',
+            'secretary' => 'secretary_user_id',
+            'circle_director' => 'circle_director_user_id',
+            'director' => 'circle_director_user_id',
+            'circle_founder' => 'circle_founder_user_id',
+            'founder' => 'circle_founder_user_id',
+        ];
+
+        $oldCol = $map[$oldRole] ?? null;
+        $newCol = $map[$newRole] ?? null;
+        $updates = [];
+
+        if ($oldCol && $oldCol !== $newCol) {
+            if (($circle->{$oldCol} ?? null) === $userId) {
+                $updates[$oldCol] = null;
+            }
+        }
+
+        if ($newCol) {
+            DB::table('circles')->where('id', $circle->id)->where($newCol, '!=', $userId)->update([$newCol => null]);
+            $updates[$newCol] = $userId;
+        }
+
+        if (! empty($updates)) {
+            $updates['updated_at'] = now();
+            DB::table('circles')->where('id', $circle->id)->update($updates);
+        }
     }
 
     public function destroy(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse

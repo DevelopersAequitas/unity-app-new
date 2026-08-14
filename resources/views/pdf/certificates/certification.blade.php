@@ -466,22 +466,20 @@
                                 <td class="value">{{ $submission->business_name ?? '-' }}</td>
                             </tr>
                             <tr>
-                                <td class="label">Certification Level</td>
-                                <td class="value">{{ $submission->certification_level ?? '-' }}</td>
                                 <td class="label">Score</td>
                                 <td class="value">{{ $submission->total_score ?? 0 }}</td>
-                            </tr>
-                            <tr>
                                 <td class="label">Percentage</td>
                                 <td class="value">{{ $submission->percentage ?? 0 }}%</td>
-                                <td class="label">Certificate Number</td>
-                                <td class="value">{{ $submission->certificate_number }}</td>
                             </tr>
                             <tr>
                                 <td class="label">Issued Date</td>
                                 <td class="value">{{ $issuedDate }}</td>
                                 <td class="label">Approved Date</td>
                                 <td class="value">{{ $approvedDate }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Certificate Number</td>
+                                <td class="value" colspan="3">{{ $submission->certificate_number }}</td>
                             </tr>
                         </table>
                     </div>
@@ -492,24 +490,6 @@
                         <div class="seal-main">CERTIFIED</div>
                         <div class="seal-sub">APPROVED</div>
                     </div>
-                </div>
-
-                <div class="footer">
-                    <table class="signature-table">
-                        <tr>
-                            <td>
-                                <div class="signature-line"></div>
-                                <div class="signature-title">Program Director</div>
-                                <div class="signature-subtitle">Peers Global Unity</div>
-                            </td>
-                            <td></td>
-                            <td>
-                                <div class="signature-line"></div>
-                                <div class="signature-title">Authorized Signatory</div>
-                                <div class="signature-subtitle">Certification Department</div>
-                            </td>
-                        </tr>
-                    </table>
                 </div>
 
             </div>

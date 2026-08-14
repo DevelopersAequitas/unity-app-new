@@ -107,17 +107,23 @@
                                     <code class="px-2 py-1 rounded small text-white border" style="background-color: {{ $category->color ?? '#666666' }}">{{ $category->color ?? '—' }}</code>
                                 </td>
                                 <td>
-                                    <span class="badge {{ $category->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }} px-2 py-1">
-                                        {{ Str::headline($category->status) }}
-                                    </span>
+                                    @if($category->status === 'active')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Inactive
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-primary edit-category-btn" title="Edit"><i class="bi bi-pencil"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill edit-category-btn" title="Edit"><i class="bi bi-pencil"></i></button>
                                     @if(auth('admin')->user() && auth('admin')->user()->roles->pluck('key')->contains('global_admin'))
                                         <form method="POST" action="{{ route('admin.brand-partners.categories.destroy', $category) }}" class="d-inline" onsubmit="return confirm('Deleting this category will remove the category association from any connected brand partners. Proceed?')">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" title="Delete"><i class="bi bi-trash"></i></button>
                                         </form>
                                     @endif
                                 </td>

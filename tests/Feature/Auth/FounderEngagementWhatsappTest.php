@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use App\Jobs\SendFounderEngagementJob;
+use App\Jobs\SendPrMediaVisibilityWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Models\User;
 use App\Models\WhatsappTemplate;
@@ -50,6 +51,11 @@ class FounderEngagementWhatsappTest extends TestCase
         });
 
         Queue::assertPushed(SendFounderEngagementJob::class, function (SendFounderEngagementJob $job) use ($user): bool {
+            return $job->userId === (string) $user->id
+                && $job->delay !== null;
+        });
+
+        Queue::assertPushed(SendPrMediaVisibilityWhatsappJob::class, function (SendPrMediaVisibilityWhatsappJob $job) use ($user): bool {
             return $job->userId === (string) $user->id
                 && $job->delay !== null;
         });
@@ -230,6 +236,7 @@ class FounderEngagementWhatsappTest extends TestCase
 
     private function setUpDatabaseSchema(): void
     {
+        Schema::dropIfExists('jobs');
         Schema::dropIfExists('personal_access_tokens');
         Schema::dropIfExists('users');
         Schema::dropIfExists('circle_members');
@@ -238,6 +245,16 @@ class FounderEngagementWhatsappTest extends TestCase
         Schema::dropIfExists('whatsapp_templates');
         Schema::dropIfExists('notification_delivery_logs');
         Schema::dropIfExists('otp_codes');
+
+        Schema::create('jobs', function (Blueprint $table): void {
+            $table->bigIncrements('id');
+            $table->string('queue')->index();
+            $table->longText('payload');
+            $table->unsignedTinyInteger('attempts');
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at');
+            $table->unsignedInteger('created_at');
+        });
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();

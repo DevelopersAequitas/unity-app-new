@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Models\AdminUser;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -191,5 +192,53 @@ class AdminAuthControllerTest extends TestCase
         $response->assertRedirect(route('admin.dashboard'));
         $this->assertTrue(auth('admin')->check());
         $this->assertEquals('harshchauhanwork26@gmail.com', auth('admin')->user()->email);
+    }
+
+    public function test_removed_role_is_not_restored_on_relogin(): void
+    {
+        // First login creates the admin user and assigns global_admin role
+        $this->post(route('admin.login.send-otp'), [
+            'email' => 'hardik@gmail.com',
+        ]);
+
+        $admin = AdminUser::where('email', 'hardik@gmail.com')->firstOrFail();
+        $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
+
+        if (! $globalAdminRoleId) {
+            $globalAdminRoleId = (string) Str::uuid();
+            DB::table('roles')->insert([
+                'id' => $globalAdminRoleId,
+                'name' => 'Global Admin',
+                'key' => 'global_admin',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            DB::table('admin_user_roles')->insert([
+                'user_id' => $admin->id,
+                'role_id' => $globalAdminRoleId,
+            ]);
+        }
+
+        // Remove the role
+        DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->where('role_id', $globalAdminRoleId)
+            ->delete();
+
+        // Logout
+        auth('admin')->logout();
+
+        // Login again
+        $this->post(route('admin.login.send-otp'), [
+            'email' => 'hardik@gmail.com',
+        ]);
+
+        // Role should NOT be restored
+        $hasRole = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->where('role_id', $globalAdminRoleId)
+            ->exists();
+
+        $this->assertFalse($hasRole, 'Removed role should not be automatically re-granted on login.');
     }
 }

@@ -18,11 +18,11 @@
                 <p class="text-xs t3 m-0 mt-0.5">Manage partner listings, offers, analytics, and featured spots.</p>
             </div>
             <div class="flex gap-2">
-                <a href="{{ route('admin.brand-partners.dashboard') }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Dashboard</a>
-                <a href="{{ route('admin.brand-partners.categories.index') }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Categories</a>
-                <a href="{{ route('admin.brand-partners.offers') }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Offers</a>
+                <a href="{{ route('admin.brand-partners.dashboard') }}" class="px-3 py-1 text-xs font-semibold rounded-full border bs t2 hover:t1 hover:surface-2 transition no-underline">Dashboard</a>
+                <a href="{{ route('admin.brand-partners.categories.index') }}" class="px-3 py-1 text-xs font-semibold rounded-full border bs t2 hover:t1 hover:surface-2 transition no-underline">Categories</a>
+                <a href="{{ route('admin.brand-partners.offers') }}" class="px-3 py-1 text-xs font-semibold rounded-full border bs t2 hover:t1 hover:surface-2 transition no-underline">Offers</a>
                 @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-                    <a href="{{ route('admin.brand-partners.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
+                    <a href="{{ route('admin.brand-partners.create') }}" class="px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
                         <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Add Partner
                     </a>
                 @endif
@@ -112,16 +112,24 @@
                                     </div>
                                     <div class="t3 text-[11px]">/{{ $partner->slug }}</div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">
-                                        {{ $partner->category?->name ?? 'Uncategorized' }}
-                                    </span>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if($partner->category)
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                            <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ $partner->category->color ?: '#6366f1' }}"></span>
+                                            <span>{{ $partner->category->name }}</span>
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border bg-slate-100 text-slate-700 border-slate-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                            <span>Uncategorized</span>
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-center text-xs">
                                     <form method="POST" action="{{ route('admin.brand-partners.toggle-featured', $partner) }}" class="inline">
                                         @csrf
                                         @method('PATCH')
-                                        <button type="submit" class="border-0 bg-transparent cursor-pointer">
+                                        <button type="submit" class="border-0 bg-transparent cursor-pointer p-1 rounded-full hover:bg-slate-100 transition" title="Toggle Featured">
                                             <i class="bi {{ $partner->is_featured ? 'bi-star-fill text-amber-500' : 'bi-star text-slate-400' }} admin-icon" aria-hidden="true"></i>
                                         </button>
                                     </form>
@@ -130,7 +138,7 @@
                                     <form method="POST" action="{{ route('admin.brand-partners.toggle-sponsored', $partner) }}" class="inline">
                                         @csrf
                                         @method('PATCH')
-                                        <button type="submit" class="border-0 bg-transparent cursor-pointer">
+                                        <button type="submit" class="border-0 bg-transparent cursor-pointer p-1 rounded-full hover:bg-slate-100 transition" title="Toggle Sponsored">
                                             <i class="bi {{ $partner->is_sponsored ? 'bi-award-fill text-indigo-500' : 'bi-circle text-slate-400' }} admin-icon" aria-hidden="true"></i>
                                         </button>
                                     </form>
@@ -145,20 +153,32 @@
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                     @if($partner->is_active)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Active</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            <span>Active</span>
+                                        </span>
                                     @else
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">Inactive</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                            <span>Inactive</span>
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ number_format($partner->views_count) }}</td>
                                 <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ number_format($partner->clicks_count) }}</td>
                                 <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
                                     <div class="flex justify-end gap-1.5 items-center">
-                                        <a href="{{ route('admin.brand-partners.show', $partner) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
+                                        <a href="{{ route('admin.brand-partners.show', $partner) }}" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition shadow-xs no-underline">
+                                            <i class="bi bi-eye text-[11px]" aria-hidden="true"></i>
+                                            <span>View</span>
+                                        </a>
                                         @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-                                            <a href="{{ route('admin.brand-partners.edit', $partner) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Edit</a>
+                                            <a href="{{ route('admin.brand-partners.edit', $partner) }}" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs no-underline">
+                                                <i class="bi bi-pencil text-[11px]" aria-hidden="true"></i>
+                                                <span>Edit</span>
+                                            </a>
                                         @endif
                                     </div>
                                 </td>

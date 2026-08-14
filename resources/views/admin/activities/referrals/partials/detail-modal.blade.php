@@ -57,7 +57,10 @@
                 <div class="bg-white p-4 rounded-xl border bs shadow-sm space-y-3">
                     <div class="flex items-center justify-between">
                         <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Referral Contact Details</div>
-                        <span id="refModalType" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"></span>
+                        <div class="flex items-center gap-2">
+                            <span id="refModalType" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200"></span>
+                            <span id="refModalHot" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border" style="display: none;"></span>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -131,8 +134,61 @@
                 toAvatar.style.backgroundColor = data.to_bg || '#6366f1';
                 toAvatar.textContent = data.to_initials || 'P';
 
-                // Referral Details
-                document.getElementById('refModalType').textContent = (data.referral_type || 'General').toUpperCase();
+                // Referral Details - Type & Hot
+                const typeMap = {
+                    'customer_referral': { label: 'Customer', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                    'customer': { label: 'Customer', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                    'b2b_referral': { label: 'B2B Referral', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
+                    'b2b': { label: 'B2B Referral', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
+                    'b2g_referral': { label: 'B2G Referral', badge: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+                    'b2g': { label: 'B2G Referral', badge: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+                    'collaborative_projects': { label: 'Collaboration', badge: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
+                    'collaborative': { label: 'Collaboration', badge: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
+                    'referral_partnerships': { label: 'Partnership', badge: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' },
+                    'partnerships': { label: 'Partnership', badge: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' },
+                    'vendor_referrals': { label: 'Vendor', badge: 'bg-teal-50 text-teal-700 border-teal-200', dot: 'bg-teal-500' },
+                    'vendor': { label: 'Vendor', badge: 'bg-teal-50 text-teal-700 border-teal-200', dot: 'bg-teal-500' },
+                    'business': { label: 'Business', badge: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+                    'service': { label: 'Service', badge: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500' },
+                    'others': { label: 'Other', badge: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' },
+                    'other': { label: 'Other', badge: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' }
+                };
+
+                const rawType = (data.referral_type || '').toLowerCase();
+                const typeConfig = typeMap[rawType] || {
+                    label: data.referral_type ? data.referral_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'General',
+                    badge: 'bg-slate-100 text-slate-700 border-slate-200',
+                    dot: 'bg-slate-500'
+                };
+                const refModalType = document.getElementById('refModalType');
+                refModalType.className = `inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${typeConfig.badge}`;
+                refModalType.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${typeConfig.dot}"></span><span>${typeConfig.label}</span>`;
+
+                const hotVal = parseInt(data.hot_value, 10);
+                const refModalHot = document.getElementById('refModalHot');
+                if (!isNaN(hotVal) && hotVal > 0) {
+                    refModalHot.style.display = 'inline-flex';
+                    let hotBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+                    let hotIconClass = 'text-rose-600 animate-pulse';
+                    if (hotVal === 4) {
+                        hotBadgeClass = 'bg-orange-50 text-orange-700 border-orange-200';
+                        hotIconClass = 'text-orange-500';
+                    } else if (hotVal === 3) {
+                        hotBadgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                        hotIconClass = 'text-amber-500';
+                    } else if (hotVal === 2) {
+                        hotBadgeClass = 'bg-yellow-50 text-yellow-800 border-yellow-200';
+                        hotIconClass = 'text-yellow-600';
+                    } else if (hotVal === 1) {
+                        hotBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                        hotIconClass = 'text-slate-400';
+                    }
+                    refModalHot.className = `inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${hotBadgeClass}`;
+                    refModalHot.innerHTML = `<i class="bi bi-fire text-[11px] ${hotIconClass}"></i><span>Hotness: ${hotVal}/5</span>`;
+                } else {
+                    refModalHot.style.display = 'none';
+                }
+
                 document.getElementById('refModalReferralOf').textContent = data.referral_of || '—';
                 document.getElementById('refModalDate').textContent = data.referral_date || '—';
                 document.getElementById('refModalPhone').textContent = data.phone || '—';

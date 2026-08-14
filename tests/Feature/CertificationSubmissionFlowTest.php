@@ -9,9 +9,11 @@ use App\Models\AdminUser;
 use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -79,6 +81,20 @@ class CertificationSubmissionFlowTest extends TestCase
                 $table->text('permissions')->nullable();
                 $table->timestamp('computed_at')->nullable();
                 $table->integer('version')->default(1);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('personal_access_tokens')) {
+            Schema::create('personal_access_tokens', function (Blueprint $table): void {
+                $table->id();
+                $table->string('tokenable_type');
+                $table->string('tokenable_id');
+                $table->string('name');
+                $table->string('token', 64)->unique();
+                $table->text('abilities')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamp('expires_at')->nullable();
                 $table->timestamps();
             });
         }
@@ -192,12 +208,7 @@ class CertificationSubmissionFlowTest extends TestCase
             'status' => 'active',
         ]);
 
-        $admin = AdminUser::create([
-            'id' => (string) Str::uuid(),
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-        ]);
+        $admin = $this->createAdminWithRole('admin@example.com');
 
         $payload = [
             'full_name' => 'Jane Leader',
@@ -276,12 +287,7 @@ class CertificationSubmissionFlowTest extends TestCase
             'status' => 'active',
         ]);
 
-        $admin = AdminUser::create([
-            'id' => (string) Str::uuid(),
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-        ]);
+        $admin = $this->createAdminWithRole('admin2@example.com');
 
         $payload = [
             'full_name' => 'John Builder',
@@ -334,5 +340,163 @@ class CertificationSubmissionFlowTest extends TestCase
         $certViewResponse->assertStatus(200)
             ->assertSee('John Builder')
             ->assertSee('Entrepreneur Certification');
+    }
+
+    public function test_admin_can_approve_and_reject_certification_via_json_api(): void
+    {
+        Mail::fake();
+
+        $admin = $this->createAdminWithRole('admin_api@example.com');
+
+        $submission = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'full_name' => 'API Applicant',
+            'email' => 'api_applicant@example.com',
+            'status' => CertificationSubmission::STATUS_NEW,
+        ]);
+
+        // Approve via JSON
+        $approveResponse = $this->actingAs($admin, 'admin')
+            ->postJson("/admin/pending-requests/certifications/{$submission->id}/approve", [
+                'admin_note' => 'Approved via JSON API',
+            ]);
+
+        $approveResponse->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'approved');
+
+        // Reject via JSON
+        $rejectResponse = $this->actingAs($admin, 'admin')
+            ->postJson("/admin/pending-requests/certifications/{$submission->id}/reject", [
+                'admin_note' => 'Rejected via JSON API',
+            ]);
+
+        $rejectResponse->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'rejected');
+    }
+
+    public function test_admin_can_authenticate_via_sanctum_bearer_token_on_admin_routes(): void
+    {
+        $admin = $this->createAdminWithRole('admin_bearer@example.com');
+        $token = $admin->createToken('admin-token')->plainTextToken;
+
+        $submission = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'full_name' => 'Bearer Applicant',
+            'email' => 'bearer_applicant@example.com',
+            'status' => CertificationSubmission::STATUS_NEW,
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$token,
+            'Accept' => 'application/json',
+        ])->getJson('/admin/pending-requests/certifications?status=new');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+    }
+
+    public function test_user_token_with_matching_admin_email_authenticates_on_admin_routes(): void
+    {
+        $admin = $this->createAdminWithRole('shared_admin@example.com');
+        $user = User::factory()->create(['email' => 'shared_admin@example.com']);
+        $userToken = $user->createToken('user-token')->plainTextToken;
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$userToken,
+            'Accept' => 'application/json',
+        ])->getJson('/admin/pending-requests/certifications?status=new');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+    }
+
+    public function test_user_only_receives_their_own_certifications(): void
+    {
+        $user1 = User::factory()->create(['email' => 'user1@example.com']);
+        $user2 = User::factory()->create(['email' => 'user2@example.com']);
+
+        $sub1 = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'user_id' => $user1->id,
+            'full_name' => 'User One',
+            'email' => 'user1@example.com',
+            'status' => 'approved',
+        ]);
+
+        EntrepreneurCertificationSubmission::create([
+            'id' => $sub1->id,
+            'full_name' => 'User One',
+            'email' => 'user1@example.com',
+            'status' => 'approved',
+        ]);
+
+        $sub2 = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'user_id' => $user2->id,
+            'full_name' => 'User Two',
+            'email' => 'user2@example.com',
+            'status' => 'approved',
+        ]);
+
+        EntrepreneurCertificationSubmission::create([
+            'id' => $sub2->id,
+            'full_name' => 'User Two',
+            'email' => 'user2@example.com',
+            'status' => 'approved',
+        ]);
+
+        // User 1 requests my-certifications
+        $res1 = $this->actingAs($user1, 'sanctum')
+            ->getJson('/api/v1/my-certifications');
+
+        $res1->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.full_name', 'User One');
+
+        // User 1 requests entrepreneur-certification/my
+        $res2 = $this->actingAs($user1, 'sanctum')
+            ->getJson('/api/v1/entrepreneur-certification/my');
+
+        $res2->assertStatus(200)
+            ->assertJsonCount(1, 'data');
+
+        // Admin requests entrepreneur-certification and gets ALL (2) submissions
+        $admin = $this->createAdminWithRole('all_cert_admin@example.com');
+        $resAdmin = $this->actingAs($admin, 'admin')
+            ->getJson('/api/v1/entrepreneur-certification');
+
+        $resAdmin->assertStatus(200)
+            ->assertJsonCount(2, 'data');
+    }
+
+    private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
+    {
+        $role = Role::firstOrCreate(
+            ['key' => 'global_admin'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'Global Admin',
+            ]
+        );
+
+        $admin = AdminUser::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Super Admin',
+            'email' => $email,
+            'password' => bcrypt('password'),
+        ]);
+
+        DB::table('admin_user_roles')->insert([
+            'user_id' => $admin->id,
+            'role_id' => $role->id,
+        ]);
+
+        return $admin;
     }
 }

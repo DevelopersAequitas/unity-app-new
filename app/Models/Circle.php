@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Circle extends Model
@@ -194,6 +197,18 @@ class Circle extends Model
             if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromCircle($circle);
             }
+
+            if (Schema::hasTable('tbl_permission_cache')) {
+                DB::table('tbl_permission_cache')->truncate();
+            }
+            Cache::flush();
+        });
+
+        static::deleted(function (Circle $circle): void {
+            if (Schema::hasTable('tbl_permission_cache')) {
+                DB::table('tbl_permission_cache')->truncate();
+            }
+            Cache::flush();
         });
     }
 
@@ -221,6 +236,43 @@ class Circle extends Model
     public function getMeetingFrequencyAttribute(): ?string
     {
         $value = $this->calendarGet('settings.meeting_frequency');
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    public function getMeetingLinkAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_link');
+
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        return $this->zoho_join_url ?? null;
+    }
+
+    public function getMeetingPasscodeAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_passcode');
+
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        return $this->zoho_meeting_password ?? null;
+    }
+
+    public function getMeetingVenueAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_venue')
+            ?? $this->calendarGet('settings.meeting_address');
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    public function getMeetingLandmarkAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_landmark');
 
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }

@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Post;
 use App\Models\PostReport;
-use App\Support\AdminAccess;
+use App\Services\Admin\PermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +18,13 @@ class PostReportsController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! $admin) {
+            abort(403);
+        }
+
+        $routeName = request()->route()?->getName() ?? '';
+
+        if ($routeName !== '' && ! app(PermissionService::class)->canAccessRoute($admin, $routeName)) {
             abort(403);
         }
     }

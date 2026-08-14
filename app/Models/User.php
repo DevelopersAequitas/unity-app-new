@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
+use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -121,6 +123,8 @@ class User extends Authenticatable
         'contribution_award_name',
         'contribution_award_recognition',
         'profile_photo_url',
+        'welcome_creative_url',
+        'profile_card_image_url',
         'short_bio',
         'long_bio_html',
         'industry_tags',
@@ -392,6 +396,14 @@ class User extends Authenticatable
             }
         });
 
+        static::created(function (self $user): void {
+            try {
+                app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
+            } catch (Throwable) {
+                // Safeguard: User creation completes safely even if image generation encounters an error
+            }
+        });
+
         static::saved(function (self $user): void {
             if ($user->wasRecentlyCreated || $user->wasChanged(['city_id', 'city', 'business_city', 'state', 'business_state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromUser($user);
@@ -464,6 +476,26 @@ class User extends Authenticatable
         $this->membership_expiry = $targetExpiry;
 
         return true;
+    }
+
+    /**
+     * Resolve the welcome creative URL for this user.
+     * If NULL in database, automatically generate the creative image, save it to storage and SQL, and return the URL.
+     */
+    public function resolveWelcomeCreativeUrl(bool $forceRegenerate = false): string
+    {
+        $existing = $this->getAttribute('welcome_creative_url') ?? $this->getAttribute('profile_card_image_url');
+        if (! $forceRegenerate && filled($existing)) {
+            return (string) $existing;
+        }
+
+        try {
+            return app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($this, $forceRegenerate);
+        } catch (Throwable $e) {
+            Log::warning("User {$this->id}: Could not automatically generate welcome creative URL on demand: {$e->getMessage()}");
+
+            return (string) ($existing ?? '');
+        }
     }
 
     public function membershipDatesMatch(): bool
@@ -1074,5 +1106,104 @@ class User extends Authenticatable
             'city' => $city,
             'industry' => $industry,
         ];
+    }
+
+    /**
+     * Calculate user profile completion percentage (0 to 100)
+     * matching the 5-section Flutter specification.
+     */
+    public function calculateProfileCompletionPercentage(): int
+    {
+        $isCompleted = static function (mixed $value): bool {
+            if ($value === null) {
+                return false;
+            }
+
+            if (is_string($value)) {
+                return trim($value) !== '';
+            }
+
+            if (is_array($value)) {
+                return count($value) > 0;
+            }
+
+            if ($value instanceof \Countable) {
+                return count($value) > 0;
+            }
+
+            return true;
+        };
+
+        // Section 1: Personal Details (14 fields)
+        $personal = [
+            $this->getAttribute('first_name') ?: $this->getAttribute('display_name'),
+            $this->getAttribute('last_name'),
+            $this->getAttribute('email'),
+            $this->getAttribute('phone') ?: $this->getAttribute('secondary_mobile'),
+            $this->getAttribute('gender'),
+            $this->getAttribute('dob'),
+            $this->getAttribute('anniversary_date'),
+            $this->getAttribute('city') ?: $this->getAttribute('city_id') ?: $this->getAttribute('city_of_residence'),
+            $this->getAttribute('state'),
+            $this->getAttribute('country'),
+            $this->getAttribute('profile_photo_file_id') ?: $this->getAttribute('profile_photo_id') ?: $this->getAttribute('profile_photo_url'),
+            $this->getAttribute('cover_photo_file_id') ?: $this->getAttribute('cover_photo_id'),
+            $this->getAttribute('profile_video_id') ?: $this->getAttribute('intro_video_id'),
+            $this->getAttribute('short_bio') ?: $this->getAttribute('long_bio_html') ?: $this->getAttribute('experience_summary'),
+        ];
+
+        // Section 2: Business Details (19 fields)
+        $business = [
+            $this->getAttribute('company_name'),
+            $this->getAttribute('designation'),
+            $this->getAttribute('business_category_id') ?: $this->getAttribute('main_business_category_id'),
+            $this->getAttribute('business_sub_category'),
+            $this->getAttribute('company_type'),
+            $this->getAttribute('business_type'),
+            $this->getAttribute('year_of_establishment'),
+            $this->getAttribute('annual_revenue_range') ?: $this->getAttribute('turnover_range'),
+            $this->getAttribute('number_of_employees'),
+            $this->getAttribute('gst_number'),
+            $this->getAttribute('business_website') ?: $this->getAttribute('website'),
+            $this->getAttribute('superpower'),
+            $this->getAttribute('i_can_help_with'),
+            $this->getAttribute('i_am_looking_for'),
+            $this->getAttribute('business_keywords'),
+            $this->getAttribute('products_services_offered'),
+            $this->getAttribute('business_address'),
+            $this->getAttribute('business_pincode'),
+            $this->getAttribute('business_logo_id'),
+        ];
+
+        // Section 3: Interests & Skills (2 fields)
+        $interestsSkills = [
+            $this->getAttribute('skills'),
+            $this->getAttribute('interests') ?: $this->getAttribute('hobbies_interests') ?: $this->getAttribute('industries_of_interest') ?: $this->getAttribute('collaboration_goals'),
+        ];
+
+        // Section 4: Social Links (6 fields)
+        $socialLinks = [
+            $this->getAttribute('linkedin_profile') ?: data_get($this->getAttribute('social_links'), 'linkedin'),
+            $this->getAttribute('instagram_handle') ?: data_get($this->getAttribute('social_links'), 'instagram'),
+            $this->getAttribute('twitter_handle') ?: data_get($this->getAttribute('social_links'), 'twitter'),
+            $this->getAttribute('facebook_profile') ?: data_get($this->getAttribute('social_links'), 'facebook'),
+            $this->getAttribute('youtube_channel') ?: data_get($this->getAttribute('social_links'), 'youtube'),
+            $this->getAttribute('other_website') ?: data_get($this->getAttribute('social_links'), 'website'),
+        ];
+
+        // Section 5: Contact Visibility / Privacy (1 field)
+        $privacy = [
+            $this->getAttribute('contact_visibility'),
+        ];
+
+        $personalPct = (collect($personal)->filter($isCompleted)->count() / 14) * 100;
+        $businessPct = (collect($business)->filter($isCompleted)->count() / 19) * 100;
+        $interestsPct = (collect($interestsSkills)->filter($isCompleted)->count() / 2) * 100;
+        $socialPct = (collect($socialLinks)->filter($isCompleted)->count() / 6) * 100;
+        $privacyPct = (collect($privacy)->filter($isCompleted)->count() / 1) * 100;
+
+        $totalPercentage = (int) round(($personalPct + $businessPct + $interestsPct + $socialPct + $privacyPct) / 5);
+
+        return min(100, max(0, $totalPercentage));
     }
 }

@@ -14,6 +14,12 @@ class AdminRoleMiddleware
         $admin = Auth::guard('admin')->user();
 
         if (! $admin) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+
             return redirect()->route('admin.login');
         }
 

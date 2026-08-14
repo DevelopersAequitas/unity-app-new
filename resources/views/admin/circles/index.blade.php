@@ -140,7 +140,7 @@
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
                             <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
-                                <select name="circle_name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width: 150px;">
+                                <select name="circle_name" class="admin-filter-dropdown px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width: 150px;">
                                     <option value="">All Circles</option>
                                     @foreach ($circleNames as $circleName)
                                         <option value="{{ $circleName }}" @selected($filters['circle_name'] === $circleName)>{{ $circleName }}</option>
@@ -151,12 +151,18 @@
                                 <input type="text" name="founder" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal" value="{{ $filters['founder'] }}" placeholder="Founder" style="min-width: 130px;">
                             </th>
                             <th class="px-3 py-2">
-                                <select name="city_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-no-select2" style="min-width: 120px;">
-                                    <option value="any" @selected(($filters['city_id'] ?? 'any') === 'any')>All Cities</option>
-                                    @foreach ($cities as $c)
-                                        <option value="{{ $c->id }}" @selected(($filters['city_id'] ?? '') === (string) $c->id)>{{ $c->name }}</option>
-                                    @endforeach
-                                </select>
+                                @if (isset($isDed) && $isDed)
+                                    <div class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t2 text-center font-medium" style="min-width: 120px; background-color: var(--surface-2, #f8f9fa);">
+                                        {{ $dedDistrictName ?? 'District Scoped' }}
+                                    </div>
+                                @else
+                                    <select name="city_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-no-select2" style="min-width: 120px;">
+                                        <option value="any" @selected(($filters['city_id'] ?? 'any') === 'any')>All Cities</option>
+                                        @foreach ($cities as $c)
+                                            <option value="{{ $c->id }}" @selected(($filters['city_id'] ?? '') === (string) $c->id)>{{ $c->name }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
                             </th>
                             <th class="px-3 py-2">
                                 <select name="type" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-no-select2" style="min-width: 110px;">

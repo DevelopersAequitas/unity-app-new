@@ -153,32 +153,90 @@
     line-height: 1.25;
   }
   #grid-root-container .badge-dot {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
+    flex-shrink: 0;
   }
   
+  #grid-root-container .quick-filter-strip {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+  }
   #grid-root-container .chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
+    gap: 7px;
+    padding: 5px 14px;
     border-radius: 9999px;
-    border: 1px solid var(--border);
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+    transition: all 0.15s ease-in-out;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    white-space: nowrap;
+  }
+  .dark #grid-root-container .chip {
+    border-color: var(--border);
     background: var(--surface);
     color: var(--text-2);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
   }
   #grid-root-container .chip:hover {
+    color: #1e293b;
+    background: #ffffff;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+  }
+  .dark #grid-root-container .chip:hover {
     color: var(--text-1);
     background: var(--surface-2);
+    border-color: var(--accent);
   }
   #grid-root-container .chip-active {
+    color: #4338ca !important;
+    background: #eef2ff !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
+    font-weight: 600 !important;
+  }
+  .dark #grid-root-container .chip-active {
+    color: #ffffff !important;
+    background: var(--surface-3) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent) !important;
+  }
+  #grid-root-container .date-input-pill {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #475569;
+    outline: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: all 0.15s ease-in-out;
+  }
+  .dark #grid-root-container .date-input-pill {
+    background: var(--surface);
+    border-color: var(--border);
     color: var(--text-1);
-    background: var(--surface-3);
-    border-color: var(--accent);
+  }
+  #grid-root-container .date-input-pill:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
   }
   
   #grid-root-container .focus-ring:focus-visible {
@@ -187,22 +245,132 @@
   }
 
   /* KPI Summary Cards */
-  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; transition: .15s; display: block; width: 100%; text-align: left; }
-  .kpi-card:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
-  .kpi-icon { width: 19px; height: 19px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex: none; }
-  .kpi-trend { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 999px; }
-  .kpi-trend.up { color: var(--success); background: var(--success-soft); }
-  .kpi-trend.down { color: var(--danger); background: var(--danger-soft); }
-  .kpi-trend.flat { color: var(--text-3); background: var(--surface-3); }
-  .kpi-num { font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 15px; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; }
-  .kpi-title { font-size: 10px; font-weight: 600; color: var(--text-2); margin-top: 1px; }
-  .kpi-sub { font-size: 9.5px; color: var(--text-3); margin-top: 0px; }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    transition: all .15s ease-in-out;
+    display: block;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+  .kpi-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1.5px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+  }
+  .kpi-card.active-kpi {
+    border-color: var(--accent) !important;
+    background: var(--surface-2) !important;
+    box-shadow: 0 0 0 2px var(--accent) !important;
+  }
+  .kpi-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+  .kpi-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+  .kpi-trend {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1.5px 6px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.3;
+  }
+  .kpi-trend.up {
+    color: #16a34a;
+    background: #dcfce7;
+  }
+  .kpi-trend.down {
+    color: #dc2626;
+    background: #fee2e2;
+  }
+  .kpi-trend.flat {
+    color: #64748b;
+    background: #f1f5f9;
+  }
+  .kpi-num {
+    font-family: 'Lexend', inherit, sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    line-height: 1.2;
+    color: var(--text-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kpi-sub {
+    font-size: 10px;
+    color: var(--text-3);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   /* Compact Mini Widgets */
-  .mini-widget { flex: none; min-width: 150px; display: flex; flex-direction: column; gap: 1px; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 7px; padding: 5px 9px; }
-  .mini-label { font-size: 9.5px; color: var(--text-3); font-weight: 600; white-space: nowrap; }
-  .mini-value { font-size: 11.5px; color: var(--text-1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-widget {
+    flex: none;
+    min-width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    text-align: left;
+    outline: none;
+    font-family: inherit;
+    transition: all .15s ease-in-out;
+  }
+  .mini-widget:hover {
+    border-color: var(--accent);
+    background: var(--surface-3);
+  }
+  .mini-widget.active-kpi {
+    border-color: var(--accent) !important;
+    background: var(--surface-3) !important;
+    box-shadow: 0 0 0 2px var(--accent) !important;
+  }
+  .mini-label {
+    font-size: 10px;
+    color: var(--text-3);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .mini-value {
+    font-size: 12px;
+    color: var(--text-1);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .tab-underline { position: relative; border: none; background: transparent; cursor: pointer; }
   .tab-underline.active::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -9px; height: 2px; background: var(--accent); border-radius: 2px; }
@@ -264,9 +432,12 @@
       <p class="text-xs t3 m-0 mt-0.5">Manage directory details, status controls, and user details</p>
     </div>
     <div class="flex items-center gap-2">
+      @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.index', 'import') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.import', 'import'))
       <a href="{{ route('admin.users.import') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
         <i class="bi bi-download" aria-hidden="true"></i> Import
       </a>
+      @endif
+      @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.index', 'export') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.export.csv', 'export'))
       <div class="relative">
         <button type="button" onclick="toggleExportMenu()" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring flex items-center gap-1.5">
           <i class="bi bi-upload" aria-hidden="true"></i> Export <svg class="w-2.5 h-2.5 ml-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -276,33 +447,12 @@
           <button onclick="exportData('xlsx')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-excel admin-icon w-4" aria-hidden="true"></i>Export as Excel</button>
         </div>
       </div>
+      @endif
+      @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.index', 'create') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.create', 'create'))
       <a href="{{ route('admin.users.create') }}" class="px-3 py-1.5 rounded-lg bg-accent hover:bg-opacity-95 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">
         <i class="bi bi-plus-lg me-1" aria-hidden="true"></i> Add Peer
       </a>
-    </div>
-  </div>
-
-  <!-- Membership Approval Bar -->
-  <div class="mb-4 p-4 border bs rounded-xl surface-2">
-    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
-      <div>
-        <div class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Membership Approval</div>
-        <div class="text-[11.5px] t3 mt-0.5">Select peers from the grid below and approve their membership as Global Peer.</div>
-      </div>
-      <div class="flex flex-wrap items-end gap-3 w-full xl:w-auto xl:justify-end">
-        <div class="flex-1 min-w-[120px] xl:flex-none">
-          <label class="block text-[11px] t3 mb-1 font-medium">Starts At</label>
-          <input id="approvalMembershipStartsAt" type="date" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring"/>
-        </div>
-        <div class="flex-1 min-w-[120px] xl:flex-none">
-          <label class="block text-[11px] t3 mb-1 font-medium">Ends At</label>
-          <input id="approvalMembershipEndsAt" type="date" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring"/>
-        </div>
-        <button type="button" id="openApproveMembershipModal" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md transition focus-ring">
-          <i class="bi bi-check-circle"></i>
-          Approve Selected
-        </button>
-      </div>
+      @endif
     </div>
   </div>
 
@@ -332,7 +482,7 @@
     <div id="kpi-summary">
       <!-- KPI Row 1 -->
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-2">
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('total')" id="kpi-card-total" class="kpi-card text-left" title="Click to show all members">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--accent-soft); color:var(--accent)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-8.13a4 4 0 110 8 4 4 0 010-8z"/></svg>
@@ -342,9 +492,9 @@
           <div class="kpi-num" id="kpi-total-num">0</div>
           <div class="kpi-title">Total Members</div>
           <div class="kpi-sub">Registered directory</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('active')" id="kpi-card-active" class="kpi-card text-left" title="Click to filter by Active Members">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--success-soft); color:var(--success)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
@@ -354,9 +504,9 @@
           <div class="kpi-num" id="kpi-active-num">0</div>
           <div class="kpi-title">Active Members</div>
           <div class="kpi-sub">Currently active</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('newtoday')" id="kpi-card-newtoday" class="kpi-card text-left" title="Click to filter by New Today">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--info-soft); color:var(--info)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -366,9 +516,9 @@
           <div class="kpi-num" id="kpi-newtoday-num">0</div>
           <div class="kpi-title">New Today</div>
           <div class="kpi-sub">Joined today</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('newmonth')" id="kpi-card-newmonth" class="kpi-card text-left" title="Click to filter by New This Month">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--info-soft); color:var(--info)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -378,9 +528,9 @@
           <div class="kpi-num" id="kpi-newmonth-num">0</div>
           <div class="kpi-title">New This Month</div>
           <div class="kpi-sub">Joined this month</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('renewtoday')" id="kpi-card-renewtoday" class="kpi-card text-left" title="Click to filter by Renewed Today">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--accent-soft); color:var(--accent-2)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -390,9 +540,9 @@
           <div class="kpi-num" id="kpi-renewtoday-num">0</div>
           <div class="kpi-title">Renewed Today</div>
           <div class="kpi-sub">Memberships</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('renewmonth')" id="kpi-card-renewmonth" class="kpi-card text-left" title="Click to filter by Renewed This Month">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--accent-soft); color:var(--accent-2)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -402,12 +552,12 @@
           <div class="kpi-num" id="kpi-renewmonth-num">0</div>
           <div class="kpi-title">Renewed This Month</div>
           <div class="kpi-sub">This month</div>
-        </div>
+        </button>
       </div>
 
       <!-- KPI Row 2 -->
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('expiring7')" id="kpi-card-expiring7" class="kpi-card text-left" title="Click to filter by Expiring in 7 Days">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--warning-soft); color:var(--warning)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -417,9 +567,9 @@
           <div class="kpi-num" id="kpi-expiring7-num">0</div>
           <div class="kpi-title">Expiring in 7 Days</div>
           <div class="kpi-sub">Needs renewal</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('expired')" id="kpi-card-expired" class="kpi-card text-left" title="Click to filter by Expired Members">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--danger-soft); color:var(--danger)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -429,9 +579,9 @@
           <div class="kpi-num" id="kpi-expired-num">0</div>
           <div class="kpi-title">Expired</div>
           <div class="kpi-sub">Memberships</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('pendingpay')" id="kpi-card-pendingpay" class="kpi-card text-left" title="Click to filter by Pending Payments">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--warning-soft); color:var(--warning)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -441,9 +591,9 @@
           <div class="kpi-num" id="kpi-pendingpay-num">₹0</div>
           <div class="kpi-title">Pending Payments</div>
           <div class="kpi-sub">Outstanding</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('revenue')" id="kpi-card-revenue" class="kpi-card text-left" title="Click to filter by Paid / Revenue Members">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--success-soft); color:var(--success)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m0-2c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -453,9 +603,9 @@
           <div class="kpi-num" id="kpi-revenue-num">₹0</div>
           <div class="kpi-title">Revenue (Estimated)</div>
           <div class="kpi-sub">Total collected</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('churn')" id="kpi-card-churn" class="kpi-card text-left" title="Click to filter by Churned / Left Members">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--danger-soft); color:var(--danger)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 17h8m0 0v-8m0 8L13 9l-4 4-6-6"/></svg>
@@ -465,9 +615,9 @@
           <div class="kpi-num" id="kpi-churn-num">0</div>
           <div class="kpi-title">Left (Last Month)</div>
           <div class="kpi-sub">Churned members</div>
-        </div>
+        </button>
 
-        <div class="kpi-card">
+        <button type="button" onclick="filterByKpi('approvals')" id="kpi-card-approvals" class="kpi-card text-left" title="Click to filter by Pending Approvals">
           <div class="kpi-top">
             <span class="kpi-icon" style="background:var(--info-soft); color:var(--info)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -477,36 +627,81 @@
           <div class="kpi-num" id="kpi-approvals-num">0</div>
           <div class="kpi-title">Pending Approvals</div>
           <div class="kpi-sub">Awaiting review</div>
-        </div>
+        </button>
       </div>
 
       <!-- Compact widget strip -->
-      <div class="flex items-stretch gap-2 pb-2 overflow-x-auto whitespace-nowrap" style="scrollbar-width: thin;">
-        <div class="mini-widget"><span class="mini-label"><i class="bi bi-cake2-fill admin-icon me-1" aria-hidden="true"></i>Birthdays Today</span><span class="mini-value" id="widget-birthdays">-</span></div>
-        <div class="mini-widget"><span class="mini-label"><i class="bi bi-calendar-event-fill admin-icon me-1" aria-hidden="true"></i>Upcoming Events</span><span class="mini-value" id="widget-events">-</span></div>
-        <div class="mini-widget"><span class="mini-label"><i class="bi bi-person-lines-fill admin-icon me-1" aria-hidden="true"></i>Recently Joined</span><span class="mini-value" id="widget-recent">-</span></div>
-        <div class="mini-widget"><span class="mini-label"><i class="bi bi-trophy-fill admin-icon me-1" aria-hidden="true"></i>Top Circle</span><span class="mini-value" id="widget-top-circle">-</span></div>
-        <div class="mini-widget"><span class="mini-label"><i class="bi bi-building-fill admin-icon me-1" aria-hidden="true"></i>Top Industry</span><span class="mini-value" id="widget-top-industry">-</span></div>
-        <div class="mini-widget"><span class="mini-label"><i class="bi bi-clock-history admin-icon me-1" aria-hidden="true"></i>Pending Approvals</span><span class="mini-value" id="widget-pending-approvals">0</span></div>
+      <div class="flex items-stretch gap-2 pb-2 overflow-x-auto whitespace-nowrap mb-2.5" style="scrollbar-width: thin;">
+        <button type="button" onclick="filterByKpi('birthdays')" id="widget-card-birthdays" class="mini-widget text-left" title="Click to filter members having Birthday today"><span class="mini-label"><i class="bi bi-cake2-fill admin-icon me-1" aria-hidden="true"></i>Birthdays Today</span><span class="mini-value" id="widget-birthdays">-</span></button>
+        <a href="{{ route('admin.events.index') }}" class="mini-widget text-decoration-none text-left" title="View Upcoming Events"><span class="mini-label"><i class="bi bi-calendar-event-fill admin-icon me-1" aria-hidden="true"></i>Upcoming Events</span><span class="mini-value" id="widget-events">-</span></a>
+        <button type="button" onclick="filterByKpi('recent')" id="widget-card-recent" class="mini-widget text-left" title="Click to filter by Recently Joined peers"><span class="mini-label"><i class="bi bi-person-lines-fill admin-icon me-1" aria-hidden="true"></i>Recently Joined</span><span class="mini-value" id="widget-recent">-</span></button>
+        <button type="button" onclick="filterByKpi('topcircle')" id="widget-card-topcircle" class="mini-widget text-left" title="Click to filter by Top Circle"><span class="mini-label"><i class="bi bi-trophy-fill admin-icon me-1" aria-hidden="true"></i>Top Circle</span><span class="mini-value" id="widget-top-circle">-</span></button>
+        <button type="button" onclick="filterByKpi('topindustry')" id="widget-card-topindustry" class="mini-widget text-left" title="Click to filter by Top Industry"><span class="mini-label"><i class="bi bi-building-fill admin-icon me-1" aria-hidden="true"></i>Top Industry</span><span class="mini-value" id="widget-top-industry">-</span></button>
+        <button type="button" onclick="filterByKpi('approvals')" id="widget-card-approvals" class="mini-widget text-left" title="Click to filter by Pending Approvals"><span class="mini-label"><i class="bi bi-clock-history admin-icon me-1" aria-hidden="true"></i>Pending Approvals</span><span class="mini-value" id="widget-pending-approvals">0</span></button>
+      </div>
+
+      <!-- Quick Filters Inside Management Summary -->
+      <div class="quick-filter-strip">
+        <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-1" style="scrollbar-width:thin;">
+          <span class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1 flex-none flex items-center gap-1.5"><i class="bi bi-funnel-fill text-indigo-400"></i> QUICK:</span>
+          <button type="button" onclick="quickFilter('expiring')" id="qf-expiring" class="chip flex-none"><span class="badge-dot" style="background:#f59e0b"></span>Expiring in 30d</button>
+          <button type="button" onclick="quickFilter('new7')" id="qf-new7" class="chip flex-none"><span class="badge-dot" style="background:#10b981"></span>Joined last 7d</button>
+          <button type="button" onclick="quickFilter('nopayment')" id="qf-nopayment" class="chip flex-none"><span class="badge-dot" style="background:#ef4444"></span>Payment overdue</button>
+          <button type="button" onclick="quickFilter('inactive')" id="qf-inactive" class="chip flex-none"><span class="badge-dot" style="background:#94a3b8"></span>Inactive 30d+</button>
+
+          <div class="ml-auto flex items-center gap-2 flex-none">
+            <span class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">JOINED:</span>
+            <input type="date" id="f-joined-start" onchange="applyFilters(true)" class="date-input-pill"/>
+            <span class="text-slate-400 text-[13px] font-medium">→</span>
+            <input type="date" id="f-joined-end" onchange="applyFilters(true)" class="date-input-pill"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Membership Approval Bar -->
+  <div class="mb-4 p-4 border bs rounded-xl surface-2">
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
+      <div>
+        <div class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Membership Approval</div>
+        <div class="text-[11.5px] t3 mt-0.5">Select peers from the grid below and approve their membership as Global Peer.</div>
+      </div>
+      <div class="flex flex-wrap items-end gap-3 w-full xl:w-auto xl:justify-end">
+        <div class="flex-1 min-w-[120px] xl:flex-none">
+          <label class="block text-[11px] t3 mb-1 font-medium">Starts At</label>
+          <input id="approvalMembershipStartsAt" type="date" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring"/>
+        </div>
+        <div class="flex-1 min-w-[120px] xl:flex-none">
+          <label class="block text-[11px] t3 mb-1 font-medium">Ends At</label>
+          <input id="approvalMembershipEndsAt" type="date" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring"/>
+        </div>
+        <button type="button" id="openApproveMembershipModal" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md transition focus-ring">
+          <i class="bi bi-check-circle"></i>
+          Approve Selected
+        </button>
       </div>
     </div>
   </div>
 
   <!-- Toolbar: Search + Utility Controls -->
-  <div class="flex-none py-2 border-b bs space-y-2 mb-4">
-    <div class="flex items-center gap-2.5 flex-wrap">
-      <div class="relative flex-1 min-w-[240px] max-w-[380px]">
-        <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
-        <input id="search-input" oninput="applyFilters(true)" type="text" placeholder="Global Search (Name, Email, ID, Company)..." class="w-full pl-9 pr-10 py-2 rounded-lg border bs surface-2 text-[13px] t1 placeholder:t3 focus-ring outline-none"/>
-        <span class="kbd absolute right-2.5 top-1/2 -translate-y-1/2">/</span>
+  <div class="flex-none py-2 border-b bs mb-4">
+    <div class="flex items-center justify-between gap-2.5 flex-wrap">
+      <div class="flex items-center gap-2.5 flex-1 min-w-[280px]">
+        <div class="relative flex-1 min-w-[240px] max-w-[380px]">
+          <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+          <input id="search-input" oninput="applyFilters(true)" type="text" placeholder="Global Search (Name, Email, ID, Company)..." class="w-full pl-9 pr-10 py-2 rounded-lg border bs surface-2 text-[13px] t1 placeholder:t3 focus-ring outline-none"/>
+          <span class="kbd absolute right-2.5 top-1/2 -translate-y-1/2">/</span>
+        </div>
+
+        <button onclick="clearFilters()" class="chip !text-[12.5px] border border-current" title="Clear all filters">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Clear
+        </button>
       </div>
 
-      <button onclick="clearFilters()" class="chip !text-[12.5px] border border-current" title="Clear all filters">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        Clear
-      </button>
-
-      <div class="ml-auto flex items-center gap-2">
+      <div class="ml-auto flex items-center gap-2.5">
+        <span id="result-count" class="flex-none text-[12.5px] t3 tnum mr-1">Showing <span id="result-num" class="font-semibold t1">0</span> of <span class="font-semibold t1" id="result-total">0</span> members</span>
         <div class="relative">
           <button onclick="toggleSavedFilters()" class="chip">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-4-7 4V5z"/></svg>
@@ -546,25 +741,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Quick Filters -->
-    <div class="flex items-center gap-2">
-      <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-1" style="scrollbar-width:thin;">
-        <span class="text-[11px] font-semibold t3 uppercase tracking-wider mr-1 flex-none">Quick:</span>
-        <button onclick="quickFilter('expiring')" id="qf-expiring" class="chip !py-1 flex-none"><span class="badge-dot" style="background:var(--warning)"></span>Expiring in 30d</button>
-        <button onclick="quickFilter('new7')" id="qf-new7" class="chip !py-1 flex-none"><span class="badge-dot" style="background:var(--success)"></span>Joined last 7d</button>
-        <button onclick="quickFilter('nopayment')" id="qf-nopayment" class="chip !py-1 flex-none"><span class="badge-dot" style="background:var(--danger)"></span>Payment overdue</button>
-        <button onclick="quickFilter('inactive')" id="qf-inactive" class="chip !py-1 flex-none"><span class="badge-dot" style="background:var(--text-3)"></span>Inactive 30d+</button>
-
-        <div class="ml-2 flex items-center gap-2 flex-none">
-          <span class="text-[11px] font-semibold t3 uppercase tracking-wider">Joined:</span>
-          <input type="date" id="f-joined-start" onchange="applyFilters(true)" class="px-2 py-1 rounded-md border bs surface-2 text-[12px] t2 focus-ring outline-none"/>
-          <span class="t3 text-[12px]">→</span>
-          <input type="date" id="f-joined-end" onchange="applyFilters(true)" class="px-2 py-1 rounded-md border bs surface-2 text-[12px] t2 focus-ring outline-none"/>
-        </div>
-      </div>
-      <span id="result-count" class="flex-none text-[12.5px] t3 tnum">Showing <span id="result-num" class="font-semibold t1">0</span> of <span class="font-semibold t1" id="result-total">0</span> members</span>
     </div>
   </div>
 
@@ -794,19 +970,19 @@
         </div>
   
         <!-- Empty state -->
-        <div id="empty-state" class="hidden flex-col items-center justify-center py-24 text-center">
-          <div class="w-16 h-16 rounded-2xl surface-2 border bs flex items-center justify-center mb-4"><svg class="w-7 h-7 t3" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-8.13a4 4 0 110 8 4 4 0 010-8z"/></svg></div>
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-center w-full my-6">
+          <div class="w-16 h-16 rounded-2xl surface-2 border bs flex items-center justify-center mb-3 shadow-sm mx-auto"><svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-8.13a4 4 0 110 8 4 4 0 010-8z"/></svg></div>
           <div class="font-display font-semibold text-[15px] t1 mb-1">No members yet</div>
-          <div class="text-[13px] t3 max-w-xs mb-4">Add your first member or import a directory to populate this table.</div>
-          <a href="{{ route('admin.users.create') }}" class="px-4 py-2 rounded-lg bg-accent text-white text-[12.5px] font-medium text-decoration-none">Add Member</a>
+          <div class="text-[13px] t3 max-w-sm mb-4 mx-auto">Add your first member or import a directory to populate this table.</div>
+          <a href="{{ route('admin.users.create') }}" class="px-4 py-2 rounded-lg bg-accent text-white text-[12.5px] font-medium text-decoration-none shadow-sm hover:opacity-90 transition">Add Member</a>
         </div>
   
         <!-- No results state -->
-        <div id="noresults-state" class="hidden flex-col items-center justify-center py-24 text-center">
-          <div class="w-16 h-16 rounded-2xl surface-2 border bs flex items-center justify-center mb-4"><svg class="w-7 h-7 t3" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg></div>
+        <div id="noresults-state" class="hidden flex flex-col items-center justify-center py-20 text-center w-full my-6">
+          <div class="w-16 h-16 rounded-2xl surface-2 border bs flex items-center justify-center mb-3 shadow-sm mx-auto"><svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg></div>
           <div class="font-display font-semibold text-[15px] t1 mb-1">No members match your filters</div>
-          <div class="text-[13px] t3 max-w-xs mb-4">Try removing a filter or searching a different term.</div>
-          <button onclick="clearFilters()" class="px-4 py-2 rounded-lg border bs text-[12.5px] font-medium t1">Clear all filters</button>
+          <div class="text-[13px] t3 max-w-sm mb-4 mx-auto">Try removing a filter or searching a different term.</div>
+          <button type="button" onclick="clearFilters()" class="px-4 py-2 rounded-lg border bs text-[12.5px] font-semibold t1 hover:surface-2 transition shadow-sm bg-surface cursor-pointer">Clear all filters</button>
         </div>
       </div>
   
@@ -1127,6 +1303,8 @@
 <script>
     // Real database users list passed from controller
     const members = @json($allUsersJson);
+    const upcomingEventsCount = {{ (int) ($upcomingEventsCount ?? 0) }};
+    const nextUpcomingEventTitle = @json($nextUpcomingEventTitle ?? '');
     
     function initials(n){
       if (!n || typeof n !== 'string') return '?';
@@ -1136,6 +1314,25 @@
       if (parts.length === 0) return '?';
       if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function parseCustomDate(dStr) {
+      if (!dStr || dStr === '—' || dStr === '-' || dStr === 'Never') return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+        const parts = dStr.split('-');
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      }
+      const m = String(dStr).match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
+      if (m) {
+        const months = {jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11};
+        const mon = months[m[2].toLowerCase()];
+        if (mon !== undefined) {
+          return new Date(parseInt(m[3], 10), mon, parseInt(m[1], 10));
+        }
+      }
+      const parsed = new Date(dStr);
+      if (!isNaN(parsed.getTime())) return parsed;
+      return null;
     }
 
     function renderAvatar(m, sizeClass = 'w-8 h-8 text-[11px]') {
@@ -1206,6 +1403,7 @@
     };
     
     let currentFilters = {
+      kpi: '',
       globalSearch: '',
       industry: '',
       city: '',
@@ -1239,6 +1437,45 @@
     let rowsPerPage = 25;
     let isInfinite = false;
 
+    function scrollToResults() {
+      const el = document.getElementById('search-input') || document.getElementById('main-table');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function formatCompactCurrency(val) {
+      const num = Number(val) || 0;
+      if (num >= 10000000) return '₹' + (num / 10000000).toFixed(2) + 'Cr';
+      if (num >= 100000) return '₹' + (num / 100000).toFixed(2) + 'L';
+      if (num >= 1000) return '₹' + (num / 1000).toFixed(1) + 'K';
+      return '₹' + num.toLocaleString();
+    }
+
+    function filterByKpi(kpiType) {
+      if (kpiType === 'total' || currentFilters.kpi === kpiType) {
+        currentFilters.kpi = '';
+      } else {
+        currentFilters.kpi = kpiType;
+      }
+      // Clear quick filter chips when selecting a KPI
+      currentFilters.quick = '';
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('chip-active'));
+
+      document.querySelectorAll('.kpi-card, .mini-widget').forEach(el => el.classList.remove('active-kpi'));
+      
+      if (currentFilters.kpi) {
+        document.getElementById(`kpi-card-${currentFilters.kpi}`)?.classList.add('active-kpi');
+        document.getElementById(`widget-card-${currentFilters.kpi}`)?.classList.add('active-kpi');
+      } else {
+        document.getElementById('kpi-card-total')?.classList.add('active-kpi');
+      }
+
+      currentPage = 1;
+      applyFilters();
+      scrollToResults();
+    }
+
     function toggleSummary() {
       const wrapper = document.getElementById('kpi-summary');
       const icon = document.getElementById('summary-toggle-icon');
@@ -1262,8 +1499,13 @@
       document.querySelectorAll('.tab-underline').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentFilters.view = btn.getAttribute('data-view');
+      currentFilters.kpi = '';
+      currentFilters.quick = '';
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('chip-active'));
+      document.querySelectorAll('.kpi-card, .mini-widget').forEach(el => el.classList.remove('active-kpi'));
       currentPage = 1;
       applyFilters();
+      scrollToResults();
     }
 
     function quickFilter(type) {
@@ -1271,6 +1513,8 @@
       if (chip) {
         const isActive = chip.classList.toggle('chip-active');
         currentFilters.quick = isActive ? type : '';
+        currentFilters.kpi = '';
+        document.querySelectorAll('.kpi-card, .mini-widget').forEach(el => el.classList.remove('active-kpi'));
         ['expiring', 'new7', 'nopayment', 'inactive'].forEach(t => {
           if (t !== type) {
             document.getElementById(`qf-${t}`)?.classList.remove('chip-active');
@@ -1279,6 +1523,7 @@
       }
       currentPage = 1;
       applyFilters();
+      scrollToResults();
     }
 
     function applySavedFilter(type) {
@@ -1291,9 +1536,16 @@
       } else if (type === 'inactive') {
         currentFilters.quick = 'inactive';
         document.getElementById('qf-inactive')?.classList.add('chip-active');
+      } else if (type === 'nopayment') {
+        currentFilters.quick = 'nopayment';
+        document.getElementById('qf-nopayment')?.classList.add('chip-active');
+      } else if (type === 'new7') {
+        currentFilters.quick = 'new7';
+        document.getElementById('qf-new7')?.classList.add('chip-active');
       }
       document.getElementById('saved-filters-menu')?.classList.add('hidden');
       applyFilters();
+      scrollToResults();
     }
 
     function formatDateDMY(date) {
@@ -1311,75 +1563,219 @@
       return `${month} ${year}`;
     }
 
+    function isRecentJoiner(m) {
+      return isRecentJoinerDays(m, 30);
+    }
+
+    function isRecentJoinerDays(m, days = 7) {
+      if (m.isJoinedLast7 && days === 7) return true;
+      if (m.isJoinedLast30 && days === 30) return true;
+      if (!m.joinedRaw && (!m.joined || m.joined === '—' || m.joined === '-')) {
+        return false;
+      }
+      if (m.daysSinceJoined !== undefined && m.daysSinceJoined !== null) {
+        return m.daysSinceJoined >= 0 && m.daysSinceJoined <= days;
+      }
+      if (m.joinedRaw) {
+        const d = new Date(m.joinedRaw + 'T00:00:00');
+        if (!isNaN(d.getTime())) {
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - days);
+          return d >= cutoff;
+        }
+      }
+      const joinedDate = parseCustomDate(m.joined);
+      if (!joinedDate) return false;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      return joinedDate >= cutoff;
+    }
+
+    function isMemberInactive30(m) {
+      if (m.isInactive30 !== undefined) {
+        return m.isInactive30;
+      }
+      if (m.status && m.status.n && m.status.n.toLowerCase() === 'inactive') return true;
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      if (m.daysSinceLastLogin !== undefined && m.daysSinceLastLogin !== null) {
+        return m.daysSinceLastLogin >= 30;
+      }
+      if (m.lastLoginRaw) {
+        const loginDate = new Date(m.lastLoginRaw + 'T00:00:00');
+        if (!isNaN(loginDate.getTime())) {
+          return loginDate <= thirtyDaysAgo;
+        }
+      } else if (m.lastLogin && m.lastLogin !== '—' && m.lastLogin !== 'Never') {
+        const loginDate = parseCustomDate(m.lastLogin);
+        if (loginDate) {
+          return loginDate <= thirtyDaysAgo;
+        }
+      }
+
+      // If user never logged in, only inactive if registered 30+ days ago
+      if (m.daysSinceJoined !== undefined && m.daysSinceJoined !== null) {
+        return m.daysSinceJoined >= 30;
+      }
+      if (m.joinedRaw) {
+        const joinedDate = new Date(m.joinedRaw + 'T00:00:00');
+        if (!isNaN(joinedDate.getTime())) {
+          return joinedDate <= thirtyDaysAgo;
+        }
+      }
+      const joinedDate = parseCustomDate(m.joined);
+      if (joinedDate) {
+        return joinedDate <= thirtyDaysAgo;
+      }
+      return false;
+    }
+
     function updateSummaryMetrics() {
       const totalNum = members.length;
-      document.getElementById('kpi-total-num').textContent = totalNum;
-      document.getElementById('result-total').textContent = totalNum;
+      const totalNumEl = document.getElementById('kpi-total-num');
+      const resultTotalEl = document.getElementById('result-total');
+      if (totalNumEl) totalNumEl.textContent = totalNum;
+      if (resultTotalEl) resultTotalEl.textContent = totalNum;
 
-      const activeNum = members.filter(m => m.status.n.toLowerCase() === 'active').length;
-      document.getElementById('kpi-active-num').textContent = activeNum;
+      const activeNum = members.filter(m => (m.status?.n || '').toLowerCase() === 'active').length;
+      const activeNumEl = document.getElementById('kpi-active-num');
+      if (activeNumEl) activeNumEl.textContent = activeNum;
 
       // New Today / Month
       const todayStr = formatDateDMY(new Date());
       const thisMonthStr = formatMonthMY(new Date());
+      const today = new Date();
       
-      const newToday = members.filter(m => m.joined && m.joined === todayStr).length;
-      const newMonth = members.filter(m => m.joined && m.joined.endsWith(thisMonthStr)).length;
+      const newToday = members.filter(m => {
+        const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+        return joinedDate && joinedDate.getDate() === today.getDate() && joinedDate.getMonth() === today.getMonth() && joinedDate.getFullYear() === today.getFullYear();
+      }).length;
       
-      document.getElementById('kpi-newtoday-num').textContent = newToday;
-      document.getElementById('kpi-newtoday-trend').textContent = `+${newToday}`;
-      document.getElementById('kpi-newmonth-num').textContent = newMonth;
+      const newMonth = members.filter(m => {
+        const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+        return joinedDate && joinedDate.getMonth() === today.getMonth() && joinedDate.getFullYear() === today.getFullYear();
+      }).length;
+      
+      const newTodayEl = document.getElementById('kpi-newtoday-num');
+      const newTodayTrendEl = document.getElementById('kpi-newtoday-trend');
+      const newMonthEl = document.getElementById('kpi-newmonth-num');
+      const newMonthTrendEl = document.getElementById('kpi-newmonth-trend');
+      if (newTodayEl) newTodayEl.textContent = newToday;
+      if (newTodayTrendEl) newTodayTrendEl.textContent = `+${newToday}`;
+      if (newMonthEl) newMonthEl.textContent = newMonth;
+      if (newMonthTrendEl) newMonthTrendEl.textContent = `+${newMonth}`;
       
       // Renewals
-      const renewedToday = members.filter(m => m.lastPaymentDate && m.lastPaymentDate === todayStr && m.renewalCount > 0).length;
-      const renewedMonth = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr) && m.renewalCount > 0).length;
-      document.getElementById('kpi-renewtoday-num').textContent = renewedToday;
-      document.getElementById('kpi-renewmonth-num').textContent = renewedMonth;
+      const renewedToday = members.filter(m => (m.lastPaymentDate && m.lastPaymentDate === todayStr) || (m.renewalCount > 0 && m.lastPaymentDate === todayStr)).length;
+      const renewedMonth = members.filter(m => (m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr)) || ((m.payment?.n || '').toLowerCase() === 'paid' && m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr))).length;
+      const renewTodayEl = document.getElementById('kpi-renewtoday-num');
+      const renewMonthEl = document.getElementById('kpi-renewmonth-num');
+      if (renewTodayEl) renewTodayEl.textContent = renewedToday;
+      if (renewMonthEl) renewMonthEl.textContent = renewedMonth;
 
       // Expiring in 7 Days
-      const expiring7 = members.filter(m => m.expiryDays >= 0 && m.expiryDays <= 7).length;
-      document.getElementById('kpi-expiring7-num').textContent = expiring7;
+      const expiring7 = members.filter(m => m.isExpiring7 || (typeof m.expiryDays === 'number' && m.expiryDays >= 0 && m.expiryDays <= 7)).length;
+      const expiring7El = document.getElementById('kpi-expiring7-num');
+      if (expiring7El) expiring7El.textContent = expiring7;
 
       // Expired
-      const expired = members.filter(m => m.status.n.toLowerCase() === 'expired').length;
-      document.getElementById('kpi-expired-num').textContent = expired;
+      const expired = members.filter(m => m.isExpired || (m.status?.n || '').toLowerCase() === 'expired' || (typeof m.expiryDays === 'number' && m.expiryDays < 0)).length;
+      const expiredEl = document.getElementById('kpi-expired-num');
+      if (expiredEl) expiredEl.textContent = expired;
 
       // Pending approvals
-      const pending = members.filter(m => m.status.n.toLowerCase().includes('pending') || m.status.n.toLowerCase().includes('awaiting')).length;
-      document.getElementById('kpi-approvals-num').textContent = pending;
-      document.getElementById('widget-pending-approvals').textContent = pending;
+      const pending = members.filter(m => {
+        const s = (m.status?.n || '').toLowerCase();
+        return s.includes('pending') || s.includes('awaiting');
+      }).length;
+      const approvalsKpiEl = document.getElementById('kpi-approvals-num');
+      const approvalsWidgetEl = document.getElementById('widget-pending-approvals');
+      if (approvalsKpiEl) approvalsKpiEl.textContent = pending;
+      if (approvalsWidgetEl) approvalsWidgetEl.textContent = pending;
 
       // Pending Amount Outstanding
-      const pendingAmt = members.reduce((sum, m) => sum + (m.pendingAmount || 0), 0);
-      document.getElementById('kpi-pendingpay-num').textContent = '₹' + (pendingAmt / 100000).toFixed(2) + 'L';
+      const pendingAmt = members.reduce((sum, m) => sum + (parseFloat(m.pendingAmount) || 0), 0);
+      const pendingPayEl = document.getElementById('kpi-pendingpay-num');
+      if (pendingPayEl) pendingPayEl.textContent = formatCompactCurrency(pendingAmt);
 
       // Estimated Revenue
-      const totalCoins = members.reduce((sum, m) => sum + (m.coins || 0), 0);
-      document.getElementById('kpi-revenue-num').textContent = '₹' + (totalCoins * 0.1 / 1000).toFixed(1) + 'K';
+      const totalRevenue = members.filter(m => (m.payment?.n || '').toLowerCase() === 'paid').length * 15000;
+      const revenueEl = document.getElementById('kpi-revenue-num');
+      if (revenueEl) revenueEl.textContent = formatCompactCurrency(totalRevenue);
 
       // Churned
-      document.getElementById('kpi-churn-num').textContent = expired;
+      const churnEl = document.getElementById('kpi-churn-num');
+      if (churnEl) churnEl.textContent = expired;
 
-      // Birthdays Today
-      const todayMD = new Date().toISOString().slice(5, 10);
-      const bdays = members.filter(m => m.dob && m.dob.slice(5, 10) === todayMD).map(m => m.name);
-      document.getElementById('widget-birthdays').textContent = bdays.length > 0 ? bdays.join(', ') : 'No birthdays today';
+      // Birthdays Today (evaluated in local timezone)
+      const now = new Date();
+      const localMD = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      const bdays = members.filter(m => m.dob && m.dob.slice(5, 10) === localMD).map(m => m.name);
+      const totalDobListed = members.filter(m => m.dob).length;
+      const bdayEl = document.getElementById('widget-birthdays');
+      if (bdayEl) {
+        if (bdays.length > 0) {
+          bdayEl.textContent = bdays.length <= 2 ? bdays.join(', ') : `${bdays.length} today (${bdays.slice(0, 2).join(', ')}...)`;
+        } else {
+          bdayEl.textContent = totalDobListed > 0 ? `0 today (${totalDobListed} listed)` : 'No birthdays today';
+        }
+      }
 
-      // Recent Joiner
-      const latest = [...members].sort((a,b) => (b.joined || '').localeCompare(a.joined || '')).slice(0, 1);
-      document.getElementById('widget-recent').textContent = latest.length > 0 ? `${latest[0].name} (${latest[0].joined})` : '—';
+      // Upcoming Events
+      const eventsEl = document.getElementById('widget-events');
+      if (eventsEl) {
+        if (typeof upcomingEventsCount === 'number' && upcomingEventsCount > 0) {
+          eventsEl.textContent = nextUpcomingEventTitle ? `${upcomingEventsCount} scheduled (${nextUpcomingEventTitle})` : `${upcomingEventsCount} scheduled`;
+        } else {
+          eventsEl.textContent = 'No upcoming events';
+        }
+      }
+
+      // Recently Joined Count (30d)
+      const recent30List = members.filter(m => (m.joinedRaw || (m.joined && m.joined !== '—')) && (m.isJoinedLast30 || m.isJoinedLast7 || isRecentJoinerDays(m, 30)));
+      const recentEl = document.getElementById('widget-recent');
+      if (recentEl) {
+        recentEl.textContent = recent30List.length > 0 ? `${recent30List.length} joined (30d)` : '0 joined (30d)';
+      }
 
       // Top Circle
       const circleCounts = {};
-      members.forEach(m => { if(m.circle) circleCounts[m.circle] = (circleCounts[m.circle] || 0) + 1; });
-      const topCircle = Object.keys(circleCounts).reduce((a, b) => (circleCounts[a] || 0) > (circleCounts[b] || 0) ? a : b, 'None');
-      document.getElementById('widget-top-circle').textContent = topCircle;
+      members.forEach(m => {
+        const c = (m.circle || '').trim();
+        if (c && c !== '—') circleCounts[c] = (circleCounts[c] || 0) + 1;
+      });
+      const topCircles = Object.entries(circleCounts).sort((a, b) => b[1] - a[1]);
+      const topCircleEl = document.getElementById('widget-top-circle');
+      if (topCircleEl) {
+        topCircleEl.textContent = topCircles.length > 0 ? `${topCircles[0][0]} (${topCircles[0][1]})` : 'None';
+      }
 
       // Top Industry
       const indCounts = {};
-      members.forEach(m => { if(m.industry) indCounts[m.industry] = (indCounts[m.industry] || 0) + 1; });
-      const topInd = Object.keys(indCounts).reduce((a, b) => (indCounts[a] || 0) > (indCounts[b] || 0) ? a : b, 'None');
-      document.getElementById('widget-top-industry').textContent = topInd;
+      members.forEach(m => {
+        const ind = (m.industry || '').trim();
+        if (ind && ind !== '—' && ind !== '-' && ind.toLowerCase() !== 'none') {
+          ind.split(',').forEach(item => {
+            const clean = item.trim();
+            if (clean && clean !== '—' && clean !== '-' && clean.toLowerCase() !== 'none') {
+              indCounts[clean] = (indCounts[clean] || 0) + 1;
+            }
+          });
+        }
+      });
+      const topInds = Object.entries(indCounts).sort((a, b) => b[1] - a[1]);
+      const topIndEl = document.getElementById('widget-top-industry');
+      const topIndCard = document.getElementById('widget-card-topindustry');
+      if (topIndCard) {
+        if (topInds.length > 0) {
+          topIndCard.classList.remove('hidden');
+          if (topIndEl) topIndEl.textContent = `${topInds[0][0]} (${topInds[0][1]})`;
+        } else {
+          topIndCard.classList.add('hidden');
+          if (topIndEl) topIndEl.textContent = 'None';
+        }
+      }
     }
 
     function buildHeaderDropdowns() {
@@ -1651,50 +2047,129 @@
         // Global search
         if(q && !(m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || m.mid.toLowerCase().includes(q) || m.company.toLowerCase().includes(q) || m.city.toLowerCase().includes(q) || m.country.toLowerCase().includes(q) || m.circle.toLowerCase().includes(q) || m.industry.toLowerCase().includes(q))) return false;
         
+        // KPI Summary Card Filters
+        if (currentFilters.kpi) {
+          const todayStr = formatDateDMY(new Date());
+          const thisMonthStr = formatMonthMY(new Date());
+          const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+          const today = new Date();
+
+          if (currentFilters.kpi === 'active') {
+            if ((m.status?.n || '').toLowerCase() !== 'active') return false;
+          } else if (currentFilters.kpi === 'newtoday') {
+            const isToday = joinedDate && joinedDate.getDate() === today.getDate() && joinedDate.getMonth() === today.getMonth() && joinedDate.getFullYear() === today.getFullYear();
+            if (!isToday) return false;
+          } else if (currentFilters.kpi === 'newmonth') {
+            const isThisMonth = joinedDate && joinedDate.getMonth() === today.getMonth() && joinedDate.getFullYear() === today.getFullYear();
+            if (!isThisMonth) return false;
+          } else if (currentFilters.kpi === 'renewtoday') {
+            if (!m.lastPaymentDate || m.lastPaymentDate !== todayStr) return false;
+          } else if (currentFilters.kpi === 'renewmonth') {
+            const isRenewed = (m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr)) || ((m.payment?.n || '').toLowerCase() === 'paid' && m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr));
+            if (!isRenewed) return false;
+          } else if (currentFilters.kpi === 'expiring7') {
+            if (!(m.isExpiring7 || (typeof m.expiryDays === 'number' && m.expiryDays >= 0 && m.expiryDays <= 7))) return false;
+          } else if (currentFilters.kpi === 'expired') {
+            if (!(m.isExpired || (m.status?.n || '').toLowerCase() === 'expired' || (typeof m.expiryDays === 'number' && m.expiryDays < 0))) return false;
+          } else if (currentFilters.kpi === 'pendingpay') {
+            const isDue = m.isPaymentOverdue || ['overdue', 'due', 'unpaid'].includes((m.payment?.n || '').toLowerCase()) || (parseFloat(m.pendingAmount) || 0) > 0;
+            if (!isDue) return false;
+          } else if (currentFilters.kpi === 'revenue') {
+            if ((m.payment?.n || '').toLowerCase() !== 'paid' && (m.coins || 0) <= 0) return false;
+          } else if (currentFilters.kpi === 'churn') {
+            if (!(m.isExpired || (m.status?.n || '').toLowerCase() === 'expired' || (m.status?.n || '').toLowerCase() === 'inactive' || (typeof m.expiryDays === 'number' && m.expiryDays < 0))) return false;
+          } else if (currentFilters.kpi === 'approvals') {
+            const s = (m.status?.n || '').toLowerCase();
+            if (!s.includes('pending') && !s.includes('awaiting')) return false;
+          } else if (currentFilters.kpi === 'birthdays') {
+            const now = new Date();
+            const localMD = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            const hasBdayToday = members.some(x => x.dob && x.dob.slice(5, 10) === localMD);
+            if (hasBdayToday) {
+              if (!m.dob || m.dob.slice(5, 10) !== localMD) return false;
+            } else {
+              if (!m.dob) return false;
+            }
+          } else if (currentFilters.kpi === 'recent') {
+            if (!m.joinedRaw && (!m.joined || m.joined === '—')) return false;
+            if (!m.isJoinedLast30 && !m.isJoinedLast7 && !isRecentJoinerDays(m, 30)) return false;
+          } else if (currentFilters.kpi === 'topcircle') {
+            const topCircleText = document.getElementById('widget-top-circle')?.textContent.trim() || '';
+            const topCircleName = topCircleText.replace(/\s*\(\d+.*?\)$/, '').trim();
+            if (!topCircleName || topCircleName === 'None' || topCircleName === '-') {
+              return false;
+            } else {
+              if (!m.circle || m.circle.trim().toLowerCase() !== topCircleName.toLowerCase()) return false;
+            }
+          } else if (currentFilters.kpi === 'topindustry') {
+            const topIndText = document.getElementById('widget-top-industry')?.textContent.trim() || '';
+            const topIndName = topIndText.replace(/\s*\(\d+.*?\)$/, '').trim();
+            if (!topIndName || topIndName === 'None' || topIndName === '-') {
+              return false;
+            } else {
+              if (!m.industry || m.industry === '—' || m.industry === '-' || m.industry.toLowerCase() === 'none') return false;
+              const userInds = m.industry.split(',').map(s => s.trim().toLowerCase());
+              if (!userInds.includes(topIndName.toLowerCase()) && !m.industry.toLowerCase().includes(topIndName.toLowerCase())) return false;
+            }
+          }
+        }
+
         // Saved view tabs
         if (currentFilters.view === 'unity' && m.membership !== 'Only Unity Peer' && m.membership !== 'Global Peer' && m.membership !== 'Gold') return false;
         if (currentFilters.view === 'circles' && m.memberType !== 'circle_peer') return false;
         if (currentFilters.view === 'multiple' && !m.membership.toLowerCase().includes('multi circle')) return false;
         if (currentFilters.view === 'free' && m.memberType !== 'free') return false;
         if (currentFilters.view === 'vip' && m.membership !== 'Platinum') return false;
-        if (currentFilters.view === 'pending' && !(m.status.n.toLowerCase().includes('pending') || m.status.n.toLowerCase().includes('awaiting'))) return false;
-        if (currentFilters.view === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
+        if (currentFilters.view === 'pending' && !((m.status?.n || '').toLowerCase().includes('pending') || (m.status?.n || '').toLowerCase().includes('awaiting'))) return false;
+        if (currentFilters.view === 'expiring' && !(m.isExpiring30 || (typeof m.expiryDays === 'number' && m.expiryDays >= 0 && m.expiryDays <= 60))) return false;
         if (currentFilters.view === 'new') {
-          if (!m.joined || m.joined === '—') return false;
-          const joinedDate = new Date(m.joined);
-          const now = new Date();
-          if (joinedDate.getFullYear() !== now.getFullYear() || joinedDate.getMonth() !== now.getMonth()) return false;
+          const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+          const isThisMonth = joinedDate && joinedDate.getMonth() === today.getMonth() && joinedDate.getFullYear() === today.getFullYear();
+          if (!isThisMonth) return false;
         }
 
         // Quick filter chips
-        if (currentFilters.quick === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
+        if (currentFilters.quick === 'expiring') {
+          if (!(m.isExpiring30 || (typeof m.expiryDays === 'number' && m.expiryDays >= 0 && m.expiryDays <= 30))) return false;
+        }
         if (currentFilters.quick === 'new7') {
+          const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+          if (!joinedDate) return false;
           const sevenDaysAgo = new Date();
           sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          const joinedDate = new Date(m.joined);
-          if (!m.joined || joinedDate < sevenDaysAgo) return false;
+          sevenDaysAgo.setHours(0, 0, 0, 0);
+          if (joinedDate < sevenDaysAgo) return false;
         }
-        if (currentFilters.quick === 'nopayment' && m.payment.n.toLowerCase() !== 'due') return false;
-        if (currentFilters.quick === 'inactive' && m.status.n.toLowerCase() !== 'inactive') return false;
+        if (currentFilters.quick === 'nopayment') {
+          const payName = (m.payment?.n || '').toLowerCase();
+          const isOverdue = m.isPaymentOverdue === true || ['overdue', 'due', 'unpaid', 'pending'].includes(payName) || (parseFloat(m.pendingAmount) || 0) > 0;
+          if (!isOverdue) return false;
+        }
+        if (currentFilters.quick === 'inactive') {
+          if (!m.isInactive30 && !isMemberInactive30(m)) return false;
+        }
 
         // Joined dates filter inputs
         const joinedStart = document.getElementById('f-joined-start')?.value;
         const joinedEnd = document.getElementById('f-joined-end')?.value;
-        if (m.joined && m.joined !== '—') {
-          const joinedDate = new Date(m.joined);
+        if (joinedStart || joinedEnd) {
+          const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+          if (!joinedDate) return false;
           joinedDate.setHours(0,0,0,0);
           if (joinedStart) {
-            const startDate = new Date(joinedStart);
-            startDate.setHours(0,0,0,0);
-            if (joinedDate < startDate) return false;
+            const startDate = parseCustomDate(joinedStart);
+            if (startDate) {
+              startDate.setHours(0,0,0,0);
+              if (joinedDate < startDate) return false;
+            }
           }
           if (joinedEnd) {
-            const endDate = new Date(joinedEnd);
-            endDate.setHours(0,0,0,0);
-            if (joinedDate > endDate) return false;
+            const endDate = parseCustomDate(joinedEnd);
+            if (endDate) {
+              endDate.setHours(23,59,59,999);
+              if (joinedDate > endDate) return false;
+            }
           }
-        } else if (joinedStart || joinedEnd) {
-          return false;
         }
 
         // Header column filters
@@ -1730,6 +2205,11 @@
           if(typeof va==='string') return va.localeCompare(vb)*sortState.dir;
           return (va-vb)*sortState.dir;
         });
+      } else if (currentFilters.kpi === 'recent') {
+        list = list.slice().sort((a, b) => {
+          if (a.joinedRaw && b.joinedRaw) return b.joinedRaw.localeCompare(a.joinedRaw);
+          return (a.daysSinceJoined ?? 999) - (b.daysSinceJoined ?? 999);
+        });
       }
       render(list);
     }
@@ -1755,8 +2235,10 @@
       });
 
       document.querySelectorAll('.chip-active').forEach(chip => chip.classList.remove('chip-active'));
+      document.querySelectorAll('.kpi-card, .mini-widget').forEach(el => el.classList.remove('active-kpi'));
       
       currentFilters = {
+        kpi: '',
         globalSearch: '',
         industry: '',
         city: '',
@@ -1849,7 +2331,7 @@
       if (!m) return;
       
       document.getElementById('view-full-profile-btn').onclick = () => {
-        window.open(`/admin/users/${m.id}/edit`, '_blank');
+        window.open(`/admin/users/${m.id}`, '_blank');
       };
       
       const memberTypeLabel = m.memberType === 'unity' ? 'Unity' : (m.memberType === 'circle_peer' ? 'Circle Peer' : (m.memberType === 'free' ? 'Free' : (m.memberType || 'Free')));
@@ -1899,6 +2381,8 @@
             </div>
             <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
               <div class="flex justify-between"><span class="text-slate-400">Joined Date</span><span class="text-slate-800 font-medium">${m.joined || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Membership Ends</span><span class="text-slate-800 font-medium">${m.membership_ends_at || '—'} ${typeof m.expiryDays === 'number' ? `(${m.expiryDays >= 0 ? `${m.expiryDays}d left` : 'expired'})` : ''}</span></div>
+              ${m.membership_expiry_date_remark ? `<div class="flex justify-between"><span class="text-slate-400">Remark</span><span class="text-slate-800 font-medium">${m.membership_expiry_date_remark}</span></div>` : ''}
             </div>
           </div>
         </div>
@@ -2134,19 +2618,23 @@
           if (currentFilters.view === 'pending' && !(m.status.n.toLowerCase().includes('pending') || m.status.n.toLowerCase().includes('awaiting'))) return false;
           if (currentFilters.view === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
           if (currentFilters.view === 'new') {
-            const thisMonthStr = formatMonthMY(new Date());
-            if (!m.joined || !m.joined.endsWith(thisMonthStr)) return false;
+            const joinedDate = parseCustomDate(m.joinedRaw || m.joined);
+            const isThisMonth = joinedDate && joinedDate.getMonth() === (new Date()).getMonth() && joinedDate.getFullYear() === (new Date()).getFullYear();
+            if (!isThisMonth) return false;
           }
 
-          if (currentFilters.quick === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
-          if (currentFilters.quick === 'new7') {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            const joinedDate = new Date(m.joined);
-            if (!m.joined || joinedDate < sevenDaysAgo) return false;
+          if (currentFilters.quick === 'expiring') {
+            if (m.isExpiring30 !== undefined ? !m.isExpiring30 : (typeof m.expiryDays !== 'number' || m.expiryDays < 0 || m.expiryDays > 30)) return false;
           }
-          if (currentFilters.quick === 'nopayment' && m.payment.n.toLowerCase() !== 'unpaid') return false;
-          if (currentFilters.quick === 'inactive' && m.status.n.toLowerCase() !== 'inactive') return false;
+          if (currentFilters.quick === 'new7') {
+            if (m.isJoinedLast7 !== undefined ? !m.isJoinedLast7 : !isRecentJoinerDays(m, 7)) return false;
+          }
+          if (currentFilters.quick === 'nopayment') {
+            if (m.isPaymentOverdue !== undefined ? !m.isPaymentOverdue : (!['overdue', 'due'].includes(m.payment?.n?.toLowerCase()) && (parseFloat(m.pendingAmount) || 0) <= 0)) return false;
+          }
+          if (currentFilters.quick === 'inactive') {
+            if (m.isInactive30 !== undefined ? !m.isInactive30 : !isMemberInactive30(m)) return false;
+          }
 
           const joinedStart = document.getElementById('f-joined-start')?.value;
           const joinedEnd = document.getElementById('f-joined-end')?.value;

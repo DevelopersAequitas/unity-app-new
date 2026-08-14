@@ -66,12 +66,117 @@ class IntroducedPeersApiTest extends TestCase
             $table->string('s3_key')->nullable();
             $table->string('mime_type')->nullable();
             $table->bigInteger('size_bytes')->nullable();
+            $table->integer('width')->nullable();
+            $table->integer('height')->nullable();
+            $table->integer('duration')->nullable();
             $table->timestamps();
         });
 
         Schema::create('circle_category_level4', function (Blueprint $table): void {
             $table->id();
             $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('peer_blocks', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('blocker_user_id');
+            $table->uuid('blocked_user_id');
+            $table->timestamps();
+        });
+
+        Schema::create('posts', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('circle_id')->nullable();
+            $table->text('content_text')->nullable();
+            $table->json('media')->nullable();
+            $table->json('tags')->nullable();
+            $table->string('visibility')->default('public');
+            $table->string('moderation_status')->default('pending');
+            $table->boolean('sponsored')->default(false);
+            $table->boolean('is_deleted')->default(false);
+            $table->string('source_type')->nullable();
+            $table->uuid('source_id')->nullable();
+            $table->string('source_event')->nullable();
+            $table->string('post_type')->nullable();
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
+            $table->string('image')->nullable();
+            $table->string('status')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('app_notifications', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('campaign_id')->nullable();
+            $table->string('type');
+            $table->string('category')->nullable();
+            $table->string('title');
+            $table->text('body');
+            $table->string('channel')->default('push');
+            $table->string('priority')->default('medium');
+            $table->string('reference_type')->nullable();
+            $table->string('reference_id')->nullable();
+            $table->string('screen')->nullable();
+            $table->string('dedupe_key')->nullable();
+            $table->string('status')->nullable();
+            $table->timestamp('sent_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
+            $table->text('failure_reason')->nullable();
+            $table->json('data')->nullable();
+            $table->timestamp('read_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('notification_preferences', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->boolean('push_enabled')->default(true);
+            $table->boolean('email_enabled')->default(true);
+            $table->boolean('chat_enabled')->default(true);
+            $table->boolean('event_enabled')->default(true);
+            $table->boolean('circle_enabled')->default(true);
+            $table->boolean('business_enabled')->default(true);
+            $table->boolean('campaign_enabled')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('notification_delivery_logs', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('notification_id');
+            $table->uuid('campaign_id')->nullable();
+            $table->uuid('user_id');
+            $table->string('channel')->nullable();
+            $table->string('provider')->nullable();
+            $table->string('status')->nullable();
+            $table->json('request_payload')->nullable();
+            $table->json('response_payload')->nullable();
+            $table->text('error_message')->nullable();
+            $table->timestamp('attempted_at')->nullable();
+            $table->timestamp('delivered_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('user_push_tokens', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->string('token')->nullable();
+            $table->string('platform')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('notification_suppression_logs', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('campaign_id')->nullable();
+            $table->string('type')->nullable();
+            $table->string('dedupe_key')->nullable();
+            $table->string('reason')->nullable();
+            $table->timestamp('last_sent_at')->nullable();
+            $table->integer('send_count')->default(0);
             $table->timestamps();
         });
     }
@@ -251,5 +356,58 @@ class IntroducedPeersApiTest extends TestCase
         $response = $this->getJson('/api/v1/members/top-introducers');
         $ids = collect($response->json('data'))->pluck('id')->all();
         $this->assertNotContains($zeroIntroducer->id, $ids);
+    }
+
+    public function test_can_introduce_an_inactive_peer(): void
+    {
+        $user = User::factory()->create([
+            'members_introduced_count' => 0,
+            'status' => 'active',
+        ]);
+        $inactivePeer = User::factory()->create([
+            'introduced_by' => null,
+            'status' => 'inactive',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/v1/profile/introduced-peers', [
+            'peer_id' => $inactivePeer->id,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.id', $inactivePeer->id);
+
+        $inactivePeer->refresh();
+        $user->refresh();
+
+        $this->assertSame($user->id, $inactivePeer->introduced_by);
+        $this->assertEquals(1, $user->members_introduced_count);
+    }
+
+    public function test_member_introduced_peers_api_includes_inactive_peers(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+        $inactivePeer = User::factory()->create([
+            'introduced_by' => $user->id,
+            'status' => 'inactive',
+        ]);
+        $activePeer = User::factory()->create([
+            'introduced_by' => $user->id,
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson("/api/v1/members/{$user->id}/introduced-peers");
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.introduced_peers_count', 2);
+
+        $ids = collect($response->json('data.introduced_peers'))->pluck('id')->all();
+        $this->assertContains($inactivePeer->id, $ids);
+        $this->assertContains($activePeer->id, $ids);
     }
 }
