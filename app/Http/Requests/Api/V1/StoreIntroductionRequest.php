@@ -48,9 +48,9 @@ class StoreIntroductionRequest extends FormRequest
                 return;
             }
 
-            // Introducer must exist and be active
+            // Introducer must exist
             $introducer = User::withoutTrashed()->find($introducerId);
-            if (! $introducer || $introducer->status !== 'active') {
+            if (! $introducer) {
                 $v->errors()->add('introducer_id', 'The selected introducer is not available.');
 
                 return;

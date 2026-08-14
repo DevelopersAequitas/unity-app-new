@@ -460,9 +460,6 @@ class ProfileController extends BaseApiController
         $introducedPeersCount = User::query()
             ->where('introduced_by', $member->id)
             ->whereNull('deleted_at')
-            ->where(function ($statusQuery) {
-                $statusQuery->whereNull('status')->orWhere('status', 'active');
-            })
             ->count();
 
         // Get list of introduced peers, excluding blocked ones and applying visibility rules
@@ -473,10 +470,7 @@ class ProfileController extends BaseApiController
 
         $peersQuery = User::query()
             ->where('introduced_by', $member->id)
-            ->whereNull('deleted_at')
-            ->where(function ($statusQuery) {
-                $statusQuery->whereNull('status')->orWhere('status', 'active');
-            });
+            ->whereNull('deleted_at');
 
         if ($authUser) {
             $profileVisibilityService->applyVisibleTo($peersQuery, $authUser);
