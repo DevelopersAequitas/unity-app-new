@@ -4,47 +4,70 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ShareRedirectRequest;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ShareController extends Controller
 {
     /**
-     * Handle the share redirection logic.
+     * Handle share redirection for Peers Global Unity, Greenpreneur Unity, and Fempreneur Unity.
      */
-    public function handle(ShareRedirectRequest $request): View
+    public function handle(Request $request): View
     {
-        $type = (string) $request->input('type', '');
-        $id = (string) $request->input('id', '');
+        $host = strtolower($request->getHost());
+        $queryString = $request->getQueryString();
+        $querySuffix = $queryString ? "?{$queryString}" : '';
 
-        // Detect Greenpreneur vs Peers automatically based on the domain name or config
+        // 1. Detect Product Instance dynamically
         $instance = config('app.instance');
         if (! $instance) {
-            $host = $request->getHost();
-            $instance = str_contains($host, 'greenpreneur') ? 'greenpreneur' : 'peers';
+            if (str_contains($host, 'fempreneur') || str_contains($host, 'fampreneur')) {
+                $instance = 'fempreneur';
+            } elseif (str_contains($host, 'greenpreneur')) {
+                $instance = 'greenpreneur';
+            } else {
+                $instance = 'peers';
+            }
         }
 
-        $isGreenpreneur = ($instance === 'greenpreneur');
+        // 2. Configure app stores and schemes per product
+        switch ($instance) {
+            case 'fempreneur':
+                $scheme = 'fempreneur';
+                $appId = '6799073359';
+                $appStoreUrl = 'https://apps.apple.com/in/app/fempreneur-unity/id6799073359';
+                $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.unity.fempreneur';
+                $appName = 'Fempreneur Unity';
+                break;
 
-        if ($isGreenpreneur) {
-            $appScheme = "greenpreneur://share?type={$type}&id={$id}";
-            $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.unity.greenpreneur';
-            $appStoreUrl = 'https://apps.apple.com/us/app/greenpreneur/id1234567890';
-            $appName = 'Greenpreneur';
-        } else {
-            $appScheme = "peersunity://share?type={$type}&id={$id}";
-            $playStoreUrl = (string) config('app_links.android.store_url', 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share');
-            $appStoreUrl = (string) config('app_links.ios.store_url', 'https://apps.apple.com/in/app/peers-global-unity/id6739198477');
-            $appName = 'Peers Global Unity';
+            case 'greenpreneur':
+                $scheme = 'greenpreneur';
+                $appId = '6782311572';
+                $appStoreUrl = 'https://apps.apple.com/in/app/greenpreneur-unity/id6782311572';
+                $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.unity.greenpreneur';
+                $appName = 'Greenpreneur Unity';
+                break;
+
+            case 'peers':
+            default:
+                $scheme = 'peersunity';
+                $appId = '6739198477';
+                $appStoreUrl = 'https://apps.apple.com/in/app/peers-global-unity/id6739198477';
+                $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.peers.peersunity';
+                $appName = 'Peers Global Unity';
+                break;
         }
 
-        // Detect client device type
+        // 3. Custom scheme URI preserving all query parameters (e.g. type=join_circle, id=..., etc.)
+        $appScheme = "{$scheme}://share{$querySuffix}";
+
+        // 4. Device detection
         $userAgent = $request->userAgent() ?? '';
         $isAndroid = (bool) preg_match('/Android/i', $userAgent);
         $isiOS = (bool) preg_match('/iPhone|iPad|iPod/i', $userAgent);
         $isMobile = $isAndroid || $isiOS;
 
-        // Pick appropriate store fallback link
+        // Fallback store URL
         $storeUrl = $isiOS ? $appStoreUrl : $playStoreUrl;
 
         return view('share', [
@@ -52,8 +75,11 @@ class ShareController extends Controller
             'playStoreUrl' => $playStoreUrl,
             'appStoreUrl' => $appStoreUrl,
             'appName' => $appName,
-            'isGreenpreneur' => $isGreenpreneur,
+            'appId' => $appId,
+            'instance' => $instance,
             'isMobile' => $isMobile,
+            'isiOS' => $isiOS,
+            'isAndroid' => $isAndroid,
             'storeUrl' => $storeUrl,
         ]);
     }

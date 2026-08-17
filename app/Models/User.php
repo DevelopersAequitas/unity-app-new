@@ -249,20 +249,27 @@ class User extends Authenticatable
 
     public function getLifeImpactedCountAttribute($value): int
     {
-        $count = (int) ($value ?? 0);
-        if ($count > 0) {
-            return $count;
+        if ($value !== null) {
+            return (int) $value;
         }
 
         if (! $this->exists || ! isset($this->id)) {
             return 0;
         }
 
-        if (Schema::hasTable('life_impact_histories')) {
-            $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
-            $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
-            $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
-            $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+        static $hasLifeImpactHistories = null;
+        if ($hasLifeImpactHistories === null) {
+            $hasLifeImpactHistories = Schema::hasTable('life_impact_histories');
+        }
+
+        if ($hasLifeImpactHistories) {
+            static $hasStatus = null, $hasCounted = null, $hasImpactValue = null, $hasLifeImpacted = null;
+            if ($hasStatus === null) {
+                $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
+                $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+                $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+                $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+            }
 
             $valueExpr = ($hasImpactValue && $hasLifeImpacted)
                 ? 'COALESCE(NULLIF(impact_value, 0), NULLIF(life_impacted, 0), 0)'
@@ -289,9 +296,17 @@ class User extends Authenticatable
             }
         }
 
-        if (Schema::hasTable('impacts')) {
-            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
-            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+        static $hasImpacts = null;
+        if ($hasImpacts === null) {
+            $hasImpacts = Schema::hasTable('impacts');
+        }
+
+        if ($hasImpacts) {
+            static $hasImpactsStatus = null, $hasImpactsLife = null;
+            if ($hasImpactsStatus === null) {
+                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+            }
             $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : '1';
 
             $query = DB::table('impacts')
