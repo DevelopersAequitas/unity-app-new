@@ -3670,9 +3670,9 @@ class UsersController extends Controller
         $introducedMemberId = $request->input('introduced_member_id');
         $introducedMember = User::findOrFail($introducedMemberId);
 
-        // Reject inactive or deleted users
-        if ($introducedMember->status !== 'active' || $introducedMember->deleted_at !== null) {
-            return back()->with('error', 'Only active, non-deleted users can be introduced.');
+        // Reject deleted users
+        if ($introducedMember->deleted_at !== null) {
+            return back()->with('error', 'Only non-deleted users can be introduced.');
         }
 
         // Admin cannot add the same user as their own introduced member (self check)

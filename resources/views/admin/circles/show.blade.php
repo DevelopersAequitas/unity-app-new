@@ -254,6 +254,11 @@ use Carbon\Carbon;
         $coverFileId = data_get($calendar, 'cover.file_id');
     }
 
+    $meetingLink = data_get($circle, 'meeting_link') ?: data_get($calendar, 'settings.meeting_link') ?: data_get($circle, 'zoho_join_url');
+    $meetingPasscode = data_get($circle, 'meeting_passcode') ?: data_get($calendar, 'settings.meeting_passcode') ?: data_get($circle, 'zoho_meeting_password');
+    $meetingVenue = data_get($circle, 'meeting_venue') ?: data_get($calendar, 'settings.meeting_venue') ?: data_get($calendar, 'settings.meeting_address');
+    $meetingLandmark = data_get($circle, 'meeting_landmark') ?: data_get($calendar, 'settings.meeting_landmark');
+
     $peerFilters = is_array($peerFilters ?? null) ? $peerFilters : [
         'peer_name' => request('peer_name', ''),
         'peer_email' => request('peer_email', ''),
@@ -594,6 +599,35 @@ use Carbon\Carbon;
                     <span class="t3">—</span>
                 @endif
             </div>
+            @if ($meetingLink || $meetingPasscode)
+                <div class="p-3 border bs rounded-xl surface-2 md:col-span-2">
+                    <span class="t3 block mb-1 font-medium flex items-center gap-1 text-indigo-500">
+                        <i class="bi bi-camera-video"></i> Online Meeting Details
+                    </span>
+                    @if ($meetingLink)
+                        <div class="truncate">
+                            <span class="t3">Link: </span>
+                            <a href="{{ $meetingLink }}" target="_blank" class="text-indigo-600 hover:underline font-medium no-underline">{{ $meetingLink }}</a>
+                        </div>
+                    @endif
+                    @if ($meetingPasscode)
+                        <div class="mt-0.5"><span class="t3">Passcode / ID: </span><span class="t1 font-semibold">{{ $meetingPasscode }}</span></div>
+                    @endif
+                </div>
+            @endif
+            @if ($meetingVenue || $meetingLandmark)
+                <div class="p-3 border bs rounded-xl surface-2 md:col-span-2">
+                    <span class="t3 block mb-1 font-medium flex items-center gap-1 text-emerald-600">
+                        <i class="bi bi-geo-alt"></i> Offline / Venue Details
+                    </span>
+                    @if ($meetingVenue)
+                        <div class="t1 font-medium leading-relaxed">{{ $meetingVenue }}</div>
+                    @endif
+                    @if ($meetingLandmark)
+                        <div class="mt-0.5 text-xs"><span class="t3">Landmark: </span><span class="t1 font-semibold">{{ $meetingLandmark }}</span></div>
+                    @endif
+                </div>
+            @endif
         </div>
     </div>
 

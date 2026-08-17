@@ -147,6 +147,7 @@ use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
+use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
@@ -177,8 +178,6 @@ Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
     ]);
 });
 
-// Backward-compatible ads endpoint for clients that still call /api/ads.
-Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
@@ -445,6 +444,9 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
         Route::post('/user/mobile-version', [UserMobileVersionController::class, 'store']);
+        Route::post('/user/devices/register', [UserMobileDetailController::class, 'registerDevice']);
+        Route::post('/user/devices/logout', [UserMobileDetailController::class, 'logoutDevice']);
+        Route::get('/user/devices', [UserMobileDetailController::class, 'listDevices']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
             ->middleware('unity.user')
@@ -868,7 +870,9 @@ Route::prefix('v1')->group(function () {
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
         Route::get('/posts/feed', [PostController::class, 'feed']);
-        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
+        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
+        Route::middleware('auth:sanctum')->get('/ads/my', [AdController::class, 'myAds']);
+        Route::middleware('auth:sanctum')->get('/ads/all', [AdController::class, 'allAds']);
         Route::get('/ads/timeline', [AdController::class, 'timeline']);
         Route::post('/ads/{id}/view', [AdController::class, 'view'])->whereUuid('id');
         Route::post('/ads/{id}/click', [AdController::class, 'click'])->whereUuid('id');

@@ -1560,9 +1560,9 @@ window.switchTab = function(tabId) {
                     </div>
                     <div class="modal-body text-start">
                         <div class="mb-3">
-                            <label for="introduced_member_select" class="form-label fw-semibold">Select Active User</label>
+                            <label for="introduced_member_select" class="form-label fw-semibold">Select User</label>
                             <select id="introduced_member_select" name="introduced_member_id" class="form-select" style="width: 100%;" required></select>
-                            <div class="form-text">Search by name, email, company, or phone. Only active, non-deleted users can be selected.</div>
+                            <div class="form-text">Search by name, email, company, or phone. Only non-deleted users can be selected.</div>
                         </div>
                     </div>
                     <div class="modal-footer">

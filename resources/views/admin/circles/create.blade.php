@@ -324,10 +324,10 @@
                     </div>
 
                     <h5 class="form-section-title"><i class="bi bi-sliders text-primary me-2"></i>Meeting Settings</h5>
-                    <div class="row g-3">
+                    <div class="row g-3 mb-3">
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Meeting Mode</label>
-                            <select name="meeting_mode" class="form-select js-no-searchable-select">
+                            <select name="meeting_mode" id="meetingModeSelect" class="form-select js-no-searchable-select">
                                 <option value="">Select mode</option>
                                 @foreach ($meetingModes as $mode)
                                     <option value="{{ $mode }}" @selected(old('meeting_mode') === $mode)>{{ ucfirst($mode) }}</option>
@@ -360,6 +360,41 @@
                             <label class="form-label fw-semibold">Calendar Timezone</label>
                             <input type="text" class="form-control bg-light" value="{{ config('app.timezone', 'UTC') }}" readonly>
                             <input type="hidden" name="calendar_timezone" value="{{ config('app.timezone', 'UTC') }}">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Online Details Section -->
+                    <div id="onlineDetailsSection" class="p-3 border rounded-3 bg-light-subtle mb-3 d-none">
+                        <h6 class="fw-semibold text-primary mb-3">
+                            <i class="bi bi-camera-video me-1"></i>Online Meeting Details
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Online Meeting Link</label>
+                                <input type="url" name="meeting_link" class="form-control" value="{{ old('meeting_link') }}" placeholder="https://zoom.us/j/... or Google Meet / Teams link">
+                                <div class="form-text">Provide the meeting join URL for circle members.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Meeting Passcode / ID</label>
+                                <input type="text" name="meeting_passcode" class="form-control" value="{{ old('meeting_passcode') }}" placeholder="e.g. 123456 or Passcode">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Offline Details Section -->
+                    <div id="offlineDetailsSection" class="p-3 border rounded-3 bg-light-subtle mb-3 d-none">
+                        <h6 class="fw-semibold text-success mb-3">
+                            <i class="bi bi-geo-alt me-1"></i>Offline / Venue Details
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Physical Meeting Address / Venue</label>
+                                <textarea name="meeting_venue" class="form-control" rows="2" placeholder="Enter physical meeting venue name, hall/room number, and street address...">{{ old('meeting_venue') }}</textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Landmark / Instructions</label>
+                                <input type="text" name="meeting_landmark" class="form-control" value="{{ old('meeting_landmark') }}" placeholder="e.g. Near City Center Mall, 3rd Floor">
+                            </div>
                         </div>
                     </div>
 
@@ -415,9 +450,38 @@
     // Initialize on page load
     initCitySelect2();
 
+    // Toggle meeting details sections based on selected mode
+    function toggleMeetingDetails() {
+        const modeSelect = document.getElementById('meetingModeSelect');
+        if (!modeSelect) return;
+        const mode = (modeSelect.value || '').toLowerCase();
+        const onlineSec = document.getElementById('onlineDetailsSection');
+        const offlineSec = document.getElementById('offlineDetailsSection');
+
+        if (!onlineSec || !offlineSec) return;
+
+        if (mode === 'online') {
+            onlineSec.classList.remove('d-none');
+            offlineSec.classList.add('d-none');
+        } else if (mode === 'offline') {
+            onlineSec.classList.add('d-none');
+            offlineSec.classList.remove('d-none');
+        } else if (mode === 'hybrid') {
+            onlineSec.classList.remove('d-none');
+            offlineSec.classList.remove('d-none');
+        } else {
+            onlineSec.classList.add('d-none');
+            offlineSec.classList.add('d-none');
+        }
+    }
+
+    document.getElementById('meetingModeSelect')?.addEventListener('change', toggleMeetingDetails);
+    toggleMeetingDetails();
+
     // Re-initialize when settings tab is shown to fix Select2 width calculations inside hidden tabs
     document.getElementById('settings-tab')?.addEventListener('shown.bs.tab', function () {
         initCitySelect2();
+        toggleMeetingDetails();
     });
 </script>
 @endpush
