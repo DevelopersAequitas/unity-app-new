@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Support;
 
 class ContributionMilestoneResolver
@@ -10,63 +12,63 @@ class ContributionMilestoneResolver
     private const MILESTONES = [
         [
             'threshold' => 1,
-            'award_name' => 'The Connector Award',
-            'recognition' => 'Digital Certificate + Social Media Spotlight',
-        ],
-        [
-            'threshold' => 2,
-            'award_name' => 'Rising Voice Award',
-            'recognition' => 'Digital Certificate + Social Media Spotlight',
+            'award_name' => 'Connector',
+            'recognition' => 'Digital Honour',
         ],
         [
             'threshold' => 3,
-            'award_name' => 'Community Catalyst Award',
-            'recognition' => 'Digital Certificate + Social Media Spotlight',
-        ],
-        [
-            'threshold' => 4,
-            'award_name' => 'Voice of Change Award',
-            'recognition' => 'Digital Certificate + Social Media Spotlight',
+            'award_name' => 'Catalyst',
+            'recognition' => 'Digital Honour',
         ],
         [
             'threshold' => 5,
-            'award_name' => 'Influencer Award',
-            'recognition' => 'Entry to Influencers Club',
-        ],
-        [
-            'threshold' => 6,
-            'award_name' => 'Inspiration Icon Award',
-            'recognition' => 'Digital Certificate + Social Media Spotlight',
-        ],
-        [
-            'threshold' => 8,
-            'award_name' => 'Super Star Award',
-            'recognition' => 'Premium Recognition + Podcast Invite',
+            'award_name' => 'Influencer',
+            'recognition' => 'Digital Honour',
         ],
         [
             'threshold' => 10,
-            'award_name' => 'Global Star',
-            'recognition' => 'Recognition at City Meet',
-        ],
-        [
-            'threshold' => 12,
-            'award_name' => 'Legacy Creator',
-            'recognition' => 'Trophy + Digital Certificate + Social Media Spotlight',
-        ],
-        [
-            'threshold' => 15,
-            'award_name' => 'Impact Creator Award',
-            'recognition' => '₹1L Membership Credit (in kind) + City Convention Recognition',
+            'award_name' => 'Ambassador',
+            'recognition' => 'Digital Honour',
         ],
         [
             'threshold' => 20,
-            'award_name' => 'Nation Builder Award',
-            'recognition' => 'Trophy + National Platform Honor',
+            'award_name' => 'Rainmaker',
+            'recognition' => 'Circle Honour (Pinned before your Circle)',
         ],
         [
-            'threshold' => 25,
-            'award_name' => 'Peers Global Hall of Fame 👑',
-            'recognition' => 'Crown Pin + Lifetime Badge + Unity Wall of Fame Feature',
+            'threshold' => 35,
+            'award_name' => 'Trailblazer',
+            'recognition' => 'Circle Honour (Pinned before your Circle)',
+        ],
+        [
+            'threshold' => 50,
+            'award_name' => 'Vanguard',
+            'recognition' => 'Circle Honour (Pinned before your Circle)',
+        ],
+        [
+            'threshold' => 75,
+            'award_name' => 'Luminary',
+            'recognition' => 'City Honour (Pinned at City Meeting)',
+        ],
+        [
+            'threshold' => 100,
+            'award_name' => 'Movement Maker',
+            'recognition' => 'City Honour (Pinned at City Meeting)',
+        ],
+        [
+            'threshold' => 150,
+            'award_name' => 'Community Titan',
+            'recognition' => 'City Honour (Pinned at City Meeting)',
+        ],
+        [
+            'threshold' => 250,
+            'award_name' => 'Network Architect',
+            'recognition' => 'National Honour (Awarded on National Stage)',
+        ],
+        [
+            'threshold' => 500,
+            'award_name' => 'Global Icon',
+            'recognition' => 'National Honour (Awarded on National Stage)',
         ],
     ];
 

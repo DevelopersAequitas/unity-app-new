@@ -13,7 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('milestone_badges')) {
+        if (! Schema::hasTable('milestone_badges')) {
             Schema::create('milestone_badges', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->string('type', 50);
@@ -27,7 +27,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('user_milestone_badges')) {
+        if (! Schema::hasTable('user_milestone_badges')) {
             Schema::create('user_milestone_badges', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->uuid('user_id');

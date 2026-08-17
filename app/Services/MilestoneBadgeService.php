@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\MilestoneBadge;
+use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class MilestoneBadgeService
 {
@@ -45,7 +49,9 @@ class MilestoneBadgeService
             MilestoneBadge::TYPE_MEMBER_INTRODUCTION => $membersIntroducedCount,
         ];
 
-        DB::transaction(function () use ($user, $categories): void {
+        $newlyEarnedBadges = [];
+
+        DB::transaction(function () use ($user, $categories, &$newlyEarnedBadges): void {
             foreach ($categories as $type => $currentValue) {
                 $badges = MilestoneBadge::query()
                     ->where('type', $type)
@@ -68,6 +74,7 @@ class MilestoneBadgeService
                                     'earned_at' => now(),
                                     'revoked_at' => null,
                                 ]);
+                                $newlyEarnedBadges[] = $badge;
                             } else {
                                 $existingRecord->update([
                                     'achieved_count' => $currentValue,
@@ -83,6 +90,7 @@ class MilestoneBadgeService
                                 'earned_at' => now(),
                                 'revoked_at' => null,
                             ]);
+                            $newlyEarnedBadges[] = $badge;
                         }
                     } else {
                         if ($existingRecord && $existingRecord->status === UserMilestoneBadge::STATUS_EARNED) {
@@ -96,5 +104,96 @@ class MilestoneBadgeService
                 }
             }
         });
+
+        if (! empty($newlyEarnedBadges)) {
+            $this->handleNewlyEarnedBadges($user, $newlyEarnedBadges);
+        }
+    }
+
+    /**
+     * Post timeline announcements & push notifications for newly earned milestone honours.
+     *
+     * @param  array<int, MilestoneBadge>  $badges
+     */
+    protected function handleNewlyEarnedBadges(User $user, array $badges): void
+    {
+        $userName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if (empty($userName)) {
+            $userName = 'Peer Member';
+        }
+
+        $systemUser = User::where('email', 'info@peersglobal.com')->first();
+        $authorUserId = $systemUser ? $systemUser->id : $user->id;
+
+        foreach ($badges as $badge) {
+            try {
+                $existingPost = Post::query()
+                    ->where('source_type', 'milestone_badge')
+                    ->where('source_id', $badge->id)
+                    ->where('tags', 'like', "%{$user->id}%")
+                    ->first();
+
+                if (! $existingPost && Schema::hasTable('posts')) {
+                    $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
+
+                    $media = [];
+                    if ($badge->badge_image_url) {
+                        $media[] = [
+                            'id' => (string) Str::uuid(),
+                            'type' => 'image',
+                            'url' => $badge->badge_image_url,
+                        ];
+                    }
+
+                    Post::create([
+                        'user_id' => $authorUserId,
+                        'circle_id' => null,
+                        'content_text' => $description,
+                        'media' => $media ?: null,
+                        'tags' => ['milestone_honour', 'growth_track', (string) $user->id],
+                        'visibility' => 'public',
+                        'moderation_status' => 'approved',
+                        'sponsored' => false,
+                        'is_deleted' => false,
+                        'source_type' => 'milestone_badge',
+                        'source_id' => $badge->id,
+                        'source_event' => 'badge_unlocked',
+                        'post_type' => 'milestone_honour',
+                        'title' => "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉",
+                        'description' => $description,
+                        'image' => $badge->badge_image_url,
+                        'status' => 'active',
+                    ]);
+
+                    Log::info("[MilestoneBadgeService] Published timeline post for user {$user->id} unlocking badge {$badge->title}");
+                }
+
+                if (class_exists(NotificationService::class)) {
+                    /** @var NotificationService $notificationService */
+                    $notificationService = app(NotificationService::class);
+                    $notificationService->sendToUser(
+                        $user,
+                        'milestone_badge_unlocked',
+                        '🏆 Track 1 Growth Honour Unlocked!',
+                        "Congratulations! You unlocked the \"{$badge->title}\" Honour for introducing {$badge->required_count} members to Peers Global.",
+                        [
+                            'screen' => 'profile',
+                            'badge_id' => (string) $badge->id,
+                            'badge_title' => $badge->title,
+                        ],
+                        [
+                            'channel' => 'push',
+                            'bypass_daily_limit' => true,
+                        ]
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::error('[MilestoneBadgeService] Failed handling newly earned badge: '.$e->getMessage(), [
+                    'exception' => $e,
+                    'user_id' => $user->id,
+                    'badge_id' => $badge->id,
+                ]);
+            }
+        }
     }
 }

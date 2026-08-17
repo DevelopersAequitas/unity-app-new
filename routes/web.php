@@ -78,6 +78,7 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
+use App\Http\Controllers\Admin\Track1GrowthController;
 use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
@@ -287,6 +288,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/milestone-badges/{badge}', [MilestoneBadgeController::class, 'update'])->whereUuid('badge')->name('milestone-badges.update');
         Route::delete('/milestone-badges/{badge}', [MilestoneBadgeController::class, 'destroy'])->whereUuid('badge')->name('milestone-badges.destroy');
         Route::post('/milestone-badges/{badge}/toggle-status', [MilestoneBadgeController::class, 'toggleStatus'])->whereUuid('badge')->name('milestone-badges.toggle-status');
+
+        Route::get('/track1-growth', [Track1GrowthController::class, 'index'])->name('track1-growth.index');
+        Route::get('/track1-growth/create', [Track1GrowthController::class, 'create'])->name('track1-growth.create');
+        Route::post('/track1-growth', [Track1GrowthController::class, 'store'])->name('track1-growth.store');
+        Route::get('/track1-growth/{badge}/edit', [Track1GrowthController::class, 'edit'])->whereUuid('badge')->name('track1-growth.edit');
+        Route::put('/track1-growth/{badge}', [Track1GrowthController::class, 'update'])->whereUuid('badge')->name('track1-growth.update');
+        Route::delete('/track1-growth/{badge}', [Track1GrowthController::class, 'destroy'])->whereUuid('badge')->name('track1-growth.destroy');
+        Route::post('/track1-growth/{badge}/toggle-status', [Track1GrowthController::class, 'toggleStatus'])->whereUuid('badge')->name('track1-growth.toggle-status');
+        Route::post('/track1-growth/seed', [Track1GrowthController::class, 'seed'])->name('track1-growth.seed');
         Route::get('/sponsored-milestones', [SponsoredMembersMilestonesWebController::class, 'index'])->name('sponsored-milestones.index');
         Route::get('/sponsored-milestones/{user}', [SponsoredMembersMilestonesWebController::class, 'show'])
             ->whereUuid('user')
