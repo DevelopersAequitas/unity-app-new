@@ -106,19 +106,23 @@
                                 {{ $badges->firstItem() + $index }}
                             </td>
                             <td class="py-3 px-4">
-                                @if($badge->badge_image_url)
-                                    <img src="{{ $badge->badge_image_url }}" alt="{{ $badge->title }}" class="rounded border p-1 bg-white" style="width: 44px; height: 44px; object-fit: contain;" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'44\' height=\'44\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236c757d\' stroke-width=\'2\'><circle cx=\'12\' cy=\'8\' r=\'6\'/><path d=\'M15.477 12.89 17 22l-5-3-5 3 1.523-9.11\'/></svg>';">
-                                @else
-                                    <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted" style="width: 44px; height: 44px;">
-                                        <i class="bi bi-award fs-5"></i>
-                                    </div>
-                                @endif
+                                <a href="{{ route('admin.milestone-badges.edit', $badge->id) }}" class="d-inline-block">
+                                    @if($badge->badge_image_url)
+                                        <img src="{{ $badge->badge_image_url }}" alt="{{ $badge->title }}" class="rounded border p-1 bg-white" style="width: 44px; height: 44px; object-fit: contain;" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'44\' height=\'44\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236c757d\' stroke-width=\'2\'><circle cx=\'12\' cy=\'8\' r=\'6\'/><path d=\'M15.477 12.89 17 22l-5-3-5 3 1.523-9.11\'/></svg>';">
+                                    @else
+                                        <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted" style="width: 44px; height: 44px;">
+                                            <i class="bi bi-award fs-5"></i>
+                                        </div>
+                                    @endif
+                                </a>
                             </td>
                             <td class="py-3 px-4">
-                                <div class="fw-bold text-dark">{{ $badge->title }}</div>
-                                @if($badge->description)
-                                    <div class="text-muted small text-truncate" style="max-width: 320px;">{{ $badge->description }}</div>
-                                @endif
+                                <a href="{{ route('admin.milestone-badges.edit', $badge->id) }}" class="text-decoration-none text-dark d-block">
+                                    <div class="fw-bold text-dark">{{ $badge->title }}</div>
+                                    @if($badge->description)
+                                        <div class="text-muted small text-truncate" style="max-width: 320px;">{{ $badge->description }}</div>
+                                    @endif
+                                </a>
                             </td>
                             <td class="py-3 px-4">
                                 @if($badge->type === 'life_impact')

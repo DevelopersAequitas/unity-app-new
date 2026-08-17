@@ -140,8 +140,10 @@
                     <div class="card-body p-4">
                         @if($badge->badge_image_url)
                             <div class="text-center p-3 mb-3 bg-light rounded-3 border">
-                                <img src="{{ $badge->badge_image_url }}" alt="Badge Image" class="img-fluid rounded" style="max-height: 120px; object-fit: contain;" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236c757d\' stroke-width=\'2\'><circle cx=\'12\' cy=\'8\' r=\'6\'/><path d=\'M15.477 12.89 17 22l-5-3-5 3 1.523-9.11\'/></svg>';">
-                                <div class="small text-muted mt-2">Current Badge Image</div>
+                                <a href="#" data-bs-toggle="modal" data-bs-target="#imagePreviewModal" title="Click to view full size and download">
+                                    <img src="{{ $badge->badge_image_url }}" alt="Badge Image" class="img-fluid rounded" style="max-height: 120px; object-fit: contain; cursor: pointer;" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236c757d\' stroke-width=\'2\'><circle cx=\'12\' cy=\'8\' r=\'6\'/><path d=\'M15.477 12.89 17 22l-5-3-5 3 1.523-9.11\'/></svg>';">
+                                </a>
+                                <div class="small text-muted mt-2">Current Badge Image (Click to zoom & download)</div>
                             </div>
                         @else
                             <div class="text-center p-4 mb-3 bg-light rounded-3 border border-dashed">
@@ -173,4 +175,32 @@
         </div>
     </form>
 </div>
+
+{{-- Image Preview & Download Modal --}}
+@if($badge->badge_image_url)
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-labelledby="imagePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom bg-light">
+                <h6 class="modal-title fw-bold text-dark" id="imagePreviewModalLabel">
+                    <i class="bi bi-image text-primary me-2"></i>{{ $badge->title }} - Icon Preview
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4 bg-white">
+                <div class="p-3 bg-light rounded border d-inline-block mb-3">
+                    <img src="{{ $badge->badge_image_url }}" alt="{{ $badge->title }}" class="img-fluid rounded" style="max-height: 350px; object-fit: contain;">
+                </div>
+                <div class="text-muted small mb-0">{{ basename($badge->badge_image_url) }}</div>
+            </div>
+            <div class="modal-footer border-top bg-light d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+                <a href="{{ $badge->badge_image_url }}" download="{{ \Illuminate\Support\Str::slug($badge->title) }}-badge" target="_blank" class="btn btn-primary btn-sm px-4 fw-semibold">
+                    <i class="bi bi-download me-1"></i> Download Icon
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 @endsection
