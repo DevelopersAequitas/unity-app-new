@@ -330,7 +330,7 @@ class RoleLifespanController extends Controller
         $totalActiveCount = count($activeAssignmentsRaw);
         $totalUniqueUsers = count(array_unique(array_merge(
             $activeAssignmentsRaw->pluck('user_id')->toArray(),
-            $logs->pluck('target_id')->toArray()
+            $auditLogs->pluck('target_id')->toArray()
         )));
 
         // Calculate average duration from historical lifespans
