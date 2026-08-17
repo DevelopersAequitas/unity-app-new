@@ -69,8 +69,22 @@ class CertificateGeneratorService
                         $postText = "🎉 Congratulations {$displayName}! You have successfully earned your Certificate of Leadership from Peers Global. Wishing you continued success in inspiring, developing, and leading with purpose! 🌟";
                     }
 
+                    // Resolve/create system user
+                    $systemUser = User::where('email', 'info@peersglobal.com')->first();
+                    if (! $systemUser) {
+                        $systemUser = User::create([
+                            'id' => (string) Str::uuid(),
+                            'first_name' => 'PeersGlobal',
+                            'last_name' => 'Unity',
+                            'display_name' => 'PeersGlobal Unity',
+                            'email' => 'info@peersglobal.com',
+                            'password_hash' => bcrypt(Str::random(16)),
+                            'status' => 'active',
+                        ]);
+                    }
+
                     \App\Models\Post::create([
-                        'user_id' => $user->id,
+                        'user_id' => $systemUser->id,
                         'content_text' => $postText,
                         'post_type' => 'global_peer_certificate',
                         'active' => true,
