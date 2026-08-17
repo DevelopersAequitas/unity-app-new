@@ -261,15 +261,6 @@ class UsersController extends Controller
             ];
         });
 
-        $joinedCircleCategoryTreesByUserId = $users->getCollection()
-            ->mapWithKeys(function (User $user) {
-                $memberships = $user->relationLoaded('circleMembers')
-                    ? $user->circleMembers
-                    : collect();
-
-                return [(string) $user->id => $this->buildJoinedCircleCategoryTrees($memberships)];
-            });
-
         $membershipStatuses = collect($this->membershipFilterOptions())->keys()->values();
 
         $circlesQuery = Circle::query()->orderBy('name');
@@ -305,9 +296,9 @@ class UsersController extends Controller
             }
         }
 
-        $upcomingEventsCount = Event::where('start_at', '>=', now())->count();
-        $nextUpcomingEvent = Event::where('start_at', '>=', now())->orderBy('start_at', 'asc')->first();
-        $nextUpcomingEventTitle = $nextUpcomingEvent?->title ?? '';
+        $upcomingEvents = Event::where('start_at', '>=', now())->orderBy('start_at', 'asc')->get(['id', 'title', 'start_at']);
+        $upcomingEventsCount = $upcomingEvents->count();
+        $nextUpcomingEventTitle = $upcomingEvents->first()?->title ?? '';
 
         return view('admin.users.index', [
             'users' => $users,
@@ -321,7 +312,7 @@ class UsersController extends Controller
             'circleId' => $circleId,
             'filters' => $filters,
             'canEditUsers' => $canEditUsers,
-            'joinedCircleCategoryTreesByUserId' => $joinedCircleCategoryTreesByUserId,
+            'joinedCircleCategoryTreesByUserId' => collect(),
             'upcomingEventsCount' => $upcomingEventsCount,
             'nextUpcomingEventTitle' => $nextUpcomingEventTitle,
         ]);
@@ -2040,6 +2031,16 @@ class UsersController extends Controller
 
     private function expireTrialUsersForAdminPanel(): void
     {
+        static $hasRun = false;
+        if ($hasRun) {
+            return;
+        }
+        $hasRun = true;
+
+        if (! Cache::add('admin:expire_trials_lock', 1, 300)) {
+            return;
+        }
+
         User::query()
             ->where('membership_status', User::STATUS_FREE_TRIAL)
             ->whereNotNull('membership_ends_at')
@@ -2333,16 +2334,25 @@ class UsersController extends Controller
             'welcome_membership_email_plan_code',
         ];
 
-        if (Schema::hasColumn('users', 'peer_id')) {
+        static $hasPeerId = null, $hasMainCat = null, $hasApprovalStatus = null, $hasBusinessSubCat = null, $hasExpiresAt = null;
+        if ($hasPeerId === null) {
+            $hasPeerId = Schema::hasColumn('users', 'peer_id');
+            $hasMainCat = Schema::hasColumn('users', 'main_business_category_id');
+            $hasApprovalStatus = Schema::hasColumn('users', 'approval_status');
+            $hasBusinessSubCat = Schema::hasColumn('users', 'business_sub_category');
+            $hasExpiresAt = Schema::hasColumn('circle_members', 'expires_at');
+        }
+
+        if ($hasPeerId) {
             $userSelectColumns[] = 'peer_id';
         }
-        if (Schema::hasColumn('users', 'main_business_category_id')) {
+        if ($hasMainCat) {
             $userSelectColumns[] = 'main_business_category_id';
         }
-        if (Schema::hasColumn('users', 'approval_status')) {
+        if ($hasApprovalStatus) {
             $userSelectColumns[] = 'approval_status';
         }
-        if (Schema::hasColumn('users', 'business_sub_category')) {
+        if ($hasBusinessSubCat) {
             $userSelectColumns[] = 'business_sub_category';
         }
 
@@ -2354,15 +2364,15 @@ class UsersController extends Controller
                 'introducedBy',
                 'mainBusinessCategory:id,name',
                 'businessCategory:id,name',
-                'circleMembers' => function ($circleMembersQuery) use ($joinedStatus) {
+                'circleMembers' => function ($circleMembersQuery) use ($joinedStatus, $hasExpiresAt) {
                     $circleMembersQuery
                         ->where('status', $joinedStatus)
                         ->whereNull('deleted_at')
                         ->whereNull('left_at')
-                        ->where(function ($query): void {
+                        ->where(function ($query) use ($hasExpiresAt): void {
                             $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
 
-                            if (Schema::hasColumn('circle_members', 'expires_at')) {
+                            if ($hasExpiresAt) {
                                 $query->orWhere('expires_at', '>=', now());
                             }
                         })

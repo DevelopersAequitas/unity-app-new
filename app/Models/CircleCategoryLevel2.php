@@ -15,9 +15,14 @@ class CircleCategoryLevel2 extends Model
 
     public function getTable()
     {
-        return Schema::hasTable('level2_categories')
-            ? 'level2_categories'
-            : $this->table;
+        static $tableName = null;
+        if ($tableName === null) {
+            $tableName = Schema::hasTable('level2_categories')
+                ? 'level2_categories'
+                : $this->table;
+        }
+
+        return $tableName;
     }
 
     protected $guarded = [];
