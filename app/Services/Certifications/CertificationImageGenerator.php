@@ -33,11 +33,11 @@ class CertificationImageGenerator
         if ($type === CertificationSubmission::TYPE_ENTREPRENEUR) {
             $templatePath = public_path('images/entrepreneur-blank.png');
             $nameY = 820; // 410 * 2
-            $dateY = 1310; // 655 * 2
+            $dateY = 1330; // 665 * 2
         } else {
             $templatePath = public_path('images/leadership-blank.png');
             $nameY = 1050; // 525 * 2
-            $dateY = 1440; // 720 * 2
+            $dateY = 1480; // 740 * 2
         }
 
         if (!file_exists($templatePath)) {
@@ -103,7 +103,7 @@ class CertificationImageGenerator
         $dateObj = $submission->approved_at ?: now();
         $dateText = $dateObj->format('d F Y');
 
-        $fontSizeDate = 32; // 16 * 2
+        $fontSizeDate = 26; // 13 * 2
         $bboxDate = @imagettfbbox($fontSizeDate, 0, $fontDate, $dateText);
         if ($bboxDate) {
             $wDate = abs($bboxDate[4] - $bboxDate[0]);
