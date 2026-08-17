@@ -291,6 +291,12 @@ window.switchTab = function(tabId) {
                 <!-- Tab 2: Business Details -->
                 <div class="tab-pane fade" id="business-section" role="tabpanel" aria-labelledby="business-tab">
                     <h5 class="form-section-title"><i class="bi bi-briefcase text-primary me-2"></i>Business Classification</h5>
+                    @php
+                        $displayMainCategory = $registeredMainCategoryName
+                            ?? ($user->mainBusinessCategory?->name ?: ($user->businessCategory?->name ?: null));
+                        $displaySubCategory = $registeredSubCategoryName
+                            ?? ($user->level4Category?->name ?: ($user->business_sub_category ?: null));
+                    @endphp
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Company Name</label>
@@ -303,6 +309,41 @@ window.switchTab = function(tabId) {
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Turnover Range</label>
                             <input type="text" name="turnover_range" class="form-control" value="{{ old('turnover_range', $user->turnover_range) }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="business_main_category_id">Main Category</label>
+                            <select
+                                name="main_business_category_id"
+                                id="business_main_category_id"
+                                class="form-select js-no-searchable-select js-no-select2"
+                            >
+                                <option value="">{{ $selectedMainCategoryId ? 'Select main category' : 'Null' }}</option>
+                                @foreach ($allMainCategories as $cat)
+                                    <option value="{{ $cat->id }}" @selected((string) old('main_business_category_id', $selectedMainCategoryId) === (string) $cat->id)>
+                                        {{ $cat->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="business_sub_category_id">Sub Category</label>
+                            @php
+                                $currentMainIdStr = (string) old('main_business_category_id', $selectedMainCategoryId);
+                                $tab2InitialL4 = $mainToSubCategoriesMap[$currentMainIdStr] ?? [];
+                            @endphp
+                            <select
+                                name="business_category_id"
+                                id="business_sub_category_id"
+                                class="form-select js-no-searchable-select js-no-select2"
+                                data-selected-sub-category="{{ old('business_category_id', $selectedSubCategoryId) }}"
+                            >
+                                <option value="">{{ $selectedSubCategoryId ? 'Select sub category' : 'Null' }}</option>
+                                @foreach ($tab2InitialL4 as $sub)
+                                    <option value="{{ $sub['id'] }}" @selected((string) old('business_category_id', $selectedSubCategoryId) === (string) $sub['id'])>
+                                        {{ $sub['name'] }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
 
@@ -636,27 +677,16 @@ window.switchTab = function(tabId) {
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-semibold" for="level1_category_id">Level 1 Category</label>
-                            <select name="level1_category_id" id="level1_category_id" class="form-select js-no-searchable-select">
-                                <option value="">Select level 1 category</option>
-                            </select>
+                            <label class="form-label fw-semibold" for="level1_category_name">Main Category</label>
+                            <input type="text" id="level1_category_name" class="form-control bg-light" readonly placeholder="Auto-filled from circle" value="">
+                            <input type="hidden" name="level1_category_id" id="level1_category_id" value="{{ old('level1_category_id', old('level_1_category_id', '')) }}">
                         </div>
+                        <input type="hidden" name="level2_category_id" id="level2_category_id" value="{{ old('level2_category_id', old('level_2_category_id', '')) }}">
+                        <input type="hidden" name="level3_category_id" id="level3_category_id" value="{{ old('level3_category_id', old('level_3_category_id', '')) }}">
                         <div class="col-md-4">
-                            <label class="form-label fw-semibold" for="level2_category_id">Level 2 Category</label>
-                            <select name="level2_category_id" id="level2_category_id" class="form-select js-no-searchable-select" disabled>
-                                <option value="">Select level 2 category</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold" for="level3_category_id">Level 3 Category</label>
-                            <select name="level3_category_id" id="level3_category_id" class="form-select js-no-searchable-select" disabled>
-                                <option value="">Select level 3 category</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold" for="level4_category_id">Level 4 Category</label>
+                            <label class="form-label fw-semibold" for="level4_category_id">Sub Category</label>
                             <select name="level4_category_id" id="level4_category_id" class="form-select js-no-searchable-select" disabled>
-                                <option value="">Select level 4 category</option>
+                                <option value="">Select sub category</option>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -718,14 +748,24 @@ window.switchTab = function(tabId) {
                                                 <td>{{ $membership->status ?: '—' }}</td>
                                                 <td>{{ $membership->payment_status ?: ($latestSubscription->status ?? '—') }}</td>
                                                 <td>
-                                                    <button
-                                                        type="submit"
-                                                        form="remove-circle-membership-{{ $membership->id }}"
-                                                        class="btn btn-sm btn-outline-danger py-0 px-2"
-                                                        onclick="return confirm('Remove this circle membership for this peer?');"
-                                                    >
-                                                        Remove
-                                                    </button>
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            class="btn btn-sm btn-outline-primary py-0 px-2"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#editCircleMembershipModal-{{ $membership->id }}"
+                                                        >
+                                                            <i class="bi bi-pencil me-1"></i>Edit
+                                                        </button>
+                                                        <button
+                                                            type="submit"
+                                                            form="remove-circle-membership-{{ $membership->id }}"
+                                                            class="btn btn-sm btn-outline-danger py-0 px-2"
+                                                            onclick="return confirm('Remove this circle membership for this peer?');"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         @empty
@@ -776,10 +816,8 @@ window.switchTab = function(tabId) {
                                                     $selectedPath = $circleTree['selected_category_path'] ?? [];
                                                 @endphp
                                                 <div class="small mb-3 d-flex flex-wrap gap-3 bg-white p-2 rounded border">
-                                                    <div><strong>Level 1:</strong> {{ $selectedPath['level1']->name ?? '—' }}</div>
-                                                    <div><strong>Level 2:</strong> {{ $selectedPath['level2']->name ?? '—' }}</div>
-                                                    <div><strong>Level 3:</strong> {{ $selectedPath['level3']->name ?? '—' }}</div>
-                                                    <div><strong>Level 4:</strong> {{ $selectedPath['level4']->name ?? '—' }}</div>
+                                                    <div><strong>Main Category:</strong> {{ $selectedPath['level1']->name ?? '—' }}</div>
+                                                    <div><strong>Sub Category:</strong> {{ $selectedPath['level4']->name ?? '—' }}</div>
                                                 </div>
 
                                                 @if(($circleTree['categories'] ?? collect())->isEmpty())
@@ -787,37 +825,13 @@ window.switchTab = function(tabId) {
                                                 @else
                                                     @foreach($circleTree['categories'] as $mainCategoryTree)
                                                         <div class="mb-2">
-                                                            <span class="badge bg-light text-dark border">
-                                                                Category: {{ $mainCategoryTree['node']->name }}
-                                                            </span>
-
-                                                            @if(($mainCategoryTree['children'] ?? collect())->isEmpty())
-                                                                <div class="text-muted ms-2 small">—</div>
-                                                            @else
-                                                                <ul class="mb-0 small mt-1">
-                                                                    @foreach($mainCategoryTree['children'] as $level2Tree)
-                                                                        <li>
-                                                                            {{ $level2Tree['node']->name }}
-                                                                            @if(($level2Tree['children'] ?? collect())->isNotEmpty())
-                                                                                <ul>
-                                                                                    @foreach($level2Tree['children'] as $level3Tree)
-                                                                                        <li>
-                                                                                            {{ $level3Tree['node']->name }}
-                                                                                            @if(($level3Tree['children'] ?? collect())->isNotEmpty())
-                                                                                                <ul>
-                                                                                                    @foreach($level3Tree['children'] as $level4Node)
-                                                                                                        <li>{{ $level4Node->name }}</li>
-                                                                                                    @endforeach
-                                                                                                </ul>
-                                                                                            @endif
-                                                                                        </li>
-                                                                                    @endforeach
-                                                                                </ul>
-                                                                            @endif
-                                                                        </li>
-                                                                    @endforeach
-                                                                </ul>
-                                                            @endif
+                                                            <div class="small fw-semibold text-dark">
+                                                                <span class="badge bg-light text-dark border me-1">Main Category:</span> {{ $mainCategoryTree['node']->name }}
+                                                                @if($selectedPath['level4'])
+                                                                    <span class="text-muted mx-1">→</span>
+                                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">Sub Category:</span> {{ $selectedPath['level4']->name }}
+                                                                @endif
+                                                            </div>
                                                         </div>
                                                     @endforeach
                                                 @endif
@@ -1299,6 +1313,147 @@ window.switchTab = function(tabId) {
         @csrf
         @method('DELETE')
     </form>
+
+    @php
+        $membershipTree = $joinedCircleCategoryTrees->firstWhere('membership.id', $membership->id) ?? [];
+        $memSelectedIds = $membershipTree['selected_ids'] ?? [
+            'level1' => $membership->level_1_category_id ?? 0,
+            'level2' => $membership->level_2_category_id ?? 0,
+            'level3' => $membership->level_3_category_id ?? 0,
+            'level4' => $membership->level_4_category_id ?? 0,
+        ];
+        $memCircleId = (string) $membership->circle_id;
+        $memCircleOptions = $circleCategoryOptionsByCircle[$memCircleId] ?? ['level1' => [], 'level2' => [], 'level3' => [], 'level4' => []];
+        $firstL1 = $memCircleOptions['level1'][0] ?? null;
+        $memLevel1Name = $membershipTree['selected_category_path']['level1']->name ?? ($firstL1['name'] ?? '—');
+        $memLevel1Id = $memSelectedIds['level1'] ?: ($firstL1['id'] ?? '');
+        $memCircleJoinedAt = optional($membership->joined_at)->format('Y-m-d');
+        $memCircleExpiresAt = $membership->expires_at ? \Illuminate\Support\Carbon::parse($membership->expires_at)->format('Y-m-d') : '';
+
+        $selectedL1Str = (string) $memLevel1Id;
+        $modalL4List = collect($memCircleOptions['level4'] ?? [])->filter(function ($item) use ($selectedL1Str) {
+            $itemL1 = (string) ($item['level1_id'] ?? $item['parent_id'] ?? $item['circle_category_id'] ?? '');
+            return $selectedL1Str === '' || $itemL1 === $selectedL1Str;
+        })->values();
+        if ($modalL4List->isEmpty()) {
+            $modalL4List = collect($memCircleOptions['level4'] ?? []);
+        }
+    @endphp
+    <div class="modal fade" id="editCircleMembershipModal-{{ $membership->id }}" tabindex="-1" aria-labelledby="editCircleMembershipLabel-{{ $membership->id }}" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content text-start">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark" id="editCircleMembershipLabel-{{ $membership->id }}">
+                        <i class="bi bi-pencil-square text-primary me-2"></i>Edit Circle Membership
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ route('admin.users.circle-members.update', [$user->id, $membership->id]) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="p-3 bg-light-subtle rounded border d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <div class="small text-muted fw-semibold">Circle</div>
+                                        <div class="fw-bold text-primary fs-6">{{ $membership->circle?->name ?: '—' }}</div>
+                                    </div>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
+                                        {{ ucfirst($membership->status ?: 'Active') }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="modal_level1_{{ $membership->id }}">Main Category</label>
+                                <select
+                                    name="level1_category_id"
+                                    id="modal_level1_{{ $membership->id }}"
+                                    class="form-select js-modal-level1 js-no-searchable-select js-no-select2"
+                                    data-membership-id="{{ $membership->id }}"
+                                    data-circle-id="{{ $memCircleId }}"
+                                >
+                                    <option value="">Select main category</option>
+                                    @foreach ($memCircleOptions['level1'] as $l1)
+                                        <option value="{{ $l1['id'] }}" @selected((int) $memLevel1Id === (int) $l1['id'])>
+                                            {{ $l1['name'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <input type="hidden" name="level2_category_id" id="modal_level2_{{ $membership->id }}" value="{{ $memSelectedIds['level2'] ?: '' }}">
+                            <input type="hidden" name="level3_category_id" id="modal_level3_{{ $membership->id }}" value="{{ $memSelectedIds['level3'] ?: '' }}">
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="modal_level4_{{ $membership->id }}">Sub Category</label>
+                                <select
+                                    name="level4_category_id"
+                                    id="modal_level4_{{ $membership->id }}"
+                                    class="form-select js-modal-level4 js-no-searchable-select js-no-select2"
+                                    data-membership-id="{{ $membership->id }}"
+                                    data-circle-id="{{ $memCircleId }}"
+                                    data-selected-level4="{{ $memSelectedIds['level4'] ?: '' }}"
+                                >
+                                    <option value="">Select sub category</option>
+                                    @foreach ($modalL4List as $l4)
+                                        <option
+                                            value="{{ $l4['id'] }}"
+                                            data-level1-id="{{ $l4['level1_id'] ?? '' }}"
+                                            data-level2-id="{{ $l4['level2_id'] ?? '' }}"
+                                            data-level3-id="{{ $l4['level3_id'] ?? '' }}"
+                                            @selected((int) $memSelectedIds['level4'] === (int) $l4['id'])
+                                        >
+                                            {{ $l4['name'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="modal_joined_at_{{ $membership->id }}">Circle Joined Date</label>
+                                <input type="date" name="circle_joined_at" id="modal_joined_at_{{ $membership->id }}" class="form-control" value="{{ $memCircleJoinedAt }}">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="modal_expires_at_{{ $membership->id }}">Circle Expiry Date</label>
+                                <input type="date" name="circle_expires_at" id="modal_expires_at_{{ $membership->id }}" class="form-control" value="{{ $memCircleExpiresAt }}">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="modal_status_{{ $membership->id }}">Member Status</label>
+                                <select name="status" id="modal_status_{{ $membership->id }}" class="form-select">
+                                    @foreach (['active' => 'Active', 'approved' => 'Approved', 'pending' => 'Pending', 'expired' => 'Expired', 'cancelled' => 'Cancelled'] as $statusKey => $statusLabel)
+                                        <option value="{{ $statusKey }}" @selected(strtolower((string) $membership->status) === $statusKey)>
+                                            {{ $statusLabel }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="modal_payment_status_{{ $membership->id }}">Payment Status</label>
+                                <select name="payment_status" id="modal_payment_status_{{ $membership->id }}" class="form-select">
+                                    @foreach (['paid' => 'Paid', 'free' => 'Free', 'pending' => 'Pending', 'failed' => 'Failed', 'refunded' => 'Refunded', 'expired' => 'Expired'] as $payKey => $payLabel)
+                                        <option value="{{ $payKey }}" @selected(strtolower((string) $membership->payment_status) === $payKey)>
+                                            {{ $payLabel }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endforeach
 
 @foreach ($storySubmissions as $story)
@@ -1713,6 +1868,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const uploadUrl = '{{ route('admin.files.upload') }}';
         const circleCategoryOptionsByCircle = @json($circleCategoryOptionsByCircle ?? []);
+        const mainToSubCategoriesMap = @json($mainToSubCategoriesMap ?? []);
         const oldLevel1 = '{{ old('level1_category_id', old('level_1_category_id', '')) }}';
         const oldLevel2 = '{{ old('level2_category_id', old('level_2_category_id', '')) }}';
         const oldLevel3 = '{{ old('level3_category_id', old('level_3_category_id', '')) }}';
@@ -1785,7 +1941,8 @@ document.addEventListener('DOMContentLoaded', function () {
         setupUploader('coverPhoto');
 
         const circleSelect = document.getElementById('additional_circle_id');
-        const level1Select = document.getElementById('level1_category_id');
+        const level1NameInput = document.getElementById('level1_category_name');
+        const level1IdInput = document.getElementById('level1_category_id');
         const level2Select = document.getElementById('level2_category_id');
         const level3Select = document.getElementById('level3_category_id');
         const level4Select = document.getElementById('level4_category_id');
@@ -1803,12 +1960,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 const option = document.createElement('option');
                 option.value = String(item.id);
                 option.textContent = item.name;
+                if (item.level2_id) {
+                    option.dataset.level2Id = String(item.level2_id);
+                }
+                if (item.level3_id) {
+                    option.dataset.level3Id = String(item.level3_id);
+                }
                 if (selectedValue !== '' && String(selectedValue) === String(item.id)) {
                     option.selected = true;
                 }
                 selectEl.appendChild(option);
             });
             selectEl.disabled = (options || []).length === 0;
+
+            if (window.jQuery && window.jQuery(selectEl).data('select2')) {
+                window.jQuery(selectEl).trigger('change.select2');
+            }
         };
 
         const getCircleData = () => {
@@ -1816,68 +1983,152 @@ document.addEventListener('DOMContentLoaded', function () {
             return circleCategoryOptionsByCircle[String(circleId)] || { level1: [], level2: [], level3: [], level4: [] };
         };
 
-        const handleLevel1Change = (presetLevel2 = '') => {
-            const data = getCircleData();
-            const level1Id = level1Select?.value || '';
-            const level2Options = (data.level2 || []).filter((item) => String(item.parent_id) === String(level1Id));
-            fillSelect(level2Select, level2Options, 'Select level 2 category', presetLevel2);
-            resetSelect(level3Select, 'Select level 3 category');
-            resetSelect(level4Select, 'Select level 4 category');
-        };
-
-        const handleLevel2Change = (presetLevel3 = '') => {
-            const data = getCircleData();
-            const level2Id = level2Select?.value || '';
-            const level3Options = (data.level3 || []).filter((item) => String(item.parent_id) === String(level2Id));
-            fillSelect(level3Select, level3Options, 'Select level 3 category', presetLevel3);
-            resetSelect(level4Select, 'Select level 4 category');
-        };
-
-        const handleLevel3Change = (presetLevel4 = '') => {
-            const data = getCircleData();
-            const level3Id = level3Select?.value || '';
-            const level4Options = (data.level4 || []).filter((item) => String(item.parent_id) === String(level3Id));
-            fillSelect(level4Select, level4Options, 'Select level 4 category', presetLevel4);
-        };
-
-        const handleCircleChange = () => {
-            const data = getCircleData();
-            fillSelect(level1Select, data.level1 || [], 'Select level 1 category', oldLevel1);
-            resetSelect(level2Select, 'Select level 2 category');
-            resetSelect(level3Select, 'Select level 3 category');
-            resetSelect(level4Select, 'Select level 4 category');
-
-            if (oldLevel1 && level1Select?.value) {
-                handleLevel1Change(oldLevel2);
-                if (oldLevel2 && level2Select?.value) {
-                    handleLevel2Change(oldLevel3);
-                    if (oldLevel3 && level3Select?.value) {
-                        handleLevel3Change(oldLevel4);
-                    }
+        const syncHiddenLevelsFromLevel4 = () => {
+            if (!level4Select) return;
+            const selectedOption = level4Select.options[level4Select.selectedIndex];
+            if (selectedOption && selectedOption.value) {
+                const data = getCircleData();
+                const l4Id = selectedOption.value;
+                const l4Item = (data.level4 || []).find((item) => String(item.id) === String(l4Id));
+                if (level2Select) {
+                    level2Select.value = l4Item?.level2_id || selectedOption.dataset.level2Id || '';
                 }
-            } else if ((data.level1 || []).length === 1 && level1Select) {
-                level1Select.value = String(data.level1[0].id);
-                handleLevel1Change();
+                if (level3Select) {
+                    level3Select.value = l4Item?.level3_id || selectedOption.dataset.level3Id || '';
+                }
+            } else {
+                if (level2Select) level2Select.value = '';
+                if (level3Select) level3Select.value = '';
             }
+        };
+
+        const handleCircleChange = (presetLevel4 = '') => {
+            const data = getCircleData();
+            const firstL1 = (data.level1 || [])[0] || null;
+
+            if (firstL1) {
+                if (level1NameInput) level1NameInput.value = firstL1.name || '';
+                if (level1IdInput) level1IdInput.value = String(firstL1.id || '');
+
+                const level4Options = (data.level4 || []).filter((item) => {
+                    const itemL1 = item.level1_id || item.parent_id || item.circle_category_id;
+                    return String(itemL1) === String(firstL1.id);
+                });
+                fillSelect(level4Select, level4Options, 'Select sub category', presetLevel4 || oldLevel4);
+            } else {
+                if (level1NameInput) level1NameInput.value = '';
+                if (level1IdInput) level1IdInput.value = '';
+                resetSelect(level4Select, 'Select sub category');
+            }
+            syncHiddenLevelsFromLevel4();
         };
 
         circleSelect?.addEventListener('change', () => {
-            resetSelect(level2Select, 'Select level 2 category');
-            resetSelect(level3Select, 'Select level 3 category');
-            resetSelect(level4Select, 'Select level 4 category');
-
-            const data = getCircleData();
-            fillSelect(level1Select, data.level1 || [], 'Select level 1 category');
-            if ((data.level1 || []).length === 1 && level1Select) {
-                level1Select.value = String(data.level1[0].id);
-                handleLevel1Change();
-            }
+            handleCircleChange();
         });
-        level1Select?.addEventListener('change', () => handleLevel1Change());
-        level2Select?.addEventListener('change', () => handleLevel2Change());
-        level3Select?.addEventListener('change', () => handleLevel3Change());
 
-        handleCircleChange();
+        level4Select?.addEventListener('change', () => syncHiddenLevelsFromLevel4());
+
+        handleCircleChange(oldLevel4);
+
+        // Initialize category pickers for each edit circle membership modal
+        const initMembershipModalCategories = (modalEl) => {
+            const modalL1Select = modalEl.querySelector('.js-modal-level1');
+            const modalL4Select = modalEl.querySelector('.js-modal-level4');
+            if (!modalL1Select || !modalL4Select) return;
+
+            const memberId = modalL1Select.dataset.membershipId;
+            const circleId = modalL1Select.dataset.circleId;
+            const level2Input = document.getElementById(`modal_level2_${memberId}`);
+            const level3Input = document.getElementById(`modal_level3_${memberId}`);
+
+            const circleData = circleCategoryOptionsByCircle[String(circleId)] || { level1: [], level2: [], level3: [], level4: [] };
+
+            const syncModalHiddenLevels = () => {
+                const selectedOption = modalL4Select.options[modalL4Select.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    const l4Item = (circleData.level4 || []).find((item) => String(item.id) === String(selectedOption.value));
+                    if (level2Input) level2Input.value = l4Item?.level2_id || selectedOption.dataset.level2Id || '';
+                    if (level3Input) level3Input.value = l4Item?.level3_id || selectedOption.dataset.level3Id || '';
+                } else {
+                    if (level2Input) level2Input.value = '';
+                    if (level3Input) level3Input.value = '';
+                }
+            };
+
+            const updateModalLevel4 = (presetLevel4 = '') => {
+                const selectedL1 = modalL1Select.value || '';
+                if (!selectedL1) {
+                    fillSelect(modalL4Select, circleData.level4 || [], 'Select sub category', presetLevel4);
+                    syncModalHiddenLevels();
+                    return;
+                }
+                let l4Options = (circleData.level4 || []).filter((item) => {
+                    const itemL1 = item.level1_id || item.parent_id || item.circle_category_id;
+                    return String(itemL1) === String(selectedL1);
+                });
+                if (l4Options.length === 0) {
+                    l4Options = circleData.level4 || [];
+                }
+                fillSelect(modalL4Select, l4Options, 'Select sub category', presetLevel4);
+                syncModalHiddenLevels();
+            };
+
+            const onL1Change = () => {
+                updateModalLevel4();
+            };
+
+            modalL1Select.addEventListener('change', onL1Change);
+            if (window.jQuery) {
+                window.jQuery(modalL1Select).on('change select2:select select2:clear', onL1Change);
+            }
+
+            modalL4Select.addEventListener('change', () => syncModalHiddenLevels());
+            if (window.jQuery) {
+                window.jQuery(modalL4Select).on('change select2:select select2:clear', () => syncModalHiddenLevels());
+            }
+
+            modalEl.addEventListener('shown.bs.modal', () => {
+                const selectedL4 = modalL4Select.dataset.selectedLevel4 || modalL4Select.value || '';
+                updateModalLevel4(selectedL4);
+            });
+
+            const initialLevel4 = modalL4Select.dataset.selectedLevel4 || '';
+            updateModalLevel4(initialLevel4);
+        };
+
+        document.querySelectorAll('[id^="editCircleMembershipModal-"]').forEach((modalEl) => {
+            initMembershipModalCategories(modalEl);
+        });
+
+        // Tab 2 Business Classification Categories
+        const businessMainCatSelect = document.getElementById('business_main_category_id');
+        const businessSubCatSelect = document.getElementById('business_sub_category_id');
+
+        const updateBusinessSubCategories = (presetSub = '') => {
+            if (!businessMainCatSelect || !businessSubCatSelect) return;
+            const selectedMainId = businessMainCatSelect.value || '';
+            if (!selectedMainId) {
+                fillSelect(businessSubCatSelect, [], 'Null', presetSub);
+                return;
+            }
+            const l4Options = mainToSubCategoriesMap[String(selectedMainId)] || [];
+            fillSelect(businessSubCatSelect, l4Options, 'Select sub category', presetSub);
+        };
+
+        const onBusinessMainChange = () => {
+            updateBusinessSubCategories();
+        };
+
+        businessMainCatSelect?.addEventListener('change', onBusinessMainChange);
+        if (window.jQuery) {
+            window.jQuery(businessMainCatSelect).on('change select2:select select2:clear', onBusinessMainChange);
+        }
+
+        const initialBusinessSub = businessSubCatSelect?.dataset.selectedSubCategory || '';
+        if (businessMainCatSelect && businessMainCatSelect.value && (!businessSubCatSelect || businessSubCatSelect.options.length <= 1)) {
+            updateBusinessSubCategories(initialBusinessSub);
+        }
     });
 </script>
 
