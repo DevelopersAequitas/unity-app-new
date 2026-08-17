@@ -51,12 +51,22 @@ class RoleLifespanController extends Controller
         // ID Industries
         $idIndustries = [];
         if (Schema::hasTable('industry_director_assignments')) {
-            $idIndustries = DB::table('industry_director_assignments')
-                ->select('admin_user_id', 'industry_name')
-                ->where('is_active', true)
-                ->get()
-                ->groupBy('admin_user_id')
-                ->toArray();
+            if (Schema::hasColumn('industry_director_assignments', 'industry_name')) {
+                $idIndustries = DB::table('industry_director_assignments')
+                    ->select('admin_user_id', 'industry_name')
+                    ->where('is_active', true)
+                    ->get()
+                    ->groupBy('admin_user_id')
+                    ->toArray();
+            } elseif (Schema::hasTable('industries')) {
+                $idIndustries = DB::table('industry_director_assignments')
+                    ->join('industries', 'industries.id', '=', 'industry_director_assignments.industry_id')
+                    ->select('industry_director_assignments.admin_user_id', 'industries.name as industry_name')
+                    ->where('industry_director_assignments.is_active', true)
+                    ->get()
+                    ->groupBy('admin_user_id')
+                    ->toArray();
+            }
         }
 
         // Circle scopes for Circle-based roles (CD, CF, Chair, etc.)
