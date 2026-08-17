@@ -309,6 +309,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->whereUuid('user')
             ->name('users.destroy');
         Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->withTrashed()->name('users.circle-members.destroy');
+        Route::match(['put', 'post'], '/users/{user}/circle-members/{circleMember}', [UsersController::class, 'updateCircleMembership'])->withTrashed()->name('users.circle-members.update');
         Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->withTrashed()->name('users.roles.remove');
         Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->withTrashed()->name('users.membership-welcome-email.send');
         Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->withTrashed()->name('users.trigger-membership-notification');
