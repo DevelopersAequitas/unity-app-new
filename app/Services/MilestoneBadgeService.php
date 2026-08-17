@@ -136,20 +136,21 @@ class MilestoneBadgeService
                 if (! $existingPost && Schema::hasTable('posts')) {
                     $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
 
-                    $media = [];
-                    if ($badge->badge_image_url) {
-                        $media[] = [
+                    $creativeImageUrl = $badge->badge_image_url ?: url('/images/introduction-template.png');
+
+                    $media = [
+                        [
                             'id' => (string) Str::uuid(),
                             'type' => 'image',
-                            'url' => $badge->badge_image_url,
-                        ];
-                    }
+                            'url' => $creativeImageUrl,
+                        ],
+                    ];
 
                     Post::create([
                         'user_id' => $authorUserId,
                         'circle_id' => null,
                         'content_text' => $description,
-                        'media' => $media ?: null,
+                        'media' => $media,
                         'tags' => ['milestone_honour', 'growth_track', (string) $user->id],
                         'visibility' => 'public',
                         'moderation_status' => 'approved',
@@ -161,7 +162,7 @@ class MilestoneBadgeService
                         'post_type' => 'milestone_honour',
                         'title' => "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉",
                         'description' => $description,
-                        'image' => $badge->badge_image_url,
+                        'image' => $creativeImageUrl,
                         'status' => 'active',
                     ]);
 

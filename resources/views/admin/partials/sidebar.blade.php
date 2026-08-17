@@ -71,7 +71,6 @@
                 ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
                 ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
                 ['icon' => 'bi-award', 'label' => 'Milestone Badges', 'route' => 'admin.milestone-badges.index', 'active_routes' => ['admin.milestone-badges.*']],
-                ['icon' => 'bi-graph-up-arrow', 'label' => 'Track 1 Growth Honours', 'route' => 'admin.track1-growth.index', 'active_routes' => ['admin.track1-growth.*']],
                 ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),

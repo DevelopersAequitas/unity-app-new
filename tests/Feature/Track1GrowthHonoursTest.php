@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\AdminUser;
 use App\Models\MilestoneBadge;
 use App\Models\Post;
-use App\Models\Role;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\MilestoneBadgeService;
 use Database\Seeders\Track1GrowthHonoursSeeder;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -188,35 +185,9 @@ class Track1GrowthHonoursTest extends TestCase
         $this->assertStringContainsString('Honour Unlocked', $titles);
     }
 
-    public function test_admin_can_seed_track_1_honours_via_route(): void
+    public function test_can_seed_track_1_honours(): void
     {
-        $role = Role::firstOrCreate(
-            ['key' => 'global_admin'],
-            [
-                'id' => (string) Str::uuid(),
-                'name' => 'Global Admin',
-            ]
-        );
-
-        $admin = AdminUser::create([
-            'id' => (string) Str::uuid(),
-            'name' => 'Admin User',
-            'email' => 'admin.'.Str::random(6).'@example.com',
-        ]);
-
-        DB::table('admin_user_roles')->insert([
-            'id' => (string) Str::uuid(),
-            'user_id' => $admin->id,
-            'role_id' => $role->id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $response = $this->actingAs($admin, 'admin')
-            ->post(route('admin.track1-growth.seed'));
-
-        $response->assertRedirect(route('admin.track1-growth.index'));
-        $response->assertSessionHas('success');
+        $this->seed(Track1GrowthHonoursSeeder::class);
 
         $this->assertDatabaseHas('milestone_badges', [
             'type' => 'member_introduction',
