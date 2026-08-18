@@ -268,6 +268,13 @@ class CertificationSubmissionFlowTest extends TestCase
             'user_id' => $user->id,
         ]);
 
+        if (\Illuminate\Support\Facades\Schema::hasTable('posts')) {
+            $this->assertDatabaseHas('posts', [
+                'user_id' => $user->id,
+                'post_type' => 'global_peer_certificate',
+            ]);
+        }
+
         // 4. View generated certificate
         $certViewResponse = $this->actingAs($admin, 'admin')
             ->get("/admin/certificates/{$submissionId}/view");
@@ -332,6 +339,13 @@ class CertificationSubmissionFlowTest extends TestCase
         Mail::assertSent(CertificationApprovedMail::class, function ($mail) use ($submission) {
             return $mail->hasTo('entrepreneur@example.com') && $mail->submission->id === $submission->id;
         });
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('posts')) {
+            $this->assertDatabaseHas('posts', [
+                'user_id' => $user->id,
+                'post_type' => 'global_peer_certificate',
+            ]);
+        }
 
         // Certificate view
         $certViewResponse = $this->actingAs($admin, 'admin')

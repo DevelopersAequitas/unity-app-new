@@ -1144,6 +1144,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/entrepreneur-certification/my', [WebsiteFormsController::class, 'indexEntrepreneurCertification']);
         Route::get('/entrepreneur-certification', [WebsiteFormsController::class, 'indexEntrepreneurCertification']);
         Route::get('/entrepreneur-certification/{id}', [WebsiteFormsController::class, 'showEntrepreneurCertification'])->whereUuid('id');
+        Route::get('/certifications/user/{userId}', [WebsiteFormsController::class, 'userCertifications']);
         Route::get('/partner-with-us', [WebsiteFormsController::class, 'indexPartnerWithUs']);
         Route::get('/partner-with-us/{id}', [WebsiteFormsController::class, 'showPartnerWithUs'])->whereUuid('id');
 

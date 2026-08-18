@@ -167,10 +167,23 @@ class WebsiteFormsController extends BaseApiController
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
+        $mappedItems = collect($items->items())->map(function ($item) {
+            $unified = CertificationSubmission::find($item->id);
+            $item->status = $unified ? $unified->status : $item->status;
+            
+            $url = null;
+            if ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) {
+                $url = $unified->certificate_download_url;
+            }
+            $item->certificate_url = $url;
+            $item->certificate_download_url = $url;
+            return $item;
+        });
+
         return response()->json([
             'status' => true,
             'message' => 'Submissions fetched successfully.',
-            'data' => $items->items(),
+            'data' => $mappedItems,
             'meta' => $this->paginationMeta($items),
         ]);
     }
@@ -182,6 +195,12 @@ class WebsiteFormsController extends BaseApiController
         if (! $item) {
             return $this->submissionNotFound();
         }
+
+        $unified = CertificationSubmission::find($item->id);
+        $item->status = $unified ? $unified->status : $item->status;
+        $url = ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) ? $unified->certificate_download_url : null;
+        $item->certificate_url = $url;
+        $item->certificate_download_url = $url;
 
         return response()->json([
             'status' => true,
@@ -209,10 +228,23 @@ class WebsiteFormsController extends BaseApiController
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
+        $mappedItems = collect($items->items())->map(function ($item) {
+            $unified = CertificationSubmission::find($item->id);
+            $item->status = $unified ? $unified->status : $item->status;
+            
+            $url = null;
+            if ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) {
+                $url = $unified->certificate_download_url;
+            }
+            $item->certificate_url = $url;
+            $item->certificate_download_url = $url;
+            return $item;
+        });
+
         return response()->json([
             'status' => true,
             'message' => 'Submissions fetched successfully.',
-            'data' => $items->items(),
+            'data' => $mappedItems,
             'meta' => $this->paginationMeta($items),
         ]);
     }
@@ -225,10 +257,43 @@ class WebsiteFormsController extends BaseApiController
             return $this->submissionNotFound();
         }
 
+        $unified = CertificationSubmission::find($item->id);
+        $item->status = $unified ? $unified->status : $item->status;
+        $url = ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) ? $unified->certificate_download_url : null;
+        $item->certificate_url = $url;
+        $item->certificate_download_url = $url;
+
         return response()->json([
             'status' => true,
             'message' => 'Submission fetched successfully.',
             'data' => $item,
+        ]);
+    }
+
+    public function userCertifications(string $userId)
+    {
+        $submissions = CertificationSubmission::where('user_id', $userId)->get();
+
+        $data = $submissions->map(function ($sub) {
+            return [
+                'id' => $sub->id,
+                'certification_type' => $sub->certification_type,
+                'full_name' => $sub->full_name,
+                'email' => $sub->email,
+                'total_score' => (int) $sub->total_score,
+                'percentage' => (int) $sub->percentage,
+                'status' => $sub->status,
+                'certificate_number' => $sub->certificate_number,
+                'certificate_url' => $sub->status === CertificationSubmission::STATUS_APPROVED ? $sub->certificate_download_url : null,
+                'approved_at' => $sub->approved_at ? $sub->approved_at->toISOString() : null,
+                'created_at' => $sub->created_at->toISOString(),
+            ];
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'User certifications retrieved successfully.',
+            'data' => $data,
         ]);
     }
 

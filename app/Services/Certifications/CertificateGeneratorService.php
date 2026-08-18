@@ -46,6 +46,69 @@ class CertificateGeneratorService
             $this->populateCertificateMetadata($submission, $now);
             $submission->save();
 
+            // Generate certificate image and save URL
+            try {
+                $imageGenerator = new \App\Services\Certifications\CertificationImageGenerator();
+                $fileResult = $imageGenerator->generate($submission);
+                $submission->forceFill(['certificate_download_url' => $fileResult['url']])->save();
+
+                // Create Timeline Post if user exists
+                $user = $submission->user_id
+                    ? User::find($submission->user_id)
+                    : User::where('email', $submission->email)->first();
+
+                if ($user && \Illuminate\Support\Facades\Schema::hasTable('posts')) {
+                    $displayName = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                    if (empty($displayName)) {
+                        $displayName = $submission->full_name;
+                    }
+
+                    if ($submission->certification_type === CertificationSubmission::TYPE_ENTREPRENEUR) {
+                        $postText = "🎉 Congratulations {$displayName}! You have successfully earned your Certificate of Entrepreneurship from Peers Global. Wishing you continued success in building a responsible and growing business! 🌟";
+                    } else {
+                        $postText = "🎉 Congratulations {$displayName}! You have successfully earned your Certificate of Leadership from Peers Global. Wishing you continued success in inspiring, developing, and leading with purpose! 🌟";
+                    }
+
+                    // Resolve/create system user
+                    $systemUser = User::where('email', 'info@peersglobal.com')->first();
+                    if (! $systemUser) {
+                        $systemUser = User::create([
+                            'id' => (string) Str::uuid(),
+                            'first_name' => 'PeersGlobal',
+                            'last_name' => 'Unity',
+                            'display_name' => 'PeersGlobal Unity',
+                            'email' => 'info@peersglobal.com',
+                            'password_hash' => bcrypt(Str::random(16)),
+                            'status' => 'active',
+                        ]);
+                    }
+
+                    \App\Models\Post::create([
+                        'user_id' => $systemUser->id,
+                        'content_text' => $postText,
+                        'post_type' => 'global_peer_certificate',
+                        'active' => true,
+                        'visibility' => 'public',
+                        'moderation_status' => 'approved',
+                        'source_type' => 'global_peer_certificate',
+                        'source_id' => $user->id,
+                        'source_event' => 'global_peer_certificate',
+                        'media' => [
+                            [
+                                'id' => $fileResult['file_id'],
+                                'type' => 'image',
+                                'url' => $fileResult['url'],
+                            ],
+                        ],
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Failed to generate certification image/post upon approval', [
+                    'submission_id' => $submission->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             $this->syncLegacyStatus($submission, CertificationSubmission::STATUS_APPROVED);
 
             return $submission->refresh();
