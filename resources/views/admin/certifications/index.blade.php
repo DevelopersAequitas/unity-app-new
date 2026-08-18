@@ -98,7 +98,7 @@
                         @forelse ($items as $item)
                             @php
                                 $downloadUrl = $item->status === \App\Models\CertificationSubmission::STATUS_APPROVED
-                                    ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
+                                    ? ($item->certificate_download_url ?: url('/admin/certificates/' . $item->id . '/view'))
                                     : null;
 
                                 $certRowData = [
@@ -350,7 +350,7 @@
     @foreach ($items as $item)
         @php
             $downloadUrl = $item->status === \App\Models\CertificationSubmission::STATUS_APPROVED
-                ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
+                ? ($item->certificate_download_url ?: url('/admin/certificates/' . $item->id . '/view'))
                 : null;
             $st = strtolower((string)$item->status);
         @endphp

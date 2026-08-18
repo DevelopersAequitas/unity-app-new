@@ -376,7 +376,7 @@ class User extends Authenticatable
                     $usedSeq = false;
                     try {
                         if (DB::getDriverName() === 'pgsql') {
-                            $seqCheck = DB::selectOne("SELECT to_regclass('peer_id_seq') AS seq_exists");
+                            $seqCheck = DB::selectOne("SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relname = 'peer_id_seq' AND c.relkind = 'S') AS seq_exists");
                             if (! empty($seqCheck?->seq_exists)) {
                                 $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
                                 if (! empty($seqResult?->peer_id)) {

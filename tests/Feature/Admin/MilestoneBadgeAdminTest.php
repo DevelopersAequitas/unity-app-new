@@ -69,6 +69,26 @@ class MilestoneBadgeAdminTest extends TestCase
                 $table->timestamps();
             });
         }
+
+        if (! Schema::hasTable('role_module_access')) {
+            Schema::create('role_module_access', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('role_id');
+                $table->string('module_key', 100);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('admin_modules')) {
+            Schema::create('admin_modules', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->string('name', 255);
+                $table->string('module_key', 100);
+                $table->boolean('is_active')->default(true);
+                $table->integer('sort_order')->default(0);
+                $table->timestamps();
+            });
+        }
     }
 
     private function createAdminUser(): AdminUser

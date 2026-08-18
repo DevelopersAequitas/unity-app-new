@@ -642,6 +642,13 @@
                     </a>
                 </li>
                 @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Member Introducers') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Member Introducers Creative'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.member-introducers.*') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}">
+                        <i class="bi bi-person-badge me-2"></i>Member Introducers Creative
+                    </a>
+                </li>
+                @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
