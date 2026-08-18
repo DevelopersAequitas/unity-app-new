@@ -485,15 +485,21 @@
                     <div class="rounded-2xl border border-amber-500/30 overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between" style="background-color: #070D1A;">
                         {{-- Canva Graphic Preview Image --}}
                         <div class="relative overflow-hidden bg-slate-900 aspect-[4/5] flex items-center justify-center border-b border-amber-500/20">
-                            @if(!empty($honour['badge_image']) && file_exists(public_path($honour['badge_image'])))
-                                <img src="{{ asset($honour['badge_image']) }}" alt="{{ $honour['title'] }}" class="w-full h-full object-cover">
-                            @else
-                                <div class="p-6 text-center">
-                                    <div class="text-xs font-black text-amber-400 uppercase tracking-widest">BIG CONGRATULATIONS</div>
-                                    <div class="text-2xl font-black text-white uppercase my-2">{{ $honour['title'] }}</div>
-                                    <div class="text-xs text-slate-300 italic">"{{ $honour['compliment'] }}"</div>
-                                </div>
+                            @php
+                                $badgeRel = $honour['badge_image'] ?? '';
+                                $badgeSrc = !empty($badgeRel) ? asset($badgeRel) : '';
+                                if (!empty($badgeRel) && !file_exists(public_path($badgeRel)) && file_exists(storage_path('app/public/'.$badgeRel))) {
+                                    $badgeSrc = asset('storage/'.$badgeRel);
+                                }
+                            @endphp
+                            @if(!empty($badgeSrc))
+                                <img src="{{ $badgeSrc }}" alt="{{ $honour['title'] }}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             @endif
+                            <div class="p-6 text-center" style="{{ !empty($badgeSrc) ? 'display: none;' : '' }}">
+                                <div class="text-xs font-black text-amber-400 uppercase tracking-widest">BIG CONGRATULATIONS</div>
+                                <div class="text-2xl font-black text-white uppercase my-2">{{ $honour['title'] }}</div>
+                                <div class="text-xs text-slate-300 italic">"{{ $honour['compliment'] }}"</div>
+                            </div>
                             <div class="absolute top-3 right-3">
                                 <span class="chip px-2.5 py-1 text-[11px] font-bold bg-amber-500/90 text-black border-amber-400 shadow">
                                     {{ $honour['required_count'] }} {{ $honour['required_count'] === 1 ? 'Peer' : 'Peers' }}
