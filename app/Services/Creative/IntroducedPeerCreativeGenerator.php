@@ -248,21 +248,29 @@ class IntroducedPeerCreativeGenerator
 
                 $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg);
 
-                // Helper to draw center-aligned text at precise baseline Y
-                $drawCenterText = function ($img, int $fontSize, int $y, $color, string $font, string $text) use ($width) {
-                    $bbox = @imagettfbbox($fontSize, 0, $font, $text);
+                // Helper to draw center-aligned text at precise baseline Y with auto-scaling
+                $drawCenterText = function ($img, int $fontSize, int $y, $color, string $font, string $text, int $maxWidth = 920) use ($width) {
+                    if (empty($text)) {
+                        return;
+                    }
+                    $size = $fontSize;
+                    $bbox = @imagettfbbox($size, 0, $font, $text);
+                    while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 12) {
+                        $size -= 1;
+                        $bbox = @imagettfbbox($size, 0, $font, $text);
+                    }
                     if ($bbox) {
                         $textWidth = abs($bbox[4] - $bbox[0]);
                         $x = ($width - $textWidth) / 2;
-                        imagettftext($img, $fontSize, 0, (int) $x, $y, $color, $font, $text);
+                        imagettftext($img, $size, 0, (int) $x, $y, $color, $font, $text);
                     }
                 };
 
-                // 2. Line 1: User Full Name (Uppercase, Gold, Bold, 38pt / ~50px, Y = 715)
+                // 2. Line 1: User Full Name (Uppercase, Gold, Bold, Y = 735)
                 $displayName = strtoupper(trim($name ?: 'PEER MEMBER'));
-                $drawCenterText($canvas, 38, 715, $colorGold, $fontBold, $displayName);
+                $drawCenterText($canvas, 30, 735, $colorGold, $fontBold, $displayName, 900);
 
-                // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, 23pt / ~31px, Y = 755)
+                // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, Y = 766)
                 $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
                 if (is_array($company)) {
                     $company = $company['name'] ?? '';
@@ -312,10 +320,10 @@ class IntroducedPeerCreativeGenerator
                 $line2Text = implode(' • ', $line2Parts);
 
                 if (! empty($line2Text)) {
-                    $drawCenterText($canvas, 23, 755, $colorDarkNavy, $fontSemiBold, $line2Text);
+                    $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);
                 }
 
-                // 4. Line 3: Level 4 Category / Subcategory (Slate Gray, Medium, 21pt / ~29px, Y = 792)
+                // 4. Line 3: Level 4 Category / Subcategory (Slate Gray, Medium, Y = 794)
                 $level4Name = '';
                 if ($user->relationLoaded('level4Category')) {
                     $level4Name = $user->getRelation('level4Category')?->name ?? '';
@@ -341,7 +349,7 @@ class IntroducedPeerCreativeGenerator
                 }
 
                 if (! empty($level4Name)) {
-                    $drawCenterText($canvas, 21, 792, $colorGray, $fontSemiBold, (string) $level4Name);
+                    $drawCenterText($canvas, 17, 794, $colorGray, $fontSemiBold, (string) $level4Name, 920);
                 }
             } else {
                 // Canvas Dimensions (Vertical 1080x1350 fallback)
