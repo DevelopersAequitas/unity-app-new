@@ -38,19 +38,19 @@ class WearTheBadgeImageGenerator
         $fileModel = $this->generate($user);
         $imageUrl = url('/api/v1/files/'.$fileModel->id);
 
-        try {
-            $user->forceFill([
-                'welcome_creative_url' => $imageUrl,
-                'profile_card_image_url' => $imageUrl,
-            ])->saveQuietly();
-        } catch (\Throwable $e) {
+        $updateData = [];
+        if (Schema::hasColumn('users', 'welcome_creative_url')) {
+            $updateData['welcome_creative_url'] = $imageUrl;
+        }
+        if (Schema::hasColumn('users', 'profile_card_image_url')) {
+            $updateData['profile_card_image_url'] = $imageUrl;
+        }
+
+        if (! empty($updateData)) {
             try {
-                DB::table('users')->where('id', (string) $user->id)->update([
-                    'welcome_creative_url' => $imageUrl,
-                    'profile_card_image_url' => $imageUrl,
-                ]);
-            } catch (\Throwable $ex) {
-                Log::error("WearTheBadgeImageGenerator: Could not persist creative URL to DB for user {$user->id}: {$ex->getMessage()}");
+                $user->forceFill($updateData)->saveQuietly();
+            } catch (\Throwable $e) {
+                Log::warning("WearTheBadgeImageGenerator: Could not persist creative URL to DB for user {$user->id}: {$e->getMessage()}");
             }
         }
 

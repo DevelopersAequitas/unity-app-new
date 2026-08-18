@@ -28,7 +28,13 @@ class MilestoneBadgeService
 
     public function calculateForUser(User $user): void
     {
-        if (! Schema::hasTable('milestone_badges') || ! Schema::hasTable('user_milestone_badges')) {
+        try {
+            if (! Schema::hasTable('milestone_badges') || ! Schema::hasTable('user_milestone_badges')) {
+                return;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[MilestoneBadgeService] Schema check skipped: '.$e->getMessage());
+
             return;
         }
 
@@ -51,59 +57,63 @@ class MilestoneBadgeService
 
         $newlyEarnedBadges = [];
 
-        DB::transaction(function () use ($user, $categories, &$newlyEarnedBadges): void {
-            foreach ($categories as $type => $currentValue) {
-                $badges = MilestoneBadge::query()
-                    ->where('type', $type)
-                    ->where('is_active', true)
-                    ->orderBy('required_count', 'asc')
-                    ->get();
+        try {
+            DB::transaction(function () use ($user, $categories, &$newlyEarnedBadges): void {
+                foreach ($categories as $type => $currentValue) {
+                    $badges = MilestoneBadge::query()
+                        ->where('type', $type)
+                        ->where('is_active', true)
+                        ->orderBy('required_count', 'asc')
+                        ->get();
 
-                foreach ($badges as $badge) {
-                    $existingRecord = UserMilestoneBadge::query()
-                        ->where('user_id', $user->id)
-                        ->where('badge_id', $badge->id)
-                        ->first();
+                    foreach ($badges as $badge) {
+                        $existingRecord = UserMilestoneBadge::query()
+                            ->where('user_id', $user->id)
+                            ->where('badge_id', $badge->id)
+                            ->first();
 
-                    if ($currentValue >= $badge->required_count) {
-                        if ($existingRecord) {
-                            if ($existingRecord->status !== UserMilestoneBadge::STATUS_EARNED) {
-                                $existingRecord->update([
-                                    'status' => UserMilestoneBadge::STATUS_EARNED,
+                        if ($currentValue >= $badge->required_count) {
+                            if ($existingRecord) {
+                                if ($existingRecord->status !== UserMilestoneBadge::STATUS_EARNED) {
+                                    $existingRecord->update([
+                                        'status' => UserMilestoneBadge::STATUS_EARNED,
+                                        'achieved_count' => $currentValue,
+                                        'earned_at' => now(),
+                                        'revoked_at' => null,
+                                    ]);
+                                    $newlyEarnedBadges[] = $badge;
+                                } else {
+                                    $existingRecord->update([
+                                        'achieved_count' => $currentValue,
+                                    ]);
+                                }
+                            } else {
+                                UserMilestoneBadge::create([
+                                    'user_id' => $user->id,
+                                    'badge_id' => $badge->id,
+                                    'milestone_type' => $type,
                                     'achieved_count' => $currentValue,
+                                    'status' => UserMilestoneBadge::STATUS_EARNED,
                                     'earned_at' => now(),
                                     'revoked_at' => null,
                                 ]);
                                 $newlyEarnedBadges[] = $badge;
-                            } else {
+                            }
+                        } else {
+                            if ($existingRecord && $existingRecord->status === UserMilestoneBadge::STATUS_EARNED) {
                                 $existingRecord->update([
+                                    'status' => UserMilestoneBadge::STATUS_REVOKED,
+                                    'revoked_at' => now(),
                                     'achieved_count' => $currentValue,
                                 ]);
                             }
-                        } else {
-                            UserMilestoneBadge::create([
-                                'user_id' => $user->id,
-                                'badge_id' => $badge->id,
-                                'milestone_type' => $type,
-                                'achieved_count' => $currentValue,
-                                'status' => UserMilestoneBadge::STATUS_EARNED,
-                                'earned_at' => now(),
-                                'revoked_at' => null,
-                            ]);
-                            $newlyEarnedBadges[] = $badge;
-                        }
-                    } else {
-                        if ($existingRecord && $existingRecord->status === UserMilestoneBadge::STATUS_EARNED) {
-                            $existingRecord->update([
-                                'status' => UserMilestoneBadge::STATUS_REVOKED,
-                                'revoked_at' => now(),
-                                'achieved_count' => $currentValue,
-                            ]);
                         }
                     }
                 }
-            }
-        });
+            });
+        } catch (\Throwable $e) {
+            Log::warning('[MilestoneBadgeService] Badge calculation failed: '.$e->getMessage());
+        }
 
         if (! empty($newlyEarnedBadges)) {
             $this->handleNewlyEarnedBadges($user, $newlyEarnedBadges);
