@@ -314,10 +314,10 @@
                             @php $stInfo = $statusBadge($impact->status); @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ optional($impact->impact_date)->toDateString() }}</td>
-                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                        <i class="bi bi-lightning-charge text-indigo-500 text-[11px]"></i>
-                                        <span>{{ $impact->action }}</span>
+                                <td class="px-3 py-2.5 text-xs max-w-[160px]" title="{{ $impact->action }}">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 max-w-full">
+                                        <i class="bi bi-lightning-charge text-indigo-500 text-[11px] shrink-0"></i>
+                                        <span class="truncate">{{ $impact->action }}</span>
                                     </span>
                                 </td>
                                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
