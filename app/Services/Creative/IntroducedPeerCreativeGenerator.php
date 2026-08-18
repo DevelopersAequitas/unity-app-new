@@ -195,6 +195,12 @@ class IntroducedPeerCreativeGenerator
             $meta = $this->getHonourMeta($introducedCount);
 
             $templatePath = ! empty($meta['badge_image']) ? public_path($meta['badge_image']) : null;
+            if (! $templatePath || ! file_exists($templatePath)) {
+                $storageTemplate = ! empty($meta['badge_image']) ? storage_path('app/public/'.$meta['badge_image']) : null;
+                if ($storageTemplate && file_exists($storageTemplate)) {
+                    $templatePath = $storageTemplate;
+                }
+            }
             $isCanvaTemplate = $templatePath && file_exists($templatePath);
 
             // Fonts
