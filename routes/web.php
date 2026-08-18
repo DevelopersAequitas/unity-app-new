@@ -280,6 +280,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->middleware('admin.industry-director')
             ->name('industry-director.switch-industry');
         Route::get('/member-introducers', [MemberIntroducersController::class, 'index'])->name('member-introducers.index');
+        Route::get('/member-introducers/{id}/introduced-peers', [MemberIntroducersController::class, 'introducedPeers'])->whereUuid('id')->name('member-introducers.introduced-peers');
+        Route::get('/member-introducers/{id}/creative-preview', [MemberIntroducersController::class, 'creativePreview'])->whereUuid('id')->name('member-introducers.creative-preview');
+        Route::post('/member-introducers/{id}/post-creative', [MemberIntroducersController::class, 'postCreativeToTimeline'])->whereUuid('id')->name('member-introducers.post-creative');
         Route::get('/milestone-badges', [MilestoneBadgeController::class, 'index'])->name('milestone-badges.index');
         Route::get('/milestone-badges/create', [MilestoneBadgeController::class, 'create'])->name('milestone-badges.create');
         Route::post('/milestone-badges', [MilestoneBadgeController::class, 'store'])->name('milestone-badges.store');

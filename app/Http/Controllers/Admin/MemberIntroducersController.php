@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -168,14 +173,281 @@ class MemberIntroducersController extends Controller
             'dir' => $direction,
         ];
 
+        $creativeGenerator = app(IntroducedPeerCreativeGenerator::class);
+        $growthHonours = $creativeGenerator->getAllHonours();
+
+        $allIntroducersQuery = User::query()
+            ->has('introducedMembers')
+            ->withCount('introducedMembers')
+            ->with('city')
+            ->orderBy('display_name', 'asc');
+        $this->applyScopes($allIntroducersQuery, $adminUser);
+        $allIntroducers = $allIntroducersQuery->get();
+
         return view('admin.member-introducers.index', [
             'topIntroducers' => $topIntroducers,
             'introducers' => $introducers,
+            'allIntroducers' => $allIntroducers,
             'canEditUsers' => $canEditUsers,
             'membershipStatuses' => $membershipStatuses,
             'membershipStatusLabels' => $membershipStatusLabels,
             'filters' => $filters,
+            'growthHonours' => $growthHonours,
         ]);
+    }
+
+    /**
+     * Get introduced peers list for a specific introducer (JSON modal endpoint).
+     */
+    public function introducedPeers(Request $request, string $id): JsonResponse
+    {
+        $adminUser = Auth::guard('admin')->user();
+        if (! $adminUser) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $introducer = User::with(['city', 'introducedBy'])->find($id);
+        if (! $introducer) {
+            return response()->json(['error' => 'Introducer not found'], 404);
+        }
+
+        $query = User::query()
+            ->where('introduced_by', $id)
+            ->with(['city']);
+
+        $search = trim((string) $request->input('q', ''));
+        if ($search !== '') {
+            $words = array_filter(explode(' ', $search));
+            $query->where(function (Builder $q) use ($words) {
+                foreach ($words as $word) {
+                    $like = "%{$word}%";
+                    $q->where(function (Builder $sub) use ($like) {
+                        $sub->where('name', 'ILIKE', $like)
+                            ->orWhere('display_name', 'ILIKE', $like)
+                            ->orWhere('first_name', 'ILIKE', $like)
+                            ->orWhere('last_name', 'ILIKE', $like)
+                            ->orWhere('email', 'ILIKE', $like)
+                            ->orWhere('company', 'ILIKE', $like)
+                            ->orWhere('company_name', 'ILIKE', $like)
+                            ->orWhere('phone', 'ILIKE', $like)
+                            ->orWhere('designation', 'ILIKE', $like);
+                    });
+                }
+            });
+        }
+
+        $introducedPeers = $query->latest('created_at')->get();
+
+        $peersData = $introducedPeers->map(function ($peer) {
+            $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+            if (empty($peerName)) {
+                $peerName = $peer->name ?? 'Peer Member';
+            }
+
+            $avatar = $peer->profile_photo_url ?? ($peer->profile_photo_file_id ? url('/api/v1/files/'.$peer->profile_photo_file_id) : null);
+
+            $cityModel = $peer->getRelation('city') ?? $peer->cityRelation ?? null;
+            $cityName = $cityModel->name ?? $peer->city ?? '';
+            if (is_array($cityName)) {
+                $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
+            }
+
+            $company = $peer->company_name ?? $peer->company ?? $peer->business_name ?? '';
+            if (in_array(strtolower(trim((string) $company)), ['', 'none', 'null', 'no company'], true)) {
+                $company = null;
+            }
+
+            return [
+                'id' => $peer->id,
+                'name' => $peerName,
+                'avatar' => $avatar,
+                'email' => $peer->email,
+                'phone' => $peer->phone,
+                'company' => $company,
+                'designation' => $peer->designation,
+                'city' => $cityName,
+                'membership_status' => $peer->membership_status ?? 'Peer',
+                'joined_at' => $peer->created_at ? $peer->created_at->format('d M Y') : '-',
+            ];
+        });
+
+        $introducerName = $introducer->display_name ?: trim(($introducer->first_name ?? '').' '.($introducer->last_name ?? ''));
+
+        return response()->json([
+            'success' => true,
+            'introducer' => [
+                'id' => $introducer->id,
+                'name' => $introducerName,
+                'count' => $introducedPeers->count(),
+            ],
+            'introduced_peers' => $peersData,
+        ]);
+    }
+
+    /**
+     * Preview Growth Honour creative image response.
+     */
+    public function creativePreview(Request $request, string $id, IntroducedPeerCreativeGenerator $generator)
+    {
+        $introducer = User::with('city')->findOrFail($id);
+
+        $count = $request->has('count') && (int) $request->input('count') > 0 ? (int) $request->input('count') : (int) ($introducer->members_introduced_count ?? 0);
+        if ($count === 0) {
+            $count = User::query()->where('introduced_by', $introducer->id)->count();
+        }
+        if ($count === 0) {
+            $count = 1;
+        }
+
+        $meta = $generator->getHonourMeta($count);
+        $caption = $generator->formatCaption($introducer, $count);
+
+        $peerName = $introducer->display_name ?: trim(($introducer->first_name ?? '').' '.($introducer->last_name ?? ''));
+        if (empty($peerName)) {
+            $peerName = $introducer->name ?? 'Peer Member';
+        }
+
+        $cityModel = $introducer->getRelation('city') ?? $introducer->cityRelation ?? null;
+        $cityName = $cityModel->name ?? $introducer->city ?? '';
+        if (is_array($cityName)) {
+            $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
+        }
+
+        $company = $introducer->company_name ?? $introducer->company ?? $introducer->business_name ?? '';
+        if (in_array(strtolower(trim((string) $company)), ['', 'none', 'null', 'no company'], true)) {
+            $company = '';
+        }
+
+        $peerDetails = [
+            'id' => $introducer->id,
+            'name' => $peerName,
+            'company' => $company,
+            'city' => $cityName,
+            'designation' => $introducer->designation ?? 'Peers Global Member',
+            'membership_status' => $introducer->membership_status ?? 'Peer',
+            'introduced_count' => $count,
+        ];
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'meta' => $meta,
+                'caption' => $caption,
+                'preview_url' => route('admin.member-introducers.creative-preview', ['id' => $introducer->id, 'image' => 1, 'count' => $count]),
+                'peer' => $peerDetails,
+            ]);
+        }
+
+        // Render actual image binary when image=1
+        if ($request->boolean('image')) {
+            $fileModel = $generator->generate($introducer, $count);
+            $disk = 'public';
+            if ($fileModel->s3_key && Storage::disk($disk)->exists($fileModel->s3_key)) {
+                $path = Storage::disk($disk)->path($fileModel->s3_key);
+
+                return response()->file($path, [
+                    'Content-Type' => 'image/webp',
+                    'Cache-Control' => 'no-cache, must-revalidate',
+                ])->deleteFileAfterSend(true);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'meta' => $meta,
+            'caption' => $caption,
+            'preview_url' => route('admin.member-introducers.creative-preview', ['id' => $introducer->id, 'image' => 1, 'count' => $count]),
+            'peer' => $peerDetails,
+        ]);
+    }
+
+    /**
+     * Post Creative to Timeline.
+     */
+    public function postCreativeToTimeline(Request $request, string $id, IntroducedPeerCreativeGenerator $generator): JsonResponse
+    {
+        $adminUser = Auth::guard('admin')->user();
+        if (! $adminUser) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $introducer = User::findOrFail($id);
+
+        $count = $request->has('count') && (int) $request->input('count') > 0 ? (int) $request->input('count') : (int) ($introducer->members_introduced_count ?? 0);
+        if ($count === 0) {
+            $count = User::query()->where('introduced_by', $introducer->id)->count();
+        }
+        if ($count === 0) {
+            $count = 1;
+        }
+
+        try {
+            // Generate creative file
+            $fileRecord = $generator->generate($introducer, $count);
+            $imageUrl = url('/api/v1/files/'.$fileRecord->id);
+
+            $meta = $generator->getHonourMeta($count);
+            $caption = $generator->formatCaption($introducer, $count);
+
+            // Find system user to post automated announcement
+            $systemUser = User::where('email', 'info@peersglobal.com')->first();
+            if (! $systemUser) {
+                $userData = [
+                    'id' => (string) Str::uuid(),
+                    'first_name' => 'PeersGlobal',
+                    'last_name' => 'Unity',
+                    'display_name' => 'PeersGlobal Unity',
+                    'email' => 'info@peersglobal.com',
+                    'status' => 'active',
+                ];
+                if (Schema::hasColumn('users', 'password_hash')) {
+                    $userData['password_hash'] = bcrypt(Str::random(16));
+                } elseif (Schema::hasColumn('users', 'password')) {
+                    $userData['password'] = bcrypt(Str::random(16));
+                }
+                $systemUser = User::create($userData);
+            }
+            $authorUserId = $systemUser ? $systemUser->id : $introducer->id;
+
+            $post = Post::create([
+                'user_id' => $authorUserId,
+                'circle_id' => null,
+                'content_text' => $caption,
+                'media' => [
+                    [
+                        'id' => $fileRecord->id,
+                        'type' => 'image',
+                        'url' => $imageUrl,
+                    ],
+                ],
+                'tags' => ['introduction', 'growth_honour', 'member_introducer', (string) $introducer->id],
+                'visibility' => 'public',
+                'moderation_status' => 'approved',
+                'sponsored' => false,
+                'is_deleted' => false,
+                'source_type' => 'member_introduction',
+                'source_id' => $introducer->id,
+                'source_event' => 'growth_honour',
+                'post_type' => 'growth_honour',
+                'title' => "BIG CONGRATULATIONS: {$meta['title']} — ".($introducer->display_name ?: $introducer->name),
+                'description' => $caption,
+                'image' => $imageUrl,
+                'status' => 'active',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Creative posted to Timeline successfully! 🎉',
+                'post_id' => $post->id,
+                'image_url' => $imageUrl,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed posting creative to timeline: '.$e->getMessage());
+
+            return response()->json([
+                'error' => 'Failed to post creative to timeline: '.$e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
