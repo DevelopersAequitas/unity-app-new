@@ -328,10 +328,12 @@ class TestimonialApiTest extends TestCase
         $this->getJson("/api/v1/users/{$profileUser->id}/testimonials")
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.summary.total_testimonials', 1)
-            ->assertJsonPath('data.summary.testimonials_given', 0)
-            ->assertJsonPath('data.summary.testimonials_received', 1)
-            ->assertJsonCount(1, 'data.items')
-            ->assertJsonPath('data.items.0.message', 'Approved/visible testimonial!');
+            ->assertJsonPath('message', 'Testimonials retrieved successfully.')
+            ->assertJsonPath('data.total_testimonials', 1)
+            ->assertJsonCount(1, 'data.testimonials')
+            ->assertJsonPath('data.testimonials.0.content', 'Approved/visible testimonial!')
+            ->assertJsonPath('data.testimonials.0.given_by.name', 'Sender User')
+            ->assertJsonPath('data.pagination.current_page', 1)
+            ->assertJsonPath('data.pagination.per_page', 10);
     }
 }
