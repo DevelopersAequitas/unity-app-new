@@ -85,8 +85,8 @@
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ optional($impact->impact_date)->toDateString() }}</td>
-                                <td class="px-3 py-2.5 text-xs max-w-[160px]" title="{{ $impact->action }}">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 inline-block truncate max-w-full align-middle">{{ $impact->action }}</span>
+                                <td class="px-3 py-2.5 text-xs max-w-[160px] truncate font-medium t1" title="{{ $impact->action }}">
+                                    {{ $impact->action }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($impacted)
