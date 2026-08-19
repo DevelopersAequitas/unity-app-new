@@ -42,42 +42,46 @@ class FileController extends BaseApiController
                         ->orWhere('image', 'LIKE', '%'.$id.'%')
                         ->first();
 
-                    if ($post) {
-                        if ($post->post_type === 'growth_honour' && $post->source_id) {
-                            $introducer = User::find($post->source_id);
-                            if ($introducer) {
-                                $count = User::where('introduced_by', $introducer->id)->count();
-                                if ($count === 0) {
-                                    $count = 1;
-                                }
+                    if (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id)) {
+                        $introducer = User::find($post->source_id);
+                        if (! $introducer && $post->source_type === 'milestone_badge') {
+                            // For milestone badges, user ID may be stored in tags or post user_id
+                            $userId = collect($post->tags ?? [])->last();
+                            $introducer = User::find($userId) ?: User::find($post->user_id);
+                        }
 
-                                $fileModel = new FileModel;
-                                $fileModel->id = $id;
-                                $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
-                                $fileModel->mime_type = 'image/webp';
-                                $fileModel->save();
-
-                                $generator = app(IntroducedPeerCreativeGenerator::class);
-                                $generator->generate($introducer, $count, $fileModel);
-
-                                // Refresh the parent file lookup
-                                $file = File::find($id);
+                        if ($introducer) {
+                            $count = User::where('introduced_by', $introducer->id)->count();
+                            if ($count === 0) {
+                                $count = 1;
                             }
-                        } elseif ($post->post_type === 'welcome' && $post->source_id) {
-                            $user = User::find($post->source_id);
-                            if ($user) {
-                                $fileModel = new FileModel;
-                                $fileModel->id = $id;
-                                $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
-                                $fileModel->mime_type = 'image/webp';
-                                $fileModel->save();
 
-                                $generator = app(WearTheBadgeImageGenerator::class);
-                                $generator->generate($user, $fileModel);
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
+                            $fileModel->mime_type = 'image/webp';
+                            $fileModel->save();
 
-                                // Refresh the parent file lookup
-                                $file = File::find($id);
-                            }
+                            $generator = app(IntroducedPeerCreativeGenerator::class);
+                            $generator->generate($introducer, $count, $fileModel);
+
+                            // Refresh the parent file lookup
+                            $file = File::find($id);
+                        }
+                    } elseif ($post->post_type === 'welcome' && $post->source_id) {
+                        $user = User::find($post->source_id);
+                        if ($user) {
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
+                            $fileModel->mime_type = 'image/webp';
+                            $fileModel->save();
+
+                            $generator = app(WearTheBadgeImageGenerator::class);
+                            $generator->generate($user, $fileModel);
+
+                            // Refresh the parent file lookup
+                            $file = File::find($id);
                         }
                     }
                 } catch (\Throwable $regenEx) {
@@ -175,30 +179,33 @@ class FileController extends BaseApiController
                             ->orWhere('image', 'LIKE', '%'.$file->id.'%')
                             ->first();
 
-                        if ($post) {
-                            if ($post->post_type === 'growth_honour' && $post->source_id) {
-                                $introducer = User::find($post->source_id);
-                                if ($introducer) {
-                                    $count = User::where('introduced_by', $introducer->id)->count();
-                                    if ($count === 0) {
-                                        $count = 1;
-                                    }
-                                    $fileModel = FileModel::find($file->id);
-                                    if ($fileModel) {
-                                        $generator = app(IntroducedPeerCreativeGenerator::class);
-                                        $generator->generate($introducer, $count, $fileModel);
-                                        $regenerated = true;
-                                    }
+                        if (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id)) {
+                            $introducer = User::find($post->source_id);
+                            if (! $introducer && $post->source_type === 'milestone_badge') {
+                                $userId = collect($post->tags ?? [])->last();
+                                $introducer = User::find($userId) ?: User::find($post->user_id);
+                            }
+
+                            if ($introducer) {
+                                $count = User::where('introduced_by', $introducer->id)->count();
+                                if ($count === 0) {
+                                    $count = 1;
                                 }
-                            } elseif ($post->post_type === 'welcome' && $post->source_id) {
-                                $user = User::find($post->source_id);
-                                if ($user) {
-                                    $fileModel = FileModel::find($file->id);
-                                    if ($fileModel) {
-                                        $generator = app(WearTheBadgeImageGenerator::class);
-                                        $generator->generate($user, $fileModel);
-                                        $regenerated = true;
-                                    }
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    $generator = app(IntroducedPeerCreativeGenerator::class);
+                                    $generator->generate($introducer, $count, $fileModel);
+                                    $regenerated = true;
+                                }
+                            }
+                        } elseif ($post->post_type === 'welcome' && $post->source_id) {
+                            $user = User::find($post->source_id);
+                            if ($user) {
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    $generator = app(WearTheBadgeImageGenerator::class);
+                                    $generator->generate($user, $fileModel);
+                                    $regenerated = true;
                                 }
                             }
                         }

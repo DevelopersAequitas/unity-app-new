@@ -872,6 +872,7 @@
             jQuery('#sponsor_select').select2({
                 placeholder: 'Search by name, email, company, or phone...',
                 allowClear: true,
+                minimumInputLength: 0,
                 width: '100%',
                 containerCssClass: 'sponsor-select-custom',
                 dropdownCssClass: 'admin-filter-dropdown-menu sponsor-dropdown-custom',
