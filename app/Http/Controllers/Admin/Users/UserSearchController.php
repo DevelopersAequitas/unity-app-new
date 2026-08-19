@@ -20,7 +20,39 @@ class UserSearchController extends Controller
         $search = trim((string) $request->query('q', ''));
 
         if ($search === '') {
-            return response()->json([]);
+            $results = collect();
+            $users = User::query()
+                ->whereNull('deleted_at')
+                ->where('status', 'active')
+                ->with(['circleMembers' => function ($query) {
+                    $query->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->orderByDesc('joined_at')
+                        ->with(['circle:id,name']);
+                }])
+                ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
+                ->limit(50)
+                ->get();
+
+            foreach ($users as $user) {
+                [$name, $company, $city, $circle] = $user->adminDisplayParts();
+                $results->push([
+                    'id' => $user->id,
+                    'type' => 'member',
+                    'section' => 'Members',
+                    'section_icon' => 'bi-people-fill',
+                    'name' => $name,
+                    'company' => $company,
+                    'city' => $city,
+                    'circle' => $circle,
+                    'subtext' => collect([$company, $city, $circle])->filter()->implode(' • ') ?: 'Member Profile',
+                    'label' => $user->adminDisplayLabel(),
+                    'label_inline' => $user->adminDisplayInlineLabel(),
+                    'url' => route('admin.users.show', $user->id),
+                ]);
+            }
+
+            return response()->json($results);
         }
 
         $words = array_filter(explode(' ', $search));
@@ -58,7 +90,7 @@ class UserSearchController extends Controller
                     ->with(['circle:id,name']);
             }])
             ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
-            ->limit(5)
+            ->limit(50)
             ->get();
 
         foreach ($users as $user) {

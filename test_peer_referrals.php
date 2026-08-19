@@ -83,10 +83,10 @@ $storeReqA->setValidator($validatorA);
 $storeReqA->withValidator($validatorA);
 
 if ($validatorA->fails()) {
-    echo "Validation failed: ".json_encode($validatorA->errors()->messages())."\n";
+    echo 'Validation failed: '.json_encode($validatorA->errors()->messages())."\n";
 } else {
     $resA = $controller->store($storeReqA);
-    echo "Response Status: ".$resA->getStatusCode()."\n";
+    echo 'Response Status: '.$resA->getStatusCode()."\n";
     echo "Response JSON:\n".json_encode(json_decode($resA->getContent()), JSON_PRETTY_PRINT)."\n";
 }
 
@@ -118,10 +118,10 @@ $storeReqB->setValidator($validatorB);
 $storeReqB->withValidator($validatorB);
 
 if ($validatorB->fails()) {
-    echo "Validation failed: ".json_encode($validatorB->errors()->messages())."\n";
+    echo 'Validation failed: '.json_encode($validatorB->errors()->messages())."\n";
 } else {
     $resB = $controller->store($storeReqB);
-    echo "Response Status: ".$resB->getStatusCode()."\n";
+    echo 'Response Status: '.$resB->getStatusCode()."\n";
     echo "Response JSON:\n".json_encode(json_decode($resB->getContent()), JSON_PRETTY_PRINT)."\n";
 }
 
@@ -135,7 +135,7 @@ $storeReqA->withValidator($validatorDup);
 
 if ($validatorDup->fails()) {
     echo "PASSED: Caught duplicate pending referral!\n";
-    echo "Errors: ".json_encode($validatorDup->errors()->messages())."\n";
+    echo 'Errors: '.json_encode($validatorDup->errors()->messages())."\n";
 } else {
     echo "FAILED: Duplicate check did not trigger.\n";
 }

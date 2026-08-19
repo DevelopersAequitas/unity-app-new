@@ -8,8 +8,10 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\MilestoneBadgeService;
 use App\Services\Users\PeerIntroductionService;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -53,6 +55,31 @@ class PeerIntroductionTest extends TestCase
             $table->integer('width')->nullable();
             $table->integer('height')->nullable();
             $table->integer('duration')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('milestone_badges', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('type')->default('member_introduction');
+            $table->string('title');
+            $table->string('track')->default('Growth');
+            $table->integer('required_count')->default(1);
+            $table->text('description')->nullable();
+            $table->string('badge_image_url')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+
+        Schema::create('user_milestone_badges', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('badge_id');
+            $table->string('milestone_type')->nullable();
+            $table->integer('achieved_count')->default(0);
+            $table->string('status')->default('earned');
+            $table->timestamp('earned_at')->nullable();
+            $table->timestamp('revoked_at')->nullable();
             $table->timestamps();
         });
 
@@ -196,9 +223,24 @@ class PeerIntroductionTest extends TestCase
             'campaign_enabled' => true,
         ]);
 
-        // Run introduction service flow
+        DB::table('milestone_badges')->insert([
+            'id' => (string) Str::uuid(),
+            'type' => 'member_introduction',
+            'title' => 'CONNECTOR',
+            'track' => 'Growth',
+            'required_count' => 1,
+            'description' => 'You are carrying the Peers Global spirit wherever you go.',
+            'is_active' => true,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Run introduction service flow & sync milestone badge
         $service = app(PeerIntroductionService::class);
         $service->handlePeerIntroduction($introducer, $introduced);
+
+        app(MilestoneBadgeService::class)->calculateForUser($introducer);
 
         // Verify image file registration
         $this->assertDatabaseHas('files', [
@@ -218,11 +260,10 @@ class PeerIntroductionTest extends TestCase
         // Verify automatic Growth Honour timeline post created for the threshold (1 introduced member)
         $this->assertDatabaseHas('posts', [
             'post_type' => 'growth_honour',
-            'source_id' => $introducer->id,
-            'source_type' => 'member_introduction',
+            'source_type' => 'milestone_badge',
         ]);
 
-        $ghPost = Post::where('source_id', $introducer->id)->where('post_type', 'growth_honour')->firstOrFail();
+        $ghPost = Post::where('post_type', 'growth_honour')->where('source_type', 'milestone_badge')->firstOrFail();
         $this->assertStringContainsString('CONNECTOR', $ghPost->content_text);
 
         // Verify push notification registered for the introducer

@@ -113,25 +113,35 @@ class CircleMember extends Model
         });
 
         static::saving(function (CircleMember $member): void {
-            if (! $member->role) {
+            if (! $member->role && ! $member->role_id) {
                 return;
             }
 
-            if ($member->role_id && ! $member->isDirty('role')) {
-                return;
+            if ($member->role_id && (! $member->role || $member->isDirty('role_id'))) {
+                $roleModel = Role::find($member->role_id);
+                if ($roleModel && $roleModel->key) {
+                    $member->role = $roleModel->key;
+                }
             }
 
-            try {
-                $member->role_id = Role::mustIdByKey($member->role);
-            } catch (RuntimeException $exception) {
-                Log::error('Circle member role key missing in roles table.', [
-                    'circle_member_id' => $member->id,
-                    'circle_id' => $member->circle_id,
-                    'user_id' => $member->user_id,
-                    'role' => $member->role,
-                ]);
+            if ($member->role) {
+                if (Str::isUuid($member->role) && $roleById = Role::find($member->role)) {
+                    $member->role_id = $roleById->id;
+                    $member->role = $roleById->key;
+                } elseif (! $member->role_id || $member->isDirty('role')) {
+                    try {
+                        $member->role_id = Role::mustIdByKey($member->role);
+                    } catch (RuntimeException $exception) {
+                        Log::error('Circle member role key missing in roles table.', [
+                            'circle_member_id' => $member->id,
+                            'circle_id' => $member->circle_id,
+                            'user_id' => $member->user_id,
+                            'role' => $member->role,
+                        ]);
 
-                throw $exception;
+                        $member->role_id = Role::idByKey($member->role);
+                    }
+                }
             }
         });
 
