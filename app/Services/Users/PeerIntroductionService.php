@@ -6,6 +6,7 @@ namespace App\Services\Users;
 
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\Creative\IntroductionImageGenerator;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Support\Facades\Log;
@@ -112,6 +113,59 @@ class PeerIntroductionService
                 Log::info("[PeerIntroductionService] Dispatched push notification ID {$notification->id} to introducer {$introducer->id}");
             } else {
                 Log::info("[PeerIntroductionService] Push notification suppressed/deduplicated for introducer {$introducer->id}");
+            }
+
+            // 4. Automatically trigger Growth Honour Timeline Post if a threshold (1, 3, 5, 10...) is hit
+            $introducedCount = User::query()->where('introduced_by', $introducer->id)->count();
+            $generator = app(IntroducedPeerCreativeGenerator::class);
+            $honours = $generator->getAllHonours();
+
+            if (array_key_exists($introducedCount, $honours)) {
+                $meta = $generator->getHonourMeta($introducedCount);
+                $title = "BIG CONGRATULATIONS: {$meta['title']} — ".($introducer->display_name ?: $introducer->name);
+
+                $exists = Post::where('post_type', 'growth_honour')
+                    ->where('source_type', 'member_introduction')
+                    ->where('source_id', $introducer->id)
+                    ->where('title', $title)
+                    ->exists();
+
+                if (! $exists) {
+                    Log::info("[PeerIntroductionService] Introducer {$introducer->id} reached threshold {$introducedCount}. Generating automatic Growth Honour timeline post...");
+                    try {
+                        $fileRecord = $generator->generate($introducer, $introducedCount);
+                        $imageUrl = url('/api/v1/files/'.$fileRecord->id);
+                        $caption = $generator->formatCaption($introducer, $introducedCount);
+
+                        Post::create([
+                            'user_id' => $authorUserId,
+                            'circle_id' => null,
+                            'content_text' => $caption,
+                            'media' => [
+                                [
+                                    'id' => $fileRecord->id,
+                                    'type' => 'image',
+                                    'url' => $imageUrl,
+                                ],
+                            ],
+                            'tags' => ['introduction', 'growth_honour', 'member_introducer', (string) $introducer->id, "growth_honour_{$introducedCount}"],
+                            'visibility' => 'public',
+                            'moderation_status' => 'approved',
+                            'sponsored' => false,
+                            'is_deleted' => false,
+                            'source_type' => 'member_introduction',
+                            'source_id' => $introducer->id,
+                            'source_event' => 'growth_honour',
+                            'post_type' => 'growth_honour',
+                            'title' => $title,
+                            'description' => $caption,
+                            'image' => $imageUrl,
+                            'status' => 'active',
+                        ]);
+                    } catch (\Throwable $regenEx) {
+                        Log::error('[PeerIntroductionService] Failed generating automatic Growth Honour post: '.$regenEx->getMessage());
+                    }
+                }
             }
 
         } catch (\Throwable $e) {

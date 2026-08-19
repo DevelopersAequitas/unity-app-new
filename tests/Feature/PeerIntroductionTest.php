@@ -38,6 +38,8 @@ class PeerIntroductionTest extends TestCase
             $table->string('status')->default('active');
             $table->uuid('introduced_by')->nullable();
             $table->integer('members_introduced_count')->default(0);
+            $table->string('contribution_award_name')->nullable();
+            $table->string('contribution_award_recognition')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -175,7 +177,11 @@ class PeerIntroductionTest extends TestCase
             'display_name' => 'Hardik Parmar',
             'email' => 'hardik@example.com',
             'status' => 'active',
+            'introduced_by' => $introducer->id,
         ]);
+
+        $introducer->members_introduced_count = 1;
+        $introducer->save();
 
         // Create notification preferences to ensure notifications are not muted/suppressed
         NotificationPreference::create([
@@ -208,6 +214,16 @@ class PeerIntroductionTest extends TestCase
 
         $post = Post::where('source_id', $introduced->id)->firstOrFail();
         $this->assertStringContainsString('Congratulations to Urvashi Chavda for introducing Hardik Parmar', $post->content_text);
+
+        // Verify automatic Growth Honour timeline post created for the threshold (1 introduced member)
+        $this->assertDatabaseHas('posts', [
+            'post_type' => 'growth_honour',
+            'source_id' => $introducer->id,
+            'source_type' => 'member_introduction',
+        ]);
+
+        $ghPost = Post::where('source_id', $introducer->id)->where('post_type', 'growth_honour')->firstOrFail();
+        $this->assertStringContainsString('CONNECTOR', $ghPost->content_text);
 
         // Verify push notification registered for the introducer
         $this->assertDatabaseHas('app_notifications', [
