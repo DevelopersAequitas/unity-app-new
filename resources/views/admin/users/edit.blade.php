@@ -26,6 +26,139 @@
         padding-bottom: 10px;
         margin-bottom: 20px;
     }
+
+    /* ── Membership & Sponsorship Premium Card ── */
+    .sponsor-card {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, rgba(240, 244, 255, 0.6) 100%);
+        border: 1.5px solid #e0e7ff;
+        border-radius: var(--radius-lg, 16px);
+        padding: 20px 24px;
+        transition: all 0.25s ease-in-out;
+        box-shadow: 0 2px 6px rgba(99, 102, 241, 0.04);
+    }
+    .sponsor-card:hover {
+        border-color: #c7d2fe;
+        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.08);
+    }
+    .sponsor-icon-badge {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        box-shadow: 0 4px 10px rgba(99, 102, 241, 0.25);
+    }
+    .sponsor-toggle-switch {
+        width: 3.2rem !important;
+        height: 1.7rem !important;
+        cursor: pointer;
+        background-color: #cbd5e1;
+        border-color: #94a3b8;
+    }
+    .sponsor-toggle-switch:checked {
+        background-color: #6366f1 !important;
+        border-color: #4f46e5 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+    }
+    .sponsor-status-pill {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 10px;
+    }
+    .sponsor-status-active {
+        background-color: #ecfdf5;
+        color: #059669;
+        border: 1px solid #a7f3d0;
+    }
+    .sponsor-status-inactive {
+        background-color: #f1f5f9;
+        color: #64748b;
+        border: 1px solid #e2e8f0;
+    }
+    .sponsor-profile-preview {
+        background: #ffffff;
+        border: 1.5px solid #c7d2fe !important;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.06);
+    }
+    .sponsor-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    /* ── Select2 Customization for Sponsor Dropdown ── */
+    .sponsor-select-custom .select2-selection--single {
+        height: 44px !important;
+        border-radius: 10px !important;
+        border: 1.5px solid #cbd5e1 !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 0 12px !important;
+        background-color: #ffffff !important;
+        transition: all 0.2s ease !important;
+    }
+    .sponsor-select-custom .select2-selection--single:focus,
+    .sponsor-select-custom.select2-container--open .select2-selection--single {
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+    }
+    .sponsor-select-custom .select2-selection__rendered {
+        font-size: 13.5px !important;
+        color: #1e293b !important;
+        line-height: 42px !important;
+        padding-left: 0 !important;
+    }
+    .sponsor-select-custom .select2-selection__arrow {
+        height: 42px !important;
+        right: 10px !important;
+    }
+    .sponsor-select-custom .select2-selection__arrow b {
+        border-color: #64748b transparent transparent transparent !important;
+        border-width: 6px 5px 0 5px !important;
+    }
+
+    /* Dropdown Result Item Styling */
+    .sponsor-result-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 2px;
+    }
+    .sponsor-result-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #e0e7ff;
+        color: #4338ca;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+    .sponsor-result-name {
+        font-weight: 600;
+        color: #0f172a;
+        font-size: 13px;
+    }
+    .sponsor-result-sub {
+        font-size: 11.5px;
+        color: #64748b;
+    }
 </style>
 @endpush
 
@@ -205,18 +338,16 @@ window.switchTab = function(tabId) {
                         <div class="col-md-6 mt-4">
                             <label class="form-label fw-semibold">Profile Photo</label>
                             <input type="hidden" name="profile_photo_file_id" id="profilePhotoFileId" value="{{ old('profile_photo_file_id', $user->profile_photo_file_id) }}">
-                            <div id="profilePhotoExisting" class="{{ $user->profile_photo_file_id ? '' : 'd-none' }} border rounded p-3 bg-light mb-2">
+                            <div id="profilePhotoExisting" class="{{ ($user->profile_photo_file_id || old('profile_photo_file_id')) ? '' : 'd-none' }} border rounded p-3 bg-light mb-2">
                                 <div class="d-flex align-items-center gap-3">
-                                    @if ($user->profile_photo_file_id)
-                                        <img src="{{ url('/api/v1/files/' . $user->profile_photo_file_id) }}" alt="Profile preview" class="rounded border shadow-sm" style="max-height: 80px; max-width: 80px; object-fit: cover;">
-                                    @endif
+                                    <img id="profilePhotoPreview" src="{{ ($user->profile_photo_file_id || old('profile_photo_file_id')) ? url('/api/v1/files/' . old('profile_photo_file_id', $user->profile_photo_file_id)) : '#' }}" alt="Profile preview" class="rounded border shadow-sm" style="max-height: 80px; max-width: 80px; object-fit: cover;">
                                     <div>
-                                        <a href="{{ $user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm mb-1">View Image</a>
+                                        <a href="{{ ($user->profile_photo_file_id || old('profile_photo_file_id')) ? url('/api/v1/files/' . old('profile_photo_file_id', $user->profile_photo_file_id)) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm mb-1">View Image</a>
                                         <button type="button" class="btn btn-outline-primary btn-sm mb-1" data-change-target="profilePhoto">Change</button>
                                     </div>
                                 </div>
                             </div>
-                            <div id="profilePhotoUpload" class="{{ $user->profile_photo_file_id ? 'd-none' : '' }}">
+                            <div id="profilePhotoUpload" class="{{ ($user->profile_photo_file_id || old('profile_photo_file_id')) ? 'd-none' : '' }}">
                                 <input type="file" class="form-control" id="profilePhotoFile" accept="image/*">
                                 <div class="form-text" id="profilePhotoStatus">Upload up to 10MB.</div>
                             </div>
@@ -225,18 +356,16 @@ window.switchTab = function(tabId) {
                         <div class="col-md-6 mt-4">
                             <label class="form-label fw-semibold">Cover Photo</label>
                             <input type="hidden" name="cover_photo_file_id" id="coverPhotoFileId" value="{{ old('cover_photo_file_id', $user->cover_photo_file_id) }}">
-                            <div id="coverPhotoExisting" class="{{ $user->cover_photo_file_id ? '' : 'd-none' }} border rounded p-3 bg-light mb-2">
+                            <div id="coverPhotoExisting" class="{{ ($user->cover_photo_file_id || old('cover_photo_file_id')) ? '' : 'd-none' }} border rounded p-3 bg-light mb-2">
                                 <div class="d-flex align-items-center gap-3">
-                                    @if ($user->cover_photo_file_id)
-                                        <img src="{{ url('/api/v1/files/' . $user->cover_photo_file_id) }}" alt="Cover preview" class="rounded border shadow-sm" style="max-height: 80px; max-width: 140px; object-fit: cover;">
-                                    @endif
+                                    <img id="coverPhotoPreview" src="{{ ($user->cover_photo_file_id || old('cover_photo_file_id')) ? url('/api/v1/files/' . old('cover_photo_file_id', $user->cover_photo_file_id)) : '#' }}" alt="Cover preview" class="rounded border shadow-sm" style="max-height: 80px; max-width: 140px; object-fit: cover;">
                                     <div>
-                                        <a href="{{ $user->cover_photo_file_id ? url('/api/v1/files/' . $user->cover_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm mb-1">View Image</a>
+                                        <a href="{{ ($user->cover_photo_file_id || old('cover_photo_file_id')) ? url('/api/v1/files/' . old('cover_photo_file_id', $user->cover_photo_file_id)) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm mb-1">View Image</a>
                                         <button type="button" class="btn btn-outline-primary btn-sm mb-1" data-change-target="coverPhoto">Change</button>
                                     </div>
                                 </div>
                             </div>
-                            <div id="coverPhotoUpload" class="{{ $user->cover_photo_file_id ? 'd-none' : '' }}">
+                            <div id="coverPhotoUpload" class="{{ ($user->cover_photo_file_id || old('cover_photo_file_id')) ? 'd-none' : '' }}">
                                 <input type="file" class="form-control" id="coverPhotoFile" accept="image/*">
                                 <div class="form-text" id="coverPhotoStatus">Upload up to 10MB.</div>
                             </div>
@@ -561,9 +690,62 @@ window.switchTab = function(tabId) {
                             <label class="form-label fw-semibold">Members Introduced Count</label>
                             <input type="number" name="members_introduced_count" class="form-control" min="0" value="{{ old('members_introduced_count', $user->members_introduced_count) }}">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold">Introduced By (User ID)</label>
-                            <input type="text" name="introduced_by" class="form-control" value="{{ old('introduced_by', $user->introduced_by) }}">
+
+                        @php
+                            $effectiveSponsor = $selectedSponsor ?? $user->introducedBy ?? (old('introduced_by') ? \App\Models\User::find(old('introduced_by')) : null);
+                        @endphp
+
+                        <div class="col-12 {{ old('is_sponsored_member', $user->is_sponsored_member) ? '' : 'd-none' }}" id="sponsoredMemberContainer">
+                            <div class="p-3 bg-light border rounded-3">
+                                <div class="row g-3 align-items-start">
+                                    <div class="col-lg-7 col-md-12">
+                                        <label class="form-label fw-semibold text-dark mb-1" for="sponsor_select">
+                                            <i class="bi bi-search text-primary me-1"></i>Search & Select Sponsor (Introduced By Member)
+                                        </label>
+                                        <select name="introduced_by" id="sponsor_select" class="form-select">
+                                            @if ($effectiveSponsor)
+                                                <option value="{{ $effectiveSponsor->id }}" selected>
+                                                    {{ $effectiveSponsor->adminDisplayName() }} ({{ $effectiveSponsor->email }})
+                                                </option>
+                                            @elseif (old('introduced_by', $user->introduced_by))
+                                                <option value="{{ old('introduced_by', $user->introduced_by) }}" selected>{{ old('introduced_by', $user->introduced_by) }}</option>
+                                            @else
+                                                <option value="">Search by name, email, company, or phone...</option>
+                                            @endif
+                                        </select>
+                                        <div class="form-text text-muted mt-1">
+                                            <i class="bi bi-info-circle me-1"></i>Start typing to quickly search members from across the platform
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-5 col-md-12" id="sponsorInfoBox" style="{{ ($effectiveSponsor || old('introduced_by', $user->introduced_by)) ? '' : 'display: none;' }}">
+                                        <label class="form-label fw-semibold text-dark mb-1">
+                                            <i class="bi bi-patch-check-fill text-success me-1"></i>Selected Sponsor Details
+                                        </label>
+                                        <div class="sponsor-profile-preview p-3 rounded-3 border bg-white shadow-xs position-relative">
+                                            <div class="d-flex align-items-center gap-3">
+                                                <div class="sponsor-avatar" id="sponsorAvatarInitial">
+                                                    {{ strtoupper(substr($effectiveSponsor?->first_name ?: ($effectiveSponsor?->display_name ?: 'S'), 0, 1)) }}
+                                                </div>
+                                                <div class="flex-grow-1 min-w-0">
+                                                    <div class="fw-bold text-dark text-truncate" id="sponsorSummaryName">
+                                                        {{ $effectiveSponsor?->adminDisplayName() ?? '' }}
+                                                    </div>
+                                                    <div class="text-muted small text-truncate" id="sponsorSummaryMeta">
+                                                        {{ $effectiveSponsor?->company_name ?? '' }} {{ $effectiveSponsor?->city ? '• '.$effectiveSponsor->city : '' }}
+                                                    </div>
+                                                    <div class="text-secondary small text-truncate" id="sponsorSummaryEmail">
+                                                        {{ $effectiveSponsor?->email ?? '' }}
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="btn btn-outline-danger btn-sm border-0 rounded-circle p-1.5" id="clearSponsorBtn" title="Remove sponsor">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1882,25 +2064,43 @@ document.addEventListener('DOMContentLoaded', function () {
             const status = document.getElementById(`${prefix}Status`);
             const changeBtn = existing?.querySelector('[data-change-target]');
             const viewLink = existing?.querySelector('a');
+            const previewImg = document.getElementById(`${prefix}Preview`);
 
             const setStatus = (text, isError = false) => {
                 if (!status) return;
                 status.textContent = text;
                 status.classList.toggle('text-danger', isError);
+                status.classList.toggle('text-success', !isError && text.includes('successful'));
             };
 
             changeBtn?.addEventListener('click', () => {
-                if (existing) existing.classList.add('d-none');
                 if (upload) upload.classList.remove('d-none');
-                if (hiddenInput) hiddenInput.value = '';
-                if (fileInput) fileInput.value = '';
-                setStatus('Select a file to upload.');
+                if (existing) existing.classList.add('d-none');
+                if (fileInput) {
+                    fileInput.value = '';
+                    fileInput.click();
+                }
+                setStatus('Select a new image file.');
             });
 
             fileInput?.addEventListener('change', async () => {
                 const file = fileInput.files?.[0];
                 if (!file) return;
-                setStatus('Uploading...');
+
+                // Immediate local preview so the user sees their chosen photo right away
+                try {
+                    const localUrl = URL.createObjectURL(file);
+                    if (previewImg) {
+                        previewImg.src = localUrl;
+                    }
+                    if (viewLink) {
+                        viewLink.href = localUrl;
+                    }
+                    if (existing) existing.classList.remove('d-none');
+                    if (upload) upload.classList.add('d-none');
+                } catch (err) {}
+
+                setStatus('Uploading image...', false);
 
                 const formData = new FormData();
                 formData.append('file', file);
@@ -1910,29 +2110,42 @@ document.addEventListener('DOMContentLoaded', function () {
                         method: 'POST',
                         body: formData,
                         credentials: 'same-origin',
-                        headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+                        headers: {
+                            'Accept': 'application/json',
+                            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                        },
                     });
 
-                    if (!response.ok) {
-                        setStatus('Upload failed. Please try again.', true);
+                    const json = await response.json();
+
+                    if (!response.ok || json.success === false) {
+                        const errMsg = json?.message || 'Upload failed. Please try again.';
+                        setStatus(errMsg, true);
+                        if (existing) existing.classList.add('d-none');
+                        if (upload) upload.classList.remove('d-none');
                         return;
                     }
 
-                    const json = await response.json();
                     const fileId = json?.data?.id ?? json?.data?.[0]?.id;
                     if (!fileId) {
-                        setStatus('Upload failed. Missing file id.', true);
+                        const errMsg = json?.message || 'Upload failed. Missing file ID.';
+                        setStatus(errMsg, true);
+                        if (existing) existing.classList.add('d-none');
+                        if (upload) upload.classList.remove('d-none');
                         return;
                     }
 
                     if (hiddenInput) hiddenInput.value = fileId;
+                    if (previewImg) previewImg.src = `/api/v1/files/${fileId}`;
                     if (viewLink) viewLink.href = `/api/v1/files/${fileId}`;
 
-                    if (upload) upload.classList.add('d-none');
                     if (existing) existing.classList.remove('d-none');
+                    if (upload) upload.classList.add('d-none');
                     setStatus('Upload successful.');
                 } catch (e) {
                     setStatus('Upload failed. Please try again.', true);
+                    if (existing) existing.classList.add('d-none');
+                    if (upload) upload.classList.remove('d-none');
                 }
             });
         };
@@ -2129,6 +2342,120 @@ document.addEventListener('DOMContentLoaded', function () {
         if (businessMainCatSelect && businessMainCatSelect.value && (!businessSubCatSelect || businessSubCatSelect.options.length <= 1)) {
             updateBusinessSubCategories(initialBusinessSub);
         }
+
+        // Tab 3 Sponsored Member dynamic fields
+        const isSponsoredCheckbox = document.getElementById('isSponsoredMember');
+        const sponsoredContainer = document.getElementById('sponsoredMemberContainer');
+        const sponsorInfoBox = document.getElementById('sponsorInfoBox');
+        const sponsorSummaryName = document.getElementById('sponsorSummaryName');
+        const sponsorSummaryMeta = document.getElementById('sponsorSummaryMeta');
+        const sponsorSummaryEmail = document.getElementById('sponsorSummaryEmail');
+        const sponsorAvatarInitial = document.getElementById('sponsorAvatarInitial');
+        const sponsorStatusBadge = document.getElementById('sponsorStatusBadge');
+
+        const toggleSponsoredFields = () => {
+            if (!isSponsoredCheckbox || !sponsoredContainer) return;
+            if (isSponsoredCheckbox.checked) {
+                sponsoredContainer.classList.remove('d-none');
+                if (sponsorStatusBadge) {
+                    sponsorStatusBadge.textContent = 'Sponsored';
+                    sponsorStatusBadge.className = 'badge rounded-pill sponsor-status-pill sponsor-status-active';
+                }
+            } else {
+                sponsoredContainer.classList.add('d-none');
+                if (sponsorStatusBadge) {
+                    sponsorStatusBadge.textContent = 'Not Sponsored';
+                    sponsorStatusBadge.className = 'badge rounded-pill sponsor-status-pill sponsor-status-inactive';
+                }
+                if (window.jQuery && jQuery('#sponsor_select').length) {
+                    jQuery('#sponsor_select').val(null).trigger('change');
+                }
+                if (sponsorInfoBox) sponsorInfoBox.style.display = 'none';
+            }
+        };
+
+        isSponsoredCheckbox?.addEventListener('change', toggleSponsoredFields);
+
+        function formatSponsorOption(item) {
+            if (item.loading) return item.text;
+            if (!item.id) return item.text;
+            const name = item.name || item.text || '';
+            const initial = (name.trim().charAt(0) || 'S').toUpperCase();
+            const sub = item.subtext || '';
+            return $(`
+                <div class="sponsor-result-item">
+                    <div class="sponsor-result-avatar">${initial}</div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="sponsor-result-name">${name}</div>
+                        ${sub ? `<div class="sponsor-result-sub">${sub}</div>` : ''}
+                    </div>
+                </div>
+            `);
+        }
+
+        function formatSponsorSelection(item) {
+            return item.name || item.text || 'Search by name, email, company, or phone...';
+        }
+
+        if (window.jQuery && window.jQuery.fn.select2 && jQuery('#sponsor_select').length) {
+            jQuery('#sponsor_select').select2({
+                placeholder: 'Search by name, email, company, or phone...',
+                allowClear: true,
+                width: '100%',
+                containerCssClass: 'sponsor-select-custom',
+                dropdownCssClass: 'admin-filter-dropdown-menu sponsor-dropdown-custom',
+                templateResult: formatSponsorOption,
+                templateSelection: formatSponsorSelection,
+                ajax: {
+                    url: "{{ route('admin.users.search') }}",
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || ''
+                        };
+                    },
+                    processResults: function (data) {
+                        const members = (data || []).filter(function (item) {
+                            return !item.type || item.type === 'member';
+                        });
+                        return {
+                            results: members.map(function (item) {
+                                return {
+                                    id: item.id,
+                                    text: item.label_inline || item.label || item.name,
+                                    name: item.name,
+                                    subtext: item.subtext || (item.company ? item.company + (item.city ? ' • ' + item.city : '') : ''),
+                                    email: item.email || '',
+                                    company: item.company || '',
+                                    city: item.city || ''
+                                };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 1
+            }).on('select2:select', function (e) {
+                const data = e.params.data;
+                const name = data.name || data.text || '';
+                const initial = (name.trim().charAt(0) || 'S').toUpperCase();
+                if (sponsorSummaryName) sponsorSummaryName.textContent = name;
+                if (sponsorSummaryMeta) sponsorSummaryMeta.textContent = data.subtext || '';
+                if (sponsorSummaryEmail) sponsorSummaryEmail.textContent = data.email || '';
+                if (sponsorAvatarInitial) sponsorAvatarInitial.textContent = initial;
+                if (sponsorInfoBox) sponsorInfoBox.style.display = 'block';
+            }).on('select2:clear', function () {
+                if (sponsorInfoBox) sponsorInfoBox.style.display = 'none';
+            });
+        }
+
+        document.getElementById('clearSponsorBtn')?.addEventListener('click', function() {
+            if (window.jQuery && jQuery('#sponsor_select').length) {
+                jQuery('#sponsor_select').val(null).trigger('change');
+            }
+            if (sponsorInfoBox) sponsorInfoBox.style.display = 'none';
+        });
     });
 </script>
 

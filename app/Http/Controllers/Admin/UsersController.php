@@ -328,6 +328,18 @@ class UsersController extends Controller
         AdminCircleScope::applyToCirclesQuery($circlesQuery, $adminUser);
         $circles = $circlesQuery->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
+        $allMainCategories = CircleCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name', 'slug']);
+
+        $mainToSubCategoriesMap = $this->buildMainToSubCategoriesMap($allMainCategories);
+
+        $selectedSponsor = null;
+        if (old('introduced_by')) {
+            $selectedSponsor = User::query()->find(old('introduced_by'));
+        }
+
         return view('admin.users.create', [
             'user' => $user,
             'cities' => $cities,
@@ -335,6 +347,11 @@ class UsersController extends Controller
             'membershipStatusLabels' => $this->membershipFilterOptions(),
             'circles' => $circles,
             'membershipPlanOptions' => $this->membershipPlanOptions(),
+            'allMainCategories' => $allMainCategories,
+            'mainToSubCategoriesMap' => $mainToSubCategoriesMap,
+            'selectedMainCategoryId' => null,
+            'selectedSubCategoryId' => null,
+            'selectedSponsor' => $selectedSponsor,
         ]);
     }
 
@@ -365,6 +382,8 @@ class UsersController extends Controller
             'company_name' => ['required', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:100'],
             'turnover_range' => ['nullable', 'string', 'max:100'],
+            'main_business_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'business_category_id' => ['nullable', 'integer'],
             'gender' => ['nullable', 'string', 'max:20'],
             'dob' => ['nullable', 'date'],
             'experience_years' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -384,6 +403,7 @@ class UsersController extends Controller
             'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
+            'introduced_by' => ['nullable', 'uuid', 'exists:users,id'],
             'city_id' => ['nullable', 'exists:cities,id'],
             'city' => ['required', 'string', 'max:255'],
             'profile_photo_file_id' => ['nullable', 'uuid'],
@@ -430,6 +450,9 @@ class UsersController extends Controller
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
         $validated = $this->syncMembershipExpiryInput($validated, $request);
         $validated['is_sponsored_member'] = $request->boolean('is_sponsored_member');
+        if (! $validated['is_sponsored_member']) {
+            $validated['introduced_by'] = null;
+        }
         $validated['membership_status'] = $validated['membership_status'] ?: ($membershipStatuses[0] ?? null);
         $validated['coins_balance'] = $validated['coins_balance'] ?? 0;
         $validated['password_hash'] = Hash::make(Str::random(32));
@@ -751,6 +774,7 @@ class UsersController extends Controller
             'introducedPeers' => $introducedPeers,
             'introducedPeersCount' => $introducedPeersCount,
             'pendingIntroRequestsCount' => $pendingIntroRequestsCount,
+            'selectedSponsor' => $user->introducedBy ?? (old('introduced_by') ? User::find(old('introduced_by')) : null),
         ];
     }
 
@@ -1017,6 +1041,9 @@ class UsersController extends Controller
         $booleanFields = ['is_sponsored_member'];
         foreach ($booleanFields as $field) {
             $validated[$field] = $request->boolean($field);
+        }
+        if (! $validated['is_sponsored_member']) {
+            $validated['introduced_by'] = null;
         }
 
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
