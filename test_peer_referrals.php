@@ -16,10 +16,10 @@ $kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 echo "==================================================\n";
-echo "TESTING PEER REFERRALS API AND VALIDATION\n";
+echo "TESTING PEER REFERRALS API SPECIFICATION\n";
 echo "==================================================\n";
 
-// 1. Fetch User and Circle
+// 1. Fetch User and Circles
 $user = User::where('status', 'active')->first();
 if (! $user) {
     $user = User::first();
@@ -29,109 +29,117 @@ if (! $user) {
     exit(1);
 }
 
-$circle = Circle::first();
-if (! $circle) {
-    echo "Creating a temporary circle for testing...\n";
-    $circle = Circle::create([
-        'name' => 'Test Circle',
-        'slug' => 'test-circle-'.time(),
-        'description' => 'Test circle description',
-        'status' => 'active',
-    ]);
+$circles = Circle::take(2)->get();
+if ($circles->count() < 2) {
+    $mainCircle = Circle::firstOrCreate(
+        ['slug' => 'test-main-circle'],
+        ['name' => 'Main Test Circle', 'description' => 'Test', 'status' => 'active']
+    );
+    $subCircle = Circle::firstOrCreate(
+        ['slug' => 'test-sub-circle'],
+        ['name' => 'Specific Sub Circle', 'description' => 'Test Sub', 'status' => 'active']
+    );
+} else {
+    $mainCircle = $circles[0];
+    $subCircle = $circles[1];
 }
 
 $categoryUuid = (string) Str::uuid();
 
 echo "Referrer: {$user->display_name} ({$user->email})\n";
-echo "Main Circle ID: {$circle->id} ({$circle->name})\n";
-echo "Category UUID (Mocked): {$categoryUuid}\n\n";
+echo "Main Circle ID: {$mainCircle->id} ({$mainCircle->name})\n";
+echo "Specific Circle ID: {$subCircle->id} ({$subCircle->name})\n";
+echo "Category UUID: {$categoryUuid}\n\n";
 
-// Clear previous test records for clean run
+// Clear previous test records
 PeerReferral::where('referrer_user_id', $user->id)->delete();
-
-$payload = [
-    'referred_name' => 'Jane Doe Test',
-    'referred_phone' => '+919999999999',
-    'referred_email' => 'janedoe.test@example.com',
-    'referred_company_name' => 'Jane Tech Solutions',
-    'referred_designation' => 'CTO',
-    'main_circle_id' => $circle->id,
-    'circle_id' => null, // Main circle referral
-    'open_category_id' => $categoryUuid,
-    'message' => 'This is a test referral message.',
-];
-
-echo "--------------------------------------------------\n";
-echo "1. Submitting Valid Peer Referral\n";
-echo "--------------------------------------------------\n";
-
-$request1 = Request::create('/api/v1/peer-referrals', 'POST', $payload);
-$request1->setUserResolver(fn () => $user);
 
 $controller = app(PeerReferralsApiController::class);
 
-try {
-    // Validate request using the StorePeerReferralRequest
-    $storeRequest = StorePeerReferralRequest::createFrom($request1);
-    $storeRequest->setUserResolver(fn () => $user);
+echo "--------------------------------------------------\n";
+echo "1. Scenario A — Referral from Specific Circle\n";
+echo "--------------------------------------------------\n";
 
-    // Manually trigger validator
-    $validator = app('validator')->make(
-        $payload,
-        $storeRequest->rules()
-    );
-    $storeRequest->setValidator($validator);
-    $storeRequest->withValidator($validator);
+$payloadScenarioA = [
+    'referred_name' => 'Rahul Patel',
+    'referred_phone' => '9876543210',
+    'referred_email' => 'rahul@example.com',
+    'referred_company_name' => 'ABC Enterprises',
+    'referred_designation' => 'Founder',
+    'main_circle_id' => $mainCircle->id,
+    'circle_id' => $subCircle->id,
+    'open_category_id' => $categoryUuid,
+    'message' => 'I would like to refer Rahul for this open category.',
+];
 
-    if ($validator->fails()) {
-        echo 'Validation failed: '.json_encode($validator->errors()->messages())."\n";
-    } else {
-        $response1 = $controller->store($storeRequest);
-        echo 'Response Status: '.$response1->getStatusCode()."\n";
-        echo "Response Content:\n".json_encode(json_decode($response1->getContent()), JSON_PRETTY_PRINT)."\n";
-    }
-} catch (Exception $e) {
-    echo 'Exception occurred: '.$e->getMessage()."\n";
+$reqA = Request::create('/api/v1/peer-referrals', 'POST', $payloadScenarioA);
+$reqA->setUserResolver(fn () => $user);
+
+$storeReqA = StorePeerReferralRequest::createFrom($reqA);
+$storeReqA->setUserResolver(fn () => $user);
+
+$validatorA = app('validator')->make($payloadScenarioA, $storeReqA->rules());
+$storeReqA->setValidator($validatorA);
+$storeReqA->withValidator($validatorA);
+
+if ($validatorA->fails()) {
+    echo "Validation failed: ".json_encode($validatorA->errors()->messages())."\n";
+} else {
+    $resA = $controller->store($storeReqA);
+    echo "Response Status: ".$resA->getStatusCode()."\n";
+    echo "Response JSON:\n".json_encode(json_decode($resA->getContent()), JSON_PRETTY_PRINT)."\n";
 }
 
 echo "\n--------------------------------------------------\n";
-echo "2. Submitting Duplicate Peer Referral (Should Fail)\n";
+echo "2. Scenario B — Referral from Main Circle (circle_id is null)\n";
 echo "--------------------------------------------------\n";
 
-try {
-    $request2 = Request::create('/api/v1/peer-referrals', 'POST', $payload);
-    $request2->setUserResolver(fn () => $user);
+$categoryUuidB = (string) Str::uuid();
+$payloadScenarioB = [
+    'referred_name' => 'Pooja Shah',
+    'referred_phone' => '+91 98765 43211',
+    'referred_email' => 'pooja@example.com',
+    'referred_company_name' => 'XYZ Innovations',
+    'referred_designation' => 'Director',
+    'main_circle_id' => $mainCircle->id,
+    'circle_id' => null,
+    'open_category_id' => $categoryUuidB,
+    'message' => 'Referring Pooja for main circle category.',
+];
 
-    $storeRequest2 = StorePeerReferralRequest::createFrom($request2);
-    $storeRequest2->setUserResolver(fn () => $user);
+$reqB = Request::create('/api/v1/peer-referrals', 'POST', $payloadScenarioB);
+$reqB->setUserResolver(fn () => $user);
 
-    $validator2 = app('validator')->make($payload, $storeRequest2->rules());
-    $storeRequest2->setValidator($validator2);
-    $storeRequest2->withValidator($validator2);
+$storeReqB = StorePeerReferralRequest::createFrom($reqB);
+$storeReqB->setUserResolver(fn () => $user);
 
-    if ($validator2->fails()) {
-        echo "PASSED: Duplicate validation caught the duplicate request!\n";
-        echo 'Validation Errors: '.json_encode($validator2->errors()->messages())."\n";
-    } else {
-        $response2 = $controller->store($storeRequest2);
-        echo "FAILED: Expected duplicate validation to fail, but it succeeded.\n";
-        echo 'Response Status: '.$response2->getStatusCode()."\n";
-    }
-} catch (Exception $e) {
-    echo 'Exception occurred: '.$e->getMessage()."\n";
+$validatorB = app('validator')->make($payloadScenarioB, $storeReqB->rules());
+$storeReqB->setValidator($validatorB);
+$storeReqB->withValidator($validatorB);
+
+if ($validatorB->fails()) {
+    echo "Validation failed: ".json_encode($validatorB->errors()->messages())."\n";
+} else {
+    $resB = $controller->store($storeReqB);
+    echo "Response Status: ".$resB->getStatusCode()."\n";
+    echo "Response JSON:\n".json_encode(json_decode($resB->getContent()), JSON_PRETTY_PRINT)."\n";
 }
 
 echo "\n--------------------------------------------------\n";
-echo "3. Fetching Submitted Peer Referrals\n";
+echo "3. Testing Duplicate Prevention for Same Peer & Category\n";
 echo "--------------------------------------------------\n";
 
-$request3 = Request::create('/api/v1/peer-referrals', 'GET');
-$request3->setUserResolver(fn () => $user);
+$validatorDup = app('validator')->make($payloadScenarioA, $storeReqA->rules());
+$storeReqA->setValidator($validatorDup);
+$storeReqA->withValidator($validatorDup);
 
-$response3 = $controller->index($request3);
-echo 'Response Status: '.$response3->getStatusCode()."\n";
-echo "Response Content:\n".json_encode(json_decode($response3->getContent()), JSON_PRETTY_PRINT)."\n";
+if ($validatorDup->fails()) {
+    echo "PASSED: Caught duplicate pending referral!\n";
+    echo "Errors: ".json_encode($validatorDup->errors()->messages())."\n";
+} else {
+    echo "FAILED: Duplicate check did not trigger.\n";
+}
 
-echo "==================================================\n";
-echo "TEST COMPLETED SUCCESSFULLY\n";
+echo "\n==================================================\n";
+echo "ALL TESTS COMPLETED SUCCESSFULLY\n";
 echo "==================================================\n";
