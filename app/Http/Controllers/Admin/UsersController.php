@@ -426,7 +426,7 @@ class UsersController extends Controller
             'sustainability_contribution' => ['nullable', 'string'],
             'sustainability_areas' => ['nullable', 'array'],
             'greenpreneur_goals' => ['nullable', 'array'],
-            'community_directory_listing' => ['required', 'in:Yes,No'],
+            'community_directory_listing' => ['nullable', 'in:Yes,No'],
         ]);
 
         $csvFields = [
