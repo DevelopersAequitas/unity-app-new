@@ -88,6 +88,7 @@ use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
+use App\Http\Controllers\Api\V1\PeerReferralsApiController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
@@ -1129,6 +1130,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::post('/feedback', [FeedbackController::class, 'store']);
+
+        // Peer Referrals
+        Route::post('/peer-referrals', [PeerReferralsApiController::class, 'store']);
+        Route::get('/peer-referrals', [PeerReferralsApiController::class, 'index']);
 
         // Website form submissions (read)
         Route::get('/become-a-mentor', [BecomeMentorController::class, 'index']);

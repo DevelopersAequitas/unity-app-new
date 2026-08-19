@@ -182,6 +182,10 @@ class FileController extends BaseApiController
 
         $resource = $this->processSingleUpload($filesInput, $request);
 
+        if ($resource instanceof JsonResponse) {
+            return $resource;
+        }
+
         return $this->success($resource, 'File uploaded successfully', 201);
     }
 

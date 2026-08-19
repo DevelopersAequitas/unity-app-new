@@ -157,6 +157,7 @@
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
             ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
+            ['label' => 'Peer Referrals', 'route' => 'admin.peer-referrals.index'],
         ];
 
     if ($isCircleCommittee) {
@@ -182,7 +183,8 @@
         request()->routeIs('admin.impacts.pending') ||
         request()->routeIs('admin.ad-bookings.*') ||
         request()->routeIs('admin.account-deletion.*') ||
-        request()->routeIs('admin.introduction-requests.*');
+        request()->routeIs('admin.introduction-requests.*') ||
+        request()->routeIs('admin.peer-referrals.*');
 
     $leadsMenu = (! $isCircleCommittee && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))) ? $leadsMenu : [];
 
