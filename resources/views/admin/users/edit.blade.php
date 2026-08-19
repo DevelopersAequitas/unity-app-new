@@ -696,10 +696,10 @@ window.switchTab = function(tabId) {
                         @endphp
 
                         <div class="col-12 {{ old('is_sponsored_member', $user->is_sponsored_member) ? '' : 'd-none' }}" id="sponsoredMemberContainer">
-                            <div class="p-3 bg-light border rounded-3">
-                                <div class="row g-3 align-items-start">
-                                    <div class="col-lg-7 col-md-12">
-                                        <label class="form-label fw-semibold text-dark mb-1" for="sponsor_select">
+                            <div class="p-3.5 bg-light border border-indigo-100 rounded-3 shadow-xs">
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-lg-6 col-md-12">
+                                        <label class="form-label fw-semibold text-dark mb-1.5" for="sponsor_select">
                                             <i class="bi bi-search text-primary me-1"></i>Search & Select Sponsor (Introduced By Member)
                                         </label>
                                         <select name="introduced_by" id="sponsor_select" class="form-select">
@@ -713,32 +713,37 @@ window.switchTab = function(tabId) {
                                                 <option value="">Search by name, email, company, or phone...</option>
                                             @endif
                                         </select>
-                                        <div class="form-text text-muted mt-1">
-                                            <i class="bi bi-info-circle me-1"></i>Start typing to quickly search members from across the platform
+                                        <div class="form-text text-muted mt-1.5">
+                                            <i class="bi bi-info-circle me-1"></i>Search and choose the platform member who sponsored / introduced this peer.
                                         </div>
                                     </div>
 
-                                    <div class="col-lg-5 col-md-12" id="sponsorInfoBox" style="{{ ($effectiveSponsor || old('introduced_by', $user->introduced_by)) ? '' : 'display: none;' }}">
-                                        <label class="form-label fw-semibold text-dark mb-1">
+                                    <div class="col-lg-6 col-md-12" id="sponsorInfoBox" style="{{ ($effectiveSponsor || old('introduced_by', $user->introduced_by)) ? '' : 'display: none;' }}">
+                                        <label class="form-label fw-semibold text-dark mb-1.5">
                                             <i class="bi bi-patch-check-fill text-success me-1"></i>Selected Sponsor Details
                                         </label>
                                         <div class="sponsor-profile-preview p-3 rounded-3 border bg-white shadow-xs position-relative">
                                             <div class="d-flex align-items-center gap-3">
-                                                <div class="sponsor-avatar" id="sponsorAvatarInitial">
+                                                <div class="sponsor-avatar flex-shrink-0" id="sponsorAvatarInitial">
                                                     {{ strtoupper(substr($effectiveSponsor?->first_name ?: ($effectiveSponsor?->display_name ?: 'S'), 0, 1)) }}
                                                 </div>
                                                 <div class="flex-grow-1 min-w-0">
-                                                    <div class="fw-bold text-dark text-truncate" id="sponsorSummaryName">
-                                                        {{ $effectiveSponsor?->adminDisplayName() ?? '' }}
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="fw-bold text-dark text-truncate fs-6" id="sponsorSummaryName">
+                                                            {{ $effectiveSponsor?->adminDisplayName() ?? '' }}
+                                                        </span>
+                                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill py-0.5 px-2 text-[10px]">
+                                                            <i class="bi bi-patch-check-fill me-0.5"></i> Sponsor
+                                                        </span>
                                                     </div>
-                                                    <div class="text-muted small text-truncate" id="sponsorSummaryMeta">
+                                                    <div class="text-muted small text-truncate mt-0.5" id="sponsorSummaryMeta">
                                                         {{ $effectiveSponsor?->company_name ?? '' }} {{ $effectiveSponsor?->city ? '• '.$effectiveSponsor->city : '' }}
                                                     </div>
                                                     <div class="text-secondary small text-truncate" id="sponsorSummaryEmail">
                                                         {{ $effectiveSponsor?->email ?? '' }}
                                                     </div>
                                                 </div>
-                                                <button type="button" class="btn btn-outline-danger btn-sm border-0 rounded-circle p-1.5" id="clearSponsorBtn" title="Remove sponsor">
+                                                <button type="button" class="btn btn-outline-danger btn-sm border rounded-circle p-1.5 flex-shrink-0" id="clearSponsorBtn" title="Remove sponsor">
                                                     <i class="bi bi-x-lg"></i>
                                                 </button>
                                             </div>
