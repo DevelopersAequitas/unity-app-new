@@ -86,6 +86,43 @@ class LimitedUserApiTest extends TestCase
             $table->timestamps();
             $table->softDeletes();
         });
+
+        if (! Schema::hasTable('files')) {
+            Schema::create('files', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('uploader_user_id')->nullable();
+                $table->string('s3_key')->nullable();
+                $table->string('mime_type')->nullable();
+                $table->bigInteger('size_bytes')->nullable();
+                $table->integer('width')->nullable();
+                $table->integer('height')->nullable();
+                $table->integer('duration')->nullable();
+                $table->boolean('is_orphaned')->default(false);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('cities')) {
+            Schema::create('cities', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->string('state')->nullable();
+                $table->string('district')->nullable();
+                $table->string('country')->nullable();
+                $table->string('country_code')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('sme_business_story_submissions')) {
+            Schema::create('sme_business_story_submissions', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->string('status')->nullable();
+                $table->string('story_link')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function test_limited_users_endpoint_requires_authentication(): void
@@ -99,6 +136,10 @@ class LimitedUserApiTest extends TestCase
         // Create category
         $category = CircleCategoryLevel4::create([
             'name' => 'Software Engineering',
+        ]);
+
+        $authUser = User::factory()->create([
+            'status' => 'active',
         ]);
 
         // 1. Create active user
@@ -122,7 +163,7 @@ class LimitedUserApiTest extends TestCase
         ]);
 
         // Authenticate
-        Sanctum::actingAs($activeUser);
+        Sanctum::actingAs($authUser);
 
         $response = $this->getJson('/api/v1/members/limited');
 
@@ -137,8 +178,8 @@ class LimitedUserApiTest extends TestCase
                     'first_name',
                     'last_name',
                     'city',
-                    'business',
-                    'total_life_impact',
+                    'company_name',
+                    'life_impacted_count',
                     'profile_photo_image',
                     'designation',
                     'level4_category',
@@ -146,23 +187,41 @@ class LimitedUserApiTest extends TestCase
                     'is_verified',
                 ],
             ],
+            'links' => [
+                'first',
+                'last',
+                'prev',
+                'next',
+            ],
+            'meta' => [
+                'current_page',
+                'from',
+                'last_page',
+                'links',
+                'path',
+                'per_page',
+                'to',
+                'total',
+            ],
         ]);
 
         $data = $response->json('data');
 
-        // Verify that inactive user is not returned
+        // Verify that inactive user and auth user are not returned
         $this->assertCount(1, $data);
         $this->assertSame($activeUser->id, $data[0]['id']);
         $this->assertSame('John Doe', $data[0]['name']);
-        $this->assertSame('New York', $data[0]['city']);
-        $this->assertSame('Acme Corp', $data[0]['business']);
-        $this->assertSame(42, $data[0]['total_life_impact']);
+        $this->assertSame('New York, IN', $data[0]['city']);
+        $this->assertSame('Acme Corp', $data[0]['company_name']);
+        $this->assertSame(42, $data[0]['life_impacted_count']);
         $this->assertSame('Developer', $data[0]['designation']);
         $this->assertSame('Software Engineering', $data[0]['level4_category']);
         $this->assertFalse($data[0]['is_bookmark']);
         $this->assertIsBool($data[0]['is_verified']);
 
-        // Verify that other sensitive/large fields are NOT present in the limited response
+        // Verify that removed or sensitive fields are NOT present
+        $this->assertArrayNotHasKey('business', $data[0]);
+        $this->assertArrayNotHasKey('total_life_impact', $data[0]);
         $this->assertArrayNotHasKey('email', $data[0]);
         $this->assertArrayNotHasKey('phone', $data[0]);
         $this->assertArrayNotHasKey('coins_balance', $data[0]);
@@ -171,6 +230,10 @@ class LimitedUserApiTest extends TestCase
 
     public function test_limited_users_endpoint_returns_is_verified_boolean_field(): void
     {
+        $authUser = User::factory()->create([
+            'status' => 'active',
+        ]);
+
         $verifiedUser = User::factory()->create([
             'status' => 'active',
             'membership_status' => 'Only Unity Peer',
@@ -189,7 +252,7 @@ class LimitedUserApiTest extends TestCase
             'is_verified' => null,
         ]);
 
-        Sanctum::actingAs($verifiedUser);
+        Sanctum::actingAs($authUser);
 
         $response = $this->getJson('/api/v1/members/limited');
 
@@ -213,7 +276,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertIsBool($nItem['is_verified']);
     }
 
-    public function test_limited_users_endpoint_returns_all_members_without_pagination(): void
+    public function test_limited_users_endpoint_returns_members_with_pagination_15_per_page(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -228,9 +291,14 @@ class LimitedUserApiTest extends TestCase
         $response = $this->getJson('/api/v1/members/limited');
 
         $response->assertOk();
-        $this->assertCount(26, $response->json('data'));
-        $this->assertSame(26, $response->json('total_users'));
-        $response->assertJsonMissing(['meta', 'links']);
+        $this->assertCount(15, $response->json('data'));
+        $this->assertSame(25, $response->json('total_users'));
+        $this->assertSame(25, $response->json('total_user'));
+        $this->assertSame(25, $response->json('meta.total'));
+        $this->assertSame(15, $response->json('meta.per_page'));
+        $this->assertSame(1, $response->json('meta.current_page'));
+        $this->assertSame(2, $response->json('meta.last_page'));
+        $this->assertNotNull($response->json('links.next'));
     }
 
     public function test_members_endpoint_returns_all_members_without_pagination_with_all_fields(): void
@@ -248,13 +316,40 @@ class LimitedUserApiTest extends TestCase
         $response = $this->getJson('/api/v1/members');
 
         $response->assertOk();
-        $this->assertCount(21, $response->json('data'));
+        $this->assertCount(20, $response->json('data'));
+        $this->assertSame(20, $response->json('total_users'));
+        $this->assertSame(20, $response->json('total_user'));
         $response->assertJsonMissing(['meta', 'links']);
 
         // Verify that full data (like email and is_bookmark) is present in the response
         $data = $response->json('data');
         $this->assertArrayHasKey('email', $data[0]);
         $this->assertArrayHasKey('is_bookmark', $data[0]);
+    }
+
+    public function test_limited_users_endpoint_excludes_authenticated_user(): void
+    {
+        $authUser = User::factory()->create([
+            'first_name' => 'Current',
+            'last_name' => 'User',
+            'status' => 'active',
+        ]);
+
+        $otherUser = User::factory()->create([
+            'first_name' => 'Other',
+            'last_name' => 'Peer',
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson('/api/v1/members/limited');
+
+        $response->assertOk();
+        $data = collect($response->json('data'));
+
+        $this->assertNull($data->firstWhere('id', $authUser->id));
+        $this->assertNotNull($data->firstWhere('id', $otherUser->id));
     }
 
     public function test_user_can_bookmark_and_unbookmark_members(): void

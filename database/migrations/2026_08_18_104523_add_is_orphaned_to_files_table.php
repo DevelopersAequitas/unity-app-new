@@ -8,9 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('files', function (Blueprint $table) {
-            $table->boolean('is_orphaned')->default(false);
-        });
+        if (! Schema::hasTable('files')) {
+            return;
+        }
+
+        if (! Schema::hasColumn('files', 'is_orphaned')) {
+            Schema::table('files', function (Blueprint $table) {
+                $table->boolean('is_orphaned')->default(false);
+            });
+        }
     }
 
     /**
@@ -18,8 +24,14 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('files', function (Blueprint $table) {
-            $table->dropColumn('is_orphaned');
-        });
+        if (! Schema::hasTable('files')) {
+            return;
+        }
+
+        if (Schema::hasColumn('files', 'is_orphaned')) {
+            Schema::table('files', function (Blueprint $table) {
+                $table->dropColumn('is_orphaned');
+            });
+        }
     }
 };

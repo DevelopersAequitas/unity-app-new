@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasColumn('testimonials', 'rating')) {
+        if (Schema::hasTable('testimonials') && ! Schema::hasColumn('testimonials', 'rating')) {
             Schema::table('testimonials', function (Blueprint $table) {
                 $table->integer('rating')->nullable();
             });
@@ -20,7 +20,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (Schema::hasColumn('testimonials', 'rating')) {
+        if (Schema::hasTable('testimonials') && Schema::hasColumn('testimonials', 'rating')) {
             Schema::table('testimonials', function (Blueprint $table) {
                 $table->dropColumn('rating');
             });
