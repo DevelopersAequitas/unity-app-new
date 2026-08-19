@@ -1,147 +1,245 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Peer Referral Details')
+@section('title', 'Circle Peer Referral Details')
 
 @section('content')
     <div class="mb-4">
-        <a href="{{ route('admin.peer-referrals.index') }}" class="inline-flex items-center text-xs font-semibold text-indigo-600 hover:text-indigo-500 no-underline transition">
-            <i class="bi bi-arrow-left me-1"></i> Back to Referral List
+        <a href="{{ route('admin.peer-referrals.index') }}" class="btn btn-link text-decoration-none p-0 d-inline-flex align-items-center fw-semibold text-primary" style="font-size: 0.85rem;">
+            <i class="bi bi-arrow-left me-1"></i> Back to Circle Referral List
         </a>
     </div>
 
     @if (session('success'))
-        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">{{ session('success') }}</div>
+        <div class="alert alert-success border-0 shadow-sm mb-4 alert-dismissible fade show" role="alert" style="font-size: 0.85rem; border-radius: 8px;">
+            <i class="bi bi-check-circle-fill me-2 text-success"></i> {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
     @endif
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Main Details (Left/Center) -->
-        <div class="lg:col-span-2 space-y-6">
-            <div class="light rounded-xl border bs p-5 surface space-y-4">
-                <div class="flex justify-between items-start gap-4">
-                    <div>
-                        <span class="text-[10px] uppercase tracking-wider font-semibold t3">Peer Referral Detail</span>
-                        <h2 class="text-lg font-semibold font-display mt-0.5 mb-1 text-slate-800">{{ $peerReferral->referred_name }}</h2>
-                        <div class="flex items-center gap-2 text-xs t3">
-                            <span>Status:</span>
+    <div class="row g-4">
+        <!-- Main Details (Left/Center Column) -->
+        <div class="col-lg-8">
+            <!-- Referral Info Card -->
+            <div class="card mb-4 border-0 shadow-sm rounded-3">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 mb-2 text-uppercase tracking-wider font-semibold" style="font-size: 0.65rem; border-radius: 4px;">
+                                <i class="bi bi-person-badge-fill me-1"></i> Peer Referral Details
+                            </span>
+                            <h2 class="h4 font-display font-bold text-slate-800 my-1">{{ $peerReferral->referred_name }}</h2>
+                            
                             @php
-                                $statusClasses = [
-                                    'pending' => 'bg-amber-50 text-amber-700 border-amber-200',
-                                    'contacted' => 'bg-blue-50 text-blue-700 border-blue-200',
-                                    'accepted' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                                    'rejected' => 'bg-rose-50 text-rose-700 border-rose-200',
-                                    'converted' => 'bg-purple-50 text-purple-700 border-purple-200',
+                                $statusBadges = [
+                                    'pending' => 'bg-warning-subtle text-warning border-warning',
+                                    'contacted' => 'bg-info-subtle text-info border-info',
+                                    'accepted' => 'bg-success-subtle text-success border-success',
+                                    'rejected' => 'bg-danger-subtle text-danger border-danger',
+                                    'converted' => 'bg-purple-subtle text-purple border-purple',
                                 ];
-                                $badgeClass = $statusClasses[$peerReferral->status] ?? 'bg-gray-50 text-gray-700 border-gray-200';
+                                $badgeStyle = $statusBadges[$peerReferral->status] ?? 'bg-secondary-subtle text-secondary border-secondary';
                             @endphp
-                            <span class="px-2 py-0.5 rounded text-[11px] font-semibold border {{ $badgeClass }}">
-                                {{ ucfirst($peerReferral->status) }}
+                            <span class="badge border {{ $badgeStyle }} px-3 py-1.5 rounded-pill font-bold" style="font-size: 0.72rem;">
+                                <i class="bi bi-circle-fill me-1" style="font-size: 6px; vertical-align: middle;"></i> {{ ucfirst($peerReferral->status) }}
                             </span>
                         </div>
+                        <div class="text-sm-end">
+                            <div class="text-uppercase tracking-wider text-muted font-semibold" style="font-size: 0.65rem;">Submitted On</div>
+                            <div class="text-slate-700 fw-medium mt-1" style="font-size: 0.85rem;"><i class="bi bi-calendar3 me-1 text-primary"></i>{{ $peerReferral->created_at?->format('d M Y, h:i A') }}</div>
+                        </div>
                     </div>
-                    <span class="text-xs t3">{{ $peerReferral->created_at?->format('d M Y, h:i A') }}</span>
+
+                    <hr class="my-4" style="border-color: #f1f5f9;">
+
+                    <!-- Information Grid -->
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light rounded-3 p-3 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                    <i class="bi bi-telephone fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-uppercase tracking-wider text-muted font-semibold mb-0.5" style="font-size: 0.65rem;">Phone Number</div>
+                                    <a href="tel:{{ $peerReferral->referred_phone }}" class="text-slate-800 text-decoration-none fw-bold mb-0" style="font-size: 0.85rem;">{{ $peerReferral->referred_phone }}</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light rounded-3 p-3 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                    <i class="bi bi-envelope fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-uppercase tracking-wider text-muted font-semibold mb-0.5" style="font-size: 0.65rem;">Email Address</div>
+                                    @if($peerReferral->referred_email)
+                                        <a href="mailto:{{ $peerReferral->referred_email }}" class="text-slate-800 text-decoration-none fw-bold mb-0" style="font-size: 0.85rem;">{{ $peerReferral->referred_email }}</a>
+                                    @else
+                                        <span class="text-muted mb-0" style="font-size: 0.85rem;">—</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light rounded-3 p-3 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                    <i class="bi bi-building fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-uppercase tracking-wider text-muted font-semibold mb-0.5" style="font-size: 0.65rem;">Company / Business</div>
+                                    <span class="text-slate-800 fw-bold mb-0" style="font-size: 0.85rem;">{{ $peerReferral->referred_company_name ?? '—' }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light rounded-3 p-3 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                    <i class="bi bi-briefcase fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-uppercase tracking-wider text-muted font-semibold mb-0.5" style="font-size: 0.65rem;">Designation / Role</div>
+                                    <span class="text-slate-800 fw-bold mb-0" style="font-size: 0.85rem;">{{ $peerReferral->referred_designation ?? '—' }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if($peerReferral->message)
+                        <div class="mt-4 pt-4 border-top" style="border-color: #f1f5f9;">
+                            <div class="text-uppercase tracking-wider text-muted font-semibold mb-2" style="font-size: 0.65rem;">
+                                <i class="bi bi-chat-left-quote-fill me-1 text-primary"></i> Referral Note / Message
+                            </div>
+                            <div class="p-3 bg-light rounded-3 border-start border-primary border-3 text-slate-700 italic" style="font-size: 0.85rem;">
+                                "{{ $peerReferral->message }}"
+                            </div>
+                        </div>
+                    @endif
                 </div>
-
-                <hr class="border-t bs my-4">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Phone Number</span>
-                        <span class="text-xs font-semibold t1">{{ $peerReferral->referred_phone }}</span>
-                    </div>
-                    <div>
-                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Email Address</span>
-                        <span class="text-xs t1">{{ $peerReferral->referred_email ?? '—' }}</span>
-                    </div>
-                    <div>
-                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Company / Business</span>
-                        <span class="text-xs t1">{{ $peerReferral->referred_company_name ?? '—' }}</span>
-                    </div>
-                    <div>
-                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Designation / Role</span>
-                        <span class="text-xs t1">{{ $peerReferral->referred_designation ?? '—' }}</span>
-                    </div>
-                </div>
-
-                @if($peerReferral->message)
-                    <div class="mt-4 pt-3 border-t bs">
-                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Referral Note / Message</span>
-                        <div class="p-3 rounded-lg border bs surface-2 text-xs t1 italic">{{ $peerReferral->message }}</div>
-                    </div>
-                @endif
             </div>
 
-            <!-- Circles / Context Card -->
-            <div class="light rounded-xl border bs p-5 surface space-y-4">
-                <h3 class="text-sm font-semibold font-display mb-3">Referral Context</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="p-3 rounded-lg border bs surface-2">
-                        <span class="block text-[10px] uppercase tracking-wider font-semibold t3 mb-1">Parent Circle</span>
-                        <span class="text-xs font-semibold t1">{{ $peerReferral->mainCircle?->name ?? '—' }}</span>
-                    </div>
-                    <div class="p-3 rounded-lg border bs surface-2">
-                        <span class="block text-[10px] uppercase tracking-wider font-semibold t3 mb-1">Specific Circle</span>
-                        <span class="text-xs font-semibold t1">{{ $peerReferral->circle?->name ?? 'Main Circle Referral' }}</span>
-                    </div>
-                    <div class="p-3 rounded-lg border bs surface-2">
-                        <span class="block text-[10px] uppercase tracking-wider font-semibold t3 mb-1">Open Category</span>
-                        <span class="text-xs font-semibold t1">{{ $peerReferral->category?->name ?? '—' }}</span>
+            <!-- Referral Context Details -->
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-body p-4">
+                    <h3 class="h6 font-display font-bold mb-3 text-slate-800">
+                        <i class="bi bi-info-circle-fill me-2 text-primary"></i> Referral Context Details
+                    </h3>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="p-3 rounded-3 bg-light border border-light h-100">
+                                <div class="text-uppercase tracking-wider text-muted font-semibold mb-1" style="font-size: 0.6rem;">Parent Circle</div>
+                                <span class="fw-bold text-slate-800" style="font-size: 0.8rem;">{{ $peerReferral->mainCircle?->name ?? '—' }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 rounded-3 bg-light border border-light h-100">
+                                <div class="text-uppercase tracking-wider text-muted font-semibold mb-1" style="font-size: 0.6rem;">Specific Circle</div>
+                                <span class="fw-bold text-slate-800" style="font-size: 0.8rem;">{{ $peerReferral->circle?->name ?? 'Main Circle Referral' }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 rounded-3 bg-light border border-light h-100">
+                                <div class="text-uppercase tracking-wider text-muted font-semibold mb-1" style="font-size: 0.6rem;">Open Category</div>
+                                <span class="fw-bold text-slate-800" style="font-size: 0.8rem;">{{ $peerReferral->category?->name ?? '—' }}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar / Referrer & Action Panel (Right) -->
-        <div class="space-y-6">
-            <!-- Referrer Member Profile Card -->
-            <div class="light rounded-xl border bs p-5 surface space-y-4">
-                <h3 class="text-sm font-semibold font-display mb-3">Referrer Details</h3>
-                @if($peerReferral->referrer)
-                    @php
-                        $refName = $peerReferral->referrer->display_name ?: trim(($peerReferral->referrer->first_name ?? '') . ' ' . ($peerReferral->referrer->last_name ?? ''));
-                        $words = explode(' ', trim($refName));
-                        $initials = '';
-                        foreach ($words as $w) {
-                            if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
-                        }
-                        $initials = substr($initials, 0, 2) ?: 'P';
-                        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
-                        $hash = crc32($refName);
-                        $avatarBg = $colors[abs($hash) % count($colors)];
-                    @endphp
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0" style="background-color: {{ $avatarBg }}">
-                            {{ $initials }}
+        <!-- Sidebar / Action Panel (Right Column) -->
+        <div class="col-lg-4">
+            <!-- Referrer Details Card -->
+            <div class="card mb-4 border-0 shadow-sm rounded-3">
+                <div class="card-body p-4">
+                    <h3 class="h6 font-display font-bold mb-4 text-slate-800">
+                        <i class="bi bi-people-fill me-2 text-primary"></i> Referrer Details
+                    </h3>
+                    @if($peerReferral->referrer)
+                        @php
+                            $refName = $peerReferral->referrer->display_name ?: trim(($peerReferral->referrer->first_name ?? '') . ' ' . ($peerReferral->referrer->last_name ?? ''));
+                            $words = explode(' ', trim($refName));
+                            $initials = '';
+                            foreach ($words as $w) {
+                                if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+                            }
+                            $initials = substr($initials, 0, 2) ?: 'P';
+                            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+                            $hash = crc32($refName);
+                            $avatarBg = $colors[abs($hash) % count($colors)];
+                        @endphp
+                        
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <div class="rounded-circle text-white d-flex align-items-center justify-content-center fw-bold shadow-sm" style="background-color: {{ $avatarBg }}; width: 44px; height: 44px; font-size: 1rem;">
+                                {{ $initials }}
+                            </div>
+                            <div class="overflow-hidden">
+                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $peerReferral->referrer->id }}', event);" class="fw-bold text-primary text-decoration-none block" style="font-size: 0.85rem;">
+                                    {{ $refName }}
+                                </a>
+                                <div class="text-muted text-truncate" style="font-size: 0.75rem;">{{ $peerReferral->referrer->email }}</div>
+                                <div class="text-muted font-monospace" style="font-size: 0.75rem;">{{ $peerReferral->referrer->phone ?? 'No phone' }}</div>
+                            </div>
                         </div>
-                        <div>
-                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $peerReferral->referrer->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline text-xs">
-                                {{ $refName }}
-                            </a>
-                            <div class="text-[11px] t3 mt-0.5">{{ $peerReferral->referrer->email }}</div>
-                            <div class="text-[11px] t3">{{ $peerReferral->referrer->phone ?? 'No phone' }}</div>
+
+                        <hr class="my-3" style="border-color: #f1f5f9;">
+
+                        <div class="d-flex flex-column gap-3">
+                            <div class="d-flex align-items-start gap-2">
+                                <i class="bi bi-geo-alt-fill text-primary fs-5 mt-0.5"></i>
+                                <div>
+                                    <span class="text-uppercase tracking-wider text-muted font-semibold d-block" style="font-size: 0.6rem;">City</span>
+                                    <span class="fw-bold text-slate-800" style="font-size: 0.8rem;">{{ $peerReferral->referrer->cityRelation?->name ?? $peerReferral->referrer->city ?? '—' }}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-start gap-2">
+                                <i class="bi bi-circle-half text-primary fs-5 mt-0.5"></i>
+                                <div>
+                                    <span class="text-uppercase tracking-wider text-muted font-semibold d-block" style="font-size: 0.6rem;">Active Circle</span>
+                                    <span class="fw-bold text-slate-800" style="font-size: 0.8rem;">{{ $peerReferral->referrer->activeCircle?->name ?? '—' }}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-start gap-2">
+                                <i class="bi bi-tag-fill text-primary fs-5 mt-0.5"></i>
+                                <div>
+                                    <span class="text-uppercase tracking-wider text-muted font-semibold d-block" style="font-size: 0.6rem;">Business Category</span>
+                                    <span class="fw-bold text-slate-800" style="font-size: 0.8rem;">{{ $peerReferral->referrer->mainBusinessCategory?->name ?? $peerReferral->referrer->business_sub_category ?? '—' }}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                @else
-                    <span class="text-xs t3">No referrer user record found.</span>
-                @endif
+                    @else
+                        <span class="text-muted d-block py-3 text-center" style="font-size: 0.8rem;">
+                            <i class="bi bi-person-x-fill me-1"></i> No referrer record found.
+                        </span>
+                    @endif
+                </div>
             </div>
 
             <!-- Action Panel: Status Update -->
-            <div class="light rounded-xl border bs p-5 surface space-y-4">
-                <h3 class="text-sm font-semibold font-display mb-3">Update Status</h3>
-                <form method="POST" action="{{ route('admin.peer-referrals.status-update', $peerReferral->id) }}" class="space-y-3">
-                    @csrf
-                    <div>
-                        <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Referral Status</label>
-                        <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                            @foreach(['pending', 'contacted', 'accepted', 'rejected', 'converted'] as $opt)
-                                <option value="{{ $opt }}" {{ $peerReferral->status === $opt ? 'selected' : '' }}>{{ ucfirst($opt) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full px-3 py-2 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring text-center">
-                        Update Status
-                    </button>
-                </form>
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-body p-4">
+                    <h3 class="h6 font-display font-bold mb-4 text-slate-800">
+                        <i class="bi bi-pencil-square me-2 text-primary"></i> Update Referral Status
+                    </h3>
+                    <form method="POST" action="{{ route('admin.peer-referrals.status-update', $peerReferral->id) }}">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label text-uppercase tracking-wider text-muted font-semibold" style="font-size: 0.65rem;">Referral Status</label>
+                            <select name="status" class="form-select border-slate-200 text-slate-800" style="font-size: 0.85rem; padding: 8px 12px; border-radius: 6px;">
+                                @foreach(['pending', 'contacted', 'accepted', 'rejected', 'converted'] as $opt)
+                                    <option value="{{ $opt }}" {{ $peerReferral->status === $opt ? 'selected' : '' }}>{{ ucfirst($opt) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2" style="font-size: 0.85rem; border-radius: 6px;">
+                            <i class="bi bi-arrow-repeat"></i> Update Status
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

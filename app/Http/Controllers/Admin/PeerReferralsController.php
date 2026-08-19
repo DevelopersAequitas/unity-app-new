@@ -25,7 +25,7 @@ class PeerReferralsController extends Controller
         }
 
         $query = PeerReferral::query()
-            ->with(['referrer', 'mainCircle', 'circle', 'category'])
+            ->with(['referrer.activeCircle', 'referrer.cityRelation', 'referrer.mainBusinessCategory', 'mainCircle', 'circle', 'category'])
             ->latest('created_at');
 
         // Apply search
@@ -74,7 +74,7 @@ class PeerReferralsController extends Controller
             abort(401);
         }
 
-        $peerReferral = PeerReferral::with(['referrer', 'mainCircle', 'circle', 'category'])->findOrFail($id);
+        $peerReferral = PeerReferral::with(['referrer.activeCircle', 'referrer.cityRelation', 'referrer.mainBusinessCategory', 'mainCircle', 'circle', 'category'])->findOrFail($id);
 
         return view('admin.peer_referrals.show', [
             'peerReferral' => $peerReferral,

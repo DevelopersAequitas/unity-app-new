@@ -157,7 +157,7 @@
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
             ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
-            ['label' => 'Peer Referrals', 'route' => 'admin.peer-referrals.index'],
+            ['label' => 'Circle Peer Referrals', 'route' => 'admin.peer-referrals.index'],
         ];
 
     if ($isCircleCommittee) {
