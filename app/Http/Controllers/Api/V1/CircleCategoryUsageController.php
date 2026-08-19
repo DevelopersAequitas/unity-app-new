@@ -551,6 +551,17 @@ class CircleCategoryUsageController extends Controller
             'meeting_frequency' => $circle->meeting_frequency,
             'cover_image_url' => $circle->cover_image_url,
             'cover_photo_url' => $circle->cover_image_url,
+            'cover_file_id' => $circle->cover_file_id,
+            'circle_image_file_id' => $circle->circle_image_file_id,
+            'circle_image_url' => $circle->circle_image_url,
+            'cover_image' => $circle->cover_file_id ? [
+                'id' => (string) $circle->cover_file_id,
+                'url' => $circle->cover_image_url,
+            ] : null,
+            'circle_image' => $circle->circle_image_file_id ? [
+                'id' => (string) $circle->circle_image_file_id,
+                'url' => $circle->circle_image_url,
+            ] : null,
         ];
     }
 

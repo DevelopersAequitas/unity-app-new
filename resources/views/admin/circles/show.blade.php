@@ -254,6 +254,11 @@ use Carbon\Carbon;
         $coverFileId = data_get($calendar, 'cover.file_id');
     }
 
+    $circleImageFileId = data_get($circle, 'circle_image_file_id');
+    if (! $circleImageFileId) {
+        $circleImageFileId = data_get($calendar, 'circle_image.file_id');
+    }
+
     $meetingLink = data_get($circle, 'meeting_link') ?: data_get($calendar, 'settings.meeting_link') ?: data_get($circle, 'zoho_join_url');
     $meetingPasscode = data_get($circle, 'meeting_passcode') ?: data_get($calendar, 'settings.meeting_passcode') ?: data_get($circle, 'zoho_meeting_password');
     $meetingVenue = data_get($circle, 'meeting_venue') ?: data_get($calendar, 'settings.meeting_venue') ?: data_get($calendar, 'settings.meeting_address');
@@ -589,11 +594,22 @@ use Carbon\Carbon;
                 @endif
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
-                <span class="t3 block mb-1 font-medium">Cover</span>
+                <span class="t3 block mb-1 font-medium">Cover Image</span>
                 @if ($coverFileId)
                     <div class="flex flex-col gap-2 mt-1">
                         <img src="{{ url('/api/v1/files/' . $coverFileId) }}" alt="Circle Cover" class="rounded-lg border bs max-h-24 w-auto object-cover">
                         <a href="{{ url('/api/v1/files/' . $coverFileId) }}" target="_blank" class="px-2.5 py-1 rounded border bs text-xs font-semibold text-indigo-600 no-underline self-start">View</a>
+                    </div>
+                @else
+                    <span class="t3">—</span>
+                @endif
+            </div>
+            <div class="p-3 border bs rounded-xl surface-2">
+                <span class="t3 block mb-1 font-medium">Circle Image</span>
+                @if ($circleImageFileId)
+                    <div class="flex flex-col gap-2 mt-1">
+                        <img src="{{ url('/api/v1/files/' . $circleImageFileId) }}" alt="Circle Image" class="rounded-lg border bs max-h-24 w-auto object-cover">
+                        <a href="{{ url('/api/v1/files/' . $circleImageFileId) }}" target="_blank" class="px-2.5 py-1 rounded border bs text-xs font-semibold text-indigo-600 no-underline self-start">View</a>
                     </div>
                 @else
                     <span class="t3">—</span>
