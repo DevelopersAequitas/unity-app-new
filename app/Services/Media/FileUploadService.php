@@ -32,9 +32,6 @@ class FileUploadService
 
             if ($this->probe->isImageMime($detectedMimeType) || $this->probe->isImageMime($clientMimeType)) {
                 $type = 'image';
-                if (! $this->probe->imagickAvailable() && ! $this->probe->gdAvailable()) {
-                    throw new MediaProcessingException('Image optimization requires GD or Imagick. Upload rejected.');
-                }
             } elseif ($this->probe->isVideoMime($detectedMimeType) || $this->probe->isVideoMime($clientMimeType)) {
                 $type = 'video';
                 if (! $this->probe->ffmpegAvailable()) {
