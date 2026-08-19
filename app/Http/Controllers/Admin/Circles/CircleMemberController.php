@@ -90,13 +90,19 @@ class CircleMemberController extends Controller
         $oldRole = (string) $circleMember->role;
 
         DB::transaction(function () use ($circle, $circleMember, $newRole, $oldRole): void {
-            $circleMember->update([
-                'role' => $newRole,
-            ]);
+            if (\Illuminate\Support\Str::isUuid($newRole)) {
+                $circleMember->role_id = $newRole;
+                $circleMember->role = $newRole;
+            } else {
+                $circleMember->role = $newRole;
+            }
+            $circleMember->save();
 
             $user = $circleMember->user;
             if ($user) {
-                $this->syncCircleLeadershipColumns($circle, $user->id, $newRole, $oldRole);
+                $freshMember = $circleMember->fresh();
+                $resolvedNewRole = (string) ($freshMember?->role ?? $newRole);
+                $this->syncCircleLeadershipColumns($circle, $user->id, $resolvedNewRole, $oldRole);
 
                 $adminUser = DB::table('admin_users')->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)])->first();
                 if ($adminUser) {

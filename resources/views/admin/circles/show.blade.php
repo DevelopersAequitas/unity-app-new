@@ -821,8 +821,12 @@ use Carbon\Carbon;
             <div class="md:col-span-3">
                 <label class="block text-[11px] t3 mb-1 font-medium">Role</label>
                 <select name="role" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required>
-                    @foreach (($roles ?? []) as $role)
-                        <option value="{{ $role }}">{{ ucwords(str_replace('_', ' ', $role)) }}</option>
+                    @foreach (($roles ?? []) as $roleOption)
+                        @php
+                            $roleVal = is_object($roleOption) ? ($roleOption->id ?? $roleOption->key) : $roleOption;
+                            $roleLabel = is_object($roleOption) ? ($roleOption->name ?? $roleOption->key) : ucwords(str_replace('_', ' ', (string) $roleOption));
+                        @endphp
+                        <option value="{{ $roleVal }}">{{ $roleLabel }}</option>
                     @endforeach
                 </select>
             </div>
@@ -916,9 +920,20 @@ use Carbon\Carbon;
                                         <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
                                         <select name="role" class="px-2 py-1 rounded border bs surface text-xs t1 outline-none focus-ring" onclick="event.stopPropagation()">
-                                            @foreach (($roles ?? []) as $role)
-                                                <option value="{{ $role }}" @selected(($membership->role ?? null) === $role)>
-                                                    {{ ucwords(str_replace('_', ' ', $role)) }}
+                                            @foreach (($roles ?? []) as $roleOption)
+                                                @php
+                                                    $roleVal = is_object($roleOption) ? ($roleOption->id ?? $roleOption->key) : $roleOption;
+                                                    $roleLabel = is_object($roleOption) ? ($roleOption->name ?? $roleOption->key) : ucwords(str_replace('_', ' ', (string) $roleOption));
+                                                    $isCurrentRole = is_object($roleOption)
+                                                        ? (($membership->role_id ?? null) === $roleOption->id
+                                                            || ($membership->role ?? null) === $roleOption->key
+                                                            || ($membership->role ?? null) === $roleOption->id
+                                                            || strtolower((string) ($membership->role ?? '')) === strtolower((string) ($roleOption->key ?? ''))
+                                                            || strtolower((string) ($membership->role ?? '')) === strtolower((string) ($roleOption->name ?? '')))
+                                                        : (($membership->role ?? null) === $roleOption);
+                                                @endphp
+                                                <option value="{{ $roleVal }}" @selected($isCurrentRole)>
+                                                    {{ $roleLabel }}
                                                 </option>
                                             @endforeach
                                         </select>

@@ -7,7 +7,6 @@ use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
 use App\Models\CircleCategory;
-use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
 use App\Services\IndustryDirector\IndustryScopeService;
@@ -473,7 +472,7 @@ class CircleController extends Controller
             'circle' => $circle,
             'circleStage' => $circleStage,
             'allUsers' => $this->allUsers(),
-            'roles' => CircleMember::roleOptions(),
+            'roles' => \App\Models\Role::query()->orderBy('name')->get(),
             'meetingRows' => $meetingRows,
             'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : config('app.timezone', 'UTC'),
             'rankingData' => $circle->getCircleRanking(),
