@@ -133,15 +133,17 @@ class DistrictSyncService
                 return (string) $existingDistrict->id;
             }
 
-            $districtId = (string) Str::uuid();
-            DB::table('districts')->insert([
+            $districtData = [
                 'id' => $districtId,
                 'state_id' => $stateId,
                 'name' => $districtName,
-                'status' => 'active',
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+            if (Schema::hasColumn('districts', 'status')) {
+                $districtData['status'] = 'active';
+            }
+            DB::table('districts')->insert($districtData);
 
             return $districtId;
         });
@@ -367,13 +369,16 @@ class DistrictSyncService
         }
 
         $stateId = (string) Str::uuid();
-        DB::table('states')->insert([
+        $stateData = [
             'id' => $stateId,
             'name' => $stateName,
-            'status' => 'active',
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ];
+        if (Schema::hasColumn('states', 'status')) {
+            $stateData['status'] = 'active';
+        }
+        DB::table('states')->insert($stateData);
 
         return $stateId;
     }

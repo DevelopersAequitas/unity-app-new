@@ -92,8 +92,18 @@ jobs:
             php artisan view:cache
             php artisan queue:restart || true
             php artisan reverb:restart > /dev/null 2>&1 || true
-            if [ -d "../public_html/css" ] && [ -w "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
-            if [ -d "/var/www/html/css" ] && [ -w "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
+            if [ -d "../public_html" ] && [ -w "../public_html" ]; then
+                mkdir -p ../public_html/images ../public_html/fonts ../public_html/css
+                cp -rf public/css/admin.css public/css/admin-grid.css ../public_html/css/ 2>/dev/null || true
+                cp -rf public/images/* ../public_html/images/ 2>/dev/null || true
+                cp -rf public/fonts/* ../public_html/fonts/ 2>/dev/null || true
+            fi
+            if [ -d "/var/www/html" ] && [ -w "/var/www/html" ]; then
+                mkdir -p /var/www/html/images /var/www/html/fonts /var/www/html/css
+                cp -rf public/css/admin.css public/css/admin-grid.css /var/www/html/css/ 2>/dev/null || true
+                cp -rf public/images/* /var/www/html/images/ 2>/dev/null || true
+                cp -rf public/fonts/* /var/www/html/fonts/ 2>/dev/null || true
+            fi
             php artisan storage:link --force || true
             if [ -d "../public_html" ] && [ -w "../public_html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public ../public_html/storage || true; fi
             if [ -d "/var/www/html" ] && [ -w "/var/www/html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public /var/www/html/storage || true; fi
