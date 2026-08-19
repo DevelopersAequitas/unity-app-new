@@ -590,12 +590,13 @@ Route::prefix('v1')->group(function () {
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
+        Route::get('/circles/my', [CircleController::class, 'myCircles']);
         Route::get('/circles/my-leadership-circles', [CircleLeadershipController::class, 'myLeadershipCircles']);
-        Route::get('/circles/{id}', [CircleController::class, 'show']);
+        Route::get('/circles/{id}', [CircleController::class, 'show'])->whereUuid('id');
         Route::post('/circles', [CircleController::class, 'store']);
-        Route::put('/circles/{id}', [CircleController::class, 'update']);
-        Route::patch('/circles/{id}', [CircleController::class, 'update']);
-        Route::post('/circles/{id}/join', [CircleController::class, 'join']);
+        Route::put('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::patch('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::post('/circles/{id}/join', [CircleController::class, 'join'])->whereUuid('id');
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);

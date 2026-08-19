@@ -73,6 +73,7 @@ class Circle extends Model
         'meeting_repeat',
         'launch_date',
         'cover_file_id',
+        'circle_image_file_id',
         'referral_score',
         'visitor_count',
         'type',
@@ -95,7 +96,7 @@ class Circle extends Model
         'circle_duration_months' => 'integer',
     ];
 
-    protected $appends = ['cover_image_url', 'city_display'];
+    protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
 
     public function getCircleRanking(): array
     {
@@ -525,6 +526,11 @@ class Circle extends Model
         return $this->belongsTo(File::class, 'cover_file_id');
     }
 
+    public function circleImageFile(): BelongsTo
+    {
+        return $this->belongsTo(File::class, 'circle_image_file_id');
+    }
+
     public function getCoverImageUrlAttribute(): ?string
     {
         if (! $this->cover_file_id) {
@@ -536,6 +542,19 @@ class Circle extends Model
         }
 
         return url('/api/v1/files/'.$this->cover_file_id);
+    }
+
+    public function getCircleImageUrlAttribute(): ?string
+    {
+        if (! $this->circle_image_file_id) {
+            return null;
+        }
+
+        if ($this->relationLoaded('circleImageFile') && $this->circleImageFile && isset($this->circleImageFile->url)) {
+            return $this->circleImageFile->url;
+        }
+
+        return url('/api/v1/files/'.$this->circle_image_file_id);
     }
 
     public static function generateUniqueSlug(string $name, ?string $ignoreId = null): string

@@ -36,6 +36,7 @@ class UpdateCircleRequest extends FormRequest
             'power_house_chair_2_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'power_house_chair_3_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'cover_file_id' => ['nullable', 'uuid'],
+            'circle_image_file_id' => ['nullable', 'uuid'],
             'type' => ['required', Rule::in(Circle::TYPE_OPTIONS)],
             'status' => ['required', Rule::in(Circle::STATUS_OPTIONS)],
             'circle_stage' => ['nullable', Rule::in(Circle::STAGE_OPTIONS)],

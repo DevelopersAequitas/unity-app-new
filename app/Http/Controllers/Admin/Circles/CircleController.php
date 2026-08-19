@@ -76,7 +76,7 @@ class CircleController extends Controller
                 'city.name as city_name',
                 'city.country as city_country',
             ])
-            ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile'])
+            ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile', 'circleImageFile'])
             ->withCount('members');
 
         if ($isCircleScoped && is_array($allowedCircleIds)) {
@@ -364,6 +364,8 @@ class CircleController extends Controller
             'industry_director_user_id' => $validated['industry_director_user_id'] ?? null,
             'ded_user_id' => $validated['ded_user_id'] ?? null,
             'eed_user_id' => $validated['eed_user_id'] ?? null,
+            'cover_file_id' => $validated['cover_file_id'] ?? null,
+            'circle_image_file_id' => $validated['circle_image_file_id'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -418,7 +420,7 @@ class CircleController extends Controller
             'peer_email' => $this->sanitizeFilterInput($validatedFilters['peer_email'] ?? ''),
         ];
 
-        $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'coverFile', 'circleImageFile'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -595,6 +597,8 @@ class CircleController extends Controller
             'purpose',
             'announcement',
             'circle_stage',
+            'cover_file_id',
+            'circle_image_file_id',
         ] as $column) {
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];
@@ -1000,6 +1004,9 @@ class CircleController extends Controller
 
         $coverFileId = trim((string) ($validated['cover_file_id'] ?? ''));
         data_set($calendar, 'cover.file_id', $coverFileId !== '' ? $coverFileId : null);
+
+        $circleImageFileId = trim((string) ($validated['circle_image_file_id'] ?? ''));
+        data_set($calendar, 'circle_image.file_id', $circleImageFileId !== '' ? $circleImageFileId : null);
 
         $freqRows = $request->input('meeting_schedule_frequency', []);
         $timeRows = $request->input('meeting_schedule_default_meet_time', []);
