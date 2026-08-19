@@ -35,6 +35,56 @@ class FileController extends BaseApiController
         try {
             $file = Str::isUuid($id) ? File::find($id) : null;
 
+            if (! $file && Str::isUuid($id)) {
+                // Self-healing: check if this file ID is referenced by a timeline post and recreate the record if needed
+                try {
+                    $post = Post::where('media', 'LIKE', '%"id":"'.$id.'"%')
+                        ->orWhere('image', 'LIKE', '%'.$id.'%')
+                        ->first();
+
+                    if ($post) {
+                        if ($post->post_type === 'growth_honour' && $post->source_id) {
+                            $introducer = User::find($post->source_id);
+                            if ($introducer) {
+                                $count = User::where('introduced_by', $introducer->id)->count();
+                                if ($count === 0) {
+                                    $count = 1;
+                                }
+
+                                $fileModel = new FileModel;
+                                $fileModel->id = $id;
+                                $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
+                                $fileModel->mime_type = 'image/webp';
+                                $fileModel->save();
+
+                                $generator = app(IntroducedPeerCreativeGenerator::class);
+                                $generator->generate($introducer, $count, $fileModel);
+
+                                // Refresh the parent file lookup
+                                $file = File::find($id);
+                            }
+                        } elseif ($post->post_type === 'welcome' && $post->source_id) {
+                            $user = User::find($post->source_id);
+                            if ($user) {
+                                $fileModel = new FileModel;
+                                $fileModel->id = $id;
+                                $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
+                                $fileModel->mime_type = 'image/webp';
+                                $fileModel->save();
+
+                                $generator = app(WearTheBadgeImageGenerator::class);
+                                $generator->generate($user, $fileModel);
+
+                                // Refresh the parent file lookup
+                                $file = File::find($id);
+                            }
+                        }
+                    }
+                } catch (\Throwable $regenEx) {
+                    Log::error("File API Self-Healing database recreation failed for UUID {$id}: ".$regenEx->getMessage());
+                }
+            }
+
             if (! $file) {
                 $cleanId = ltrim(preg_replace('#^(storage/|public/)+#i', '', $id), '/');
                 $baseName = basename($cleanId);

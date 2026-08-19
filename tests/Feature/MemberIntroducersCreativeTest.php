@@ -346,4 +346,49 @@ class MemberIntroducersCreativeTest extends TestCase
         // Verify the file was restored physically in storage
         $this->assertTrue(Storage::disk($disk)->exists($fileRecord->s3_key));
     }
+
+    public function test_file_serving_self_heals_missing_database_record_and_file(): void
+    {
+        $admin = $this->createAdmin();
+        $this->actingAs($admin, 'admin');
+
+        $peer = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Db',
+            'last_name' => 'Healing',
+            'display_name' => 'Db Healing',
+            'email' => 'db.'.Str::random(6).'@example.com',
+            'members_introduced_count' => 3,
+        ]);
+
+        // Post to timeline
+        $this->postJson(route('admin.member-introducers.post-creative', $peer->id))->assertStatus(200);
+
+        // Fetch file record
+        $post = Post::where('source_id', $peer->id)->where('post_type', 'growth_honour')->firstOrFail();
+        $mediaItem = $post->media[0];
+        $fileId = $mediaItem['id'];
+
+        $fileRecord = File::findOrFail($fileId);
+
+        // Physically delete file from storage
+        $disk = config('filesystems.default', 'public');
+        if (Storage::disk($disk)->exists($fileRecord->s3_key)) {
+            Storage::disk($disk)->delete($fileRecord->s3_key);
+        }
+
+        // Delete database record of the file
+        $fileRecord->delete();
+
+        $this->assertNull(File::find($fileId));
+
+        // Serve file via FileController -> Should recreate database record & regenerate file on-the-fly and respond successfully
+        $response = $this->get("/api/v1/files/{$fileId}");
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'image/webp');
+
+        // Verify the database record and file exist now
+        $newFileRecord = File::findOrFail($fileId);
+        $this->assertTrue(Storage::disk($disk)->exists($newFileRecord->s3_key));
+    }
 }
