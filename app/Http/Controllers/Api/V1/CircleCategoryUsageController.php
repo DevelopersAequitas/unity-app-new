@@ -22,7 +22,7 @@ class CircleCategoryUsageController extends Controller
 {
     public function circleCategoryTree(string $circleId): JsonResponse
     {
-        $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
+        $circle = Circle::query()->where('id', $circleId)->first();
 
         if (! $circle) {
             return response()->json([
@@ -39,10 +39,7 @@ class CircleCategoryUsageController extends Controller
                 'success' => true,
                 'message' => null,
                 'data' => [
-                    'circle' => [
-                        'id' => $circle->id,
-                        'name' => $circle->name,
-                    ],
+                    'circle' => $this->formatCircleBasicDetails($circle),
                     'category' => null,
                     'children' => [],
                 ],
@@ -59,10 +56,7 @@ class CircleCategoryUsageController extends Controller
                 'success' => true,
                 'message' => null,
                 'data' => [
-                    'circle' => [
-                        'id' => $circle->id,
-                        'name' => $circle->name,
-                    ],
+                    'circle' => $this->formatCircleBasicDetails($circle),
                     'category' => null,
                     'children' => [],
                 ],
@@ -138,10 +132,7 @@ class CircleCategoryUsageController extends Controller
             'success' => true,
             'message' => null,
             'data' => [
-                'circle' => [
-                    'id' => $circle->id,
-                    'name' => $circle->name,
-                ],
+                'circle' => $this->formatCircleBasicDetails($circle),
                 'category' => [
                     'id' => $mainCategory->id,
                     'name' => $mainCategory->name,
@@ -155,7 +146,7 @@ class CircleCategoryUsageController extends Controller
 
     public function circleOpenCategories(Request $request, string $circleId): JsonResponse
     {
-        $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
+        $circle = Circle::query()->where('id', $circleId)->first();
 
         if (! $circle) {
             return response()->json([
@@ -172,10 +163,7 @@ class CircleCategoryUsageController extends Controller
                 'success' => true,
                 'message' => 'Open categories fetched successfully.',
                 'data' => [
-                    'circle' => [
-                        'id' => $circle->id,
-                        'name' => $circle->name,
-                    ],
+                    'circle' => $this->formatCircleBasicDetails($circle),
                     'level1_category' => null,
                     'open_categories' => [],
                 ],
@@ -265,10 +253,7 @@ class CircleCategoryUsageController extends Controller
             'success' => true,
             'message' => 'Open categories fetched successfully.',
             'data' => [
-                'circle' => [
-                    'id' => $circle->id,
-                    'name' => $circle->name,
-                ],
+                'circle' => $this->formatCircleBasicDetails($circle),
                 'level1_category' => $mainCategory ? [
                     'id' => $mainCategory->id,
                     'name' => $mainCategory->name,
@@ -282,7 +267,7 @@ class CircleCategoryUsageController extends Controller
 
     public function circleClosedCategories(Request $request, string $circleId): JsonResponse
     {
-        $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
+        $circle = Circle::query()->where('id', $circleId)->first();
 
         if (! $circle) {
             return response()->json([
@@ -299,10 +284,7 @@ class CircleCategoryUsageController extends Controller
                 'success' => true,
                 'message' => 'Closed categories fetched successfully.',
                 'data' => [
-                    'circle' => [
-                        'id' => $circle->id,
-                        'name' => $circle->name,
-                    ],
+                    'circle' => $this->formatCircleBasicDetails($circle),
                     'level1_category' => null,
                     'closed_categories' => [],
                 ],
@@ -322,10 +304,7 @@ class CircleCategoryUsageController extends Controller
                 'success' => true,
                 'message' => 'Closed categories fetched successfully.',
                 'data' => [
-                    'circle' => [
-                        'id' => $circle->id,
-                        'name' => $circle->name,
-                    ],
+                    'circle' => $this->formatCircleBasicDetails($circle),
                     'level1_category' => $mainCategory ? [
                         'id' => $mainCategory->id,
                         'name' => $mainCategory->name,
@@ -368,10 +347,7 @@ class CircleCategoryUsageController extends Controller
             'success' => true,
             'message' => 'Closed categories fetched successfully.',
             'data' => [
-                'circle' => [
-                    'id' => $circle->id,
-                    'name' => $circle->name,
-                ],
+                'circle' => $this->formatCircleBasicDetails($circle),
                 'level1_category' => $mainCategory ? [
                     'id' => $mainCategory->id,
                     'name' => $mainCategory->name,
@@ -451,6 +427,7 @@ class CircleCategoryUsageController extends Controller
 
         if (! $member) {
             return response()->json([
+                'success' => false,
                 'status' => 'error',
                 'message' => 'Member not found.',
                 'data' => null,
@@ -460,15 +437,17 @@ class CircleCategoryUsageController extends Controller
         $circleId = (string) $request->query('circle_id', '');
         if ($circleId === '') {
             return response()->json([
+                'success' => false,
                 'status' => 'error',
                 'message' => 'circle_id is required.',
                 'data' => null,
             ], 422);
         }
 
-        $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
+        $circle = Circle::query()->where('id', $circleId)->first();
         if (! $circle) {
             return response()->json([
+                'success' => false,
                 'status' => 'error',
                 'message' => 'Circle not found.',
                 'data' => null,
@@ -476,11 +455,22 @@ class CircleCategoryUsageController extends Controller
         }
 
         $mainCategoryId = $this->resolveCircleMainCategoryId($circle->id);
+        $mainCategory = null;
+        if ($mainCategoryId) {
+            $mainCategory = CircleCategory::query()
+                ->select(['id', 'name', 'slug', 'circle_key'])
+                ->where('id', $mainCategoryId)
+                ->first();
+        }
+
         if (! $mainCategoryId) {
             return response()->json([
+                'success' => true,
                 'status' => 'success',
                 'message' => 'Available categories fetched successfully',
                 'data' => [
+                    'circle' => $this->formatCircleBasicDetails($circle),
+                    'level1_category' => null,
                     'available_categories' => [],
                 ],
             ]);
@@ -524,12 +514,44 @@ class CircleCategoryUsageController extends Controller
         })->values()->all();
 
         return response()->json([
+            'success' => true,
             'status' => 'success',
             'message' => 'Available categories fetched successfully',
             'data' => [
+                'circle' => $this->formatCircleBasicDetails($circle),
+                'level1_category' => $mainCategory ? [
+                    'id' => $mainCategory->id,
+                    'name' => $mainCategory->name,
+                    'slug' => $mainCategory->slug,
+                    'circle_key' => $mainCategory->circle_key,
+                ] : null,
                 'available_categories' => $availableCategories,
             ],
         ]);
+    }
+
+    /**
+     * Format circle basic details for API responses.
+     *
+     * @return array<string, mixed>
+     */
+    private function formatCircleBasicDetails(Circle $circle): array
+    {
+        return [
+            'id' => $circle->id,
+            'name' => $circle->name,
+            'slug' => $circle->slug,
+            'description' => $circle->description,
+            'purpose' => $circle->purpose,
+            'status' => $circle->status,
+            'type' => $circle->type,
+            'city' => $circle->city_display ?? (is_string($circle->city) ? $circle->city : null),
+            'country' => $circle->country,
+            'meeting_mode' => $circle->meeting_mode,
+            'meeting_frequency' => $circle->meeting_frequency,
+            'cover_image_url' => $circle->cover_image_url,
+            'cover_photo_url' => $circle->cover_image_url,
+        ];
     }
 
     /**

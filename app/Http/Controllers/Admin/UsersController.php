@@ -984,20 +984,6 @@ class UsersController extends Controller
             ]);
         }
 
-        if (filled($validated['additional_circle_id'] ?? null)) {
-            $alreadyJoined = CircleMember::query()
-                ->where('user_id', $user->id)
-                ->where('circle_id', $validated['additional_circle_id'])
-                ->whereNull('deleted_at')
-                ->exists();
-
-            if ($alreadyJoined) {
-                return back()
-                    ->withErrors(['additional_circle_id' => 'Peer is already joined to the selected circle.'])
-                    ->withInput();
-            }
-        }
-
         $request->merge([
             'coins_remark' => $coinsRemark,
             'life_impact_remark' => $lifeImpactRemark,
@@ -1439,7 +1425,7 @@ class UsersController extends Controller
         }
 
         $statusMessage = $request->filled('additional_circle_id')
-            ? 'Circle membership added successfully.'
+            ? 'Circle membership saved successfully.'
             : 'User updated successfully.';
 
         return redirect()
