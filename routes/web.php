@@ -53,6 +53,7 @@ use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\IntroductionRequestsController;
+use App\Http\Controllers\Admin\PeerReferralsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\LifeImpactController;
 use App\Http\Controllers\Admin\LocationController;
@@ -499,6 +500,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/introduction-requests', [IntroductionRequestsController::class, 'index'])->name('introduction-requests.index');
         Route::post('/pending-requests/introduction-requests/{id}/approve', [IntroductionRequestsController::class, 'approve'])->whereUuid('id')->name('introduction-requests.approve');
         Route::post('/pending-requests/introduction-requests/{id}/reject', [IntroductionRequestsController::class, 'reject'])->whereUuid('id')->name('introduction-requests.reject');
+
+        Route::get('/peer-referrals', [PeerReferralsController::class, 'index'])->name('peer-referrals.index');
+        Route::get('/peer-referrals/{id}', [PeerReferralsController::class, 'show'])->whereUuid('id')->name('peer-referrals.show');
+        Route::post('/peer-referrals/{id}/status', [PeerReferralsController::class, 'updateStatus'])->whereUuid('id')->name('peer-referrals.status-update');
 
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
         Route::post('/visitor-registrations', [VisitorRegistrationsController::class, 'store'])->name('visitor-registrations.store');
