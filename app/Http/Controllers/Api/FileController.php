@@ -7,11 +7,17 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\MediaProcessingException;
 use App\Http\Resources\FileResource;
 use App\Models\File;
+use App\Models\FileModel;
+use App\Models\Post;
+use App\Models\User;
+use App\Services\Creative\IntroducedPeerCreativeGenerator;
+use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -112,19 +118,65 @@ class FileController extends BaseApiController
                 if ($file->s3_key && Storage::disk('public')->exists($file->s3_key)) {
                     $disk = 'public';
                 } else {
-                    if (! $file->is_orphaned) {
-                        $file->is_orphaned = true;
-                        $file->save();
+                    // Try self-healing: check if this file is a timeline creative post that can be regenerated on-the-fly
+                    $regenerated = false;
+                    try {
+                        $post = Post::where('media', 'LIKE', '%"id":"'.$file->id.'"%')
+                            ->orWhere('image', 'LIKE', '%'.$file->id.'%')
+                            ->first();
+
+                        if ($post) {
+                            if ($post->post_type === 'growth_honour' && $post->source_id) {
+                                $introducer = User::find($post->source_id);
+                                if ($introducer) {
+                                    $count = User::where('introduced_by', $introducer->id)->count();
+                                    if ($count === 0) {
+                                        $count = 1;
+                                    }
+                                    $fileModel = FileModel::find($file->id);
+                                    if ($fileModel) {
+                                        $generator = app(IntroducedPeerCreativeGenerator::class);
+                                        $generator->generate($introducer, $count, $fileModel);
+                                        $regenerated = true;
+                                    }
+                                }
+                            } elseif ($post->post_type === 'welcome' && $post->source_id) {
+                                $user = User::find($post->source_id);
+                                if ($user) {
+                                    $fileModel = FileModel::find($file->id);
+                                    if ($fileModel) {
+                                        $generator = app(WearTheBadgeImageGenerator::class);
+                                        $generator->generate($user, $fileModel);
+                                        $regenerated = true;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (\Throwable $regenEx) {
+                        Log::error("File API Self-Healing failed for UUID {$id}: ".$regenEx->getMessage());
                     }
 
-                    Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
-                        'uuid' => $id,
-                        's3_key' => $file->s3_key,
-                        'disk' => $disk,
-                        'ip' => $request->ip(),
-                        'user_id' => auth()->id() ?? auth('admin')->id(),
-                    ]);
-                    abort(404, 'File not found');
+                    if ($regenerated && Storage::disk($disk)->exists($file->s3_key)) {
+                        Log::info("File API Self-Healing succeeded: Regenerated missing physical file for UUID: {$id}");
+                    } else {
+                        try {
+                            if (Schema::hasColumn('files', 'is_orphaned') && ! $file->is_orphaned) {
+                                $file->is_orphaned = true;
+                                $file->save();
+                            }
+                        } catch (\Throwable $dbEx) {
+                            Log::warning("Could not mark file {$id} as orphaned: ".$dbEx->getMessage());
+                        }
+
+                        Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
+                            'uuid' => $id,
+                            's3_key' => $file->s3_key,
+                            'disk' => $disk,
+                            'ip' => $request->ip(),
+                            'user_id' => auth()->id() ?? auth('admin')->id(),
+                        ]);
+                        abort(404, 'File not found');
+                    }
                 }
             }
 

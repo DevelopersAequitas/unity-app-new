@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\AdminUser;
+use App\Models\File;
 use App\Models\Post;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -299,5 +301,49 @@ class MemberIntroducersCreativeTest extends TestCase
             'source_id' => $peer->id,
             'post_type' => 'growth_honour',
         ]);
+    }
+
+    public function test_file_serving_self_heals_missing_creative_file(): void
+    {
+        $admin = $this->createAdmin();
+        $this->actingAs($admin, 'admin');
+
+        $peer = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Self',
+            'last_name' => 'Healing',
+            'display_name' => 'Self Healing',
+            'email' => 'self.'.Str::random(6).'@example.com',
+            'members_introduced_count' => 5,
+        ]);
+
+        // Post to timeline
+        $this->postJson(route('admin.member-introducers.post-creative', $peer->id))->assertStatus(200);
+
+        // Fetch file record
+        $post = Post::where('source_id', $peer->id)->where('post_type', 'growth_honour')->firstOrFail();
+        $mediaItem = $post->media[0];
+        $fileId = $mediaItem['id'];
+
+        $fileRecord = File::findOrFail($fileId);
+
+        // Physically delete file from storage to simulate missing physical file
+        $disk = config('filesystems.default', 'public');
+        if (Storage::disk($disk)->exists($fileRecord->s3_key)) {
+            Storage::disk($disk)->delete($fileRecord->s3_key);
+        }
+        if (Storage::disk('public')->exists($fileRecord->s3_key)) {
+            Storage::disk('public')->delete($fileRecord->s3_key);
+        }
+
+        $this->assertFalse(Storage::disk($disk)->exists($fileRecord->s3_key));
+
+        // Serve file via FileController -> Should regenerate on-the-fly and respond successfully
+        $response = $this->get("/api/v1/files/{$fileId}");
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'image/webp');
+
+        // Verify the file was restored physically in storage
+        $this->assertTrue(Storage::disk($disk)->exists($fileRecord->s3_key));
     }
 }

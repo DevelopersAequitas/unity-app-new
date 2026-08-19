@@ -179,7 +179,7 @@ class IntroducedPeerCreativeGenerator
     /**
      * Generate the Growth Honour / Introduced Peer Creative image.
      */
-    public function generate(User $user, int $introducedCount = 0): FileModel
+    public function generate(User $user, int $introducedCount = 0, ?FileModel $targetFileRecord = null): FileModel
     {
         try {
             if ($introducedCount <= 0) {
@@ -536,7 +536,18 @@ class IntroducedPeerCreativeGenerator
             );
 
             $disk = config('filesystems.default', 'public');
-            $fileModel = $this->fileUploadService->store($uploadedFile, auth('admin')->user(), $disk);
+
+            if ($targetFileRecord) {
+                $finalPath = $targetFileRecord->s3_key;
+                $stream = fopen($tempPath, 'r');
+                Storage::disk($disk)->put($finalPath, $stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+                $fileModel = $targetFileRecord;
+            } else {
+                $fileModel = $this->fileUploadService->store($uploadedFile, auth('admin')->user(), $disk);
+            }
 
             if ($disk !== 'public') {
                 try {

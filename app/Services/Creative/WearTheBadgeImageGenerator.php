@@ -65,7 +65,7 @@ class WearTheBadgeImageGenerator
     /**
      * Generate the welcome creative badge image file app-side.
      */
-    public function generate(User $user): FileModel
+    public function generate(User $user, ?FileModel $targetFileRecord = null): FileModel
     {
         try {
             $templatePath = public_path('images/wear-the-badge-template.png');
@@ -302,7 +302,18 @@ class WearTheBadgeImageGenerator
             );
 
             $disk = config('filesystems.default', 'public');
-            $fileModel = $this->fileUploadService->store($uploadedFile, null, $disk);
+
+            if ($targetFileRecord) {
+                $finalPath = $targetFileRecord->s3_key;
+                $stream = fopen($tempPath, 'r');
+                Storage::disk($disk)->put($finalPath, $stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+                $fileModel = $targetFileRecord;
+            } else {
+                $fileModel = $this->fileUploadService->store($uploadedFile, null, $disk);
+            }
 
             // Ensure available on public disk for web / WhatsApp rendering
             if ($disk !== 'public') {
