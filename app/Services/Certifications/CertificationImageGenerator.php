@@ -7,7 +7,6 @@ namespace App\Services\Certifications;
 use App\Models\CertificationSubmission;
 use App\Models\FileModel;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -40,13 +39,13 @@ class CertificationImageGenerator
             $dateY = 1480; // 740 * 2
         }
 
-        if (!file_exists($templatePath)) {
+        if (! file_exists($templatePath)) {
             throw new \RuntimeException("Template image not found: {$templatePath}");
         }
 
         $baseImg = @imagecreatefrompng($templatePath);
-        if (!$baseImg) {
-            throw new \RuntimeException("Failed to load template image.");
+        if (! $baseImg) {
+            throw new \RuntimeException('Failed to load template image.');
         }
 
         $origW = imagesx($baseImg);
@@ -80,7 +79,7 @@ class CertificationImageGenerator
         $maxWidth = 1100;
         while ($fontSizeName >= $minFontSize) {
             $bbox = @imagettfbbox($fontSizeName, 0, $fontName, $name);
-            if (!$bbox) {
+            if (! $bbox) {
                 break;
             }
             $w = abs($bbox[4] - $bbox[0]);
@@ -93,10 +92,10 @@ class CertificationImageGenerator
         $bbox = @imagettfbbox($fontSizeName, 0, $fontName, $name);
         if ($bbox) {
             $w = abs($bbox[4] - $bbox[0]);
-            $x = (int)($hdW / 2 - $w / 2);
+            $x = (int) ($hdW / 2 - $w / 2);
             imagettftext($canvas, $fontSizeName, 0, $x, $nameY, $goldColor, $fontName, $name);
         } else {
-            imagestring($canvas, 5, (int)($hdW / 2 - 100), $nameY, $name, $goldColor);
+            imagestring($canvas, 5, (int) ($hdW / 2 - 100), $nameY, $name, $goldColor);
         }
 
         // Render date (2x scale)
@@ -107,25 +106,25 @@ class CertificationImageGenerator
         $bboxDate = @imagettfbbox($fontSizeDate, 0, $fontDate, $dateText);
         if ($bboxDate) {
             $wDate = abs($bboxDate[4] - $bboxDate[0]);
-            $xDate = (int)($hdW / 2 - $wDate / 2);
+            $xDate = (int) ($hdW / 2 - $wDate / 2);
             imagettftext($canvas, $fontSizeDate, 0, $xDate, $dateY, $blackColor, $fontDate, $dateText);
         } else {
-            imagestring($canvas, 4, (int)($hdW / 2 - 80), $dateY, $dateText, $blackColor);
+            imagestring($canvas, 4, (int) ($hdW / 2 - 80), $dateY, $dateText, $blackColor);
         }
 
         // Save to storage
         $diskName = 'public';
-        $folder = 'uploads/certificates/' . now()->format('Y/m/d');
+        $folder = 'uploads/certificates/'.now()->format('Y/m/d');
 
-        if (!Storage::disk($diskName)->exists($folder)) {
+        if (! Storage::disk($diskName)->exists($folder)) {
             Storage::disk($diskName)->makeDirectory($folder);
         }
 
-        $fileName = Str::uuid() . '.png';
-        $relativeFilePath = $folder . '/' . $fileName;
+        $fileName = Str::uuid().'.png';
+        $relativeFilePath = $folder.'/'.$fileName;
         $absolutePath = Storage::disk($diskName)->path($relativeFilePath);
 
-        if (!is_dir(dirname($absolutePath))) {
+        if (! is_dir(dirname($absolutePath))) {
             mkdir(dirname($absolutePath), 0755, true);
         }
 

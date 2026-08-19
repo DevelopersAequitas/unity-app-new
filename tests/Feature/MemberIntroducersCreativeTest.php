@@ -237,6 +237,29 @@ class MemberIntroducersCreativeTest extends TestCase
 
         $response = $this->get(route('admin.member-introducers.index'));
         $response->assertStatus(200);
+        $response->assertSee('Introducers List');
+        $response->assertSee('Peers Creative Post in Timeline');
+        $response->assertSee('memberIntroducersSubmenu');
+    }
+
+    public function test_can_render_creative_studio_tab(): void
+    {
+        $admin = $this->createAdmin();
+        $this->actingAs($admin, 'admin');
+
+        $introducer = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Emma',
+            'last_name' => 'Stone',
+            'display_name' => 'Emma Stone',
+            'email' => 'emma.'.Str::random(6).'@example.com',
+            'members_introduced_count' => 10,
+        ]);
+
+        $response = $this->get(route('admin.member-introducers.index', ['tab' => 'creative', 'peer_id' => $introducer->id]));
+        $response->assertStatus(200);
+        $response->assertSee('Peers Recognition Creative Studio &amp; Timeline Publisher', false);
+        $response->assertSee('Post Creative to Timeline');
         $response->assertSee('Track 1 Growth Honours Recognition Creatives');
         $response->assertSee('CONNECTOR');
         $response->assertSee('GLOBAL ICON');

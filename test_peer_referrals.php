@@ -3,9 +3,10 @@
 require_once __DIR__.'/vendor/autoload.php';
 
 use App\Http\Controllers\Api\V1\PeerReferralsApiController;
-use App\Models\User;
+use App\Http\Requests\Api\V1\StorePeerReferralRequest;
 use App\Models\Circle;
 use App\Models\PeerReferral;
+use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,20 +21,20 @@ echo "==================================================\n";
 
 // 1. Fetch User and Circle
 $user = User::where('status', 'active')->first();
-if (!$user) {
+if (! $user) {
     $user = User::first();
 }
-if (!$user) {
+if (! $user) {
     echo "ERROR: No user found in database.\n";
     exit(1);
 }
 
 $circle = Circle::first();
-if (!$circle) {
+if (! $circle) {
     echo "Creating a temporary circle for testing...\n";
     $circle = Circle::create([
         'name' => 'Test Circle',
-        'slug' => 'test-circle-' . time(),
+        'slug' => 'test-circle-'.time(),
         'description' => 'Test circle description',
         'status' => 'active',
     ]);
@@ -65,32 +66,32 @@ echo "1. Submitting Valid Peer Referral\n";
 echo "--------------------------------------------------\n";
 
 $request1 = Request::create('/api/v1/peer-referrals', 'POST', $payload);
-$request1->setUserResolver(fn() => $user);
+$request1->setUserResolver(fn () => $user);
 
 $controller = app(PeerReferralsApiController::class);
 
 try {
     // Validate request using the StorePeerReferralRequest
-    $storeRequest = \App\Http\Requests\Api\V1\StorePeerReferralRequest::createFrom($request1);
-    $storeRequest->setUserResolver(fn() => $user);
-    
+    $storeRequest = StorePeerReferralRequest::createFrom($request1);
+    $storeRequest->setUserResolver(fn () => $user);
+
     // Manually trigger validator
     $validator = app('validator')->make(
-        $payload, 
+        $payload,
         $storeRequest->rules()
     );
     $storeRequest->setValidator($validator);
     $storeRequest->withValidator($validator);
-    
+
     if ($validator->fails()) {
-        echo "Validation failed: " . json_encode($validator->errors()->messages()) . "\n";
+        echo 'Validation failed: '.json_encode($validator->errors()->messages())."\n";
     } else {
         $response1 = $controller->store($storeRequest);
-        echo "Response Status: " . $response1->getStatusCode() . "\n";
-        echo "Response Content:\n" . json_encode(json_decode($response1->getContent()), JSON_PRETTY_PRINT) . "\n";
+        echo 'Response Status: '.$response1->getStatusCode()."\n";
+        echo "Response Content:\n".json_encode(json_decode($response1->getContent()), JSON_PRETTY_PRINT)."\n";
     }
-} catch (\Exception $e) {
-    echo "Exception occurred: " . $e->getMessage() . "\n";
+} catch (Exception $e) {
+    echo 'Exception occurred: '.$e->getMessage()."\n";
 }
 
 echo "\n--------------------------------------------------\n";
@@ -99,10 +100,10 @@ echo "--------------------------------------------------\n";
 
 try {
     $request2 = Request::create('/api/v1/peer-referrals', 'POST', $payload);
-    $request2->setUserResolver(fn() => $user);
+    $request2->setUserResolver(fn () => $user);
 
-    $storeRequest2 = \App\Http\Requests\Api\V1\StorePeerReferralRequest::createFrom($request2);
-    $storeRequest2->setUserResolver(fn() => $user);
+    $storeRequest2 = StorePeerReferralRequest::createFrom($request2);
+    $storeRequest2->setUserResolver(fn () => $user);
 
     $validator2 = app('validator')->make($payload, $storeRequest2->rules());
     $storeRequest2->setValidator($validator2);
@@ -110,14 +111,14 @@ try {
 
     if ($validator2->fails()) {
         echo "PASSED: Duplicate validation caught the duplicate request!\n";
-        echo "Validation Errors: " . json_encode($validator2->errors()->messages()) . "\n";
+        echo 'Validation Errors: '.json_encode($validator2->errors()->messages())."\n";
     } else {
         $response2 = $controller->store($storeRequest2);
         echo "FAILED: Expected duplicate validation to fail, but it succeeded.\n";
-        echo "Response Status: " . $response2->getStatusCode() . "\n";
+        echo 'Response Status: '.$response2->getStatusCode()."\n";
     }
-} catch (\Exception $e) {
-    echo "Exception occurred: " . $e->getMessage() . "\n";
+} catch (Exception $e) {
+    echo 'Exception occurred: '.$e->getMessage()."\n";
 }
 
 echo "\n--------------------------------------------------\n";
@@ -125,11 +126,11 @@ echo "3. Fetching Submitted Peer Referrals\n";
 echo "--------------------------------------------------\n";
 
 $request3 = Request::create('/api/v1/peer-referrals', 'GET');
-$request3->setUserResolver(fn() => $user);
+$request3->setUserResolver(fn () => $user);
 
 $response3 = $controller->index($request3);
-echo "Response Status: " . $response3->getStatusCode() . "\n";
-echo "Response Content:\n" . json_encode(json_decode($response3->getContent()), JSON_PRETTY_PRINT) . "\n";
+echo 'Response Status: '.$response3->getStatusCode()."\n";
+echo "Response Content:\n".json_encode(json_decode($response3->getContent()), JSON_PRETTY_PRINT)."\n";
 
 echo "==================================================\n";
 echo "TEST COMPLETED SUCCESSFULLY\n";

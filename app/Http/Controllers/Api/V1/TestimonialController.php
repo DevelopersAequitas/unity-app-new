@@ -275,9 +275,10 @@ class TestimonialController extends BaseApiController
 
             // Media mapping
             $media = null;
-            if (!empty($testimonial->media)) {
+            if (! empty($testimonial->media)) {
                 $media = collect($testimonial->media)->map(function ($item) {
                     $id = $item['id'] ?? null;
+
                     return [
                         'id' => $id,
                         'type' => $item['type'] ?? 'image',
@@ -292,7 +293,7 @@ class TestimonialController extends BaseApiController
                 'media' => $media,
                 'given_by' => $giver ? [
                     'id' => $giver->id,
-                    'name' => $giver->display_name ?? trim(($giver->first_name ?? '') . ' ' . ($giver->last_name ?? '')),
+                    'name' => $giver->display_name ?? trim(($giver->first_name ?? '').' '.($giver->last_name ?? '')),
                     'profile_photo' => $profilePhotoUrl,
                 ] : null,
                 'created_at' => optional($testimonial->created_at)->toISOString(),
