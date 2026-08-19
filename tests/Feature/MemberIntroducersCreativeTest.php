@@ -264,4 +264,40 @@ class MemberIntroducersCreativeTest extends TestCase
         $response->assertSee('CONNECTOR');
         $response->assertSee('GLOBAL ICON');
     }
+
+    public function test_creative_studio_supports_peer_with_zero_introductions(): void
+    {
+        $admin = $this->createAdmin();
+        $this->actingAs($admin, 'admin');
+
+        $peer = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Zero',
+            'last_name' => 'Introductions',
+            'display_name' => 'Zero Introductions',
+            'email' => 'zero.'.Str::random(6).'@example.com',
+            'members_introduced_count' => 0,
+        ]);
+
+        // When visiting index without introducers, peer is listed in Studio
+        $indexResponse = $this->get(route('admin.member-introducers.index', ['tab' => 'creative']));
+        $indexResponse->assertStatus(200);
+        $indexResponse->assertSee('Zero Introductions');
+
+        // Preview should default to Level 1 CONNECTOR
+        $previewResponse = $this->getJson(route('admin.member-introducers.creative-preview', $peer->id));
+        $previewResponse->assertStatus(200);
+        $previewResponse->assertJsonPath('meta.title', 'CONNECTOR');
+
+        // Post to timeline should succeed
+        $postResponse = $this->postJson(route('admin.member-introducers.post-creative', $peer->id));
+        $postResponse->assertStatus(200);
+        $postResponse->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('posts', [
+            'source_type' => 'member_introduction',
+            'source_id' => $peer->id,
+            'post_type' => 'growth_honour',
+        ]);
+    }
 }

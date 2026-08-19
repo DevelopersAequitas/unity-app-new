@@ -445,7 +445,22 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-8 text-xs t3">No introducers found matching criteria.</td>
+                                <td colspan="6" class="text-center py-10 px-4">
+                                    <div class="max-w-md mx-auto space-y-3">
+                                        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-2xl mx-auto">
+                                            <i class="bi bi-stars"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="text-sm font-bold t1 m-0">No Member Introducers Recorded Yet</h6>
+                                            <p class="text-xs t3 mt-1 m-0">No members have introduced others yet. You can still generate official Growth Honours &amp; recognition creatives for any peer and post them directly to the Timeline.</p>
+                                        </div>
+                                        <div class="pt-1">
+                                            <a href="{{ route('admin.member-introducers.index', ['tab' => 'creative']) }}" class="btn btn-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl px-4 py-2 shadow inline-flex items-center gap-1.5 no-underline">
+                                                <i class="bi bi-stars"></i>Open Creative Studio &amp; Timeline Publisher
+                                            </a>
+                                        </div>
+                                    </div>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -800,7 +815,7 @@
                                 $pName = $pName ?: ($peer->name ?? 'Peer Member');
                             @endphp
                             <option value="{{ $peer->id }}" data-name="{{ addslashes($pName) }}" data-count="{{ $peer->introduced_members_count ?? 1 }}">
-                                {{ $pName }} ({{ $peer->introduced_members_count }} {{ $peer->introduced_members_count === 1 ? 'introduced' : 'introduced' }})
+                                {{ $pName }} ({{ $peer->introduced_members_count }} {{ $peer->introduced_members_count === 1 ? 'Peer' : 'Peers' }})
                             </option>
                         @endforeach
                     </select>
