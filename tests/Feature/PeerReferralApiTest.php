@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Circle;
-use App\Models\PeerReferral;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
