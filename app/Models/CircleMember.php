@@ -146,6 +146,10 @@ class CircleMember extends Model
         });
 
         static::saved(function (CircleMember $member): void {
+            if (! empty($member->circle_id)) {
+                Circle::syncLeadershipFromMembers($member->circle_id);
+            }
+
             $admin = auth('admin')->user();
             if ($admin) {
                 Cache::forget('admin-access:allowed-users:'.$admin->id);
@@ -158,6 +162,10 @@ class CircleMember extends Model
         });
 
         static::deleted(function (CircleMember $member): void {
+            if (! empty($member->circle_id)) {
+                Circle::syncLeadershipFromMembers($member->circle_id);
+            }
+
             $admin = auth('admin')->user();
             if ($admin) {
                 Cache::forget('admin-access:allowed-users:'.$admin->id);

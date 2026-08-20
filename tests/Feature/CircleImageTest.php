@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Http\Resources\CircleResource;
 use App\Models\Circle;
-use App\Models\City;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;

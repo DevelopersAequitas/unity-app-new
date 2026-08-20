@@ -150,4 +150,10 @@ class CircleDetailsLeadershipTest extends TestCase
         $this->assertSame('Robert Regional', data_get($resourceArray, 'regional_leaders.0.name'));
         $this->assertSame('West Region', data_get($resourceArray, 'regional_leaders.0.region'));
     }
+
+    public function test_sync_leadership_from_members_handles_null_circle_gracefully(): void
+    {
+        Circle::syncLeadershipFromMembers('non-existent-id');
+        $this->assertTrue(true);
+    }
 }

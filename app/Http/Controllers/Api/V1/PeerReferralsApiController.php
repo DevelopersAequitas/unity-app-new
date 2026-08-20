@@ -6,6 +6,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Api\V1\StorePeerReferralRequest;
+use App\Models\Category;
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel2;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
 use App\Models\PeerReferral;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -111,11 +116,11 @@ class PeerReferralsApiController extends BaseApiController
         }
 
         if (is_numeric($openCategoryId)) {
-            $cat = \App\Models\CircleCategoryLevel4::find($openCategoryId)
-                ?? \App\Models\CircleCategoryLevel3::find($openCategoryId)
-                ?? \App\Models\CircleCategoryLevel2::find($openCategoryId)
-                ?? \App\Models\CircleCategory::find($openCategoryId)
-                ?? \App\Models\Category::find($openCategoryId);
+            $cat = CircleCategoryLevel4::find($openCategoryId)
+                ?? CircleCategoryLevel3::find($openCategoryId)
+                ?? CircleCategoryLevel2::find($openCategoryId)
+                ?? CircleCategory::find($openCategoryId)
+                ?? Category::find($openCategoryId);
 
             if ($cat) {
                 return $cat->name ?? $cat->category_name ?? 'Open Category';
