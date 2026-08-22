@@ -28,7 +28,7 @@ class LifeImpactService
             ? $activityId
             : null;
 
-        if ($impactValue <= 0) {
+        if ($impactValue === 0) {
             return $this->getCurrentTotal($userId);
         }
 
@@ -43,6 +43,8 @@ class LifeImpactService
                 ]);
 
             app(MilestoneBadgeService::class)->calculateForUserId($userId);
+
+            $newTotal = $this->getCurrentTotal($userId);
 
             $normalizedMeta = null;
             if (! empty($meta)) {
@@ -66,6 +68,10 @@ class LifeImpactService
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
+
+            if (Schema::hasColumn($historyTable, 'impact_after')) {
+                $payload['impact_after'] = $newTotal;
+            }
 
             if (Schema::hasColumn($historyTable, 'life_impacted')) {
                 $payload['life_impacted'] = $impactValue;
@@ -266,6 +272,10 @@ class LifeImpactService
 
             $historyId = (string) $payload['id'];
             $total = $this->recomputeTotalFromHistory($userId);
+
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'impact_after')) {
+                DB::table($this->lifeImpactHistoriesTable())->where('id', $historyId)->update(['impact_after' => $total]);
+            }
 
             Log::info('impact.approval.history_created', [
                 'impact_id' => $impactId,

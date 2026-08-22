@@ -673,7 +673,7 @@ window.switchTab = function(tabId) {
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label fw-semibold">Coins Balance</label>
-                            <input type="number" name="coins_balance" class="form-control" min="0" value="{{ old('coins_balance', $user->coins_balance) }}">
+                            <input type="number" name="coins_balance" class="form-control" value="{{ old('coins_balance', $user->coins_balance) }}">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Coins Remark</label>
@@ -703,7 +703,6 @@ window.switchTab = function(tabId) {
                                 type="number"
                                 name="life_impacted_count"
                                 class="form-control @error('life_impacted_count') is-invalid @enderror"
-                                min="0"
                                 value="{{ old('life_impacted_count', $user->life_impacted_count ?? 0) }}"
                             >
                             @error('life_impacted_count')

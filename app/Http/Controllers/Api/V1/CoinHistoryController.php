@@ -94,9 +94,13 @@ class CoinHistoryController extends BaseApiController
                 ? ($activityTitles[$activity->id] ?? $titleResolver->defaultTitle($activityType))
                 : $titleResolver->defaultTitle($activityType);
 
+            $coinsDelta = (int) ($ledger->coins_delta ?? $ledger->amount ?? 0);
+            $changeType = $coinsDelta > 0 ? 'increased' : ($coinsDelta < 0 ? 'decreased' : 'unchanged');
+
             return [
                 'id' => $ledger->transaction_id ?? $ledger->id ?? null,
-                'coins_delta' => (int) ($ledger->coins_delta ?? $ledger->amount ?? 0),
+                'coins_delta' => $coinsDelta,
+                'change_type' => $changeType,
                 'reason_label' => $reasonLabel,
                 'activity_type' => $activityType,
                 'activity_id' => $activityId,

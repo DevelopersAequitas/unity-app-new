@@ -889,8 +889,8 @@ class UsersController extends Controller
             'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
             'circle_joined_at' => ['nullable', 'date'],
             'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
-            'coins_balance' => ['required', 'integer', 'min:0'],
-            'life_impacted_count' => ['required', 'integer', 'min:0'],
+            'coins_balance' => ['required', 'integer'],
+            'life_impacted_count' => ['required', 'integer'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
@@ -1126,7 +1126,7 @@ class UsersController extends Controller
                     if ($difference !== 0) {
                         $admin = Auth::guard('admin')->user();
 
-                        DB::table('life_impact_histories')->insert([
+                        $historyPayload = [
                             'id' => (string) Str::uuid(),
                             'user_id' => $user->id,
                             'triggered_by_user_id' => null,
@@ -1145,13 +1145,19 @@ class UsersController extends Controller
                             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                             'created_at' => now(),
                             'updated_at' => now(),
-                            'life_impacted' => $newLifeImpactedCount,
+                            'life_impacted' => $difference,
                             'counted_in_total' => true,
                             'impact_category' => 'admin_adjustment',
                             'action_key' => 'admin_adjustment',
                             'action_label' => 'Admin Adjustment',
                             'remarks' => $lifeImpactRemark,
-                        ]);
+                        ];
+
+                        if (Schema::hasColumn('life_impact_histories', 'impact_after')) {
+                            $historyPayload['impact_after'] = $newLifeImpactedCount;
+                        }
+
+                        DB::table('life_impact_histories')->insert($historyPayload);
                     }
                 }
 

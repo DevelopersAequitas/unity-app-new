@@ -88,7 +88,7 @@ class LifeImpactBackfillService
     public function createManualImpact(array $data): LifeImpactHistory
     {
         $userId = (string) $data['user_id'];
-        $impactValue = max(0, (int) $data['impact_value']);
+        $impactValue = (int) $data['impact_value'];
         $referenceDate = $data['reference_date'] ?? now()->toDateString();
 
         $meta = array_filter([
@@ -116,6 +116,12 @@ class LifeImpactBackfillService
         $history->save();
 
         $this->recalculateTotals([$userId]);
+
+        if (Schema::hasColumn($history->getTable(), 'impact_after')) {
+            $currentTotal = (int) (DB::table('users')->where('id', $userId)->value('life_impacted_count') ?? 0);
+            $history->impact_after = $currentTotal;
+            $history->save();
+        }
 
         return $history->refresh();
     }
