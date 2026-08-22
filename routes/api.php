@@ -118,6 +118,7 @@ use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
+use App\Http\Controllers\Api\V1\MaintenanceController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
@@ -385,6 +386,7 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
+    Route::get('/app/maintenance', [MaintenanceController::class, 'index']);
     Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
     Route::post('/app-releases', [AppChangelogController::class, 'store']);
     Route::post('/notifications/send-test', SendTestNotificationController::class);

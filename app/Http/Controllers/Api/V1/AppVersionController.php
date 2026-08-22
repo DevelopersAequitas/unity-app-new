@@ -5,41 +5,68 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\V1\AppVersionRequest;
 use App\Models\AppVersion;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class AppVersionController extends Controller
 {
-    public function show(AppVersionRequest $request): JsonResponse
+    public function show(Request $request): JsonResponse
     {
         return $this->checkVersion($request);
     }
 
-    public function checkVersion(AppVersionRequest $request): JsonResponse
+    public function checkVersion(Request $request): JsonResponse
     {
         try {
-            $androidVersion = AppVersion::query()
-                ->where('platform', 'android')
-                ->where('is_active', true)
-                ->first();
+            // Read Headers & Query Parameters
+            $product = strtolower((string) ($request->query('product') ?? $request->header('X-Product') ?? 'peers'));
+            $requestedPlatform = strtolower((string) ($request->query('platform') ?? $request->header('X-Platform') ?? 'android'));
+            $bearerToken = $request->bearerToken();
 
-            $iosVersion = AppVersion::query()
-                ->where('platform', 'ios')
-                ->where('is_active', true)
-                ->first();
+            // If Bearer token is provided, resolve user if necessary
+            if ($bearerToken) {
+                try {
+                    $user = auth('sanctum')->user() ?? $request->user();
+                } catch (Throwable) {
+                    // Ignore auth resolution errors for version check
+                }
+            }
 
-            $requestedPlatform = $request->validatedPlatform();
+            $hasProductCol = Schema::hasColumn('app_versions', 'product');
+
+            $androidQuery = AppVersion::query()->where('platform', 'android')->where('is_active', true);
+            $iosQuery = AppVersion::query()->where('platform', 'ios')->where('is_active', true);
+
+            if ($hasProductCol) {
+                $androidQuery->where('product', $product);
+                $iosQuery->where('product', $product);
+            }
+
+            $androidVersion = $androidQuery->first();
+            $iosVersion = $iosQuery->first();
+
+            // Fallback to default product records if product-specific search yielded nothing
+            if (! $androidVersion && $hasProductCol) {
+                $androidVersion = AppVersion::query()->where('platform', 'android')->where('is_active', true)->first();
+            }
+
+            if (! $iosVersion && $hasProductCol) {
+                $iosVersion = AppVersion::query()->where('platform', 'ios')->where('is_active', true)->first();
+            }
 
             $version = match ($requestedPlatform) {
                 'ios' => $iosVersion ?? $androidVersion,
                 default => $androidVersion ?? $iosVersion,
             };
 
-            $latestVersion = $version?->latest_version ?? (string) config('app_versions.latest', '2.0.0');
-            $minVersion = $version?->min_version ?? (string) config('app_versions.min_required', '1.9.0');
-            $updateType = $version?->update_type ?? (string) config('app_versions.update_type', 'force');
+            $latestVersion = $version?->latest_version ?? (string) config('app_versions.latest', '1.8.0');
+            $minVersion = $version?->min_version ?? (string) config('app_versions.min_required', '1.2.0');
+            $updateType = $version?->update_type ?? (string) config('app_versions.update_type', 'optional');
+            $isActive = $version?->is_active ?? true;
+            $releaseNotes = $version?->release_notes ?? "Enhanced security and real-time networking tools\nPerformance optimizations";
 
             $latestAndroid = $androidVersion?->latest_version ?? $latestVersion;
             $latestIos = $iosVersion?->latest_version ?? $latestVersion;
@@ -51,8 +78,10 @@ class AppVersionController extends Controller
                     'latest_version' => $latestVersion,
                     'min_version' => $minVersion,
                     'update_type' => $updateType,
+                    'is_active' => (bool) $isActive,
                     'playstore_url' => $this->playStoreUrl(),
                     'appstore_url' => $this->appStoreUrl(),
+                    'release_notes' => $releaseNotes,
                     'latest_version_android' => $latestAndroid,
                     'latest_version_ios' => $latestIos,
                 ],
@@ -70,7 +99,7 @@ class AppVersionController extends Controller
 
     private function playStoreUrl(): string
     {
-        return (string) config('app_links.android.store_url', 'https://play.google.com/store/apps/details?id=com.peers.peersunity');
+        return (string) config('app_links.android.store_url', 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share');
     }
 
     private function appStoreUrl(): string

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -10,11 +12,11 @@ use App\Models\AppIconAsset;
 use App\Models\AppInstance;
 use App\Models\AppLabel;
 use App\Models\AppMembershipLabel;
-use App\Models\AppNavigationItem;
 use App\Models\AppSocialLink;
 use App\Services\AppConfigService;
 use App\Support\GreenpreneurIconCatalog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -22,21 +24,29 @@ use Throwable;
 
 class AppConfigController extends Controller
 {
-    public const CACHE_KEY = 'app_config:greenpreneur:v2';
+    public const CACHE_KEY = 'app_config:peers:v2';
 
-    public function publicConfig(AppConfigService $appConfigService): JsonResponse
+    public function publicConfig(Request $request, AppConfigService $appConfigService): JsonResponse
     {
         try {
-            $appInstance = $appConfigService->getGreenpreneurAppInstance();
-
-            if (! $appInstance->is_active) {
-                return $this->error('App instance not configured.');
-            }
+            $product = strtolower((string) ($request->query('product') ?? $request->header('X-Product') ?? 'peers'));
+            $cacheKey = "app_config:{$product}:v2";
 
             $data = Cache::remember(
-                self::CACHE_KEY,
+                $cacheKey,
                 now()->addSeconds(300),
-                fn () => self::buildPublicConfig($appInstance)
+                function () use ($appConfigService) {
+                    try {
+                        $appInstance = $appConfigService->getGreenpreneurAppInstance();
+                        if ($appInstance && $appInstance->is_active) {
+                            return self::buildPublicConfig($appInstance);
+                        }
+                    } catch (Throwable) {
+                        // Fallback to default Peers configuration
+                    }
+
+                    return self::defaultPublicConfig();
+                }
             );
 
             return response()->json([
@@ -45,7 +55,7 @@ class AppConfigController extends Controller
                 'data' => $data,
             ])->header('Cache-Control', 'public, max-age=300');
         } catch (Throwable $exception) {
-            Log::error('Failed to fetch Greenpreneur app configuration.', [
+            Log::error('Failed to fetch app configuration.', [
                 'exception' => $exception,
             ]);
 
@@ -60,10 +70,9 @@ class AppConfigController extends Controller
     public static function clearCache(): void
     {
         Cache::forget(self::CACHE_KEY);
-        Cache::forget('greenpreneur_app_config.v2');
-        Cache::forget('app_config:greenpreneur');
-        Cache::forget('app_config_navigation:greenpreneur');
-        Cache::forget('navigation:greenpreneur');
+        Cache::forget('app_config:peers:v2');
+        Cache::forget('app_config:greenpreneur:v2');
+        Cache::forget('app_config:peers');
     }
 
     public static function buildPublicConfig(AppInstance $appInstance): array
@@ -114,6 +123,22 @@ class AppConfigController extends Controller
                 ->orderBy('sort_order')
                 ->pluck('url', 'platform')
                 ->all() ?: self::defaultSocialLinks(),
+        ];
+    }
+
+    public static function defaultPublicConfig(): array
+    {
+        return [
+            'app_info' => self::defaultAppInfo(),
+            'colors' => self::defaultColors(),
+            'icons' => self::defaultIcons(),
+            'drawer_menu' => [],
+            'features' => self::defaultFeatures(),
+            'labels' => self::defaultLabels(),
+            'navigation_menu' => [],
+            'dashboard_widgets' => self::defaultDashboardWidgets(),
+            'membership_labels' => self::defaultMembershipLabels(),
+            'social_links' => self::defaultSocialLinks(),
         ];
     }
 
@@ -199,26 +224,41 @@ class AppConfigController extends Controller
         }
 
         return [
+            'id' => $icon->id,
             'icon_key' => $icon->icon_key,
-            'icon_name' => $icon->icon_name,
-            'icon_group' => $icon->icon_group,
-            'source_type' => $icon->source_type,
-            'icon_library' => $icon->icon_library,
-            'default_icon' => $icon->default_icon,
-            'selected_icon' => $icon->selected_icon,
+            'title' => $icon->title,
+            'subtitle' => $icon->subtitle,
             'icon_url' => $icon->icon_url,
-            'selected_icon_url' => $icon->selected_icon_url,
-            'fallback_asset' => $icon->fallback_asset,
-            'feature_key' => $icon->feature_key,
+            'icon_group' => $icon->icon_group,
             'menu_key' => $icon->menu_key,
-            'screen_name' => $icon->screen_name,
-            'usage_location' => $icon->usage_location,
+            'target_screen' => $icon->target_screen,
+            'feature_key' => $icon->feature_key,
+            'badge_text' => $icon->badge_text,
             'is_active' => $isActive,
-            'sort_order' => (int) $icon->sort_order,
+            'sort_order' => $icon->sort_order,
         ];
     }
 
     private static function drawerNavigationState(string $appInstanceId): array
+    {
+        $navigationItems = Schema::hasTable('app_navigation_items')
+            ? AppNavigationItem::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->pluck('is_enabled', 'nav_key')
+                ->all()
+            : [];
+
+        $features = Schema::hasTable('app_features')
+            ? AppFeature::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->pluck('is_enabled', 'feature_key')
+                ->all()
+            : [];
+
+        return array_merge($navigationItems, $features);
+    }
+
+    private static function navigationMenu(string $appInstanceId, array $enabledFeatureKeys = []): array
     {
         if (! Schema::hasTable('app_navigation_items')) {
             return [];
@@ -226,101 +266,30 @@ class AppConfigController extends Controller
 
         return AppNavigationItem::query()
             ->where('app_instance_id', $appInstanceId)
-            ->where('menu_type', 'drawer')
-            ->get(['item_key', 'feature_key', 'is_enabled'])
-            ->flatMap(function (AppNavigationItem $item): array {
-                $isEnabled = (bool) $item->is_enabled;
-                $keys = collect([$item->item_key, $item->feature_key])
-                    ->filter(fn ($key) => filled($key))
-                    ->map(fn ($key) => (string) $key)
-                    ->unique()
-                    ->values();
-
-                return $keys
-                    ->flatMap(fn (string $key) => [$key => $isEnabled, 'drawer_'.$key => $isEnabled])
-                    ->all();
-            })
+            ->where('is_enabled', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->filter(fn (AppNavigationItem $item) => empty($item->feature_key) || in_array($item->feature_key, $enabledFeatureKeys, true))
+            ->map(fn (AppNavigationItem $item) => [
+                'id' => $item->id,
+                'nav_key' => $item->nav_key,
+                'title' => $item->title,
+                'target_screen' => $item->target_screen,
+                'icon_name' => $item->icon_name,
+                'icon_url' => $item->icon_url,
+                'sort_order' => $item->sort_order,
+            ])
+            ->values()
             ->all();
-    }
-
-    public static function supportedIconKeys(): array
-    {
-        return array_keys(GreenpreneurIconCatalog::FLAT_MAP);
     }
 
     private static function defaultIcons(): array
     {
-        return GreenpreneurIconCatalog::blankGroupedResponse();
-    }
-
-    private static function defaultColors(): array
-    {
         return [
-            'primary_color' => '#44A268',
-            'primary_dark_color' => '#1B5E20',
-            'primary_ultra_light_color' => '#E8F5E9',
-            'secondary_color' => '#0F172A',
-            'text_primary_color' => '#466186',
-            'text_secondary_color' => '#6B7280',
-            'background_color' => '#F5F7FA',
-            'card_background_color' => '#FFFFFF',
-        ];
-    }
-
-    private static function navigationMenu(string $appInstanceId, array $enabledFeatureKeys): array
-    {
-        $navigationItems = AppNavigationItem::query()
-            ->where('app_instance_id', $appInstanceId)
-            ->where('is_enabled', true)
-            ->where(function ($query) use ($enabledFeatureKeys) {
-                $query->whereNull('feature_key')
-                    ->orWhereIn('feature_key', $enabledFeatureKeys);
-            })
-            ->orderBy('sort_order')
-            ->get();
-
-        $navigationGrouped = $navigationItems->groupBy('menu_type');
-
-        return [
-            'bottom_nav' => self::formatNavigationItems($navigationGrouped->get('bottom_nav', collect())),
-            'drawer' => self::formatNavigationItems($navigationGrouped->get('drawer', collect())),
-            'plus_menu' => self::formatNavigationItems($navigationGrouped->get('plus_menu', collect())),
-            'impact_menu' => self::formatNavigationItems($navigationGrouped->get('impact_menu', collect())),
-        ];
-    }
-
-    private static function formatNavigationItems($items): array
-    {
-        return $items->values()
-            ->map(fn ($item) => [
-                'key' => $item->item_key ?? $item->nav_key ?? $item->v_key,
-                'label_key' => $item->label_key,
-                'label' => $item->display_label ?? $item->nav_label ?? $item->v_label,
-                'icon' => $item->icon,
-                'route_name' => $item->route_name,
-                'feature_key' => $item->feature_key,
-                'order' => $item->sort_order ?? $item->position,
-            ])
-            ->toArray();
-    }
-
-    private static function defaultPublicConfig(): array
-    {
-        return [
-            'app_info' => self::defaultAppInfo(),
-            'colors' => self::defaultColors(),
-            'icons' => self::defaultIcons(),
-            'drawer_menu' => self::defaultIcons()['drawer_menu'] ?? [],
-            'features' => self::defaultFeatures(),
-            'navigation_menu' => [
-                'bottom_nav' => [],
-                'drawer' => [],
-                'plus_menu' => [],
-                'impact_menu' => [],
-            ],
-            'dashboard_widgets' => self::defaultDashboardWidgets(),
-            'membership_labels' => self::defaultMembershipLabels(),
-            'social_links' => self::defaultSocialLinks(),
+            'drawer_menu' => [],
+            'dashboard_shortcuts' => [],
+            'custom_assets' => [],
+            'flat' => [],
         ];
     }
 
@@ -380,62 +349,78 @@ class AppConfigController extends Controller
     private static function defaultSocialLinks(): array
     {
         return [
-            'linkedin' => 'https://linkedin.com/company/greenpreneur',
-            'instagram' => 'https://instagram.com/greenpreneur',
-            'facebook' => 'https://facebook.com/greenpreneur',
+            'linkedin' => 'https://linkedin.com/company/peersunity',
+            'instagram' => 'https://instagram.com/peersunity',
+            'facebook' => 'https://facebook.com/peersunity',
             'youtube' => null,
-            'website' => 'https://greenpreneur.in',
+            'website' => 'https://peersunity.com',
         ];
     }
 
     private static function defaultAppInfo(): array
     {
         return [
-            'app_name' => 'Greenpreneur',
+            'app_name' => 'Peers Global Unity',
             'logo_url_light' => 'https://peersunity.com/assets/brand/logo_light.png',
             'logo_url_dark' => 'https://peersunity.com/assets/brand/logo_dark.png',
             'logo_url_splash' => 'https://peersunity.com/assets/brand/logo_splash.png',
             'app_logo_url' => 'https://peersunity.com/assets/brand/logo_light.png',
             'splash_logo_url' => 'https://peersunity.com/assets/brand/logo_splash.png',
-            'playstore_url' => 'https://play.google.com/store/apps/details?id=com.greenpreneur.greenpreneur',
-            'appstore_url' => 'https://apps.apple.com/app/id1234567890',
+            'playstore_url' => 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share',
+            'appstore_url' => 'https://apps.apple.com/in/app/peers-global-unity/id6739198477',
+        ];
+    }
+
+    private static function defaultColors(): array
+    {
+        return [
+            'primary_color' => '#2563EB',
+            'secondary_color' => '#1D4ED8',
+            'accent_color' => '#3B82F6',
+            'background_color' => '#FFFFFF',
+            'surface_color' => '#F8FAFC',
+            'text_primary_color' => '#0F172A',
+            'text_secondary_color' => '#475569',
+            'error_color' => '#EF4444',
+            'success_color' => '#10B981',
+            'warning_color' => '#F59E0B',
         ];
     }
 
     private static function defaultLabels(): array
     {
         return [
-            'app_name' => 'Greenpreneur',
-            'peer' => 'Green Member',
-            'peers' => 'Green Network',
-            'my_peers' => 'My Network',
-            'circle' => 'Eco-Circle',
-            'circles' => 'Eco-Circles',
-            'event' => 'Eco Event',
-            'events' => 'Eco Events',
-            'coin' => 'Green Coin',
-            'coins' => 'Green Coins',
-            'impact' => 'Green Impact',
-            'lives_impacted' => 'Impact Score',
-            'referral' => 'Green Referral',
-            'business_deal' => 'Green Deal',
+            'app_name' => 'Peers Global Unity',
+            'peer' => 'Peer',
+            'peers' => 'Peers',
+            'my_peers' => 'My Peers',
+            'circle' => 'Circle',
+            'circles' => 'Circles',
+            'event' => 'Event',
+            'events' => 'Events',
+            'coin' => 'Coin',
+            'coins' => 'Coins',
+            'impact' => 'Impact',
+            'lives_impacted' => 'Lives Impacted',
+            'referral' => 'Referral',
+            'business_deal' => 'Business Deal',
             'p2p_meeting' => 'Peer Meeting',
-            'requirement' => 'Need',
+            'requirement' => 'Requirement',
             'post_an_ask' => 'Post a Need',
-            'visitor' => 'Guest',
-            'register_visitor' => 'Guest Pass',
-            'circular' => 'Announcement',
-            'circulars' => 'Announcements',
+            'visitor' => 'Visitor',
+            'register_visitor' => 'Register Visitor',
+            'circular' => 'Circular',
+            'circulars' => 'Circulars',
             'chat' => 'Messages',
-            'leaderboard' => 'Green Leaderboard',
-            'badge' => 'Green Badge',
-            'welcome_title' => 'Welcome to the Greenpreneur Ecosystem',
-            'welcome_subtitle' => "Join India's growing green entrepreneurship network",
+            'leaderboard' => 'Leaderboard',
+            'badge' => 'Badge',
+            'welcome_title' => 'Welcome to Peers Global Unity',
+            'welcome_subtitle' => 'Connect, collaborate, and grow with global peers',
             'register_button' => 'Join Now',
             'login_button' => 'Login',
-            'activities_section_title' => 'GREEN ACTIONS',
-            'impact_section_title' => 'GREEN IMPACT DASHBOARD',
-            'share_message' => "I am part of Greenpreneur, India's green entrepreneurship network. Join now and become part of the green movement.",
+            'activities_section_title' => 'ACTIVITIES',
+            'impact_section_title' => 'IMPACT DASHBOARD',
+            'share_message' => 'Join Peers Global Unity to connect, collaborate and grow with global peers.',
         ];
     }
 
@@ -457,10 +442,10 @@ class AppConfigController extends Controller
     {
         return [
             'free_peer' => 'Free Member',
-            'unity_peer' => 'Green Member',
+            'unity_peer' => 'Unity Peer',
             'only_unity_peer' => 'Global Peer',
-            'chartered_peer' => 'Premium Green Member',
-            'charter_investor' => 'Green Investor',
+            'chartered_peer' => 'Chartered Peer',
+            'charter_investor' => 'Charter Investor',
         ];
     }
 
