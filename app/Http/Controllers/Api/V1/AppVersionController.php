@@ -14,6 +14,11 @@ class AppVersionController extends Controller
 {
     public function show(AppVersionRequest $request): JsonResponse
     {
+        return $this->checkVersion($request);
+    }
+
+    public function checkVersion(AppVersionRequest $request): JsonResponse
+    {
         try {
             $androidVersion = AppVersion::query()
                 ->where('platform', 'android')
@@ -32,28 +37,26 @@ class AppVersionController extends Controller
                 default => $androidVersion ?? $iosVersion,
             };
 
-            if (! $version) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'No app version found.',
-                    'data' => null,
-                ], 404);
-            }
+            $latestVersion = $version?->latest_version ?? (string) config('app_versions.latest', '2.0.0');
+            $minVersion = $version?->min_version ?? (string) config('app_versions.min_required', '1.9.0');
+            $updateType = $version?->update_type ?? (string) config('app_versions.update_type', 'force');
 
-            $latestAndroid = $androidVersion?->latest_version ?? $version->latest_version;
-            $latestIos = $iosVersion?->latest_version ?? $version->latest_version;
+            $latestAndroid = $androidVersion?->latest_version ?? $latestVersion;
+            $latestIos = $iosVersion?->latest_version ?? $latestVersion;
 
             return response()->json([
                 'status' => true,
+                'message' => 'Version check successful',
                 'data' => [
-                    'latest_version_android' => $latestAndroid,
-                    'latest_version_ios' => $latestIos,
-                    'min_version' => $version->min_version,
-                    'update_type' => $version->update_type,
+                    'latest_version' => $latestVersion,
+                    'min_version' => $minVersion,
+                    'update_type' => $updateType,
                     'playstore_url' => $this->playStoreUrl(),
                     'appstore_url' => $this->appStoreUrl(),
+                    'latest_version_android' => $latestAndroid,
+                    'latest_version_ios' => $latestIos,
                 ],
-            ]);
+            ], 200);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -67,11 +70,11 @@ class AppVersionController extends Controller
 
     private function playStoreUrl(): string
     {
-        return (string) config('app_links.android.store_url', '');
+        return (string) config('app_links.android.store_url', 'https://play.google.com/store/apps/details?id=com.peers.peersunity');
     }
 
     private function appStoreUrl(): string
     {
-        return (string) config('app_links.ios.store_url', '');
+        return (string) config('app_links.ios.store_url', 'https://apps.apple.com/in/app/peers-global-unity/id6739198477');
     }
 }

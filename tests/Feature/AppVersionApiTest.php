@@ -51,7 +51,9 @@ class AppVersionApiTest extends TestCase
         $response->assertOk()
             ->assertJson([
                 'status' => true,
+                'message' => 'Version check successful',
                 'data' => [
+                    'latest_version' => '1.8.0',
                     'latest_version_android' => '1.8.0',
                     'latest_version_ios' => '1.9.0',
                     'min_version' => '1.8.0',
