@@ -74,7 +74,7 @@
                             <th class="px-2 py-1"><input type="text" name="business_stage" form="collaborationsFiltersForm" value="{{ $filters['business_stage'] ?? '' }}" placeholder="Stage" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                             <th class="px-2 py-1"><input type="text" name="year_in_operation" form="collaborationsFiltersForm" value="{{ $filters['year_in_operation'] ?? '' }}" placeholder="Years" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                             <th class="px-2 py-1">
-                                <select name="status" form="collaborationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                <select name="status" form="collaborationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                     <option value="">Any</option>
                                     <option value="active" @selected(($filters['status'] ?? '') === 'active')>Active</option>
                                     <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inactive</option>
@@ -82,7 +82,7 @@
                             </th>
                             <th class="px-2 py-1">
                                 <div class="flex justify-end">
-                                    <button type="button" onclick="clearAdminFilters(event, 'collaborationsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                    <button type="button" onclick="clearAdminFilters(event, 'collaborationsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
                                 </div>
                             </th>
                         </tr>
@@ -119,7 +119,7 @@
                                 <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$company" /></td>
                                 <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$city" /></td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $typeName }}</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">{{ $typeName }}</span>
                                 </td>
                                 <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[200px]">
                                     <div class="admin-grid-text-clamp" data-full-text="{{ $title }}">
@@ -136,15 +136,19 @@
                                 <td class="px-3 py-2.5 text-xs t2">{{ $preferredMode }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $businessStage }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $yearInOperation }}</td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                     @if(strtolower((string) $status) === 'active')
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Active</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active
+                                        </span>
                                     @else
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ CollaborationFormatter::humanize((string) $status) }}</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11.5px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ CollaborationFormatter::humanize((string) $status) }}
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
-                                    <a class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}">Details</a>
+                                    <a class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md border bs surface t2 hover:t1 hover:surface-3 transition no-underline shadow-sm" href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}">Details</a>
                                 </td>
                             </tr>
                         @empty

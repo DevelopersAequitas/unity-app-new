@@ -749,8 +749,12 @@
     <span class="text-[12.5px] font-semibold accent"><span id="bulk-count">0</span> selected</span>
     <div class="h-4 w-px" style="background:var(--border)"></div>
     <button onclick="bulkApproveTrigger()" class="flex items-center gap-1.5 text-[12.5px] t2 hover:t1 border-none bg-transparent cursor-pointer font-medium"><i class="bi bi-check-circle"></i> Approve</button>
-    <button onclick="bulkExportTrigger()" class="flex items-center gap-1.5 text-[12.5px] t2 hover:t1 border-none bg-transparent cursor-pointer font-medium"><i class="bi bi-download"></i> Export selected</button>
     <button onclick="clearSelection()" class="ml-auto text-[12.5px] t3 hover:t1 border-none bg-transparent cursor-pointer font-medium">Clear selection ✕</button>
+  </div>
+
+  <!-- Top Horizontal Scrollbar (Synchronized) -->
+  <div id="top-scroll-wrapper" class="overflow-x-auto overflow-y-hidden rounded-t-lg border-t border-l border-r bs surface-2" style="height: 12px; margin-bottom: 0px; display: none;">
+    <div id="top-scroll-content" style="height: 1px;"></div>
   </div>
 
   <div class="overflow-x-auto relative pb-20" id="table-scroll">
@@ -2755,6 +2759,54 @@
             
             modalInstance?.show();
         });
+
+        // Initialize Top Synchronized Horizontal Scrollbar
+        (function initTopScrollbarSync() {
+            const tableScroll = document.getElementById('table-scroll');
+            const topScrollWrapper = document.getElementById('top-scroll-wrapper');
+            const topScrollContent = document.getElementById('top-scroll-content');
+            const mainTable = document.getElementById('main-table');
+
+            if (!tableScroll || !topScrollWrapper || !topScrollContent || !mainTable) return;
+
+            function syncWidth() {
+                const scrollWidth = mainTable.scrollWidth;
+                const clientWidth = tableScroll.clientWidth;
+                topScrollContent.style.width = scrollWidth + 'px';
+                if (scrollWidth > clientWidth + 10) {
+                    topScrollWrapper.style.display = 'block';
+                } else {
+                    topScrollWrapper.style.display = 'none';
+                }
+            }
+
+            syncWidth();
+            window.addEventListener('resize', syncWidth);
+            if (window.ResizeObserver) {
+                new ResizeObserver(syncWidth).observe(mainTable);
+            }
+
+            let isSyncingTop = false;
+            let isSyncingTable = false;
+
+            topScrollWrapper.addEventListener('scroll', () => {
+                if (isSyncingTop) {
+                    isSyncingTop = false;
+                    return;
+                }
+                isSyncingTable = true;
+                tableScroll.scrollLeft = topScrollWrapper.scrollLeft;
+            });
+
+            tableScroll.addEventListener('scroll', () => {
+                if (isSyncingTable) {
+                    isSyncingTable = false;
+                    return;
+                }
+                isSyncingTop = true;
+                topScrollWrapper.scrollLeft = tableScroll.scrollLeft;
+            });
+        })();
     });
 </script>
 @endpush

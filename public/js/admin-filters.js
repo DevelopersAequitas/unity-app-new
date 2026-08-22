@@ -276,13 +276,20 @@
             return false;
         }
 
+        // Inside table filter rows, small selects (< 6 options) should stay clean native selects
+        if (select.closest('tr.filter-row, th.px-2, th.px-3, thead') && select.options.length < 6) {
+            if (!select.classList.contains('js-searchable-select') && !select.classList.contains('admin-filter-dropdown')) {
+                return false;
+            }
+        }
+
         if (select.classList.contains('admin-filter-dropdown') || select.classList.contains(SEARCHABLE_SELECT_CLASS)) {
             return true;
         }
 
         const form = select.form || select.closest('form') || (select.getAttribute('form') ? document.getElementById(select.getAttribute('form')) : null);
         if (form && form.classList.contains(FILTER_FORM_CLASS)) {
-            return true;
+            return select.options.length >= 6;
         }
 
         return select.options.length >= 8;
@@ -673,6 +680,69 @@
         }, true);
     }
 
+    function initGlobalTableTopScrollbars() {
+        document.querySelectorAll('.overflow-x-auto, .table-responsive').forEach(function(container) {
+            if (container.dataset.topScrollbarInit) return;
+            const table = container.querySelector('table');
+            if (!table) return;
+
+            const prev = container.previousElementSibling;
+            if (prev && (prev.id === 'top-scroll-wrapper' || prev.classList.contains('table-top-scroll-wrapper'))) {
+                container.dataset.topScrollbarInit = 'true';
+                return;
+            }
+
+            container.dataset.topScrollbarInit = 'true';
+
+            const topWrapper = document.createElement('div');
+            topWrapper.className = 'table-top-scroll-wrapper overflow-x-auto overflow-y-hidden rounded-t-lg border-t border-l border-r bs surface-2';
+            topWrapper.style.cssText = 'height: 10px; margin-bottom: 0px; display: none;';
+            const topContent = document.createElement('div');
+            topContent.style.cssText = 'height: 1px;';
+            topWrapper.appendChild(topContent);
+
+            container.parentNode.insertBefore(topWrapper, container);
+
+            function updateScrollWidth() {
+                const scrollW = table.scrollWidth;
+                const clientW = container.clientWidth;
+                topContent.style.width = scrollW + 'px';
+                if (scrollW > clientW + 15) {
+                    topWrapper.style.display = 'block';
+                } else {
+                    topWrapper.style.display = 'none';
+                }
+            }
+
+            updateScrollWidth();
+            window.addEventListener('resize', updateScrollWidth);
+            if (window.ResizeObserver) {
+                new ResizeObserver(updateScrollWidth).observe(table);
+            }
+
+            let isSyncingTop = false;
+            let isSyncingContainer = false;
+
+            topWrapper.addEventListener('scroll', function() {
+                if (isSyncingTop) {
+                    isSyncingTop = false;
+                    return;
+                }
+                isSyncingContainer = true;
+                container.scrollLeft = topWrapper.scrollLeft;
+            });
+
+            container.addEventListener('scroll', function() {
+                if (isSyncingContainer) {
+                    isSyncingContainer = false;
+                    return;
+                }
+                isSyncingTop = true;
+                topWrapper.scrollLeft = container.scrollLeft;
+            });
+        });
+    }
+
     function boot() {
         injectGlobalOverflowFix();
         markAdminFilterForms();
@@ -681,6 +751,7 @@
         bindEnterSubmit();
         bindSelect2ClearHandler();
         observeDynamicFilters();
+        initGlobalTableTopScrollbars();
     }
 
     if (document.readyState === 'loading') {

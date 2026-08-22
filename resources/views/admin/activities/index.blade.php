@@ -127,7 +127,7 @@
 
                 <div class="flex gap-2 items-center flex-wrap">
                     <input
-                        type="datetime-local"
+                        type="date"
                         name="from"
                         form="activitiesFiltersForm"
                         value="{{ $filters['from'] ?? '' }}"
@@ -136,7 +136,7 @@
                         title="From"
                     >
                     <input
-                        type="datetime-local"
+                        type="date"
                         name="to"
                         form="activitiesFiltersForm"
                         value="{{ $filters['to'] ?? '' }}"
@@ -368,10 +368,6 @@
     </div>
 
     @include('admin.activities.partials.peer-modal')
-
-    <div class="mt-3">
-        {{ $members->links() }}
-    </div>
 @endsection
 
 @push('scripts')

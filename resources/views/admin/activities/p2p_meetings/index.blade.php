@@ -244,7 +244,7 @@
                 <div class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">P2P Meetings Log</span>
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">P2P Meetings count: {{ number_format($items->total()) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
                         <table class="min-w-full border-collapse text-[13px]">
@@ -266,7 +266,7 @@
                                     </th>
                                     <th class="px-2 py-1"><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1">
-                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                             <option value="">Any</option>
                                             <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
                                             <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
@@ -274,7 +274,7 @@
                                     </th>
                                     <th class="px-2 py-1">
                                         <div class="flex justify-end">
-                                            <button type="button" onclick="clearAdminFilters(event, 'p2pMeetingsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                            <button type="button" onclick="clearAdminFilters(event, 'p2pMeetingsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
                                         </div>
                                     </th>
                                 </tr>
@@ -318,9 +318,16 @@
                                                             {{ $fromName }}
                                                         @endif
                                                     </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($meeting->from_company) <x-admin-grid-text :text="$meeting->from_company" class="inline-block" /> @endif
-                                                        @if($meeting->from_city) &bull; <x-admin-grid-text :text="$meeting->from_city" class="inline-block" /> @endif
+                                                    <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                        @if($meeting->from_company)
+                                                            <span class="truncate max-w-[140px]" title="{{ $meeting->from_company }}">{{ $meeting->from_company }}</span>
+                                                        @endif
+                                                        @if($meeting->from_company && $meeting->from_city)
+                                                            <span class="text-slate-400 select-none">•</span>
+                                                        @endif
+                                                        @if($meeting->from_city)
+                                                            <span class="truncate max-w-[100px] text-slate-500" title="{{ $meeting->from_city }}">{{ $meeting->from_city }}</span>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -340,9 +347,16 @@
                                                             {{ $toName }}
                                                         @endif
                                                     </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($meeting->to_company) <x-admin-grid-text :text="$meeting->to_company" class="inline-block" /> @endif
-                                                        @if($meeting->to_city) &bull; <x-admin-grid-text :text="$meeting->to_city" class="inline-block" /> @endif
+                                                    <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                        @if($meeting->to_company)
+                                                            <span class="truncate max-w-[140px]" title="{{ $meeting->to_company }}">{{ $meeting->to_company }}</span>
+                                                        @endif
+                                                        @if($meeting->to_company && $meeting->to_city)
+                                                            <span class="text-slate-400 select-none">•</span>
+                                                        @endif
+                                                        @if($meeting->to_city)
+                                                            <span class="truncate max-w-[100px] text-slate-500" title="{{ $meeting->to_city }}">{{ $meeting->to_city }}</span>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>

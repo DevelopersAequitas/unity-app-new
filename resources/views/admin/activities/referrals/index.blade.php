@@ -349,7 +349,7 @@
                 <div class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Referrals Log</span>
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Referrals count: {{ number_format($items->total()) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
                         <table class="min-w-[1400px] w-full border-collapse text-[13px]" style="table-layout:auto;">
@@ -371,18 +371,18 @@
                                 </tr>
                                 <tr class="surface-2 border-b bs filter-row">
                                     <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);"><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="text" name="from_company" value="{{ $filters['from_company'] ?? '' }}" placeholder="From company" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="text" name="to_company" value="{{ $filters['to_company'] ?? '' }}" placeholder="To company" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="referral_of" value="{{ $filters['referral_of'] ?? '' }}" placeholder="Referral of" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="referral_type" value="{{ $filters['referral_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="date" name="referral_date" value="{{ $filters['referral_date'] ?? '' }}" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="phone" value="{{ $filters['phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="text" name="email" value="{{ $filters['email'] ?? '' }}" placeholder="Email" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="number" name="hot_value" value="{{ $filters['hot_value'] ?? '' }}" placeholder="Hot" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1">
-                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                             <option value="">Any</option>
                                             <option value="1" @selected(($filters['has_media'] ?? '') === '1')>Yes</option>
                                             <option value="0" @selected(($filters['has_media'] ?? '') === '0')>No</option>
@@ -390,7 +390,7 @@
                                     </th>
                                     <th class="px-2 py-1">
                                         <div class="flex justify-end">
-                                            <button type="button" onclick="clearAdminFilters(event, 'referralsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                            <button type="button" onclick="clearAdminFilters(event, 'referralsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
                                         </div>
                                     </th>
                                 </tr>

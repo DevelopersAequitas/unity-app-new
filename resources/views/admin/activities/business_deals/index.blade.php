@@ -237,7 +237,7 @@
                 <div class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Business Deals Log</span>
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Business Deals count: {{ number_format($items->total()) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
                         <table class="min-w-full border-collapse text-[13px]">
@@ -269,7 +269,7 @@
                                     <th class="px-2 py-1"><input type="number" step="0.01" name="deal_amount" value="{{ $filters['deal_amount'] ?? '' }}" placeholder="Amount" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="comment" value="{{ $filters['comment'] ?? '' }}" placeholder="Comment" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1">
-                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                             <option value="">Any</option>
                                             <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
                                             <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
@@ -277,7 +277,7 @@
                                     </th>
                                     <th class="px-2 py-1">
                                         <div class="flex justify-end">
-                                            <button type="button" onclick="clearAdminFilters(event, 'businessDealsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                            <button type="button" onclick="clearAdminFilters(event, 'businessDealsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
                                         </div>
                                     </th>
                                 </tr>
