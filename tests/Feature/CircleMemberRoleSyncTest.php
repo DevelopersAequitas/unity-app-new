@@ -4,91 +4,87 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Role;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\TestCase;
 
-class CircleMemberRoleSyncTest extends \Tests\TestCase
+class CircleMemberRoleSyncTest extends TestCase
 {
-    public function test_setting_role_key_syncs_role_id(): void
+    use RefreshDatabase;
+
+    public function test_updating_member_role_syncs_circle_leadership_columns(): void
     {
-        $roleId = (string) Str::uuid();
-        $role = new Role([
-            'key' => 'vice_chair',
-            'name' => 'Vice Chair',
+        $circle = Circle::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Test Circle',
+            'slug' => 'test-circle-'.Str::random(5),
+            'status' => 'active',
+            'type' => 'public',
         ]);
-        $role->id = $roleId;
 
-        Role::shouldReceive('find')
-            ->with($roleId)
-            ->andReturn($role);
+        $user1 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.sync@example.com',
+            'password' => bcrypt('password'),
+        ]);
 
-        Role::shouldReceive('mustIdByKey')
-            ->with('vice_chair')
-            ->andReturn($roleId);
+        $user2 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'email' => 'jane.sync@example.com',
+            'password' => bcrypt('password'),
+        ]);
 
-        $member = new CircleMember([
-            'circle_id' => (string) Str::uuid(),
-            'user_id' => (string) Str::uuid(),
-            'role' => 'vice_chair',
+        $dedRole = Role::query()->firstOrCreate(
+            ['key' => 'ded'],
+            ['id' => (string) Str::uuid(), 'name' => 'DED', 'description' => 'DED Role']
+        );
+
+        $founderRole = Role::query()->firstOrCreate(
+            ['key' => 'circle_founder'],
+            ['id' => (string) Str::uuid(), 'name' => 'Circle Founder', 'description' => 'Circle Founder Role']
+        );
+
+        $member1 = CircleMember::query()->create([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user1->id,
+            'role' => 'ded',
+            'role_id' => $dedRole->id,
             'status' => 'approved',
         ]);
 
-        $member->save();
+        $circle->refresh();
+        $this->assertEquals($user1->id, $circle->ded_user_id);
 
-        $this->assertEquals('vice_chair', $member->role);
-        $this->assertEquals($roleId, $member->role_id);
-    }
+        // Update member1 role to founder
+        $member1->role = 'circle_founder';
+        $member1->role_id = $founderRole->id;
+        $member1->save();
 
-    public function test_setting_role_id_syncs_role_key(): void
-    {
-        $roleId = (string) Str::uuid();
-        $role = new Role([
-            'key' => 'chair',
-            'name' => 'Chair',
-        ]);
-        $role->id = $roleId;
+        $circle->refresh();
+        $this->assertNull($circle->ded_user_id);
+        $this->assertEquals($user1->id, $circle->circle_founder_user_id);
 
-        Role::shouldReceive('find')
-            ->with($roleId)
-            ->andReturn($role);
-
-        $member = new CircleMember([
-            'circle_id' => (string) Str::uuid(),
-            'user_id' => (string) Str::uuid(),
-            'role_id' => $roleId,
+        // Add member2 as DED
+        CircleMember::query()->create([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user2->id,
+            'role' => 'ded',
+            'role_id' => $dedRole->id,
             'status' => 'approved',
         ]);
 
-        $member->save();
-
-        $this->assertEquals('chair', $member->role);
-        $this->assertEquals($roleId, $member->role_id);
-    }
-
-    public function test_setting_role_to_role_uuid_syncs_both_fields(): void
-    {
-        $roleId = (string) Str::uuid();
-        $role = new Role([
-            'key' => 'secretary',
-            'name' => 'Secretary',
-        ]);
-        $role->id = $roleId;
-
-        Role::shouldReceive('find')
-            ->with($roleId)
-            ->andReturn($role);
-
-        $member = new CircleMember([
-            'circle_id' => (string) Str::uuid(),
-            'user_id' => (string) Str::uuid(),
-            'role' => $roleId,
-            'status' => 'approved',
-        ]);
-
-        $member->save();
-
-        $this->assertEquals('secretary', $member->role);
-        $this->assertEquals($roleId, $member->role_id);
+        $circle->refresh();
+        $this->assertEquals($user2->id, $circle->ded_user_id);
+        $this->assertEquals($user1->id, $circle->circle_founder_user_id);
     }
 }
