@@ -76,6 +76,7 @@ class LimitedUserResource extends JsonResource
             'level4_category' => $user->level4Category ? $user->level4Category->name : null,
             'is_bookmark' => $isBookmark,
             'is_verified' => $isVerified,
+            'match_percentage' => (int) ($user->match_percentage ?? 0),
         ];
     }
 }

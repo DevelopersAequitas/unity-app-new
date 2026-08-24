@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('circles', function (Blueprint $table) {
-            if (! Schema::hasColumn('circles', 'circle_image_file_id')) {
-                $table->uuid('circle_image_file_id')->nullable()->after('cover_file_id');
-            }
-        });
+        if (Schema::hasTable('circles')) {
+            Schema::table('circles', function (Blueprint $table) {
+                if (! Schema::hasColumn('circles', 'circle_image_file_id')) {
+                    $table->uuid('circle_image_file_id')->nullable()->after('cover_file_id');
+                }
+            });
+        }
     }
 
     /**
@@ -23,10 +25,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('circles', function (Blueprint $table) {
-            if (Schema::hasColumn('circles', 'circle_image_file_id')) {
-                $table->dropColumn('circle_image_file_id');
-            }
-        });
+        if (Schema::hasTable('circles')) {
+            Schema::table('circles', function (Blueprint $table) {
+                if (Schema::hasColumn('circles', 'circle_image_file_id')) {
+                    $table->dropColumn('circle_image_file_id');
+                }
+            });
+        }
     }
 };

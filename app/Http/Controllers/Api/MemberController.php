@@ -14,6 +14,7 @@ use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
 use App\Services\ProfileMatchService;
 use App\Services\ProfileVisibilityService;
+use App\Services\Recommendation\MemberMatchingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -340,6 +341,29 @@ class MemberController extends BaseApiController
             $selectColumns[] = 'country';
         }
 
+        $optionalMatchingColumns = [
+            'main_business_category_id',
+            'business_sub_category',
+            'business_city',
+            'industry_tags',
+            'industries_of_interest',
+            'skills',
+            'interests',
+            'hobbies_interests',
+            'superpower',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'collaboration_goals',
+            'target_regions',
+            'target_business_categories',
+        ];
+
+        foreach ($optionalMatchingColumns as $col) {
+            if (Schema::hasColumn('users', $col)) {
+                $selectColumns[] = $col;
+            }
+        }
+
         $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
 
         $query = User::query()
@@ -397,14 +421,25 @@ class MemberController extends BaseApiController
         ]);
     }
 
-    public function limitedList(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
-    {
+    public function limitedList(
+        Request $request,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService,
+        MemberMatchingService $memberMatchingService
+    ) {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
         $perPage = (int) $request->input('per_page', 15);
         $perPage = max(1, min($perPage, 100));
+        $page = (int) $request->input('page', 1);
 
-        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
+        $authUser = auth('sanctum')->user() ?: $request->user();
+
+        if ($authUser instanceof User) {
+            $users = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
+        } else {
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
+        }
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,
