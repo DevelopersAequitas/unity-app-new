@@ -403,6 +403,10 @@ class FileController extends BaseApiController
 
             return response()->stream(function () use ($stream, $start, $length) {
                 try {
+                    while (ob_get_level() > 0) {
+                        @ob_end_clean();
+                    }
+
                     if ($start > 0) {
                         if (@fseek($stream, $start) !== 0) {
                             $discardLeft = $start;
@@ -427,6 +431,9 @@ class FileController extends BaseApiController
                             break;
                         }
                         echo $buffer;
+                        if (ob_get_level() > 0) {
+                            @ob_flush();
+                        }
                         flush();
                         $bytesLeft -= strlen($buffer);
                     }
@@ -455,7 +462,14 @@ class FileController extends BaseApiController
 
         return response()->stream(function () use ($stream) {
             try {
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
                 fpassthru($stream);
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
             } finally {
                 if (is_resource($stream)) {
                     fclose($stream);

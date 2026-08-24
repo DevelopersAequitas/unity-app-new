@@ -89,7 +89,11 @@ class MediaProcessor
         }
 
         $destination = $this->tempFilePath('mp4');
-        $scaleFilter = "scale='min(720,iw)':-2";
+        $maxWidth = (int) config('media.video.max_width', 1280);
+        $crf = (string) config('media.video.crf', 28);
+        $preset = (string) config('media.video.preset', 'ultrafast');
+        $audioBitrate = (string) config('media.video.audio_bitrate', '128k');
+        $scaleFilter = "scale='min({$maxWidth},iw)':-2";
 
         $process = new Process([
             'ffmpeg',
@@ -101,19 +105,19 @@ class MediaProcessor
             '-c:v',
             'libx264',
             '-preset',
-            'veryfast',
+            $preset,
             '-crf',
-            '30',
+            $crf,
             '-c:a',
             'aac',
             '-b:a',
-            '96k',
+            $audioBitrate,
             '-movflags',
             '+faststart',
             $destination,
         ]);
 
-        $process->setTimeout((int) config('media.video.timeout', 180));
+        $process->setTimeout((int) config('media.video.timeout', 600));
         $process->run();
 
         $originalSize = @filesize($sourcePath) ?: null;

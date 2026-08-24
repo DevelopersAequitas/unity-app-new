@@ -17,10 +17,15 @@ use Illuminate\Support\Facades\Schema;
 class MemberMatchingService
 {
     private const MAX_CATEGORY_SCORE = 25;
+
     private const MAX_INDUSTRY_SKILLS_SCORE = 20;
+
     private const MAX_LOCATION_SCORE = 20;
+
     private const MAX_MUTUAL_CONNECTIONS_SCORE = 15;
+
     private const MAX_SYNERGY_SCORE = 10;
+
     private const MAX_INTERESTS_SCORE = 10;
 
     public function __construct(
@@ -31,12 +36,6 @@ class MemberMatchingService
 
     /**
      * Rank and paginate candidate members for the authenticated user.
-     *
-     * @param  User  $authUser
-     * @param  Builder  $query
-     * @param  int  $page
-     * @param  int  $perPage
-     * @return LengthAwarePaginator
      */
     public function rankAndPaginate(User $authUser, Builder $query, int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
@@ -113,8 +112,6 @@ class MemberMatchingService
     /**
      * Calculate multi-factor match score between auth user and candidate member.
      *
-     * @param  User  $authUser
-     * @param  User  $candidate
      * @param  array<int, string>  $authConnectionIds
      * @param  array<int, string>  $candidateConnectionIds
      * @return array{match_percentage: int, breakdown: array<string, int>}
@@ -482,6 +479,7 @@ class MemberMatchingService
     protected function cleanCityName(string $city): string
     {
         $parts = explode(',', $city);
+
         return trim((string) ($parts[0] ?? $city));
     }
 
@@ -569,7 +567,6 @@ class MemberMatchingService
     /**
      * Normalize list input (array, JSON string, comma-separated string) to clean lowercase strings.
      *
-     * @param  mixed  $value
      * @return array<int, string>
      */
     protected function normalizeList(mixed $value): array
