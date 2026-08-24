@@ -63,7 +63,10 @@
                                 <x-admin-grid-text :text="$reminder->notification_title" />
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 max-w-[350px]">
-                                <x-admin-grid-text :text="$reminder->notification_body" />
+                                @php
+                                    $formattedBody = preg_replace('/\{([^}]+)\}/', '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200" title="Dynamic template variable replaced with real data when dispatched">{$1}</span>', e($reminder->notification_body));
+                                @endphp
+                                <div class="leading-relaxed">{!! $formattedBody !!}</div>
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                                 ⏱️ <span class="font-medium t1">{{ $reminder->action_trigger_timing }}</span>
@@ -170,6 +173,9 @@
                         <div class="col-12">
                             <label for="edit_notification_body" class="form-label fw-semibold">Notification Body</label>
                             <textarea class="form-control @error('notification_body') is-invalid @enderror" id="edit_notification_body" name="notification_body" rows="4" required></textarea>
+                            <div class="form-text text-muted mt-1">
+                                <i class="bi bi-info-circle text-primary me-1"></i>Dynamic variables like <code>{Advertiser Name}</code>, <code>{Suggested Peer Name}</code>, <code>{Circle Name}</code>, <code>{Industry}</code> are automatically substituted with real names upon delivery.
+                            </div>
                             @error('notification_body')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror

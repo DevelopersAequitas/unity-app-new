@@ -190,38 +190,40 @@
                                     <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->visitor_city ?? '—' }}</td>
                                     <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                         @if($st === 'approved' || $st === 'attended')
-                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($item->status ?? 'Approved') }}
                                             </span>
                                         @elseif($st === 'rejected' || $st === 'cancelled')
-                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ ucfirst($item->status ?? 'Rejected') }}
                                             </span>
                                         @else
-                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ ucfirst($item->status ?? 'Pending') }}
                                             </span>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 text-center whitespace-nowrap">
                                         @if($item->coins_awarded)
-                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>Yes
+                                            <span class="inline-flex items-center gap-1 text-[11.5px] font-semibold text-amber-600 whitespace-nowrap">
+                                                <i class="bi bi-coin text-amber-500 text-[11px]"></i> Yes
                                             </span>
                                         @else
-                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>No
+                                            <span class="text-[11.5px] text-slate-400 font-medium whitespace-nowrap">
+                                                No
                                             </span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap" style="min-width:120px;">
+                                    <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap" style="min-width:130px;">
                                         @if ($item->visitor_mobile)
-                                            <a class="inline-flex items-center justify-center px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap" href="{{ route('admin.visitor-registrations.index', $visitorSearch) }}">
-                                                Open Approval
+                                            <a class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow transition no-underline whitespace-nowrap" href="{{ route('admin.visitor-registrations.index', $visitorSearch) }}">
+                                                <i class="bi bi-box-arrow-up-right text-[10px]"></i> Open Approval
                                             </a>
                                         @else
                                             <span class="t3 whitespace-nowrap">—</span>
                                         @endif
+                                    </td>
+                                </tr>
                             @empty
                                 <tr>
                                     <td colspan="15" class="text-center py-8 text-xs t3">No registered visitors found.</td>

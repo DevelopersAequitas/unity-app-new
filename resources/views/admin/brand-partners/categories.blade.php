@@ -39,20 +39,20 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Theme Color</label>
-                        <div class="input-group input-group-sm">
-                            <input type="color" name="color" id="catColor" class="form-control form-control-color" style="max-width: 48px; height: 31px;" value="#4A90E2">
-                            <input type="text" id="catColorHex" class="form-control form-control-sm" placeholder="#4A90E2" maxlength="7">
+                        <label class="form-label text-xs font-semibold text-slate-700">Theme Color</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" name="color" id="catColor" class="form-control form-control-color p-1 rounded-3 border bs cursor-pointer" style="width: 44px; height: 38px; flex-shrink: 0;" value="#4A90E2">
+                            <input type="text" id="catColorHex" class="form-control form-control-sm text-xs font-mono" placeholder="#4A90E2" maxlength="7" value="#4A90E2" style="height: 38px;">
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Sort Order</label>
+                        <label class="form-label text-xs font-semibold text-slate-700">Sort Order</label>
                         <input type="number" name="sort_order" id="catSortOrder" class="form-control form-control-sm" min="0">
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Status</label>
+                        <label class="form-label text-xs font-semibold text-slate-700">Status</label>
                         <select name="status" id="catStatus" class="form-select form-select-sm" required>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
@@ -103,8 +103,11 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="text-center">
-                                    <code class="px-2 py-1 rounded small text-white border" style="background-color: {{ $category->color ?? '#666666' }}">{{ $category->color ?? '—' }}</code>
+                                <td class="text-center align-middle">
+                                    <div class="d-inline-flex align-items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border" style="background-color: {{ $category->color ?? '#64748b' }}18; color: {{ $category->color ?? '#64748b' }}; border-color: {{ $category->color ?? '#64748b' }}40;">
+                                        <span class="rounded-circle" style="width: 8px; height: 8px; background-color: {{ $category->color ?? '#64748b' }};"></span>
+                                        {{ strtoupper($category->color ?? '—') }}
+                                    </div>
                                 </td>
                                 <td>
                                     @if($category->status === 'active')

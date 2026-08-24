@@ -196,18 +196,17 @@
                                         @else
                                             <span class="t3">0</span>
                                         @endif
-                                    </td>
-                                    <td class="px-3 py-2.5 text-right">
+                                                                     <td class="px-3 py-2.5 text-right">
                                         <div class="inline-flex items-center gap-1.5 justify-end">
                                             <button type="button" onclick="openIntroducedPeersModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}')" class="px-2.5 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition inline-flex items-center gap-1">
                                                 <i class="bi bi-people-fill text-indigo-500"></i>Introduced List
                                             </button>
-                                            <button type="button" onclick="openCreativeModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}')" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1 shadow-sm">
+                                            <button type="button" onclick="openCreativeModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}', {{ $introducedCount }})" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1 shadow-sm">
                                                 <i class="bi bi-stars"></i>Creative
                                             </button>
                                             <a href="{{ route('admin.member-introducers.index', ['tab' => 'creative', 'peer_id' => $introducer->id]) }}" class="px-2 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1" title="Open in Studio">
                                                 <i class="bi bi-palette text-amber-500"></i>Studio
-                                            </a>
+                                            </a>     </a>
                                             @if ($canEditUsers)
                                                 <a href="{{ route('admin.users.edit', $introducer->id) }}#introduced-tab" class="px-2 py-1 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1" title="View Profile">
                                                     <i class="bi bi-person"></i>
@@ -429,7 +428,7 @@
                                         <button type="button" onclick="openIntroducedPeersModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}')" class="px-2.5 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition inline-flex items-center gap-1">
                                             <i class="bi bi-people-fill text-indigo-500"></i>Introduced List
                                         </button>
-                                        <button type="button" onclick="openCreativeModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}')" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1 shadow-sm">
+                                        <button type="button" onclick="openCreativeModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}', {{ $introducedCount }})" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1 shadow-sm">
                                             <i class="bi bi-stars"></i>Creative
                                         </button>
                                         <a href="{{ route('admin.member-introducers.index', ['tab' => 'creative', 'peer_id' => $introducer->id]) }}" class="px-2 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1" title="Open in Studio">

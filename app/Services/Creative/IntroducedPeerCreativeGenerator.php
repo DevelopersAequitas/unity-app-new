@@ -167,10 +167,14 @@ class IntroducedPeerCreativeGenerator
             $company = 'Peers Global';
         }
 
+        $captionTemplate = $meta['caption_template'];
+        // Replace static milestone count with actual introduced count
+        $captionTemplate = preg_replace('/\b\d+\s+entrepreneurs introduced\b/i', $introducedCount.' entrepreneurs introduced', $captionTemplate);
+
         $text = str_replace(
-            ['{name}', '{company}'],
-            [$name, $company],
-            $meta['caption_template']
+            ['{name}', '{company}', '{count}'],
+            [$name, $company, (string) $introducedCount],
+            $captionTemplate
         );
 
         return $text."\n\n#PeersGlobal {$meta['hashtag']} #CommunityOfCollaboration #1MillionEntrepreneurs";

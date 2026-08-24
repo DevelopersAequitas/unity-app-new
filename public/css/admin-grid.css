@@ -224,6 +224,35 @@
   margin-bottom: 3px;
 }
 
+/* ── Pagination Alignment ── */
+#grid-pagination {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+}
+
+#grid-pagination nav {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+#grid-pagination .pagination {
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+}
+
+#grid-pagination nav > div:first-child {
+    font-size: 12px !important;
+    color: #64748b !important;
+}
+
 .kpi-icon {
   width: 19px;
   height: 19px;

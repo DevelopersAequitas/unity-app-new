@@ -32,26 +32,26 @@
             <p class="text-xs t3 m-0 mt-0.5">Comprehensive overview of partner performance, engagement analytics, active offers, and CTR metrics.</p>
         </div>
         <div class="flex items-center flex-wrap gap-2">
-            <a href="{{ route('admin.brand-partners.index') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
-                <i class="bi bi-people text-indigo-400"></i> All Partners
+            <a href="{{ route('admin.brand-partners.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
+                <i class="bi bi-people text-indigo-500"></i> All Partners
             </a>
-            <a href="{{ route('admin.brand-partners.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">
+            <a href="{{ route('admin.brand-partners.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
                 <i class="bi bi-plus-lg"></i> Add Partner
             </a>
-            <a href="{{ route('admin.brand-partners.categories.index') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
-                <i class="bi bi-tags"></i> Categories
+            <a href="{{ route('admin.brand-partners.categories.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
+                <i class="bi bi-tags text-indigo-500"></i> Categories
             </a>
-            <a href="{{ route('admin.brand-partners.offers') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
-                <i class="bi bi-gift"></i> Offers
+            <a href="{{ route('admin.brand-partners.offers') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
+                <i class="bi bi-gift text-emerald-500"></i> Offers
             </a>
-            <a href="{{ route('admin.brand-partners.export', ['format' => 'csv']) }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
-                <i class="bi bi-filetype-csv text-emerald-500"></i> CSV
+            <a href="{{ route('admin.brand-partners.export', ['format' => 'csv']) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
+                <i class="bi bi-filetype-csv text-emerald-600"></i> CSV
             </a>
-            <a href="{{ route('admin.brand-partners.export', ['format' => 'excel']) }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
+            <a href="{{ route('admin.brand-partners.export', ['format' => 'excel']) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
                 <i class="bi bi-file-earmark-excel text-green-600"></i> Excel
             </a>
-            <a href="{{ route('admin.brand-partners.settings') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
-                <i class="bi bi-gear"></i> Settings
+            <a href="{{ route('admin.brand-partners.settings') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition focus-ring no-underline inline-flex items-center gap-1.5 shadow-sm">
+                <i class="bi bi-gear text-slate-500"></i> Settings
             </a>
         </div>
     </div>
@@ -163,27 +163,66 @@
         </div>
     </div>
 
-    <!-- Section 2: Secondary Statistics Grid -->
+    <!-- Section 2: Secondary Status & Segmentation Grid -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-        <div class="mini-stat-card">
-            <div class="mini-stat-label">Featured</div>
-            <div class="mini-stat-val">{{ number_format($stats['featured_partners']) }}</div>
+        <!-- Featured -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Featured</div>
+                <div class="kpi-icon bg-amber-500/10 text-amber-500">
+                    <i class="bi bi-star-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-amber-600">{{ number_format($stats['featured_partners']) }}</div>
+            <div class="kpi-sub">Promoted Brands</div>
         </div>
-        <div class="mini-stat-card">
-            <div class="mini-stat-label">Sponsored</div>
-            <div class="mini-stat-val">{{ number_format($stats['sponsored_partners']) }}</div>
+
+        <!-- Sponsored -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Sponsored</div>
+                <div class="kpi-icon bg-indigo-500/10 text-indigo-500">
+                    <i class="bi bi-award-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-indigo-600">{{ number_format($stats['sponsored_partners']) }}</div>
+            <div class="kpi-sub">Priority Placement</div>
         </div>
-        <div class="mini-stat-card">
-            <div class="mini-stat-label">Expired Offers</div>
-            <div class="mini-stat-val text-rose-500">{{ number_format($stats['expired_offers']) }}</div>
+
+        <!-- Expired Offers -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Expired Offers</div>
+                <div class="kpi-icon bg-rose-500/10 text-rose-500">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-rose-500">{{ number_format($stats['expired_offers']) }}</div>
+            <div class="kpi-sub">Past Campaigns</div>
         </div>
-        <div class="mini-stat-card">
-            <div class="mini-stat-label">Inactive</div>
-            <div class="mini-stat-val text-slate-400">{{ number_format($stats['inactive_partners']) }}</div>
+
+        <!-- Inactive -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Inactive</div>
+                <div class="kpi-icon bg-slate-500/10 text-slate-500">
+                    <i class="bi bi-pause-circle"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-slate-500">{{ number_format($stats['inactive_partners']) }}</div>
+            <div class="kpi-sub">Drafts / Paused</div>
         </div>
-        <div class="mini-stat-card">
-            <div class="mini-stat-label">Bookmarks</div>
-            <div class="mini-stat-val text-sky-500">{{ number_format($stats['saved_partners']) }}</div>
+
+        <!-- Bookmarks -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Bookmarks</div>
+                <div class="kpi-icon bg-pink-500/10 text-pink-500">
+                    <i class="bi bi-bookmark-heart-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-pink-600">{{ number_format($stats['saved_partners']) }}</div>
+            <div class="kpi-sub">Member Saves</div>
         </div>
     </div>
 

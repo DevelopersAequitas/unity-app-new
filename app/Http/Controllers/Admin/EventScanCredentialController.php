@@ -52,13 +52,16 @@ class EventScanCredentialController extends Controller
             'name' => $data['name'],
             'username' => $data['username'],
             'password_hash' => Hash::make($data['password']),
-            'plain_password' => $data['password'],
             'hotel_name' => $data['hotel_name'],
             'event_id' => $firstEvent?->id,
             'event_ids' => $eventIds,
             'event_name' => $firstEvent?->title,
             'is_active' => (bool) ($data['is_active'] ?? false),
         ];
+
+        if (Schema::hasColumn('scan_app_users', 'plain_password')) {
+            $attributes['plain_password'] = $data['password'];
+        }
 
         if (Schema::hasColumn('scan_app_users', 'created_by_admin_id')) {
             $attributes['created_by_admin_id'] = auth('admin')->id();
@@ -95,7 +98,9 @@ class EventScanCredentialController extends Controller
 
         if (! empty($data['password'])) {
             $updates['password_hash'] = Hash::make($data['password']);
-            $updates['plain_password'] = $data['password'];
+            if (Schema::hasColumn('scan_app_users', 'plain_password')) {
+                $updates['plain_password'] = $data['password'];
+            }
         }
 
         $eventScanCredential->update($updates);
@@ -116,10 +121,15 @@ class EventScanCredentialController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $eventScanCredential->forceFill([
+        $updates = [
             'password_hash' => Hash::make($data['password']),
-            'plain_password' => $data['password'],
-        ])->save();
+        ];
+
+        if (Schema::hasColumn('scan_app_users', 'plain_password')) {
+            $updates['plain_password'] = $data['password'];
+        }
+
+        $eventScanCredential->forceFill($updates)->save();
 
         return back()->with('success', 'Scanner credential password reset successfully.');
     }

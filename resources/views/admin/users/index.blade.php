@@ -457,16 +457,16 @@
   </div>
 
   <!-- Saved views tab strip -->
-  <div class="flex-none flex items-center gap-1 pb-2 border-b bs surface overflow-x-auto mb-4">
-    <button data-view="all" onclick="setView(this)" class="tab-underline active px-3 py-1.5 text-[12.5px] font-medium t1 whitespace-nowrap">All Members</button>
-    <button data-view="unity" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i>Only Unity Members</button>
-    <button data-view="circles" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-record-circle-fill admin-icon me-1" aria-hidden="true"></i>Circles Peers</button>
-    <button data-view="multiple" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-diagram-3-fill admin-icon me-1" aria-hidden="true"></i>Multiple Circle Peers</button>
-    <button data-view="free" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-person admin-icon me-1" aria-hidden="true"></i>Free Peers</button>
-    <button data-view="vip" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-star-fill admin-icon me-1" aria-hidden="true"></i>VIP Circle</button>
-    <button data-view="pending" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">Awaiting Review</button>
-    <button data-view="expiring" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">Expiring Soon</button>
-    <button data-view="new" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">New This Month</button>
+  <div class="flex-none flex items-center gap-1.5 pb-2.5 border-b bs surface overflow-x-auto overflow-y-hidden mb-4" style="scrollbar-width: thin;">
+    <button type="button" data-view="all" onclick="setView(this)" class="tab-view-btn active px-3 py-1.5 rounded-lg text-[12px] font-semibold transition cursor-pointer whitespace-nowrap bg-indigo-600 text-white shadow-xs">All Members</button>
+    <button type="button" data-view="unity" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i>Only Unity Members</button>
+    <button type="button" data-view="circles" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-record-circle-fill admin-icon me-1" aria-hidden="true"></i>Circles Peers</button>
+    <button type="button" data-view="multiple" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-diagram-3-fill admin-icon me-1" aria-hidden="true"></i>Multiple Circle Peers</button>
+    <button type="button" data-view="free" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-person admin-icon me-1" aria-hidden="true"></i>Free Peers</button>
+    <button type="button" data-view="vip" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-star-fill admin-icon me-1" aria-hidden="true"></i>VIP Circle</button>
+    <button type="button" data-view="pending" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2">Awaiting Review</button>
+    <button type="button" data-view="expiring" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2">Expiring Soon</button>
+    <button type="button" data-view="new" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2">New This Month</button>
   </div>
 
   <!-- Management Summary Collapsible Section -->
@@ -1007,12 +1007,6 @@
         <div class="flex items-center gap-1" id="pagination-controls-container">
           <!-- Filled by JS -->
         </div>
-        <div class="hidden xl:flex items-center gap-3 text-[11px] t3">
-          <span><span class="kbd">/</span> search</span>
-          <span><span class="kbd">J</span><span class="kbd">K</span> navigate rows</span>
-          <span><span class="kbd">X</span> select row</span>
-          <span><span class="kbd">Esc</span> close panel</span>
-        </div>
       </div>
     </div>
   </div>
@@ -1499,9 +1493,23 @@
       document.getElementById('columns-menu')?.classList.toggle('hidden');
     }
 
+    function scrollToResults() {
+      const tableRoot = document.getElementById('grid-scroll') || document.getElementById('main-table') || document.getElementById('grid-root-container');
+      if (tableRoot) {
+        tableRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+    window.scrollToResults = scrollToResults;
+
     function setView(btn) {
-      document.querySelectorAll('.tab-underline').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      document.querySelectorAll('.tab-view-btn').forEach(b => {
+        b.classList.remove('bg-indigo-600', 'text-white', 'shadow-xs', 'active');
+        b.classList.add('border', 'bs', 'surface', 't2', 'hover:t1', 'hover:surface-2');
+      });
+      btn.classList.remove('border', 'bs', 'surface', 't2', 'hover:t1', 'hover:surface-2');
+      btn.classList.add('bg-indigo-600', 'text-white', 'shadow-xs', 'active');
       currentFilters.view = btn.getAttribute('data-view');
       currentFilters.kpi = '';
       currentFilters.quick = '';
@@ -2027,12 +2035,14 @@
     function changePage(page) {
       currentPage = page;
       applyFilters();
+      scrollToResults();
     }
     
     function changeRowsPerPage(val) {
       rowsPerPage = parseInt(val);
       currentPage = 1;
       applyFilters();
+      scrollToResults();
     }
     
     function toggleInfinite(checkbox) {

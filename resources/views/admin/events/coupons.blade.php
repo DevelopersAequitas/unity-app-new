@@ -90,13 +90,15 @@
     </div>
 
     <!-- Search & Filters Toolbar -->
-    <form method="GET" action="{{ route('admin.event-coupons.index') }}" class="surface-2 rounded-xl border bs p-3.5 space-y-3">
-      <div class="flex flex-wrap items-center gap-2.5">
+    <div class="p-3 rounded-lg border bs surface-2">
+      <form method="GET" action="{{ route('admin.event-coupons.index') }}" class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[200px]">
-          <input type="text" name="search" value="{{ request('search') }}" placeholder="Search coupon code, name, or description..." class="w-full text-xs bg-white border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+          <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+          <input type="text" name="search" value="{{ request('search') }}" placeholder="Search code, name, description..." class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
         </div>
-        <div class="w-40">
-          <select name="discount_type" class="w-full text-xs bg-white border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+        <div class="w-44">
+          <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Discount Type</label>
+          <select name="discount_type" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
             <option value="">All Discount Types</option>
             <option value="full" @selected(request('discount_type') === 'full')>Full (100% Free)</option>
             <option value="percentage" @selected(request('discount_type') === 'percentage')>Percentage (%)</option>
@@ -104,28 +106,32 @@
           </select>
         </div>
         <div class="w-44">
-          <select name="event_id" class="w-full text-xs bg-white border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+          <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Event Scope</label>
+          <select name="event_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
             <option value="">All Event Scopes</option>
             @foreach($events as $ev)
               <option value="{{ $ev->id }}" @selected(request('event_id') == $ev->id)>{{ $ev->title }}</option>
             @endforeach
           </select>
         </div>
-        <div class="w-32">
-          <select name="is_active" class="w-full text-xs bg-white border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+        <div class="w-36">
+          <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+          <select name="is_active" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
             <option value="">All Statuses</option>
             <option value="true" @selected(request('is_active') === 'true')>Active</option>
             <option value="false" @selected(request('is_active') === 'false')>Inactive</option>
           </select>
         </div>
-        <button type="submit" class="px-3.5 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition">
-          <i class="bi bi-search mr-1"></i> Filter
-        </button>
-        @if(request()->anyFilled(['search', 'discount_type', 'is_active', 'event_id']))
-          <a href="{{ route('admin.event-coupons.index') }}" class="px-3.5 py-2 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition no-underline">Clear</a>
-        @endif
-      </div>
-    </form>
+        <div class="flex items-center gap-2">
+          <button type="submit" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm cursor-pointer">
+            Filter
+          </button>
+          <a href="{{ route('admin.event-coupons.index') }}" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border bs surface t2 hover:t1 hover:surface-3 transition text-center no-underline shadow-sm">
+            Clear
+          </a>
+        </div>
+      </form>
+    </div>
 
     <!-- Coupons Data Table -->
     <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -242,13 +248,10 @@
           </tr>
           @empty
           <tr>
-            <td colspan="9" class="px-4 py-12 text-center text-gray-400 text-xs">
-              <i class="bi bi-ticket-perforated text-4xl mb-2 block text-gray-300"></i>
-              <p class="font-medium text-gray-600 mb-1">No coupon codes found</p>
-              <p class="text-gray-400 text-[11px] mb-3">Create discount coupon codes to allow participants and visitors to register with special rates or free entry.</p>
-              <button type="button" onclick="openCreateModal()" class="px-3.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition shadow-2xs">
-                + Create First Coupon
-              </button>
+            <td colspan="9" class="px-4 py-12 text-center t3 text-xs">
+              <i class="bi bi-ticket-perforated text-3xl mb-2 block text-slate-300"></i>
+              <p class="font-semibold text-slate-700 mb-0.5">No coupon codes found</p>
+              <p class="t3 text-[11.5px] m-0">Create discount coupon codes to allow participants and visitors to register with special rates or free entry.</p>
             </td>
           </tr>
           @endforelse

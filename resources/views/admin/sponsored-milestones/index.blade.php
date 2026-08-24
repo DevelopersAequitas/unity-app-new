@@ -194,17 +194,8 @@
             </div>
 
             {{-- Bottom Toolbar & Pagination --}}
-            <div id="grid-pagination" class="flex justify-between items-center mt-4 flex-wrap gap-2 pt-3 border-t bs">
-                <div>
-                    {{ $members->links() }}
-                </div>
-                <div class="text-xs t3">
-                    @if($members->total() > 0)
-                        Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records
-                    @else
-                        No records
-                    @endif
-                </div>
+            <div id="grid-pagination" class="mt-4 pt-3 border-t bs">
+                {{ $members->links() }}
             </div>
         </div>
     </div>

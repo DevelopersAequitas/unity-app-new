@@ -33,11 +33,11 @@ class SupportTicketController extends Controller
     {
         $query = SupportTicket::query()->with('user');
 
-        if ($request->filled('status')) {
+        if ($request->filled('status') && $request->input('status') !== 'all') {
             $query->where('status', $request->input('status'));
         }
 
-        if ($request->filled('priority')) {
+        if ($request->filled('priority') && $request->input('priority') !== 'all') {
             $query->where('priority', $request->input('priority'));
         }
 
