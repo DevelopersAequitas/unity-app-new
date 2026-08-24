@@ -190,11 +190,18 @@ class AppUpdatesController extends Controller
         $newStatus = $request->input('status');
 
         $maintenance->status = $newStatus;
-        $maintenance->title = $request->input('title');
-        $maintenance->message = $request->input('message');
-        $maintenance->start_time = $request->input('start_time') ? Carbon::parse($request->input('start_time')) : null;
-        $maintenance->end_time = $request->input('end_time') ? Carbon::parse($request->input('end_time')) : null;
+        $maintenance->title = $request->input('title') ?: 'We’re under maintenance';
+        $maintenance->message = $request->input('message') ?: 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️';
         $maintenance->support_email = $request->input('support_email') ?: 'support@peersunity.com';
+
+        // Parse HTML datetime-local inputs considering the application/local timezone (Asia/Kolkata)
+        $tz = config('database.connections.pgsql.timezone') ?? config('database.connections.mysql.timezone') ?? 'Asia/Kolkata';
+
+        $startTimeInput = $request->input('start_time');
+        $endTimeInput = $request->input('end_time');
+
+        $maintenance->start_time = $startTimeInput ? Carbon::parse($startTimeInput, $tz)->setTimezone('UTC') : null;
+        $maintenance->end_time = $endTimeInput ? Carbon::parse($endTimeInput, $tz)->setTimezone('UTC') : null;
 
         if ($maintenance->start_time && $maintenance->end_time) {
             $maintenance->duration_minutes = (int) $maintenance->start_time->diffInMinutes($maintenance->end_time);

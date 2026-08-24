@@ -75,11 +75,11 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Start Time (Optional)</label>
-                    <input type="datetime-local" name="start_time" value="{{ $maintenanceConfig->start_time ? $maintenanceConfig->start_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <input type="datetime-local" name="start_time" value="{{ $maintenanceConfig->start_time ? $maintenanceConfig->start_time->setTimezone('Asia/Kolkata')->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Expected End Time (Optional)</label>
-                    <input type="datetime-local" name="end_time" value="{{ $maintenanceConfig->end_time ? $maintenanceConfig->end_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <input type="datetime-local" name="end_time" value="{{ $maintenanceConfig->end_time ? $maintenanceConfig->end_time->setTimezone('Asia/Kolkata')->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                 </div>
             </div>
 
