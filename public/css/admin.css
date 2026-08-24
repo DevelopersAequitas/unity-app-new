@@ -264,8 +264,8 @@ body {
     color: var(--primary-light);
 }
 
-/* Active state */
-.admin-sidebar .nav-link.active {
+/* Active state - Single top-level nav links */
+.admin-sidebar .nav-item:not(.menu-parent) > .nav-link.active {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(99, 102, 241, 0.14) 100%) !important;
     color: #ffffff !important;
     font-weight: 600;
@@ -273,6 +273,17 @@ body {
     border-radius: 0 var(--radius-md) var(--radius-md) 0;
     padding-left: 11px;
     box-shadow: inset 0 0 20px rgba(99, 102, 241, 0.1);
+}
+
+/* Parent menu link when active/open */
+.admin-sidebar .menu-parent > .nav-link.active,
+.admin-sidebar .menu-parent.open > .nav-link {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+    border-left: none !important;
+    border-radius: var(--radius-md) !important;
+    padding-left: 12px;
+    box-shadow: none !important;
 }
 
 .admin-sidebar .nav-link.active i {
@@ -331,9 +342,11 @@ body {
 
 .admin-sidebar .notifications-submenu .nav-link.active,
 .admin-sidebar .nav .collapse .nav-link.active {
-    background: rgba(99, 102, 241, 0.12);
-    color: #c7d2fe;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.12) 100%) !important;
+    color: #ffffff !important;
     font-weight: 600;
+    border-left: 3px solid var(--primary) !important;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0 !important;
 }
 
 /* Sidebar Footer */
@@ -2896,8 +2909,14 @@ form.admin-filter-form select:not(.select2-hidden-accessible):focus {
         overflow-x: hidden !important;
     }
 
-    .admin-shell.sidebar-collapsed .admin-sidebar .text-center img {
-        max-height: 36px !important;
+    .admin-shell.sidebar-collapsed .admin-sidebar .brand-container .logo-full {
+        display: none !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .brand-container .logo-icon {
+        display: block !important;
+        max-height: 38px !important;
+        width: auto !important;
         margin: 8px auto !important;
     }
 
@@ -2906,17 +2925,21 @@ form.admin-filter-form select:not(.select2-hidden-accessible):focus {
         padding: 10px 0 !important;
         text-align: center !important;
         border-radius: 10px !important;
+        font-size: 0 !important;
     }
 
+    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link .menu-text,
     .admin-shell.sidebar-collapsed .admin-sidebar .nav-link span,
     .admin-shell.sidebar-collapsed .admin-sidebar .nav-link .menu-arrow,
     .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-heading,
+    .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-footer .menu-text,
     .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-footer span,
     .admin-shell.sidebar-collapsed .admin-sidebar .collapse {
         display: none !important;
     }
 
-    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link i {
+    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link i,
+    .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-footer i {
         margin-right: 0 !important;
         font-size: 1.25rem !important;
     }

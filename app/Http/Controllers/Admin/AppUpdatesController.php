@@ -5,20 +5,23 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAppReleaseRequest;
 use App\Models\AppChangelog;
+use App\Models\AppMaintenance;
 use App\Models\AppVersion;
 use App\Models\User;
 use App\Models\UserMobileVersion;
 use App\Models\UserPushToken;
 use App\Services\AppReleaseService;
+use App\Services\MaintenanceService;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class AppUpdatesController extends Controller
 {
     /**
-     * Display the App Updates settings and user mobile devices list.
+     * Display the App Updates settings, Maintenance Mode status, and user mobile devices list.
      */
     public function index(Request $request)
     {
@@ -31,6 +34,20 @@ class AppUpdatesController extends Controller
         // Default Play Store and App Store URLs for Peers Global Unity
         $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share';
         $appStoreUrl = 'https://apps.apple.com/in/app/peers-global-unity/id6739198477';
+
+        // App Maintenance configuration
+        $maintenanceConfig = Schema::hasTable('app_maintenances')
+            ? AppMaintenance::orderBy('created_at', 'desc')->first()
+            : null;
+
+        if (! $maintenanceConfig) {
+            $maintenanceConfig = new AppMaintenance([
+                'status' => 'none',
+                'title' => 'We’re under maintenance',
+                'message' => 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️',
+                'support_email' => 'support@peersunity.com',
+            ]);
+        }
 
         // Automatically backfill missing user mobile versions from push tokens so users list always populates cleanly
         if (Schema::hasTable('user_push_tokens')) {
@@ -102,7 +119,7 @@ class AppUpdatesController extends Controller
 
         $appReleases = AppChangelog::orderBy('created_at', 'desc')->get();
 
-        return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases'));
+        return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'maintenanceConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases'));
     }
 
     /**
@@ -146,6 +163,61 @@ class AppUpdatesController extends Controller
         }
 
         return redirect()->route('admin.app-updates.index')->with('success', ucfirst($platform).' configuration updated successfully.');
+    }
+
+    /**
+     * Save Maintenance Mode configuration settings.
+     */
+    public function saveMaintenance(Request $request)
+    {
+        $request->validate([
+            'status' => 'required|string|in:none,scheduled,active,completed',
+            'title' => 'nullable|string|max:255',
+            'message' => 'nullable|string',
+            'start_time' => 'nullable|string',
+            'end_time' => 'nullable|string',
+            'support_email' => 'nullable|string|max:191',
+        ]);
+
+        if (! Schema::hasTable('app_maintenances')) {
+            return redirect()->route('admin.app-updates.index')->with('error', 'The app_maintenances table is not created in the database yet. Please run the SQL script.');
+        }
+
+        $maintenance = AppMaintenance::orderBy('created_at', 'desc')->first()
+            ?? new AppMaintenance;
+
+        $oldStatus = $maintenance->status;
+        $newStatus = $request->input('status');
+
+        $maintenance->status = $newStatus;
+        $maintenance->title = $request->input('title') ?: 'We’re under maintenance';
+        $maintenance->message = $request->input('message') ?: 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️';
+        $maintenance->support_email = $request->input('support_email') ?: 'support@peersunity.com';
+
+        $startTimeInput = $request->input('start_time');
+        $endTimeInput = $request->input('end_time');
+
+        // Store exact literal time entered in Admin Panel without timezone shifting
+        $maintenance->start_time = $startTimeInput ? Carbon::parse($startTimeInput) : null;
+        $maintenance->end_time = $endTimeInput ? Carbon::parse($endTimeInput) : null;
+
+        if ($maintenance->start_time && $maintenance->end_time) {
+            $maintenance->duration_minutes = (int) $maintenance->start_time->diffInMinutes($maintenance->end_time);
+        } else {
+            $maintenance->duration_minutes = null;
+        }
+
+        $maintenance->save();
+
+        if ($newStatus === 'active' && $oldStatus !== 'active') {
+            try {
+                app(MaintenanceService::class)->sendMaintenanceStartPushNotification($maintenance);
+            } catch (\Throwable $e) {
+                Log::error('Failed sending maintenance FCM push notification: '.$e->getMessage());
+            }
+        }
+
+        return redirect()->route('admin.app-updates.index')->with('success', 'App Maintenance configuration updated successfully.');
     }
 
     /**

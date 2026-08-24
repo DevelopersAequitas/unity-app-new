@@ -77,8 +77,8 @@ class MaintenanceService
             'status' => $status,
             'title' => $maintenance->title ?: $defaultTitle,
             'message' => $maintenance->message ?: $defaultMessage,
-            'start_time' => $maintenance->start_time?->toIso8601String(),
-            'end_time' => $maintenance->end_time?->toIso8601String(),
+            'start_time' => $maintenance->start_time ? $maintenance->start_time->format('Y-m-d\TH:i:s\Z') : null,
+            'end_time' => $maintenance->end_time ? $maintenance->end_time->format('Y-m-d\TH:i:s\Z') : null,
             'duration_minutes' => $durationMinutes,
             'support_email' => $maintenance->support_email ?: 'support@peersunity.com',
         ];

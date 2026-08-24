@@ -37,6 +37,76 @@
 
 
 
+    <!-- App Maintenance Mode Card -->
+    <div class="p-4 rounded-xl border bs bg-white shadow-sm space-y-4">
+        <form method="POST" action="{{ route('admin.app-updates.maintenance.save') }}">
+            @csrf
+            <div class="flex justify-between items-center pb-2 border-b">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🛠️</span>
+                    <h3 class="font-semibold text-sm t1 m-0">App Maintenance Mode</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    @if(($maintenanceConfig->status ?? 'none') === 'active')
+                        <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            🔴 Maintenance Active (App Blocked)
+                        </span>
+                    @elseif(($maintenanceConfig->status ?? 'none') === 'scheduled')
+                        <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            🟡 Maintenance Scheduled
+                        </span>
+                    @else
+                        <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            🟢 Normal Operation
+                        </span>
+                    @endif
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Maintenance Status *</label>
+                    <select name="status" required class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                        <option value="none" {{ ($maintenanceConfig->status ?? 'none') === 'none' ? 'selected' : '' }}>Normal Operation (Disabled)</option>
+                        <option value="scheduled" {{ ($maintenanceConfig->status ?? 'none') === 'scheduled' ? 'selected' : '' }}>Scheduled Maintenance (Banner on Home)</option>
+                        <option value="active" {{ ($maintenanceConfig->status ?? 'none') === 'active' ? 'selected' : '' }}>Active Maintenance (Full-Screen Block)</option>
+                        <option value="completed" {{ ($maintenanceConfig->status ?? 'none') === 'completed' ? 'selected' : '' }}>Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Start Time (Optional)</label>
+                    <input type="datetime-local" name="start_time" value="{{ $maintenanceConfig->start_time ? $maintenanceConfig->start_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Expected End Time (Optional)</label>
+                    <input type="datetime-local" name="end_time" value="{{ $maintenanceConfig->end_time ? $maintenanceConfig->end_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Title</label>
+                    <input type="text" name="title" placeholder="e.g. We’re under maintenance" value="{{ $maintenanceConfig->title ?: 'We’re under maintenance' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Support Email</label>
+                    <input type="email" name="support_email" placeholder="support@peersunity.com" value="{{ $maintenanceConfig->support_email ?: 'support@peersunity.com' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Maintenance Message / Explanation</label>
+                <textarea name="message" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️">{{ $maintenanceConfig->message ?: 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️' }}</textarea>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="submit" class="px-4 py-2 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring">
+                    Save Maintenance Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Config Grid (Android & iOS) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Android Config -->
