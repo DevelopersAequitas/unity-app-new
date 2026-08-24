@@ -14,6 +14,7 @@ Schedule::command('memberships:expire-users')->hourly();
 Schedule::command('users:expire-trial')->hourly();
 Schedule::command('collaborations:expire')->dailyAt('00:10');
 Schedule::command('members:mark-offline-stale')->everyMinute();
+Schedule::command('app:check-maintenance-transitions')->everyMinute();
 
 // App Update reminders (push + in-app)
 Schedule::command('app:update-reminder-notifications')->hourly();
