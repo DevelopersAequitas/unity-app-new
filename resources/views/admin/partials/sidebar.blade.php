@@ -340,13 +340,20 @@
 
 <aside class="admin-sidebar d-flex flex-column">
     {{-- Brand Logo --}}
-    <div class="text-center mb-2">
+    <div class="text-center mb-2 brand-container">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
                 src="{{ asset('images/peersglobal-logo.png') }}"
                 alt="PeersGlobal"
                 style="max-height:68px; width:auto;"
-                class="d-block mx-auto my-3"
+                class="logo-full d-block mx-auto my-3"
+                loading="lazy"
+            />
+            <img
+                src="{{ asset('images/peersglobal-icon.png') }}"
+                alt="PeersGlobal"
+                style="max-height:38px; width:auto;"
+                class="logo-icon d-none mx-auto my-2"
                 loading="lazy"
             />
         </a>
@@ -356,17 +363,17 @@
         <ul class="nav flex-column">
             @if ($dashboardItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}">
-                        <i class="bi {{ $dashboardItem['icon'] }} me-2"></i>{{ $dashboardItem['label'] }}
+                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}" title="{{ $dashboardItem['label'] }}">
+                        <i class="bi {{ $dashboardItem['icon'] }} me-2"></i><span class="menu-text">{{ $dashboardItem['label'] }}</span>
                     </a>
                 </li>
             @endif
 
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
-                        <span><i class="bi bi-activity me-2"></i>Activities</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $activityExpanded ? 'active' : '' }}" href="{{ !empty($activityMenu) ? route($activityMenu[0]['route']) : '#' }}" title="Activities">
+                        <i class="bi bi-activity me-2"></i><span class="menu-text me-auto text-start">Activities</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $activityExpanded ? 'show' : '' }}" id="activitiesSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -384,17 +391,17 @@
 
             @if ($referralReportItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}">
-                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i>{{ $referralReportItem['label'] }}
+                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}" title="{{ $referralReportItem['label'] }}">
+                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i><span class="menu-text">{{ $referralReportItem['label'] }}</span>
                     </a>
                 </li>
             @endif
 
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
-                        <span><i class="bi bi-chat-dots me-2"></i>Posts &amp; Timeline</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $postsActive ? 'active' : '' }}" href="{{ !empty($postsMenu) ? route($postsMenu[0]['route']) : '#' }}" title="Posts &amp; Timeline">
+                        <i class="bi bi-chat-dots me-2"></i><span class="menu-text me-auto text-start">Posts &amp; Timeline</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $postsActive ? 'show' : '' }}" id="postsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -412,9 +419,9 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests'))
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
-                    <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
-                    <i class="bi bi-chevron-right menu-arrow"></i>
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $pendingRequestsActive ? 'active' : '' }}" href="{{ !empty($pendingRequestsMenu) ? route($pendingRequestsMenu[0]['route']) : '#' }}" title="Pending Requests">
+                    <i class="bi bi-hourglass-split me-2"></i><span class="menu-text me-auto text-start">Pending Requests</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
                 <div class="collapse {{ $pendingRequestsActive ? 'show' : '' }}" id="pendingRequestsSubmenu">
                     <ul class="nav flex-column ms-3">
@@ -432,9 +439,9 @@
 
             @if ($isDed && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Analytics') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Finance & Analytics')))
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
-                        <span><i class="bi bi-graph-up-arrow me-2"></i>Analytics</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $dedAnalyticsActive ? 'active' : '' }}" href="{{ !empty($dedAnalyticsMenu) ? route($dedAnalyticsMenu[0]['route']) : '#' }}" title="Analytics">
+                        <i class="bi bi-graph-up-arrow me-2"></i><span class="menu-text me-auto text-start">Analytics</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $dedAnalyticsActive ? 'show' : '' }}" id="dedAnalyticsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -453,17 +460,17 @@
 
             @foreach ($bottomNavItems as $item)
                 <li class="nav-item">
-                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                        <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}" title="{{ $item['label'] }}">
+                        <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                     </a>
                 </li>
             @endforeach
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
-                        <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $eventsManagementActive ? 'active' : '' }}" href="{{ !empty($eventsManagementMenu) ? route($eventsManagementMenu[0]['route']) : '#' }}" title="Events Management">
+                        <i class="bi bi-calendar-check me-2"></i><span class="menu-text me-auto text-start">Events Management</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -479,9 +486,9 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
-                        <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $brandPartnersActive ? 'active' : '' }}" href="{{ !empty($brandPartnersMenu) ? route($brandPartnersMenu[0]['route']) : '#' }}" title="Brand Partners">
+                        <i class="bi bi-briefcase me-2"></i><span class="menu-text me-auto text-start">Brand Partners</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse brand-partners-submenu {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -501,9 +508,9 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $adsActive ? 'active' : '' }}" href="#adsSubmenu" role="button" aria-expanded="{{ $adsActive ? 'true' : 'false' }}" aria-controls="adsSubmenu">
-                        <span><i class="bi bi-megaphone me-2"></i>Ads</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="{{ !empty($adsMenu) ? route($adsMenu[0]['route']) : '#' }}" title="Ads">
+                        <i class="bi bi-megaphone me-2"></i><span class="menu-text me-auto text-start">Ads</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $adsActive ? 'show' : '' }}" id="adsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -525,9 +532,9 @@
                 @if ($item['label'] === 'Notifications & Email')
                     @if (Route::has($item['route']))
                         <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
-                                <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
-                                <i class="bi bi-chevron-right menu-arrow"></i>
+                            <a class="nav-link d-flex align-items-center justify-content-between {{ $campaignsActive ? 'active' : '' }}" href="{{ !empty($campaignsMenu) ? route($campaignsMenu[0]['route']) : '#' }}" title="{{ $item['label'] }}">
+                                <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text me-auto text-start">{{ $item['label'] }}</span>
+                                <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                             </a>
                             <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
                                 <ul class="nav flex-column ms-3">
@@ -548,9 +555,9 @@
                         $currentType = request('type');
                     @endphp
                     <li class="nav-item menu-parent {{ $badgesActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $badgesActive ? 'active' : '' }}" href="#milestoneBadgesSubmenu" role="button" aria-expanded="{{ $badgesActive ? 'true' : 'false' }}" aria-controls="milestoneBadgesSubmenu">
-                            <span><i class="bi bi-award me-2"></i>Milestone Badges</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $badgesActive ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'life_impact']) }}" title="Milestone Badges">
+                            <i class="bi bi-award me-2"></i><span class="menu-text me-auto text-start">Milestone Badges</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
                         <div class="collapse {{ $badgesActive ? 'show' : '' }}" id="milestoneBadgesSubmenu">
                             <ul class="nav flex-column ms-3">
@@ -582,9 +589,9 @@
                         $peersActive = request()->routeIs('admin.users.*');
                     @endphp
                     <li class="nav-item menu-parent {{ $peersActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $peersActive ? 'active' : '' }}" href="#peersSubmenu" role="button" aria-expanded="{{ $peersActive ? 'true' : 'false' }}" aria-controls="peersSubmenu">
-                            <span><i class="bi bi-people me-2"></i>Peers</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $peersActive ? 'active' : '' }}" href="{{ route('admin.users.index') }}" title="Peers">
+                            <i class="bi bi-people me-2"></i><span class="menu-text me-auto text-start">Peers</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
                         <div class="collapse {{ $peersActive ? 'show' : '' }}" id="peersSubmenu">
                             <ul class="nav flex-column ms-3">
@@ -603,9 +610,9 @@
                         $currentTab = request('tab');
                     @endphp
                     <li class="nav-item menu-parent {{ $introducersActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $introducersActive ? 'active' : '' }}" href="#memberIntroducersSubmenu" role="button" aria-expanded="{{ $introducersActive ? 'true' : 'false' }}" aria-controls="memberIntroducersSubmenu">
-                            <span><i class="bi {{ $item['icon'] ?? 'bi-person-check' }} me-2"></i>Member Introducers</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $introducersActive ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}" title="Member Introducers">
+                            <i class="bi {{ $item['icon'] ?? 'bi-person-check' }} me-2"></i><span class="menu-text me-auto text-start">Member Introducers</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
                         <div class="collapse {{ $introducersActive ? 'show' : '' }}" id="memberIntroducersSubmenu">
                             <ul class="nav flex-column ms-3">
@@ -625,13 +632,13 @@
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
-                            <span class="nav-link disabled">
-                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                            <span class="nav-link disabled" title="{{ $item['label'] }}">
+                                <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                             </span>
                         @else
                             @if (Route::has($item['route']))
-                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                    <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}" title="{{ $item['label'] }}">
+                                    <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                                 </a>
                             @endif
                         @endif
@@ -643,45 +650,45 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings'))
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
-                    <i class="bi bi-sliders me-2"></i>App Configuration
+                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}" title="App Configuration">
+                    <i class="bi bi-sliders me-2"></i><span class="menu-text">App Configuration</span>
                 </a>
             </li>
             @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}">
-                        <i class="bi bi-arrow-up-circle me-2"></i>App Updates Manager
+                    <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}" title="App Updates Manager">
+                        <i class="bi bi-arrow-up-circle me-2"></i><span class="menu-text">App Updates Manager</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Birthday Creative'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}">
-                        <i class="bi bi-gift me-2"></i>Birthday Creative
+                    <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}" title="Birthday Creative">
+                        <i class="bi bi-gift me-2"></i><span class="menu-text">Birthday Creative</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Anniversary Creative'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}">
-                        <i class="bi bi-images me-2"></i>Anniversary Creative
+                    <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}" title="Anniversary Creative">
+                        <i class="bi bi-images me-2"></i><span class="menu-text">Anniversary Creative</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
-                        <i class="bi bi-play-btn me-2"></i>Tutorials
+                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}" title="Tutorials">
+                        <i class="bi bi-play-btn me-2"></i><span class="menu-text">Tutorials</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
                 {{-- Dynamic RBAC & Role Management Menu --}}
                 <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="#rbacSubmenu" role="button" aria-expanded="{{ request()->routeIs('admin.rbac.*') ? 'true' : 'false' }}" aria-controls="rbacSubmenu">
-                        <span><i class="bi bi-shield-lock me-2"></i>Dynamic RBAC</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="{{ route('admin.rbac.permission-matrix.index') }}" title="Dynamic RBAC">
+                        <i class="bi bi-shield-lock me-2"></i><span class="menu-text me-auto text-start">Dynamic RBAC</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ request()->routeIs('admin.rbac.*') ? 'show' : '' }}" id="rbacSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -720,9 +727,9 @@
 
             @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
-                    <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
-                    <i class="bi bi-chevron-right menu-arrow"></i>
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $leadsActive ? 'active' : '' }}" href="{{ !empty($leadsMenu) ? route($leadsMenu[0]['route']) : '#' }}" title="Leads">
+                    <i class="bi bi-person-lines-fill me-2"></i><span class="menu-text me-auto text-start">Leads</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
                 <div class="collapse {{ $leadsActive ? 'show' : '' }}" id="leadsSubmenu">
                     <ul class="nav flex-column ms-3">
@@ -745,8 +752,8 @@
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('admin.logout') }}">
             @csrf
-            <button class="btn btn-outline-secondary w-100">
-                <i class="bi bi-box-arrow-right me-2"></i>Logout
+            <button class="btn btn-outline-secondary w-100" title="Logout">
+                <i class="bi bi-box-arrow-right me-2"></i><span class="menu-text">Logout</span>
             </button>
         </form>
     </div>
@@ -783,49 +790,53 @@
                 const submenu = parentItem.querySelector('.collapse');
                 if (!submenu) return;
 
-                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`) || parentItem.querySelector('a');
-                if (!toggle) return;
+                const arrow = parentItem.querySelector('.menu-arrow');
+                const toggle = parentItem.querySelector('a');
 
                 // Sync initial state on load
                 if (submenu.classList.contains('show') || parentItem.classList.contains('open')) {
                     parentItem.classList.add('open');
                     submenu.classList.add('show');
-                    toggle.setAttribute('aria-expanded', 'true');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'true');
                 } else {
                     parentItem.classList.remove('open');
                     submenu.classList.remove('show');
-                    toggle.setAttribute('aria-expanded', 'false');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'false');
                 }
 
-                toggle.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                // Toggle submenu when clicking the arrow specifically
+                if (arrow) {
+                    arrow.addEventListener('click', (e) => {
+                        if (document.querySelector('.admin-shell')?.classList.contains('sidebar-collapsed')) {
+                            return;
+                        }
 
-                    const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
+                        e.preventDefault();
+                        e.stopPropagation();
 
-                    // Close other submenus for accordion behavior
-                    menuParents.forEach((otherParent) => {
-                        if (otherParent !== parentItem) {
-                            otherParent.classList.remove('open');
-                            const otherSub = otherParent.querySelector('.collapse');
-                            if (otherSub) {
-                                otherSub.classList.remove('show');
+                        const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
+
+                        menuParents.forEach((otherParent) => {
+                            if (otherParent !== parentItem) {
+                                otherParent.classList.remove('open');
+                                const otherSub = otherParent.querySelector('.collapse');
+                                if (otherSub) otherSub.classList.remove('show');
+                                const otherTog = otherParent.querySelector('a');
+                                if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
                             }
-                            const otherTog = otherParent.querySelector('a[role="button"]') || otherParent.querySelector('a');
-                            if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
+                        });
+
+                        if (isOpen) {
+                            parentItem.classList.remove('open');
+                            submenu.classList.remove('show');
+                            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+                        } else {
+                            parentItem.classList.add('open');
+                            submenu.classList.add('show');
+                            if (toggle) toggle.setAttribute('aria-expanded', 'true');
                         }
                     });
-
-                    if (isOpen) {
-                        parentItem.classList.remove('open');
-                        submenu.classList.remove('show');
-                        toggle.setAttribute('aria-expanded', 'false');
-                    } else {
-                        parentItem.classList.add('open');
-                        submenu.classList.add('show');
-                        toggle.setAttribute('aria-expanded', 'true');
-                    }
-                });
+                }
             });
         });
     </script>
