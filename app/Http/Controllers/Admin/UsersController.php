@@ -238,7 +238,8 @@ class UsersController extends Controller
                 'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
                 'joinedRaw' => $u->created_at ? $u->created_at->format('Y-m-d') : null,
                 'membership_starts_at' => $u->membership_starts_at ? $u->membership_starts_at->format('Y-m-d') : '',
-                'membership_ends_at' => $u->membership_ends_at ? $u->membership_ends_at->format('Y-m-d') : '',
+                'membership_ends_at' => $endsAt ? $endsAt->format('d M Y') : '—',
+                'membership_ends_at_raw' => $endsAt ? $endsAt->format('Y-m-d') : '',
                 'membership_expiry_date_remark' => $u->membership_expiry_date_remark ?? '',
                 'is_sponsored_member' => $isSponsored,
                 'expiryDays' => $expiryDays,
@@ -328,6 +329,18 @@ class UsersController extends Controller
         AdminCircleScope::applyToCirclesQuery($circlesQuery, $adminUser);
         $circles = $circlesQuery->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
+        $allMainCategories = CircleCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name', 'slug']);
+
+        $mainToSubCategoriesMap = $this->buildMainToSubCategoriesMap($allMainCategories);
+
+        $selectedSponsor = null;
+        if (old('introduced_by')) {
+            $selectedSponsor = User::query()->find(old('introduced_by'));
+        }
+
         return view('admin.users.create', [
             'user' => $user,
             'cities' => $cities,
@@ -335,6 +348,11 @@ class UsersController extends Controller
             'membershipStatusLabels' => $this->membershipFilterOptions(),
             'circles' => $circles,
             'membershipPlanOptions' => $this->membershipPlanOptions(),
+            'allMainCategories' => $allMainCategories,
+            'mainToSubCategoriesMap' => $mainToSubCategoriesMap,
+            'selectedMainCategoryId' => null,
+            'selectedSubCategoryId' => null,
+            'selectedSponsor' => $selectedSponsor,
         ]);
     }
 
@@ -365,6 +383,8 @@ class UsersController extends Controller
             'company_name' => ['required', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:100'],
             'turnover_range' => ['nullable', 'string', 'max:100'],
+            'main_business_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'business_category_id' => ['nullable', 'integer'],
             'gender' => ['nullable', 'string', 'max:20'],
             'dob' => ['nullable', 'date'],
             'experience_years' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -384,6 +404,7 @@ class UsersController extends Controller
             'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
+            'introduced_by' => ['nullable', 'uuid', 'exists:users,id'],
             'city_id' => ['nullable', 'exists:cities,id'],
             'city' => ['required', 'string', 'max:255'],
             'profile_photo_file_id' => ['nullable', 'uuid'],
@@ -406,7 +427,7 @@ class UsersController extends Controller
             'sustainability_contribution' => ['nullable', 'string'],
             'sustainability_areas' => ['nullable', 'array'],
             'greenpreneur_goals' => ['nullable', 'array'],
-            'community_directory_listing' => ['required', 'in:Yes,No'],
+            'community_directory_listing' => ['nullable', 'in:Yes,No'],
         ]);
 
         $csvFields = [
@@ -430,6 +451,9 @@ class UsersController extends Controller
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
         $validated = $this->syncMembershipExpiryInput($validated, $request);
         $validated['is_sponsored_member'] = $request->boolean('is_sponsored_member');
+        if (! $validated['is_sponsored_member']) {
+            $validated['introduced_by'] = null;
+        }
         $validated['membership_status'] = $validated['membership_status'] ?: ($membershipStatuses[0] ?? null);
         $validated['coins_balance'] = $validated['coins_balance'] ?? 0;
         $validated['password_hash'] = Hash::make(Str::random(32));
@@ -751,6 +775,7 @@ class UsersController extends Controller
             'introducedPeers' => $introducedPeers,
             'introducedPeersCount' => $introducedPeersCount,
             'pendingIntroRequestsCount' => $pendingIntroRequestsCount,
+            'selectedSponsor' => $user->introducedBy ?? (old('introduced_by') ? User::find(old('introduced_by')) : null),
         ];
     }
 
@@ -865,8 +890,8 @@ class UsersController extends Controller
             'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
             'circle_joined_at' => ['nullable', 'date'],
             'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
-            'coins_balance' => ['required', 'integer', 'min:0'],
-            'life_impacted_count' => ['required', 'integer', 'min:0'],
+            'coins_balance' => ['required', 'integer'],
+            'life_impacted_count' => ['required', 'integer'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
@@ -960,20 +985,6 @@ class UsersController extends Controller
             ]);
         }
 
-        if (filled($validated['additional_circle_id'] ?? null)) {
-            $alreadyJoined = CircleMember::query()
-                ->where('user_id', $user->id)
-                ->where('circle_id', $validated['additional_circle_id'])
-                ->whereNull('deleted_at')
-                ->exists();
-
-            if ($alreadyJoined) {
-                return back()
-                    ->withErrors(['additional_circle_id' => 'Peer is already joined to the selected circle.'])
-                    ->withInput();
-            }
-        }
-
         $request->merge([
             'coins_remark' => $coinsRemark,
             'life_impact_remark' => $lifeImpactRemark,
@@ -1017,6 +1028,9 @@ class UsersController extends Controller
         $booleanFields = ['is_sponsored_member'];
         foreach ($booleanFields as $field) {
             $validated[$field] = $request->boolean($field);
+        }
+        if (! $validated['is_sponsored_member']) {
+            $validated['introduced_by'] = null;
         }
 
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
@@ -1113,7 +1127,7 @@ class UsersController extends Controller
                     if ($difference !== 0) {
                         $admin = Auth::guard('admin')->user();
 
-                        DB::table('life_impact_histories')->insert([
+                        $historyPayload = [
                             'id' => (string) Str::uuid(),
                             'user_id' => $user->id,
                             'triggered_by_user_id' => null,
@@ -1132,13 +1146,19 @@ class UsersController extends Controller
                             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                             'created_at' => now(),
                             'updated_at' => now(),
-                            'life_impacted' => $newLifeImpactedCount,
+                            'life_impacted' => $difference,
                             'counted_in_total' => true,
                             'impact_category' => 'admin_adjustment',
                             'action_key' => 'admin_adjustment',
                             'action_label' => 'Admin Adjustment',
                             'remarks' => $lifeImpactRemark,
-                        ]);
+                        ];
+
+                        if (Schema::hasColumn('life_impact_histories', 'impact_after')) {
+                            $historyPayload['impact_after'] = $newLifeImpactedCount;
+                        }
+
+                        DB::table('life_impact_histories')->insert($historyPayload);
                     }
                 }
 
@@ -1412,7 +1432,7 @@ class UsersController extends Controller
         }
 
         $statusMessage = $request->filled('additional_circle_id')
-            ? 'Circle membership added successfully.'
+            ? 'Circle membership saved successfully.'
             : 'User updated successfully.';
 
         return redirect()

@@ -93,66 +93,67 @@
     </div>
 
     <!-- Search & Filters Toolbar -->
-    <form method="GET" action="{{ route('admin.event-joining-requests.index') }}" class="surface-2 rounded-xl border bs p-3 mb-4 admin-filter-form">
-        <div class="grid grid-cols-1 md:grid-cols-6 gap-2.5 items-center">
-            <div class="md:col-span-2">
-                <input type="text" class="w-full px-3 py-1.5 text-xs rounded-lg border bs focus-ring" name="search" value="{{ request('search') }}" placeholder="Search member, email, company or event...">
+    <div class="p-3 rounded-lg border bs surface-2 mb-4">
+        <form method="GET" action="{{ route('admin.event-joining-requests.index') }}" class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                <input type="text" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" name="search" value="{{ request('search') }}" placeholder="Search member, email, company, event...">
             </div>
-            <div>
-                <select class="w-full px-3 py-1.5 text-xs rounded-lg border bs focus-ring js-no-searchable-select" name="status">
+            <div class="w-40">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+                <select class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" name="status">
                     @foreach(['all' => 'All Statuses', 'pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected', 'checked_in' => 'Checked In', 'cancelled' => 'Cancelled'] as $value => $label)
                         <option value="{{ $value }}" @selected(($status ?? request('status', 'pending')) === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
-            <div>
-                <select class="w-full px-3 py-1.5 text-xs rounded-lg border bs focus-ring js-no-searchable-select" name="event_id">
+            <div class="w-44">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Event</label>
+                <select class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" name="event_id">
                     <option value="">All Events</option>
                     @foreach($events as $event)
                         <option value="{{ $event->id }}" @selected(request('event_id') == $event->id)>{{ $event->title }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="md:col-span-2 flex items-center gap-1.5">
-                <button type="submit" class="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition focus-ring">Filter</button>
-                <a href="{{ route('admin.event-joining-requests.index') }}" class="py-1.5 px-3 surface hover:surface-3 t2 rounded-lg text-xs font-medium border bs transition text-center no-underline whitespace-nowrap">Clear</a>
+            <div class="w-36">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From Date</label>
+                <input type="date" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" name="date_from" value="{{ request('date_from') }}">
             </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5 mt-2 pt-2 border-t bs">
-            <div class="flex items-center gap-2">
-                <span class="text-[11px] t3 font-medium whitespace-nowrap">From:</span>
-                <input type="date" class="w-full px-2.5 py-1 text-xs rounded-lg border bs focus-ring" name="date_from" value="{{ request('date_from') }}">
+            <div class="w-36">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To Date</label>
+                <input type="date" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" name="date_to" value="{{ request('date_to') }}">
             </div>
             <div class="flex items-center gap-2">
-                <span class="text-[11px] t3 font-medium whitespace-nowrap">To:</span>
-                <input type="date" class="w-full px-2.5 py-1 text-xs rounded-lg border bs focus-ring" name="date_to" value="{{ request('date_to') }}">
+                <button type="submit" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm cursor-pointer">Filter</button>
+                <a href="{{ route('admin.event-joining-requests.index') }}" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border bs surface t2 hover:t1 hover:surface-3 transition text-center no-underline shadow-sm">Clear</a>
             </div>
-        </div>
-    </form>
+        </form>
+    </div>
 
     <!-- Table Wrapper -->
-    <div class="surface rounded-xl border bs overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-premium mb-0 align-middle">
+    <div class="rounded-xl border bs surface overflow-hidden">
+        <div class="overflow-x-auto relative">
+            <table class="min-w-[1250px] w-full border-collapse text-[13px]">
                 <thead>
-                    <tr class="bg-slate-50 border-b border-slate-200">
-                        <th style="min-width: 160px; position: sticky; left: 0; z-index: 10; background: #f8fafc; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Requested By</th>
-                        <th>Company</th>
-                        <th>City</th>
-                        <th>Circle</th>
-                        <th style="min-width: 160px;">Event Name</th>
-                        <th>Event Type</th>
-                        <th>Event Circle</th>
-                        <th style="min-width: 140px;">Event Date/Time</th>
-                        <th style="min-width: 140px;">Location/Mode</th>
-                        <th style="min-width: 160px;">Reason</th>
-                        <th style="min-width: 100px;">Status</th>
-                        <th style="min-width: 130px;">Requested At</th>
-                        <th style="min-width: 140px;">Admin Note</th>
-                        <th class="text-end" style="min-width: 160px;">Action</th>
+                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width: 160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Requested By</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 160px;">Event Name</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Type</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Event Date/Time</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Location/Mode</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 160px;">Reason</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 100px;">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 130px;">Requested At</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Admin Note</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width: 120px;">Action</th>
                     </tr>
                 </thead>
-                <tbody id="grid-body">
+                <tbody id="grid-body" class="divide-y divide-gray-200/50">
                 @forelse($requests as $joinRequest)
                     @php
                         $user = $joinRequest->user;
@@ -175,8 +176,8 @@
                             $rawLoc = implode(', ', array_unique($parts));
                         }
                     @endphp
-                    <tr>
-                        <td style="position: sticky; left: 0; z-index: 8; background: #fff; min-width: 160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                    <tr class="hover:surface-2 transition border-b bs">
+                        <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width: 160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                             @if ($user)
                                 <div class="flex items-center gap-2">
                                     <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($userName) }}">
@@ -190,22 +191,22 @@
                                 <span class="text-xs text-slate-400">—</span>
                             @endif
                         </td>
-                        <td class="text-xs text-slate-600">{{ $userCompany }}</td>
-                        <td class="text-xs text-slate-600">{{ $userCity }}</td>
-                        <td class="text-xs text-slate-600">{{ $userCircleName }}</td>
-                        <td>
-                            <div class="fw-bold text-slate-900 text-sm">{{ $event?->title ?? '—' }}</div>
+                        <td class="px-3 py-2.5 text-xs t2">{{ $userCompany }}</td>
+                        <td class="px-3 py-2.5 text-xs t2">{{ $userCity }}</td>
+                        <td class="px-3 py-2.5 text-xs t2">{{ $userCircleName }}</td>
+                        <td class="px-3 py-2.5 text-xs">
+                            <div class="font-semibold t1">{{ $event?->title ?? '—' }}</div>
                         </td>
-                        <td class="text-xs">
+                        <td class="px-3 py-2.5 text-xs">
                             <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">{{ ucfirst(str_replace('_', ' ', $event?->event_type ?? 'Event')) }}</span>
                         </td>
-                        <td class="text-xs text-indigo-600 font-medium">
+                        <td class="px-3 py-2.5 text-xs text-indigo-600 font-medium">
                             {{ $event?->circle?->name ?? 'Global Circle' }}
                         </td>
-                        <td class="text-xs text-slate-600 whitespace-nowrap">
+                        <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                             {{ optional($occurrence?->start_at)->format('d M Y, h:i A') }} @if($occurrence?->end_at) - {{ optional($occurrence?->end_at)->format('h:i A') }} @endif
                         </td>
-                        <td class="text-xs text-slate-500">
+                        <td class="px-3 py-2.5 text-xs t2">
                             @if($event?->mode || $rawLoc)
                                 <div class="max-w-xs truncate" title="{{ $rawLoc }}">
                                     {{ ucfirst((string) ($event?->mode ?? 'offline')) }} @if($rawLoc) &bull; {{ $rawLoc }} @endif
@@ -214,55 +215,53 @@
                                 —
                             @endif
                         </td>
-                        <td>
+                        <td class="px-3 py-2.5 text-xs t2" style="max-width: 220px;">
                             @if($joinRequest->request_reason)
-                                <div class="p-2 rounded bg-slate-50 border border-slate-200 text-xs text-slate-700 max-w-xs truncate" title="{{ $joinRequest->request_reason }}">
-                                    "{{ $joinRequest->request_reason }}"
-                                </div>
+                                <span class="italic t1" title="{{ $joinRequest->request_reason }}">“{{ $joinRequest->request_reason }}”</span>
                             @else
-                                <span class="text-xs text-slate-400">—</span>
+                                <span class="t3">—</span>
                             @endif
                         </td>
-                        <td>
+                        <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                             @if($joinRequest->status === 'pending')
-                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">Pending</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Pending
+                                </span>
                             @elseif($joinRequest->status === 'approved')
-                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">Approved</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
+                                </span>
                             @elseif($joinRequest->status === 'rejected')
-                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">Rejected</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Rejected
+                                </span>
                             @elseif($joinRequest->status === 'checked_in')
-                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200">Checked In</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>Checked In
+                                </span>
                             @else
-                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">{{ ucfirst($joinRequest->status) }}</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ ucfirst($joinRequest->status) }}
+                                </span>
                             @endif
                         </td>
-                        <td>
-                            <div class="text-xs font-medium text-slate-800">{{ optional($joinRequest->created_at)->format('d M Y') }}</div>
-                            <div class="text-[11px] text-slate-500">{{ optional($joinRequest->created_at)->format('h:i A') }}</div>
+                        <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                            <div class="font-medium t1">{{ optional($joinRequest->created_at)->format('d M Y') }}</div>
+                            <div class="text-[11px] t3">{{ optional($joinRequest->created_at)->format('h:i A') }}</div>
                         </td>
-                        <td>
+                        <td class="px-3 py-2.5 text-xs t2">
                             @if($joinRequest->admin_note)
-                                <div class="text-xs text-slate-600 max-w-xs truncate" title="{{ $joinRequest->admin_note }}">
+                                <div class="max-w-xs truncate" title="{{ $joinRequest->admin_note }}">
                                     {{ $joinRequest->admin_note }}
                                 </div>
                             @else
-                                <span class="text-xs text-slate-400">—</span>
+                                <span class="t3">—</span>
                             @endif
                         </td>
-                        <td class="text-end">
-                            <div class="flex items-center justify-end gap-1.5">
-                                <button class="px-2.5 py-1 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-medium transition" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
-                                    <i class="bi bi-eye"></i> View
-                                </button>
-                                @if($joinRequest->status === 'pending')
-                                    <button class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition" data-bs-toggle="modal" data-bs-target="#approve{{ $joinRequest->id }}">
-                                        Approve
-                                    </button>
-                                    <button class="px-2.5 py-1 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-medium transition" data-bs-toggle="modal" data-bs-target="#reject{{ $joinRequest->id }}">
-                                        Reject
-                                    </button>
-                                @endif
-                            </div>
+                        <td class="px-3 py-2.5 text-right whitespace-nowrap" style="min-width: 120px;">
+                            <button class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold no-underline hover:bg-indigo-100 transition whitespace-nowrap cursor-pointer" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
+                                <i class="bi bi-eye me-1"></i> View
+                            </button>
                         </td>
                     </tr>
                 @empty

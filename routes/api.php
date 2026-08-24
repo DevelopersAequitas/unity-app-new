@@ -118,6 +118,7 @@ use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
+use App\Http\Controllers\Api\V1\MaintenanceController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
@@ -129,6 +130,7 @@ use App\Http\Controllers\Api\V1\PeerAnniversaryController;
 use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
+use App\Http\Controllers\Api\V1\PeerReferralsApiController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
@@ -384,6 +386,7 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
+    Route::get('/app/maintenance', [MaintenanceController::class, 'index']);
     Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
     Route::post('/app-releases', [AppChangelogController::class, 'store']);
     Route::post('/notifications/send-test', SendTestNotificationController::class);
@@ -589,23 +592,24 @@ Route::prefix('v1')->group(function () {
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
+        Route::get('/circles/my', [CircleController::class, 'myCircles']);
         Route::get('/circles/my-leadership-circles', [CircleLeadershipController::class, 'myLeadershipCircles']);
-        Route::get('/circles/{id}', [CircleController::class, 'show']);
+        Route::get('/circles/{id}', [CircleController::class, 'show'])->whereUuid('id');
         Route::post('/circles', [CircleController::class, 'store']);
-        Route::put('/circles/{id}', [CircleController::class, 'update']);
-        Route::patch('/circles/{id}', [CircleController::class, 'update']);
-        Route::post('/circles/{id}/join', [CircleController::class, 'join']);
+        Route::put('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::patch('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::post('/circles/{id}/join', [CircleController::class, 'join'])->whereUuid('id');
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::get('/joined-circles', [CircleController::class, 'joinedCircles']);
 
-        Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree']);
-        Route::get('/circles/{circleId}/open-categories', [CircleCategoryUsageController::class, 'circleOpenCategories']);
-        Route::get('/circles/{circleId}/closed-categories', [CircleCategoryUsageController::class, 'circleClosedCategories']);
-        Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories']);
-        Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories']);
+        Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree'])->whereUuid('circleId');
+        Route::get('/circles/{circleId}/open-categories', [CircleCategoryUsageController::class, 'circleOpenCategories'])->whereUuid('circleId');
+        Route::get('/circles/{circleId}/closed-categories', [CircleCategoryUsageController::class, 'circleClosedCategories'])->whereUuid('circleId');
+        Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories'])->whereUuid('memberId');
+        Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories'])->whereUuid('memberId');
 
         // Circle Join Requests
         Route::post('/circle-join-requests', [CircleJoinRequestController::class, 'store']);
@@ -1129,6 +1133,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::post('/feedback', [FeedbackController::class, 'store']);
+
+        // Peer Referrals
+        Route::post('/peer-referrals', [PeerReferralsApiController::class, 'store']);
+        Route::get('/peer-referrals', [PeerReferralsApiController::class, 'index']);
 
         // Website form submissions (read)
         Route::get('/become-a-mentor', [BecomeMentorController::class, 'index']);

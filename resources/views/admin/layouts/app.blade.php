@@ -79,14 +79,26 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Sidebar mobile toggle functionality
+            // Sidebar collapse and mobile drawer functionality
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
             const adminShell = document.querySelector('.admin-shell');
 
+            // Restore desktop collapsed state
+            if (adminShell && localStorage.getItem('admin_sidebar_collapsed') === 'true' && window.innerWidth >= 992) {
+                adminShell.classList.add('sidebar-collapsed');
+            }
+
             if (sidebarToggle && adminShell) {
                 sidebarToggle.addEventListener('click', function() {
-                    adminShell.classList.toggle('sidebar-open');
+                    if (window.innerWidth < 992) {
+                        adminShell.classList.toggle('sidebar-open');
+                    } else {
+                        adminShell.classList.toggle('sidebar-collapsed');
+                        localStorage.setItem('admin_sidebar_collapsed', adminShell.classList.contains('sidebar-collapsed'));
+                        // Trigger resize event for synced scrollbars and tables
+                        window.dispatchEvent(new Event('resize'));
+                    }
                 });
             }
 

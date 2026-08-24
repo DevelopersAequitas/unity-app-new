@@ -177,12 +177,18 @@ class MemberIntroducersController extends Controller
         $growthHonours = $creativeGenerator->getAllHonours();
 
         $allIntroducersQuery = User::query()
-            ->has('introducedMembers')
             ->withCount('introducedMembers')
             ->with('city')
+            ->orderByDesc('introduced_members_count')
             ->orderBy('display_name', 'asc');
         $this->applyScopes($allIntroducersQuery, $adminUser);
         $allIntroducers = $allIntroducersQuery->get();
+
+        $activeTab = $request->input('tab', 'list') === 'creative' ? 'creative' : 'list';
+        $selectedPeerId = $request->input('peer_id');
+        if (! $selectedPeerId && $activeTab === 'creative' && $allIntroducers->isNotEmpty()) {
+            $selectedPeerId = $allIntroducers->first()->id;
+        }
 
         return view('admin.member-introducers.index', [
             'topIntroducers' => $topIntroducers,
@@ -193,6 +199,8 @@ class MemberIntroducersController extends Controller
             'membershipStatusLabels' => $membershipStatusLabels,
             'filters' => $filters,
             'growthHonours' => $growthHonours,
+            'activeTab' => $activeTab,
+            'selectedPeerId' => $selectedPeerId,
         ]);
     }
 
@@ -439,6 +447,8 @@ class MemberIntroducersController extends Controller
                 'success' => true,
                 'message' => 'Creative posted to Timeline successfully! 🎉',
                 'post_id' => $post->id,
+                'view_url' => route('admin.posts.show', $post->id),
+                'timeline_url' => route('admin.posts.index'),
                 'image_url' => $imageUrl,
             ]);
         } catch (\Throwable $e) {

@@ -336,13 +336,17 @@ class MemberController extends BaseApiController
             $selectColumns[] = 'is_verified';
         }
 
+        if (Schema::hasColumn('users', 'country')) {
+            $selectColumns[] = 'country';
+        }
+
         $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
 
         $query = User::query()
             ->select($selectColumns)
             ->addSelect($this->lifeImpactedCountExpression())
             ->with([
-                'city:id,name',
+                'city:id,name,country,country_code',
                 'level4Category:id,name',
                 'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
             ]);
@@ -359,9 +363,11 @@ class MemberController extends BaseApiController
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
 
-        // Filter out blocked users if user is authenticated
-        $authUser = auth('sanctum')->user();
+        // Filter out authenticated user and blocked users if user is authenticated
+        $authUser = auth('sanctum')->user() ?: $request->user();
         if ($authUser) {
+            $query->where('users.id', '!=', (string) $authUser->id);
+
             $profileVisibilityService->applyVisibleTo($query, $authUser);
 
             $excludedUserIds = array_values(array_unique(array_filter(array_merge(
@@ -370,7 +376,7 @@ class MemberController extends BaseApiController
             ))));
 
             if (! empty($excludedUserIds)) {
-                $query->whereNotIn('id', $excludedUserIds);
+                $query->whereNotIn('users.id', $excludedUserIds);
             }
         }
 
@@ -395,14 +401,17 @@ class MemberController extends BaseApiController
     {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
-        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+        $perPage = (int) $request->input('per_page', 15);
+        $perPage = max(1, min($perPage, 100));
+
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
-            'total_users' => $users->count(),
-            'total_user' => $users->count(),
-            'total' => $users->count(),
+            'total_users' => $users->total(),
+            'total_user' => $users->total(),
+            'total' => $users->total(),
         ]);
     }
 

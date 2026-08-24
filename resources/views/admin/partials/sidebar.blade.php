@@ -157,6 +157,7 @@
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
             ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
+            ['label' => 'Circle Peer Referrals', 'route' => 'admin.peer-referrals.index'],
         ];
 
     if ($isCircleCommittee) {
@@ -182,7 +183,8 @@
         request()->routeIs('admin.impacts.pending') ||
         request()->routeIs('admin.ad-bookings.*') ||
         request()->routeIs('admin.account-deletion.*') ||
-        request()->routeIs('admin.introduction-requests.*');
+        request()->routeIs('admin.introduction-requests.*') ||
+        request()->routeIs('admin.peer-referrals.*');
 
     $leadsMenu = (! $isCircleCommittee && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))) ? $leadsMenu : [];
 
@@ -595,6 +597,31 @@
                             </ul>
                         </div>
                     </li>
+                @elseif ($item['label'] === 'Member Introducers')
+                    @php
+                        $introducersActive = request()->routeIs('admin.member-introducers.*');
+                        $currentTab = request('tab');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $introducersActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex justify-content-between align-items-center {{ $introducersActive ? 'active' : '' }}" href="#memberIntroducersSubmenu" role="button" aria-expanded="{{ $introducersActive ? 'true' : 'false' }}" aria-controls="memberIntroducersSubmenu">
+                            <span><i class="bi {{ $item['icon'] ?? 'bi-person-check' }} me-2"></i>Member Introducers</span>
+                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        </a>
+                        <div class="collapse {{ $introducersActive ? 'show' : '' }}" id="memberIntroducersSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($introducersActive && $currentTab !== 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}">
+                                        Introducers List
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($introducersActive && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index', ['tab' => 'creative']) }}">
+                                        Peers Creative Post
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
@@ -639,13 +666,6 @@
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}">
                         <i class="bi bi-images me-2"></i>Anniversary Creative
-                    </a>
-                </li>
-                @endif
-                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Member Introducers') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Member Introducers Creative'))
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.member-introducers.*') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}">
-                        <i class="bi bi-person-badge me-2"></i>Member Introducers Creative
                     </a>
                 </li>
                 @endif

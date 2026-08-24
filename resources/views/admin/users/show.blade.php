@@ -149,10 +149,14 @@
                 </span>
             @endif
 
-            @if($user->introducedBy)
-                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-200/60">
-                    <i class="bi bi-person-check text-[11px] text-slate-400"></i>
-                    <span>Introduced by {{ $user->introducedBy->adminDisplayName() }}</span>
+            @if($user->is_sponsored_member || $user->introducedBy)
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                    <i class="bi bi-person-heart text-[11px] text-purple-500"></i>
+                    @if($user->introducedBy)
+                        <span>Sponsored by <a href="{{ route('admin.users.show', $user->introducedBy->id) }}" class="text-purple-700 font-bold hover:underline">{{ $user->introducedBy->adminDisplayName() }}</a></span>
+                    @else
+                        <span>Sponsored Member</span>
+                    @endif
                 </span>
             @endif
 
@@ -278,9 +282,15 @@
                         <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-2.5">
                             <i class="bi bi-quote text-sm"></i> Short Bio
                         </div>
-                        <p class="text-sm t1 leading-relaxed m-0 italic bg-slate-50 border border-slate-200/60 rounded-xl p-4">
-                            {{ $user->short_bio ?: 'No short bio provided.' }}
-                        </p>
+                        @if($user->short_bio)
+                            <p class="text-sm t1 leading-relaxed m-0 italic bg-slate-50 border border-slate-200/60 rounded-xl p-4">
+                                “{{ $user->short_bio }}”
+                            </p>
+                        @else
+                            <div class="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                                <span class="text-xs text-slate-400 italic">No short bio provided</span>
+                            </div>
+                        @endif
                     </div>
 
                     <!-- Long Bio / Experience Summary -->
@@ -297,9 +307,9 @@
                                 {{ $user->experience_summary }}
                             </div>
                         @else
-                            <p class="text-xs t3 m-0 bg-slate-50 border border-slate-200/60 rounded-xl p-4">
-                                No experience summary or detailed bio available.
-                            </p>
+                            <div class="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                                <span class="text-xs text-slate-400 italic">No experience summary or detailed bio available</span>
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -556,13 +566,76 @@
                                 <dt class="t3 font-medium">DED District</dt>
                                 <dd class="col-span-2 font-medium t1">{{ $assignedDedMapping->district_name ?? '—' }} ({{ $assignedDedMapping->state_name ?? '—' }})</dd>
                             @endif
-
-                            <dt class="t3 font-medium">Introduced By</dt>
-                            <dd class="col-span-2 font-medium t1">{{ $user->introducedBy?->adminDisplayName() ?: 'Direct Platform Sign-up' }}</dd>
-
-                            <dt class="t3 font-medium">Members Introduced</dt>
-                            <dd class="col-span-2 font-mono font-semibold text-indigo-600">{{ (int)($user->members_introduced_count ?? 0) }} Peers</dd>
                         </dl>
+                    </div>
+
+                    <!-- Sponsor & Referral Attribution Card -->
+                    <div class="rounded-xl border bs surface p-5 shadow-xs">
+                        <div class="flex items-center justify-between mb-4">
+                            <h6 class="font-display font-semibold text-xs text-indigo-500 uppercase tracking-wider m-0">
+                                Sponsor & Referral Details
+                            </h6>
+                            @if($user->is_sponsored_member)
+                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                    <i class="bi bi-person-heart me-1"></i> Sponsored Member
+                                </span>
+                            @else
+                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                    Standard Referral
+                                </span>
+                            @endif
+                        </div>
+
+                        @if($user->introducedBy)
+                            @php
+                                $sponsor = $user->introducedBy;
+                                $sponsorAvatar = $sponsor->profile_photo_url ?? ($sponsor->profile_photo_file_id ? url('/api/v1/files/' . $sponsor->profile_photo_file_id) : null);
+                                $sponsorInitials = strtoupper(substr($sponsor->first_name ?: ($sponsor->display_name ?: 'S'), 0, 1) . substr($sponsor->last_name ?: '', 0, 1));
+                                $sponsorCompany = $sponsor->company_name ?? $sponsor->company ?? '';
+                                $sponsorCity = $sponsor->city->name ?? $sponsor->city ?? '';
+                            @endphp
+                            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 mb-3 flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    @if($sponsorAvatar)
+                                        <img src="{{ $sponsorAvatar }}" alt="{{ $sponsor->adminDisplayName() }}" class="w-11 h-11 rounded-full object-cover shadow-xs ring-2 ring-indigo-100 flex-shrink-0">
+                                    @else
+                                        <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-white font-bold flex items-center justify-center text-sm shadow-xs flex-shrink-0">
+                                            {{ $sponsorInitials }}
+                                        </div>
+                                    @endif
+                                    <div class="min-w-0">
+                                        <div class="flex items-center gap-1.5">
+                                            <a href="{{ route('admin.users.show', $sponsor->id) }}" class="font-bold text-slate-900 hover:text-indigo-600 text-xs truncate no-underline hover:underline">
+                                                {{ $sponsor->adminDisplayName() }}
+                                            </a>
+                                            <i class="bi bi-patch-check-fill text-indigo-500 text-[11px]"></i>
+                                        </div>
+                                        <div class="text-[11px] t2 truncate mt-0.5">
+                                            {{ $sponsor->designation ?: 'Peer' }} @if($sponsorCompany) • <span class="font-medium text-slate-700">{{ $sponsorCompany }}</span> @endif
+                                        </div>
+                                        <div class="text-[11px] t3 truncate">
+                                            {{ $sponsorCity ?: 'India' }} @if($sponsor->email) • <span class="font-mono text-slate-500">{{ $sponsor->email }}</span> @endif
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="{{ route('admin.users.show', $sponsor->id) }}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-white hover:bg-slate-100 text-indigo-600 border border-slate-200 shadow-2xs transition no-underline flex-shrink-0">
+                                    <span>View Sponsor</span>
+                                    <i class="bi bi-arrow-right text-[10px]"></i>
+                                </a>
+                            </div>
+                        @else
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-xs t3 mb-3 flex items-center gap-2">
+                                <i class="bi bi-info-circle text-indigo-400 text-sm"></i>
+                                <span>This peer joined via direct platform registration without an introducer.</span>
+                            </div>
+                        @endif
+
+                        <div class="pt-2 flex items-center justify-between text-xs border-t border-slate-100">
+                            <span class="t3 font-medium">Peers Introduced by {{ $user->first_name }}:</span>
+                            <span class="font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                                {{ (int)($user->members_introduced_count ?? 0) }} Peers
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

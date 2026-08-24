@@ -190,7 +190,9 @@ class ActivitiesReferralsController extends Controller
             'per_page' => (int) $request->get('per_page', 20),
             'circle_id' => (string) $request->get('circle_id', ''),
             'from_user' => trim((string) $request->get('from_user', '')),
+            'from_company' => trim((string) $request->get('from_company', '')),
             'to_user' => trim((string) $request->get('to_user', '')),
+            'to_company' => trim((string) $request->get('to_company', '')),
             'type' => trim((string) $request->get('type', '')),
             'referral_date' => trim((string) $request->get('referral_date', '')),
             'referral_of' => trim((string) $request->get('referral_of', '')),
@@ -248,6 +250,11 @@ class ActivitiesReferralsController extends Controller
             });
         }
 
+        if (! empty($filters['from_company'])) {
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['from_company']).'%';
+            $query->where('actor.company_name', 'ILIKE', $like);
+        }
+
         if ($filters['to_user'] !== '') {
             $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['to_user']).'%';
             $query->where(function ($inner) use ($like) {
@@ -256,6 +263,11 @@ class ActivitiesReferralsController extends Controller
                     ->orWhere('peer.last_name', 'ILIKE', $like)
                     ->orWhereRaw("concat_ws(' ', coalesce(peer.first_name, ''), coalesce(peer.last_name, '')) ILIKE ?", [$like]);
             });
+        }
+
+        if (! empty($filters['to_company'])) {
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['to_company']).'%';
+            $query->where('peer.company_name', 'ILIKE', $like);
         }
 
         if ($filters['type'] !== '' && $filters['referral_type'] === '') {

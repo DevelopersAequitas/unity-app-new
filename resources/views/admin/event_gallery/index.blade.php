@@ -225,20 +225,26 @@
             <div class="card-body">
                 @if ($selectedEvent)
                     {{-- Header --}}
-                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 pb-3 border-bottom">
                         <div>
                             <h2 class="h5 fw-bold mb-1">{{ $selectedEvent->event_name }}</h2>
                             <div class="text-muted small">
                                 <i class="bi bi-calendar3 me-1"></i>
                                 {{ $selectedEvent->event_date ? $selectedEvent->event_date->format('M d, Y') : 'Date TBD' }}
+                                <span class="ms-2 badge rounded-pill bg-primary-subtle text-primary px-2.5 py-1" style="font-size:.75rem;">
+                                    {{ $selectedEvent->media->count() }} media items
+                                </span>
                             </div>
                             @if ($selectedEvent->description)
-                                <p class="mt-2 mb-0 small text-muted">{{ $selectedEvent->description }}</p>
+                                <p class="mt-1 mb-0 small text-muted">{{ $selectedEvent->description }}</p>
                             @endif
                         </div>
-                        <span class="badge rounded-pill bg-primary-subtle text-primary px-3 py-2" style="font-size:.8rem;">
-                            {{ $selectedEvent->media->count() }} media items
-                        </span>
+                        <div>
+                            <button class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1.5 shadow-sm cursor-pointer"
+                                    onclick="openUploadMediaModalForEvent('{{ $selectedEvent->id }}', '{{ addslashes($selectedEvent->event_name) }}')">
+                                <i class="bi bi-plus-lg"></i> Add Media to {{ $selectedEvent->event_name }}
+                            </button>
+                        </div>
                     </div>
 
                     {{-- Grid --}}
@@ -251,7 +257,7 @@
                                         {{-- Thumbnail --}}
                                         <div class="eg-thumb">
                                             @if ($media->media_type === 'video' && $media->thumbnail_url)
-                                                <a href="{{ $media->url }}" target="_blank" rel="noopener" class="eg-play-overlay">
+                                                <a href="{{ $media->url }}" target="_blank" rel="noopener" class="eg-play-overlay" title="Play video">
                                                     <img src="{{ $media->thumbnail_url }}" alt="Thumbnail">
                                                     <span class="position-absolute"><i class="bi bi-play-circle-fill"></i></span>
                                                 </a>
@@ -259,11 +265,11 @@
                                                 <video preload="metadata">
                                                     <source src="{{ $media->url }}" type="video/mp4">
                                                 </video>
-                                                <a href="{{ $media->url }}" target="_blank" rel="noopener" class="eg-play-overlay">
+                                                <a href="{{ $media->url }}" target="_blank" rel="noopener" class="eg-play-overlay" title="Play video">
                                                     <i class="bi bi-play-circle-fill"></i>
                                                 </a>
                                             @else
-                                                <a href="{{ $media->url }}" target="_blank" rel="noopener">
+                                                <a href="{{ $media->url }}" target="_blank" rel="noopener" title="Open image">
                                                     <img src="{{ $media->url }}" alt="Event media" loading="lazy">
                                                 </a>
                                             @endif
@@ -284,15 +290,11 @@
                                         </div>
 
                                         {{-- Caption --}}
-                                        <div class="eg-caption">
-                                            @if ($media->caption)
+                                        @if ($media->caption)
+                                            <div class="eg-caption">
                                                 {{ $media->caption }}
-                                            @else
-                                                <span class="text-muted fst-italic">
-                                                    {{ $media->media_type === 'video' ? 'Video' : 'Image' }}
-                                                </span>
-                                            @endif
-                                        </div>
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             @empty
@@ -377,8 +379,8 @@
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Select Existing Event</label>
-                            <select name="event_gallery_id" class="form-select js-no-searchable-select">
+                            <label class="form-label fw-semibold">Select Existing Event <span class="text-danger">*</span></label>
+                            <select name="event_gallery_id" id="modalEventGallerySelect" class="form-select js-no-searchable-select">
                                 <option value="">-- Select Event --</option>
                                 @foreach ($events as $event)
                                     <option value="{{ $event->id }}" @selected($selectedEvent && $selectedEvent->id === $event->id)>
@@ -388,8 +390,8 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Or Add New Event Name</label>
-                            <input type="text" name="event_name" class="form-control" maxlength="180"
+                            <label class="form-label fw-semibold">Or Create New Event</label>
+                            <input type="text" name="event_name" id="modalNewEventName" class="form-control" maxlength="180"
                                    placeholder="New event name…">
                         </div>
                         <div class="col-md-6">
@@ -429,6 +431,23 @@
 
 @push('scripts')
 <script>
+    // Helper to open upload media modal pre-bound to a specific event
+    window.openUploadMediaModalForEvent = function(eventId, eventName) {
+        const select = document.getElementById('modalEventGallerySelect');
+        if (select && eventId) {
+            select.value = eventId;
+        }
+        const modalTitle = document.getElementById('addMediaModalLabel');
+        if (modalTitle && eventName) {
+            modalTitle.innerHTML = `<i class="bi bi-upload text-primary me-2"></i>Upload Media for <strong>${eventName}</strong>`;
+        }
+        const modalEl = document.getElementById('addMediaModal');
+        if (modalEl) {
+            const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            bsModal.show();
+        }
+    };
+
     // Confirm before deleting media
     document.querySelectorAll('.eg-delete-form').forEach(function (form) {
         form.addEventListener('submit', function (e) {

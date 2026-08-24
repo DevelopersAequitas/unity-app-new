@@ -273,7 +273,7 @@
                 <div class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Testimonials Log</span>
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Testimonials count: {{ number_format($items->total()) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
                         <table class="min-w-full border-collapse text-[13px]">
@@ -294,7 +294,7 @@
                                     </th>
                                     <th class="px-2 py-1"></th>
                                     <th class="px-2 py-1">
-                                        <select name="media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                        <select name="media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                             <option value="" @selected(($tableFilters['media'] ?? '') === '')>Any</option>
                                             <option value="yes" @selected(($tableFilters['media'] ?? '') === 'yes')>Yes</option>
                                             <option value="no" @selected(($tableFilters['media'] ?? '') === 'no')>No</option>
@@ -302,7 +302,7 @@
                                     </th>
                                     <th class="px-2 py-1">
                                         <div class="flex justify-end">
-                                            <button type="button" onclick="clearAdminFilters(event, 'testimonialsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                            <button type="button" onclick="clearAdminFilters(event, 'testimonialsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
                                         </div>
                                     </th>
                                 </tr>
@@ -336,9 +336,16 @@
                                                             {{ $fromName }}
                                                         @endif
                                                     </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($testimonial->from_company) <x-admin-grid-text :text="$testimonial->from_company" class="inline-block" /> @endif
-                                                        @if($testimonial->from_city) &bull; <x-admin-grid-text :text="$testimonial->from_city" class="inline-block" /> @endif
+                                                    <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                        @if($testimonial->from_company)
+                                                            <span class="truncate max-w-[140px]" title="{{ $testimonial->from_company }}">{{ $testimonial->from_company }}</span>
+                                                        @endif
+                                                        @if($testimonial->from_company && $testimonial->from_city)
+                                                            <span class="text-slate-400 select-none">•</span>
+                                                        @endif
+                                                        @if($testimonial->from_city)
+                                                            <span class="truncate max-w-[100px] text-slate-500" title="{{ $testimonial->from_city }}">{{ $testimonial->from_city }}</span>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -358,9 +365,16 @@
                                                             {{ $toName }}
                                                         @endif
                                                     </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($testimonial->to_company) <x-admin-grid-text :text="$testimonial->to_company" class="inline-block" /> @endif
-                                                        @if($testimonial->to_city) &bull; <x-admin-grid-text :text="$testimonial->to_city" class="inline-block" /> @endif
+                                                    <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                        @if($testimonial->to_company)
+                                                            <span class="truncate max-w-[140px]" title="{{ $testimonial->to_company }}">{{ $testimonial->to_company }}</span>
+                                                        @endif
+                                                        @if($testimonial->to_company && $testimonial->to_city)
+                                                            <span class="text-slate-400 select-none">•</span>
+                                                        @endif
+                                                        @if($testimonial->to_city)
+                                                            <span class="truncate max-w-[100px] text-slate-500" title="{{ $testimonial->to_city }}">{{ $testimonial->to_city }}</span>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>

@@ -214,8 +214,8 @@
                                 <td class="px-3 py-2.5 sticky left-0 z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                     <div class="flex items-center gap-2.5">
                                         <div class="w-8 h-8 rounded-lg overflow-hidden flex-none border bs bg-gray-100 flex items-center justify-center">
-                                            @if ($circle->cover_image_url)
-                                                <img src="{{ $circle->cover_image_url }}" alt="{{ $circle->name }}" class="w-full h-full object-cover">
+                                            @if ($circle->circle_image_url || $circle->cover_image_url)
+                                                <img src="{{ $circle->circle_image_url ?: $circle->cover_image_url }}" alt="{{ $circle->name }}" class="w-full h-full object-cover">
                                             @else
                                                 <i class="bi bi-people t3 text-xs"></i>
                                             @endif
@@ -431,6 +431,7 @@
             'id' => (string) $c->id,
             'name' => $c->name ?? '—',
             'cover_image_url' => $c->cover_image_url,
+            'circle_image_url' => $c->circle_image_url,
             'founder' => $c->founder?->display_name ?? '—',
             'city' => $c->city_name ?? '—',
             'country' => $c->country ?? $c->city?->country ?? 'India',
@@ -528,8 +529,9 @@
             };
         }
 
-        const coverHtml = c.cover_image_url 
-            ? '<img src="' + c.cover_image_url + '" alt="' + c.name + '" class="w-full h-full object-cover"/>' 
+        const circleImg = c.circle_image_url || c.cover_image_url;
+        const coverHtml = circleImg 
+            ? '<img src="' + circleImg + '" alt="' + c.name + '" class="w-full h-full object-cover"/>' 
             : '<i class="bi bi-people text-slate-400 text-xl"></i>';
 
         const statusClass = c.status === 'Active' 

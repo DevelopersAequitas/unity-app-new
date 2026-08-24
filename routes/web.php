@@ -62,6 +62,7 @@ use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\MilestoneBadgeController;
 use App\Http\Controllers\Admin\NotificationAdminController;
 use App\Http\Controllers\Admin\NotificationTemplateController;
+use App\Http\Controllers\Admin\PeerReferralsController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
@@ -499,6 +500,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/introduction-requests', [IntroductionRequestsController::class, 'index'])->name('introduction-requests.index');
         Route::post('/pending-requests/introduction-requests/{id}/approve', [IntroductionRequestsController::class, 'approve'])->whereUuid('id')->name('introduction-requests.approve');
         Route::post('/pending-requests/introduction-requests/{id}/reject', [IntroductionRequestsController::class, 'reject'])->whereUuid('id')->name('introduction-requests.reject');
+
+        Route::get('/peer-referrals', [PeerReferralsController::class, 'index'])->name('peer-referrals.index');
+        Route::get('/peer-referrals/{id}', [PeerReferralsController::class, 'show'])->whereUuid('id')->name('peer-referrals.show');
+        Route::post('/peer-referrals/{id}/status', [PeerReferralsController::class, 'updateStatus'])->whereUuid('id')->name('peer-referrals.status-update');
 
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
         Route::post('/visitor-registrations', [VisitorRegistrationsController::class, 'store'])->name('visitor-registrations.store');

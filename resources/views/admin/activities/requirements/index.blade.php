@@ -286,7 +286,7 @@
                 <div class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Requirements Log</span>
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Requirements count: {{ number_format($items->total()) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
                         <table class="min-w-[1050px] w-full border-collapse text-[13px]">
@@ -299,7 +299,7 @@
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Description</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:90px;">Region</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Business Category</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:80px;">Status</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:95px;">Status</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:80px;">Media</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Created At</th>
                                 </tr>
@@ -321,16 +321,16 @@
                                     <th class="px-2 py-1" style="min-width:130px;">
                                         <input type="text" name="category" value="{{ $filters['category'] ?? '' }}" placeholder="Category" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
-                                    <th class="px-2 py-1" style="min-width:80px;">
-                                        <select name="status" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    <th class="px-2 py-1" style="min-width:95px;">
+                                        <select name="status" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                             <option value="">Any</option>
                                             @foreach (($statuses ?? collect()) as $status)
-                                                <option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ ucfirst($status) }}</option>
+                                                 <option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ ucfirst($status) }}</option>
                                             @endforeach
                                         </select>
                                     </th>
                                     <th class="px-2 py-1" style="min-width:80px;">
-                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
                                             <option value="">Any</option>
                                             <option value="1" @selected(($filters['has_media'] ?? '') === '1')>Yes</option>
                                             <option value="0" @selected(($filters['has_media'] ?? '') === '0')>No</option>
@@ -338,7 +338,7 @@
                                     </th>
                                     <th class="px-2 py-1" style="min-width:110px;">
                                         <div class="flex justify-end">
-                                            <button type="button" onclick="clearAdminFilters(event, 'requirementsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                            <button type="button" onclick="clearAdminFilters(event, 'requirementsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
                                         </div>
                                     </th>
                                 </tr>

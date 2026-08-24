@@ -2882,3 +2882,54 @@ form.admin-filter-form select:not(.select2-hidden-accessible):focus {
         font-size: 0.8125rem;
     }
 }
+
+/* ============================================================
+   COLLAPSIBLE SIDEBAR (DESKTOP)
+   ============================================================ */
+@media (min-width: 992px) {
+    .admin-shell.sidebar-collapsed .admin-sidebar {
+        width: 72px !important;
+        min-width: 72px !important;
+        max-width: 72px !important;
+        flex: 0 0 72px !important;
+        padding: 16px 8px !important;
+        overflow-x: hidden !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .text-center img {
+        max-height: 36px !important;
+        margin: 8px auto !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link {
+        justify-content: center !important;
+        padding: 10px 0 !important;
+        text-align: center !important;
+        border-radius: 10px !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link span,
+    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link .menu-arrow,
+    .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-heading,
+    .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-footer span,
+    .admin-shell.sidebar-collapsed .admin-sidebar .collapse {
+        display: none !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .nav-link i {
+        margin-right: 0 !important;
+        font-size: 1.25rem !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-footer {
+        padding: 8px 0 !important;
+        text-align: center !important;
+    }
+
+    .admin-shell.sidebar-collapsed .admin-sidebar .sidebar-footer .btn {
+        padding: 8px 0 !important;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+    }
+}

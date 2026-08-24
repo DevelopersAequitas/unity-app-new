@@ -33,6 +33,7 @@ class UpdateCircleRequest extends FormRequest
             'industry_director_user_id' => 'sometimes|nullable|uuid|exists:users,id',
             'ded_user_id' => 'sometimes|nullable|uuid|exists:users,id',
             'cover_file_id' => 'sometimes|nullable|uuid',
+            'circle_image_file_id' => 'sometimes|nullable|uuid',
         ];
     }
 }

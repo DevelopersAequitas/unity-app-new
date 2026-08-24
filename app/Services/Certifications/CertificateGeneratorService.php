@@ -8,12 +8,14 @@ use App\Mail\CertificationApprovedMail;
 use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
+use App\Models\Post;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class CertificateGeneratorService
@@ -48,7 +50,7 @@ class CertificateGeneratorService
 
             // Generate certificate image and save URL
             try {
-                $imageGenerator = new \App\Services\Certifications\CertificationImageGenerator();
+                $imageGenerator = new CertificationImageGenerator;
                 $fileResult = $imageGenerator->generate($submission);
                 $submission->forceFill(['certificate_download_url' => $fileResult['url']])->save();
 
@@ -57,8 +59,8 @@ class CertificateGeneratorService
                     ? User::find($submission->user_id)
                     : User::where('email', $submission->email)->first();
 
-                if ($user && \Illuminate\Support\Facades\Schema::hasTable('posts')) {
-                    $displayName = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                if ($user && Schema::hasTable('posts')) {
+                    $displayName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
                     if (empty($displayName)) {
                         $displayName = $submission->full_name;
                     }
@@ -83,7 +85,7 @@ class CertificateGeneratorService
                         ]);
                     }
 
-                    \App\Models\Post::create([
+                    Post::create([
                         'user_id' => $systemUser->id,
                         'content_text' => $postText,
                         'post_type' => 'global_peer_certificate',

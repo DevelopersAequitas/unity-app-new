@@ -167,10 +167,14 @@ class IntroducedPeerCreativeGenerator
             $company = 'Peers Global';
         }
 
+        $captionTemplate = $meta['caption_template'];
+        // Replace static milestone count with actual introduced count
+        $captionTemplate = preg_replace('/\b\d+\s+entrepreneurs introduced\b/i', $introducedCount.' entrepreneurs introduced', $captionTemplate);
+
         $text = str_replace(
-            ['{name}', '{company}'],
-            [$name, $company],
-            $meta['caption_template']
+            ['{name}', '{company}', '{count}'],
+            [$name, $company, (string) $introducedCount],
+            $captionTemplate
         );
 
         return $text."\n\n#PeersGlobal {$meta['hashtag']} #CommunityOfCollaboration #1MillionEntrepreneurs";
@@ -179,7 +183,7 @@ class IntroducedPeerCreativeGenerator
     /**
      * Generate the Growth Honour / Introduced Peer Creative image.
      */
-    public function generate(User $user, int $introducedCount = 0): FileModel
+    public function generate(User $user, int $introducedCount = 0, ?FileModel $targetFileRecord = null): FileModel
     {
         try {
             if ($introducedCount <= 0) {
@@ -195,6 +199,12 @@ class IntroducedPeerCreativeGenerator
             $meta = $this->getHonourMeta($introducedCount);
 
             $templatePath = ! empty($meta['badge_image']) ? public_path($meta['badge_image']) : null;
+            if (! $templatePath || ! file_exists($templatePath)) {
+                $storageTemplate = ! empty($meta['badge_image']) ? storage_path('app/public/'.$meta['badge_image']) : null;
+                if ($storageTemplate && file_exists($storageTemplate)) {
+                    $templatePath = $storageTemplate;
+                }
+            }
             $isCanvaTemplate = $templatePath && file_exists($templatePath);
 
             // Fonts
@@ -235,33 +245,42 @@ class IntroducedPeerCreativeGenerator
                 $height = imagesy($canvas);
                 imagealphablending($canvas, true);
 
-                // Colors for white Canva template
-                $goldName = imagecolorallocate($canvas, 212, 136, 0); // #D48800 Bold Gold
-                $slateCity = imagecolorallocate($canvas, 30, 41, 59); // #1E293B Dark Slate
-                $slateCompany = imagecolorallocate($canvas, 51, 65, 85); // #334155 Slate
-                $slateCategory = imagecolorallocate($canvas, 100, 116, 139); // #64748B Muted Slate
+                // Colors for white Canva template (Exact Specification)
+                $colorGold = imagecolorallocate($canvas, 212, 136, 6);   // #D48806
+                $colorDarkNavy = imagecolorallocate($canvas, 30, 41, 59); // #1E293B
+                $colorGray = imagecolorallocate($canvas, 100, 116, 139); // #64748B
                 $darkCircleBg = imagecolorallocate($canvas, 10, 37, 64); // #0A2540 Dark Blue
 
-                // 1. Profile Avatar: radius 286px, moved down ~5% (Center X = 540, Center Y = 512)
-                $avatarCenterX = 540;
-                $avatarCenterY = 512;
-                $avatarSize = 286;
+                // 1. Profile Avatar: Diameter = 305px, Center X = 538px, Center Y = 513px
+                $targetDiameter = 305;
+                $circleCenterX = 538;
+                $circleCenterY = 513;
 
-                $this->drawAvatarOrInitial($canvas, $user, $avatarCenterX, $avatarCenterY, $avatarSize, $darkCircleBg);
+                $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg);
 
-                // 2. User Name: UPPERCASE and w500 font weight, +2px size (26px)
-                $nameUpper = strtoupper($name);
-                $nextY = $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$nameUpper],
-                    26,
-                    (int) ($width / 2),
-                    705,
-                    $goldName,
-                    $fontSemiBold
-                );
+                // Helper to draw center-aligned text at precise baseline Y with auto-scaling
+                $drawCenterText = function ($img, int $fontSize, int $y, $color, string $font, string $text, int $maxWidth = 920) use ($width) {
+                    if (empty($text)) {
+                        return;
+                    }
+                    $size = $fontSize;
+                    $bbox = @imagettfbbox($size, 0, $font, $text);
+                    while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 12) {
+                        $size -= 1;
+                        $bbox = @imagettfbbox($size, 0, $font, $text);
+                    }
+                    if ($bbox) {
+                        $textWidth = abs($bbox[4] - $bbox[0]);
+                        $x = ($width - $textWidth) / 2;
+                        imagettftext($img, $size, 0, (int) $x, $y, $color, $font, $text);
+                    }
+                };
 
-                // 3. City & Business Name in a SINGLE ROW (w500, +2px size = 16px)
+                // 2. Line 1: User Full Name (Uppercase, Gold, Bold, Y = 735)
+                $displayName = strtoupper(trim($name ?: 'PEER MEMBER'));
+                $drawCenterText($canvas, 30, 735, $colorGold, $fontBold, $displayName, 900);
+
+                // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, Y = 766)
                 $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
                 if (is_array($company)) {
                     $company = $company['name'] ?? '';
@@ -292,23 +311,29 @@ class IntroducedPeerCreativeGenerator
                     $country = 'IND';
                 }
 
-                $cityCountry = $cityName !== '' ? "{$cityName}, {$country}" : $country;
-                $rowParts = array_filter([$company, $cityCountry]);
-                $cityBusinessRow = implode('  •  ', $rowParts);
+                $locationParts = [];
+                if (! empty($cityName)) {
+                    $locationParts[] = $cityName;
+                }
+                if (! empty($country) && strtolower($country) !== strtolower($cityName)) {
+                    $locationParts[] = $country;
+                }
+                $locationStr = implode(', ', $locationParts);
 
-                if (! empty($cityBusinessRow)) {
-                    $nextY = $this->drawPreWrappedCenteredText(
-                        $canvas,
-                        [$cityBusinessRow],
-                        16,
-                        (int) ($width / 2),
-                        $nextY + 8,
-                        $slateCompany,
-                        $fontSemiBold
-                    );
+                $line2Parts = [];
+                if (! empty($company)) {
+                    $line2Parts[] = $company;
+                }
+                if (! empty($locationStr)) {
+                    $line2Parts[] = $locationStr;
+                }
+                $line2Text = implode(' • ', $line2Parts);
+
+                if (! empty($line2Text)) {
+                    $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);
                 }
 
-                // 4. Level 4 Category / Sub-Category (w500, +2px size = 15px)
+                // 4. Line 3: Level 4 Category / Subcategory (Slate Gray, Medium, Y = 794)
                 $level4Name = '';
                 if ($user->relationLoaded('level4Category')) {
                     $level4Name = $user->getRelation('level4Category')?->name ?? '';
@@ -333,15 +358,9 @@ class IntroducedPeerCreativeGenerator
                     $level4Name = $user->membership_status ?? 'Peers Global Member';
                 }
 
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [(string) $level4Name],
-                    15,
-                    (int) ($width / 2),
-                    $nextY + 6,
-                    $slateCategory,
-                    $fontSemiBold
-                );
+                if (! empty($level4Name)) {
+                    $drawCenterText($canvas, 17, 794, $colorGray, $fontSemiBold, (string) $level4Name, 920);
+                }
             } else {
                 // Canvas Dimensions (Vertical 1080x1350 fallback)
                 $width = 1080;
@@ -521,7 +540,18 @@ class IntroducedPeerCreativeGenerator
             );
 
             $disk = config('filesystems.default', 'public');
-            $fileModel = $this->fileUploadService->store($uploadedFile, auth('admin')->user(), $disk);
+
+            if ($targetFileRecord) {
+                $finalPath = $targetFileRecord->s3_key;
+                $stream = fopen($tempPath, 'r');
+                Storage::disk($disk)->put($finalPath, $stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+                $fileModel = $targetFileRecord;
+            } else {
+                $fileModel = $this->fileUploadService->store($uploadedFile, auth('admin')->user(), $disk);
+            }
 
             if ($disk !== 'public') {
                 try {

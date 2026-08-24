@@ -252,35 +252,66 @@ class TestimonialController extends BaseApiController
 
     public function userTestimonials(Request $request, User $user)
     {
-        $perPage = (int) $request->input('per_page', 20);
+        $perPage = (int) $request->input('per_page', 10);
         $perPage = max(1, min($perPage, 100));
 
         $paginator = Testimonial::query()
-            ->with(['fromUser', 'toUser'])
+            ->with(['fromUser'])
             ->where('to_user_id', $user->id)
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $testimonialsGiven = Testimonial::query()
-            ->where('from_user_id', $user->id)
-            ->where('is_deleted', false)
-            ->whereNull('deleted_at')
-            ->count();
+        $testimonials = collect($paginator->items())->map(function (Testimonial $testimonial) {
+            $giver = $testimonial->fromUser;
+            $profilePhotoUrl = null;
+            if ($giver) {
+                $profilePhotoId = $giver->profile_photo_file_id ?? $giver->profile_photo_id;
+                $profilePhotoUrl = $profilePhotoId
+                    ? url('/api/v1/files/'.$profilePhotoId)
+                    : ($giver->profile_photo_url ?? null);
+            }
 
-        return $this->success([
-            'summary' => [
+            // Media mapping
+            $media = null;
+            if (! empty($testimonial->media)) {
+                $media = collect($testimonial->media)->map(function ($item) {
+                    $id = $item['id'] ?? null;
+
+                    return [
+                        'id' => $id,
+                        'type' => $item['type'] ?? 'image',
+                        'url' => $id ? url('/api/v1/files/'.$id) : null,
+                    ];
+                })->all();
+            }
+
+            return [
+                'id' => $testimonial->id,
+                'content' => $testimonial->content,
+                'media' => $media,
+                'given_by' => $giver ? [
+                    'id' => $giver->id,
+                    'name' => $giver->display_name ?? trim(($giver->first_name ?? '').' '.($giver->last_name ?? '')),
+                    'profile_photo' => $profilePhotoUrl,
+                ] : null,
+                'created_at' => optional($testimonial->created_at)->toISOString(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Testimonials retrieved successfully.',
+            'data' => [
                 'total_testimonials' => $paginator->total(),
-                'testimonials_given' => $testimonialsGiven,
-                'testimonials_received' => $paginator->total(),
-            ],
-            'items' => TestimonialResource::collection($paginator->items()),
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
+                'testimonials' => $testimonials,
+                'pagination' => [
+                    'current_page' => $paginator->currentPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'last_page' => $paginator->lastPage(),
+                ],
             ],
         ]);
     }

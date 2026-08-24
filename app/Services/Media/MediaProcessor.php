@@ -18,6 +18,19 @@ class MediaProcessor
     public function optimize(string $sourcePath, string $type, ?string $mimeType = null): array
     {
         if ($type === 'image') {
+            if (! $this->probe->imagickAvailable() && ! $this->probe->gdAvailable()) {
+                $dimensions = $this->probe->imageDimensions($sourcePath);
+
+                return [
+                    'path' => $sourcePath,
+                    'mime_type' => $mimeType ?: ($this->probe->mimeType($sourcePath) ?: 'image/jpeg'),
+                    'size_bytes' => @filesize($sourcePath) ?: null,
+                    'width' => $dimensions['width'] ?? null,
+                    'height' => $dimensions['height'] ?? null,
+                    'duration' => null,
+                ];
+            }
+
             return $this->processImage($sourcePath, $mimeType);
         }
 

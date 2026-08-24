@@ -220,22 +220,15 @@
                                         @if ($claim->status === 'pending')
                                             @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.coin-claims.index', 'approve'))
                                                 <form method="POST" action="{{ route('admin.coin-claims.approve', $claim->id) }}" class="inline">@csrf
-                                                    <button class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Approve this claim?')">Approve</button>
+                                                    <button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap cursor-pointer" onclick="return confirm('Approve this claim?')">Approve</button>
                                                 </form>
                                             @endif
                                             @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.coin-claims.index', 'reject') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.coin-claims.index', 'approve'))
                                                 <form method="POST" action="{{ route('admin.coin-claims.reject', $claim->id) }}" class="inline">@csrf
                                                     <input type="hidden" name="admin_notes" value="Rejected by admin">
-                                                    <button class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Reject this claim?')">Reject</button>
+                                                    <button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap cursor-pointer" onclick="return confirm('Reject this claim?')">Reject</button>
                                                 </form>
                                             @endif
-                                            <form method="POST" action="{{ route('admin.coin-claims.approve', $claim->id) }}" class="inline">@csrf
-                                                <button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap cursor-pointer" onclick="return confirm('Approve this claim?')">Approve</button>
-                                            </form>
-                                            <form method="POST" action="{{ route('admin.coin-claims.reject', $claim->id) }}" class="inline">@csrf
-                                                <input type="hidden" name="admin_notes" value="Rejected by admin">
-                                                <button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap cursor-pointer" onclick="return confirm('Reject this claim?')">Reject</button>
-                                            </form>
                                         @endif
                                     </div>
                                 </td>

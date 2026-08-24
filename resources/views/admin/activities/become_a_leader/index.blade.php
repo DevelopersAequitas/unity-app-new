@@ -148,9 +148,10 @@
                                                         {{ $peerName }}
                                                     @endif
                                                 </div>
-                                                <div class="t3 text-[10px]">
-                                                    @if($item->peer_company) <span>{{ $item->peer_company }}</span> @endif
-                                                    @if($item->peer_city) &bull; <span>{{ $item->peer_city }}</span> @endif
+                                                <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                    @if($item->peer_company) <span class="truncate max-w-[140px]" title="{{ $item->peer_company }}">{{ $item->peer_company }}</span> @endif
+                                                    @if($item->peer_company && $item->peer_city) <span class="text-slate-400 select-none">•</span> @endif
+                                                    @if($item->peer_city) <span class="truncate max-w-[100px] text-slate-500" title="{{ $item->peer_city }}">{{ $item->peer_city }}</span> @endif
                                                 </div>
                                             </div>
                                         </div>

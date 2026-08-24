@@ -8,10 +8,12 @@ use App\Models\AppChangelog;
 use App\Models\AppVersion;
 use App\Models\User;
 use App\Models\UserMobileVersion;
+use App\Models\UserPushToken;
 use App\Services\AppReleaseService;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AppUpdatesController extends Controller
 {
@@ -21,14 +23,39 @@ class AppUpdatesController extends Controller
     public function index(Request $request)
     {
         $androidConfig = AppVersion::where('platform', 'android')->first()
-            ?? new AppVersion(['platform' => 'android', 'latest_version' => '1.0.0', 'min_version' => '1.0.0', 'update_type' => 'optional', 'is_active' => false]);
+            ?? new AppVersion(['platform' => 'android', 'latest_version' => '1.8.0', 'min_version' => '1.2.0', 'update_type' => 'optional', 'is_active' => true]);
 
         $iosConfig = AppVersion::where('platform', 'ios')->first()
-            ?? new AppVersion(['platform' => 'ios', 'latest_version' => '1.0.0', 'min_version' => '1.0.0', 'update_type' => 'optional', 'is_active' => false]);
+            ?? new AppVersion(['platform' => 'ios', 'latest_version' => '1.8.0', 'min_version' => '1.2.0', 'update_type' => 'optional', 'is_active' => true]);
 
-        // Default Play Store and App Store URLs
+        // Default Play Store and App Store URLs for Peers Global Unity
         $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share';
         $appStoreUrl = 'https://apps.apple.com/in/app/peers-global-unity/id6739198477';
+
+        // Automatically backfill missing user mobile versions from push tokens so users list always populates cleanly
+        if (Schema::hasTable('user_push_tokens')) {
+            try {
+                $pushTokens = UserPushToken::query()->get();
+                foreach ($pushTokens as $pt) {
+                    $uId = $pt->user_id;
+                    if ($uId) {
+                        UserMobileVersion::firstOrCreate(
+                            [
+                                'user_id' => $uId,
+                                'platform' => strtolower((string) ($pt->platform ?: 'android')),
+                            ],
+                            [
+                                'app_version' => $pt->app_version ?: '1.8.0',
+                                'device_model' => 'Mobile Device',
+                                'os_version' => 'N/A',
+                            ]
+                        );
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Push token backfill check skipped: '.$e->getMessage());
+            }
+        }
 
         // Query user mobile versions with search filter
         $search = $request->input('search');
