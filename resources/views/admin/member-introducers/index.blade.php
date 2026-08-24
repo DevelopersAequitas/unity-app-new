@@ -620,8 +620,11 @@
                                             <i class="bi bi-clipboard"></i>Copy Text
                                         </button>
                                     </div>
-                                    <textarea id="studioCaptionText" rows="5" readonly class="w-full p-3 rounded-xl bg-slate-950 text-slate-200 border border-slate-800 text-xs outline-none resize-none font-mono leading-relaxed focus:border-amber-500"></textarea>
+                                    <textarea id="studioCaptionText" rows="4" readonly class="w-full p-3 rounded-xl bg-slate-950 text-slate-200 border border-slate-800 text-xs outline-none resize-none font-mono leading-relaxed focus:border-amber-500"></textarea>
                                 </div>
+
+                                {{-- Peer Growth Honours & Timeline History --}}
+                                <div id="studioPeerHonoursContainer"></div>
                             </div>
 
                             {{-- Action Buttons --}}
@@ -893,8 +896,11 @@
                                         <i class="bi bi-clipboard"></i>Copy Text
                                     </button>
                                 </div>
-                                <textarea id="creativeCaptionText" rows="6" readonly class="w-full p-3 rounded-xl border bs surface t1 text-xs outline-none resize-none font-mono leading-relaxed"></textarea>
+                                <textarea id="creativeCaptionText" rows="4" readonly class="w-full p-3 rounded-xl border bs surface t1 text-xs outline-none resize-none font-mono leading-relaxed"></textarea>
                             </div>
+
+                            {{-- Peer Growth Honours & Timeline History --}}
+                            <div id="modalPeerHonoursContainer"></div>
                         </div>
 
                         {{-- Action Buttons --}}
@@ -1027,12 +1033,22 @@ function refreshStudioCreative() {
                 document.getElementById('studioPeerStatusBadge').textContent = (data.peer.membership_status || 'Member').replace(/_/g, ' ');
             }
 
+            renderPeerHonoursList(data, true);
+
             const imgEl = document.getElementById('studioPreviewImg');
             imgEl.src = data.preview_url;
 
             const btnDownload = document.getElementById('btnStudioDownloadCreative');
             btnDownload.href = data.preview_url;
             btnDownload.download = `Growth_Honour_${studioActivePeerName.replace(/\s+/g, '_')}.webp`;
+
+            const btnPost = document.getElementById('btnStudioPostToTimeline');
+            if (btnPost && data.timeline_status) {
+                const postBtnText = btnPost.querySelector('span');
+                if (postBtnText) {
+                    postBtnText.textContent = data.timeline_status.is_posted ? 'Re-post Creative to Timeline' : 'Post Creative to Timeline';
+                }
+            }
 
             workspaceEl?.classList.remove('hidden');
         }
@@ -1304,12 +1320,22 @@ function openCreativeModal(introducerId, introducerName, count = 0) {
                 document.getElementById('modalPeerStatusBadge').textContent = (data.peer.membership_status || 'Member').replace(/_/g, ' ');
             }
 
+            renderPeerHonoursList(data, false);
+
             const imgEl = document.getElementById('creativePreviewImg');
             imgEl.src = data.preview_url;
             
             const btnDownload = document.getElementById('btnDownloadCreative');
             btnDownload.href = data.preview_url;
             btnDownload.download = `Growth_Honour_${introducerName.replace(/\s+/g, '_')}.webp`;
+
+            const btnPost = document.getElementById('btnPostToTimeline');
+            if (btnPost && data.timeline_status) {
+                const postBtnText = btnPost.querySelector('span');
+                if (postBtnText) {
+                    postBtnText.textContent = data.timeline_status.is_posted ? 'Re-post Creative to Timeline' : 'Post Creative to Timeline';
+                }
+            }
 
             document.getElementById('creativeLoading').classList.add('hidden');
             document.getElementById('creativeContent').classList.remove('hidden');
@@ -1318,6 +1344,82 @@ function openCreativeModal(introducerId, introducerName, count = 0) {
     .catch(err => {
         document.getElementById('creativeLoading').innerHTML = `<p class="text-red-500 text-xs">Failed generating creative: ${err.message}</p>`;
     });
+}
+
+function renderPeerHonoursList(data, isStudio = false) {
+    const containerId = isStudio ? 'studioPeerHonoursContainer' : 'modalPeerHonoursContainer';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const unlockedHonours = (data.peer_honours || []).filter(h => h.is_unlocked);
+
+    if (unlockedHonours.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const cardBg = isStudio ? 'bg-slate-900/90 border-slate-800' : 'surface-2 border bs';
+
+    let html = `
+        <div class="p-4 rounded-xl ${cardBg} border space-y-3 shadow-sm">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+                <span class="text-[11px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="bi bi-award-fill"></i>Earned Recognition Creatives (${unlockedHonours.length} Available)
+                </span>
+                ${data.timeline_status && data.timeline_status.total_timeline_posts > 0 ? 
+                    `<span class="chip px-2.5 py-0.5 text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border-emerald-500/40">
+                        <i class="bi bi-broadcast me-1"></i>${data.timeline_status.total_timeline_posts} Posted in Timeline
+                     </span>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-1.5 pt-0.5">
+    `;
+
+    unlockedHonours.forEach(h => {
+        let badgeClass = '';
+        let icon = '';
+        let labelExtra = '';
+
+        if (h.posted_to_timeline) {
+            labelExtra += ` <span class="text-[10px] font-extrabold text-emerald-400 ms-1" title="Already posted to Timeline">✓ Posted</span>`;
+        }
+
+        if (h.is_current) {
+            badgeClass = 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold border-amber-300 shadow-md ring-2 ring-amber-400/50';
+            icon = '🏆 ';
+        } else {
+            badgeClass = isStudio ? 'bg-emerald-950/80 text-emerald-300 font-bold border-emerald-500/50 hover:bg-emerald-900' : 'bg-emerald-50 text-emerald-700 font-bold border-emerald-200 hover:bg-emerald-100';
+            icon = '✅ ';
+        }
+
+        const clickFn = isStudio ? `onStudioLevelChange(${h.threshold})` : `onModalLevelSwitch(${h.threshold})`;
+
+        html += `
+            <button type="button" onclick="${clickFn}" class="chip px-2.5 py-1 text-xs rounded-xl border transition cursor-pointer inline-flex items-center gap-1 ${badgeClass}" title="${h.title} (${h.threshold} Peers) — ${h.compliment}">
+                <span>${icon}${h.title}</span>
+                <span class="text-[10px] opacity-80">(${h.threshold})</span>
+                ${labelExtra}
+            </button>
+        `;
+    });
+
+    html += `</div>`;
+
+    if (data.timeline_status && data.timeline_status.is_posted) {
+        html += `
+            <div class="mt-2.5 p-2.5 rounded-xl ${isStudio ? 'bg-indigo-950/70 border border-indigo-500/40 text-indigo-200' : 'bg-indigo-50 border border-indigo-200 text-indigo-900'} flex items-center justify-between text-xs flex-wrap gap-2">
+                <span class="font-semibold flex items-center gap-1.5">
+                    <i class="bi bi-check-circle-fill text-emerald-400"></i>
+                    Creative published on Timeline ${data.timeline_status.posted_at ? '(' + data.timeline_status.posted_at + ')' : ''}
+                </span>
+                <a href="${data.timeline_status.post_view_url}" target="_blank" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] no-underline inline-flex items-center gap-1 shadow">
+                    <i class="bi bi-eye"></i>View Post in Timeline
+                </a>
+            </div>
+        `;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
 }
 
 function copyCaptionToClipboard() {
