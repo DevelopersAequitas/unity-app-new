@@ -73,14 +73,12 @@ class MaintenanceService
             ? 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️'
             : 'Scheduled maintenance is coming up. We\'ll be upgrading our servers for faster performance.';
 
-        $tz = config('database.connections.pgsql.timezone') ?? config('database.connections.mysql.timezone') ?? 'Asia/Kolkata';
-
         return [
             'status' => $status,
             'title' => $maintenance->title ?: $defaultTitle,
             'message' => $maintenance->message ?: $defaultMessage,
-            'start_time' => $maintenance->start_time?->setTimezone($tz)->toIso8601String(),
-            'end_time' => $maintenance->end_time?->setTimezone($tz)->toIso8601String(),
+            'start_time' => $maintenance->start_time ? $maintenance->start_time->format('Y-m-d\TH:i:s\Z') : null,
+            'end_time' => $maintenance->end_time ? $maintenance->end_time->format('Y-m-d\TH:i:s\Z') : null,
             'duration_minutes' => $durationMinutes,
             'support_email' => $maintenance->support_email ?: 'support@peersunity.com',
         ];
