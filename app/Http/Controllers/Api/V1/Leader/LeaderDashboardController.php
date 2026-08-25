@@ -20,8 +20,10 @@ class LeaderDashboardController extends Controller
      */
     public function metrics(Request $request): JsonResponse
     {
-        $circleId = $request->query('circle_id');
-        $data = $this->dashboardService->getMetrics($circleId ? (string) $circleId : null);
+        $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+
+        $data = $this->dashboardService->getMetrics($circleId, $districtId, $request->user());
 
         return response()->json([
             'success' => true,
@@ -34,8 +36,10 @@ class LeaderDashboardController extends Controller
      */
     public function topImpacters(Request $request): JsonResponse
     {
-        $circleId = $request->query('circle_id');
-        $data = $this->dashboardService->getTopImpacters($circleId ? (string) $circleId : null);
+        $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+
+        $data = $this->dashboardService->getTopImpacters($circleId, $districtId, $request->user());
 
         return response()->json([
             'success' => true,

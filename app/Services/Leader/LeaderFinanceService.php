@@ -4,24 +4,57 @@ declare(strict_types=1);
 
 namespace App\Services\Leader;
 
+use App\Models\Circle;
 use App\Models\Payment;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class LeaderFinanceService
 {
+    public function __construct(
+        private readonly LeaderTeamsService $teamsService,
+    ) {}
+
     /**
-     * Get aggregate finance KPIs.
+     * Get aggregate finance KPIs for circle or district (with 10% DED commission).
      *
      * @return array<string, mixed>
      */
-    public function getMetrics(?string $circleId = null): array
-    {
+    public function getMetrics(
+        ?string $circleId = null,
+        ?string $districtId = null,
+        ?User $user = null,
+    ): array {
+        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+
+        // Sum actual payments in scope
+        $query = Payment::query()->whereIn('status', ['Paid', 'paid', 'completed']);
+
+        if ($circleId) {
+            $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        } elseif ($resolvedDistrictId) {
+            $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
+        }
+
+        $collectionsAmount = (float) $query->sum('amount');
+        if ($collectionsAmount <= 0) {
+            $collectionsAmount = 8450000.0; // 84.5L default baseline
+        }
+
+        // 10% DED Overriding Commission
+        $dedCommission = $collectionsAmount * 0.10;
+
+        $duesAmount = 1220000.0; // 12.2L
+        $projectedAnnualRevenue = $collectionsAmount * 1.42; // ~1.20Cr
+
         return [
-            'total_collections' => '₹84.5L',
-            'total_dues' => '₹12.2L',
-            'projected_annual_revenue' => '₹1.20Cr',
+            'total_collections' => '₹'.number_format($collectionsAmount / 100000, 1).'L',
+            'ded_commission_earned' => '₹'.number_format($dedCommission / 100000, 2).'L',
+            'ded_commission_amount' => $dedCommission,
+            'total_dues' => '₹'.number_format($duesAmount / 100000, 1).'L',
+            'projected_annual_revenue' => '₹'.number_format($projectedAnnualRevenue / 10000000, 2).'Cr',
             'coin_issuances_total' => 14500,
         ];
     }
@@ -31,16 +64,34 @@ class LeaderFinanceService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getTransactions(?string $circleId = null, ?string $status = null): array
-    {
-        $payments = Payment::query()->take(10)->get();
+    public function getTransactions(
+        ?string $circleId = null,
+        ?string $status = null,
+        ?string $districtId = null,
+        ?User $user = null,
+    ): array {
+        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+
+        $query = Payment::query()->with(['user.circleMembers.circle']);
+
+        if ($circleId) {
+            $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        } elseif ($resolvedDistrictId) {
+            $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
+        }
+
+        if ($status && strtolower($status) !== 'all') {
+            $query->whereRaw('LOWER(status) = ?', [strtolower($status)]);
+        }
+
+        $payments = $query->take(10)->get();
 
         if ($payments->isEmpty()) {
             return [
                 [
                     'id' => 'txn_8921',
-                    'peer_name' => 'Siddharth Verma',
-                    'circle_name' => 'Mumbai Tech Sunrise',
+                    'peer_name' => 'Jatin Jadav',
+                    'circle_name' => 'Ahmedabad Tech Pioneers',
                     'amount' => '₹45,000',
                     'type' => 'Annual Membership Fee',
                     'status' => 'Paid',
@@ -48,8 +99,8 @@ class LeaderFinanceService
                 ],
                 [
                     'id' => 'txn_8922',
-                    'peer_name' => 'Ananya Roy',
-                    'circle_name' => 'Mumbai Tech Sunrise',
+                    'peer_name' => 'Chirag Mali',
+                    'circle_name' => 'Ahmedabad MSME Growth Circle',
                     'amount' => '₹45,000',
                     'type' => 'Annual Membership Fee',
                     'status' => 'Pending',
@@ -57,8 +108,8 @@ class LeaderFinanceService
                 ],
                 [
                     'id' => 'txn_8923',
-                    'peer_name' => 'Rohan Deshmukh',
-                    'circle_name' => 'Mumbai Tech Sunrise',
+                    'peer_name' => 'Vinit Chavda',
+                    'circle_name' => 'Ahmedabad Business Circle',
                     'amount' => '₹45,000',
                     'type' => 'Annual Membership Fee',
                     'status' => 'Overdue',
@@ -68,16 +119,24 @@ class LeaderFinanceService
         }
 
         return $payments->map(function (Payment $p, int $idx): array {
-            $user = $p->user;
-            $name = $user ? trim(($user->first_name ?? '').' '.($user->last_name ?? '')) : 'Siddharth Verma';
+            $u = $p->user;
+            $name = $u ? trim(($u->first_name ?? '').' '.($u->last_name ?? '')) : 'Jatin Jadav';
             if ($name === '' || $name === ' ') {
-                $name = 'Siddharth Verma';
+                $name = $u?->display_name ?? 'Jatin Jadav';
+            }
+
+            $circleName = 'Ahmedabad Tech Pioneers';
+            if ($u && $u->circleMembers->isNotEmpty()) {
+                $c = $u->circleMembers->first()?->circle;
+                if ($c && ! empty($c->name)) {
+                    $circleName = $c->name;
+                }
             }
 
             return [
                 'id' => (string) ($p->id ?: 'txn_892'.$idx),
                 'peer_name' => $name,
-                'circle_name' => 'Mumbai Tech Sunrise',
+                'circle_name' => $circleName,
                 'amount' => '₹'.number_format((float) ($p->amount ?: 45000)),
                 'type' => 'Annual Membership Fee',
                 'status' => (string) ucfirst((string) ($p->status ?: 'Paid')),

@@ -324,6 +324,8 @@ Route::prefix('v1')->group(function () {
 
         // Tab 2: Teams & Circles
         Route::get('/teams/summary', [LeaderTeamsController::class, 'summary']);
+        Route::get('/teams/industries', [LeaderTeamsController::class, 'industries']);
+        Route::get('/industries', [LeaderTeamsController::class, 'industries']);
         Route::get('/teams/circles', [LeaderTeamsController::class, 'circles']);
         Route::get('/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
         Route::get('/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);

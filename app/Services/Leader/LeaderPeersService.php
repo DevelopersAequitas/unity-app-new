@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Leader;
 
+use App\Models\Circle;
+use App\Models\CircleMember;
+use App\Models\District;
 use App\Models\LeaderWish;
 use App\Models\Referral;
 use App\Models\Testimonial;
@@ -15,8 +18,12 @@ use Illuminate\Support\Str;
 
 class LeaderPeersService
 {
+    public function __construct(
+        private readonly LeaderTeamsService $teamsService,
+    ) {}
+
     /**
-     * List peers with filters & sorting.
+     * List peers with filters & sorting scoped to circle or district.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -25,7 +32,11 @@ class LeaderPeersService
         ?string $status = null,
         ?string $sort = null,
         ?string $search = null,
+        ?string $districtId = null,
+        ?User $user = null,
     ): array {
+        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+
         $query = User::query()->whereNull('deleted_at');
 
         if ($search) {
@@ -42,19 +53,27 @@ class LeaderPeersService
             $query->whereHas('circleMembers', function (Builder $q) use ($circleId): void {
                 $q->where('circle_id', $circleId);
             });
+        } elseif ($resolvedDistrictId) {
+            $query->where(function (Builder $q) use ($resolvedDistrictId): void {
+                $q->whereHas('circleMembers.circle', function (Builder $cq) use ($resolvedDistrictId): void {
+                    $cq->where('district_id', $resolvedDistrictId);
+                })->orWhereHas('activeCircle', function (Builder $cq) use ($resolvedDistrictId): void {
+                    $cq->where('district_id', $resolvedDistrictId);
+                });
+            });
         }
 
-        $users = $query->take(20)->get();
+        $users = $query->with(['circleMembers.circle'])->take(20)->get();
 
         if ($users->isEmpty()) {
             return [
                 [
-                    'id' => 'peer_001',
-                    'name' => 'Siddharth Verma',
-                    'company' => 'Apex Dynamics Pvt Ltd',
-                    'circle' => 'Mumbai Tech Sunrise',
-                    'location' => 'Mumbai',
-                    'tags' => 'FinTech · Series A · B2B SaaS',
+                    'id' => '75ffdee9-e587-4ee7-b020-ff8184adb751',
+                    'name' => 'Jatin Jadav',
+                    'company' => 'Aequitas Information Technology',
+                    'circle' => 'Ahmedabad Tech Pioneers',
+                    'location' => 'Ahmedabad',
+                    'tags' => 'FinTech · B2B SaaS',
                     'status' => 'Active',
                     'impact_count' => 48,
                     'deals_formatted' => '₹32.5L',
@@ -62,39 +81,39 @@ class LeaderPeersService
                     'attendance' => '94%',
                 ],
                 [
-                    'id' => 'peer_002',
-                    'name' => 'Ananya Roy',
-                    'company' => 'Veritas Health Tech',
-                    'circle' => 'Mumbai Tech Sunrise',
-                    'location' => 'Mumbai',
-                    'tags' => 'HealthTech · Seed Stage',
-                    'status' => 'Needs Attention',
+                    'id' => '8fc56c6c-7ed8-422a-b179-2efe547af0b2',
+                    'name' => 'Chirag Mali',
+                    'company' => 'TaskMate AI',
+                    'circle' => 'Ahmedabad Tech Pioneers',
+                    'location' => 'Ahmedabad',
+                    'tags' => 'AI · Software',
+                    'status' => 'Active',
                     'impact_count' => 36,
                     'deals_formatted' => '₹24.0L',
                     'coins' => 980,
-                    'attendance' => '82%',
+                    'attendance' => '88%',
                 ],
                 [
-                    'id' => 'peer_003',
-                    'name' => 'Rohan Deshmukh',
-                    'company' => 'Elevate Logistics',
-                    'circle' => 'Mumbai Tech Sunrise',
-                    'location' => 'Mumbai',
-                    'tags' => 'Logistics · Bootstrapped',
-                    'status' => 'At Risk',
+                    'id' => '6c96265a-5b82-41f9-bea8-d319c12a0266',
+                    'name' => 'Vinit Chavda',
+                    'company' => 'VARNIJAR.CO',
+                    'circle' => 'Ahmedabad Business Circle',
+                    'location' => 'Ahmedabad',
+                    'tags' => 'Logistics · Retail',
+                    'status' => 'Active',
                     'impact_count' => 29,
                     'deals_formatted' => '₹18.2L',
                     'coins' => 750,
-                    'attendance' => '68%',
+                    'attendance' => '85%',
                 ],
                 [
-                    'id' => 'peer_004',
-                    'name' => 'Pooja Hegde',
-                    'company' => 'Solace Architecture',
-                    'circle' => 'Mumbai Tech Sunrise',
-                    'location' => 'Mumbai',
-                    'tags' => 'Architecture · Design',
-                    'status' => 'Pending',
+                    'id' => '365e5afd-0a2f-4d6e-af2d-4ee37114925c',
+                    'name' => 'Chirag Mali',
+                    'company' => 'Aequitas Information Technology Pvt Ltd',
+                    'circle' => 'Ahmedabad MSME Growth Circle',
+                    'location' => 'Ahmedabad',
+                    'tags' => 'Manufacturing · IT',
+                    'status' => 'Active',
                     'impact_count' => 18,
                     'deals_formatted' => '₹11.5L',
                     'coins' => 520,
@@ -104,19 +123,19 @@ class LeaderPeersService
         }
 
         $result = [];
-        $statuses = ['Active', 'Needs Attention', 'At Risk', 'Pending'];
+        $statuses = ['Active', 'Active', 'Active', 'Needs Attention'];
 
-        foreach ($users as $idx => $user) {
-            $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        foreach ($users as $idx => $u) {
+            $name = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
             if ($name === '') {
-                $name = $user->display_name ?? 'Peer Member';
+                $name = $u->display_name ?? 'Peer Member';
             }
 
-            $circleName = 'Mumbai Tech Sunrise';
-            if ($user->circleMembers->isNotEmpty()) {
-                $circle = $user->circleMembers->first()?->circle;
-                if ($circle) {
-                    $circleName = $circle->name;
+            $circleName = 'Ahmedabad Tech Pioneers';
+            if ($u->circleMembers && $u->circleMembers->isNotEmpty()) {
+                $c = $u->circleMembers->first()?->circle;
+                if ($c && ! empty($c->name)) {
+                    $circleName = $c->name;
                 }
             }
 
@@ -128,17 +147,17 @@ class LeaderPeersService
             }
 
             $result[] = [
-                'id' => (string) $user->id,
+                'id' => (string) $u->id,
                 'name' => $name,
-                'company' => (string) ($user->company_name ?? 'Apex Dynamics Pvt Ltd'),
+                'company' => (string) ($u->company_name ?? 'Enterprise Inc'),
                 'circle' => (string) $circleName,
-                'location' => (string) ($user->city ?? 'Mumbai'),
-                'tags' => 'Technology · B2B SaaS',
+                'location' => (string) ($u->city ?? 'Ahmedabad'),
+                'tags' => 'Technology · MSME',
                 'status' => $currentStatus,
-                'impact_count' => max(48 - ($idx * 4), 5),
+                'impact_count' => max(48 - ($idx * 3), 8),
                 'deals_formatted' => '₹'.(32 - $idx).'.5L',
-                'coins' => max(1240 - ($idx * 150), 100),
-                'attendance' => max(96 - ($idx * 4), 65).'%',
+                'coins' => max(1240 - ($idx * 100), 250),
+                'attendance' => max(96 - ($idx * 2), 75).'%',
             ];
         }
 
@@ -152,19 +171,18 @@ class LeaderPeersService
      */
     public function getPeer(string $peerId): array
     {
-        $user = User::query()->where('id', $peerId)->first();
+        $user = User::query()->where('id', $peerId)->with(['circleMembers.circle'])->first();
 
         if (! $user) {
-            // Mock fallback if id not in database
             return [
                 'id' => $peerId,
-                'name' => 'Siddharth Verma',
-                'company' => 'Apex Dynamics Pvt Ltd',
+                'name' => 'Jatin Jadav',
+                'company' => 'Aequitas Information Technology',
                 'designation' => 'Founder & CEO',
-                'phone' => '+919876543201',
-                'email' => 'siddharth@apexdynamics.com',
-                'circle' => 'Mumbai Tech Sunrise',
-                'location' => 'Mumbai, India',
+                'phone' => '+918511386715',
+                'email' => 'work.jatinjadav@gmail.com',
+                'circle' => 'Ahmedabad Tech Pioneers',
+                'location' => 'Ahmedabad, India',
                 'intro_video_url' => 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
                 'attendance' => '94%',
                 'deals_closed' => '₹32.5L',
@@ -172,15 +190,15 @@ class LeaderPeersService
                 'testimonials' => [
                     [
                         'id' => 'tst_1',
-                        'endorser_name' => 'Kavitha Rao',
-                        'endorser_company' => 'Zenith AI',
-                        'content' => 'Outstanding leadership and integrity. Delivered exceptional value on our cross-circle tech partnership.',
+                        'endorser_name' => 'Dhruvil User',
+                        'endorser_company' => 'Aequitas Information Technology Pvt Ltd',
+                        'content' => 'Outstanding tech expertise and cross-circle leadership in Ahmedabad.',
                     ],
                 ],
                 'referrals' => [
                     [
                         'id' => 'ref_1',
-                        'client_name' => 'Tata Digital',
+                        'client_name' => 'Enterprise Gujarat',
                         'value' => '₹12.0L',
                         'status' => 'Closed',
                     ],
@@ -190,7 +208,15 @@ class LeaderPeersService
 
         $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
         if ($name === '') {
-            $name = $user->display_name ?? 'Siddharth Verma';
+            $name = $user->display_name ?? 'Peer Member';
+        }
+
+        $circleName = 'Ahmedabad Tech Pioneers';
+        if ($user->circleMembers && $user->circleMembers->isNotEmpty()) {
+            $c = $user->circleMembers->first()?->circle;
+            if ($c && ! empty($c->name)) {
+                $circleName = $c->name;
+            }
         }
 
         $testimonials = Testimonial::query()
@@ -210,9 +236,9 @@ class LeaderPeersService
             $testimonials = [
                 [
                     'id' => 'tst_1',
-                    'endorser_name' => 'Kavitha Rao',
-                    'endorser_company' => 'Zenith AI',
-                    'content' => 'Outstanding leadership and integrity. Delivered exceptional value on our cross-circle tech partnership.',
+                    'endorser_name' => 'Dhruvil User',
+                    'endorser_company' => 'Aequitas Information Technology Pvt Ltd',
+                    'content' => 'Outstanding tech expertise and cross-circle leadership in Ahmedabad.',
                 ],
             ];
         }
@@ -224,7 +250,7 @@ class LeaderPeersService
             ->get()
             ->map(fn (Referral $r) => [
                 'id' => (string) $r->id,
-                'client_name' => (string) ($r->client_name ?? 'Tata Digital'),
+                'client_name' => (string) ($r->client_name ?? 'Enterprise Gujarat'),
                 'value' => '₹'.($r->deal_value ? ($r->deal_value / 100000).'L' : '12.0L'),
                 'status' => 'Closed',
             ])
@@ -235,7 +261,7 @@ class LeaderPeersService
             $referrals = [
                 [
                     'id' => 'ref_1',
-                    'client_name' => 'Tata Digital',
+                    'client_name' => 'Enterprise Gujarat',
                     'value' => '₹12.0L',
                     'status' => 'Closed',
                 ],
@@ -245,12 +271,12 @@ class LeaderPeersService
         return [
             'id' => (string) $user->id,
             'name' => $name,
-            'company' => (string) ($user->company_name ?? 'Apex Dynamics Pvt Ltd'),
-            'designation' => (string) ($user->designation ?? 'Founder & CEO'),
+            'company' => (string) ($user->company_name ?? 'Enterprise Inc'),
+            'designation' => (string) ($user->designation ?? 'Founder & Director'),
             'phone' => (string) ($user->phone ?? '+919876543201'),
             'email' => (string) ($user->email ?? 'peer@peersglobal.in'),
-            'circle' => (string) ($user->circleMembers->first()?->circle?->name ?? 'Mumbai Tech Sunrise'),
-            'location' => (string) ($user->city ?? 'Mumbai, India'),
+            'circle' => (string) $circleName,
+            'location' => (string) ($user->city ?? 'Ahmedabad, India'),
             'intro_video_url' => (string) ($user->intro_video_url ?? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'),
             'attendance' => '94%',
             'deals_closed' => '₹32.5L',
@@ -265,23 +291,39 @@ class LeaderPeersService
      *
      * @return array{birthdays: array<int, mixed>, anniversaries: array<int, mixed>}
      */
-    public function getCelebrations(?string $circleId = null): array
-    {
+    public function getCelebrations(
+        ?string $circleId = null,
+        ?string $districtId = null,
+        ?User $user = null,
+    ): array {
+        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+
+        $ahmedabadUsers = User::query()
+            ->whereNull('deleted_at')
+            ->when($circleId, fn ($q) => $q->whereHas('circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)))
+            ->when(! $circleId && $resolvedDistrictId, fn ($q) => $q->whereHas('circleMembers.circle', fn ($c) => $c->where('district_id', $resolvedDistrictId)))
+            ->take(5)
+            ->get();
+
+        $user1 = $ahmedabadUsers->first();
+        $user2 = $ahmedabadUsers->skip(1)->first();
+        $user3 = $ahmedabadUsers->skip(2)->first();
+
         return [
             'birthdays' => [
                 [
                     'id' => 'cel_01',
-                    'peer_id' => 'peer_001',
-                    'name' => 'Siddharth Verma',
-                    'company' => 'Apex Dynamics',
+                    'peer_id' => (string) ($user1?->id ?? '75ffdee9-e587-4ee7-b020-ff8184adb751'),
+                    'name' => (string) ($user1?->first_name ? $user1->first_name.' '.$user1->last_name : 'Jatin Jadav'),
+                    'company' => (string) ($user1?->company_name ?? 'Aequitas Information Technology'),
                     'date_formatted' => 'Today, '.now()->format('d M'),
                     'is_today' => true,
                 ],
                 [
                     'id' => 'cel_02',
-                    'peer_id' => 'peer_002',
-                    'name' => 'Ananya Roy',
-                    'company' => 'Veritas Health Tech',
+                    'peer_id' => (string) ($user2?->id ?? '8fc56c6c-7ed8-422a-b179-2efe547af0b2'),
+                    'name' => (string) ($user2?->first_name ? $user2->first_name.' '.$user2->last_name : 'Chirag Mali'),
+                    'company' => (string) ($user2?->company_name ?? 'TaskMate AI'),
                     'date_formatted' => now()->addDays(3)->format('d M'),
                     'is_today' => false,
                 ],
@@ -289,10 +331,10 @@ class LeaderPeersService
             'anniversaries' => [
                 [
                     'id' => 'cel_03',
-                    'peer_id' => 'peer_003',
-                    'name' => 'Rohan Deshmukh',
-                    'company' => 'Elevate Logistics',
-                    'milestone' => '3 Years in Circle',
+                    'peer_id' => (string) ($user3?->id ?? '6c96265a-5b82-41f9-bea8-d319c12a0266'),
+                    'name' => (string) ($user3?->first_name ? $user3->first_name.' '.$user3->last_name : 'Vinit Chavda'),
+                    'company' => (string) ($user3?->company_name ?? 'VARNIJAR.CO'),
+                    'milestone' => '2 Years in Circle',
                     'date_formatted' => now()->addDays(4)->format('d M'),
                     'is_today' => false,
                 ],
@@ -308,7 +350,7 @@ class LeaderPeersService
         $receiver = User::query()->where('id', $receiverUserId)->first();
         $receiverName = $receiver ? trim(($receiver->first_name ?? '').' '.($receiver->last_name ?? '')) : 'Peer';
         if ($receiverName === '' || $receiverName === ' ') {
-            $receiverName = 'Siddharth Verma';
+            $receiverName = 'Jatin Jadav';
         }
 
         LeaderWish::query()->create([
@@ -345,8 +387,8 @@ class LeaderPeersService
                     'id' => 'meet_301',
                     'day' => '01',
                     'month' => 'Sep',
-                    'title' => 'Monthly Circle Meeting',
-                    'time_location' => '7:30 AM - Grand Ballroom, Mumbai',
+                    'title' => 'Ahmedabad Tech Leaders Meeting',
+                    'time_location' => '7:30 AM - Grand Hyatt, Ahmedabad',
                     'status' => 'Confirmed',
                     'type' => 'Circle Meeting',
                 ],
@@ -355,7 +397,7 @@ class LeaderPeersService
                     'day' => '12',
                     'month' => 'Sep',
                     'title' => 'P2P 1-on-1 Alignment',
-                    'time_location' => '4:00 PM - Starbucks BKC',
+                    'time_location' => '4:00 PM - Starbucks Satellite, Ahmedabad',
                     'status' => 'Open',
                     'type' => 'P2P Meeting',
                 ],
@@ -370,7 +412,7 @@ class LeaderPeersService
                 'day' => $date->format('d'),
                 'month' => $date->format('M'),
                 'title' => (string) ($m->remarks ? 'P2P: '.$m->remarks : 'P2P 1-on-1 Alignment'),
-                'time_location' => (string) ($m->meeting_place ?: 'Starbucks BKC, Mumbai'),
+                'time_location' => (string) ($m->meeting_place ?: 'Starbucks Satellite, Ahmedabad'),
                 'status' => $date->isFuture() ? 'Open' : 'Confirmed',
                 'type' => 'P2P Meeting',
             ];
@@ -451,21 +493,21 @@ class LeaderPeersService
                 [
                     'id' => 'act_401',
                     'icon_type' => 'arrows',
-                    'title' => 'Completed P2P meeting with Ananya Roy',
-                    'subtitle' => 'Discussed healthcare AI integration pipeline',
+                    'title' => 'Completed P2P meeting with Chirag Mali',
+                    'subtitle' => 'Discussed AI integration pipeline for enterprise clients',
                     'created_at' => '2 hours ago',
                 ],
                 [
                     'id' => 'act_402',
                     'icon_type' => 'speaker',
-                    'title' => 'Gave 2 referrals to CloudSoft',
-                    'subtitle' => 'Enterprise Cloud Migration leads',
+                    'title' => 'Gave 2 referrals to TaskMate',
+                    'subtitle' => 'Enterprise SaaS Migration leads in Ahmedabad',
                     'created_at' => '3 days ago',
                 ],
                 [
                     'id' => 'act_403',
                     'icon_type' => 'trophy',
-                    'title' => 'Closed ₹14.2L deal with Veritas Tech',
+                    'title' => 'Closed ₹14.2L deal with VARNIJAR',
                     'subtitle' => 'Transaction confirmed by Circle Director',
                     'created_at' => '1 week ago',
                 ],
@@ -500,7 +542,7 @@ class LeaderPeersService
             'initiator_user_id' => $initiator->id,
             'peer_user_id' => $targetUserId,
             'meeting_date' => $data['meeting_date'] ?? now()->toDateString(),
-            'meeting_place' => $data['meeting_place'] ?? 'Grand Ballroom, Mumbai',
+            'meeting_place' => $data['meeting_place'] ?? 'Grand Hyatt, Ahmedabad',
             'remarks' => $data['remarks'] ?? ($data['title'] ?? '1-on-1 P2P Meeting'),
             'created_at' => now(),
             'updated_at' => now(),

@@ -18,12 +18,30 @@ class LeaderTeamsController extends Controller
     /**
      * Get teams overview summary metrics.
      */
-    public function summary(): JsonResponse
+    public function summary(Request $request): JsonResponse
     {
-        $data = $this->teamsService->getTeamsSummary();
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+        $data = $this->teamsService->getTeamsSummary($districtId, $request->user());
 
         return response()->json([
             'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Get official master list of 18 industries with circle and peer counts.
+     */
+    public function industries(Request $request): JsonResponse
+    {
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+        $status = $request->query('status') ? (string) $request->query('status') : null;
+
+        $data = $this->teamsService->getIndustriesList($districtId, $request->user(), $status);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Industries fetched successfully.',
             'data' => $data,
         ]);
     }
@@ -36,8 +54,9 @@ class LeaderTeamsController extends Controller
         $industry = $request->query('industry') ? (string) $request->query('industry') : null;
         $status = $request->query('status') ? (string) $request->query('status') : null;
         $search = $request->query('search') ? (string) $request->query('search') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
 
-        $data = $this->teamsService->getCirclesList($industry, $status, $search);
+        $data = $this->teamsService->getCirclesList($industry, $status, $search, $districtId, $request->user());
 
         return response()->json([
             'success' => true,

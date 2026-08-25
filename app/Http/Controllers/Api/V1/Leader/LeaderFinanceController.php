@@ -19,12 +19,14 @@ class LeaderFinanceController extends Controller
     ) {}
 
     /**
-     * Get financial metrics and collection summaries.
+     * Get financial metrics and collection summaries (including 10% DED commission).
      */
     public function metrics(Request $request): JsonResponse
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
-        $data = $this->financeService->getMetrics($circleId);
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+
+        $data = $this->financeService->getMetrics($circleId, $districtId, $request->user());
 
         return response()->json([
             'success' => true,
@@ -39,8 +41,9 @@ class LeaderFinanceController extends Controller
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $status = $request->query('status') ? (string) $request->query('status') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
 
-        $data = $this->financeService->getTransactions($circleId, $status);
+        $data = $this->financeService->getTransactions($circleId, $status, $districtId, $request->user());
 
         return response()->json([
             'success' => true,
