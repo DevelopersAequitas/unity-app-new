@@ -9,7 +9,6 @@ use App\Models\FileModel;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -31,11 +30,26 @@ class WearTheBadgeImageGenerator
     public function generateOrGetUrl(User $user, bool $forceRegenerate = false): string
     {
         $existingUrl = $user->welcome_creative_url ?? $user->profile_card_image_url;
-        if (! $forceRegenerate && filled($existingUrl)) {
-            return (string) $existingUrl;
+
+        $existingUuid = null;
+        if (filled($existingUrl) && preg_match('/\/api\/v1\/files\/([0-9a-fA-F-]{36})/', (string) $existingUrl, $matches)) {
+            $existingUuid = $matches[1];
         }
 
-        $fileModel = $this->generate($user);
+        $fileRecord = null;
+        if ($existingUuid) {
+            $fileRecord = FileModel::find($existingUuid) ?? File::find($existingUuid);
+        }
+
+        if (! $forceRegenerate && filled($existingUrl) && $fileRecord && $fileRecord->s3_key) {
+            $disk = config('filesystems.default', 'public');
+            if (Storage::disk($disk)->exists($fileRecord->s3_key) || Storage::disk('public')->exists($fileRecord->s3_key)) {
+                return (string) $existingUrl;
+            }
+            $forceRegenerate = true;
+        }
+
+        $fileModel = $this->generate($user, $fileRecord);
         $imageUrl = url('/api/v1/files/'.$fileModel->id);
 
         $updateData = [];
@@ -68,14 +82,26 @@ class WearTheBadgeImageGenerator
     public function generate(User $user, ?FileModel $targetFileRecord = null): FileModel
     {
         try {
-            $templatePath = public_path('images/wear-the-badge-template.png');
+            $templatePath = public_path('images/d806d2e9-05ae-427a-9359-026ea10d7f64.webp');
             if (! file_exists($templatePath)) {
-                $templatePath = public_path('images/welcome-template.png');
+                $url = 'https://peersunity.com/storage/uploads/2026/05/27/d806d2e9-05ae-427a-9359-026ea10d7f64.webp';
+                try {
+                    @mkdir(dirname($templatePath), 0755, true);
+                    $response = Http::withoutVerifying()->timeout(15)->get($url);
+                    if ($response->successful()) {
+                        file_put_contents($templatePath, $response->body());
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('WearTheBadgeImageGenerator: Could not download background template: '.$e->getMessage());
+                }
             }
 
             $baseImg = null;
             if (file_exists($templatePath)) {
-                $baseImg = @imagecreatefrompng($templatePath);
+                $baseImg = @imagecreatefromwebp($templatePath);
+                if (! $baseImg) {
+                    $baseImg = @imagecreatefrompng($templatePath);
+                }
                 if (! $baseImg) {
                     $baseImg = @imagecreatefromjpeg($templatePath);
                 }
@@ -84,7 +110,6 @@ class WearTheBadgeImageGenerator
                 }
             }
 
-            $isTemplateLoaded = false;
             if ($baseImg) {
                 $width = imagesx($baseImg);
                 $height = imagesy($baseImg);
@@ -93,227 +118,253 @@ class WearTheBadgeImageGenerator
                 imagesavealpha($canvas, true);
                 imagecopy($canvas, $baseImg, 0, 0, 0, 0, $width, $height);
                 imagedestroy($baseImg);
-                $isTemplateLoaded = true;
             } else {
-                // Generate clean white canvas with blue & crimson red welcome theme matching Screenshot 2
-                $width = 800;
-                $height = 1000;
+                $width = 1122;
+                $height = 1402;
                 $canvas = imagecreatetruecolor($width, $height);
                 imagealphablending($canvas, true);
                 imagesavealpha($canvas, true);
+                $bg = imagecolorallocate($canvas, 245, 245, 245);
+                imagefill($canvas, 0, 0, $bg);
+            }
 
-                $whiteBg = imagecolorallocate($canvas, 255, 255, 255);
-                imagefill($canvas, 0, 0, $whiteBg);
+            // Draw Logo layer (if available)
+            $logoPath = public_path('images/peersglobal-logo.png');
+            if (! file_exists($logoPath)) {
+                $logoPath = public_path('images/logo.png');
+            }
+            if (file_exists($logoPath)) {
+                $logoImg = @imagecreatefrompng($logoPath);
+                if (! $logoImg) {
+                    $logoImg = @imagecreatefromjpeg($logoPath);
+                }
+                if ($logoImg) {
+                    $origLogoWidth = imagesx($logoImg);
+                    $origLogoHeight = imagesy($logoImg);
 
-                // Top-Left Dot Matrix Decorative Accent Grid
-                $dotColor = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1
-                for ($row = 0; $row < 12; $row++) {
-                    for ($col = 0; $col < 15; $col++) {
-                        $dx = 20 + ($col * 16);
-                        $dy = 20 + ($row * 16);
-                        if (($col + $row) % 2 === 0 && $dx < 200 && $dy < 180) {
-                            imagefilledellipse($canvas, $dx, $dy, 5, 5, $dotColor);
+                    $logoWidth = 291.72;
+                    $logoHeight = $origLogoHeight * ($logoWidth / $origLogoWidth);
+
+                    $logoX = 1122 - 28.05 - $logoWidth;
+                    $logoY = -77.11;
+
+                    imagecopyresampled($canvas, $logoImg, (int) $logoX, (int) $logoY, 0, 0, (int) $logoWidth, (int) $logoHeight, $origLogoWidth, $origLogoHeight);
+                    imagedestroy($logoImg);
+                }
+            }
+
+            // Draw circle avatar
+            $avatarSize = 440;
+            $avatarCenterX = 564.366;
+            $avatarCenterY = 719.646;
+            $navyBlue = imagecolorallocate($canvas, 0, 47, 108); // #002F6C
+            $this->drawNewUserAvatar($canvas, $user, (int) $avatarCenterX, (int) $avatarCenterY, $avatarSize, $navyBlue);
+
+            // Extract raw data from user
+            $nameRaw = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
+            if ($nameRaw === '') {
+                $nameRaw = 'Valued Peer';
+            }
+
+            $designationRaw = trim((string) ($user->designation ?? ''));
+            $companyRaw = trim((string) ($user->company_name ?? ''));
+            $categoryRaw = trim((string) ($user->business_sub_category ?? ''));
+
+            // Wrapping and Formatting Text based on Specifications
+            $nameLines = $this->formatWithHyphenation(strtoupper($nameRaw), 16, 2);
+            $designationLines = $designationRaw !== '' ? $this->formatWithHyphenation($designationRaw, 20, 2) : [];
+            $companyLines = $companyRaw !== '' ? $this->formatWithHyphenation($companyRaw, 18, 2) : [];
+            $categoryLines = $categoryRaw !== '' ? $this->formatWithHyphenation($categoryRaw, 22, 1) : [];
+
+            // Font paths
+            $fontRegular = $this->getLibreFranklinFont('regular');
+            $fontMedium = $this->getLibreFranklinFont('medium');
+            $fontBold = $this->getLibreFranklinFont('bold');
+
+            // Find best scale to fit bounds
+            $scale = 1.0;
+            $maxTextWidth = 942.48;
+            $maxTextHeight = 238.34;
+            $gapBase = 10;
+            $showDivider = (count($designationLines) > 0 && count($companyLines) > 0);
+
+            while ($scale > 0.3) {
+                $nameSize = 53.85 * $scale;
+                $designationSize = 35.90 * $scale;
+                $companySize = 42.63 * $scale;
+                $categorySize = 33.66 * $scale;
+
+                $gap = $gapBase * $scale;
+
+                $nameHeight = count($nameLines) * ($nameSize * 1.15);
+                $designationHeight = count($designationLines) * ($designationSize * 1.15);
+                $dividerHeight = $showDivider ? (15 * $scale) : 0;
+                $companyHeight = count($companyLines) * ($companySize * 1.15);
+                $categoryHeight = count($categoryLines) * ($categorySize * 1.15);
+
+                $totalHeight = $nameHeight;
+                if ($designationHeight > 0) {
+                    $totalHeight += $gap + $designationHeight;
+                }
+                if ($showDivider) {
+                    $totalHeight += $gap + $dividerHeight;
+                }
+                if ($companyHeight > 0) {
+                    $totalHeight += $gap + $companyHeight;
+                }
+                if ($categoryHeight > 0) {
+                    $totalHeight += $gap + $categoryHeight;
+                }
+
+                $fits = true;
+                if ($totalHeight > $maxTextHeight) {
+                    $fits = false;
+                } else {
+                    foreach ($nameLines as $line) {
+                        $bbox = @imagettfbbox($nameSize, 0, $fontMedium, $line);
+                        if ($bbox && abs($bbox[4] - $bbox[0]) > $maxTextWidth) {
+                            $fits = false;
+                            break;
+                        }
+                    }
+                    if ($fits && count($designationLines) > 0) {
+                        foreach ($designationLines as $line) {
+                            $bbox = @imagettfbbox($designationSize, 0, $fontMedium, $line);
+                            if ($bbox && abs($bbox[4] - $bbox[0]) > $maxTextWidth) {
+                                $fits = false;
+                                break;
+                            }
+                        }
+                    }
+                    if ($fits && count($companyLines) > 0) {
+                        foreach ($companyLines as $line) {
+                            $bbox = @imagettfbbox($companySize, 0, $fontBold, $line);
+                            if ($bbox && abs($bbox[4] - $bbox[0]) > $maxTextWidth) {
+                                $fits = false;
+                                break;
+                            }
+                        }
+                    }
+                    if ($fits && count($categoryLines) > 0) {
+                        foreach ($categoryLines as $line) {
+                            $bbox = @imagettfbbox($categorySize, 0, $fontMedium, $line);
+                            if ($bbox && abs($bbox[4] - $bbox[0]) > $maxTextWidth) {
+                                $fits = false;
+                                break;
+                            }
                         }
                     }
                 }
 
-                // Top-Right Confetti Circle Icon Accent
-                $redAccent = imagecolorallocate($canvas, 200, 16, 46);
-                imagefilledellipse($canvas, $width - 80, 80, 46, 46, $redAccent);
-                $whiteAccent = imagecolorallocate($canvas, 255, 255, 255);
-                imagesetthickness($canvas, 3);
-                imageline($canvas, $width - 92, 80, $width - 68, 80, $whiteAccent);
-                imagesetthickness($canvas, 1);
-
-                // Bottom Curved Gradient Wave Banner (#0B20A8 -> #C8102E)
-                for ($y = 820; $y <= $height; $y++) {
-                    $ratio = ($y - 820) / ($height - 820);
-                    $r = (int) (11 + ($ratio * (200 - 11)));
-                    $g = (int) (32 + ($ratio * (16 - 32)));
-                    $b = (int) (168 + ($ratio * (46 - 168)));
-                    $waveColor = imagecolorallocate($canvas, max(0, min(255, $r)), max(0, min(255, $g)), max(0, min(255, $b)));
-
-                    // Draw filled curve arc
-                    $curveY = (int) ($y + (sin(($y - 820) / 40) * 10));
-                    imagefilledrectangle($canvas, 0, $curveY, $width, $height, $waveColor);
+                if ($fits) {
+                    break;
                 }
+
+                $scale -= 0.05;
             }
 
-            // Define Theme Colors
-            $white = imagecolorallocate($canvas, 255, 255, 255);
-            $navyBlue = imagecolorallocate($canvas, 11, 32, 168); // #0B20A8
-            $crimsonRed = imagecolorallocate($canvas, 200, 16, 46); // #C8102E
-            $darkSlate = imagecolorallocate($canvas, 15, 23, 42); // #0F172A
-            $subtleGray = imagecolorallocate($canvas, 71, 85, 105); // #475569
+            // Final Layout Positioning
+            $areaTopY = 995.42;
+            $nameSize = 53.85 * $scale;
+            $designationSize = 35.90 * $scale;
+            $companySize = 42.63 * $scale;
+            $categorySize = 33.66 * $scale;
+            $gap = $gapBase * $scale;
 
-            $fontBold = $this->getFontPath('bold');
-            $fontRegular = $this->getFontPath('regular');
+            $nameHeight = count($nameLines) * ($nameSize * 1.15);
+            $designationHeight = count($designationLines) * ($designationSize * 1.15);
+            $dividerHeight = $showDivider ? (15 * $scale) : 0;
+            $companyHeight = count($companyLines) * ($companySize * 1.15);
+            $categoryHeight = count($categoryLines) * ($categorySize * 1.15);
 
-            $centerX = (int) ($width / 2);
-
-            if ($isTemplateLoaded) {
-                // Exact visual coordinates for 1122x1402 base template image (matching Screenshot 2)
-                $avatarSize = 480; // 480px diameter fits inside the template gradient circle ring
-                $avatarCenterY = 635; // Centered exactly inside template ring (y=395 to y=875)
-
-                // 1. Draw User Avatar Photo or Initials inside template circle frame
-                $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue, true);
-
-                // 2. Draw User Display Name
-                $name = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
-                if ($name === '') {
-                    $name = 'Valued Peer';
-                }
-
-                $nameStartY = 1000;
-                $this->drawWrappedCenteredText(
-                    $canvas,
-                    strtoupper($name),
-                    30,
-                    $centerX,
-                    $nameStartY,
-                    $navyBlue,
-                    $fontBold,
-                    (int) ($width * 0.85)
-                );
-
-                // Draw subtle accent line divider below name
-                $lineColor = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1
-                imagesetthickness($canvas, 2);
-                imageline($canvas, $centerX - 120, 1050, $centerX + 120, 1050, $lineColor);
-                imagesetthickness($canvas, 1);
-
-                // 3. Draw Membership Label ("Peers") in its exact separate position
-                $peersStartY = 1085;
-                $this->drawWrappedCenteredText(
-                    $canvas,
-                    'Peers',
-                    22,
-                    $centerX,
-                    $peersStartY,
-                    $navyBlue,
-                    $fontBold,
-                    (int) ($width * 0.85)
-                );
-
-                // 4. Draw Circle Name (e.g. "Jurassic Park") in its separate position below Peers
-                $circleName = $this->resolveCircleName($user);
-                if ($circleName !== '') {
-                    $circleNameStartY = 1130;
-                    $this->drawWrappedCenteredText(
-                        $canvas,
-                        $circleName,
-                        18,
-                        $centerX,
-                        $circleNameStartY,
-                        $darkSlate,
-                        $fontBold,
-                        (int) ($width * 0.85)
-                    );
-                }
-            } else {
-                $avatarSize = (int) ($width * 0.42); // ~336px
-                $avatarCenterY = 480;
-
-                // Pill Badge "WELCOME!"
-                $pillWidth = 240;
-                $pillHeight = 46;
-                $pillX = $centerX - ($pillWidth / 2);
-                $pillY = 70;
-
-                for ($px = (int) $pillX; $px <= $pillX + $pillWidth; $px++) {
-                    $pratio = ($px - $pillX) / $pillWidth;
-                    $pr = (int) (11 + ($pratio * (200 - 11)));
-                    $pg = (int) (32 + ($pratio * (16 - 32)));
-                    $pb = (int) (168 + ($pratio * (46 - 168)));
-                    $pcol = imagecolorallocate($canvas, max(0, min(255, $pr)), max(0, min(255, $pg)), max(0, min(255, $pb)));
-                    imagefilledrectangle($canvas, $px, (int) $pillY, $px + 1, (int) ($pillY + $pillHeight), $pcol);
-                }
-                $this->drawWrappedCenteredText($canvas, 'WELCOME!', 18, $centerX, (int) ($pillY + 32), $white, $fontBold, $pillWidth);
-
-                // Title Line 1: "NEW PEER"
-                $this->drawWrappedCenteredText($canvas, 'NEW PEER', 30, $centerX, 165, $navyBlue, $fontBold, 700);
-
-                // Title Line 2: "TO GLOBAL FAMILY."
-                $this->drawWrappedCenteredText($canvas, 'TO GLOBAL FAMILY.', 30, $centerX, 220, $crimsonRed, $fontBold, 750);
-
-                // 2. Draw User Avatar Photo or Initials inside dual gradient arc rings
-                $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue);
-
-                // 3. Draw User Display Name
-                $name = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
-                if ($name === '') {
-                    $name = 'Valued Peer Member';
-                }
-
-                $nameStartY = (int) ($avatarCenterY + ($avatarSize / 2) + 45);
-                $this->drawWrappedCenteredText(
-                    $canvas,
-                    strtoupper($name),
-                    22,
-                    $centerX,
-                    $nameStartY,
-                    $darkSlate,
-                    $fontBold,
-                    (int) ($width * 0.85)
-                );
-
-                // 4. Draw Designation / Company Subtitle
-                $designation = trim((string) ($user->designation ?? ''));
-                $company = trim((string) ($user->company_name ?? ''));
-                $subtitle = implode(' • ', array_filter([$designation, $company]));
-                if ($subtitle === '') {
-                    $subtitle = 'Global Peer Community Member';
-                }
-
-                $subtitleStartY = $nameStartY + 38;
-                $this->drawWrappedCenteredText(
-                    $canvas,
-                    $subtitle,
-                    15,
-                    $centerX,
-                    $subtitleStartY,
-                    $subtleGray,
-                    $fontRegular,
-                    (int) ($width * 0.85)
-                );
-
-                // 5. Draw Footer Tagline & Website on Bottom Banner
-                $tagline = 'Peers are Partners in Business & Friends in Life.';
-                $this->drawWrappedCenteredText($canvas, $tagline, 14, $centerX, 900, $white, $fontRegular, 700);
-
-                $website = 'PeersGlobal.com';
-                $this->drawWrappedCenteredText($canvas, $website, 15, $centerX, 945, $white, $fontBold, 700);
+            $totalHeight = $nameHeight;
+            if ($designationHeight > 0) {
+                $totalHeight += $gap + $designationHeight;
+            }
+            if ($showDivider) {
+                $totalHeight += $gap + $dividerHeight;
+            }
+            if ($companyHeight > 0) {
+                $totalHeight += $gap + $companyHeight;
+            }
+            if ($categoryHeight > 0) {
+                $totalHeight += $gap + $categoryHeight;
             }
 
-            // 6. Save WebP & Register via FileUploadService
-            $filename = 'welcome_creative_'.Str::uuid().'.webp';
+            $currentY = $areaTopY + ($maxTextHeight - $totalHeight) / 2;
+
+            $colorNavy = imagecolorallocate($canvas, 0, 47, 108); // #002F6C
+            $colorGray61 = imagecolorallocate($canvas, 97, 97, 97); // #616161
+            $colorGray75 = imagecolorallocate($canvas, 117, 117, 117); // #757575
+            $colorCrimson = imagecolorallocate($canvas, 178, 34, 34); // #B22222
+
+            $centerX = 1122 / 2;
+
+            // 1. Draw Member Name
+            $currentY = $this->drawWrappedLines($canvas, $nameLines, $nameSize, $centerX, $currentY, $colorNavy, $fontMedium);
+
+            // 2. Draw Designation
+            if (count($designationLines) > 0) {
+                $currentY += $gap;
+                $currentY = $this->drawWrappedLines($canvas, $designationLines, $designationSize, $centerX, $currentY, $colorGray61, $fontMedium);
+            }
+
+            // 3. Draw Divider
+            if ($showDivider) {
+                $currentY += $gap;
+                $this->drawGradientDivider($canvas, $centerX, (int) ($currentY + $dividerHeight / 2), 168.3 * $scale, $colorNavy, $colorCrimson);
+                $currentY += $dividerHeight;
+            }
+
+            // 4. Draw Company Name with special color rules
+            if (count($companyLines) > 0) {
+                $currentY += $gap;
+                $currentY = $this->drawCompanyText($canvas, $companyLines, $companySize, $centerX, $currentY, $fontBold, $colorNavy, $colorCrimson);
+            }
+
+            // 5. Draw Category
+            if (count($categoryLines) > 0) {
+                $currentY += $gap;
+                $currentY = $this->drawWrappedLines($canvas, $categoryLines, $categorySize, $centerX, $currentY, $colorGray75, $fontMedium);
+            }
+
+            // 6. Save PNG
+            $filename = 'welcome_creative_'.Str::uuid().'.png';
             $tempPath = tempnam(sys_get_temp_dir(), 'wc_img');
 
-            imagewebp($canvas, $tempPath, 95);
+            imagepng($canvas, $tempPath, 9);
             imagedestroy($canvas);
 
-            $uploadedFile = new UploadedFile(
-                $tempPath,
-                $filename,
-                'image/webp',
-                null,
-                true
-            );
-
             $disk = config('filesystems.default', 'public');
+            $finalPath = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
 
             if ($targetFileRecord) {
-                $finalPath = $targetFileRecord->s3_key;
-                $stream = fopen($tempPath, 'r');
-                Storage::disk($disk)->put($finalPath, $stream);
-                if (is_resource($stream)) {
-                    fclose($stream);
+                if ($targetFileRecord->s3_key) {
+                    $finalPath = preg_replace('/\.webp$/i', '.png', $targetFileRecord->s3_key);
                 }
+                $targetFileRecord->s3_key = $finalPath;
                 $fileModel = $targetFileRecord;
             } else {
-                $fileModel = $this->fileUploadService->store($uploadedFile, null, $disk);
+                $fileModel = new FileModel;
+                $fileModel->id = (string) Str::uuid();
+                $fileModel->s3_key = $finalPath;
             }
+
+            $stream = fopen($tempPath, 'r');
+            $stored = Storage::disk($disk)->put($finalPath, $stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            if (! $stored) {
+                throw new \RuntimeException("Failed to store welcome creative image for user {$user->id} to disk {$disk}");
+            }
+
+            $fileModel->mime_type = 'image/png';
+            $fileModel->size_bytes = filesize($tempPath);
+            $fileModel->width = $width;
+            $fileModel->height = $height;
+            $fileModel->save();
 
             // Ensure available on public disk for web / WhatsApp rendering
             if ($disk !== 'public') {
@@ -340,9 +391,41 @@ class WearTheBadgeImageGenerator
     }
 
     /**
-     * Render avatar photo or fallback initials inside circular frame.
+     * Get Libre Franklin font by weight name, downloading dynamically if missing.
      */
-    private function drawUserAvatar($canvas, User $user, int $centerX, int $centerY, int $avatarSize, $goldColor, bool $isTemplateLoaded = false): void
+    private function getLibreFranklinFont(string $weight = 'regular'): string
+    {
+        $filename = match ($weight) {
+            'bold' => 'LibreFranklin-Bold.ttf',
+            'medium' => 'LibreFranklin-Medium.ttf',
+            default => 'LibreFranklin-Regular.ttf',
+        };
+
+        $fontPath = public_path('fonts/'.$filename);
+        if (! file_exists($fontPath)) {
+            $url = 'https://github.com/impallari/Libre-Franklin/raw/master/fonts/TTF/'.$filename;
+            try {
+                @mkdir(dirname($fontPath), 0755, true);
+                $response = Http::withoutVerifying()->timeout(15)->get($url);
+                if ($response->successful()) {
+                    file_put_contents($fontPath, $response->body());
+                }
+            } catch (\Throwable $e) {
+                Log::warning("WearTheBadgeImageGenerator: Could not download font {$filename}: ".$e->getMessage());
+            }
+        }
+
+        if (file_exists($fontPath)) {
+            return $fontPath;
+        }
+
+        return $this->getFontPath($weight === 'bold' ? 'bold' : ($weight === 'medium' ? 'semibold' : 'regular'));
+    }
+
+    /**
+     * Draw circular user avatar photo or fallback initials with strict coordinates.
+     */
+    private function drawNewUserAvatar($canvas, User $user, int $centerX, int $centerY, int $avatarSize, $navyColor): void
     {
         $avatarSource = null;
         $tempFilePath = null;
@@ -438,10 +521,12 @@ class WearTheBadgeImageGenerator
             }
         }
 
-        // Draw fallback initials if no photo available
         if (! $drawn) {
-            $displayName = $user->display_name ?: $user->first_name ?: 'Peer';
-            $initial = strtoupper(substr($displayName, 0, 1));
+            $displayName = $user->display_name ?: $user->first_name ?: 'P';
+            $initial = strtoupper(substr(trim($displayName), 0, 1));
+            if (empty($initial)) {
+                $initial = 'P';
+            }
 
             $avatarImg = imagecreatetruecolor($avatarSize, $avatarSize);
             imagealphablending($avatarImg, false);
@@ -450,17 +535,16 @@ class WearTheBadgeImageGenerator
             imagefill($avatarImg, 0, 0, $transparent);
 
             $radius = $avatarSize / 2;
-            $blueBg = imagecolorallocate($avatarImg, 30, 41, 59); // Slate dark blue
-            imagefilledellipse($avatarImg, (int) $radius, (int) $radius, $avatarSize, $avatarSize, $blueBg);
+            imagefilledellipse($avatarImg, (int) $radius, (int) $radius, $avatarSize, $avatarSize, $navyColor);
 
-            $fontBold = $this->getFontPath('bold');
+            $fontBold = $this->getLibreFranklinFont('bold');
             $whiteColor = imagecolorallocate($avatarImg, 255, 255, 255);
-            $fontSize = (int) ($avatarSize * 0.4);
+            $fontSize = 179.52;
 
             if (file_exists($fontBold)) {
                 $this->drawCenteredBoldText($avatarImg, $fontSize, $radius, $radius, $whiteColor, $fontBold, $initial);
             } else {
-                imagestring($avatarImg, 5, (int) ($radius - 10), (int) ($radius - 10), $initial, $whiteColor);
+                imagestring($avatarImg, 5, (int) ($radius - 15), (int) ($radius - 20), $initial, $whiteColor);
             }
 
             $circularAvatar = $this->createCircularPhoto($avatarImg, $avatarSize);
@@ -471,26 +555,152 @@ class WearTheBadgeImageGenerator
             imagecopy($canvas, $circularAvatar, (int) $tx, (int) $ty, 0, 0, $avatarSize, $avatarSize);
             imagedestroy($circularAvatar);
         }
+    }
 
-        if (! $isTemplateLoaded) {
-            // Draw dual gradient ring border (Blue & Crimson Red gradient arcs matching Screenshot 2)
-            $navyBlue = imagecolorallocate($canvas, 11, 32, 168);
-            $crimsonRed = imagecolorallocate($canvas, 200, 16, 46);
+    /**
+     * Wrap text into lines based on custom character wrap.
+     */
+    private function formatWithHyphenation(string $text, int $charLimit, int $maxLines): array
+    {
+        $words = preg_split('/\s+/', trim($text));
+        $lines = [];
+        $currentLine = '';
 
-            imagesetthickness($canvas, 5);
-            // Outer Blue Arc (Left)
-            imagearc($canvas, $centerX, $centerY, $avatarSize + 16, $avatarSize + 16, 90, 270, $navyBlue);
-            // Outer Red Arc (Right)
-            imagearc($canvas, $centerX, $centerY, $avatarSize + 16, $avatarSize + 16, 270, 90, $crimsonRed);
+        foreach ($words as $word) {
+            if (empty($word)) {
+                continue;
+            }
 
-            imagesetthickness($canvas, 3);
-            // Inner Blue Arc (Left)
-            imagearc($canvas, $centerX, $centerY, $avatarSize + 6, $avatarSize + 6, 80, 260, $navyBlue);
-            // Inner Red Arc (Right)
-            imagearc($canvas, $centerX, $centerY, $avatarSize + 6, $avatarSize + 6, 260, 80, $crimsonRed);
+            if (strlen($word) > $charLimit) {
+                if (! empty($currentLine)) {
+                    $lines[] = $currentLine;
+                    $currentLine = '';
+                }
 
-            imagesetthickness($canvas, 1);
+                $remainingWord = $word;
+                while (strlen($remainingWord) > $charLimit) {
+                    $part = substr($remainingWord, 0, $charLimit - 1).'-';
+                    $lines[] = $part;
+                    $remainingWord = substr($remainingWord, $charLimit - 1);
+                }
+                $currentLine = $remainingWord;
+
+                continue;
+            }
+
+            $testLine = empty($currentLine) ? $word : $currentLine.' '.$word;
+            if (strlen($testLine) > $charLimit) {
+                $lines[] = $currentLine;
+                $currentLine = $word;
+            } else {
+                $currentLine = $testLine;
+            }
         }
+
+        if (! empty($currentLine)) {
+            $lines[] = $currentLine;
+        }
+
+        return array_slice($lines, 0, $maxLines);
+    }
+
+    /**
+     * Draw pre-wrapped centered text lines and return bottom Y position.
+     */
+    private function drawWrappedLines($canvas, array $lines, float $fontSize, float $centerX, float $startY, $color, string $fontPath, float $lineHeightMultiplier = 1.15): float
+    {
+        $currentY = $startY;
+        foreach ($lines as $line) {
+            $bbox = @imagettfbbox($fontSize, 0, $fontPath, $line);
+            if ($bbox) {
+                $w = abs($bbox[4] - $bbox[0]);
+                $x = $centerX - ($w / 2);
+                $baselineY = $currentY + $fontSize * 0.85;
+
+                imagettftext($canvas, $fontSize, 0, (int) $x, (int) $baselineY, $color, $fontPath, $line);
+                $currentY += (int) ($fontSize * $lineHeightMultiplier);
+            } else {
+                imagestring($canvas, 5, (int) ($centerX - 10), (int) $currentY, $line, $color);
+                $currentY += 20;
+            }
+        }
+
+        return $currentY;
+    }
+
+    /**
+     * Draw left and right gradient divider lines with a center dot.
+     */
+    private function drawGradientDivider($canvas, float $centerX, float $y, float $lineWidth, $colorNavy, $colorCrimson): void
+    {
+        $leftStart = $centerX - 6 - $lineWidth;
+        $rightStart = $centerX + 6;
+
+        for ($i = 0; $i < $lineWidth; $i++) {
+            $ratio = $i / $lineWidth;
+            $alpha = (int) (127 * (1.0 - $ratio));
+            $color = imagecolorallocatealpha($canvas, 0, 47, 108, $alpha);
+            imagesetpixel($canvas, (int) ($leftStart + $i), (int) $y, $color);
+            imagesetpixel($canvas, (int) ($leftStart + $i), (int) ($y + 1), $color);
+        }
+
+        imagefilledellipse($canvas, (int) $centerX, (int) $y, 5, 5, $colorCrimson);
+
+        for ($i = 0; $i < $lineWidth; $i++) {
+            $ratio = $i / $lineWidth;
+            $alpha = (int) (127 * $ratio);
+            $color = imagecolorallocatealpha($canvas, 178, 34, 34, $alpha);
+            imagesetpixel($canvas, (int) ($rightStart + $i), (int) $y, $color);
+            imagesetpixel($canvas, (int) ($rightStart + $i), (int) ($y + 1), $color);
+        }
+    }
+
+    /**
+     * Draw company name using multiple colors based on final word rules.
+     */
+    private function drawCompanyText($canvas, array $lines, float $fontSize, float $centerX, float $startY, string $fontPath, $colorNavy, $colorCrimson, float $lineHeightMultiplier = 1.15): float
+    {
+        $currentY = $startY;
+        $totalLines = count($lines);
+
+        foreach ($lines as $index => $line) {
+            $bbox = @imagettfbbox($fontSize, 0, $fontPath, $line);
+            if (! $bbox) {
+                imagestring($canvas, 5, (int) ($centerX - 10), (int) $currentY, $line, $colorNavy);
+                $currentY += 20;
+
+                continue;
+            }
+
+            $w = abs($bbox[4] - $bbox[0]);
+            $startX = $centerX - ($w / 2);
+            $baselineY = $currentY + $fontSize * 0.85;
+
+            $isFinalLine = ($index === $totalLines - 1);
+            $words = preg_split('/\s+/', trim($line));
+
+            if ($isFinalLine && count($words) > 1) {
+                $finalWord = array_pop($words);
+                $firstPart = implode(' ', $words).' ';
+
+                $bboxFirst = @imagettfbbox($fontSize, 0, $fontPath, $firstPart);
+                $wFirst = $bboxFirst ? abs($bboxFirst[4] - $bboxFirst[0]) : 0;
+
+                imagettftext($canvas, $fontSize, 0, (int) $startX, (int) $baselineY, $colorNavy, $fontPath, $firstPart);
+                imagettftext($canvas, $fontSize, 0, (int) ($startX + $wFirst), (int) $baselineY, $colorCrimson, $fontPath, $finalWord);
+            } elseif ($isFinalLine && count($words) === 1) {
+                $isMultiWordCompany = ($totalLines > 1) || (count($words) > 1);
+                $color = $isMultiWordCompany ? $colorCrimson : $colorNavy;
+
+                imagettftext($canvas, $fontSize, 0, (int) $startX, (int) $baselineY, $color, $fontPath, $line);
+            } else {
+                imagettftext($canvas, $fontSize, 0, (int) $startX, (int) $baselineY, $colorNavy, $fontPath, $line);
+            }
+
+            $currentY += (int) ($fontSize * $lineHeightMultiplier);
+        }
+
+        return $currentY;
     }
 
     /**
@@ -512,7 +722,6 @@ class WearTheBadgeImageGenerator
                     return trim((string) $circleName);
                 }
             } catch (\Throwable $e) {
-                // Fallback on exception
             }
         }
 
