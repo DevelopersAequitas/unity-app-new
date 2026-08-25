@@ -4,18 +4,23 @@ declare(strict_types=1);
 
 namespace App\Services\Leader;
 
+use App\Mail\LoginOtpMail;
 use App\Models\AdminUser;
 use App\Models\OtpCode;
 use App\Models\User;
+use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class LeaderAuthService
 {
     public function __construct(
         private readonly LeaderPermissionService $permissionService,
+        private readonly WhatsappNotificationService $whatsappNotificationService,
     ) {}
 
     /**
@@ -30,21 +35,59 @@ class LeaderAuthService
 
         $user = $this->findUserByIdentifier($identifier, (bool) $isEmail);
 
-        $otp = app()->environment(['local', 'staging', 'testing']) ? '123456' : (string) random_int(100000, 999999);
+        $otp = (string) random_int(100000, 999999);
         $expiresAt = now()->addMinutes(5);
 
         if ($user) {
+            $email = $user->email ?? ($isEmail ? $identifier : ($user->phone ?? $identifier.'@peersunity.com'));
+            $phone = $user->phone ?? $user->secondary_mobile ?? (! $isEmail ? $identifier : null);
+
             // Save OTP in database
             OtpCode::query()->create([
                 'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
-                'email' => $user->email ?? ($isEmail ? $identifier : ($user->phone ?? $identifier.'@peersunity.com')),
+                'email' => $email,
                 'channel' => $isEmail ? 'email' : 'sms',
                 'code' => Hash::make($otp),
                 'purpose' => 'login_otp',
                 'expires_at' => $expiresAt,
                 'created_at' => now(),
             ]);
+
+            // 1. Dispatch Email OTP
+            if (! empty($user->email)) {
+                try {
+                    Mail::to($user->email)->send(new LoginOtpMail($otp, $user));
+                } catch (Throwable $e) {
+                    Log::error('leader.auth.email_send_failed', [
+                        'user_id' => $user->id,
+                        'email' => $user->email,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // 2. Dispatch WhatsApp / SMS OTP if phone available
+            if ($phone) {
+                try {
+                    $normalizedPhone = WhatsappNotificationService::normalizePhone((string) $phone);
+                    if ($normalizedPhone) {
+                        $this->whatsappNotificationService->send(
+                            templateKey: 'otp_verification',
+                            phone: $normalizedPhone,
+                            payload: [
+                                'code' => $otp,
+                            ]
+                        );
+                    }
+                } catch (Throwable $e) {
+                    Log::error('leader.auth.whatsapp_send_failed', [
+                        'user_id' => $user->id,
+                        'phone' => $phone,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             Log::info('leader.auth.otp_sent', [
                 'user_id' => $user->id,
