@@ -56,6 +56,10 @@ class AppNotificationCatalogService
                 'tap_destination' => '/member-profile',
                 'post_id' => '{postId}',
                 'member_id' => '{actorId}',
+                'profile_id' => '{actorId}',
+                'profile_screen' => '/member-profile',
+                'post_screen' => '/post-details',
+                'notification_flow' => 'profile_then_post',
             ],
             'dynamic_params' => [
                 '{actorName}' => 'Author name of the post',
