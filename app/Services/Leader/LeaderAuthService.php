@@ -38,6 +38,8 @@ class LeaderAuthService
             OtpCode::query()->create([
                 'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
+                'email' => $user->email ?? ($isEmail ? $identifier : ($user->phone ?? $identifier.'@peersunity.com')),
+                'channel' => $isEmail ? 'email' : 'sms',
                 'code' => Hash::make($otp),
                 'purpose' => 'login_otp',
                 'expires_at' => $expiresAt,
