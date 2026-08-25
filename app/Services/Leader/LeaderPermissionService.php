@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\LeaderRoleCapability;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AdminCircleScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -517,9 +518,24 @@ class LeaderPermissionService
             // Can see all active circles
             $circles = $query->take(20)->get();
         } elseif ($role === 'districtExecDirector') {
-            $circles = $query->where('ded_user_id', $userId)
-                ->orWhere('chair_user_id', $userId)
-                ->get();
+            $admin = AdminUser::query()->where('id', $userId)->orWhere('email', $user->email)->first();
+            $circleIds = $admin ? AdminCircleScope::getDedCircleIds($admin) : [];
+
+            if (! empty($circleIds)) {
+                $circles = $query->whereIn('id', $circleIds)->get();
+            } else {
+                $assignedDistrictId = DB::table('admin_ded_districts')
+                    ->where('admin_user_id', $userId)
+                    ->orWhere('user_id', $userId)
+                    ->value('district_id');
+
+                $circles = $query->where(function ($q) use ($userId, $assignedDistrictId): void {
+                    $q->where('ded_user_id', $userId);
+                    if ($assignedDistrictId) {
+                        $q->orWhere('district_id', $assignedDistrictId);
+                    }
+                })->get();
+            }
         } elseif ($role === 'industryDirector') {
             $circles = $query->where('industry_director_user_id', $userId)
                 ->orWhere('chair_user_id', $userId)

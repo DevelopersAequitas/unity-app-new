@@ -11,6 +11,7 @@ use App\Models\District;
 use App\Models\Industry;
 use App\Models\User;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -250,11 +251,16 @@ class LeaderTeamsService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $resolvedDistrictId = $this->resolveDedDistrictId($districtId, $user);
+        $admin = null;
+        if ($user) {
+            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
+        }
 
         $query = Circle::query()->whereNull('deleted_at');
 
-        if ($resolvedDistrictId) {
+        if ($admin && AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+        } elseif ($resolvedDistrictId) {
             $query->where('district_id', $resolvedDistrictId);
         }
 
