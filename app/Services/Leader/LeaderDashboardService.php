@@ -48,7 +48,7 @@ class LeaderDashboardService
         // Pending peers
         $pendingPeersCount = CircleMember::query()
             ->when($circle, fn ($q) => $q->where('circle_id', $circle->id))
-            ->whereIn('status', ['pending', 'needs_attention', 'under_review'])
+            ->where('status', 'pending')
             ->count();
         if ($pendingPeersCount === 0) {
             $pendingPeersCount = 4;
@@ -71,13 +71,13 @@ class LeaderDashboardService
         $testimonialsCount = max($testimonialsCount, 42);
 
         // Deals amounts
-        $dealsSum = BusinessDeal::query()->sum('amount');
+        $dealsSum = BusinessDeal::query()->sum('deal_amount');
         if ($dealsSum <= 0) {
             $dealsSum = 8640000;
         }
 
         // Coins sum
-        $coinsSum = (int) DB::table('coins_ledger')->where('transaction_type', 'credit')->sum('amount');
+        $coinsSum = (int) DB::table('coins_ledger')->where('amount', '>', 0)->sum('amount');
         if ($coinsSum <= 0) {
             $coinsSum = 3840;
         }
