@@ -38,6 +38,7 @@ class CampaignService
 
             $eventBannerUrl = null;
             $eventId = null;
+            $requirementId = null;
 
             // Resolve dynamic placeholders based on campaign code
             if ($campaign->code === 'requirement_lead' || $campaign->code === 'pending_requirement_reminder') {
@@ -46,6 +47,7 @@ class CampaignService
                     ->latest()
                     ->first();
                 if ($latestRequirement) {
+                    $requirementId = (string) $latestRequirement->id;
                     $creator = $latestRequirement->user;
                     if ($creator) {
                         $personName = trim((string) ($creator->display_name ?? '')) ?: trim(((string) ($creator->first_name ?? '')).' '.((string) ($creator->last_name ?? ''))) ?: (string) ($creator->name ?? 'A member');
@@ -143,7 +145,21 @@ class CampaignService
             $title = $this->notifications->renderTemplate($campaign->title_template, $placeholders);
             $body = $this->notifications->renderTemplate($campaign->body_template, $placeholders);
 
-            $payloadData = ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id];
+            $isRequirementMatch = in_array($campaign->code, ['requirement_lead', 'pending_requirement_reminder'], true);
+            $notificationScreen = $isRequirementMatch ? '/post-details' : $campaign->tap_screen;
+            $payloadData = [
+                'navigation_screen' => $notificationScreen,
+                'screen' => $notificationScreen,
+                'tap_destination' => $notificationScreen,
+                'campaign_id' => $campaign->id,
+            ];
+            if ($isRequirementMatch) {
+                $payloadData['notification_type'] = 'requirement_match';
+                $payloadData['activity_type'] = 'requirement';
+                if ($requirementId !== null) {
+                    $payloadData['requirement_id'] = $requirementId;
+                }
+            }
             if ($eventBannerUrl !== null) {
                 $payloadData['event_banner'] = $eventBannerUrl;
                 $payloadData['image_url'] = $eventBannerUrl;
@@ -155,7 +171,7 @@ class CampaignService
                 $payloadData['reference_id'] = (string) $eventId;
             }
 
-            $n = $this->notifications->sendToUser($user, $campaign->code, $title, $body, $payloadData, ['campaign' => $campaign, 'channel' => $campaign->channel, 'priority' => $campaign->priority, 'screen' => $campaign->tap_screen, 'dedupe_key' => $campaign->code.':'.$user->id.':'.now()->toDateString()]);
+            $n = $this->notifications->sendToUser($user, $campaign->code, $title, $body, $payloadData, ['campaign' => $campaign, 'channel' => $campaign->channel, 'priority' => $campaign->priority, 'screen' => $notificationScreen, 'dedupe_key' => $campaign->code.':'.$user->id.':'.now()->toDateString()]);
             $n ? $sent++ : $skipped++;
         }
         $run->update(['status' => 'finished', 'audience_count' => $users->count(), 'sent_count' => $sent, 'skipped_count' => $skipped, 'finished_at' => now()]);
