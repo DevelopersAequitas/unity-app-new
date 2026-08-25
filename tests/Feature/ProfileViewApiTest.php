@@ -191,4 +191,34 @@ class ProfileViewApiTest extends TestCase
             ->assertJsonPath('data.views.0.viewer.id', $viewer2->id) // Ordered by desc
             ->assertJsonPath('data.views.1.viewer.id', $viewer1->id);
     }
+
+    public function test_repeat_profile_view_does_not_duplicate_record_or_count(): void
+    {
+        $viewer = $this->createUser('John', 'Doe');
+        $viewed = $this->createUser('Jane', 'Smith');
+
+        Sanctum::actingAs($viewer);
+
+        // First view
+        $response1 = $this->postJson('/api/v1/profile/view', [
+            'viewed_id' => $viewed->id,
+        ]);
+        $response1->assertStatus(200);
+
+        // Second view from same viewer
+        $response2 = $this->postJson('/api/v1/profile/view', [
+            'viewed_id' => $viewed->id,
+        ]);
+        $response2->assertStatus(200);
+
+        // Only 1 record should exist in database
+        $this->assertDatabaseCount('profile_views', 1);
+
+        // Check getViews for viewed user
+        Sanctum::actingAs($viewed);
+        $viewsResponse = $this->getJson('/api/v1/profile/views');
+        $viewsResponse->assertStatus(200)
+            ->assertJsonPath('data.total_views', 1)
+            ->assertJsonCount(1, 'data.views');
+    }
 }
