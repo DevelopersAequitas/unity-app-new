@@ -698,7 +698,9 @@ class AppNotificationCatalogService
             });
         }
 
-        return $items->values();
+        return $items
+            ->sortBy(fn (array $item): string => strtolower((string) ($item['name'] ?? '')))
+            ->values();
     }
 
     /**
