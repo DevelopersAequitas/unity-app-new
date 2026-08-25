@@ -11,6 +11,8 @@ use Throwable;
 
 class WhatsappNotificationService
 {
+    public static ?array $lastResponse = null;
+
     /**
      * Send a WhatsApp notification using a database-driven template.
      *
@@ -85,6 +87,8 @@ class WhatsappNotificationService
 
             if ($response->successful()) {
                 $responseData = $response->json();
+                self::$lastResponse = $responseData;
+
                 if (is_array($responseData)) {
                     if (isset($responseData['success']) && $responseData['success'] === false) {
                         Log::error('WhatsApp notification failed: API response indicated success=false.', [
@@ -96,6 +100,38 @@ class WhatsappNotificationService
 
                         return false;
                     }
+
+                    // FlexiMSG: check if the async WhatsApp trigger failed
+                    if (isset($responseData['whatsapp_triggered']) && $responseData['whatsapp_triggered'] === false) {
+                        $errorMsg = $responseData['error_message'] ?? '(no error_message returned by FlexiMSG)';
+                        Log::error('WhatsApp notification failed: FlexiMSG whatsapp_triggered=false. Header image variable is likely not mapped in the FlexiMSG template configuration.', [
+                            'template_key' => $templateKey,
+                            'webhook_url' => $webhookUrl,
+                            'fleximsg_log_id' => $responseData['log_id'] ?? null,
+                            'error_message' => $errorMsg,
+                            'extracted_fields' => $responseData['extracted_fields'] ?? [],
+                            'fix_required' => 'Go to FlexiMSG dashboard -> Webhooks -> wear_the_badge -> edit template -> map HEADER IMAGE variable to @{header_media_url}',
+                            'request_body' => $body,
+                            'response_body' => $response->body(),
+                        ]);
+
+                        return false;
+                    }
+
+                    // FlexiMSG: check if processing status is failed
+                    if (isset($responseData['processing_status']) && in_array(strtolower((string) $responseData['processing_status']), ['failed', 'error', 'failure'], true)) {
+                        Log::error('WhatsApp notification failed: FlexiMSG processing_status indicates failure.', [
+                            'template_key' => $templateKey,
+                            'webhook_url' => $webhookUrl,
+                            'processing_status' => $responseData['processing_status'],
+                            'fleximsg_log_id' => $responseData['log_id'] ?? null,
+                            'request_body' => $body,
+                            'response_body' => $response->body(),
+                        ]);
+
+                        return false;
+                    }
+
                     if (isset($responseData['status']) && in_array(strtolower((string) $responseData['status']), ['error', 'failed', 'failure'], true)) {
                         Log::error('WhatsApp notification failed: API response status is error.', [
                             'template_key' => $templateKey,
@@ -106,12 +142,24 @@ class WhatsappNotificationService
 
                         return false;
                     }
+
+                    // Log warning if error_message is returned even on success
+                    if (! empty($responseData['error_message'])) {
+                        Log::warning('WhatsApp notification: FlexiMSG returned error_message despite HTTP 200.', [
+                            'template_key' => $templateKey,
+                            'error_message' => $responseData['error_message'],
+                            'response_body' => $response->body(),
+                        ]);
+                    }
                 }
 
                 Log::info('WhatsApp notification sent successfully.', [
                     'template_key' => $templateKey,
                     'webhook_url' => $webhookUrl,
                     'status_code' => $response->status(),
+                    'fleximsg_log_id' => $responseData['log_id'] ?? null,
+                    'whatsapp_triggered' => $responseData['whatsapp_triggered'] ?? 'unknown',
+                    'processing_status' => $responseData['processing_status'] ?? 'unknown',
                     'request_body' => $body,
                     'response_body' => $response->body(),
                 ]);

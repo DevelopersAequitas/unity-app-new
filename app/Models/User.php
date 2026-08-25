@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Jobs\SendWearTheBadgeWhatsappJob;
+use App\Models\Notifications\NotificationDeliveryLog;
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\MilestoneBadgeService;
@@ -427,6 +429,10 @@ class User extends Authenticatable
             if ($user->wasRecentlyCreated || $user->wasChanged(['coins_balance', 'life_impacted_count', 'members_introduced_count'])) {
                 app(MilestoneBadgeService::class)->calculateForUser($user);
             }
+
+            if ($user->shouldSendWearTheBadgeWhatsapp()) {
+                SendWearTheBadgeWhatsappJob::dispatch((string) $user->id);
+            }
         });
     }
 
@@ -501,7 +507,24 @@ class User extends Authenticatable
     {
         $existing = $this->getAttribute('welcome_creative_url') ?? $this->getAttribute('profile_card_image_url');
         if (! $forceRegenerate && filled($existing)) {
-            return (string) $existing;
+            $uuid = null;
+            if (preg_match('/\/api\/v1\/files\/([0-9a-fA-F-]{36})/', (string) $existing, $matches)) {
+                $uuid = $matches[1];
+            }
+
+            if ($uuid) {
+                $fileRecord = FileModel::find($uuid) ?? File::find($uuid);
+                if ($fileRecord && $fileRecord->s3_key) {
+                    $disk = config('filesystems.default', 'public');
+                    if (Storage::disk($disk)->exists($fileRecord->s3_key) || Storage::disk('public')->exists($fileRecord->s3_key)) {
+                        return (string) $existing;
+                    }
+                }
+            } else {
+                return (string) $existing;
+            }
+
+            $forceRegenerate = true;
         }
 
         try {
@@ -510,6 +533,39 @@ class User extends Authenticatable
             Log::warning("User {$this->id}: Could not automatically generate welcome creative URL on demand: {$e->getMessage()}");
 
             return (string) ($existing ?? '');
+        }
+    }
+
+    public function shouldSendWearTheBadgeWhatsapp(): bool
+    {
+        if ($this->hasSentWearTheBadgeWhatsapp()) {
+            return false;
+        }
+
+        // Check if profile is 100% complete
+        $isProfileComplete = $this->calculateProfileCompletionPercentage() === 100;
+
+        // Check if first-payment condition is satisfied
+        $isPaid = filled($this->last_payment_at) || ! in_array((string) $this->membership_status, ['visitor', 'free_peer', 'free_trial_peer', ''], true);
+
+        return $isProfileComplete || $isPaid;
+    }
+
+    public function hasSentWearTheBadgeWhatsapp(): bool
+    {
+        if (! Schema::hasTable('notification_delivery_logs')) {
+            return false;
+        }
+
+        try {
+            return NotificationDeliveryLog::query()
+                ->where('user_id', $this->id)
+                ->where('channel', 'whatsapp')
+                ->where('provider', 'wear_the_badge')
+                ->where('status', 'sent')
+                ->exists();
+        } catch (Throwable) {
+            return false;
         }
     }
 
