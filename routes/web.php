@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BirthdayCreativeController;
@@ -652,6 +653,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/notification-templates/{key}/edit', [NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
         Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'update'])->name('notification-templates.update');
         Route::get('/notification-templates/{key}/preview', [NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
+
+        // App Notifications & Mobile Navigation Showcase Module
+        Route::get('/app-notifications', [AppNotificationAdminController::class, 'index'])->name('app-notifications.index');
+        Route::post('/app-notifications', [AppNotificationAdminController::class, 'store'])->name('app-notifications.store');
+        Route::get('/app-notifications/peers-search', [AppNotificationAdminController::class, 'searchPeers'])->name('app-notifications.peers-search');
+        Route::get('/app-notifications/peer-details/{id}', [AppNotificationAdminController::class, 'peerDetails'])->whereUuid('id')->name('app-notifications.peer-details');
+        Route::get('/app-notifications/{key}/preview', [AppNotificationAdminController::class, 'preview'])->name('app-notifications.preview');
+        Route::post('/app-notifications/send', [AppNotificationAdminController::class, 'sendToPeers'])->name('app-notifications.send');
+        Route::post('/app-notifications/send-all-to-peer', [AppNotificationAdminController::class, 'sendAllToPeer'])->name('app-notifications.send-all-to-peer');
+        Route::get('/app-notifications/delivery-logs', [AppNotificationAdminController::class, 'deliveryLogs'])->name('app-notifications.delivery-logs');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
