@@ -6,6 +6,7 @@ use App\Http\Middleware\AdminRoleMiddleware;
 use App\Http\Middleware\AllowFixedMembersToken;
 use App\Http\Middleware\ApplyDynamicDataScope;
 use App\Http\Middleware\CheckDynamicPermission;
+use App\Http\Middleware\CheckLeaderCapability;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApiAccess;
 use App\Http\Middleware\EnsureIndustryDirector;
@@ -45,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'ensure.ded.api' => EnsureDedApiAccess::class,
             'scan.app.user' => EnsureScanAppUser::class,
             'unity.user' => EnsureUnityUser::class,
+            'leader.can' => CheckLeaderCapability::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

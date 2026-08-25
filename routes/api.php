@@ -115,6 +115,15 @@ use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
 use App\Http\Controllers\Api\V1\IntroVideoController;
+use App\Http\Controllers\Api\V1\Leader\LeaderActivitiesController;
+use App\Http\Controllers\Api\V1\Leader\LeaderAuthController;
+use App\Http\Controllers\Api\V1\Leader\LeaderDashboardController;
+use App\Http\Controllers\Api\V1\Leader\LeaderFinanceController;
+use App\Http\Controllers\Api\V1\Leader\LeaderNotificationsController;
+use App\Http\Controllers\Api\V1\Leader\LeaderPeersController;
+use App\Http\Controllers\Api\V1\Leader\LeaderReportsController;
+use App\Http\Controllers\Api\V1\Leader\LeaderRoleManagementController;
+use App\Http\Controllers\Api\V1\Leader\LeaderTeamsController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
@@ -278,10 +287,11 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('auth')->group(function () {
+        Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
+        Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -291,6 +301,49 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    // ── Leader App Core API Endpoints ──────────────────────────────────────────
+    Route::middleware('auth:sanctum')->group(function () {
+        // Tab 0: Dashboard
+        Route::get('/dashboard/metrics', [LeaderDashboardController::class, 'metrics']);
+        Route::get('/dashboard/top-impacters', [LeaderDashboardController::class, 'topImpacters']);
+
+        // Tab 1: Peers & Celebrations
+        Route::get('/peers', [LeaderPeersController::class, 'index']);
+        Route::get('/peers/celebrations', [LeaderPeersController::class, 'celebrations']);
+        Route::get('/peers/{id}', [LeaderPeersController::class, 'show']);
+        Route::post('/peers/{id}/send-wish', [LeaderPeersController::class, 'sendWish']);
+
+        // Tab 2: Teams & Circles
+        Route::get('/teams/summary', [LeaderTeamsController::class, 'summary']);
+        Route::get('/teams/circles', [LeaderTeamsController::class, 'circles']);
+        Route::get('/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
+
+        // Tab 3: Finance & Accounts
+        Route::get('/finance/metrics', [LeaderFinanceController::class, 'metrics']);
+        Route::get('/finance/transactions', [LeaderFinanceController::class, 'transactions']);
+
+        // Tab 4: Reports & Analytics
+        Route::get('/reports', [LeaderReportsController::class, 'index']);
+        Route::post('/reports', [LeaderReportsController::class, 'store']);
+        Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+
+        // Referrals, Testimonials & Coins
+        Route::get('/referrals', [LeaderActivitiesController::class, 'referrals']);
+        Route::get('/testimonials', [LeaderActivitiesController::class, 'testimonials']);
+        Route::get('/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
+
+        // Notifications
+        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
+        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+
+        // Tab 5: Role & Permission Management
+        Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+        Route::put('/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+        Route::post('/roles', [LeaderRoleManagementController::class, 'store']);
+        Route::put('/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+        Route::delete('/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
     });
 
     Route::prefix('ded/auth')->group(function () {
