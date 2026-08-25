@@ -122,6 +122,7 @@
             width: 100%;
         }
 
+        
         .store-button {
             flex: 1; /* Both buttons grow equally */
             display: inline-flex;
