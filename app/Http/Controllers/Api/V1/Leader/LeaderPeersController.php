@@ -19,7 +19,7 @@ class LeaderPeersController extends Controller
     ) {}
 
     /**
-     * List peers with filters & sorting.
+     * List peers with filters & sorting scoped to circle or district.
      */
     public function index(Request $request): JsonResponse
     {
@@ -27,8 +27,9 @@ class LeaderPeersController extends Controller
         $status = $request->query('status') ? (string) $request->query('status') : null;
         $sort = $request->query('sort') ? (string) $request->query('sort') : null;
         $search = $request->query('search') ? (string) $request->query('search') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
 
-        $data = $this->peersService->listPeers($circleId, $status, $sort, $search);
+        $data = $this->peersService->listPeers($circleId, $status, $sort, $search, $districtId, $request->user());
 
         return response()->json([
             'success' => true,
@@ -42,7 +43,9 @@ class LeaderPeersController extends Controller
     public function celebrations(Request $request): JsonResponse
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
-        $data = $this->peersService->getCelebrations($circleId);
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+
+        $data = $this->peersService->getCelebrations($circleId, $districtId, $request->user());
 
         return response()->json([
             'success' => true,
@@ -69,7 +72,7 @@ class LeaderPeersController extends Controller
     public function sendWish(LeaderSendWishRequest $request, string $id): JsonResponse
     {
         $user = $request->user();
-        $senderId = $user ? (string) $user->id : 'usr_987214';
+        $senderId = $user ? (string) $user->id : '8ef4c5ad-13c5-4b08-8e6f-cbde39df23a5';
 
         $message = $this->peersService->sendWish(
             $senderId,

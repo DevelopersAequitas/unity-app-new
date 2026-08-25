@@ -6,20 +6,33 @@ namespace App\Services\Leader;
 
 use App\Models\Circle;
 use App\Models\LeaderReport;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 class LeaderReportsService
 {
+    public function __construct(
+        private readonly LeaderTeamsService $teamsService,
+    ) {}
+
     /**
-     * List submitted performance reports.
+     * List submitted performance reports scoped to circle or district.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function listReports(?string $circleId = null, ?string $type = null): array
-    {
+    public function listReports(
+        ?string $circleId = null,
+        ?string $type = null,
+        ?string $districtId = null,
+        ?User $user = null,
+    ): array {
+        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+
         $query = LeaderReport::query()
             ->with(['circle', 'submitter'])
             ->when($circleId, fn ($q) => $q->where('circle_id', $circleId))
+            ->when(! $circleId && $resolvedDistrictId, fn ($q) => $q->whereHas('circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId)))
             ->when($type, fn ($q) => $q->whereRaw('LOWER(report_type) = ?', [strtolower($type)]))
             ->orderByDesc('created_at');
 
@@ -29,25 +42,37 @@ class LeaderReportsService
             return [
                 [
                     'id' => 'rep_101',
-                    'circle_name' => 'Mumbai Tech Sunrise',
+                    'circle_name' => 'Ahmedabad Tech Pioneers',
                     'report_type' => 'Monthly',
                     'period' => 'July 2026',
-                    'submitted_by' => 'Arjun Patel',
+                    'submitted_by' => 'Dhruvil User',
                     'submitted_at' => '2026-08-01T10:00:00Z',
                     'status' => 'Approved',
-                    'attendance_percentage' => 92,
-                    'deals_closed_value' => '₹14.2L',
-                    'summary_text' => 'Strong monthly participation with 4 new peer referrals closed.',
+                    'attendance_percentage' => 94.5,
+                    'deals_closed_value' => '₹28.4L',
+                    'summary_text' => 'Outstanding monthly performance with 14 active tech collaborations and high peer attendance.',
+                ],
+                [
+                    'id' => 'rep_102',
+                    'circle_name' => 'Ahmedabad MSME Growth Circle',
+                    'report_type' => 'Monthly',
+                    'period' => 'July 2026',
+                    'submitted_by' => 'Dhruvil User',
+                    'submitted_at' => '2026-08-01T10:00:00Z',
+                    'status' => 'Approved',
+                    'attendance_percentage' => 91.0,
+                    'deals_closed_value' => '₹19.2L',
+                    'summary_text' => 'Solid manufacturing sector deal flow and 6 new vendor linkages established.',
                 ],
             ];
         }
 
         return $reports->map(function (LeaderReport $r): array {
-            $circleName = $r->circle?->name ?? 'Mumbai Tech Sunrise';
+            $circleName = $r->circle?->name ?? 'Ahmedabad Tech Pioneers';
             $submitter = $r->submitter;
-            $submitterName = $submitter ? trim(($submitter->first_name ?? '').' '.($submitter->last_name ?? '')) : 'Arjun Patel';
+            $submitterName = $submitter ? trim(($submitter->first_name ?? '').' '.($submitter->last_name ?? '')) : 'Dhruvil User';
             if ($submitterName === '' || $submitterName === ' ') {
-                $submitterName = $submitter?->display_name ?? 'Arjun Patel';
+                $submitterName = $submitter?->display_name ?? 'Dhruvil User';
             }
 
             return [
@@ -103,12 +128,12 @@ class LeaderReportsService
     public function getAttendanceTrend(?string $circleId = null): array
     {
         return [
-            ['month' => 'Feb', 'value' => 72.0],
-            ['month' => 'Mar', 'value' => 78.0],
-            ['month' => 'Apr', 'value' => 74.0],
-            ['month' => 'May', 'value' => 82.0],
-            ['month' => 'Jun', 'value' => 87.0],
-            ['month' => 'Jul', 'value' => 90.0],
+            ['month' => 'Feb', 'value' => 88.0],
+            ['month' => 'Mar', 'value' => 90.0],
+            ['month' => 'Apr', 'value' => 89.0],
+            ['month' => 'May', 'value' => 92.0],
+            ['month' => 'Jun', 'value' => 94.0],
+            ['month' => 'Jul', 'value' => 96.0],
         ];
     }
 

@@ -481,6 +481,21 @@ class Circle extends Model
         return $this->belongsTo(City::class, 'city_id');
     }
 
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class, 'district_id');
+    }
+
+    public function chairUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'chair_user_id');
+    }
+
+    public function circleCategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'template_id');
+    }
+
     public function chatMessages(): HasMany
     {
         return $this->hasMany(CircleChatMessage::class, 'circle_id');

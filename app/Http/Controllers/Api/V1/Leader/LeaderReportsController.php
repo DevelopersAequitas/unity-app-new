@@ -17,14 +17,15 @@ class LeaderReportsController extends Controller
     ) {}
 
     /**
-     * Get submitted performance reports list.
+     * Get submitted performance reports list scoped to circle or district.
      */
     public function index(Request $request): JsonResponse
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
         $type = $request->query('type') ? (string) $request->query('type') : null;
+        $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
 
-        $data = $this->reportsService->listReports($circleId, $type);
+        $data = $this->reportsService->listReports($circleId, $type, $districtId, $request->user());
 
         return response()->json([
             'success' => true,
@@ -38,7 +39,7 @@ class LeaderReportsController extends Controller
     public function store(LeaderSubmitReportRequest $request): JsonResponse
     {
         $user = $request->user();
-        $userId = $user ? (string) $user->id : 'usr_987214';
+        $userId = $user ? (string) $user->id : '8ef4c5ad-13c5-4b08-8e6f-cbde39df23a5';
 
         $reportId = $this->reportsService->submitReport($request->validated(), $userId);
 
