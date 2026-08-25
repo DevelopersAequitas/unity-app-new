@@ -1173,51 +1173,6 @@
             alert('An error occurred during batch notification push.');
         });
     }
-
-        const btn = document.getElementById('btnSubmitBatchSend');
-        const feedback = document.getElementById('batchSendFeedback');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span> Sending All Notifications...';
-        feedback.style.display = 'none';
-
-        const formData = new FormData(document.getElementById('batchSendForm'));
-
-        fetch(`{{ route('admin.app-notifications.send-all-to-peer') }}`, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            }
-        })
-        .then(res => res.json())
-        .then(data => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-rocket-takeoff-fill me-1"></i> Start Batch Push';
-
-            if (data.success) {
-                feedback.className = 'alert alert-success py-3 px-3 rounded-4 small mb-0';
-                feedback.innerHTML = `
-                    <div class="fw-bold mb-1"><i class="bi bi-check-circle-fill me-1"></i> ${data.message}</div>
-                    <div class="text-muted">Total notifications created: ${data.total_sent} | Push Delivered: ${data.push_delivered_count}</div>
-                `;
-                feedback.style.display = 'block';
-                setTimeout(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('batchSendModal')).hide();
-                    location.reload();
-                }, 2000);
-            } else {
-                feedback.className = 'alert alert-danger py-2 px-3 rounded-3 small mb-0';
-                feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> ${data.message || 'Batch send failed'}`;
-                feedback.style.display = 'block';
-            }
-        })
-        .catch(err => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-rocket-takeoff-fill me-1"></i> Start Batch Push';
-            alert('An error occurred during batch notification push.');
-        });
-    }
 </script>
 @endpush
 
