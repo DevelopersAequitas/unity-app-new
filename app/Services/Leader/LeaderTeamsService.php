@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Leader;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\District;
 use App\Models\Industry;
 use App\Models\User;
+use App\Support\AdminAccess;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +31,15 @@ class LeaderTeamsService
             return null;
         }
 
-        // 1. Check admin_ded_districts table
+        // 1. Check admin_ded_districts table directly or via AdminUser
+        $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
+        if ($admin) {
+            $dedLocation = AdminAccess::assignedDedLocation($admin);
+            if (! empty($dedLocation['district_id'])) {
+                return (string) $dedLocation['district_id'];
+            }
+        }
+
         $assignedDistrictId = DB::table('admin_ded_districts')
             ->where('admin_user_id', $user->id)
             ->orWhere('user_id', $user->id)

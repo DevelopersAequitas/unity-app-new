@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Leader;
 
 use App\Models\Circle;
-use App\Models\CircleMember;
 use App\Models\District;
 use App\Models\LeaderWish;
 use App\Models\Referral;
