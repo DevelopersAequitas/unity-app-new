@@ -133,7 +133,7 @@
                     </p>
                 </div>
                 <div class="col-lg-4 text-lg-end">
-                    <button type="button" class="btn btn-warning rounded-pill px-4 py-2 fw-bold text-dark d-inline-flex align-items-center gap-2 shadow hover-elevate" onclick="openBatchSendModal()">
+                    <button type="button" class="btn btn-warning rounded-pill px-4 py-2 fw-bold text-dark d-inline-flex align-items-center gap-2 shadow hover-elevate" data-bs-toggle="modal" data-bs-target="#batchSendModal" onclick="openBatchSendModal()">
                         <i class="bi bi-collection-play-fill fs-5"></i>
                         <span>Select Peer &amp; Send All</span>
                     </button>
@@ -313,26 +313,46 @@
                 <div class="modal-body p-4">
                     <!-- Step 1: Select Peer -->
                     <div class="mb-4">
-                        <label class="form-label fw-bold text-dark small mb-1">
-                            <span class="badge rounded-circle bg-primary me-1" style="background-color: #240e5c !important;">1</span>
-                            Select Target Peer / Recipient <span class="text-danger">*</span>
-                        </label>
-                        <div class="position-relative">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-bold text-dark small mb-0">
+                                <span class="badge rounded-circle bg-primary me-1" style="background-color: #240e5c !important;">1</span>
+                                Select Target Peer / Recipient <span class="text-danger">*</span>
+                            </label>
+                            <span class="badge bg-light text-secondary border font-monospace" style="font-size: 10px;">
+                                {{ count($initialPeers) }} peers loaded
+                            </span>
+                        </div>
+
+                        <!-- Search Filter for Dropdown -->
+                        <div class="mb-2">
                             <div class="input-group">
                                 <span class="input-group-text bg-light border"><i class="bi bi-search text-muted"></i></span>
-                                <input type="text" id="peerSearchInput" class="form-control" placeholder="Type peer name, email, phone, or circle..." autocomplete="off" oninput="debouncePeerSearch()">
+                                <input type="text" id="singlePeerSearchInput" class="form-control" placeholder="Type to filter peers dropdown (e.g. name, email, circle)..." autocomplete="off" oninput="filterPeerDropdown('single_peer_select', this.value)">
                             </div>
-                            
-                            <!-- Search Dropdown Results -->
-                            <div id="peerSearchResults" class="list-group position-absolute w-100 shadow-lg rounded-3 mt-1 overflow-auto border" style="max-height: 200px; display: none; z-index: 1050; background: #fff;">
-                                <!-- Populated dynamically -->
-                            </div>
+                        </div>
+
+                        <!-- Genuine Select Dropdown -->
+                        <div class="mb-2">
+                            <select name="user_ids[]" id="single_peer_select" class="form-select form-select-lg rounded-3 py-2 fw-medium border shadow-sm" style="font-size: 13.5px;" required onchange="onSinglePeerSelectChange(this)">
+                                <option value="">-- Click here to select a Peer ({{ count($initialPeers) }} peers) --</option>
+                                @foreach($initialPeers as $p)
+                                    <option value="{{ $p['id'] }}" 
+                                        data-name="{{ $p['name'] }}" 
+                                        data-email="{{ $p['email'] }}" 
+                                        data-phone="{{ $p['phone'] }}" 
+                                        data-circle="{{ $p['circle'] }}" 
+                                        data-push="{{ $p['push_ready'] ? '1' : '0' }}" 
+                                        data-tokens="{{ $p['tokens_count'] }}">
+                                        {{ $p['name'] }} | {{ $p['email'] ?: ($p['phone'] ?: 'No Contact') }} | {{ $p['circle'] }} | {{ $p['push_ready'] ? '🟢 Push Ready' : '🟡 In-App Only' }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
 
                         <!-- Selected Peer Card Indicator -->
                         <div id="selectedPeerContainer" class="mt-2" style="display: none;">
-                            <input type="hidden" name="user_ids[]" id="selected_user_id" value="">
-                            <div class="p-2 px-3 rounded-3 bg-light border d-flex align-items-center justify-content-between">
+                            <input type="hidden" name="user_id_hidden" id="selected_user_id" value="">
+                            <div class="p-2 px-3 rounded-3 bg-light border d-flex align-items-center justify-content-between" style="border-left: 4px solid #240e5c !important;">
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" id="selectedPeerAvatar" style="width: 38px; height: 38px; font-size: 14px; background-color: #240e5c !important;">
                                         P
@@ -348,7 +368,7 @@
                                     <span class="badge rounded-pill px-2 py-1" id="selectedPeerPushStatus" style="font-size: 11px;">
                                         <i class="bi bi-phone"></i> Push Ready
                                     </span>
-                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 26px; height: 26px;" onclick="clearSelectedPeer()">
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 26px; height: 26px;" onclick="clearSinglePeerDropdown()">
                                         <i class="bi bi-x"></i>
                                     </button>
                                 </div>
@@ -451,21 +471,45 @@
 
                     <!-- Peer Selection for Batch -->
                     <div class="mb-4">
-                        <label class="form-label fw-bold text-dark small mb-1">
-                            Choose Target Peer / User <span class="text-danger">*</span>
-                        </label>
-                        <div class="position-relative">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-bold text-dark small mb-0">
+                                Choose Target Peer / User from Dropdown <span class="text-danger">*</span>
+                            </label>
+                            <span class="badge bg-light text-secondary border font-monospace" style="font-size: 10px;">
+                                {{ count($initialPeers) }} peers loaded
+                            </span>
+                        </div>
+
+                        <!-- Search Filter for Dropdown -->
+                        <div class="mb-2">
                             <div class="input-group">
                                 <span class="input-group-text bg-light border"><i class="bi bi-person-search text-muted"></i></span>
-                                <input type="text" id="batchPeerSearchInput" class="form-control" placeholder="Search peer name or email..." autocomplete="off" oninput="debounceBatchPeerSearch()">
+                                <input type="text" id="batchPeerSearchInput" class="form-control" placeholder="Type to filter peers dropdown (e.g. name, email, circle)..." autocomplete="off" oninput="filterPeerDropdown('batch_peer_select', this.value)">
                             </div>
-                            <div id="batchPeerSearchResults" class="list-group position-absolute w-100 shadow-lg rounded-3 mt-1 overflow-auto border" style="max-height: 180px; display: none; z-index: 1050; background: #fff;"></div>
+                        </div>
+
+                        <!-- Genuine Select Dropdown in Batch Modal -->
+                        <div class="mb-2">
+                            <select name="user_id" id="batch_peer_select" class="form-select form-select-lg rounded-3 py-2 fw-medium border shadow-sm" style="font-size: 13.5px;" required onchange="onBatchPeerSelectChange(this)">
+                                <option value="">-- Click here to select a Peer ({{ count($initialPeers) }} peers) --</option>
+                                @foreach($initialPeers as $p)
+                                    <option value="{{ $p['id'] }}" 
+                                        data-name="{{ $p['name'] }}" 
+                                        data-email="{{ $p['email'] }}" 
+                                        data-phone="{{ $p['phone'] }}" 
+                                        data-circle="{{ $p['circle'] }}" 
+                                        data-push="{{ $p['push_ready'] ? '1' : '0' }}" 
+                                        data-tokens="{{ $p['tokens_count'] }}">
+                                        {{ $p['name'] }} | {{ $p['email'] ?: ($p['phone'] ?: 'No Contact') }} | {{ $p['circle'] }} | {{ $p['push_ready'] ? '🟢 Push Ready' : '🟡 In-App Only' }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
 
                         <!-- Selected Peer Box in Batch Modal -->
-                        <div id="batchSelectedPeerContainer" class="mt-3" style="display: none;">
-                            <input type="hidden" name="user_id" id="batch_selected_user_id" value="" required>
-                            <div class="p-3 rounded-4 bg-light border d-flex align-items-center justify-content-between">
+                        <div id="batchSelectedPeerContainer" class="mt-2" style="display: none;">
+                            <input type="hidden" name="user_id_hidden" id="batch_selected_user_id" value="">
+                            <div class="p-3 rounded-4 bg-light border d-flex align-items-center justify-content-between" style="border-left: 4px solid #f59e0b !important;">
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" id="batchSelectedPeerAvatar" style="width: 44px; height: 44px; font-size: 16px; background-color: #240e5c !important;">
                                         P
@@ -477,9 +521,14 @@
                                         </div>
                                     </div>
                                 </div>
-                                <span class="badge rounded-pill px-3 py-2" id="batchSelectedPeerPushStatus">
-                                    Push Ready
-                                </span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge rounded-pill px-3 py-2" id="batchSelectedPeerPushStatus">
+                                        Push Ready
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 26px; height: 26px;" onclick="clearBatchSelectedPeerDropdown()">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -854,149 +903,226 @@
         modal.show();
     }
 
-    // AJAX Peer search with debounce
-    function debouncePeerSearch() {
-        clearTimeout(peerSearchTimeout);
-        peerSearchTimeout = setTimeout(() => {
-            const query = document.getElementById('peerSearchInput').value.trim();
-            if (query.length < 2) {
-                document.getElementById('peerSearchResults').style.display = 'none';
-                return;
-            }
+    // Initial catalog & peers data passed from Blade
+    const notificationCatalog = @json($notifications);
+    let peersCatalog = @json($initialPeers) || [];
+    let selectedSinglePeerId = '';
+    let selectedBatchPeerId = '';
+    let peerSearchDebounceTimer = null;
+    let batchSearchDebounceTimer = null;
 
-            fetch(`{{ route('admin.app-notifications.peers-search') }}?q=${encodeURIComponent(query)}`)
-                .then(res => res.json())
-                .then(data => {
-                    const resultsBox = document.getElementById('peerSearchResults');
-                    resultsBox.innerHTML = '';
-
-                    if (!data.results || data.results.length === 0) {
-                        resultsBox.innerHTML = '<div class="p-3 text-muted small text-center">No peers found matching query.</div>';
-                        resultsBox.style.display = 'block';
-                        return;
-                    }
-
-                    data.results.forEach(peer => {
-                        const pushBadge = peer.push_ready 
-                            ? `<span class="badge bg-success-subtle text-success rounded-pill px-2" style="font-size: 10px;">🟢 Push Ready (${peer.tokens_count} tokens)</span>`
-                            : `<span class="badge bg-warning-subtle text-warning rounded-pill px-2" style="font-size: 10px;">🟡 No Token</span>`;
-
-                        const item = document.createElement('a');
-                        item.href = 'javascript:void(0)';
-                        item.className = 'list-group-item list-group-item-action p-2 px-3 d-flex justify-content-between align-items-center';
-                        item.innerHTML = `
-                            <div>
-                                <div class="fw-bold text-dark" style="font-size: 13px;">${peer.name}</div>
-                                <div class="text-muted small" style="font-size: 11px;">${peer.email || peer.phone || ''} &bull; ${peer.circle}</div>
-                            </div>
-                            <div>${pushBadge}</div>
-                        `;
-                        item.onclick = () => selectPeer(peer);
-                        resultsBox.appendChild(item);
-                    });
-
-                    resultsBox.style.display = 'block';
-                });
-        }, 300);
-    }
-
-    function selectPeer(peer) {
-        document.getElementById('selected_user_id').value = peer.id;
-        document.getElementById('selectedPeerName').innerText = peer.name;
-        document.getElementById('selectedPeerEmail').innerText = peer.email || peer.phone || 'No Contact';
-        document.getElementById('selectedPeerCircle').innerText = peer.circle || 'General';
-        document.getElementById('selectedPeerAvatar').innerText = (peer.name || 'P').charAt(0).toUpperCase();
-
-        const pushStatus = document.getElementById('selectedPeerPushStatus');
-        if (peer.push_ready) {
-            pushStatus.className = 'badge bg-success-subtle text-success rounded-pill px-2 py-1';
-            pushStatus.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Push Ready (${peer.tokens_count} tokens)`;
-        } else {
-            pushStatus.className = 'badge bg-warning-subtle text-warning rounded-pill px-2 py-1';
-            pushStatus.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> No FCM Token (In-App only)`;
+    // Fetch initial peers if empty on load
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!peersCatalog || peersCatalog.length === 0) {
+            fetchAllPeersFromServer();
         }
 
-        document.getElementById('selectedPeerContainer').style.display = 'block';
-        document.getElementById('peerSearchResults').style.display = 'none';
-        document.getElementById('peerSearchInput').value = '';
-    }
+        // Attach Bootstrap modal event listeners to auto-render peers whenever opened
+        const batchModalEl = document.getElementById('batchSendModal');
+        if (batchModalEl) {
+            batchModalEl.addEventListener('show.bs.modal', () => {
+                const countBadge = document.getElementById('batchPeerCountBadge');
+                if (countBadge) countBadge.innerText = `${peersCatalog.length} peers available`;
+                renderPeersToContainer(peersCatalog, 'batchPeerSearchResults', selectBatchPeer, selectedBatchPeerId);
+            });
+        }
 
-    function clearSelectedPeer() {
-        document.getElementById('selected_user_id').value = '';
-        document.getElementById('selectedPeerContainer').style.display = 'none';
-    }
+        const singleModalEl = document.getElementById('sendNotificationModal');
+        if (singleModalEl) {
+            singleModalEl.addEventListener('show.bs.modal', () => {
+                const countBadge = document.getElementById('singlePeerCountBadge');
+                if (countBadge) countBadge.innerText = `${peersCatalog.length} peers available`;
+                renderPeersToContainer(peersCatalog, 'peerSearchResults', selectPeer, selectedSinglePeerId);
+            });
+        }
+    });
 
-    // Batch modal peer search
-    function debounceBatchPeerSearch() {
-        clearTimeout(batchPeerSearchTimeout);
-        batchPeerSearchTimeout = setTimeout(() => {
-            const query = document.getElementById('batchPeerSearchInput').value.trim();
-            if (query.length < 2) {
-                document.getElementById('batchPeerSearchResults').style.display = 'none';
-                return;
+    // Dropdown Search Filter Helper
+    function filterPeerDropdown(selectId, searchVal) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const q = (searchVal || '').toLowerCase().trim();
+        const options = select.getElementsByTagName('option');
+        let matchCount = 0;
+        let firstMatchIndex = -1;
+
+        for (let i = 1; i < options.length; i++) { // Skip the first default placeholder option
+            const opt = options[i];
+            const text = (opt.textContent || opt.innerText || '').toLowerCase();
+            if (q === '' || text.includes(q)) {
+                opt.style.display = '';
+                opt.hidden = false;
+                matchCount++;
+                if (firstMatchIndex === -1 && q !== '') {
+                    firstMatchIndex = i;
+                }
+            } else {
+                opt.style.display = 'none';
+                opt.hidden = true;
             }
+        }
 
-            fetch(`{{ route('admin.app-notifications.peers-search') }}?q=${encodeURIComponent(query)}`)
-                .then(res => res.json())
-                .then(data => {
-                    const resultsBox = document.getElementById('batchPeerSearchResults');
-                    resultsBox.innerHTML = '';
-
-                    if (!data.results || data.results.length === 0) {
-                        resultsBox.innerHTML = '<div class="p-3 text-muted small text-center">No peers found.</div>';
-                        resultsBox.style.display = 'block';
-                        return;
-                    }
-
-                    data.results.forEach(peer => {
-                        const item = document.createElement('a');
-                        item.href = 'javascript:void(0)';
-                        item.className = 'list-group-item list-group-item-action p-2 px-3 d-flex justify-content-between align-items-center';
-                        item.innerHTML = `
-                            <div>
-                                <div class="fw-bold text-dark" style="font-size: 13px;">${peer.name}</div>
-                                <div class="text-muted small" style="font-size: 11px;">${peer.email}</div>
-                            </div>
-                            <span class="badge ${peer.push_ready ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'} rounded-pill" style="font-size: 10px;">
-                                ${peer.push_ready ? '🟢 Push Ready' : '🟡 No Token'}
-                            </span>
-                        `;
-                        item.onclick = () => selectBatchPeer(peer);
-                        resultsBox.appendChild(item);
-                    });
-
-                    resultsBox.style.display = 'block';
-                });
-        }, 300);
+        // If user typed and there are matches, select the first match automatically
+        if (firstMatchIndex > 0) {
+            select.selectedIndex = firstMatchIndex;
+            if (selectId === 'batch_peer_select') {
+                onBatchPeerSelectChange(select);
+            } else if (selectId === 'single_peer_select') {
+                onSinglePeerSelectChange(select);
+            }
+        }
     }
 
-    function selectBatchPeer(peer) {
-        document.getElementById('batch_selected_user_id').value = peer.id;
-        document.getElementById('batchSelectedPeerName').innerText = peer.name;
-        document.getElementById('batchSelectedPeerEmail').innerText = peer.email || '';
-        document.getElementById('batchSelectedPeerCircle').innerText = peer.circle || 'Circle';
-        document.getElementById('batchSelectedPeerAvatar').innerText = (peer.name || 'P').charAt(0).toUpperCase();
+    function onBatchPeerSelectChange(selectEl) {
+        const opt = selectEl.options[selectEl.selectedIndex];
+        const userId = opt ? opt.value : '';
+        const container = document.getElementById('batchSelectedPeerContainer');
+        const hiddenInput = document.getElementById('batch_selected_user_id');
 
+        if (!userId) {
+            if (hiddenInput) hiddenInput.value = '';
+            if (container) container.style.display = 'none';
+            return;
+        }
+
+        if (hiddenInput) hiddenInput.value = userId;
+        const name = opt.getAttribute('data-name') || opt.text;
+        const email = opt.getAttribute('data-email') || opt.getAttribute('data-phone') || 'No Contact';
+        const circle = opt.getAttribute('data-circle') || 'Circle';
+        const isPush = opt.getAttribute('data-push') === '1';
+        const tokens = opt.getAttribute('data-tokens') || '0';
+
+        const nameEl = document.getElementById('batchSelectedPeerName');
+        const emailEl = document.getElementById('batchSelectedPeerEmail');
+        const circleEl = document.getElementById('batchSelectedPeerCircle');
+        const avatarEl = document.getElementById('batchSelectedPeerAvatar');
         const statusBadge = document.getElementById('batchSelectedPeerPushStatus');
-        if (peer.push_ready) {
-            statusBadge.className = 'badge bg-success text-white rounded-pill px-3 py-1';
-            statusBadge.innerText = `🟢 Push Ready (${peer.tokens_count} Tokens)`;
-        } else {
-            statusBadge.className = 'badge bg-warning text-dark rounded-pill px-3 py-1';
-            statusBadge.innerText = '🟡 No FCM Token registered';
+
+        if (nameEl) nameEl.innerText = name;
+        if (emailEl) emailEl.innerText = email;
+        if (circleEl) circleEl.innerText = circle;
+        if (avatarEl) avatarEl.innerText = (name || 'P').charAt(0).toUpperCase();
+
+        if (statusBadge) {
+            if (isPush) {
+                statusBadge.className = 'badge bg-success text-white rounded-pill px-3 py-1';
+                statusBadge.innerText = `🟢 Push Ready (${tokens} Tokens)`;
+            } else {
+                statusBadge.className = 'badge bg-warning text-dark rounded-pill px-3 py-1';
+                statusBadge.innerText = '🟡 No Push Token (In-App)';
+            }
         }
 
-        document.getElementById('batchSelectedPeerContainer').style.display = 'block';
-        document.getElementById('batchPeerSearchResults').style.display = 'none';
-        document.getElementById('batchPeerSearchInput').value = '';
+        if (container) container.style.display = 'block';
     }
+
+    function clearBatchSelectedPeerDropdown() {
+        const select = document.getElementById('batch_peer_select');
+        if (select) {
+            select.selectedIndex = 0;
+            onBatchPeerSelectChange(select);
+        }
+        const searchInput = document.getElementById('batchPeerSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            filterPeerDropdown('batch_peer_select', '');
+        }
+    }
+
+    function onSinglePeerSelectChange(selectEl) {
+        const opt = selectEl.options[selectEl.selectedIndex];
+        const userId = opt ? opt.value : '';
+        const container = document.getElementById('selectedPeerContainer');
+        const hiddenInput = document.getElementById('selected_user_id');
+
+        if (!userId) {
+            if (hiddenInput) hiddenInput.value = '';
+            if (container) container.style.display = 'none';
+            return;
+        }
+
+        if (hiddenInput) hiddenInput.value = userId;
+        const name = opt.getAttribute('data-name') || opt.text;
+        const email = opt.getAttribute('data-email') || opt.getAttribute('data-phone') || 'No Contact';
+        const circle = opt.getAttribute('data-circle') || 'General';
+        const isPush = opt.getAttribute('data-push') === '1';
+        const tokens = opt.getAttribute('data-tokens') || '0';
+
+        const nameEl = document.getElementById('selectedPeerName');
+        const emailEl = document.getElementById('selectedPeerEmail');
+        const circleEl = document.getElementById('selectedPeerCircle');
+        const avatarEl = document.getElementById('selectedPeerAvatar');
+        const pushStatus = document.getElementById('selectedPeerPushStatus');
+
+        if (nameEl) nameEl.innerText = name;
+        if (emailEl) emailEl.innerText = email;
+        if (circleEl) circleEl.innerText = circle;
+        if (avatarEl) avatarEl.innerText = (name || 'P').charAt(0).toUpperCase();
+
+        if (pushStatus) {
+            if (isPush) {
+                pushStatus.className = 'badge bg-success-subtle text-success rounded-pill px-2 py-1';
+                pushStatus.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Push Ready (${tokens} tokens)`;
+            } else {
+                pushStatus.className = 'badge bg-warning-subtle text-warning rounded-pill px-2 py-1';
+                pushStatus.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> In-App Only`;
+            }
+        }
+
+        if (container) container.style.display = 'block';
+    }
+
+    function clearSinglePeerDropdown() {
+        const select = document.getElementById('single_peer_select');
+        if (select) {
+            select.selectedIndex = 0;
+            onSinglePeerSelectChange(select);
+        }
+        const searchInput = document.getElementById('singlePeerSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            filterPeerDropdown('single_peer_select', '');
+        }
+    }
+
+    window.filterPeerDropdown = filterPeerDropdown;
+    window.onBatchPeerSelectChange = onBatchPeerSelectChange;
+    window.clearBatchSelectedPeerDropdown = clearBatchSelectedPeerDropdown;
+    window.onSinglePeerSelectChange = onSinglePeerSelectChange;
+    window.clearSinglePeerDropdown = clearSinglePeerDropdown;
+
+    // Open Send Modal prefilled
+    function openSendModal(key) {
+        const tpl = key ? notificationCatalog.find(n => n.key === key) : notificationCatalog[0];
+
+        if (tpl) {
+            document.getElementById('modal_notification_key').value = tpl.key;
+            document.getElementById('modal_title').value = tpl.title;
+            document.getElementById('modal_body').value = tpl.body;
+            document.getElementById('modal_navigation_screen').value = tpl.navigation_screen || '/dashboard';
+            document.getElementById('modal_payload_json').value = JSON.stringify(tpl.payload, null, 2);
+        }
+
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('sendNotificationModal'));
+        modal.show();
+    }
+
+    // Open Batch Send Modal
+    function openBatchSendModal() {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('batchSendModal'));
+        modal.show();
+    }
+
+    window.openSendModal = openSendModal;
+    window.openBatchSendModal = openBatchSendModal;
 
     // Submit single send with real-time feedback
     function submitSendNotification(e) {
         e.preventDefault();
-        const userId = document.getElementById('selected_user_id').value;
+        const select = document.getElementById('single_peer_select');
+        const userId = (select && select.value) ? select.value : (document.getElementById('selected_user_id')?.value || '');
         if (!userId) {
-            alert('Please select a recipient peer first.');
+            alert('Please select a recipient peer from the dropdown first.');
             return;
         }
 
@@ -1045,9 +1171,10 @@
     // Submit batch send with real-time feedback
     function submitBatchSend(e) {
         e.preventDefault();
-        const userId = document.getElementById('batch_selected_user_id').value;
+        const select = document.getElementById('batch_peer_select');
+        const userId = (select && select.value) ? select.value : (document.getElementById('batch_selected_user_id')?.value || '');
         if (!userId) {
-            alert('Please select a target peer for the batch test.');
+            alert('Please select a target peer from the dropdown for the batch test.');
             return;
         }
 

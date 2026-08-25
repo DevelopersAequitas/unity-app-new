@@ -150,13 +150,13 @@ class AppNotificationAdminController extends Controller
                 ->get()
             : collect();
 
-        // Preload an initial batch of active peers for quick selection
+        // Preload all peers for quick dropdown selection
         $initialPeers = User::query()
-            ->where('status', 'active')
-            ->orderBy('first_name')
-            ->limit(20)
+            ->latest()
+            ->limit(500)
             ->get()
-            ->map(fn (User $user) => $this->formatPeerData($user));
+            ->map(fn (User $user) => $this->formatPeerData($user))
+            ->values();
 
         return view('admin.app-notifications.index', compact(
             'notifications',
@@ -177,24 +177,38 @@ class AppNotificationAdminController extends Controller
     {
         $queryStr = trim((string) $request->input('q', ''));
         $page = max((int) $request->input('page', 1), 1);
-        $perPage = 25;
+        $perPage = 100;
 
         $query = User::query();
-
-        if (Schema::hasColumn('users', 'status')) {
-            $query->where('status', 'active');
-        }
 
         if ($queryStr !== '') {
             $needle = '%'.$queryStr.'%';
             $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
             $query->where(function (Builder $q) use ($needle, $queryStr, $like): void {
-                $q->where('first_name', $like, $needle)
-                    ->orWhere('last_name', $like, $needle)
-                    ->orWhere('name', $like, $needle)
-                    ->orWhere('email', $like, $needle)
-                    ->orWhere('phone', $like, $needle)
-                    ->orWhere('mobile', $like, $needle);
+                if (Schema::hasColumn('users', 'first_name')) {
+                    $q->where('first_name', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'last_name')) {
+                    $q->orWhere('last_name', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'name')) {
+                    $q->orWhere('name', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'display_name')) {
+                    $q->orWhere('display_name', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'email')) {
+                    $q->orWhere('email', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'phone')) {
+                    $q->orWhere('phone', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'mobile')) {
+                    $q->orWhere('mobile', $like, $needle);
+                }
+                if (Schema::hasColumn('users', 'company_name')) {
+                    $q->orWhere('company_name', $like, $needle);
+                }
 
                 if (Str::isUuid($queryStr)) {
                     $q->orWhere('id', $queryStr);
@@ -207,7 +221,7 @@ class AppNotificationAdminController extends Controller
         }
 
         $total = (clone $query)->count();
-        $users = $query->forPage($page, $perPage)->get();
+        $users = $query->latest()->forPage($page, $perPage)->get();
 
         $results = $users->map(fn (User $user) => $this->formatPeerData($user))->values();
 
