@@ -59,6 +59,8 @@ class AppNotificationCatalogService
                 'profile_id' => '{actorId}',
                 'profile_screen' => '/member-profile',
                 'post_screen' => '/post-details',
+                'post_scroll_id' => '{postId}',
+                'open_profile_first' => true,
                 'notification_flow' => 'profile_then_post',
             ],
             'dynamic_params' => [
