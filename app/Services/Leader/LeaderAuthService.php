@@ -9,6 +9,7 @@ use App\Models\AdminUser;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Notifications\WhatsappNotificationService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -214,5 +215,90 @@ class LeaderAuthService
                     ->orWhere('secondary_mobile', 'like', "%{$short}");
             })
             ->first();
+    }
+
+    /**
+     * Update user profile details.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function updateProfile(User $user, array $data): array
+    {
+        if (isset($data['name'])) {
+            $nameParts = explode(' ', trim((string) $data['name']), 2);
+            $user->first_name = $nameParts[0] ?? $user->first_name;
+            $user->last_name = $nameParts[1] ?? ($user->last_name ?? '');
+            $user->display_name = trim((string) $data['name']);
+        }
+
+        if (isset($data['first_name'])) {
+            $user->first_name = (string) $data['first_name'];
+        }
+
+        if (isset($data['last_name'])) {
+            $user->last_name = (string) $data['last_name'];
+        }
+
+        if (isset($data['phone'])) {
+            $user->phone = (string) $data['phone'];
+        }
+
+        if (isset($data['bio'])) {
+            $user->short_bio = (string) $data['bio'];
+        }
+
+        if (isset($data['short_bio'])) {
+            $user->short_bio = (string) $data['short_bio'];
+        }
+
+        if (isset($data['company_name'])) {
+            $user->company_name = (string) $data['company_name'];
+        }
+
+        if (isset($data['designation'])) {
+            $user->designation = (string) $data['designation'];
+        }
+
+        if (isset($data['city'])) {
+            $user->city = (string) $data['city'];
+        }
+
+        $user->save();
+
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->display_name ?? 'Leader');
+
+        return [
+            'id' => (string) $user->id,
+            'name' => $fullName,
+            'phone' => (string) ($user->phone ?? ''),
+            'bio' => (string) ($user->short_bio ?? ''),
+            'company_name' => (string) ($user->company_name ?? ''),
+            'avatar_url' => (string) ($user->profile_photo_url ?? url('api/v1/files/019fd115-70a6-7309-befb-9bc0c4e61e7f')),
+        ];
+    }
+
+    /**
+     * Upload and update user avatar image.
+     *
+     * @param  UploadedFile  $file
+     * @return array<string, mixed>
+     */
+    public function updateAvatar(User $user, $file): array
+    {
+        $path = $file->store('avatars', 'public');
+        $avatarUrl = url('storage/'.$path);
+
+        $user->profile_photo_url = $avatarUrl;
+        $user->save();
+
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->display_name ?? 'Leader');
+
+        return [
+            'id' => (string) $user->id,
+            'name' => $fullName,
+            'phone' => (string) ($user->phone ?? ''),
+            'avatar_url' => $avatarUrl,
+        ];
     }
 }

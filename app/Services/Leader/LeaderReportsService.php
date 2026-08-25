@@ -111,4 +111,29 @@ class LeaderReportsService
             ['month' => 'Jul', 'value' => 90.0],
         ];
     }
+
+    /**
+     * Get download URL and metadata for a report.
+     *
+     * @return array<string, mixed>
+     */
+    public function getDownloadUrl(string $reportId): array
+    {
+        $report = Str::isUuid($reportId)
+            ? LeaderReport::query()->where('id', $reportId)->first()
+            : null;
+
+        $type = $report ? (string) $report->report_type : 'Performance';
+        $period = $report ? (string) $report->period : '2026';
+        $fileName = "Report-{$type}-{$period}.pdf";
+
+        return [
+            'report_id' => $reportId,
+            'file_name' => $fileName,
+            'file_format' => 'PDF',
+            'file_size' => '2.4 MB',
+            'download_url' => url("api/v1/files/{$reportId}/download?type=pdf"),
+            'expires_in_seconds' => 3600,
+        ];
+    }
 }

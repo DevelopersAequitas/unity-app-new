@@ -6,7 +6,10 @@ namespace App\Http\Controllers\Api\V1\Leader;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leader\LeaderSendOtpRequest;
+use App\Http\Requests\Leader\LeaderUpdateProfileRequest;
+use App\Http\Requests\Leader\LeaderUploadAvatarRequest;
 use App\Http\Requests\Leader\LeaderVerifyOtpRequest;
+use App\Models\User;
 use App\Services\Leader\LeaderAuthService;
 use Illuminate\Http\JsonResponse;
 use Throwable;
@@ -55,5 +58,37 @@ class LeaderAuthController extends Controller
                 'details' => null,
             ], 422);
         }
+    }
+
+    /**
+     * Update user profile details.
+     */
+    public function updateProfile(LeaderUpdateProfileRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $this->authService->updateProfile($user, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully.',
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Upload and update user profile avatar.
+     */
+    public function uploadAvatar(LeaderUploadAvatarRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $this->authService->updateAvatar($user, $request->file('avatar'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Avatar updated successfully.',
+            'data' => $data,
+        ]);
     }
 }

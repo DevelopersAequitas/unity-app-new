@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Leader;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Leader\LeaderCreateP2pMeetingRequest;
 use App\Http\Requests\Leader\LeaderSendWishRequest;
+use App\Models\User;
 use App\Services\Leader\LeaderPeersService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -80,5 +82,49 @@ class LeaderPeersController extends Controller
             'success' => true,
             'message' => $message,
         ]);
+    }
+
+    /**
+     * Get historical and scheduled meetings for a peer.
+     */
+    public function meetings(string $id): JsonResponse
+    {
+        $data = $this->peersService->getPeerMeetings($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Get chronological audit feed of peer activities.
+     */
+    public function activities(string $id, Request $request): JsonResponse
+    {
+        $page = (int) $request->query('page', 1);
+        $limit = (int) $request->query('limit', 20);
+        $data = $this->peersService->getPeerActivities($id, $page, $limit);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Quick registration of a 1-on-1 P2P meeting.
+     */
+    public function storeP2pMeeting(LeaderCreateP2pMeetingRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $this->peersService->createP2pMeeting($user, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'P2P meeting logged successfully.',
+            'data' => $data,
+        ], 201);
     }
 }

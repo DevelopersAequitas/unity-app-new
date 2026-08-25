@@ -64,4 +64,17 @@ class LeaderReportsController extends Controller
             'data' => $data,
         ]);
     }
+
+    /**
+     * Get report dynamic pre-signed / download link.
+     */
+    public function download(string $id): JsonResponse
+    {
+        $data = $this->reportsService->getDownloadUrl($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
 }

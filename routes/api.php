@@ -305,6 +305,10 @@ Route::prefix('v1')->group(function () {
 
     // ── Leader App Core API Endpoints ──────────────────────────────────────────
     Route::middleware('auth:sanctum')->group(function () {
+        // Auth & Profile
+        Route::put('/auth/profile', [LeaderAuthController::class, 'updateProfile']);
+        Route::post('/auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
+
         // Tab 0: Dashboard
         Route::get('/dashboard/metrics', [LeaderDashboardController::class, 'metrics']);
         Route::get('/dashboard/top-impacters', [LeaderDashboardController::class, 'topImpacters']);
@@ -312,6 +316,9 @@ Route::prefix('v1')->group(function () {
         // Tab 1: Peers & Celebrations
         Route::get('/peers', [LeaderPeersController::class, 'index']);
         Route::get('/peers/celebrations', [LeaderPeersController::class, 'celebrations']);
+        Route::post('/peers/p2p-meetings', [LeaderPeersController::class, 'storeP2pMeeting']);
+        Route::get('/peers/{id}/meetings', [LeaderPeersController::class, 'meetings']);
+        Route::get('/peers/{id}/activities', [LeaderPeersController::class, 'activities']);
         Route::get('/peers/{id}', [LeaderPeersController::class, 'show']);
         Route::post('/peers/{id}/send-wish', [LeaderPeersController::class, 'sendWish']);
 
@@ -319,18 +326,24 @@ Route::prefix('v1')->group(function () {
         Route::get('/teams/summary', [LeaderTeamsController::class, 'summary']);
         Route::get('/teams/circles', [LeaderTeamsController::class, 'circles']);
         Route::get('/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
+        Route::get('/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
+        Route::get('/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
 
         // Tab 3: Finance & Accounts
         Route::get('/finance/metrics', [LeaderFinanceController::class, 'metrics']);
         Route::get('/finance/transactions', [LeaderFinanceController::class, 'transactions']);
+        Route::put('/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+        Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
 
         // Tab 4: Reports & Analytics
         Route::get('/reports', [LeaderReportsController::class, 'index']);
         Route::post('/reports', [LeaderReportsController::class, 'store']);
         Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+        Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
 
         // Referrals, Testimonials & Coins
         Route::get('/referrals', [LeaderActivitiesController::class, 'referrals']);
+        Route::post('/referrals', [LeaderActivitiesController::class, 'storeReferral']);
         Route::get('/testimonials', [LeaderActivitiesController::class, 'testimonials']);
         Route::get('/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
 

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Leader;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Leader\LeaderRecordOfflinePaymentRequest;
+use App\Http\Requests\Leader\LeaderUpdateCommissionRatesRequest;
+use App\Models\User;
 use App\Services\Leader\LeaderFinanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,5 +46,34 @@ class LeaderFinanceController extends Controller
             'success' => true,
             'data' => $data,
         ]);
+    }
+
+    /**
+     * Update commission rates per role (Super Admin).
+     */
+    public function updateCommissionRates(LeaderUpdateCommissionRatesRequest $request): JsonResponse
+    {
+        $this->financeService->updateCommissionRates((array) $request->validated('commission_rates'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Commission rates updated successfully.',
+        ]);
+    }
+
+    /**
+     * Record manual / offline payment.
+     */
+    public function recordOfflinePayment(LeaderRecordOfflinePaymentRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $this->financeService->recordOfflinePayment($user, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment recorded successfully.',
+            'data' => $data,
+        ], 201);
     }
 }

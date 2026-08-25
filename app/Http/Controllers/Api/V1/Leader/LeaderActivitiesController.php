@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Leader;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Leader\LeaderCreateReferralRequest;
 use App\Models\Referral;
 use App\Models\Testimonial;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class LeaderActivitiesController extends Controller
 {
@@ -183,5 +186,47 @@ class LeaderActivitiesController extends Controller
                 'leaderboard' => $leaderboard,
             ],
         ]);
+    }
+
+    /**
+     * Submit a new business referral on behalf of a peer.
+     */
+    public function storeReferral(LeaderCreateReferralRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validated();
+
+        $targetPeerId = (string) $validated['to_peer_id'];
+        $targetUser = User::query()->where('id', $targetPeerId)->first();
+        $targetUserId = $targetUser ? (string) $targetUser->id : $targetPeerId;
+
+        $id = (string) Str::uuid();
+
+        DB::table('referrals')->insert([
+            'id' => $id,
+            'from_user_id' => $user->id,
+            'to_user_id' => $targetUserId,
+            'referral_type' => 'given',
+            'referral_date' => now()->toDateString(),
+            'referral_of' => $validated['prospect_name'],
+            'phone' => $validated['prospect_phone'] ?? null,
+            'email' => $validated['prospect_email'] ?? null,
+            'address' => $validated['prospect_company'] ?? null,
+            'hot_value' => $validated['estimated_deal_value'] ?? '₹15.0L',
+            'remarks' => $validated['notes'] ?? null,
+            'is_deleted' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Referral created and forwarded to peer.',
+            'data' => [
+                'referral_id' => $id,
+                'status' => 'Pending',
+            ],
+        ], 201);
     }
 }

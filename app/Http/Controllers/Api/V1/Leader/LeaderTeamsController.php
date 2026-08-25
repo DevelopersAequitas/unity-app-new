@@ -57,4 +57,31 @@ class LeaderTeamsController extends Controller
             'data' => $data,
         ]);
     }
+
+    /**
+     * Get active and open sub-industries breakdown for a circle.
+     */
+    public function subIndustries(string $id): JsonResponse
+    {
+        $data = $this->teamsService->getSubIndustries($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Get circle events and assemblies.
+     */
+    public function events(string $id, Request $request): JsonResponse
+    {
+        $filter = $request->query('filter') ? (string) $request->query('filter') : null;
+        $data = $this->teamsService->getCircleEvents($id, $filter);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
 }

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Services\Leader;
 
 use App\Models\Payment;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class LeaderFinanceService
 {
@@ -81,5 +84,62 @@ class LeaderFinanceService
                 'date' => $p->created_at ? $p->created_at->format('Y-m-d') : '2026-08-15',
             ];
         })->values()->all();
+    }
+
+    /**
+     * Update commission rates per role.
+     *
+     * @param  array<int, array<string, mixed>>  $rates
+     */
+    public function updateCommissionRates(array $rates): void
+    {
+        foreach ($rates as $rate) {
+            DB::table('leader_commission_rates')->updateOrInsert(
+                ['role_id' => (string) $rate['role_id']],
+                [
+                    'direct_referral_cut_percentage' => (float) $rate['direct_referral_cut_percentage'],
+                    'app_join_cut_percentage' => (float) $rate['app_join_cut_percentage'],
+                    'updated_at' => now(),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Record a manual / offline payment (Cheque, Cash, Bank Transfer).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function recordOfflinePayment(User $recorder, array $data): array
+    {
+        $id = (string) Str::uuid();
+        $targetPeerId = (string) $data['peer_id'];
+        $user = User::query()->where('id', $targetPeerId)->first();
+        $userId = $user ? (string) $user->id : $recorder->id;
+
+        $amount = (float) $data['amount'];
+        $mode = (string) ($data['payment_mode'] ?? 'Cheque');
+        $ref = (string) ($data['reference_number'] ?? 'REF-'.random_int(10000, 99999));
+
+        DB::table('payments')->insert([
+            'id' => $id,
+            'user_id' => $userId,
+            'amount' => $amount,
+            'base_amount' => $amount,
+            'total_amount' => $amount,
+            'currency' => 'INR',
+            'status' => 'Paid',
+            'paid_at' => $data['payment_date'] ?? now(),
+            'provider' => 'offline_'.$mode,
+            'razorpay_payment_id' => $ref,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return [
+            'transaction_id' => $id,
+            'status' => 'Paid',
+        ];
     }
 }
