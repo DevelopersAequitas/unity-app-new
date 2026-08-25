@@ -167,8 +167,8 @@ class LeaderAuthService
             ->where(function ($q) use ($identifier, $short): void {
                 $q->where('phone', $identifier)
                     ->orWhere('phone', 'like', "%{$short}")
-                    ->orWhere('mobile', $identifier)
-                    ->orWhere('mobile', 'like', "%{$short}");
+                    ->orWhere('secondary_mobile', $identifier)
+                    ->orWhere('secondary_mobile', 'like', "%{$short}");
             })
             ->first();
     }
