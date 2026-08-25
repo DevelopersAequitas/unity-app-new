@@ -39,6 +39,7 @@ class CampaignService
             $eventBannerUrl = null;
             $eventId = null;
             $requirementId = null;
+            $requirementOwnerId = null;
 
             // Resolve dynamic placeholders based on campaign code
             if ($campaign->code === 'requirement_lead' || $campaign->code === 'pending_requirement_reminder') {
@@ -48,6 +49,7 @@ class CampaignService
                     ->first();
                 if ($latestRequirement) {
                     $requirementId = (string) $latestRequirement->id;
+                    $requirementOwnerId = (string) $latestRequirement->user_id;
                     $creator = $latestRequirement->user;
                     if ($creator) {
                         $personName = trim((string) ($creator->display_name ?? '')) ?: trim(((string) ($creator->first_name ?? '')).' '.((string) ($creator->last_name ?? ''))) ?: (string) ($creator->name ?? 'A member');
@@ -158,6 +160,13 @@ class CampaignService
                 $payloadData['activity_type'] = 'requirement';
                 if ($requirementId !== null) {
                     $payloadData['requirement_id'] = $requirementId;
+                }
+                if ($requirementOwnerId !== null) {
+                    $payloadData['profile_id'] = $requirementOwnerId;
+                    $payloadData['member_id'] = $requirementOwnerId;
+                    $payloadData['profile_screen'] = '/member-profile';
+                    $payloadData['post_screen'] = '/post-details';
+                    $payloadData['notification_flow'] = 'profile_then_post';
                 }
             }
             if ($eventBannerUrl !== null) {

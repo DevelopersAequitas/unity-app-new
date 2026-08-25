@@ -316,7 +316,7 @@
                         <div class="position-relative">
                             <div class="input-group">
                                 <span class="input-group-text bg-light border"><i class="bi bi-search text-muted"></i></span>
-                                <input type="text" id="singlePeerSearchInput" class="form-control form-control-lg fs-6 py-2" placeholder="Search or click to choose peer..." autocomplete="off" onfocus="openPeerDropdownMenu('single')" oninput="filterPeerDropdownLive('single', this.value)">
+                                <input type="text" id="singlePeerSearchInput" class="form-control form-control-lg fs-6 py-2" placeholder="Search or click to choose peer..." autocomplete="off">
                                 <button type="button" class="btn btn-outline-secondary" onclick="togglePeerDropdownMenu('single')">
                                     <i class="bi bi-chevron-down" id="singleChevron"></i>
                                 </button>
@@ -328,7 +328,8 @@
                                     @foreach($initialPeers as $p)
                                         <div class="peer-dropdown-item p-2 px-3 rounded-2 d-flex justify-content-between align-items-center mb-1" 
                                              style="cursor: pointer; transition: background 0.15s ease;" 
-                                             onclick="selectPeerOption('single', {{ json_encode($p) }})"
+                                             onclick="selectPeerOptionFromElement('single', this)"
+                                             data-peer="{{ base64_encode(json_encode($p)) }}"
                                              data-name="{{ strtolower($p['name']) }}" 
                                              data-email="{{ strtolower($p['email']) }}" 
                                              data-phone="{{ strtolower($p['phone']) }}" 
@@ -491,7 +492,7 @@
                         <div class="position-relative">
                             <div class="input-group">
                                 <span class="input-group-text bg-light border"><i class="bi bi-person-search text-muted"></i></span>
-                                <input type="text" id="batchPeerSearchInput" class="form-control form-control-lg fs-6 py-2" placeholder="Search or click to choose peer..." autocomplete="off" onfocus="openPeerDropdownMenu('batch')" oninput="filterPeerDropdownLive('batch', this.value)">
+                                <input type="text" id="batchPeerSearchInput" class="form-control form-control-lg fs-6 py-2" placeholder="Search or click to choose peer..." autocomplete="off">
                                 <button type="button" class="btn btn-outline-secondary" onclick="togglePeerDropdownMenu('batch')">
                                     <i class="bi bi-chevron-down" id="batchChevron"></i>
                                 </button>
@@ -503,7 +504,8 @@
                                     @foreach($initialPeers as $p)
                                         <div class="peer-dropdown-item p-2 px-3 rounded-2 d-flex justify-content-between align-items-center mb-1" 
                                              style="cursor: pointer; transition: background 0.15s ease;" 
-                                             onclick="selectPeerOption('batch', {{ json_encode($p) }})"
+                                             onclick="selectPeerOptionFromElement('batch', this)"
+                                             data-peer="{{ base64_encode(json_encode($p)) }}"
                                              data-name="{{ strtolower($p['name']) }}" 
                                              data-email="{{ strtolower($p['email']) }}" 
                                              data-phone="{{ strtolower($p['phone']) }}" 
@@ -966,6 +968,17 @@
         }
     }
 
+    function selectPeerOptionFromElement(type, element) {
+        try {
+            const encodedPeer = element?.dataset?.peer || '';
+            const bytes = Uint8Array.from(atob(encodedPeer), character => character.charCodeAt(0));
+            const peer = JSON.parse(new TextDecoder().decode(bytes));
+            selectPeerOption(type, peer);
+        } catch (error) {
+            console.error('Unable to select peer:', error);
+        }
+    }
+
     function selectPeerOption(type, peer) {
         // Set hidden input
         const hiddenInputId = (type === 'single') ? 'single_selected_user_id' : 'batch_selected_user_id';
@@ -1036,9 +1049,23 @@
         }
     });
 
+    ['single', 'batch'].forEach(function (type) {
+        const input = document.getElementById(`${type}PeerSearchInput`);
+        if (!input) return;
+
+        input.addEventListener('focus', function () {
+            openPeerDropdownMenu(type);
+            filterPeerDropdownLive(type, input.value);
+        });
+        input.addEventListener('input', function () {
+            filterPeerDropdownLive(type, input.value);
+        });
+    });
+
     window.openPeerDropdownMenu = openPeerDropdownMenu;
     window.togglePeerDropdownMenu = togglePeerDropdownMenu;
     window.filterPeerDropdownLive = filterPeerDropdownLive;
+    window.selectPeerOptionFromElement = selectPeerOptionFromElement;
     window.selectPeerOption = selectPeerOption;
     window.clearPeerSelection = clearPeerSelection;
     window.filterNotifications = filterNotifications;
