@@ -10,7 +10,6 @@
         'pending_id_approval' => 'Pending for ID Approval',
         'pending_circle_fee' => 'Pending for Circle Fee',
         'circle_member' => 'Paid',
-        'paid' => 'Paid',
         'rejected_by_cd' => 'Rejected by CD',
         'rejected_by_id' => 'Rejected by ID',
         'cancelled' => 'Cancelled',
@@ -44,33 +43,34 @@
 
     <!-- Filter Card -->
     <div class="p-3 rounded-lg border bs surface-2">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
+        <form method="GET" action="{{ route('admin.circle-joining-requests.index') }}" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
-                <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/email/phone" value="{{ $filters['search'] ?? '' }}">
+                <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/email/phone" value="{{ $filters['search'] ?? '' }}" onkeydown="if (event.key === 'Enter') this.form.submit()">
             </div>
             <div>
               
             <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle</label>
-                <select name="circle_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select>
+                <select name="circle_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select>
             </div>
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Category</label>
-                <select name="circle_category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Categories</option>@foreach($categories as $cat)<option value="{{ $cat->id }}" @selected(($filters['circle_category_id'] ?? '')===(string)$cat->id)>{{ $cat->name }}</option>@endforeach</select>
+                <select name="circle_category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()"><option value="">All Categories</option>@foreach($categories as $cat)<option value="{{ $cat->id }}" @selected(($filters['circle_category_id'] ?? '')===(string)$cat->id)>{{ $cat->name }}</option>@endforeach</select>
             </div>
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
-                <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select>
+                <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select>
             </div>
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From</label>
-                <input type="date" name="date_from" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_from'] ?? '' }}">
+                <input type="date" name="date_from" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_from'] ?? '' }}" onchange="this.form.submit()">
             </div>
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To</label>
-                <input type="date" name="date_to" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_to'] ?? '' }}">
+                <input type="date" name="date_to" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_to'] ?? '' }}" onchange="this.form.submit()">
             </div>
-            <div class="flex justify-end">
+            <div class="flex items-end justify-end gap-2">
+                <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition">Filter</button>
                 <a href="{{ route('admin.circle-joining-requests.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
             </div>
         </form>

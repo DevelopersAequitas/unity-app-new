@@ -50,7 +50,7 @@
             <form method="GET" action="{{ route('admin.certifications.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
-                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
                         @foreach (['new' => 'New', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
@@ -59,7 +59,7 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Type</label>
-                    <select name="type" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="type" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">All Types</option>
                         @foreach (['leadership' => 'Leadership', 'entrepreneur' => 'Entrepreneur'] as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['type'] ?? '') === $value)>{{ $label }}</option>
@@ -68,9 +68,10 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
-                    <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['search'] ?? '' }}" placeholder="Name, business, email, or contact">
+                    <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['search'] ?? '' }}" placeholder="Name, business, email, or contact" onkeydown="if (event.key === 'Enter') this.form.submit()">
                 </div>
-                <div class="flex justify-end">
+                <div class="flex items-end justify-end gap-2">
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition w-full">Filter</button>
                     <a href="{{ route('admin.certifications.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline w-full">Clear</a>
                 </div>
             </form>

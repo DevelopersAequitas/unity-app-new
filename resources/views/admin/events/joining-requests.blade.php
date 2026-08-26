@@ -103,7 +103,7 @@
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
                 <select class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" name="status">
                     @foreach(['all' => 'All Statuses', 'pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected', 'checked_in' => 'Checked In', 'cancelled' => 'Cancelled'] as $value => $label)
-                        <option value="{{ $value }}" @selected(($status ?? request('status', 'pending')) === $value)>{{ $label }}</option>
+                        <option value="{{ $value }}" @selected(($status ?? request('status', 'all')) === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>

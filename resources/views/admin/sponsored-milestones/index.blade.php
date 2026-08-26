@@ -25,11 +25,11 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-4">
                         <label class="block text-[11px] t3 mb-1 font-medium" for="milestoneSearch">Search</label>
-                        <input type="text" id="milestoneSearch" name="q" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" placeholder="Search by name, email, company, phone..." value="{{ $filters['search'] ?? '' }}">
+                        <input type="text" id="milestoneSearch" name="q" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" placeholder="Search by name, email, company, phone..." value="{{ $filters['search'] ?? '' }}" onkeydown="if (event.key === 'Enter') this.form.submit()">
                     </div>
                     <div class="col-12 col-md-3">
                         <label class="block text-[11px] t3 mb-1 font-medium" for="milestoneFilter">Milestone Threshold</label>
-                        <select id="milestoneFilter" name="milestone" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        <select id="milestoneFilter" name="milestone" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" onchange="this.form.submit()">
                             <option value="">All Milestones</option>
                             @foreach([0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25] as $val)
                                 <option value="{{ $val }}" @selected(($filters['milestone'] !== null && $filters['milestone'] !== '') && (int)$filters['milestone'] === $val)>{{ $val === 0 ? '0 (No Milestone)' : $val . '+ Sponsored' }}</option>
@@ -38,7 +38,7 @@
                     </div>
                     <div class="col-12 col-md-3">
                         <label class="block text-[11px] t3 mb-1 font-medium" for="awardFilter">Award Name</label>
-                        <select id="awardFilter" name="award_name" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        <select id="awardFilter" name="award_name" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" onchange="this.form.submit()">
                             <option value="">All Awards</option>
                             @foreach([
                                 'The Connector Award',

@@ -80,9 +80,9 @@ class SponsoredMembersMilestonesWebController extends Controller
             $range = SponsorshipMilestoneService::getCountRangeForMilestone($targetMilestone);
             if ($range) {
                 [$min, $max] = $range;
-                $query->whereSub($subquery, '>=', $min);
+                $query->where($subquery, '>=', $min);
                 if ($max !== null) {
-                    $query->whereSub($subquery, '<=', $max);
+                    $query->where($subquery, '<=', $max);
                 }
             } else {
                 $query->whereRaw('1 = 0');
