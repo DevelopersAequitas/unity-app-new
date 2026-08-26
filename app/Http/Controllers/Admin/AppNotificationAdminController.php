@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationDeliveryLog;
+use App\Models\Post;
 use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Notifications\AppNotificationCatalogService;
@@ -328,6 +329,33 @@ class AppNotificationAdminController extends Controller
         $category = $catalogItem['category'] ?? 'System & General';
 
         $users = User::whereIn('id', $userIds)->get();
+
+        // Admin test notifications must use real IDs so the mobile deep link does not open a 404 page.
+        $samplePost = $notificationKey === 'new_post'
+            ? Post::query()
+                ->where('visibility', 'public')
+                ->where('is_deleted', false)
+                ->latest()
+                ->first()
+            : null;
+
+        if ($notificationKey === 'new_post') {
+            if ($samplePost) {
+                $parsedPayload['post_id'] = (string) $samplePost->id;
+                $parsedPayload['post_scroll_id'] = (string) $samplePost->id;
+                $parsedPayload['profile_id'] = (string) $samplePost->user_id;
+                $parsedPayload['member_id'] = (string) $samplePost->user_id;
+                $parsedPayload['author_id'] = (string) $samplePost->user_id;
+                $parsedPayload['profile_screen'] = '/member-profile';
+                $parsedPayload['post_screen'] = '/post-details';
+                $parsedPayload['notification_flow'] = 'profile_then_post';
+            } else {
+                $parsedPayload['profile_id'] = (string) $users->first()->id;
+                $parsedPayload['member_id'] = (string) $users->first()->id;
+                unset($parsedPayload['post_id'], $parsedPayload['post_scroll_id']);
+                $parsedPayload['notification_flow'] = 'profile_only';
+            }
+        }
 
         $successCount = 0;
         $pushPushedCount = 0;

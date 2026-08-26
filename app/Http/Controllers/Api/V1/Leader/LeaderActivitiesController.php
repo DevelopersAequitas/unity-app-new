@@ -203,18 +203,24 @@ class LeaderActivitiesController extends Controller
 
         $id = (string) Str::uuid();
 
+        $remarks = trim((string) ($validated['notes'] ?? ''));
+        if (! empty($validated['estimated_deal_value'])) {
+            $dealStr = 'Estimated Value: '.$validated['estimated_deal_value'];
+            $remarks = $remarks !== '' ? $remarks.' ('.$dealStr.')' : $dealStr;
+        }
+
         DB::table('referrals')->insert([
             'id' => $id,
             'from_user_id' => $user->id,
             'to_user_id' => $targetUserId,
-            'referral_type' => 'given',
+            'referral_type' => 'b2b_referral',
             'referral_date' => now()->toDateString(),
             'referral_of' => $validated['prospect_name'],
             'phone' => $validated['prospect_phone'] ?? null,
             'email' => $validated['prospect_email'] ?? null,
             'address' => $validated['prospect_company'] ?? null,
-            'hot_value' => $validated['estimated_deal_value'] ?? '₹15.0L',
-            'remarks' => $validated['notes'] ?? null,
+            'hot_value' => 3,
+            'remarks' => $remarks !== '' ? $remarks : null,
             'is_deleted' => false,
             'created_at' => now(),
             'updated_at' => now(),

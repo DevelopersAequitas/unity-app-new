@@ -56,6 +56,12 @@ class AppNotificationCatalogService
                 'tap_destination' => '/member-profile',
                 'post_id' => '{postId}',
                 'member_id' => '{actorId}',
+                'profile_id' => '{actorId}',
+                'profile_screen' => '/member-profile',
+                'post_screen' => '/post-details',
+                'post_scroll_id' => '{postId}',
+                'open_profile_first' => true,
+                'notification_flow' => 'profile_then_post',
             ],
             'dynamic_params' => [
                 '{actorName}' => 'Author name of the post',
@@ -93,6 +99,40 @@ class AppNotificationCatalogService
             'priority' => 'high',
             'channel' => 'push',
             'icon' => 'bi bi-briefcase',
+        ],
+        'requirement_lead' => [
+            'key' => 'requirement_lead',
+            'name' => 'Potential Business Match Found',
+            'category' => 'Business & Deals',
+            'description' => 'Sent when an active business requirement may match the member profile.',
+            'default_title' => 'Potential Business Match Found!',
+            'default_body' => '{actorName} is looking for: "{requirementTitle}"',
+            'navigation_screen' => '/post-details',
+            'default_payload' => [
+                'navigation_screen' => '/post-details',
+                'screen' => 'post-details',
+                'type' => 'requirement_match',
+                'notification_type' => 'requirement_match',
+                'activity_type' => 'requirement',
+                'tap_destination' => '/post-details',
+                'requirement_id' => '{requirementId}',
+                'post_id' => '{postId}',
+                'profile_id' => '{actorId}',
+                'member_id' => '{actorId}',
+                'profile_screen' => '/member-profile',
+                'post_screen' => '/post-details',
+                'notification_flow' => 'profile_then_post',
+            ],
+            'dynamic_params' => [
+                '{actorName}' => 'Name of the requirement owner',
+                '{requirementTitle}' => 'Title of the matching requirement',
+                '{requirementId}' => 'UUID of the matching requirement',
+                '{postId}' => 'UUID of the associated post',
+                '{actorId}' => 'UUID of the requirement owner',
+            ],
+            'priority' => 'high',
+            'channel' => 'push',
+            'icon' => 'bi bi-bullseye',
         ],
         'p2p_meeting_notification' => [
             'key' => 'p2p_meeting_notification',
@@ -362,6 +402,32 @@ class AppNotificationCatalogService
             'priority' => 'high',
             'channel' => 'push',
             'icon' => 'bi bi-calendar-range',
+        ],
+        'circle_membership_expiry_reminder' => [
+            'key' => 'circle_membership_expiry_reminder',
+            'name' => 'Circle Member Expiry Reminder',
+            'category' => 'Circles & Communities',
+            'description' => 'Sent when a member circle membership is approaching its expiry date.',
+            'default_title' => 'Membership Expiring Soon',
+            'default_body' => 'Your membership will expire soon. Tap to renew now.',
+            'navigation_screen' => '/profile',
+            'default_payload' => [
+                'navigation_screen' => '/profile',
+                'screen' => 'profile',
+                'type' => 'circle_membership_expiry_reminder',
+                'notification_type' => 'circle_membership_expiry_reminder',
+                'activity_type' => 'membership_expiry',
+                'tap_destination' => '/profile',
+                'circle_id' => '{circleId}',
+            ],
+            'dynamic_params' => [
+                '{circleName}' => 'Name of the circle',
+                '{circleId}' => 'UUID of the circle membership',
+                '{expiryDate}' => 'Membership expiry date',
+            ],
+            'priority' => 'high',
+            'channel' => 'push',
+            'icon' => 'bi bi-calendar-x',
         ],
         'new_offer_added' => [
             'key' => 'new_offer_added',
@@ -948,6 +1014,10 @@ class AppNotificationCatalogService
         $renderedPayload['tap_destination'] = (string) ($renderedPayload['tap_destination'] ?? $tpl['navigation_screen']);
         $renderedPayload['user_id'] = $userId;
         $renderedPayload['type'] = (string) ($tpl['key']);
+        $renderedPayload['notification_type'] = (string) ($renderedPayload['notification_type'] ?? match ($tpl['key']) {
+            'requirement_lead' => 'requirement_match',
+            default => $tpl['key'],
+        });
 
         return [
             'title' => $renderedTitle,

@@ -4,21 +4,27 @@ declare(strict_types=1);
 
 namespace App\Services\Leader;
 
+use App\Models\AdminUser;
 use App\Models\BusinessDeal;
 use App\Models\Circle;
 use App\Models\CircleMember;
-use App\Models\Impact;
 use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Services\Api\Ded\DistrictAnalyticsService;
+use App\Services\Api\Ded\DistrictScopeService;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeaderDashboardService
 {
     public function __construct(
         private readonly LeaderTeamsService $teamsService,
+        private readonly DistrictAnalyticsService $analytics,
+        private readonly DistrictScopeService $districtScope,
     ) {}
 
     /**
@@ -31,6 +37,16 @@ class LeaderDashboardService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
+        $admin = null;
+        if ($user) {
+            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
+        }
+
+        // If authenticated user is a DED, use the robust DistrictAnalyticsService
+        if ($admin && AdminAccess::isDed($admin)) {
+            return $this->getDedMetrics($admin, $circleId);
+        }
+
         $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
 
         $circle = null;
@@ -47,10 +63,14 @@ class LeaderDashboardService
         }
 
         $resolvedCircleId = $circle ? (string) $circle->id : 'd06173c0-368c-4bfd-b682-e07e67fdb320';
-        $resolvedCircleName = $circle ? (string) $circle->name : 'Ahmedabad Tech Pioneers';
+        $rawCircleName = $circle ? (string) $circle->name : 'Ahmedabad Tech Pioneers';
+        if ($rawCircleName === 'Enter the complete name of the circle.' || $rawCircleName === '') {
+            $rawCircleName = 'Ahmedabad Tech Pioneers';
+        }
+        $resolvedCircleName = $rawCircleName;
 
         // Peer counts
-        $peersQuery = CircleMember::query()->whereNull('deleted_at');
+        $peersQuery = CircleMember::query()->whereNull('deleted_at')->where('status', 'approved');
         if ($circleId && $circle) {
             $peersQuery->where('circle_id', $circle->id);
         } elseif ($resolvedDistrictId) {
@@ -59,55 +79,60 @@ class LeaderDashboardService
 
         $totalPeers = $peersQuery->count();
         if ($totalPeers === 0) {
-            $totalPeers = User::query()->whereNull('deleted_at')->count();
+            $totalPeers = CircleMember::query()->whereNull('deleted_at')->where('status', 'approved')->count();
         }
-        $totalPeers = max($totalPeers, 14);
 
-        // Pending peers
+        // Pending peers count
         $pendingPeersCount = CircleMember::query()
+            ->whereNull('deleted_at')
+            ->where('status', 'pending')
             ->when($circleId && $circle, fn ($q) => $q->where('circle_id', $circle->id))
             ->when(! $circleId && $resolvedDistrictId, fn ($q) => $q->whereHas('circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId)))
-            ->where('status', 'pending')
             ->count();
-        if ($pendingPeersCount === 0) {
-            $pendingPeersCount = 3;
-        }
 
         // Impacts count
-        $impactsCount = Impact::query()->count();
-        $impactsCount = max($impactsCount, 142);
+        $impactsCount = (int) User::query()
+            ->whereNull('deleted_at')
+            ->when($circleId && $circle, fn ($q) => $q->whereHas('circleMembers', fn ($cq) => $cq->where('circle_id', $circle->id)))
+            ->sum('life_impacted_count');
 
         // P2P meetings count
-        $p2pCount = P2pMeeting::query()->count();
-        $p2pCount = max($p2pCount, 38);
+        $p2pCount = P2pMeeting::query()
+            ->when(Schema::hasColumn('p2p_meetings', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+            ->count();
 
         // Referrals count
-        $referralsCount = Referral::query()->count();
-        $referralsCount = max($referralsCount, 28);
+        $referralsCount = Referral::query()
+            ->when(Schema::hasColumn('referrals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+            ->count();
 
         // Testimonials count
-        $testimonialsCount = Testimonial::query()->count();
-        $testimonialsCount = max($testimonialsCount, 42);
+        $testimonialsCount = Testimonial::query()
+            ->when(Schema::hasColumn('testimonials', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+            ->count();
 
         // Deals amounts
-        $dealsSum = BusinessDeal::query()->sum('deal_amount');
-        if ($dealsSum <= 0) {
-            $dealsSum = 8640000;
-        }
+        $dealsSum = (float) BusinessDeal::query()
+            ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+            ->sum('deal_amount');
 
         // Coins sum
-        $coinsSum = (int) DB::table('coins_ledger')->where('amount', '>', 0)->sum('amount');
-        if ($coinsSum <= 0) {
-            $coinsSum = 3840;
-        }
+        $coinsSum = (int) User::query()
+            ->whereNull('deleted_at')
+            ->when($circleId && $circle, fn ($q) => $q->whereHas('circleMembers', fn ($cq) => $cq->where('circle_id', $circle->id)))
+            ->sum('coins_balance');
+
+        $dealsFormatted = $dealsSum > 0
+            ? ($dealsSum >= 10000000 ? '₹'.round($dealsSum / 10000000, 2).'Cr' : '₹'.round($dealsSum / 100000, 1).'L')
+            : '₹0';
 
         return [
             'circle_id' => $resolvedCircleId,
             'circle_name' => $resolvedCircleName,
-            'overall_revenue' => '₹1.85Cr',
-            'overall_deals_closed' => '₹1.40Cr',
+            'overall_revenue' => '₹0',
+            'overall_deals_closed' => $dealsFormatted,
             'impact' => $impactsCount,
-            'deals' => '₹86.4L',
+            'deals' => $dealsFormatted,
             'p2p_meetings' => $p2pCount,
             'total_peers' => $totalPeers,
             'total_peers_growth' => 4,
@@ -115,6 +140,72 @@ class LeaderDashboardService
             'testimonials' => $testimonialsCount,
             'coins' => $coinsSum,
             'pending_peers_count' => $pendingPeersCount,
+        ];
+    }
+
+    /**
+     * Get exact DED metrics matching the Admin Command Center dashboard.
+     *
+     * @return array<string, mixed>
+     */
+    private function getDedMetrics(AdminUser $admin, ?string $circleId = null): array
+    {
+        $totalPeers = $this->analytics->getPeersCount($admin, $circleId);
+        $totalCircles = $this->analytics->getCirclesCount($admin, $circleId);
+        $revenueCount = $this->analytics->getRevenueCount($admin, $circleId);
+        $livesImpacted = $this->analytics->getLivesImpactedCount($admin, $circleId);
+        $pendingApprovals = $this->analytics->getPendingApprovalsCount($admin, $circleId);
+        $coinsCount = $this->analytics->getCoinsEarnedCount($admin, $circleId);
+        $p2pMeetings = $this->analytics->getP2pMeetingsCount($admin, $circleId);
+        $businessDeals = $this->analytics->getBusinessDealsCount($admin, $circleId);
+        $testimonials = $this->analytics->getTestimonialsCount($admin, $circleId);
+        $referrals = $this->analytics->getReferralsCount($admin, $circleId);
+
+        $dealsQuery = BusinessDeal::query();
+        AdminCircleScope::applyToActivityQuery($dealsQuery, $admin, 'business_deals.from_user_id', 'business_deals.to_user_id');
+        $dealsSum = (float) $dealsQuery->sum('deal_amount');
+
+        $circleIds = AdminCircleScope::getDedCircleIds($admin);
+        $circle = null;
+        if ($circleId && in_array($circleId, $circleIds, true)) {
+            $circle = Circle::query()->where('id', $circleId)->first();
+        }
+
+        if (! $circle && ! empty($circleIds)) {
+            $circle = Circle::query()->whereIn('id', $circleIds)->where('name', '!=', 'Enter the complete name of the circle.')->first()
+                ?? Circle::query()->whereIn('id', $circleIds)->first();
+        }
+
+        $location = $this->districtScope->getAssignedDistrict($admin);
+        $districtName = $location?->name ?? 'Ahmedabad';
+
+        $circleName = $circle ? (string) $circle->name : 'Ahmedabad District';
+        if ($circleName === 'Enter the complete name of the circle.' || $circleName === '') {
+            $circleName = "{$districtName} District ({$totalCircles} Circles)";
+        }
+
+        $revFormatted = $revenueCount > 0
+            ? ($revenueCount >= 10000000 ? '₹'.round($revenueCount / 10000000, 2).'Cr' : '₹'.round($revenueCount / 100000, 1).'L')
+            : '₹0';
+
+        $dealsFormatted = $dealsSum > 0
+            ? ($dealsSum >= 10000000 ? '₹'.round($dealsSum / 10000000, 2).'Cr' : '₹'.round($dealsSum / 100000, 1).'L')
+            : '₹0';
+
+        return [
+            'circle_id' => $circle ? (string) $circle->id : 'd06173c0-368c-4bfd-b682-e07e67fdb320',
+            'circle_name' => $circleName,
+            'overall_revenue' => $revFormatted,
+            'overall_deals_closed' => $dealsFormatted,
+            'impact' => $livesImpacted,
+            'deals' => $dealsFormatted,
+            'p2p_meetings' => $p2pMeetings,
+            'total_peers' => $totalPeers,
+            'total_peers_growth' => 4,
+            'referrals' => $referrals,
+            'testimonials' => $testimonials,
+            'coins' => $coinsCount,
+            'pending_peers_count' => $pendingApprovals,
         ];
     }
 
@@ -128,66 +219,31 @@ class LeaderDashboardService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+        $admin = null;
+        if ($user) {
+            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
+        }
 
         $query = User::query()->whereNull('deleted_at');
 
-        if ($circleId) {
-            $query->whereHas('circleMembers', fn ($q) => $q->where('circle_id', $circleId));
-        } elseif ($resolvedDistrictId) {
-            $query->where(function (Builder $q) use ($resolvedDistrictId): void {
-                $q->whereHas('circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId))
-                    ->orWhereHas('activeCircle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
-            });
+        if ($admin && AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToUsersQuery($query, $admin);
+        } else {
+            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+            if ($circleId) {
+                $query->whereHas('circleMembers', fn ($q) => $q->where('circle_id', $circleId));
+            } elseif ($resolvedDistrictId) {
+                $query->where(function (Builder $q) use ($resolvedDistrictId): void {
+                    $q->whereHas('circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId))
+                        ->orWhereHas('activeCircle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
+                });
+            }
         }
 
-        $users = $query->take(5)->get();
-
-        $defaultImpacters = [
-            [
-                'rank' => 1,
-                'name' => 'Jatin Jadav',
-                'company' => 'Aequitas Information Technology',
-                'location' => 'Ahmedabad',
-                'lives' => 48,
-                'coins' => 1240,
-            ],
-            [
-                'rank' => 2,
-                'name' => 'Chirag Mali',
-                'company' => 'TaskMate AI',
-                'location' => 'Ahmedabad',
-                'lives' => 36,
-                'coins' => 980,
-            ],
-            [
-                'rank' => 3,
-                'name' => 'Vinit Chavda',
-                'company' => 'VARNIJAR.CO',
-                'location' => 'Ahmedabad',
-                'lives' => 29,
-                'coins' => 750,
-            ],
-            [
-                'rank' => 4,
-                'name' => 'Harsh Chauhan',
-                'company' => 'Peers Global Unity',
-                'location' => 'Ahmedabad',
-                'lives' => 18,
-                'coins' => 520,
-            ],
-            [
-                'rank' => 5,
-                'name' => 'Avinash Vaghela',
-                'company' => 'MSME Enterprises',
-                'location' => 'Ahmedabad',
-                'lives' => 11,
-                'coins' => 350,
-            ],
-        ];
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('coins_balance')->take(5)->get();
 
         if ($users->isEmpty()) {
-            return $defaultImpacters;
+            $users = User::query()->whereNull('deleted_at')->take(5)->get();
         }
 
         $result = [];
@@ -203,14 +259,9 @@ class LeaderDashboardService
                 'name' => $name,
                 'company' => (string) ($u->company_name ?? 'Enterprise Services'),
                 'location' => (string) ($u->city ?? 'Ahmedabad'),
-                'lives' => max(50 - ($rank * 8), 10),
-                'coins' => max(1400 - ($rank * 220), 200),
+                'lives' => (int) ($u->life_impacted_count ?? max(50 - ($rank * 8), 10)),
+                'coins' => (int) ($u->coins_balance ?? max(1400 - ($rank * 220), 200)),
             ];
-            $rank++;
-        }
-
-        while ($rank <= 5 && isset($defaultImpacters[$rank - 1])) {
-            $result[] = $defaultImpacters[$rank - 1];
             $rank++;
         }
 
