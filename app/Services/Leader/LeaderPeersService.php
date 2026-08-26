@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Leader;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\LeaderWish;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -42,12 +45,31 @@ class LeaderPeersService
         $userId = (string) $user->id;
 
         if ($role === 'districtExecDirector') {
-            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-            if ($resolvedDistrictId) {
-                return Circle::query()->where('district_id', $resolvedDistrictId)->pluck('id')->all();
+            $adminUser = AdminUser::query()->where('id', $userId)
+                ->orWhere('email', $user->email)
+                ->first();
+
+            if ($adminUser) {
+                $dedCircleIds = AdminCircleScope::getDedCircleIds($adminUser);
+                if (! empty($dedCircleIds)) {
+                    return $dedCircleIds;
+                }
             }
 
-            return Circle::query()->where('ded_user_id', $userId)->pluck('id')->all();
+            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+            if ($resolvedDistrictId) {
+                $circleIds = Circle::query()->where('district_id', $resolvedDistrictId)->pluck('id')->all();
+                if (! empty($circleIds)) {
+                    return $circleIds;
+                }
+            }
+
+            $circleIds = Circle::query()->where('ded_user_id', $userId)->pluck('id')->all();
+            if (! empty($circleIds)) {
+                return $circleIds;
+            }
+
+            return [];
         }
 
         if ($role === 'industryDirector') {
@@ -129,22 +151,34 @@ class LeaderPeersService
         int $page = 1,
         int $perPage = 20,
     ): array {
+        $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
+
         $query = User::query()->whereNull('deleted_at');
 
         if ($circleId && Str::isUuid($circleId)) {
-            $query->where(function (Builder $q) use ($circleId): void {
-                $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
-                    $cq->where('circle_id', $circleId)->whereNull('deleted_at');
-                })->orWhere('active_circle_id', $circleId);
-            });
-        } elseif ($districtId && Str::isUuid($districtId)) {
-            $districtCircleIds = Circle::query()->where('district_id', $districtId)->pluck('id')->all();
-            if (! empty($districtCircleIds)) {
-                $query->where(function (Builder $q) use ($districtCircleIds): void {
-                    $q->whereHas('circleMembers', function (Builder $cq) use ($districtCircleIds): void {
-                        $cq->whereIn('circle_id', $districtCircleIds)->whereNull('deleted_at');
-                    })->orWhereIn('active_circle_id', $districtCircleIds);
+            if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function (Builder $q) use ($circleId): void {
+                    $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
+                        $cq->where('circle_id', $circleId)->whereNull('deleted_at');
+                    })->orWhere('active_circle_id', $circleId);
                 });
+            }
+        } elseif ($scopedCircleIds !== null) {
+            if (empty($scopedCircleIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $adminUser = $user ? AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first() : null;
+                if ($adminUser && AdminAccess::isDed($adminUser)) {
+                    AdminCircleScope::applyDedDistrictScope($query, $adminUser);
+                } else {
+                    $query->where(function (Builder $q) use ($scopedCircleIds): void {
+                        $q->whereHas('circleMembers', function (Builder $cq) use ($scopedCircleIds): void {
+                            $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at');
+                        })->orWhereIn('active_circle_id', $scopedCircleIds);
+                    });
+                }
             }
         }
 
