@@ -15,6 +15,7 @@ use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class LeaderTeamsService
@@ -33,45 +34,53 @@ class LeaderTeamsService
         }
 
         // 1. Check admin_ded_districts table directly or via AdminUser
-        $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
-        if ($admin) {
-            $dedLocation = AdminAccess::assignedDedLocation($admin);
-            if (! empty($dedLocation['district_id'])) {
-                return (string) $dedLocation['district_id'];
+        if (Schema::hasTable('admin_users')) {
+            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
+            if ($admin) {
+                $dedLocation = AdminAccess::assignedDedLocation($admin);
+                if (! empty($dedLocation['district_id'])) {
+                    return (string) $dedLocation['district_id'];
+                }
             }
         }
 
-        $assignedDistrictId = DB::table('admin_ded_districts')
-            ->where('admin_user_id', $user->id)
-            ->orWhere('user_id', $user->id)
-            ->value('district_id');
+        if (Schema::hasTable('admin_ded_districts')) {
+            $assignedDistrictId = DB::table('admin_ded_districts')
+                ->where('admin_user_id', $user->id)
+                ->orWhere('user_id', $user->id)
+                ->value('district_id');
 
-        if ($assignedDistrictId) {
-            return (string) $assignedDistrictId;
+            if ($assignedDistrictId) {
+                return (string) $assignedDistrictId;
+            }
         }
 
         // 2. Check districts table ded_user_id
-        $districtFromDed = District::query()
-            ->where('ded_user_id', $user->id)
-            ->value('id');
+        if (Schema::hasTable('districts') && Schema::hasColumn('districts', 'ded_user_id')) {
+            $districtFromDed = District::query()
+                ->where('ded_user_id', $user->id)
+                ->value('id');
 
-        if ($districtFromDed) {
-            return (string) $districtFromDed;
+            if ($districtFromDed) {
+                return (string) $districtFromDed;
+            }
         }
 
         // 3. Check circles table ded_user_id
-        $districtFromCircle = Circle::query()
-            ->where('ded_user_id', $user->id)
-            ->whereNotNull('district_id')
-            ->value('district_id');
+        if (Schema::hasTable('circles') && Schema::hasColumn('circles', 'ded_user_id')) {
+            $districtFromCircle = Circle::query()
+                ->where('ded_user_id', $user->id)
+                ->whereNotNull('district_id')
+                ->value('district_id');
 
-        if ($districtFromCircle) {
-            return (string) $districtFromCircle;
+            if ($districtFromCircle) {
+                return (string) $districtFromCircle;
+            }
         }
 
         // 4. Check if user belongs to Ahmedabad city / district
         $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
-        if (str_contains($userCity, 'ahmedabad')) {
+        if (str_contains($userCity, 'ahmedabad') && Schema::hasTable('districts')) {
             $ahmedabadDistrictId = District::query()
                 ->whereRaw("LOWER(name) = 'ahmedabad'")
                 ->value('id');
@@ -96,14 +105,34 @@ class LeaderTeamsService
         $resolvedDistrictId = $this->resolveDedDistrictId($districtId, $user);
 
         // Fetch official 18 active master industries
-        $query = Industry::query()->where('is_active', true);
-
-        if ($status && strtolower($status) !== 'all') {
-            $isActive = strtolower($status) === 'active';
-            $query->where('is_active', $isActive);
+        if (! Schema::hasTable('industries')) {
+            return $this->getFallbackIndustries();
         }
 
-        $industries = $query->orderBy('sort_order')->orderBy('name')->get();
+        try {
+            $query = Industry::query();
+
+            if (Schema::hasColumn('industries', 'is_active')) {
+                $query->where('is_active', true);
+
+                if ($status && strtolower($status) !== 'all') {
+                    $isActive = strtolower($status) === 'active';
+                    $query->where('is_active', $isActive);
+                }
+            }
+
+            if (Schema::hasColumn('industries', 'sort_order')) {
+                $query->orderBy('sort_order');
+            }
+
+            if (Schema::hasColumn('industries', 'name')) {
+                $query->orderBy('name');
+            }
+
+            $industries = $query->get();
+        } catch (\Throwable $e) {
+            $industries = collect();
+        }
 
         if ($industries->isEmpty()) {
             return $this->getFallbackIndustries();
