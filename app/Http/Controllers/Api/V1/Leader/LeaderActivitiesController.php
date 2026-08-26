@@ -196,25 +196,43 @@ class LeaderActivitiesController extends Controller
         /** @var User $user */
         $user = $request->user();
         $validated = $request->validated();
+        $targetPeerId = trim((string) $validated['to_peer_id']);
+        $targetUser = User::query()
+            ->where('id', $targetPeerId)
+            ->orWhere('email', $targetPeerId)
+            ->orWhere('phone', $targetPeerId)
+            ->first();
 
-        $targetPeerId = (string) $validated['to_peer_id'];
-        $targetUser = User::query()->where('id', $targetPeerId)->first();
-        $targetUserId = $targetUser ? (string) $targetUser->id : $targetPeerId;
+        if (! $targetUser) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => "The selected peer ID '{$targetPeerId}' does not exist. Please provide a valid peer UUID from your users table.",
+            ], 422);
+        }
+
+        $targetUserId = (string) $targetUser->id;
 
         $id = (string) Str::uuid();
+
+        $remarks = trim((string) ($validated['notes'] ?? ''));
+        if (! empty($validated['estimated_deal_value'])) {
+            $dealStr = 'Estimated Value: '.$validated['estimated_deal_value'];
+            $remarks = $remarks !== '' ? $remarks.' ('.$dealStr.')' : $dealStr;
+        }
 
         DB::table('referrals')->insert([
             'id' => $id,
             'from_user_id' => $user->id,
             'to_user_id' => $targetUserId,
-            'referral_type' => 'given',
+            'referral_type' => 'b2b_referral',
             'referral_date' => now()->toDateString(),
             'referral_of' => $validated['prospect_name'],
             'phone' => $validated['prospect_phone'] ?? null,
             'email' => $validated['prospect_email'] ?? null,
             'address' => $validated['prospect_company'] ?? null,
-            'hot_value' => $validated['estimated_deal_value'] ?? '₹15.0L',
-            'remarks' => $validated['notes'] ?? null,
+            'hot_value' => 3,
+            'remarks' => $remarks !== '' ? $remarks : null,
             'is_deleted' => false,
             'created_at' => now(),
             'updated_at' => now(),

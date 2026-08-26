@@ -26,6 +26,9 @@ class PeerIntroductionService
         Log::info("[PeerIntroductionService] Starting introduction flow for introducer {$introducer->id} and introduced {$introduced->id}");
 
         try {
+            $introducer->loadMissing(['level4Category', 'businessCategory', 'mainBusinessCategory']);
+            $introduced->loadMissing(['level4Category', 'businessCategory', 'mainBusinessCategory']);
+
             // 1. Generate the congratulations creative image
             $fileRecord = $this->imageGenerator->generate($introducer, $introduced);
             $imageUrl = url('/api/v1/files/'.$fileRecord->id);
