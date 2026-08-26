@@ -36,6 +36,7 @@
     border: 1px solid #e2e8f0;
     color: #334155;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    white-space: nowrap;
 }
 .rbac-pill-nav .rbac-nav-pill:hover {
     background-color: #f1f5f9;

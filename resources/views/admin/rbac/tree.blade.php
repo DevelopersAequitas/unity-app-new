@@ -54,6 +54,49 @@
         transform: translateY(1px);
     }
 
+    .rbac-page-header {
+        display: grid;
+        grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.7fr) auto;
+        gap: 18px;
+        align-items: center;
+    }
+    .rbac-page-title {
+        min-width: 0;
+    }
+    .rbac-page-title h1 {
+        font-size: clamp(1.55rem, 2.2vw, 2.1rem);
+        line-height: 1.08;
+    }
+    .rbac-page-title p {
+        max-width: 360px;
+        line-height: 1.45;
+    }
+    .rbac-page-actions {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+    @media (max-width: 1200px) {
+        .rbac-page-header {
+            grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+        }
+        .rbac-page-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+        }
+    }
+    @media (max-width: 768px) {
+        .rbac-page-header {
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+        .rbac-page-actions {
+            grid-column: auto;
+        }
+        .rbac-page-actions .btn {
+            flex: 1 1 150px;
+        }
+    }
+
     /* Forms & Inset Shadows */
     .form-select, .form-control, .select2-container--default .select2-selection--single {
         border: none !important;
@@ -281,15 +324,17 @@
 @section('content')
 <div class="container-fluid py-4">
     <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-4">
-        <div>
+    <div class="rbac-page-header mb-4">
+        <div class="rbac-page-title">
             <h1 class="h3 mb-1 fw-bold text-dark" style="font-family: 'Outfit', sans-serif;">
                 <i class="bi bi-diagram-3-fill text-primary me-2"></i>Role Hierarchy & Architecture
             </h1>
             <p class="text-muted small mb-0">Manage dynamic role hierarchies, clone profiles, assign peer scopes, and inspect permission inheritance.</p>
         </div>
-        <div class="d-flex gap-2 align-items-center">
+        <div class="rbac-page-navigation">
             @include('admin.rbac.partials.header_nav')
+        </div>
+        <div class="rbac-page-actions d-flex gap-2 align-items-center">
             <button class="btn btn-light border d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#cloneProfileModal">
                 <i class="bi bi-copy"></i> Clone Profile
             </button>
