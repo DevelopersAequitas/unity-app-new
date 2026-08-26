@@ -346,7 +346,46 @@ class LeaderTeamsService
     }
 
     /**
+     * Helper to resolve a User model instance from mixed ID, email, array, or object.
+     */
+    private function resolveUserRecord(mixed $val): ?User
+    {
+        if (! $val) {
+            return null;
+        }
+
+        if ($val instanceof User) {
+            return $val;
+        }
+
+        if (is_string($val)) {
+            $cleaned = trim($val);
+            if (Str::isUuid($cleaned)) {
+                return User::find($cleaned);
+            }
+            if (filter_var($cleaned, FILTER_VALIDATE_EMAIL)) {
+                return User::where('email', $cleaned)->first();
+            }
+        }
+
+        if (is_array($val)) {
+            if (! empty($val['id']) && Str::isUuid((string) $val['id'])) {
+                return User::find($val['id']);
+            }
+            if (! empty($val['email']) && filter_var((string) $val['email'], FILTER_VALIDATE_EMAIL)) {
+                return User::where('email', (string) $val['email'])->first();
+            }
+            if (! empty($val['user_id']) && Str::isUuid((string) $val['user_id'])) {
+                return User::find($val['user_id']);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve up to 3 circle chairs with contact and profile details.
+     * Checks circle_members, direct model attributes, and circle calendar leadership JSON.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -355,10 +394,21 @@ class LeaderTeamsService
         $chairs = [];
         $seenUserIds = [];
 
-        // 1. Check circle_members table for approved chair roles
+        // 1. Check circle_members table for approved chair/committee roles
         $chairMembers = CircleMember::query()
             ->where('circle_id', $circle->id)
-            ->whereIn('role', ['chair', 'circle_chair', 'vice_chair'])
+            ->whereIn('role', [
+                'chair',
+                'circle_chair',
+                'vice_chair',
+                'business_growth_committee_chair',
+                'membership_growth_committee_chair',
+                'events_impacts_committee_chair',
+                'power_house_chair_1',
+                'power_house_chair_2',
+                'power_house_chair_3',
+                'committee_leader',
+            ])
             ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->with('user')
@@ -389,9 +439,35 @@ class LeaderTeamsService
             }
         }
 
-        // 2. Check chair_user_id on circle record if still under limit
-        if (count($chairs) < 3 && $circle->chair_user_id) {
-            $u = $circle->chairUser ?? User::find($circle->chair_user_id);
+        // 2. Candidate keys from circle attributes and calendar.leadership JSON
+        $chairCandidates = [
+            $circle->chair_user_id,
+            data_get($circle->calendar, 'leadership.chair_user_id'),
+            data_get($circle->calendar, 'leadership.chair'),
+            data_get($circle->calendar, 'chair_user_id'),
+            data_get($circle->calendar, 'chair'),
+            data_get($circle->calendar, 'leadership.business_growth_committee_chair_user_id'),
+            data_get($circle->calendar, 'leadership.business_growth_committee_chair'),
+            data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id'),
+            data_get($circle->calendar, 'leadership.membership_growth_committee_chair'),
+            data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id'),
+            data_get($circle->calendar, 'leadership.events_impacts_committee_chair'),
+            data_get($circle->calendar, 'leadership.power_house_chair_1_user_id'),
+            data_get($circle->calendar, 'leadership.power_house_chair_1'),
+            data_get($circle->calendar, 'leadership.power_house_chair_2_user_id'),
+            data_get($circle->calendar, 'leadership.power_house_chair_2'),
+            data_get($circle->calendar, 'leadership.power_house_chair_3_user_id'),
+            data_get($circle->calendar, 'leadership.power_house_chair_3'),
+            $circle->vice_chair_user_id,
+            data_get($circle->calendar, 'leadership.vice_chair_user_id'),
+            data_get($circle->calendar, 'leadership.vice_chair'),
+        ];
+
+        foreach ($chairCandidates as $cand) {
+            if (count($chairs) >= 3) {
+                break;
+            }
+            $u = $this->resolveUserRecord($cand);
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
                 $idx = count($chairs);
@@ -412,34 +488,12 @@ class LeaderTeamsService
             }
         }
 
-        // 3. Check vice_chair_user_id on circle record if still under limit
-        if (count($chairs) < 3 && ! empty($circle->vice_chair_user_id)) {
-            $u = User::find($circle->vice_chair_user_id);
-            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
-                $seenUserIds[] = (string) $u->id;
-                $idx = count($chairs);
-                $roleLabel = $useNumberedRoles
-                    ? 'Circle Chair '.($idx + 1)
-                    : 'Circle Chair';
-
-                $chairs[] = [
-                    'id' => (string) $u->id,
-                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Vice Chair'),
-                    'role' => $roleLabel,
-                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
-                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Enterprise Inc'),
-                    'designation' => (string) ($u->designation ?? 'Director'),
-                    'phone' => (string) ($u->phone ?? '+919876543211'),
-                    'email' => (string) ($u->email ?? 'vicechair@peersglobal.in'),
-                ];
-            }
-        }
-
         return $chairs;
     }
 
     /**
      * Resolve circle founders with contact and profile details.
+     * Checks direct model attributes, circle_members, and calendar.leadership JSON.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -448,10 +502,17 @@ class LeaderTeamsService
         $founders = [];
         $seenUserIds = [];
 
-        // 1. Check circle_founder_user_id or founder_user_id
-        $founderUserId = $circle->circle_founder_user_id ?: $circle->founder_user_id;
-        if ($founderUserId) {
-            $u = $circle->founderUser ?? User::find($founderUserId);
+        $founderCandidates = [
+            $circle->circle_founder_user_id,
+            $circle->founder_user_id,
+            data_get($circle->calendar, 'leadership.circle_founder_user_id'),
+            data_get($circle->calendar, 'leadership.founder_user_id'),
+            data_get($circle->calendar, 'leadership.founder'),
+            data_get($circle->calendar, 'founder_user_id'),
+        ];
+
+        foreach ($founderCandidates as $cand) {
+            $u = $this->resolveUserRecord($cand);
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
                 $founders[] = [
@@ -466,7 +527,7 @@ class LeaderTeamsService
             }
         }
 
-        // 2. Check circle_members table for founder role
+        // Check circle_members table for founder role
         $founderMembers = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereIn('role', ['founder', 'circle_founder'])
@@ -497,6 +558,7 @@ class LeaderTeamsService
 
     /**
      * Resolve circle directors with contact and profile details.
+     * Checks direct model attributes, circle_members, and calendar.leadership JSON.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -505,10 +567,17 @@ class LeaderTeamsService
         $directors = [];
         $seenUserIds = [];
 
-        // 1. Check circle_director_user_id or director_user_id
-        $directorUserId = $circle->circle_director_user_id ?: $circle->director_user_id;
-        if ($directorUserId) {
-            $u = $circle->director ?? User::find($directorUserId);
+        $directorCandidates = [
+            $circle->circle_director_user_id,
+            $circle->director_user_id,
+            data_get($circle->calendar, 'leadership.circle_director_user_id'),
+            data_get($circle->calendar, 'leadership.director_user_id'),
+            data_get($circle->calendar, 'leadership.director'),
+            data_get($circle->calendar, 'director_user_id'),
+        ];
+
+        foreach ($directorCandidates as $cand) {
+            $u = $this->resolveUserRecord($cand);
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
                 $directors[] = [
@@ -523,7 +592,7 @@ class LeaderTeamsService
             }
         }
 
-        // 2. Check circle_members table for director role
+        // Check circle_members table for director role
         $directorMembers = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereIn('role', ['director', 'circle_director', 'co_director'])
