@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Creative\IntroductionImageGenerator;
 use App\Services\Users\PeerIntroductionService;
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Str;
 
 $app = require_once 'bootstrap/app.php';
 $kernel = $app->make(Kernel::class);
@@ -24,7 +25,7 @@ $introduced = null;
 
 if ($arg1) {
     $introducer = User::where(function ($q) use ($arg1) {
-        if (\Illuminate\Support\Str::isUuid($arg1)) {
+        if (Str::isUuid($arg1)) {
             $q->where('id', $arg1);
         }
         $q->orWhere('email', $arg1)
@@ -35,7 +36,7 @@ if ($arg1) {
 
 if ($arg2) {
     $introduced = User::where(function ($q) use ($arg2) {
-        if (\Illuminate\Support\Str::isUuid($arg2)) {
+        if (Str::isUuid($arg2)) {
             $q->where('id', $arg2);
         }
         $q->orWhere('email', $arg2)
@@ -78,14 +79,14 @@ echo "🚀 Generating Test Introduction Post on Local\n";
 echo "==================================================\n";
 echo "1. Introducer (Referrer):\n";
 echo "   - Name: {$introducer->display_name} ({$introducer->first_name} {$introducer->last_name})\n";
-echo "   - Company: " . ($generator->resolveCompanyName($introducer) ?: '—') . "\n";
-echo "   - Category: " . ($generator->resolveCategoryName($introducer) ?: '—') . "\n";
+echo '   - Company: '.($generator->resolveCompanyName($introducer) ?: '—')."\n";
+echo '   - Category: '.($generator->resolveCategoryName($introducer) ?: '—')."\n";
 echo "   - Email: {$introducer->email}\n";
 echo "--------------------------------------------------\n";
 echo "2. Introduced (New Member):\n";
 echo "   - Name: {$introduced->display_name} ({$introduced->first_name} {$introduced->last_name})\n";
-echo "   - Company: " . ($generator->resolveCompanyName($introduced) ?: '—') . "\n";
-echo "   - Category: " . ($generator->resolveCategoryName($introduced) ?: '—') . "\n";
+echo '   - Company: '.($generator->resolveCompanyName($introduced) ?: '—')."\n";
+echo '   - Category: '.($generator->resolveCategoryName($introduced) ?: '—')."\n";
 echo "   - Email: {$introduced->email}\n";
 echo "--------------------------------------------------\n";
 
@@ -103,7 +104,7 @@ try {
         echo "   - Post ID: {$latestPost->id}\n";
         echo "   - Title: {$latestPost->title}\n";
         echo "   - Content: {$latestPost->content_text}\n";
-        echo "   - Image URL: " . ($latestPost->image ?? 'N/A') . "\n\n";
+        echo '   - Image URL: '.($latestPost->image ?? 'N/A')."\n\n";
     } else {
         echo "❌ Post was not found in database.\n\n";
     }
@@ -123,6 +124,6 @@ try {
     echo "🎉 You can now view the post on your local mobile app timeline or admin panel!\n";
 
 } catch (Throwable $e) {
-    echo "❌ Error running flow: " . $e->getMessage() . "\n";
-    echo $e->getTraceAsString() . "\n";
+    echo '❌ Error running flow: '.$e->getMessage()."\n";
+    echo $e->getTraceAsString()."\n";
 }
