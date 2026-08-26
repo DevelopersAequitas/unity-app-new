@@ -319,7 +319,241 @@ class LeaderTeamsService
     }
 
     /**
-     * Get list of circles with metrics.
+     * Calculate formatted circle revenue string from member count or subscriptions.
+     */
+    public function calculateCircleRevenue(Circle $circle, int $peersCount): string
+    {
+        if ($peersCount === 0) {
+            return '₹0.0';
+        }
+
+        $unitPrice = (float) ($circle->circle_price_amount ?? 120000);
+        if ($unitPrice <= 0) {
+            $unitPrice = 120000;
+        }
+
+        $total = $unitPrice * $peersCount;
+
+        if ($total >= 10000000) {
+            return '₹'.number_format($total / 10000000, 2).'Cr';
+        }
+
+        if ($total >= 100000) {
+            return '₹'.number_format($total / 100000, 1).'L';
+        }
+
+        return '₹'.number_format($total, 1);
+    }
+
+    /**
+     * Resolve up to 3 circle chairs with contact and profile details.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function resolveCircleChairs(Circle $circle, bool $useNumberedRoles = false): array
+    {
+        $chairs = [];
+        $seenUserIds = [];
+
+        // 1. Check circle_members table for approved chair roles
+        $chairMembers = CircleMember::query()
+            ->where('circle_id', $circle->id)
+            ->whereIn('role', ['chair', 'circle_chair', 'vice_chair'])
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->with('user')
+            ->orderByRaw("CASE WHEN role = 'chair' OR role = 'circle_chair' THEN 0 ELSE 1 END")
+            ->orderBy('created_at')
+            ->take(3)
+            ->get();
+
+        foreach ($chairMembers as $cm) {
+            $u = $cm->user;
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $idx = count($chairs);
+                $roleLabel = $useNumberedRoles
+                    ? ($idx === 0 ? 'Circle Chair 1' : 'Circle Chair '.($idx + 1))
+                    : 'Circle Chair';
+
+                $chairs[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Chair'),
+                    'role' => $roleLabel,
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics Pvt Ltd'),
+                    'designation' => (string) ($u->designation ?? 'Founder & CEO'),
+                    'phone' => (string) ($u->phone ?? '+919876543210'),
+                    'email' => (string) ($u->email ?? 'chair@peersglobal.in'),
+                ];
+            }
+        }
+
+        // 2. Check chair_user_id on circle record if still under limit
+        if (count($chairs) < 3 && $circle->chair_user_id) {
+            $u = $circle->chairUser ?? User::find($circle->chair_user_id);
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $idx = count($chairs);
+                $roleLabel = $useNumberedRoles
+                    ? ($idx === 0 ? 'Circle Chair 1' : 'Circle Chair '.($idx + 1))
+                    : 'Circle Chair';
+
+                $chairs[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Chair'),
+                    'role' => $roleLabel,
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics Pvt Ltd'),
+                    'designation' => (string) ($u->designation ?? 'Founder & CEO'),
+                    'phone' => (string) ($u->phone ?? '+919876543210'),
+                    'email' => (string) ($u->email ?? 'chair@peersglobal.in'),
+                ];
+            }
+        }
+
+        // 3. Check vice_chair_user_id on circle record if still under limit
+        if (count($chairs) < 3 && ! empty($circle->vice_chair_user_id)) {
+            $u = User::find($circle->vice_chair_user_id);
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $idx = count($chairs);
+                $roleLabel = $useNumberedRoles
+                    ? 'Circle Chair '.($idx + 1)
+                    : 'Circle Chair';
+
+                $chairs[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Vice Chair'),
+                    'role' => $roleLabel,
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Enterprise Inc'),
+                    'designation' => (string) ($u->designation ?? 'Director'),
+                    'phone' => (string) ($u->phone ?? '+919876543211'),
+                    'email' => (string) ($u->email ?? 'vicechair@peersglobal.in'),
+                ];
+            }
+        }
+
+        return $chairs;
+    }
+
+    /**
+     * Resolve circle founders with contact and profile details.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function resolveCircleFounders(Circle $circle): array
+    {
+        $founders = [];
+        $seenUserIds = [];
+
+        // 1. Check circle_founder_user_id or founder_user_id
+        $founderUserId = $circle->circle_founder_user_id ?: $circle->founder_user_id;
+        if ($founderUserId) {
+            $u = $circle->founderUser ?? User::find($founderUserId);
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $founders[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Founder'),
+                    'role' => 'Circle Founder',
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Tech'),
+                    'phone' => (string) ($u->phone ?? '+919537639248'),
+                    'email' => (string) ($u->email ?? 'founder@peersglobal.in'),
+                ];
+            }
+        }
+
+        // 2. Check circle_members table for founder role
+        $founderMembers = CircleMember::query()
+            ->where('circle_id', $circle->id)
+            ->whereIn('role', ['founder', 'circle_founder'])
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->with('user')
+            ->take(2)
+            ->get();
+
+        foreach ($founderMembers as $fm) {
+            $u = $fm->user;
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $founders[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Founder'),
+                    'role' => 'Circle Founder',
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Tech'),
+                    'phone' => (string) ($u->phone ?? '+919537639248'),
+                    'email' => (string) ($u->email ?? 'founder@peersglobal.in'),
+                ];
+            }
+        }
+
+        return $founders;
+    }
+
+    /**
+     * Resolve circle directors with contact and profile details.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function resolveCircleDirectors(Circle $circle): array
+    {
+        $directors = [];
+        $seenUserIds = [];
+
+        // 1. Check circle_director_user_id or director_user_id
+        $directorUserId = $circle->circle_director_user_id ?: $circle->director_user_id;
+        if ($directorUserId) {
+            $u = $circle->director ?? User::find($directorUserId);
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $directors[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Director'),
+                    'role' => 'Circle Director',
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas IT'),
+                    'phone' => (string) ($u->phone ?? '+919876500000'),
+                    'email' => (string) ($u->email ?? 'director@peersglobal.in'),
+                ];
+            }
+        }
+
+        // 2. Check circle_members table for director role
+        $directorMembers = CircleMember::query()
+            ->where('circle_id', $circle->id)
+            ->whereIn('role', ['director', 'circle_director', 'co_director'])
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->with('user')
+            ->take(2)
+            ->get();
+
+        foreach ($directorMembers as $dm) {
+            $u = $dm->user;
+            if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
+                $seenUserIds[] = (string) $u->id;
+                $directors[] = [
+                    'id' => (string) $u->id,
+                    'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Director'),
+                    'role' => 'Circle Director',
+                    'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
+                    'company' => (string) ($u->company_name ?? $u->business_name ?? 'Aequitas IT'),
+                    'phone' => (string) ($u->phone ?? '+919876500000'),
+                    'email' => (string) ($u->email ?? 'director@peersglobal.in'),
+                ];
+            }
+        }
+
+        return $directors;
+    }
+
+    /**
+     * Get list of circles with live calculated metrics and complete leadership.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -353,200 +587,90 @@ class LeaderTeamsService
             $query->where('status', strtolower($status));
         }
 
-        $circles = $query->with(['city', 'chairUser', 'members'])->orderBy('name')->take(20)->get();
-
-        if ($circles->isEmpty()) {
-            return [
-                [
-                    'id' => 'd06173c0-368c-4bfd-b682-e07e67fdb320',
-                    'name' => 'Ahmedabad Tech Pioneers',
-                    'category' => 'Technology',
-                    'location' => 'Ahmedabad',
-                    'health_percentage' => 94,
-                    'peers_count' => 4,
-                    'revenue' => '₹1.48Cr',
-                    'chair_name' => 'Arjun Patel',
-                    'founders_count' => 2,
-                    'status' => 'Active',
-                ],
-                [
-                    'id' => '799b0a88-48fa-490a-ae45-2a540aed72cd',
-                    'name' => 'Ahmedabad MSME Growth Circle',
-                    'category' => 'Manufacturing',
-                    'location' => 'Ahmedabad',
-                    'health_percentage' => 91,
-                    'peers_count' => 4,
-                    'revenue' => '₹1.25Cr',
-                    'chair_name' => 'Suresh Nair',
-                    'founders_count' => 1,
-                    'status' => 'Active',
-                ],
-                [
-                    'id' => '3021d5b4-4b63-478e-ae26-ef1bf897ccf4',
-                    'name' => 'Ahmedabad Business Circle',
-                    'category' => 'Financial Services',
-                    'location' => 'Ahmedabad',
-                    'health_percentage' => 89,
-                    'peers_count' => 3,
-                    'revenue' => '₹1.10Cr',
-                    'chair_name' => 'Rahul Parmar',
-                    'founders_count' => 1,
-                    'status' => 'Active',
-                ],
-                [
-                    'id' => 'd9cf253e-8b72-478a-a6be-8ccaeb362bbd',
-                    'name' => 'Satellite Business Circle',
-                    'category' => 'Healthcare',
-                    'location' => 'Ahmedabad',
-                    'health_percentage' => 86,
-                    'peers_count' => 3,
-                    'revenue' => '₹85.0L',
-                    'chair_name' => 'Harsh Chauhan',
-                    'founders_count' => 1,
-                    'status' => 'Active',
-                ],
-            ];
-        }
+        $circles = $query->with(['city', 'chairUser', 'founderUser', 'director', 'members'])->orderBy('name')->take(50)->get();
 
         return $circles->map(function (Circle $c): array {
-            $chair = $c->chairUser;
-            $chairName = $chair ? trim(($chair->first_name ?? '').' '.($chair->last_name ?? '')) : 'Arjun Patel';
-            if ($chairName === '' || $chairName === ' ') {
-                $chairName = $chair?->display_name ?? 'Arjun Patel';
+            $peersCount = CircleMember::query()
+                ->where('circle_id', $c->id)
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->count();
+
+            $tags = is_array($c->industry_tags) ? $c->industry_tags : (is_string($c->industry_tags) ? json_decode($c->industry_tags, true) : []);
+            if (empty($tags) || ! is_array($tags)) {
+                $tags = ['Technology', 'Ahmedabad', 'B2B SaaS'];
             }
 
-            $peersCount = $c->members->count();
-            $tags = is_array($c->industry_tags) ? $c->industry_tags : [];
-            $categoryName = ! empty($tags) ? (string) $tags[0] : ($c->circleCategory?->name ?? 'Technology');
-
+            $categoryName = ! empty($tags) ? (string) $tags[0] : ($c->circleCategory?->name ?? 'Technology & Innovation');
             $location = (string) ($c->city?->name ?? $c->location ?? 'Ahmedabad');
+
+            $healthPercentage = $peersCount > 0 ? (int) ($c->health_score ?: 92) : 0;
+            $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($c, $peersCount) : '₹0.0';
+            $launchDate = $c->launch_date ? (is_string($c->launch_date) ? substr($c->launch_date, 0, 10) : $c->launch_date->format('Y-m-d')) : ($c->created_at ? $c->created_at->format('Y-m-d') : '2026-08-26');
 
             return [
                 'id' => (string) $c->id,
                 'name' => (string) $c->name,
                 'category' => $categoryName,
                 'location' => $location,
-                'health_percentage' => (int) ($c->health_score ?: 94),
-                'peers_count' => max($peersCount, 3),
-                'revenue' => '₹1.48Cr',
-                'chair_name' => (string) $chairName,
-                'founders_count' => $c->circle_founder_user_id ? 1 : 2,
+                'health_percentage' => $healthPercentage,
+                'peers_count' => $peersCount,
+                'revenue' => $revenue,
                 'status' => (string) ucfirst((string) ($c->status ?: 'Active')),
+                'launch_date' => $launchDate,
+                'tags' => array_values($tags),
+                'chairs' => $this->resolveCircleChairs($c),
+                'founders' => $this->resolveCircleFounders($c),
+                'directors' => $this->resolveCircleDirectors($c),
             ];
         })->values()->all();
     }
 
     /**
-     * Get detailed circle information.
+     * Get detailed circle information with rich metadata and full leadership team.
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null
      */
-    public function getCircleDetails(string $circleId): array
+    public function getCircleDetails(string $circleId): ?array
     {
-        $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'members.user'])->first();
+        $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'founderUser', 'director', 'members.user'])->first();
 
         if (! $circle) {
-            return [
-                'id' => $circleId,
-                'name' => 'Ahmedabad Tech Pioneers',
-                'category' => 'Technology',
-                'location' => 'Ahmedabad',
-                'launch_date' => 'Jan 2026',
-                'health_percentage' => 94,
-                'chair' => [
-                    'id' => 'usr_987214',
-                    'name' => 'Arjun Patel',
-                    'email' => 'arjun@peersglobal.in',
-                    'phone' => '+919876543209',
-                ],
-                'founders' => [
-                    [
-                        'id' => 'usr_110',
-                        'name' => 'Dhruvil User',
-                        'email' => 'dhruvil@gmail.com',
-                    ],
-                ],
-                'metrics' => [
-                    'total_peers' => 14,
-                    'attendance_rate' => '94%',
-                    'monthly_revenue' => '₹12.4L',
-                    'annual_revenue' => '₹1.48Cr',
-                ],
-                'members' => [
-                    [
-                        'id' => '75ffdee9-e587-4ee7-b020-ff8184adb751',
-                        'name' => 'Jatin Jadav',
-                        'company' => 'Aequitas Information Technology',
-                        'status' => 'Active',
-                    ],
-                ],
-            ];
+            return null;
         }
 
-        $chair = $circle->chairUser;
-        $chairName = $chair ? trim(($chair->first_name ?? '').' '.($chair->last_name ?? '')) : 'Arjun Patel';
-        if ($chairName === '' || $chairName === ' ') {
-            $chairName = 'Arjun Patel';
+        $peersCount = CircleMember::query()
+            ->where('circle_id', $circle->id)
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->count();
+
+        $tags = is_array($circle->industry_tags) ? $circle->industry_tags : (is_string($circle->industry_tags) ? json_decode($circle->industry_tags, true) : []);
+        if (empty($tags) || ! is_array($tags)) {
+            $tags = ['Technology', 'Cloud Infra', 'FinTech'];
         }
 
-        $founders = [];
-        if ($circle->founderUser) {
-            $f = $circle->founderUser;
-            $founders[] = [
-                'id' => (string) $f->id,
-                'name' => trim(($f->first_name ?? '').' '.($f->last_name ?? '')) ?: ($f->display_name ?? 'Founder'),
-                'email' => (string) ($f->email ?? 'founder@peersglobal.in'),
-            ];
-        } else {
-            $founders[] = [
-                'id' => 'usr_110',
-                'name' => 'Dhruvil User',
-                'email' => 'dhruvil@gmail.com',
-            ];
-        }
+        $categoryName = ! empty($tags) ? (string) $tags[0] : ($circle->circleCategory?->name ?? 'Technology & Innovation');
+        $location = (string) ($circle->city?->name ?? $circle->location ?? 'Ahmedabad');
 
-        $members = $circle->members->map(fn (CircleMember $cm) => [
-            'id' => (string) ($cm->user?->id ?? $cm->id),
-            'name' => trim(($cm->user?->first_name ?? '').' '.($cm->user?->last_name ?? '')) ?: ($cm->user?->display_name ?? 'Member'),
-            'company' => (string) ($cm->user?->company_name ?? 'Enterprise Inc'),
-            'status' => (string) ucfirst((string) ($cm->status ?? 'Active')),
-        ])->values()->all();
-
-        if (empty($members)) {
-            $members = [
-                [
-                    'id' => '75ffdee9-e587-4ee7-b020-ff8184adb751',
-                    'name' => 'Jatin Jadav',
-                    'company' => 'Aequitas Information Technology',
-                    'status' => 'Active',
-                ],
-            ];
-        }
-
-        $tags = is_array($circle->industry_tags) ? $circle->industry_tags : [];
-        $categoryName = ! empty($tags) ? (string) $tags[0] : ($circle->circleCategory?->name ?? 'Technology');
+        $healthPercentage = $peersCount > 0 ? (int) ($circle->health_score ?: 92) : 0;
+        $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($circle, $peersCount) : '₹0.0';
+        $launchDate = $circle->launch_date ? (is_string($circle->launch_date) ? substr($circle->launch_date, 0, 10) : $circle->launch_date->format('Y-m-d')) : ($circle->created_at ? $circle->created_at->format('Y-m-d') : '2026-01-15');
 
         return [
             'id' => (string) $circle->id,
             'name' => (string) $circle->name,
             'category' => $categoryName,
-            'location' => (string) ($circle->city?->name ?? $circle->location ?? 'Ahmedabad'),
-            'launch_date' => $circle->launch_date ? $circle->launch_date->format('M Y') : 'Jan 2026',
-            'health_percentage' => (int) ($circle->health_score ?: 94),
-            'chair' => [
-                'id' => (string) ($chair?->id ?? 'usr_987214'),
-                'name' => $chairName,
-                'email' => (string) ($chair?->email ?? 'arjun@peersglobal.in'),
-                'phone' => (string) ($chair?->phone ?? '+919876543209'),
-            ],
-            'founders' => $founders,
-            'metrics' => [
-                'total_peers' => max($circle->members->count(), 4),
-                'attendance_rate' => '94%',
-                'monthly_revenue' => '₹12.4L',
-                'annual_revenue' => '₹1.48Cr',
-            ],
-            'members' => $members,
+            'location' => $location,
+            'health_percentage' => $healthPercentage,
+            'peers_count' => $peersCount,
+            'revenue' => $revenue,
+            'status' => (string) ucfirst((string) ($circle->status ?: 'Active')),
+            'launch_date' => $launchDate,
+            'tags' => array_values($tags),
+            'chairs' => $this->resolveCircleChairs($circle, true),
+            'founders' => $this->resolveCircleFounders($circle),
+            'directors' => $this->resolveCircleDirectors($circle),
         ];
     }
 
@@ -557,57 +681,72 @@ class LeaderTeamsService
      */
     public function getSubIndustries(string $circleId): array
     {
-        $subCategories = DB::table('circle_categories')
-            ->whereNotNull('parent_id')
-            ->where('is_active', true)
+        $circle = Circle::query()->where('id', $circleId)->first();
+
+        // 1. Get circle member users and their business categories
+        $memberUsers = User::query()
+            ->whereNull('deleted_at')
+            ->where(function (Builder $q) use ($circleId): void {
+                $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
+                    $cq->where('circle_id', $circleId)->where('status', 'approved')->whereNull('deleted_at');
+                })->orWhere('active_circle_id', $circleId);
+            })
             ->get();
 
-        $active = [];
-        $open = [];
+        $activeSubIndustries = [];
+        $occupiedNames = [];
 
-        if ($subCategories->isNotEmpty()) {
-            foreach ($subCategories as $idx => $sc) {
-                if ($idx < 3) {
-                    $active[] = [
-                        'id' => (string) $sc->id,
-                        'name' => (string) $sc->name,
-                        'peer_count' => max(4 - $idx, 1),
+        if ($memberUsers->isNotEmpty()) {
+            $grouped = $memberUsers->groupBy(function ($u) {
+                return trim((string) ($u->business_sub_category ?: ($u->level4Category?->name ?: ($u->businessCategory?->name ?: 'Custom Software & Web Platforms'))));
+            });
+
+            $idCounter = 19;
+            foreach ($grouped as $subName => $usersGroup) {
+                if ($subName !== '') {
+                    $occupiedNames[] = strtolower($subName);
+                    $activeSubIndustries[] = [
+                        'id' => $idCounter++,
+                        'name' => (string) $subName,
+                        'peer_count' => $usersGroup->count(),
                         'is_open' => false,
-                    ];
-                } else {
-                    $open[] = [
-                        'id' => (string) $sc->id,
-                        'name' => (string) $sc->name,
-                        'peer_count' => 0,
-                        'is_open' => true,
                     ];
                 }
             }
         }
 
-        if (empty($active)) {
-            $active = [
-                ['id' => 'sub_01', 'name' => 'Web & App Development', 'peer_count' => 4, 'is_open' => false],
-                ['id' => 'sub_02', 'name' => 'AI & Machine Learning', 'peer_count' => 2, 'is_open' => false],
-            ];
-        }
+        // 2. Open sub-industries from categories
+        $openSubIndustries = [];
+        $availableTemplates = [
+            'Cybersecurity & Infrastructure',
+            'AI & Machine Learning Solutions',
+            'Cloud & DevOps Architecture',
+            'FinTech & Payment Solutions',
+            'HealthTech & Diagnostic Platforms',
+            'EdTech & Learning Management',
+        ];
 
-        if (empty($open)) {
-            $open = [
-                ['id' => 'sub_03', 'name' => 'Cybersecurity & Cloud', 'peer_count' => 0, 'is_open' => true],
-                ['id' => 'sub_04', 'name' => 'FinTech SaaS', 'peer_count' => 0, 'is_open' => true],
-            ];
+        $idCounter = 20;
+        foreach ($availableTemplates as $templateName) {
+            if (! in_array(strtolower($templateName), $occupiedNames, true)) {
+                $openSubIndustries[] = [
+                    'id' => $idCounter++,
+                    'name' => $templateName,
+                    'peer_count' => 0,
+                    'is_open' => true,
+                ];
+            }
         }
 
         return [
             'circle_id' => $circleId,
-            'active_sub_industries' => $active,
-            'open_sub_industries' => $open,
+            'active_sub_industries' => $activeSubIndustries,
+            'open_sub_industries' => $openSubIndustries,
         ];
     }
 
     /**
-     * Get circle events and assemblies.
+     * Get circle-scoped events and assemblies.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -623,63 +762,32 @@ class LeaderTeamsService
             $query->where('start_at', '<', now());
         }
 
-        $events = $query->orderByDesc('start_at')->take(20)->get();
+        $events = $query->orderByDesc('start_at')->take(50)->get();
 
         if ($events->isEmpty()) {
-            $fallbackEvents = DB::table('events')
-                ->whereNull('deleted_at')
-                ->orderByDesc('start_at')
-                ->take(5)
-                ->get();
-            if ($fallbackEvents->isNotEmpty()) {
-                $events = $fallbackEvents;
-            }
+            return [];
         }
 
-        if ($events->isEmpty()) {
-            return [
-                [
-                    'id' => 'evt_201',
-                    'title' => 'Ahmedabad Tech Growth Summit 2026',
-                    'date' => '2026-09-01',
-                    'time' => '10:00 AM',
-                    'location' => 'Grand Hyatt, Ahmedabad',
-                    'mode' => 'In-Person',
-                    'status' => 'Upcoming',
-                    'attendees_count' => 48,
-                ],
-                [
-                    'id' => 'evt_202',
-                    'title' => 'AI & SaaS Peer Workshop',
-                    'date' => '2026-08-20',
-                    'time' => '03:00 PM',
-                    'location' => 'Zoom Online',
-                    'mode' => 'Online',
-                    'status' => 'Completed',
-                    'attendees_count' => 52,
-                ],
-            ];
-        }
-
-        return $events->map(function ($evt): array {
+        return $events->map(function ($evt) use ($circleId): array {
             $start = $evt->start_at ? Carbon::parse($evt->start_at) : now()->addDays(7);
             $isCompleted = $start->isPast();
 
             return [
                 'id' => (string) $evt->id,
-                'title' => (string) ($evt->title ?: 'Circle Summit'),
+                'circle_id' => (string) ($evt->circle_id ?? $circleId),
+                'title' => (string) ($evt->title ?: 'Chapter Launch Assembly'),
                 'date' => $start->format('Y-m-d'),
                 'time' => $start->format('h:i A'),
-                'location' => (string) ($evt->location_text ?: ($evt->is_virtual ? 'Zoom Online' : 'Grand Hyatt, Ahmedabad')),
+                'location' => (string) ($evt->location_text ?: ($evt->is_virtual ? 'Zoom Online' : 'Grand Ballroom, Hyatt Regency, Ahmedabad')),
                 'mode' => $evt->is_virtual ? 'Online' : 'In-Person',
                 'status' => $isCompleted ? 'Completed' : 'Upcoming',
-                'attendees_count' => (int) ($evt->registration_limit ?: 48),
+                'attendees_count' => (int) ($evt->registration_limit ?: 25),
             ];
         })->values()->all();
     }
 
     /**
-     * Get peers belonging to a dedicated circle.
+     * Get peers belonging to a dedicated circle with pagination and zero-safe response.
      *
      * @return array<string, mixed>
      */
@@ -689,9 +797,11 @@ class LeaderTeamsService
         ?string $sort = null,
         ?string $search = null,
         ?User $user = null,
+        int $page = 1,
+        int $perPage = 20,
     ): array {
         $circle = Circle::query()->where('id', $circleId)->first();
-        $circleName = $circle ? (string) $circle->name : 'Mumbai Tech Sunrise';
+        $circleName = $circle ? (string) $circle->name : 'Circle';
 
         $query = User::query()
             ->whereNull('deleted_at')
@@ -733,84 +843,42 @@ class LeaderTeamsService
             $query->orderByDesc('life_impacted_count');
         }
 
-        $users = $query->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])->take(50)->get();
+        $paginator = $query->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])
+            ->paginate($perPage, ['*'], 'page', $page);
 
-        if ($users->isEmpty()) {
-            $data = [
-                [
-                    'id' => '76265b49-4e41-406e-bb8c-7182d5f6536c',
-                    'name' => 'Siddharth Verma',
-                    'avatar_url' => 'https://peersunity.com/storage/avatars/siddharth.png',
-                    'company' => 'Apex Dynamics Pvt Ltd',
-                    'circle' => $circleName,
-                    'circle_id' => $circleId,
-                    'location' => 'Mumbai',
-                    'designation' => 'Founder & CEO',
-                    'industry' => 'Technology',
-                    'level4_category' => 'FinTech SaaS',
-                    'tags' => 'FinTech · Series A · B2B SaaS',
-                    'status' => 'Active',
-                    'impact_count' => 48,
-                    'deals_formatted' => '₹32.5L',
-                    'coins' => 1240,
-                    'attendance' => '94%',
-                    'phone' => '+919876543210',
-                    'email' => 'siddharth@apexdynamics.in',
-                    'joined_date' => '2024-01-15',
-                    'is_verified' => true,
-                    'intro_video_url' => 'https://peersunity.com/storage/videos/siddharth_intro.mp4',
-                ],
-                [
-                    'id' => 'a1b2c3d4-e5f6-4a5b-8c7d-9e0f1a2b3c4d',
-                    'name' => 'Pooja Sharma',
-                    'avatar_url' => 'https://peersunity.com/storage/avatars/pooja.png',
-                    'company' => 'BioHealth Labs',
-                    'circle' => $circleName,
-                    'circle_id' => $circleId,
-                    'location' => 'Mumbai',
-                    'designation' => 'Managing Director',
-                    'industry' => 'Healthcare',
-                    'level4_category' => 'Clinical Diagnostics',
-                    'tags' => 'Diagnostics · Pathology',
-                    'status' => 'Needs Attention',
-                    'impact_count' => 22,
-                    'deals_formatted' => '₹14.0L',
-                    'coins' => 580,
-                    'attendance' => '68%',
-                    'phone' => '+919811223344',
-                    'email' => 'pooja@biohealth.in',
-                    'joined_date' => '2024-03-10',
-                    'is_verified' => true,
-                    'intro_video_url' => null,
-                ],
-            ];
-
+        if ($paginator->total() === 0) {
             return [
                 'success' => true,
-                'circle_id' => $circleId,
-                'circle_name' => $circleName,
-                'total_peers' => count($data),
-                'data' => $data,
+                'message' => 'No peers found for this circle.',
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                ],
+                'data' => [],
             ];
         }
 
         $peersService = app(LeaderPeersService::class);
         $data = [];
 
-        foreach ($users as $u) {
-            $joinedDate = $u->circle_joined_at ? $u->circle_joined_at->format('Y-m-d') : ($u->created_at ? $u->created_at->format('Y-m-d') : '2024-01-15');
+        foreach ($paginator->items() as $u) {
             $card = $peersService->formatPeerCard($u, $circleId, $circleName);
             $card['circle'] = $circleName;
             $card['circle_id'] = $circleId;
-            $card['joined_date'] = $joinedDate;
             $data[] = $card;
         }
 
         return [
             'success' => true,
-            'circle_id' => $circleId,
-            'circle_name' => $circleName,
-            'total_peers' => count($data),
+            'message' => 'Circle peers retrieved successfully.',
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
             'data' => $data,
         ];
     }

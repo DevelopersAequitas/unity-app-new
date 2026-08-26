@@ -72,18 +72,27 @@ class LeaderTeamsController extends Controller
         $status = $request->query('status') ? (string) $request->query('status') : null;
         $sort = $request->query('sort') ? (string) $request->query('sort') : null;
         $search = $request->query('search') ? (string) $request->query('search') : null;
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
 
-        $data = $this->teamsService->getCirclePeers($circleId, $status, $sort, $search, $request->user());
+        $data = $this->teamsService->getCirclePeers($circleId, $status, $sort, $search, $request->user(), $page, $perPage);
 
         return response()->json($data);
     }
 
     /**
-     * Get circle detailed view.
+     * Get circle detailed view with leadership team and rich metrics.
      */
     public function showCircle(string $id): JsonResponse
     {
         $data = $this->teamsService->getCircleDetails($id);
+
+        if (! $data) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Circle not found.',
+            ], 404);
+        }
 
         return response()->json([
             'success' => true,
