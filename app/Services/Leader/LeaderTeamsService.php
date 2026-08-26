@@ -398,12 +398,12 @@ class LeaderTeamsService
         $chairMembers = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereIn('role', [
-                'chair',
-                'circle_chair',
-                'vice_chair',
                 'business_growth_committee_chair',
                 'membership_growth_committee_chair',
                 'events_impacts_committee_chair',
+                'chair',
+                'circle_chair',
+                'vice_chair',
                 'power_house_chair_1',
                 'power_house_chair_2',
                 'power_house_chair_3',
@@ -412,7 +412,13 @@ class LeaderTeamsService
             ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->with('user')
-            ->orderByRaw("CASE WHEN role = 'chair' OR role = 'circle_chair' THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE 
+                WHEN role LIKE '%business_growth%' THEN 0
+                WHEN role LIKE '%membership_growth%' THEN 1
+                WHEN role LIKE '%events_impacts%' THEN 2
+                WHEN role = 'chair' OR role = 'circle_chair' THEN 3
+                ELSE 4
+            END")
             ->orderBy('created_at')
             ->take(3)
             ->get();
@@ -422,9 +428,17 @@ class LeaderTeamsService
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
                 $idx = count($chairs);
-                $roleLabel = $useNumberedRoles
-                    ? ($idx === 0 ? 'Circle Chair 1' : 'Circle Chair '.($idx + 1))
-                    : 'Circle Chair';
+                $rawRole = strtolower((string) ($cm->role ?? ''));
+                $roleLabel = match ($rawRole) {
+                    'business_growth_committee_chair', 'business_growth_chair' => 'Business Growth Committee Chair',
+                    'membership_growth_committee_chair', 'membership_growth_chair' => 'Membership Growth Committee Chair',
+                    'events_impacts_committee_chair', 'events_impacts_chair' => 'Events & Impacts Committee Chair',
+                    'power_house_chair_1' => 'Power House Chair 1',
+                    'power_house_chair_2' => 'Power House Chair 2',
+                    'power_house_chair_3' => 'Power House Chair 3',
+                    'vice_chair' => 'Vice Chair',
+                    default => ($useNumberedRoles ? ($idx === 0 ? 'Circle Chair 1' : 'Circle Chair '.($idx + 1)) : 'Circle Chair'),
+                };
 
                 $chairs[] = [
                     'id' => (string) $u->id,
@@ -439,46 +453,72 @@ class LeaderTeamsService
             }
         }
 
-        // 2. Candidate keys from circle attributes and calendar.leadership JSON
+        // 2. Candidate keys from circle attributes and calendar.leadership JSON with designated role titles
         $chairCandidates = [
-            $circle->chair_user_id,
-            data_get($circle->calendar, 'leadership.chair_user_id'),
-            data_get($circle->calendar, 'leadership.chair'),
-            data_get($circle->calendar, 'chair_user_id'),
-            data_get($circle->calendar, 'chair'),
-            data_get($circle->calendar, 'leadership.business_growth_committee_chair_user_id'),
-            data_get($circle->calendar, 'leadership.business_growth_committee_chair'),
-            data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id'),
-            data_get($circle->calendar, 'leadership.membership_growth_committee_chair'),
-            data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id'),
-            data_get($circle->calendar, 'leadership.events_impacts_committee_chair'),
-            data_get($circle->calendar, 'leadership.power_house_chair_1_user_id'),
-            data_get($circle->calendar, 'leadership.power_house_chair_1'),
-            data_get($circle->calendar, 'leadership.power_house_chair_2_user_id'),
-            data_get($circle->calendar, 'leadership.power_house_chair_2'),
-            data_get($circle->calendar, 'leadership.power_house_chair_3_user_id'),
-            data_get($circle->calendar, 'leadership.power_house_chair_3'),
-            $circle->vice_chair_user_id,
-            data_get($circle->calendar, 'leadership.vice_chair_user_id'),
-            data_get($circle->calendar, 'leadership.vice_chair'),
+            [
+                'role' => 'Business Growth Committee Chair',
+                'data' => data_get($circle->calendar, 'leadership.business_growth_committee_chair_user_id')
+                    ?? data_get($circle->calendar, 'leadership.business_growth_committee_chair')
+                    ?? data_get($circle->calendar, 'business_growth_committee_chair'),
+            ],
+            [
+                'role' => 'Membership Growth Committee Chair',
+                'data' => data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id')
+                    ?? data_get($circle->calendar, 'leadership.membership_growth_committee_chair')
+                    ?? data_get($circle->calendar, 'membership_growth_committee_chair'),
+            ],
+            [
+                'role' => 'Events & Impacts Committee Chair',
+                'data' => data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id')
+                    ?? data_get($circle->calendar, 'leadership.events_impacts_committee_chair')
+                    ?? data_get($circle->calendar, 'events_impacts_committee_chair'),
+            ],
+            [
+                'role' => $useNumberedRoles ? 'Circle Chair 1' : 'Circle Chair',
+                'data' => $circle->chair_user_id
+                    ?? data_get($circle->calendar, 'leadership.chair_user_id')
+                    ?? data_get($circle->calendar, 'leadership.chair')
+                    ?? data_get($circle->calendar, 'chair_user_id')
+                    ?? data_get($circle->calendar, 'chair'),
+            ],
+            [
+                'role' => 'Power House Chair 1',
+                'data' => data_get($circle->calendar, 'leadership.power_house_chair_1_user_id')
+                    ?? data_get($circle->calendar, 'leadership.power_house_chair_1'),
+            ],
+            [
+                'role' => 'Power House Chair 2',
+                'data' => data_get($circle->calendar, 'leadership.power_house_chair_2_user_id')
+                    ?? data_get($circle->calendar, 'leadership.power_house_chair_2'),
+            ],
+            [
+                'role' => 'Power House Chair 3',
+                'data' => data_get($circle->calendar, 'leadership.power_house_chair_3_user_id')
+                    ?? data_get($circle->calendar, 'leadership.power_house_chair_3'),
+            ],
+            [
+                'role' => 'Vice Chair',
+                'data' => $circle->vice_chair_user_id
+                    ?? data_get($circle->calendar, 'leadership.vice_chair_user_id')
+                    ?? data_get($circle->calendar, 'leadership.vice_chair'),
+            ],
         ];
 
         foreach ($chairCandidates as $cand) {
             if (count($chairs) >= 3) {
                 break;
             }
-            $u = $this->resolveUserRecord($cand);
+            if (empty($cand['data'])) {
+                continue;
+            }
+            $u = $this->resolveUserRecord($cand['data']);
             if ($u && ! in_array((string) $u->id, $seenUserIds, true)) {
                 $seenUserIds[] = (string) $u->id;
-                $idx = count($chairs);
-                $roleLabel = $useNumberedRoles
-                    ? ($idx === 0 ? 'Circle Chair 1' : 'Circle Chair '.($idx + 1))
-                    : 'Circle Chair';
 
                 $chairs[] = [
                     'id' => (string) $u->id,
                     'name' => trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: (string) ($u->display_name ?? 'Circle Chair'),
-                    'role' => $roleLabel,
+                    'role' => (string) $cand['role'],
                     'avatar_url' => $u->profile_photo_url ?? $u->avatar_url ?? null,
                     'company' => (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics Pvt Ltd'),
                     'designation' => (string) ($u->designation ?? 'Founder & CEO'),
