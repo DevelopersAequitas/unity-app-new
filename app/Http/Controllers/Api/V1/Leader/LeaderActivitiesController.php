@@ -196,10 +196,22 @@ class LeaderActivitiesController extends Controller
         /** @var User $user */
         $user = $request->user();
         $validated = $request->validated();
+        $targetPeerId = trim((string) $validated['to_peer_id']);
+        $targetUser = User::query()
+            ->where('id', $targetPeerId)
+            ->orWhere('email', $targetPeerId)
+            ->orWhere('phone', $targetPeerId)
+            ->first();
 
-        $targetPeerId = (string) $validated['to_peer_id'];
-        $targetUser = User::query()->where('id', $targetPeerId)->first();
-        $targetUserId = $targetUser ? (string) $targetUser->id : $targetPeerId;
+        if (! $targetUser) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => "The selected peer ID '{$targetPeerId}' does not exist. Please provide a valid peer UUID from your users table.",
+            ], 422);
+        }
+
+        $targetUserId = (string) $targetUser->id;
 
         $id = (string) Str::uuid();
 
