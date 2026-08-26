@@ -34,11 +34,11 @@
             <form method="GET" action="{{ route('admin.brand-partners.index') }}" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
                 <div class="md:col-span-2">
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
-                    <input type="text" name="q" value="{{ $search }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, slug, or offer...">
+                    <input type="text" name="q" value="{{ $search }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, slug, or offer..." onkeydown="if (event.key === 'Enter') this.form.submit()">
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Category</label>
-                    <select name="category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">All Categories</option>
                         @foreach($categories as $category)
                             <option value="{{ $category->id }}" @selected($categoryId == $category->id)>{{ $category->name }}</option>
@@ -47,7 +47,7 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
-                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
                         <option value="active" @selected($status == 'active')>Active</option>
                         <option value="inactive" @selected($status == 'inactive')>Inactive</option>
@@ -55,7 +55,7 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Featured</label>
-                    <select name="featured" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="featured" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">Any</option>
                         <option value="1" @selected($featured == '1')>Yes</option>
                         <option value="0" @selected($featured == '0')>No</option>
@@ -63,7 +63,7 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Sponsored</label>
-                    <select name="sponsored" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="sponsored" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">Any</option>
                         <option value="1" @selected($sponsored == '1')>Yes</option>
                         <option value="0" @selected($sponsored == '0')>No</option>

@@ -94,11 +94,11 @@
       <form method="GET" action="{{ route('admin.event-coupons.index') }}" class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[200px]">
           <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
-          <input type="text" name="search" value="{{ request('search') }}" placeholder="Search code, name, description..." class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+          <input type="text" name="search" value="{{ request('search') }}" placeholder="Search code, name, description..." class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onkeydown="if (event.key === 'Enter') this.form.submit()">
         </div>
         <div class="w-44">
           <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Discount Type</label>
-          <select name="discount_type" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
+          <select name="discount_type" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" onchange="this.form.submit()">
             <option value="">All Discount Types</option>
             <option value="full" @selected(request('discount_type') === 'full')>Full (100% Free)</option>
             <option value="percentage" @selected(request('discount_type') === 'percentage')>Percentage (%)</option>
@@ -107,8 +107,9 @@
         </div>
         <div class="w-44">
           <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Event Scope</label>
-          <select name="event_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
+          <select name="event_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" onchange="this.form.submit()">
             <option value="">All Event Scopes</option>
+            <option value="all_events" @selected(request('event_id') === 'all_events')>All Events</option>
             @foreach($events as $ev)
               <option value="{{ $ev->id }}" @selected(request('event_id') == $ev->id)>{{ $ev->title }}</option>
             @endforeach
@@ -116,7 +117,7 @@
         </div>
         <div class="w-36">
           <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
-          <select name="is_active" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
+          <select name="is_active" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" onchange="this.form.submit()">
             <option value="">All Statuses</option>
             <option value="true" @selected(request('is_active') === 'true')>Active</option>
             <option value="false" @selected(request('is_active') === 'false')>Inactive</option>

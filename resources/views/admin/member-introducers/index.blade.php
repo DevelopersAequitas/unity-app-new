@@ -196,7 +196,8 @@
                                         @else
                                             <span class="t3">0</span>
                                         @endif
-                                                                     <td class="px-3 py-2.5 text-right">
+                                    </td>
+                                    <td class="px-3 py-2.5 text-right">
                                         <div class="inline-flex items-center gap-1.5 justify-end">
                                             <button type="button" onclick="openIntroducedPeersModal('{{ $introducer->id }}', '{{ addslashes($introducerName) }}')" class="px-2.5 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition inline-flex items-center gap-1">
                                                 <i class="bi bi-people-fill text-indigo-500"></i>Introduced List
@@ -206,7 +207,7 @@
                                             </button>
                                             <a href="{{ route('admin.member-introducers.index', ['tab' => 'creative', 'peer_id' => $introducer->id]) }}" class="px-2 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1" title="Open in Studio">
                                                 <i class="bi bi-palette text-amber-500"></i>Studio
-                                            </a>     </a>
+                                            </a>
                                             @if ($canEditUsers)
                                                 <a href="{{ route('admin.users.edit', $introducer->id) }}#introduced-tab" class="px-2 py-1 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1" title="View Profile">
                                                     <i class="bi bi-person"></i>
@@ -242,14 +243,14 @@
                         <label class="block text-[11px] font-semibold t3 mb-1">Search Introducer</label>
                         <div class="relative">
                             <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 t3 text-xs"></i>
-                            <input type="text" name="q" value="{{ $filters['search'] ?? '' }}" placeholder="Name, Email, Company, City..." class="w-full pl-8 pr-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                            <input type="text" name="q" value="{{ $filters['search'] ?? '' }}" placeholder="Name, Email, Company, City..." class="w-full pl-8 pr-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" onkeydown="if (event.key === 'Enter') this.form.submit()">
                         </div>
                     </div>
 
                     {{-- Membership Status --}}
                     <div>
                         <label class="block text-[11px] font-semibold t3 mb-1">Membership Status</label>
-                        <select name="membership_status" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        <select name="membership_status" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" onchange="this.form.submit()">
                             <option value="">All Statuses</option>
                             @foreach ($membershipStatusLabels as $val => $lbl)
                                 <option value="{{ $val }}" {{ ($filters['membership_status'] ?? '') === $val ? 'selected' : '' }}>{{ $lbl }}</option>
@@ -260,13 +261,13 @@
                     {{-- Start Date --}}
                     <div>
                         <label class="block text-[11px] font-semibold t3 mb-1">Introduced From</label>
-                        <input type="date" name="start_date" value="{{ $filters['start_date'] ?? '' }}" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        <input type="date" name="start_date" value="{{ $filters['start_date'] ?? '' }}" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" onchange="this.form.submit()">
                     </div>
 
                     {{-- End Date --}}
                     <div>
                         <label class="block text-[11px] font-semibold t3 mb-1">Introduced To</label>
-                        <input type="date" name="end_date" value="{{ $filters['end_date'] ?? '' }}" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        <input type="date" name="end_date" value="{{ $filters['end_date'] ?? '' }}" class="w-full px-2.5 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" onchange="this.form.submit()">
                     </div>
 
                     {{-- Submit & Clear Buttons --}}
