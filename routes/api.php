@@ -327,6 +327,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/teams/industries', [LeaderTeamsController::class, 'industries']);
         Route::get('/industries', [LeaderTeamsController::class, 'industries']);
         Route::get('/teams/circles', [LeaderTeamsController::class, 'circles']);
+        Route::get('/teams/circles/{circle_id}/peers', [LeaderTeamsController::class, 'circlePeers'])->whereUuid('circle_id');
         Route::get('/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
         Route::get('/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
         Route::get('/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
@@ -341,6 +342,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/reports', [LeaderReportsController::class, 'index']);
         Route::post('/reports', [LeaderReportsController::class, 'store']);
         Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+        Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
         Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
 
         // Referrals, Testimonials & Coins

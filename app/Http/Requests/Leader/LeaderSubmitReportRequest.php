@@ -24,8 +24,14 @@ class LeaderSubmitReportRequest extends FormRequest
             'period' => ['nullable', 'string'],
             'attendance_percentage' => ['nullable', 'numeric'],
             'deals_closed_value' => ['nullable', 'string'],
+            'total_revenue' => ['nullable', 'string'],
             'content' => ['nullable', 'string'],
+            'summary_text' => ['nullable', 'string'],
+            'highlights' => ['nullable', 'string'],
+            'challenges_faced' => ['nullable', 'string'],
             'action_items' => ['nullable', 'string'],
+            'included_sections' => ['nullable', 'array'],
+            'peers_roster' => ['nullable', 'array'],
         ];
     }
 }

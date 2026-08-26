@@ -30,6 +30,7 @@ class LeaderFinanceController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Finance metrics and trend datasets fetched successfully.',
             'data' => $data,
         ]);
     }

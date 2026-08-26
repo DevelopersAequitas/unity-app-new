@@ -17,15 +17,26 @@ class LeaderReportsController extends Controller
     ) {}
 
     /**
-     * Get submitted performance reports list scoped to circle or district.
+     * Get submitted performance reports list scoped to circle, district, industry or role.
      */
     public function index(Request $request): JsonResponse
     {
         $circleId = $request->query('circle_id') ? (string) $request->query('circle_id') : null;
-        $type = $request->query('type') ? (string) $request->query('type') : null;
+        $reportType = $request->query('report_type') ? (string) $request->query('report_type') : ($request->query('type') ? (string) $request->query('type') : null);
+        $status = $request->query('status') ? (string) $request->query('status') : null;
         $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
 
-        $data = $this->reportsService->listReports($circleId, $type, $districtId, $request->user());
+        $data = $this->reportsService->listReports(
+            circleId: $circleId,
+            reportType: $reportType,
+            status: $status,
+            districtId: $districtId,
+            user: $request->user(),
+            page: $page,
+            perPage: $perPage,
+        );
 
         return response()->json([
             'success' => true,
@@ -34,22 +45,35 @@ class LeaderReportsController extends Controller
     }
 
     /**
-     * Submit a weekly or monthly performance report.
+     * Submit a weekly, monthly, district or industry performance report.
      */
     public function store(LeaderSubmitReportRequest $request): JsonResponse
     {
+        /** @var User $user */
         $user = $request->user();
         $userId = $user ? (string) $user->id : '8ef4c5ad-13c5-4b08-8e6f-cbde39df23a5';
 
-        $reportId = $this->reportsService->submitReport($request->validated(), $userId);
+        $data = $this->reportsService->submitReport($request->validated(), $userId, $user);
 
         return response()->json([
             'success' => true,
-            'message' => 'Report submitted successfully!',
-            'data' => [
-                'report_id' => $reportId,
-            ],
+            'message' => 'Report submitted successfully and routed to higher leadership.',
+            'data' => $data,
         ], 201);
+    }
+
+    /**
+     * Get full report details with peer roster.
+     */
+    public function show(string $id): JsonResponse
+    {
+        $data = $this->reportsService->getReportDetails($id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Report details fetched successfully.',
+            'data' => $data,
+        ]);
     }
 
     /**

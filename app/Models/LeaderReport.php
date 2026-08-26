@@ -26,15 +26,23 @@ class LeaderReport extends Model
     protected $fillable = [
         'id',
         'circle_id',
+        'district_id',
+        'industry_id',
         'submitted_by_user_id',
+        'submitter_role',
         'report_type',
         'period',
         'attendance_percentage',
         'deals_closed_value',
+        'total_revenue',
         'deals_amount',
         'content',
         'summary_text',
+        'highlights',
+        'challenges_faced',
         'action_items',
+        'included_sections',
+        'peers_roster',
         'status',
         'reviewed_by_user_id',
         'reviewed_at',
@@ -43,6 +51,8 @@ class LeaderReport extends Model
     protected $casts = [
         'attendance_percentage' => 'float',
         'deals_amount' => 'float',
+        'included_sections' => 'array',
+        'peers_roster' => 'array',
         'reviewed_at' => 'datetime',
     ];
 
@@ -58,6 +68,11 @@ class LeaderReport extends Model
     public function circle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'circle_id');
+    }
+
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class, 'district_id');
     }
 
     public function submitter(): BelongsTo

@@ -65,6 +65,20 @@ class LeaderTeamsController extends Controller
     }
 
     /**
+     * Get peers belonging to a specific circle.
+     */
+    public function circlePeers(string $circleId, Request $request): JsonResponse
+    {
+        $status = $request->query('status') ? (string) $request->query('status') : null;
+        $sort = $request->query('sort') ? (string) $request->query('sort') : null;
+        $search = $request->query('search') ? (string) $request->query('search') : null;
+
+        $data = $this->teamsService->getCirclePeers($circleId, $status, $sort, $search, $request->user());
+
+        return response()->json($data);
+    }
+
+    /**
      * Get circle detailed view.
      */
     public function showCircle(string $id): JsonResponse

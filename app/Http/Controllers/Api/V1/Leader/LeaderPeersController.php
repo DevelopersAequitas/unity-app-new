@@ -19,7 +19,7 @@ class LeaderPeersController extends Controller
     ) {}
 
     /**
-     * List peers with filters & sorting scoped to circle or district.
+     * List peers with filters & sorting scoped to circle or district with pagination.
      */
     public function index(Request $request): JsonResponse
     {
@@ -28,12 +28,25 @@ class LeaderPeersController extends Controller
         $sort = $request->query('sort') ? (string) $request->query('sort') : null;
         $search = $request->query('search') ? (string) $request->query('search') : null;
         $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
 
-        $data = $this->peersService->listPeers($circleId, $status, $sort, $search, $districtId, $request->user());
+        $result = $this->peersService->listPeers(
+            circleId: $circleId,
+            status: $status,
+            sort: $sort,
+            search: $search,
+            districtId: $districtId,
+            user: $request->user(),
+            page: $page,
+            perPage: $perPage,
+        );
 
         return response()->json([
             'success' => true,
-            'data' => $data,
+            'message' => 'Peers retrieved successfully.',
+            'meta' => $result['meta'],
+            'data' => $result['data'],
         ]);
     }
 
@@ -54,7 +67,7 @@ class LeaderPeersController extends Controller
     }
 
     /**
-     * Get detailed peer profile.
+     * Get detailed rich peer profile.
      */
     public function show(string $id): JsonResponse
     {
@@ -62,6 +75,7 @@ class LeaderPeersController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Peer profile details retrieved successfully.',
             'data' => $data,
         ]);
     }
