@@ -662,16 +662,57 @@ class LeaderTeamsService
     }
 
     /**
-     * Get list of circles with live calculated metrics and complete leadership.
+     * Resolve the primary category name for a circle from categories relation, mapping, or circleCategory.
+     */
+    public function resolveCircleCategory(Circle $circle): string
+    {
+        // 1. Check circle->categories BelongsToMany relation
+        $firstCategory = $circle->relationLoaded('categories') ? $circle->categories->first() : $circle->categories()->first();
+        if ($firstCategory) {
+            $catName = trim((string) ($firstCategory->name ?? $firstCategory->category_name ?? ''));
+            if ($catName !== '') {
+                return $catName;
+            }
+        }
+
+        // 2. Check circleCategory BelongsTo relation
+        if ($circle->circleCategory) {
+            $catName = trim((string) ($circle->circleCategory->name ?? $circle->circleCategory->category_name ?? ''));
+            if ($catName !== '') {
+                return $catName;
+            }
+        }
+
+        // 3. Check circle_category_mappings table directly
+        if ($circle->id) {
+            $mappedCat = DB::table('circle_category_mappings')
+                ->join('circle_categories', 'circle_category_mappings.category_id', '=', 'circle_categories.id')
+                ->where('circle_category_mappings.circle_id', $circle->id)
+                ->select('circle_categories.name', 'circle_categories.category_name')
+                ->first();
+
+            if ($mappedCat) {
+                $catName = trim((string) ($mappedCat->name ?? $mappedCat->category_name ?? ''));
+                if ($catName !== '') {
+                    return $catName;
+                }
+            }
+        }
+
+        return 'Technology, IT & Digital Services Circles';
+    }
+
+    /**
+     * Get circles directory list with leadership arrays and real calculated metrics.
      *
      * @return array<int, array<string, mixed>>
      */
     public function getCirclesList(
+        ?string $districtId = null,
+        ?string $search = null,
         ?string $industry = null,
         ?string $status = null,
-        ?string $search = null,
-        ?string $districtId = null,
-        ?User $user = null,
+        ?User $user = null
     ): array {
         $query = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($query, $districtId, $user);
@@ -696,7 +737,7 @@ class LeaderTeamsService
             $query->where('status', strtolower($status));
         }
 
-        $circles = $query->with(['city', 'chairUser', 'founderUser', 'director', 'members'])->orderBy('name')->take(50)->get();
+        $circles = $query->with(['city', 'chairUser', 'founderUser', 'director', 'members', 'categories', 'circleCategory'])->orderBy('name')->take(50)->get();
 
         return $circles->map(function (Circle $c): array {
             $peersCount = CircleMember::query()
@@ -710,7 +751,7 @@ class LeaderTeamsService
                 $tags = ['Technology', 'Ahmedabad', 'B2B SaaS'];
             }
 
-            $categoryName = ! empty($tags) ? (string) $tags[0] : ($c->circleCategory?->name ?? 'Technology & Innovation');
+            $categoryName = $this->resolveCircleCategory($c);
             $location = (string) ($c->city?->name ?? $c->location ?? 'Ahmedabad');
 
             $healthPercentage = $peersCount > 0 ? (int) ($c->health_score ?: 92) : 0;
@@ -742,7 +783,7 @@ class LeaderTeamsService
      */
     public function getCircleDetails(string $circleId): ?array
     {
-        $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'founderUser', 'director', 'members.user'])->first();
+        $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'founderUser', 'director', 'members.user', 'categories', 'circleCategory'])->first();
 
         if (! $circle) {
             return null;
@@ -759,7 +800,7 @@ class LeaderTeamsService
             $tags = ['Technology', 'Cloud Infra', 'FinTech'];
         }
 
-        $categoryName = ! empty($tags) ? (string) $tags[0] : ($circle->circleCategory?->name ?? 'Technology & Innovation');
+        $categoryName = $this->resolveCircleCategory($circle);
         $location = (string) ($circle->city?->name ?? $circle->location ?? 'Ahmedabad');
 
         $healthPercentage = $peersCount > 0 ? (int) ($circle->health_score ?: 92) : 0;
@@ -790,7 +831,13 @@ class LeaderTeamsService
      */
     public function getSubIndustries(string $circleId): array
     {
-        $circle = Circle::query()->where('id', $circleId)->first();
+        $circle = Circle::query()->where('id', $circleId)->with(['city', 'circleCategory', 'categories'])->first();
+        $circleName = $circle ? (string) $circle->name : 'Ahmedabad Business Circle';
+
+        $tags = is_array($circle?->industry_tags) ? $circle->industry_tags : (is_string($circle?->industry_tags) ? json_decode($circle?->industry_tags, true) : []);
+        $categoryName = $circle ? $this->resolveCircleCategory($circle) : 'Technology, IT & Digital Services Circles';
+        $location = (string) ($circle?->city?->name ?? $circle?->location ?? 'Ahmedabad');
+        $status = (string) ucfirst((string) ($circle?->status ?: 'Active'));
 
         // 1. Get circle member users and their business categories
         $memberUsers = User::query()
@@ -849,6 +896,12 @@ class LeaderTeamsService
 
         return [
             'circle_id' => $circleId,
+            'circle_name' => $circleName,
+            'category_name' => $categoryName,
+            'category' => $categoryName,
+            'location' => $location,
+            'status' => $status,
+            'peers_count' => $memberUsers->count(),
             'active_sub_industries' => $activeSubIndustries,
             'open_sub_industries' => $openSubIndustries,
         ];
