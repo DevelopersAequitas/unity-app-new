@@ -43,10 +43,15 @@ class LeaderRoleMatrixService
             $enabled = $this->permissionService->getEnabledCapabilitiesForRole($roleKey);
 
             $rolesList[] = [
+                'role' => [
+                    'id' => $roleKey,
+                    'label' => $roleLabel,
+                    'is_system_role' => true,
+                ],
                 'id' => $roleKey,
                 'label' => $roleLabel,
                 'is_system_role' => true,
-                'enabled_capabilities' => $enabled,
+                'enabled_capabilities' => array_values($enabled),
             ];
         }
 
@@ -60,11 +65,17 @@ class LeaderRoleMatrixService
             $enabled = $this->permissionService->getEnabledCapabilitiesForRole($key);
 
             $rolesList[] = [
+                'role' => [
+                    'id' => (string) $cr->id,
+                    'role_key' => $key,
+                    'label' => (string) $cr->name,
+                    'is_system_role' => false,
+                ],
                 'id' => (string) $cr->id,
                 'role_key' => $key,
                 'label' => (string) $cr->name,
                 'is_system_role' => false,
-                'enabled_capabilities' => $enabled,
+                'enabled_capabilities' => array_values($enabled),
             ];
         }
 

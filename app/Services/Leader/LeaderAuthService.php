@@ -165,6 +165,8 @@ class LeaderAuthService
         $memberSince = $user->created_at ? $user->created_at->format('M Y') : 'Jan 2023';
         $avatarUrl = $user->profile_photo_url ?? $user->avatar_url ?? 'https://cdn.peersglobal.in/avatars/default.png';
 
+        $managedCircleNames = array_map(fn ($c) => is_array($c) ? ($c['name'] ?? '') : (string) $c, $managedCircles);
+
         return [
             'auth_token' => $token,
             'refresh_token' => $refreshToken,
@@ -178,11 +180,57 @@ class LeaderAuthService
                 'role' => $role,
                 'custom_role_label' => $customRoleLabel,
                 'regional_scope' => $regionalScope,
+                'managed_circles' => $managedCircleNames,
                 'member_since' => $memberSince,
+                'capabilities_count' => count($permissions['enabled_capabilities'] ?? []),
                 'avatar_url' => $avatarUrl,
-                'managed_circles' => $managedCircles,
             ],
             'permissions' => $permissions,
+        ];
+    }
+
+    /**
+     * Get user profile details along with active dynamic capabilities.
+     *
+     * @return array<string, mixed>
+     */
+    public function getProfile(User $user): array
+    {
+        $roleInfo = $this->permissionService->resolveUserRole($user);
+        $role = $roleInfo['role'];
+        $customRoleLabel = $roleInfo['custom_role_label'];
+        $regionalScope = $roleInfo['regional_scope'];
+
+        $managedCircles = $this->permissionService->resolveManagedCircles($user, $role);
+        $permissions = $this->permissionService->resolvePermissionMatrix($role);
+
+        $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if ($name === '') {
+            $name = $user->display_name ?? 'Leader Peer';
+        }
+
+        $memberSince = $user->created_at ? $user->created_at->format('M Y') : 'Jan 2023';
+        $avatarUrl = $user->profile_photo_url ?? $user->avatar_url ?? 'https://cdn.peersglobal.in/avatars/default.png';
+
+        $managedCircleNames = array_map(fn ($c) => is_array($c) ? ($c['name'] ?? '') : (string) $c, $managedCircles);
+
+        return [
+            'user' => [
+                'id' => (string) $user->id,
+                'name' => $name,
+                'email' => (string) ($user->email ?? ''),
+                'phone' => (string) ($user->phone ?? '+919876543210'),
+                'role' => $role,
+                'custom_role_label' => $customRoleLabel,
+                'regional_scope' => $regionalScope,
+                'managed_circles' => $managedCircleNames,
+                'member_since' => $memberSince,
+                'capabilities_count' => count($permissions['enabled_capabilities'] ?? []),
+                'avatar_url' => $avatarUrl,
+            ],
+            'permissions' => [
+                'enabled_capabilities' => $permissions['enabled_capabilities'] ?? [],
+            ],
         ];
     }
 

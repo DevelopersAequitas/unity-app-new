@@ -12,6 +12,7 @@ use App\Http\Requests\Leader\LeaderVerifyOtpRequest;
 use App\Models\User;
 use App\Services\Leader\LeaderAuthService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Throwable;
 
 class LeaderAuthController extends Controller
@@ -88,6 +89,21 @@ class LeaderAuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Avatar updated successfully.',
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Get user profile details with current role, managed circles, and dynamic capabilities.
+     */
+    public function profile(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $this->authService->getProfile($user);
+
+        return response()->json([
+            'success' => true,
             'data' => $data,
         ]);
     }

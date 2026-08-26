@@ -61,39 +61,39 @@ class LeaderPermissionService
             ],
             [
                 'id' => 'request_actions',
-                'name' => 'Endorse Testimonials & Referrals',
+                'name' => 'Request Introductions & Actions',
                 'category' => 'Core Operations',
-                'description' => 'Allows creating and endorsing peer testimonials and registering new referrals.',
+                'description' => 'Allows sending wishes, introductions, and review peer approvals.',
             ],
             [
                 'id' => 'view_reports',
-                'name' => 'View Performance Reports',
-                'category' => 'Core Operations',
-                'description' => 'Allows accessing downloadable PDFs and spreadsheets of peer activities.',
+                'name' => 'View & Submit Weekly Reports',
+                'category' => 'Compliance & Growth',
+                'description' => 'Allows viewing, submitting, and tracking weekly circle reports.',
             ],
             [
                 'id' => 'manage_finance',
-                'name' => 'Modify Financial Settings',
-                'category' => 'Financial Control',
-                'description' => 'Allows modifying annual fees, approval of dues, and updating ledger settings.',
+                'name' => 'Manage Financial Settings',
+                'category' => 'Finance Control',
+                'description' => 'Allows setting fee structures, tracking dues, and refunding.',
             ],
             [
                 'id' => 'coin_payouts',
-                'name' => 'Issue Coin Payouts',
-                'category' => 'Financial Control',
-                'description' => 'Allows awarding platform coins directly to peers for special achievements.',
+                'name' => 'Process Coin Payouts',
+                'category' => 'Finance Control',
+                'description' => 'Allows executing coin reward payouts to leaders and founders.',
             ],
             [
                 'id' => 'manage_roles',
-                'name' => 'Manage App Roles (Matrix)',
+                'name' => 'Manage Roles & Matrix',
                 'category' => 'Administration',
-                'description' => 'Allows altering permission rules and toggling capabilities per role.',
+                'description' => 'Grants access to the Super Admin Role Matrix and privileges.',
             ],
             [
                 'id' => 'system_configs',
-                'name' => 'System Global Settings',
+                'name' => 'Configure System Parameters',
                 'category' => 'Administration',
-                'description' => 'Allows modifying global server variables, maintenance modes, and metadata keys.',
+                'description' => 'Manage system-wide categories, tags, and launch configurations.',
             ],
         ];
     }
@@ -479,6 +479,7 @@ class LeaderPermissionService
         $hasCap = fn (string $cap): bool => in_array($cap, $enabledCapabilities, true);
 
         return [
+            'enabled_capabilities' => array_values($enabledCapabilities),
             'can_access_dashboard' => $hasCap('access_dashboard'),
             'can_view_overall_revenue' => $hasCap('access_finance'),
             'can_review_pending_peers' => $hasCap('access_teams') || in_array($role, ['circleChair', 'circleFounder', 'circleDirector', 'districtExecDirector'], true),
