@@ -141,7 +141,12 @@ class LeaderTeamsService
         // Fetch all circles in scope for fast in-memory association
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         if ($resolvedDistrictId) {
-            $circlesQuery->where('district_id', $resolvedDistrictId);
+            $circlesQuery->where(function (Builder $q) use ($resolvedDistrictId): void {
+                $q->where('district_id', $resolvedDistrictId);
+                if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                    $q->orWhereHas('city', fn ($cq) => $cq->where('district_id', $resolvedDistrictId));
+                }
+            });
         }
         $circles = $circlesQuery->with(['members'])->get();
 
@@ -250,13 +255,23 @@ class LeaderTeamsService
 
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         if ($resolvedDistrictId) {
-            $circlesQuery->where('district_id', $resolvedDistrictId);
+            $circlesQuery->where(function (Builder $q) use ($resolvedDistrictId): void {
+                $q->where('district_id', $resolvedDistrictId);
+                if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                    $q->orWhereHas('city', fn ($cq) => $cq->where('district_id', $resolvedDistrictId));
+                }
+            });
         }
         $totalCircles = $circlesQuery->count();
 
         $peersQuery = CircleMember::query()->whereNull('deleted_at');
         if ($resolvedDistrictId) {
-            $peersQuery->whereHas('circle', fn (Builder $q) => $q->where('district_id', $resolvedDistrictId));
+            $peersQuery->whereHas('circle', function (Builder $q) use ($resolvedDistrictId): void {
+                $q->where('district_id', $resolvedDistrictId);
+                if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                    $q->orWhereHas('city', fn ($cq) => $cq->where('district_id', $resolvedDistrictId));
+                }
+            });
         }
         $totalPeers = $peersQuery->count();
 
@@ -280,17 +295,24 @@ class LeaderTeamsService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
+        $resolvedDistrictId = $this->resolveDedDistrictId($districtId, $user);
+
         $admin = null;
-        if ($user) {
+        if ($user && Schema::hasTable('admin_users')) {
             $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
         }
 
         $query = Circle::query()->whereNull('deleted_at');
 
-        if ($admin && AdminAccess::isDed($admin)) {
+        if ($resolvedDistrictId) {
+            $query->where(function (Builder $q) use ($resolvedDistrictId): void {
+                $q->where('district_id', $resolvedDistrictId);
+                if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                    $q->orWhereHas('city', fn ($cq) => $cq->where('district_id', $resolvedDistrictId));
+                }
+            });
+        } elseif ($admin && AdminAccess::isDed($admin)) {
             AdminCircleScope::applyToCirclesQuery($query, $admin);
-        } elseif ($resolvedDistrictId) {
-            $query->where('district_id', $resolvedDistrictId);
         }
 
         if ($search) {
