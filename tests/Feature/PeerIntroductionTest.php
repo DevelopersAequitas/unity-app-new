@@ -8,6 +8,7 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\IntroductionImageGenerator;
 use App\Services\MilestoneBadgeService;
 use App\Services\Users\PeerIntroductionService;
 use Illuminate\Database\Schema\Blueprint;
@@ -287,7 +288,7 @@ class PeerIntroductionTest extends TestCase
 
     public function test_introduction_image_generator_resolves_company_and_category(): void
     {
-        $generator = app(\App\Services\Creative\IntroductionImageGenerator::class);
+        $generator = app(IntroductionImageGenerator::class);
 
         $user1 = new User([
             'first_name' => 'Azhar',
