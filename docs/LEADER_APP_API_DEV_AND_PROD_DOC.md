@@ -746,7 +746,7 @@ The backend automatically resolves the user's role and returns the 21 permission
   "success": true,
   "data": [
     {
-      "id": "notif_01",
+      "id": "b3b9b47e-8c43-4e89-8d4e-03cb63065a7d",
       "title": "New Referral Received",
       "message": "You received a new lead from Ananya Roy.",
       "category": "referral",
@@ -759,10 +759,13 @@ The backend automatically resolves the user's role and returns the 21 permission
 
 #### 21. Mark Notifications As Read
 - **Route:** `POST /api/v1/notifications/mark-read`
-- **Request Payload:**
+- **Method:** `POST`
+- **Auth:** `Bearer <TOKEN>`
+- **Description:** Mark notifications as read.
+- **Request Body:**
 ```json
 {
-  "notification_ids": ["notif_01"]
+  "notification_ids": ["b3b9b47e-8c43-4e89-8d4e-03cb63065a7d"]
 }
 ```
 *(Pass `["all"]` to mark all notifications as read)*

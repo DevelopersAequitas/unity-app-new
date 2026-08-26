@@ -1087,7 +1087,7 @@ When a user logs in, the backend computes their role and returns their customize
   "success": true,
   "data": [
     {
-      "id": "notif_01",
+      "id": "b3b9b47e-8c43-4e89-8d4e-03cb63065a7d",
       "title": "New Referral Received",
       "message": "You received a new lead from Ananya Roy.",
       "category": "referral",
@@ -1107,10 +1107,10 @@ When a user logs in, the backend computes their role and returns their customize
 #### Request Body:
 ```json
 {
-  "notification_ids": ["notif_01"]
+  "notification_ids": ["b3b9b47e-8c43-4e89-8d4e-03cb63065a7d"]
 }
 ```
-*(Pass `["all"]` to mark all notifications as read)*
+*(Or pass `["all"]` to mark all notifications as read)*
 
 #### Response (`200 OK`):
 ```json

@@ -733,7 +733,7 @@ This document serves as the comprehensive technical contract between the Flutter
   "success": true,
   "data": [
     {
-      "id": "notif_01",
+      "id": "b3b9b47e-8c43-4e89-8d4e-03cb63065a7d",
       "title": "New Referral Received",
       "message": "You received a new lead from Ananya Roy.",
       "category": "referral",
@@ -745,10 +745,11 @@ This document serves as the comprehensive technical contract between the Flutter
 ```
 
 #### POST `/api/v1/notifications/mark-read`
-- **Request Payload:**
+Mark one, multiple, or all notifications as read for current user.
+- **Request Body:**
 ```json
 {
-  "notification_ids": ["notif_01"] // or ["all"]
+  "notification_ids": ["b3b9b47e-8c43-4e89-8d4e-03cb63065a7d"] // or ["all"]
 }
 ```
 

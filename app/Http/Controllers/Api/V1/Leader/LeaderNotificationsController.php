@@ -9,6 +9,7 @@ use App\Http\Requests\Leader\LeaderMarkNotificationReadRequest;
 use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class LeaderNotificationsController extends Controller
 {
@@ -41,7 +42,7 @@ class LeaderNotificationsController extends Controller
         if (empty($notifications)) {
             $notifications = [
                 [
-                    'id' => 'notif_01',
+                    'id' => '00000000-0000-0000-0000-000000000001',
                     'title' => 'New Referral Received',
                     'message' => 'You received a new lead from Ananya Roy.',
                     'category' => 'referral',
@@ -49,7 +50,7 @@ class LeaderNotificationsController extends Controller
                     'created_at' => '2026-08-25T08:30:00Z',
                 ],
                 [
-                    'id' => 'notif_02',
+                    'id' => '00000000-0000-0000-0000-000000000002',
                     'title' => 'Monthly Report Reminder',
                     'message' => 'August monthly report submission window is now open.',
                     'category' => 'report',
@@ -75,9 +76,24 @@ class LeaderNotificationsController extends Controller
 
         if ($user && is_array($ids)) {
             if (in_array('all', $ids, true)) {
-                Notification::query()->where('user_id', $user->id)->update(['is_read' => true]);
+                Notification::query()
+                    ->where('user_id', $user->id)
+                    ->update([
+                        'is_read' => true,
+                        'read_at' => now(),
+                    ]);
             } else {
-                Notification::query()->where('user_id', $user->id)->whereIn('id', $ids)->update(['is_read' => true]);
+                $validUuids = array_values(array_filter($ids, fn ($id) => is_string($id) && Str::isUuid($id)));
+
+                if (! empty($validUuids)) {
+                    Notification::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('id', $validUuids)
+                        ->update([
+                            'is_read' => true,
+                            'read_at' => now(),
+                        ]);
+                }
             }
         }
 
