@@ -13,6 +13,8 @@ class WhatsappNotificationService
 {
     public static ?array $lastResponse = null;
 
+    public static ?string $lastError = null;
+
     /**
      * Send a WhatsApp notification using a database-driven template.
      *
@@ -22,12 +24,16 @@ class WhatsappNotificationService
      */
     public function send(string $templateKey, string $phone, array $payload = []): bool
     {
+        self::$lastError = null;
+        self::$lastResponse = null;
+
         try {
             $template = WhatsappTemplate::query()
                 ->where('template_key', $templateKey)
                 ->first();
 
             if (! $template) {
+                self::$lastError = "Template key not found in database: {$templateKey}";
                 Log::warning('WhatsApp notification skipped: Template key not found in database.', [
                     'template_key' => $templateKey,
                 ]);
@@ -36,6 +42,7 @@ class WhatsappNotificationService
             }
 
             if (! $template->is_active) {
+                self::$lastError = "Template is inactive: {$templateKey}";
                 Log::info('WhatsApp notification skipped: Template is inactive.', [
                     'template_key' => $templateKey,
                 ]);
@@ -47,6 +54,7 @@ class WhatsappNotificationService
             $webhookSecret = trim((string) $template->webhook_secret);
 
             if ($webhookUrl === '') {
+                self::$lastError = "Webhook URL is empty for template key: {$templateKey}";
                 Log::error('WhatsApp notification failed: Webhook URL is empty.', [
                     'template_key' => $templateKey,
                 ]);
@@ -56,6 +64,7 @@ class WhatsappNotificationService
 
             $normalizedPhone = static::normalizePhone($phone);
             if ($normalizedPhone === '') {
+                self::$lastError = "Invalid phone number format: {$phone}";
                 Log::error('WhatsApp notification failed: Invalid phone number format.', [
                     'template_key' => $templateKey,
                     'phone' => $phone,
@@ -91,6 +100,7 @@ class WhatsappNotificationService
 
                 if (is_array($responseData)) {
                     if (isset($responseData['success']) && $responseData['success'] === false) {
+                        self::$lastError = 'FlexiMsg API success=false: '.($responseData['error_message'] ?? 'Unknown Error');
                         Log::error('WhatsApp notification failed: API response indicated success=false.', [
                             'template_key' => $templateKey,
                             'webhook_url' => $webhookUrl,
@@ -104,6 +114,7 @@ class WhatsappNotificationService
                     // FlexiMSG: check if the async WhatsApp trigger failed
                     if (isset($responseData['whatsapp_triggered']) && $responseData['whatsapp_triggered'] === false) {
                         $errorMsg = $responseData['error_message'] ?? '(no error_message returned by FlexiMSG)';
+                        self::$lastError = "FlexiMsg whatsapp_triggered=false. Error: {$errorMsg}";
                         Log::error('WhatsApp notification failed: FlexiMSG whatsapp_triggered=false. Header image variable is likely not mapped in the FlexiMSG template configuration.', [
                             'template_key' => $templateKey,
                             'webhook_url' => $webhookUrl,
@@ -120,6 +131,7 @@ class WhatsappNotificationService
 
                     // FlexiMSG: check if processing status is failed
                     if (isset($responseData['processing_status']) && in_array(strtolower((string) $responseData['processing_status']), ['failed', 'error', 'failure'], true)) {
+                        self::$lastError = 'FlexiMsg processing_status failure: '.($responseData['processing_status']);
                         Log::error('WhatsApp notification failed: FlexiMSG processing_status indicates failure.', [
                             'template_key' => $templateKey,
                             'webhook_url' => $webhookUrl,
@@ -133,6 +145,7 @@ class WhatsappNotificationService
                     }
 
                     if (isset($responseData['status']) && in_array(strtolower((string) $responseData['status']), ['error', 'failed', 'failure'], true)) {
+                        self::$lastError = 'FlexiMsg status error: '.($responseData['status']);
                         Log::error('WhatsApp notification failed: API response status is error.', [
                             'template_key' => $templateKey,
                             'webhook_url' => $webhookUrl,
@@ -167,6 +180,19 @@ class WhatsappNotificationService
                 return true;
             }
 
+            // Capture HTTP non-2xx failure details safely (mask authorization/webhook secrets)
+            $maskedHeaders = collect($response->headers())
+                ->except(['X-Webhook-Secret', 'Authorization', 'x-webhook-secret', 'authorization'])
+                ->toArray();
+
+            self::$lastError = 'FlexiMsg HTTP Non-2xx response: '.json_encode([
+                'status_code' => $response->status(),
+                'response_body' => $response->body(),
+                'request_url' => $webhookUrl,
+                'request_payload_keys' => array_keys($body),
+                'request_headers' => $maskedHeaders,
+            ], JSON_UNESCAPED_SLASHES);
+
             Log::error('WhatsApp notification failed HTTP response check.', [
                 'template_key' => $templateKey,
                 'webhook_url' => $webhookUrl,
@@ -177,6 +203,7 @@ class WhatsappNotificationService
 
             return false;
         } catch (Throwable $exception) {
+            self::$lastError = 'Exception: '.$exception->getMessage();
             Log::error('WhatsApp notification threw an exception.', [
                 'template_key' => $templateKey,
                 'error' => $exception->getMessage(),
