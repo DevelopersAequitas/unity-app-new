@@ -48,25 +48,7 @@ class LeaderReportsService
         $reports = $query->skip(($page - 1) * $perPage)->take($perPage)->get();
 
         if ($reports->isEmpty()) {
-            return [
-                [
-                    'id' => 'rep_101',
-                    'circle_id' => $circleId ?? 'd06173c0-368c-4bfd-b682-e07e67fdb320',
-                    'circle_name' => 'Mumbai Tech Sunrise',
-                    'report_type' => 'Monthly',
-                    'period' => 'August 2026',
-                    'submitted_by' => 'Arjun Patel',
-                    'submitter_role' => 'Circle Chair',
-                    'submitted_at' => '2026-08-25T10:00:00Z',
-                    'status' => 'Approved',
-                    'attendance_percentage' => 94.0,
-                    'deals_closed_value' => '₹18.5L',
-                    'total_revenue' => '₹24.0L',
-                    'summary_text' => 'Strong monthly participation with 4 new peer referrals closed.',
-                    'action_items' => 'Follow up with 3 pending members for fee renewal.',
-                    'peers_roster' => $this->buildFallbackPeersRoster(),
-                ],
-            ];
+            return [];
         }
 
         return $reports->map(function (LeaderReport $r): array {

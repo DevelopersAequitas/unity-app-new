@@ -91,53 +91,55 @@ class LeaderPeersService
             return ! empty($circleIds) ? $circleIds : [];
         }
 
-        if (in_array($role, ['circleFounder', 'circleDirector'], true)) {
-            return Circle::query()
-                ->where('circle_founder_user_id', $userId)
-                ->orWhere('founder_user_id', $userId)
-                ->orWhere('circle_director_user_id', $userId)
-                ->orWhere('director_user_id', $userId)
-                ->pluck('id')
-                ->all();
-        }
+        // For circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, or any own-circle leader
+        $circleIds = [];
 
-        if (in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair'], true)) {
-            $assignedCircleIds = Circle::query()
-                ->where('chair_user_id', $userId)
-                ->pluck('id')
-                ->all();
+        // 1. Direct column associations on circles table
+        $directCircleIds = Circle::query()
+            ->where('circle_founder_user_id', $userId)
+            ->orWhere('founder_user_id', $userId)
+            ->orWhere('circle_director_user_id', $userId)
+            ->orWhere('director_user_id', $userId)
+            ->orWhere('chair_user_id', $userId)
+            ->orWhere('vice_chair_user_id', $userId)
+            ->pluck('id')
+            ->all();
+        $circleIds = array_merge($circleIds, $directCircleIds);
 
-            if (empty($assignedCircleIds)) {
-                $assignedCircleIds = DB::table('circle_members')
-                    ->where('user_id', $userId)
-                    ->whereIn('role', [
-                        'chair', 'circle_chair', 'vice_chair',
-                        'business_growth_committee_chair', 'membership_growth_committee_chair', 'events_impacts_committee_chair',
-                        'chair_business_growth', 'chair_membership', 'chair_events_programs',
-                    ])
-                    ->whereNull('deleted_at')
-                    ->pluck('circle_id')
-                    ->all();
-            }
-
-            if (empty($assignedCircleIds) && ! empty($user->active_circle_id)) {
-                $assignedCircleIds = [(string) $user->active_circle_id];
-            }
-
-            return $assignedCircleIds;
-        }
-
-        $membershipCircleIds = DB::table('circle_members')
+        // 2. circle_members table roles and memberships
+        $memberCircleIds = DB::table('circle_members')
             ->where('user_id', $userId)
             ->whereNull('deleted_at')
             ->pluck('circle_id')
             ->all();
+        $circleIds = array_merge($circleIds, $memberCircleIds);
 
-        if (empty($membershipCircleIds) && ! empty($user->active_circle_id)) {
-            $membershipCircleIds = [(string) $user->active_circle_id];
+        // 3. User's active circle
+        if (! empty($user->active_circle_id)) {
+            $circleIds[] = (string) $user->active_circle_id;
         }
 
-        return $membershipCircleIds;
+        // 4. Calendar leadership JSON checks
+        $calendarCircles = Circle::query()->whereNull('deleted_at')->get();
+        foreach ($calendarCircles as $c) {
+            $leaders = [
+                data_get($c->calendar, 'leadership.circle_founder_user_id'),
+                data_get($c->calendar, 'leadership.founder_user_id'),
+                data_get($c->calendar, 'leadership.circle_director_user_id'),
+                data_get($c->calendar, 'leadership.director_user_id'),
+                data_get($c->calendar, 'leadership.chair_user_id'),
+                data_get($c->calendar, 'leadership.business_growth_committee_chair_user_id'),
+                data_get($c->calendar, 'leadership.membership_growth_committee_chair_user_id'),
+                data_get($c->calendar, 'leadership.events_impacts_committee_chair_user_id'),
+            ];
+            foreach ($leaders as $lId) {
+                if ($lId && (string) $lId === $userId) {
+                    $circleIds[] = (string) $c->id;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($circleIds)));
     }
 
     /**
@@ -249,8 +251,8 @@ class LeaderPeersService
             $name = (string) ($u->display_name ?? 'Peer Member');
         }
 
-        $circleName = $defaultCircleName ?? 'Mumbai Tech Sunrise';
-        $circleId = $defaultCircleId ?? (string) ($u->active_circle_id ?? 'd06173c0-368c-4bfd-b682-e07e67fdb320');
+        $circleName = $defaultCircleName ?? '';
+        $circleId = $defaultCircleId ?? (string) ($u->active_circle_id ?? '');
 
         if ($u->circleMembers && $u->circleMembers->isNotEmpty()) {
             $c = $u->circleMembers->first()?->circle;
@@ -263,9 +265,9 @@ class LeaderPeersService
             $circleId = (string) $u->activeCircle->id;
         }
 
-        $location = (string) ($u->city ?? $u->city_of_residence ?? 'Mumbai');
-        $designation = (string) ($u->designation ?? 'Founder & CEO');
-        $company = (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics Pvt Ltd');
+        $location = (string) ($u->city ?? $u->city_of_residence ?? 'Ahmedabad');
+        $designation = (string) ($u->designation ?? $u->job_title ?? 'Founder & CEO');
+        $company = (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics');
 
         $industry = (string) ($u->industry ?? $u->businessCategory?->name ?? 'Technology');
         $level4 = (string) ($u->level4Category?->name ?? $u->business_sub_category ?? 'FinTech SaaS');
@@ -273,7 +275,7 @@ class LeaderPeersService
         if (is_array($u->industry_tags) && ! empty($u->industry_tags)) {
             $tags = implode(' · ', array_slice($u->industry_tags, 0, 3));
         } else {
-            $tags = "{$industry} · Series A · B2B SaaS";
+            $tags = "{$industry} · {$level4}";
         }
 
         $status = match (strtolower((string) ($u->status ?? 'active'))) {
@@ -284,15 +286,21 @@ class LeaderPeersService
             default => 'Active',
         };
 
-        $impact = (int) ($u->life_impacted_count ?? $u->impact_count ?? 48);
-        if ($impact === 0) {
-            $impact = 48;
-        }
+        $impact = (int) ($u->life_impacted_count ?? $u->impact_count ?? 0);
+        $coins = (int) ($u->coins_balance ?? 0);
 
-        $coins = (int) ($u->coins_balance ?? 1240);
-        if ($coins === 0) {
-            $coins = 1240;
-        }
+        // Dynamically compute deals
+        $dealsSum = (float) DB::table('business_deals')
+            ->where(function ($q) use ($u): void {
+                $q->where('from_user_id', $u->id)
+                    ->orWhere('to_user_id', $u->id);
+            })
+            ->whereNull('deleted_at')
+            ->sum('deal_amount');
+
+        $dealsFormatted = $dealsSum >= 10000000
+            ? '₹'.round($dealsSum / 10000000, 2).'Cr'
+            : ($dealsSum >= 100000 ? '₹'.round($dealsSum / 100000, 1).'L' : '₹'.number_format($dealsSum, 0));
 
         $avatarUrl = $u->profile_photo_url ?? $u->avatar_url ?? null;
         $introVideo = $u->intro_video_url ?? ($u->profile_video_id ? url('api/v1/files/'.$u->profile_video_id) : null);
@@ -311,11 +319,11 @@ class LeaderPeersService
             'tags' => $tags,
             'status' => $status,
             'impact_count' => $impact,
-            'deals_formatted' => '₹32.5L',
+            'deals_formatted' => $dealsFormatted,
             'coins' => $coins,
             'attendance' => '94%',
-            'phone' => (string) ($u->phone ?? '+919876543210'),
-            'email' => (string) ($u->email ?? 'siddharth@apexdynamics.in'),
+            'phone' => (string) ($u->phone ?? $u->secondary_mobile ?? ''),
+            'email' => (string) ($u->email ?? ''),
             'is_verified' => (bool) ($u->is_verified ?? true),
             'intro_video_url' => $introVideo,
         ];
@@ -331,56 +339,7 @@ class LeaderPeersService
         $user = User::query()->where('id', $peerId)->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])->first();
 
         if (! $user) {
-            return [
-                'id' => $peerId,
-                'name' => 'Siddharth Verma',
-                'avatar_url' => 'https://peersunity.com/storage/avatars/siddharth.png',
-                'designation' => 'Founder & CEO',
-                'company' => 'Apex Dynamics Pvt Ltd',
-                'circle' => 'Mumbai Tech Sunrise',
-                'circle_id' => 'd06173c0-368c-4bfd-b682-e07e67fdb320',
-                'location' => 'Mumbai, Maharashtra, India',
-                'industry' => 'Technology',
-                'level4_category' => 'FinTech SaaS',
-                'sub_industry' => 'FinTech Enterprise Solutions',
-                'status' => 'Active',
-                'is_verified' => true,
-                'intro_video_url' => 'https://peersunity.com/storage/videos/siddharth_intro.mp4',
-                'bio' => 'Building scalable cloud infrastructure and enterprise FinTech platforms. Passionate about empowering MSMEs with automated payment reconciliation.',
-                'birthday' => '25 August',
-                'anniversary' => '12 November',
-                'joined_date' => '15 January 2024',
-                'contact' => [
-                    'email' => 'siddharth@apexdynamics.in',
-                    'phone' => '+919876543210',
-                    'linkedin' => 'https://linkedin.com/in/siddharthverma',
-                    'whatsapp' => '+919876543210',
-                ],
-                'metrics' => [
-                    'impact' => 48,
-                    'impact_count' => 48,
-                    'deals_given' => '₹32.5L',
-                    'deals_received' => '₹45.0L',
-                    'deals_closed' => '₹77.5L',
-                    'attendance_percentage' => '94%',
-                    'attendance_rate' => '94%',
-                    'p2p_meetings' => 24,
-                    'p2p_sessions' => 24,
-                    'referrals_given' => 18,
-                    'referrals_received' => 12,
-                    'coins' => 1240,
-                    'coins_earned' => 1240,
-                ],
-                'tags' => [
-                    'FinTech',
-                    'Series A',
-                    'B2B SaaS',
-                    'Cloud Architecture',
-                ],
-                'meetings' => $this->getPeerMeetings($peerId),
-                'activities' => $this->getPeerActivities($peerId),
-                'testimonials' => $this->getPeerTestimonials($peerId),
-            ];
+            return [];
         }
 
         $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
@@ -388,8 +347,8 @@ class LeaderPeersService
             $name = (string) ($user->display_name ?? 'Peer Member');
         }
 
-        $circleName = 'Mumbai Tech Sunrise';
-        $circleId = (string) ($user->active_circle_id ?? 'd06173c0-368c-4bfd-b682-e07e67fdb320');
+        $circleName = '';
+        $circleId = (string) ($user->active_circle_id ?? '');
         if ($user->circleMembers && $user->circleMembers->isNotEmpty()) {
             $c = $user->circleMembers->first()?->circle;
             if ($c) {
@@ -401,11 +360,7 @@ class LeaderPeersService
             $circleId = (string) $user->activeCircle->id;
         }
 
-        $location = (string) ($user->city ?? $user->city_of_residence ?? 'Mumbai, Maharashtra, India');
-        if (! str_contains($location, ',')) {
-            $location .= ', Maharashtra, India';
-        }
-
+        $location = (string) ($user->city ?? $user->city_of_residence ?? 'Ahmedabad');
         $industry = (string) ($user->industry ?? $user->businessCategory?->name ?? 'Technology');
         $level4 = (string) ($user->level4Category?->name ?? $user->business_sub_category ?? 'FinTech SaaS');
         $subIndustry = (string) ($user->business_sub_category ?? $user->business_type ?? 'FinTech Enterprise Solutions');
@@ -424,24 +379,45 @@ class LeaderPeersService
 
         $tags = is_array($user->industry_tags) && ! empty($user->industry_tags)
             ? array_values($user->industry_tags)
-            : ['FinTech', 'Series A', 'B2B SaaS', 'Cloud Architecture'];
+            : [$industry, $level4];
 
-        $coins = (int) ($user->coins_balance ?? 1240);
-        if ($coins === 0) {
-            $coins = 1240;
-        }
+        $coins = (int) ($user->coins_balance ?? 0);
+        $impact = (int) ($user->life_impacted_count ?? $user->impact_count ?? 0);
 
-        $impact = (int) ($user->life_impacted_count ?? $user->impact_count ?? 48);
-        if ($impact === 0) {
-            $impact = 48;
-        }
+        // Dynamically compute deals
+        $dealsSum = (float) DB::table('business_deals')
+            ->where(function ($q) use ($user): void {
+                $q->where('from_user_id', $user->id)
+                    ->orWhere('to_user_id', $user->id);
+            })
+            ->whereNull('deleted_at')
+            ->sum('deal_amount');
+
+        $dealsFormatted = $dealsSum >= 10000000
+            ? '₹'.round($dealsSum / 10000000, 2).'Cr'
+            : ($dealsSum >= 100000 ? '₹'.round($dealsSum / 100000, 1).'L' : '₹'.number_format($dealsSum, 0));
+
+        $p2pMeetingsCount = DB::table('p2p_meetings')
+            ->where(fn ($q) => $q->where('initiator_user_id', $user->id)->orWhere('peer_user_id', $user->id))
+            ->whereNull('deleted_at')
+            ->count();
+
+        $referralsGiven = DB::table('referrals')
+            ->where('from_user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->count();
+
+        $referralsReceived = DB::table('referrals')
+            ->where('to_user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->count();
 
         return [
             'id' => (string) $user->id,
             'name' => $name,
-            'avatar_url' => $user->profile_photo_url ?? $user->avatar_url ?? 'https://peersunity.com/storage/avatars/siddharth.png',
-            'designation' => (string) ($user->designation ?? 'Founder & CEO'),
-            'company' => (string) ($user->company_name ?? $user->business_name ?? 'Apex Dynamics Pvt Ltd'),
+            'avatar_url' => $user->profile_photo_url ?? $user->avatar_url ?? null,
+            'designation' => (string) ($user->designation ?? $user->job_title ?? 'Founder & CEO'),
+            'company' => (string) ($user->company_name ?? $user->business_name ?? 'Apex Dynamics'),
             'circle' => $circleName,
             'circle_id' => $circleId,
             'location' => $location,
@@ -450,29 +426,29 @@ class LeaderPeersService
             'sub_industry' => $subIndustry,
             'status' => $status,
             'is_verified' => (bool) ($user->is_verified ?? true),
-            'intro_video_url' => (string) ($user->intro_video_url ?? 'https://peersunity.com/storage/videos/siddharth_intro.mp4'),
-            'bio' => (string) ($user->short_bio ?? $user->long_bio_html ?? 'Building scalable cloud infrastructure and enterprise FinTech platforms. Passionate about empowering MSMEs with automated payment reconciliation.'),
+            'intro_video_url' => (string) ($user->intro_video_url ?? ''),
+            'bio' => (string) ($user->short_bio ?? $user->long_bio_html ?? ''),
             'birthday' => $birthday,
             'anniversary' => $anniversary,
             'joined_date' => $joinedDate,
             'contact' => [
-                'email' => (string) ($user->email ?? 'siddharth@apexdynamics.in'),
-                'phone' => (string) ($user->phone ?? '+919876543210'),
-                'linkedin' => (string) ($user->linkedin_profile ?? 'https://linkedin.com/in/siddharthverma'),
-                'whatsapp' => (string) ($user->phone ?? '+919876543210'),
+                'email' => (string) ($user->email ?? ''),
+                'phone' => (string) ($user->phone ?? $user->secondary_mobile ?? ''),
+                'linkedin' => (string) ($user->linkedin_profile ?? ''),
+                'whatsapp' => (string) ($user->phone ?? $user->secondary_mobile ?? ''),
             ],
             'metrics' => [
                 'impact' => $impact,
                 'impact_count' => $impact,
-                'deals_given' => '₹32.5L',
-                'deals_received' => '₹45.0L',
-                'deals_closed' => '₹77.5L',
+                'deals_given' => $dealsFormatted,
+                'deals_received' => $dealsFormatted,
+                'deals_closed' => $dealsFormatted,
                 'attendance_percentage' => '94%',
                 'attendance_rate' => '94%',
-                'p2p_meetings' => 24,
-                'p2p_sessions' => 24,
-                'referrals_given' => 18,
-                'referrals_received' => 12,
+                'p2p_meetings' => $p2pMeetingsCount,
+                'p2p_sessions' => $p2pMeetingsCount,
+                'referrals_given' => $referralsGiven,
+                'referrals_received' => $referralsReceived,
                 'coins' => $coins,
                 'coins_earned' => $coins,
             ],
@@ -545,49 +521,81 @@ class LeaderPeersService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+        $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
 
-        $ahmedabadUsers = User::query()
-            ->whereNull('deleted_at')
-            ->when($circleId, fn ($q) => $q->whereHas('circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)))
-            ->when(! $circleId && $resolvedDistrictId, fn ($q) => $q->whereHas('circleMembers.circle', fn ($c) => $c->where('district_id', $resolvedDistrictId)))
-            ->take(5)
-            ->get();
+        $query = User::query()->whereNull('deleted_at');
 
-        $user1 = $ahmedabadUsers->first();
-        $user2 = $ahmedabadUsers->skip(1)->first();
-        $user3 = $ahmedabadUsers->skip(2)->first();
+        if ($circleId && Str::isUuid($circleId)) {
+            if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function (Builder $q) use ($circleId): void {
+                    $q->whereHas('circleMembers', fn ($cm) => $cm->where('circle_id', $circleId)->whereNull('deleted_at'))
+                        ->orWhere('active_circle_id', $circleId);
+                });
+            }
+        } elseif ($scopedCircleIds !== null) {
+            if (empty($scopedCircleIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function (Builder $q) use ($scopedCircleIds): void {
+                    $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
+                        ->orWhereIn('active_circle_id', $scopedCircleIds);
+                });
+            }
+        } else {
+            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+            if ($resolvedDistrictId) {
+                $query->whereHas('circleMembers.circle', fn ($c) => $c->where('district_id', $resolvedDistrictId));
+            }
+        }
 
-        return [
-            'birthdays' => [
-                [
-                    'id' => 'cel_01',
-                    'peer_id' => (string) ($user1?->id ?? '75ffdee9-e587-4ee7-b020-ff8184adb751'),
-                    'name' => (string) ($user1?->first_name ? $user1->first_name.' '.$user1->last_name : 'Jatin Jadav'),
-                    'company' => (string) ($user1?->company_name ?? 'Aequitas Information Technology'),
+        $users = $query->take(5)->get();
+
+        $birthdays = [];
+        $anniversaries = [];
+
+        foreach ($users as $idx => $u) {
+            $uName = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+            if ($uName === '') {
+                $uName = (string) ($u->display_name ?? 'Peer Member');
+            }
+            $company = (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Enterprise');
+
+            if ($idx === 0) {
+                $birthdays[] = [
+                    'id' => 'cel_b_'.($u->id ?? '1'),
+                    'peer_id' => (string) $u->id,
+                    'name' => $uName,
+                    'company' => $company,
                     'date_formatted' => 'Today, '.now()->format('d M'),
                     'is_today' => true,
-                ],
-                [
-                    'id' => 'cel_02',
-                    'peer_id' => (string) ($user2?->id ?? '8fc56c6c-7ed8-422a-b179-2efe547af0b2'),
-                    'name' => (string) ($user2?->first_name ? $user2->first_name.' '.$user2->last_name : 'Chirag Mali'),
-                    'company' => (string) ($user2?->company_name ?? 'TaskMate AI'),
+                ];
+            } elseif ($idx === 1) {
+                $birthdays[] = [
+                    'id' => 'cel_b_'.($u->id ?? '2'),
+                    'peer_id' => (string) $u->id,
+                    'name' => $uName,
+                    'company' => $company,
                     'date_formatted' => now()->addDays(3)->format('d M'),
                     'is_today' => false,
-                ],
-            ],
-            'anniversaries' => [
-                [
-                    'id' => 'cel_03',
-                    'peer_id' => (string) ($user3?->id ?? '6c96265a-5b82-41f9-bea8-d319c12a0266'),
-                    'name' => (string) ($user3?->first_name ? $user3->first_name.' '.$user3->last_name : 'Vinit Chavda'),
-                    'company' => (string) ($user3?->company_name ?? 'VARNIJAR.CO'),
-                    'milestone' => '2 Years in Circle',
+                ];
+            } elseif ($idx === 2) {
+                $anniversaries[] = [
+                    'id' => 'cel_a_'.($u->id ?? '3'),
+                    'peer_id' => (string) $u->id,
+                    'name' => $uName,
+                    'company' => $company,
+                    'milestone' => '1 Year in Circle',
                     'date_formatted' => now()->addDays(4)->format('d M'),
                     'is_today' => false,
-                ],
-            ],
+                ];
+            }
+        }
+
+        return [
+            'birthdays' => $birthdays,
+            'anniversaries' => $anniversaries,
         ];
     }
 

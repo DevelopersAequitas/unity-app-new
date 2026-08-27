@@ -93,10 +93,37 @@ class LeaderTeamsService
     }
 
     /**
-     * Apply district and DED scope to a circle query.
+     * Apply district, DED, industry, and own-circle scope to a circle query.
      */
     public function applyDistrictScopeToCircles(Builder $query, ?string $districtId = null, ?User $user = null): void
     {
+        if ($user) {
+            $permissionService = app(LeaderPermissionService::class);
+            $roleInfo = $permissionService->resolveUserRole($user);
+            $role = $roleInfo['role'];
+
+            if ($role === 'superAdmin' || $role === 'countryDirector') {
+                if ($districtId && Str::isUuid($districtId)) {
+                    $query->where('district_id', $districtId);
+                }
+
+                return;
+            }
+
+            $peersService = app(LeaderPeersService::class);
+            $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
+
+            if ($scopedCircleIds !== null) {
+                if (empty($scopedCircleIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('circles.id', $scopedCircleIds);
+                }
+
+                return;
+            }
+        }
+
         $resolvedDistrictId = $this->resolveDedDistrictId($districtId, $user);
 
         $admin = null;
@@ -137,8 +164,8 @@ class LeaderTeamsService
                     if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
                         $q->orWhereHas('city', function ($cq) use ($resolvedDistrictId, $dNameLower): void {
                             $cq->where('district_id', $resolvedDistrictId)
-                                ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [$dNameLower])
-                                ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) LIKE ?", ['%'.$dNameLower.'%']);
+                                < orWhereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [$dNameLower])
+                                    ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) LIKE ?", ['%'.$dNameLower.'%']);
                         });
                     }
                 } elseif (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
@@ -149,7 +176,7 @@ class LeaderTeamsService
     }
 
     /**
-     * Get the 18 official master industries list scoped to a district.
+     * Get the master industries list scoped to user role / circle.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -158,48 +185,62 @@ class LeaderTeamsService
         ?User $user = null,
         ?string $status = null,
     ): array {
-        $resolvedDistrictId = $this->resolveDedDistrictId($districtId, $user);
+        $isOwnCircleOrScoped = false;
 
-        // Fetch official 18 active master industries
-        if (! Schema::hasTable('industries')) {
-            return $this->getFallbackIndustries();
-        }
+        if ($user) {
+            $permissionService = app(LeaderPermissionService::class);
+            $roleInfo = $permissionService->resolveUserRole($user);
+            $role = $roleInfo['role'];
 
-        try {
-            $query = Industry::query();
-
-            if (Schema::hasColumn('industries', 'is_active')) {
-                $query->where('is_active', true);
-
-                if ($status && strtolower($status) !== 'all') {
-                    $isActive = strtolower($status) === 'active';
-                    $query->where('is_active', $isActive);
-                }
+            if (! in_array($role, ['superAdmin', 'countryDirector'], true)) {
+                $isOwnCircleOrScoped = true;
             }
-
-            if (Schema::hasColumn('industries', 'sort_order')) {
-                $query->orderBy('sort_order');
-            }
-
-            if (Schema::hasColumn('industries', 'name')) {
-                $query->orderBy('name');
-            }
-
-            $industries = $query->get();
-        } catch (\Throwable $e) {
-            $industries = collect();
-        }
-
-        if ($industries->isEmpty()) {
-            return $this->getFallbackIndustries();
         }
 
         // Fetch all circles in scope for fast in-memory association
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($circlesQuery, $districtId, $user);
-        $circles = $circlesQuery->with(['members'])->get();
+        $circles = $circlesQuery->with(['members', 'categories', 'circleCategory'])->get();
 
-        // Default baseline metrics to ensure realistic numbers when seeded
+        if ($isOwnCircleOrScoped && $circles->isEmpty()) {
+            return [];
+        }
+
+        // Fetch official 18 active master industries
+        if (! Schema::hasTable('industries')) {
+            $industries = collect($this->getFallbackIndustries())->map(fn ($i) => (object) $i);
+        } else {
+            try {
+                $query = Industry::query();
+
+                if (Schema::hasColumn('industries', 'is_active')) {
+                    $query->where('is_active', true);
+
+                    if ($status && strtolower($status) !== 'all') {
+                        $isActive = strtolower($status) === 'active';
+                        $query->where('is_active', $isActive);
+                    }
+                }
+
+                if (Schema::hasColumn('industries', 'sort_order')) {
+                    $query->orderBy('sort_order');
+                }
+
+                if (Schema::hasColumn('industries', 'name')) {
+                    $query->orderBy('name');
+                }
+
+                $industries = $query->get();
+            } catch (\Throwable $e) {
+                $industries = collect();
+            }
+
+            if ($industries->isEmpty()) {
+                $industries = collect($this->getFallbackIndustries())->map(fn ($i) => (object) $i);
+            }
+        }
+
+        // Default baseline metrics for superAdmin global view
         $baselineData = [
             'technology' => ['circles' => 3, 'peers' => 82],
             'manufacturing' => ['circles' => 2, 'peers' => 45],
@@ -221,17 +262,39 @@ class LeaderTeamsService
             'chemicals-materials' => ['circles' => 0, 'peers' => 0],
         ];
 
-        return $industries->map(function (Industry $industry) use ($circles, $baselineData): array {
+        $results = [];
+
+        foreach ($industries as $industry) {
+            $indId = (string) $industry->id;
             $slug = (string) ($industry->slug ?: Str::slug($industry->name));
             $industryName = strtolower(trim((string) $industry->name));
 
             // Find circles associated with this industry
-            $matchingCircles = $circles->filter(function (Circle $c) use ($industry, $industryName, $slug): bool {
-                $tags = is_array($c->industry_tags) ? $c->industry_tags : [];
+            $matchingCircles = $circles->filter(function (Circle $c) use ($indId, $industryName, $slug): bool {
+                $tags = is_array($c->industry_tags) ? $c->industry_tags : (is_string($c->industry_tags) ? json_decode($c->industry_tags, true) : []);
+                if (! is_array($tags)) {
+                    $tags = [];
+                }
                 $tagsLower = array_map(fn ($t) => strtolower(trim((string) $t)), $tags);
 
-                if (in_array((string) $industry->id, $tags, true) || in_array($slug, $tagsLower, true) || in_array($industryName, $tagsLower, true)) {
+                if (in_array($indId, $tags, true) || in_array($slug, $tagsLower, true) || in_array($industryName, $tagsLower, true)) {
                     return true;
+                }
+
+                if ($c->circleCategory) {
+                    $catName = strtolower((string) ($c->circleCategory->name ?? ''));
+                    if (str_contains($catName, $industryName) || str_contains($industryName, $catName)) {
+                        return true;
+                    }
+                }
+
+                if ($c->relationLoaded('categories') && $c->categories->isNotEmpty()) {
+                    foreach ($c->categories as $cat) {
+                        $catName = strtolower((string) ($cat->name ?? $cat->category_name ?? ''));
+                        if (str_contains($catName, $industryName) || str_contains($industryName, $catName)) {
+                            return true;
+                        }
+                    }
                 }
 
                 $circleNameLower = strtolower($c->name);
@@ -243,54 +306,52 @@ class LeaderTeamsService
             });
 
             $matchedCirclesCount = $matchingCircles->count();
-            $matchedPeersCount = $matchingCircles->sum(fn (Circle $c) => $c->members->count());
+            $matchedPeersCount = $matchingCircles->sum(fn (Circle $c) => $c->members ? $c->members->where('status', 'approved')->count() : 0);
 
-            // Merge with baseline for presentation if fresh
-            $baseline = $baselineData[$slug] ?? ['circles' => 0, 'peers' => 0];
-            $finalCirclesCount = max($matchedCirclesCount, $baseline['circles']);
-            $finalPeersCount = max($matchedPeersCount, $baseline['peers']);
+            if ($isOwnCircleOrScoped) {
+                if ($matchedCirclesCount === 0) {
+                    continue;
+                }
+                $finalCirclesCount = $matchedCirclesCount;
+                $finalPeersCount = $matchedPeersCount;
+            } else {
+                $baseline = $baselineData[$slug] ?? ['circles' => 0, 'peers' => 0];
+                $finalCirclesCount = max($matchedCirclesCount, $baseline['circles']);
+                $finalPeersCount = max($matchedPeersCount, $baseline['peers']);
+            }
 
-            $iconUrl = $industry->icon_url ?: "https://api.peersunity.com/icons/{$slug}.png";
+            $iconUrl = ! empty($industry->icon_url) ? $industry->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
 
-            return [
-                'id' => (string) $industry->id,
+            $results[] = [
+                'id' => $indId,
                 'name' => (string) $industry->name,
                 'slug' => $slug,
                 'icon_url' => $iconUrl,
                 'circles_count' => $finalCirclesCount,
                 'peers_count' => $finalPeersCount,
-                'status' => $industry->is_active ? 'Active' : 'Inactive',
+                'status' => ! empty($industry->is_active) ? 'Active' : 'Inactive',
             ];
-        })->values()->all();
-    }
+        }
 
-    /**
-     * Fallback list of 18 official industries if table is empty.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function getFallbackIndustries(): array
-    {
-        return [
-            ['id' => 'ind_01', 'name' => 'Technology', 'slug' => 'technology', 'icon_url' => 'https://api.peersunity.com/icons/technology.png', 'circles_count' => 3, 'peers_count' => 82, 'status' => 'Active'],
-            ['id' => 'ind_02', 'name' => 'Manufacturing', 'slug' => 'manufacturing', 'icon_url' => 'https://api.peersunity.com/icons/manufacturing.png', 'circles_count' => 2, 'peers_count' => 45, 'status' => 'Active'],
-            ['id' => 'ind_03', 'name' => 'Real Estate', 'slug' => 'real-estate', 'icon_url' => 'https://api.peersunity.com/icons/real-estate.png', 'circles_count' => 1, 'peers_count' => 28, 'status' => 'Active'],
-            ['id' => 'ind_04', 'name' => 'Healthcare', 'slug' => 'healthcare', 'icon_url' => 'https://api.peersunity.com/icons/healthcare.png', 'circles_count' => 2, 'peers_count' => 36, 'status' => 'Active'],
-            ['id' => 'ind_05', 'name' => 'Financial Services', 'slug' => 'financial-services', 'icon_url' => 'https://api.peersunity.com/icons/financial-services.png', 'circles_count' => 1, 'peers_count' => 20, 'status' => 'Active'],
-            ['id' => 'ind_06', 'name' => 'Education & Skill', 'slug' => 'education-skill', 'icon_url' => 'https://api.peersunity.com/icons/education.png', 'circles_count' => 1, 'peers_count' => 18, 'status' => 'Active'],
-            ['id' => 'ind_07', 'name' => 'Agriculture & Food', 'slug' => 'agriculture-food', 'icon_url' => 'https://api.peersunity.com/icons/agriculture.png', 'circles_count' => 1, 'peers_count' => 15, 'status' => 'Active'],
-            ['id' => 'ind_08', 'name' => 'Green & Sustainability', 'slug' => 'green-sustainability', 'icon_url' => 'https://api.peersunity.com/icons/green.png', 'circles_count' => 1, 'peers_count' => 12, 'status' => 'Active'],
-            ['id' => 'ind_09', 'name' => 'Media & Entertainment', 'slug' => 'media-entertainment', 'icon_url' => 'https://api.peersunity.com/icons/media.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-            ['id' => 'ind_10', 'name' => 'Tourism & Hospitality', 'slug' => 'tourism-hospitality', 'icon_url' => 'https://api.peersunity.com/icons/tourism.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-            ['id' => 'ind_11', 'name' => 'Retail & FMCG', 'slug' => 'retail-fmcg', 'icon_url' => 'https://api.peersunity.com/icons/retail.png', 'circles_count' => 1, 'peers_count' => 14, 'status' => 'Active'],
-            ['id' => 'ind_12', 'name' => 'Logistics & Supply Chain', 'slug' => 'logistics-supply-chain', 'icon_url' => 'https://api.peersunity.com/icons/logistics.png', 'circles_count' => 1, 'peers_count' => 16, 'status' => 'Active'],
-            ['id' => 'ind_13', 'name' => 'Construction & Infra', 'slug' => 'construction-infra', 'icon_url' => 'https://api.peersunity.com/icons/construction.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-            ['id' => 'ind_14', 'name' => 'Legal & Professional', 'slug' => 'legal-professional', 'icon_url' => 'https://api.peersunity.com/icons/legal.png', 'circles_count' => 1, 'peers_count' => 11, 'status' => 'Active'],
-            ['id' => 'ind_15', 'name' => 'Fashion & Lifestyle', 'slug' => 'fashion-lifestyle', 'icon_url' => 'https://api.peersunity.com/icons/fashion.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-            ['id' => 'ind_16', 'name' => 'Automotive', 'slug' => 'automotive', 'icon_url' => 'https://api.peersunity.com/icons/automotive.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-            ['id' => 'ind_17', 'name' => 'Energy & Power', 'slug' => 'energy-power', 'icon_url' => 'https://api.peersunity.com/icons/energy.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-            ['id' => 'ind_18', 'name' => 'Chemicals & Materials', 'slug' => 'chemicals-materials', 'icon_url' => 'https://api.peersunity.com/icons/chemicals.png', 'circles_count' => 0, 'peers_count' => 0, 'status' => 'Active'],
-        ];
+        // If scoped user has circles but none matched standard 18 industries, synthesize from circle category
+        if ($isOwnCircleOrScoped && empty($results) && $circles->isNotEmpty()) {
+            foreach ($circles as $c) {
+                $cat = $this->resolveCircleCategory($c);
+                $peers = $c->members ? $c->members->where('status', 'approved')->count() : 0;
+                $slug = Str::slug($cat);
+                $results[] = [
+                    'id' => 'ind_circle_'.substr((string) $c->id, 0, 8),
+                    'name' => $cat,
+                    'slug' => $slug,
+                    'icon_url' => "https://api.peersunity.com/icons/{$slug}.png",
+                    'circles_count' => 1,
+                    'peers_count' => $peers,
+                    'status' => 'Active',
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -302,19 +363,43 @@ class LeaderTeamsService
     {
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($circlesQuery, $districtId, $user);
-        $totalCircles = $circlesQuery->count();
+        $circles = $circlesQuery->with(['members'])->get();
 
-        $peersQuery = CircleMember::query()->whereNull('deleted_at');
-        $peersQuery->whereHas('circle', function (Builder $q) use ($districtId, $user): void {
-            $this->applyDistrictScopeToCircles($q, $districtId, $user);
+        $totalCircles = $circles->count();
+
+        $totalPeers = $circles->sum(function (Circle $c) {
+            return $c->members ? $c->members->where('status', 'approved')->count() : 0;
         });
-        $totalPeers = $peersQuery->count();
+
+        // Calculate actual total revenue
+        $totalRevenueAmount = 0.0;
+        foreach ($circles as $c) {
+            $pCount = $c->members ? $c->members->where('status', 'approved')->count() : 0;
+            $unitPrice = (float) ($c->circle_price_amount ?? 120000);
+            if ($unitPrice <= 0) {
+                $unitPrice = 120000;
+            }
+            $totalRevenueAmount += ($unitPrice * $pCount);
+        }
+
+        $revFormatted = '₹0.0';
+        if ($totalRevenueAmount >= 10000000) {
+            $revFormatted = '₹'.number_format($totalRevenueAmount / 10000000, 2).'Cr';
+        } elseif ($totalRevenueAmount >= 100000) {
+            $revFormatted = '₹'.number_format($totalRevenueAmount / 100000, 1).'L';
+        } elseif ($totalRevenueAmount > 0) {
+            $revFormatted = '₹'.number_format($totalRevenueAmount, 0);
+        }
+
+        $avgHealth = $totalCircles > 0
+            ? (int) round($circles->avg(fn (Circle $c) => $c->health_score ?: 92))
+            : 0;
 
         return [
-            'total_circles' => max($totalCircles, 4),
-            'avg_health' => 92,
-            'total_peers' => max($totalPeers, 14),
-            'total_revenue' => '₹1.85Cr',
+            'total_circles' => $totalCircles,
+            'avg_health' => $avgHealth ?: 92,
+            'total_peers' => $totalPeers,
+            'total_revenue' => $revFormatted,
         ];
     }
 
@@ -708,11 +793,11 @@ class LeaderTeamsService
      * @return array<int, array<string, mixed>>
      */
     public function getCirclesList(
-        ?string $districtId = null,
-        ?string $search = null,
         ?string $industry = null,
         ?string $status = null,
-        ?User $user = null
+        ?string $search = null,
+        ?string $districtId = null,
+        ?User $user = null,
     ): array {
         $query = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($query, $districtId, $user);

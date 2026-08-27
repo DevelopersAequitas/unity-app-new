@@ -27,12 +27,20 @@ class LeaderFinanceService
         ?User $user = null,
     ): array {
         $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+        $peersService = app(LeaderPeersService::class);
+        $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
 
         // Sum actual payments in scope
         $query = Payment::query()->whereIn('status', ['Paid', 'paid', 'completed']);
 
-        if ($circleId) {
+        if ($circleId && Str::isUuid($circleId)) {
             $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        } elseif ($scopedCircleIds !== null) {
+            if (empty($scopedCircleIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds));
+            }
         } elseif ($resolvedDistrictId) {
             $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
         }
@@ -153,11 +161,19 @@ class LeaderFinanceService
         ?User $user = null,
     ): array {
         $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+        $peersService = app(LeaderPeersService::class);
+        $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
 
         $query = Payment::query()->with(['user.circleMembers.circle']);
 
-        if ($circleId) {
+        if ($circleId && Str::isUuid($circleId)) {
             $query->whereHas('user.circleMembers', fn ($cm) => $cm->where('circle_id', $circleId));
+        } elseif ($scopedCircleIds !== null) {
+            if (empty($scopedCircleIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas('user.circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds));
+            }
         } elseif ($resolvedDistrictId) {
             $query->whereHas('user.circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
         }
