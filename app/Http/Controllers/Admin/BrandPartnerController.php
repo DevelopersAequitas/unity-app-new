@@ -78,7 +78,16 @@ class BrandPartnerController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        return view('admin.brand-partners.index', compact('partners', 'categories', 'search', 'status', 'featured', 'sponsored', 'categoryId', 'hasOffer'));
+        $counts = [
+            'total' => BrandPartner::count(),
+            'active' => BrandPartner::where('is_active', true)->count(),
+            'inactive' => BrandPartner::where('is_active', false)->count(),
+            'featured' => BrandPartner::where('is_featured', true)->count(),
+            'sponsored' => BrandPartner::where('is_sponsored', true)->count(),
+            'has_offer' => BrandPartner::whereNotNull('offer_title')->where('offer_title', '<>', '')->count(),
+        ];
+
+        return view('admin.brand-partners.index', compact('partners', 'categories', 'search', 'status', 'featured', 'sponsored', 'categoryId', 'hasOffer', 'counts'));
     }
 
     public function create(): View
