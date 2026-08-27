@@ -334,7 +334,7 @@ class LeaderPeersService
      *
      * @return array<string, mixed>
      */
-    public function getPeer(string $peerId): array
+    public function getPeer(string $peerId, ?User $requestingUser = null): array
     {
         $user = User::query()->where('id', $peerId)->with(['circleMembers.circle', 'activeCircle', 'businessCategory', 'level4Category'])->first();
 
@@ -412,6 +412,30 @@ class LeaderPeersService
             ->whereNull('deleted_at')
             ->count();
 
+        // Privacy masking
+        $hidePhone = (bool) ($user->hide_phone ?? false);
+        $hideEmail = (bool) ($user->hide_email ?? false);
+        $canSeePrivate = false;
+
+        if ($requestingUser) {
+            $permService = app(LeaderPermissionService::class);
+            $roleInfo = $permService->resolveUserRole($requestingUser);
+            $requesterRole = (string) ($roleInfo['role'] ?? 'member');
+            $canSeePrivate = in_array($requesterRole, ['superAdmin', 'countryDirector', 'districtExecDirector'], true)
+                || in_array('manage_peers', $permService->getEnabledCapabilitiesForRole($requesterRole), true)
+                || (string) $requestingUser->id === $peerId;
+        }
+
+        $phone = (string) ($user->phone ?? $user->secondary_mobile ?? '');
+        $email = (string) ($user->email ?? '');
+
+        if ($hidePhone && ! $canSeePrivate) {
+            $phone = '********';
+        }
+        if ($hideEmail && ! $canSeePrivate) {
+            $email = '********';
+        }
+
         return [
             'id' => (string) $user->id,
             'name' => $name,
@@ -431,11 +455,13 @@ class LeaderPeersService
             'birthday' => $birthday,
             'anniversary' => $anniversary,
             'joined_date' => $joinedDate,
+            'hide_phone' => $hidePhone,
+            'hide_email' => $hideEmail,
             'contact' => [
-                'email' => (string) ($user->email ?? ''),
-                'phone' => (string) ($user->phone ?? $user->secondary_mobile ?? ''),
+                'email' => $email,
+                'phone' => $phone,
                 'linkedin' => (string) ($user->linkedin_profile ?? ''),
-                'whatsapp' => (string) ($user->phone ?? $user->secondary_mobile ?? ''),
+                'whatsapp' => $hidePhone && ! $canSeePrivate ? '********' : (string) ($user->phone ?? $user->secondary_mobile ?? ''),
             ],
             'metrics' => [
                 'impact' => $impact,
