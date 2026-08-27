@@ -8,6 +8,7 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\IntroductionImageGenerator;
 use App\Services\MilestoneBadgeService;
 use App\Services\Users\PeerIntroductionService;
 use Illuminate\Database\Schema\Blueprint;
@@ -36,6 +37,10 @@ class PeerIntroductionTest extends TestCase
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
             $table->string('password_hash')->nullable();
+            $table->string('company_name')->nullable();
+            $table->unsignedBigInteger('business_category_id')->nullable();
+            $table->unsignedBigInteger('main_business_category_id')->nullable();
+            $table->string('business_sub_category')->nullable();
             $table->uuid('profile_photo_file_id')->nullable();
             $table->string('status')->default('active');
             $table->uuid('introduced_by')->nullable();
@@ -193,6 +198,8 @@ class PeerIntroductionTest extends TestCase
             'first_name' => 'Urvashi',
             'last_name' => 'Chavda',
             'display_name' => 'Urvashi Chavda',
+            'company_name' => 'Chavda Enterprises',
+            'business_sub_category' => 'Interior Design',
             'email' => 'urvashi@example.com',
             'status' => 'active',
         ]);
@@ -202,6 +209,8 @@ class PeerIntroductionTest extends TestCase
             'first_name' => 'Hardik',
             'last_name' => 'Parmar',
             'display_name' => 'Hardik Parmar',
+            'company_name' => 'Parmar Tech Solutions',
+            'business_sub_category' => 'Software Development',
             'email' => 'hardik@example.com',
             'status' => 'active',
             'introduced_by' => $introducer->id,
@@ -275,5 +284,28 @@ class PeerIntroductionTest extends TestCase
 
         $notification = AppNotification::where('user_id', $introducer->id)->firstOrFail();
         $this->assertStringContainsString('Hi, you have introduced Hardik Parmar', $notification->body);
+    }
+
+    public function test_introduction_image_generator_resolves_company_and_category(): void
+    {
+        $generator = app(IntroductionImageGenerator::class);
+
+        $user1 = new User([
+            'first_name' => 'Azhar',
+            'last_name' => 'Pathan',
+            'company_name' => 'Aequitas Tech',
+            'business_sub_category' => 'IT Services',
+        ]);
+
+        $this->assertEquals('Aequitas Tech', $generator->resolveCompanyName($user1));
+        $this->assertEquals('IT Services', $generator->resolveCategoryName($user1));
+
+        $user2 = new User([
+            'first_name' => 'Lalit',
+            'last_name' => 'Munot',
+        ]);
+
+        $this->assertEquals('', $generator->resolveCompanyName($user2));
+        $this->assertEquals('', $generator->resolveCategoryName($user2));
     }
 }

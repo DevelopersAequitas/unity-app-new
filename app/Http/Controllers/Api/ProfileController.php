@@ -527,27 +527,39 @@ class ProfileController extends BaseApiController
             return $this->error('You cannot record a view of your own profile.', 400);
         }
 
-        $profileView = ProfileView::create([
-            'viewed_id' => $viewedId,
-            'viewer_id' => $viewer->id,
-        ]);
+        $profileView = ProfileView::where('viewed_id', $viewedId)
+            ->where('viewer_id', $viewer->id)
+            ->first();
 
-        $viewedUser = User::find($viewedId);
-        if ($viewedUser) {
-            $notification = new ProfileViewedNotification($viewer);
-            $payload = $notification->toArray($viewedUser);
+        $isNewView = false;
+        if (! $profileView) {
+            $profileView = ProfileView::create([
+                'viewed_id' => $viewedId,
+                'viewer_id' => $viewer->id,
+            ]);
+            $isNewView = true;
+        } else {
+            $profileView->touch();
+        }
 
-            app(PushNotificationService::class)->storeAndSend(
-                $viewedUser,
-                $payload['title'],
-                $payload['body'],
-                $payload,
-                [
-                    'notification_type' => $payload['notification_type'],
-                    'viewer_id' => $viewer->id,
-                    'viewer_name' => $payload['viewer_name'],
-                ]
-            );
+        if ($isNewView) {
+            $viewedUser = User::find($viewedId);
+            if ($viewedUser) {
+                $notification = new ProfileViewedNotification($viewer);
+                $payload = $notification->toArray($viewedUser);
+
+                app(PushNotificationService::class)->storeAndSend(
+                    $viewedUser,
+                    $payload['title'],
+                    $payload['body'],
+                    $payload,
+                    [
+                        'notification_type' => $payload['notification_type'],
+                        'viewer_id' => $viewer->id,
+                        'viewer_name' => $payload['viewer_name'],
+                    ]
+                );
+            }
         }
 
         return $this->success([
@@ -562,16 +574,20 @@ class ProfileController extends BaseApiController
     {
         $user = $request->user();
 
-        $totalViews = ProfileView::where('viewed_id', $user->id)->count();
+        $totalViews = ProfileView::where('viewed_id', $user->id)
+            ->distinct('viewer_id')
+            ->count('viewer_id');
 
         $views = ProfileView::with('viewer')
             ->where('viewed_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->get()
+            ->unique('viewer_id')
+            ->values()
             ->map(function ($view) {
                 return [
                     'id' => $view->id,
-                    'viewed_at' => $view->created_at->toIso8601String(),
+                    'viewed_at' => $view->created_at ? $view->created_at->toIso8601String() : null,
                     'viewer' => $view->viewer ? (new UserMiniResource($view->viewer))->resolve() : null,
                 ];
             });

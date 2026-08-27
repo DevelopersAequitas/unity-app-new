@@ -117,7 +117,9 @@ class AppUpdatesController extends Controller
             return $record;
         });
 
-        $appReleases = AppChangelog::orderBy('created_at', 'desc')->get();
+        $appReleases = Schema::hasTable('app_changelogs')
+            ? AppChangelog::orderBy('created_at', 'desc')->get()
+            : collect();
 
         return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'maintenanceConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases'));
     }

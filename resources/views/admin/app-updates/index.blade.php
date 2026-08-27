@@ -216,11 +216,16 @@
 
     <!-- Users Search Filter -->
     <div class="p-3 rounded-lg border bs surface-2 flex flex-wrap justify-between items-center gap-3">
-        <form method="GET" action="{{ route('admin.app-updates.index') }}" class="max-w-md w-full flex gap-2">
-            <input type="text" name="search" value="{{ request('search') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, email, model or version...">
+        <form method="GET" action="{{ route('admin.app-updates.index') }}" data-no-ajax="true" class="max-w-md w-full flex gap-2">
+            <input type="text" id="userSearchInput" name="search" value="{{ request('search') }}" class="no-auto-filter px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, email, model or version...">
             <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring">
                 Search
             </button>
+            @if(request('search'))
+                <a href="{{ route('admin.app-updates.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition focus-ring flex items-center">
+                    Clear
+                </a>
+            @endif
         </form>
         <div>
             <button type="button" id="notifySelectedBtn" class="px-3 py-1.5 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring flex items-center gap-1.5">
@@ -375,6 +380,47 @@ document.addEventListener('DOMContentLoaded', function () {
             notifySelectedBtn.textContent = `🔔 Notify Selected (${document.querySelectorAll('.user-checkbox:checked').length})`;
         });
     });
+
+    // Live instant table search filter as user types
+    const searchInput = document.getElementById('userSearchInput');
+    const userTableBody = document.getElementById('userTableBody');
+
+    if (searchInput && userTableBody) {
+        const initialRows = Array.from(userTableBody.querySelectorAll('tr'));
+
+        searchInput.addEventListener('input', function () {
+            const query = this.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            initialRows.forEach(row => {
+                // If it's the empty placeholder from blade
+                if (row.querySelector('td[colspan]')) return;
+
+                const text = row.textContent.toLowerCase();
+                if (!query || text.includes(query)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // If no matching rows on current page, show a dynamic hint row
+            let noMatchRow = document.getElementById('noLiveMatchRow');
+            if (visibleCount === 0 && query) {
+                if (!noMatchRow) {
+                    noMatchRow = document.createElement('tr');
+                    noMatchRow.id = 'noLiveMatchRow';
+                    noMatchRow.innerHTML = '<td colspan="7" class="px-3 py-6 text-center text-xs t3">No matching records on this page. Click <b>Search</b> or press <b>Enter</b> to search all users across the database.</td>';
+                    userTableBody.appendChild(noMatchRow);
+                } else {
+                    noMatchRow.style.display = '';
+                }
+            } else if (noMatchRow) {
+                noMatchRow.style.display = 'none';
+            }
+        });
+    }
 });
 </script>
 @endpush

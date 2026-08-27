@@ -481,6 +481,21 @@ class Circle extends Model
         return $this->belongsTo(City::class, 'city_id');
     }
 
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class, 'district_id');
+    }
+
+    public function chairUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'chair_user_id');
+    }
+
+    public function circleCategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'template_id');
+    }
+
     public function chatMessages(): HasMany
     {
         return $this->hasMany(CircleChatMessage::class, 'circle_id');
@@ -643,7 +658,14 @@ class Circle extends Model
             'secretary_user_id',
         ];
 
-        $newValues = array_fill_keys($allLeadershipCols, null);
+        $calendar = is_array($circleModel->calendar) ? $circleModel->calendar : (is_string($circleModel->calendar) ? json_decode($circleModel->calendar, true) : []);
+
+        // Start by PRESERVING existing leadership values from table and calendar rather than resetting to null
+        $newValues = [];
+        foreach ($allLeadershipCols as $col) {
+            $existingVal = $circleModel->getAttribute($col) ?? data_get($calendar, 'leadership.'.$col) ?? null;
+            $newValues[$col] = $existingVal;
+        }
 
         foreach ($members as $member) {
             $userId = $member->user_id;
@@ -669,7 +691,7 @@ class Circle extends Model
                 $targetCols = $roleToColumns[$rk] ?? $roleToColumns[$normalizedRk] ?? null;
                 if ($targetCols) {
                     foreach ($targetCols as $col) {
-                        if (array_key_exists($col, $newValues) && $newValues[$col] === null) {
+                        if (array_key_exists($col, $newValues)) {
                             $newValues[$col] = $userId;
                         }
                     }
@@ -677,14 +699,15 @@ class Circle extends Model
             }
         }
 
-        $calendar = is_array($circleModel->calendar) ? $circleModel->calendar : [];
         $updates = [];
 
         foreach ($newValues as $col => $val) {
             if (Schema::hasColumn('circles', $col)) {
                 $updates[$col] = $val;
             }
-            data_set($calendar, 'leadership.'.$col, $val);
+            if ($val !== null) {
+                data_set($calendar, 'leadership.'.$col, $val);
+            }
         }
         $updates['calendar'] = json_encode($calendar);
         $updates['updated_at'] = now();

@@ -362,8 +362,11 @@ class NotificationTemplateController extends Controller
     public function index(): View
     {
         $templates = [];
+        $catalog = self::$catalog;
 
-        foreach (self::$catalog as $key => $tpl) {
+        uasort($catalog, static fn (array $first, array $second): int => strcasecmp($first['name'], $second['name']));
+
+        foreach ($catalog as $key => $tpl) {
             $dbRecord = NotificationTemplate::where('template_key', $key)->first();
             if (! $dbRecord) {
                 // Pre-populate template in database if not present

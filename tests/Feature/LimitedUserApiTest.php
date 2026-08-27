@@ -185,6 +185,7 @@ class LimitedUserApiTest extends TestCase
                     'level4_category',
                     'is_bookmark',
                     'is_verified',
+                    'match_percentage',
                 ],
             ],
             'links' => [
@@ -218,6 +219,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame('Software Engineering', $data[0]['level4_category']);
         $this->assertFalse($data[0]['is_bookmark']);
         $this->assertIsBool($data[0]['is_verified']);
+        $this->assertIsInt($data[0]['match_percentage']);
 
         // Verify that removed or sensitive fields are NOT present
         $this->assertArrayNotHasKey('business', $data[0]);
@@ -406,5 +408,46 @@ class LimitedUserApiTest extends TestCase
         $targetUser = collect($data)->firstWhere('id', $memberToBookmark->id);
         $this->assertNotNull($targetUser);
         $this->assertFalse($targetUser['is_bookmark']);
+    }
+
+    public function test_limited_users_endpoint_returns_ranked_members_by_recommendation_algorithm(): void
+    {
+        $authUser = User::factory()->create([
+            'status' => 'active',
+            'city' => 'Ahmedabad',
+            'business_category_id' => 101,
+        ]);
+
+        // User A: High match (same city, same category), medium impact
+        $userHighMatch = User::factory()->create([
+            'status' => 'active',
+            'first_name' => 'High',
+            'last_name' => 'Match',
+            'city' => 'Ahmedabad',
+            'business_category_id' => 101,
+            'life_impacted_count' => 10,
+        ]);
+
+        // User B: Low match (different city, different category), low impact
+        $userLowMatch = User::factory()->create([
+            'status' => 'active',
+            'first_name' => 'Low',
+            'last_name' => 'Match',
+            'city' => 'Mumbai',
+            'business_category_id' => 999,
+            'life_impacted_count' => 0,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson('/api/v1/members/limited');
+        $response->assertOk();
+
+        $data = $response->json('data');
+        $this->assertCount(2, $data);
+
+        // High match should be ranked first
+        $this->assertSame($userHighMatch->id, $data[0]['id']);
+        $this->assertGreaterThan($data[1]['match_percentage'], $data[0]['match_percentage']);
     }
 }

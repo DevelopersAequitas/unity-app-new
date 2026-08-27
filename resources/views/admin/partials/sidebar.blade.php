@@ -32,7 +32,7 @@
             ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
             ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
         : (($isCircleScoped || $isDed)
@@ -47,7 +47,7 @@
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
                 ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
-                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
                 ] : []),
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
@@ -78,7 +78,7 @@
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
@@ -195,13 +195,15 @@
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
         ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
         ['label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index', 'active_routes' => ['admin.daily-notifications.*']],
+        ['label' => 'App Notifications', 'route' => 'admin.app-notifications.index', 'active_routes' => ['admin.app-notifications.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
         || request()->routeIs('admin.campaign-pamphlets.*')
         || request()->routeIs('admin.campaign-email-templates.*')
         || request()->routeIs('admin.email-logs.*')
         || request()->routeIs('admin.execution.communications')
-        || request()->routeIs('admin.daily-notifications.*');
+        || request()->routeIs('admin.daily-notifications.*')
+        || request()->routeIs('admin.app-notifications.*');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
         ['label' => 'Campaigns', 'route' => 'admin.notifications.campaigns', 'icon' => 'bi-megaphone', 'active_routes' => ['admin.notifications.campaigns', 'admin.notifications.campaigns.*']],

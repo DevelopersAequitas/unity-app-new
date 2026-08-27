@@ -37,24 +37,17 @@ class AppVersionController extends Controller
 
             $hasProductCol = Schema::hasColumn('app_versions', 'product');
 
-            $androidQuery = AppVersion::query()->where('platform', 'android')->where('is_active', true);
-            $iosQuery = AppVersion::query()->where('platform', 'ios')->where('is_active', true);
+            $androidQuery = AppVersion::query()->where('platform', 'android');
+            $iosQuery = AppVersion::query()->where('platform', 'ios');
 
             if ($hasProductCol) {
-                $androidQuery->where('product', $product);
-                $iosQuery->where('product', $product);
-            }
-
-            $androidVersion = $androidQuery->first();
-            $iosVersion = $iosQuery->first();
-
-            // Fallback to default product records if product-specific search yielded nothing
-            if (! $androidVersion && $hasProductCol) {
-                $androidVersion = AppVersion::query()->where('platform', 'android')->where('is_active', true)->first();
-            }
-
-            if (! $iosVersion && $hasProductCol) {
-                $iosVersion = AppVersion::query()->where('platform', 'ios')->where('is_active', true)->first();
+                $androidVersion = (clone $androidQuery)->where('product', $product)->first()
+                    ?? $androidQuery->first();
+                $iosVersion = (clone $iosQuery)->where('product', $product)->first()
+                    ?? $iosQuery->first();
+            } else {
+                $androidVersion = $androidQuery->first();
+                $iosVersion = $iosQuery->first();
             }
 
             $version = match ($requestedPlatform) {
@@ -65,7 +58,7 @@ class AppVersionController extends Controller
             $latestVersion = $version?->latest_version ?? (string) config('app_versions.latest', '1.8.0');
             $minVersion = $version?->min_version ?? (string) config('app_versions.min_required', '1.2.0');
             $updateType = $version?->update_type ?? (string) config('app_versions.update_type', 'optional');
-            $isActive = $version?->is_active ?? true;
+            $isActive = $version !== null ? (bool) $version->is_active : (bool) config('app_versions.is_active', true);
             $releaseNotes = $version?->release_notes ?? "Enhanced security and real-time networking tools\nPerformance optimizations";
 
             $latestAndroid = $androidVersion?->latest_version ?? $latestVersion;

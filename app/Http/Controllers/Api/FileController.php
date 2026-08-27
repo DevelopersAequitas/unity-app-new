@@ -42,7 +42,7 @@ class FileController extends BaseApiController
                         ->orWhere('image', 'LIKE', '%'.$id.'%')
                         ->first();
 
-                    if (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id)) {
+                    if ($post && (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id))) {
                         $introducer = User::find($post->source_id);
                         if (! $introducer && $post->source_type === 'milestone_badge') {
                             // For milestone badges, user ID may be stored in tags or post user_id
@@ -68,13 +68,32 @@ class FileController extends BaseApiController
                             // Refresh the parent file lookup
                             $file = File::find($id);
                         }
-                    } elseif ($post->post_type === 'welcome' && $post->source_id) {
+                    } elseif ($post && $post->post_type === 'welcome' && $post->source_id) {
                         $user = User::find($post->source_id);
                         if ($user) {
                             $fileModel = new FileModel;
                             $fileModel->id = $id;
-                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
-                            $fileModel->mime_type = 'image/webp';
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
+                            $fileModel->mime_type = 'image/png';
+                            $fileModel->save();
+
+                            $generator = app(WearTheBadgeImageGenerator::class);
+                            $generator->generate($user, $fileModel);
+
+                            // Refresh the parent file lookup
+                            $file = File::find($id);
+                        }
+                    } else {
+                        // Check if referenced by user directly
+                        $user = User::where('welcome_creative_url', 'LIKE', '%'.$id.'%')
+                            ->orWhere('profile_card_image_url', 'LIKE', '%'.$id.'%')
+                            ->first();
+
+                        if ($user) {
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
+                            $fileModel->mime_type = 'image/png';
                             $fileModel->save();
 
                             $generator = app(WearTheBadgeImageGenerator::class);
@@ -179,7 +198,7 @@ class FileController extends BaseApiController
                             ->orWhere('image', 'LIKE', '%'.$file->id.'%')
                             ->first();
 
-                        if (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id)) {
+                        if ($post && (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id))) {
                             $introducer = User::find($post->source_id);
                             if (! $introducer && $post->source_type === 'milestone_badge') {
                                 $userId = collect($post->tags ?? [])->last();
@@ -198,8 +217,22 @@ class FileController extends BaseApiController
                                     $regenerated = true;
                                 }
                             }
-                        } elseif ($post->post_type === 'welcome' && $post->source_id) {
+                        } elseif ($post && $post->post_type === 'welcome' && $post->source_id) {
                             $user = User::find($post->source_id);
+                            if ($user) {
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    $generator = app(WearTheBadgeImageGenerator::class);
+                                    $generator->generate($user, $fileModel);
+                                    $regenerated = true;
+                                }
+                            }
+                        }
+
+                        if (! $regenerated) {
+                            $user = User::where('welcome_creative_url', 'LIKE', '%'.$file->id.'%')
+                                ->orWhere('profile_card_image_url', 'LIKE', '%'.$file->id.'%')
+                                ->first();
                             if ($user) {
                                 $fileModel = FileModel::find($file->id);
                                 if ($fileModel) {
@@ -403,6 +436,10 @@ class FileController extends BaseApiController
 
             return response()->stream(function () use ($stream, $start, $length) {
                 try {
+                    while (ob_get_level() > 0) {
+                        @ob_end_clean();
+                    }
+
                     if ($start > 0) {
                         if (@fseek($stream, $start) !== 0) {
                             $discardLeft = $start;
@@ -427,6 +464,9 @@ class FileController extends BaseApiController
                             break;
                         }
                         echo $buffer;
+                        if (ob_get_level() > 0) {
+                            @ob_flush();
+                        }
                         flush();
                         $bytesLeft -= strlen($buffer);
                     }
@@ -455,7 +495,14 @@ class FileController extends BaseApiController
 
         return response()->stream(function () use ($stream) {
             try {
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
                 fpassthru($stream);
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
             } finally {
                 if (is_resource($stream)) {
                     fclose($stream);
