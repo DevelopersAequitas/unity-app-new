@@ -106,6 +106,24 @@ class LeaderPermissionService
     public function getDefaultRoleCapabilities(): array
     {
         return [
+            'chairBusinessGrowth' => [
+                'access_dashboard',
+                'view_peers',
+                'request_actions',
+                'view_reports',
+            ],
+            'chairMembership' => [
+                'access_dashboard',
+                'view_peers',
+                'request_actions',
+                'view_reports',
+            ],
+            'chairEventsPrograms' => [
+                'access_dashboard',
+                'view_peers',
+                'request_actions',
+                'view_reports',
+            ],
             'circleChair' => [
                 'access_dashboard',
                 'view_peers',
@@ -194,7 +212,10 @@ class LeaderPermissionService
             'industrydirector', 'industry_director', 'id' => 'industryDirector',
             'circledirector', 'circle_director', 'cd' => 'circleDirector',
             'circlefounder', 'circle_founder', 'cf' => 'circleFounder',
-            'circlechair', 'circle_chair', 'chair' => 'circleChair',
+            'chairbusinessgrowth', 'chair_business_growth', 'businessgrowthcommitteechair', 'business_growth_committee_chair', 'business_growth_chair', 'chair - business growth committee' => 'chairBusinessGrowth',
+            'chairmembership', 'chair_membership', 'membershipgrowthcommitteechair', 'membership_growth_committee_chair', 'membership_committee_chair', 'membershipgrowthchair', 'membership_chair', 'chair - membership committee', 'chair - membership growth committee' => 'chairMembership',
+            'chaireventsprograms', 'chair_events_programs', 'eventsimpactscommitteechair', 'events_impacts_committee_chair', 'events_programs_committee_chair', 'eventsprogramscommitteechair', 'events_impacts_chair', 'events_chair', 'chair - events & programs committee', 'chair - events & impacts committee' => 'chairEventsPrograms',
+            'circlechair', 'circle_chair', 'chair' => 'chairBusinessGrowth',
             default => $cleaned,
         };
     }
@@ -211,7 +232,10 @@ class LeaderPermissionService
             'industryDirector' => 'Industry Director',
             'circleDirector' => 'Circle Director',
             'circleFounder' => 'Circle Founder',
-            'circleChair' => 'Circle Chair',
+            'chairBusinessGrowth' => 'Chair - Business Growth Committee',
+            'chairMembership' => 'Chair - Membership Committee',
+            'chairEventsPrograms' => 'Chair - Events & Programs Committee',
+            'circleChair' => 'Chair - Business Growth Committee',
             default => ucwords(str_replace(['_', '-'], ' ', $canonicalRole)),
         };
     }
@@ -237,23 +261,23 @@ class LeaderPermissionService
 
             foreach ($roles as $r) {
                 $normalized = $this->normalizeRoleKey($r);
-                if (in_array($normalized, ['superAdmin', 'countryDirector', 'districtExecDirector', 'industryDirector', 'circleDirector', 'circleFounder', 'circleChair'], true)) {
+                if (in_array($normalized, ['superAdmin', 'countryDirector', 'districtExecDirector', 'industryDirector', 'circleDirector', 'circleFounder', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair'], true)) {
                     return [
                         'role' => $normalized,
-                        'custom_role_label' => null,
+                        'custom_role_label' => $this->getRoleLabel($normalized),
                         'regional_scope' => $this->resolveRegionalScope($normalized),
                     ];
                 }
             }
         }
 
-        // 2. Check Circle direct assignment columns
+        // 2. Check Circle direct assignment columns & calendar JSON
         $userId = (string) $user->id;
 
         if (Circle::query()->where('circle_founder_user_id', $userId)->orWhere('founder_user_id', $userId)->exists()) {
             return [
                 'role' => 'circleFounder',
-                'custom_role_label' => null,
+                'custom_role_label' => 'Circle Founder',
                 'regional_scope' => 'Own Circle',
             ];
         }
@@ -261,7 +285,7 @@ class LeaderPermissionService
         if (Circle::query()->where('circle_director_user_id', $userId)->orWhere('director_user_id', $userId)->exists()) {
             return [
                 'role' => 'circleDirector',
-                'custom_role_label' => null,
+                'custom_role_label' => 'Circle Director',
                 'regional_scope' => 'Own Circle',
             ];
         }
@@ -269,7 +293,7 @@ class LeaderPermissionService
         if (Circle::query()->where('industry_director_user_id', $userId)->exists()) {
             return [
                 'role' => 'industryDirector',
-                'custom_role_label' => null,
+                'custom_role_label' => 'Industry Director',
                 'regional_scope' => 'Industry Scope',
             ];
         }
@@ -277,7 +301,7 @@ class LeaderPermissionService
         if (Circle::query()->where('ded_user_id', $userId)->exists()) {
             return [
                 'role' => 'districtExecDirector',
-                'custom_role_label' => null,
+                'custom_role_label' => 'District Exec Director',
                 'regional_scope' => 'District Scope',
             ];
         }
@@ -285,17 +309,57 @@ class LeaderPermissionService
         if (Circle::query()->where('eed_user_id', $userId)->exists()) {
             return [
                 'role' => 'countryDirector',
-                'custom_role_label' => null,
+                'custom_role_label' => 'Country Director',
                 'regional_scope' => 'Country Scope',
             ];
         }
 
-        if (Circle::query()->where('chair_user_id', $userId)->exists()) {
-            return [
-                'role' => 'circleChair',
-                'custom_role_label' => null,
-                'regional_scope' => 'Own Circle',
-            ];
+        // Check committee chairs in circles (via column, json calendar, or chair_user_id)
+        $circles = Circle::query()->whereNull('deleted_at')->get();
+        foreach ($circles as $circle) {
+            $bgId = data_get($circle->calendar, 'leadership.business_growth_committee_chair_user_id')
+                ?? data_get($circle->calendar, 'leadership.business_growth_committee_chair.id')
+                ?? data_get($circle->calendar, 'business_growth_committee_chair.id')
+                ?? ($circle->business_growth_committee_chair_user_id ?? null);
+            if ($bgId && (string) $bgId === $userId) {
+                return [
+                    'role' => 'chairBusinessGrowth',
+                    'custom_role_label' => 'Chair - Business Growth Committee',
+                    'regional_scope' => 'Own Circle',
+                ];
+            }
+
+            $mgId = data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id')
+                ?? data_get($circle->calendar, 'leadership.membership_growth_committee_chair.id')
+                ?? data_get($circle->calendar, 'membership_growth_committee_chair.id')
+                ?? ($circle->membership_growth_committee_chair_user_id ?? null);
+            if ($mgId && (string) $mgId === $userId) {
+                return [
+                    'role' => 'chairMembership',
+                    'custom_role_label' => 'Chair - Membership Committee',
+                    'regional_scope' => 'Own Circle',
+                ];
+            }
+
+            $eiId = data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id')
+                ?? data_get($circle->calendar, 'leadership.events_impacts_committee_chair.id')
+                ?? data_get($circle->calendar, 'events_impacts_committee_chair.id')
+                ?? ($circle->events_impacts_committee_chair_user_id ?? null);
+            if ($eiId && (string) $eiId === $userId) {
+                return [
+                    'role' => 'chairEventsPrograms',
+                    'custom_role_label' => 'Chair - Events & Programs Committee',
+                    'regional_scope' => 'Own Circle',
+                ];
+            }
+
+            if ((string) $circle->chair_user_id === $userId || (string) data_get($circle->calendar, 'leadership.chair_user_id') === $userId) {
+                return [
+                    'role' => 'chairBusinessGrowth',
+                    'custom_role_label' => 'Chair - Business Growth Committee',
+                    'regional_scope' => 'Own Circle',
+                ];
+            }
         }
 
         // 3. Check circle_members role
@@ -306,10 +370,10 @@ class LeaderPermissionService
 
         if ($circleMemberRole) {
             $normalized = $this->normalizeRoleKey($circleMemberRole);
-            if (in_array($normalized, ['superAdmin', 'countryDirector', 'districtExecDirector', 'industryDirector', 'circleDirector', 'circleFounder', 'circleChair'], true)) {
+            if (in_array($normalized, ['superAdmin', 'countryDirector', 'districtExecDirector', 'industryDirector', 'circleDirector', 'circleFounder', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair'], true)) {
                 return [
                     'role' => $normalized,
-                    'custom_role_label' => null,
+                    'custom_role_label' => $this->getRoleLabel($normalized),
                     'regional_scope' => $this->resolveRegionalScope($normalized),
                 ];
             }
@@ -321,10 +385,10 @@ class LeaderPermissionService
             ];
         }
 
-        // Default to circleChair if coordinator/leader, else circleChair
+        // Default to chairBusinessGrowth
         return [
-            'role' => 'circleChair',
-            'custom_role_label' => null,
+            'role' => 'chairBusinessGrowth',
+            'custom_role_label' => 'Chair - Business Growth Committee',
             'regional_scope' => 'Own Circle',
         ];
     }
@@ -482,7 +546,7 @@ class LeaderPermissionService
             'enabled_capabilities' => array_values($enabledCapabilities),
             'can_access_dashboard' => $hasCap('access_dashboard'),
             'can_view_overall_revenue' => $hasCap('access_finance'),
-            'can_review_pending_peers' => $hasCap('access_teams') || in_array($role, ['circleChair', 'circleFounder', 'circleDirector', 'districtExecDirector'], true),
+            'can_review_pending_peers' => $hasCap('access_teams') || in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector', 'districtExecDirector'], true),
             'can_access_peers_tab' => $hasCap('view_peers'),
             'can_add_edit_peer' => $hasCap('manage_peers') || in_array($role, ['circleFounder', 'circleDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'], true),
             'can_send_wishes' => $hasCap('request_actions') || true,
@@ -495,7 +559,7 @@ class LeaderPermissionService
             'can_modify_finance_settings' => $hasCap('manage_finance') || in_array($role, ['districtExecDirector', 'countryDirector', 'superAdmin'], true),
             'can_issue_coins' => $hasCap('coin_payouts') || in_array($role, ['countryDirector', 'superAdmin'], true),
             'can_access_reports_tab' => $hasCap('view_reports'),
-            'can_submit_reports' => $hasCap('view_reports') && in_array($role, ['circleChair', 'circleFounder', 'circleDirector'], true),
+            'can_submit_reports' => $hasCap('view_reports') && in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair', 'circleFounder', 'circleDirector'], true),
             'can_export_peer_data' => $hasCap('view_peers') && in_array($role, ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'countryDirector', 'superAdmin'], true),
             'can_export_financial_data' => $hasCap('access_finance') && in_array($role, ['districtExecDirector', 'countryDirector', 'superAdmin'], true),
             'can_export_global_data' => $hasCap('regional_data') && in_array($role, ['superAdmin'], true),

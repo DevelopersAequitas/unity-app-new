@@ -125,7 +125,7 @@ class LeaderReportsService
         $districtId = $circle?->district_id ?? null;
         $industryId = $circle?->circle_category_id ?? null;
 
-        $roleKey = $user ? $this->permissionService->resolveUserRole($user)['role'] : 'circleChair';
+        $roleKey = $user ? $this->permissionService->resolveUserRole($user)['role'] : 'chairBusinessGrowth';
         $roleTitleMap = [
             'superAdmin' => 'Super Admin',
             'countryDirector' => 'Country Director',
@@ -133,12 +133,15 @@ class LeaderReportsService
             'industryDirector' => 'Industry Director',
             'circleFounder' => 'Circle Founder',
             'circleDirector' => 'Circle Director',
-            'circleChair' => 'Circle Chair',
+            'chairBusinessGrowth' => 'Chair - Business Growth Committee',
+            'chairMembership' => 'Chair - Membership Committee',
+            'chairEventsPrograms' => 'Chair - Events & Programs Committee',
+            'circleChair' => 'Chair - Business Growth Committee',
         ];
-        $submitterRole = $roleTitleMap[$roleKey] ?? 'Circle Chair';
+        $submitterRole = $roleTitleMap[$roleKey] ?? 'Chair - Business Growth Committee';
 
         $visibleToRoles = match ($roleKey) {
-            'circleChair' => ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'superAdmin'],
+            'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair' => ['circleFounder', 'circleDirector', 'industryDirector', 'districtExecDirector', 'superAdmin'],
             'circleFounder', 'circleDirector' => ['industryDirector', 'districtExecDirector', 'superAdmin'],
             'industryDirector' => ['districtExecDirector', 'superAdmin'],
             'districtExecDirector' => ['superAdmin'],

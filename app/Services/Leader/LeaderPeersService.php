@@ -101,7 +101,7 @@ class LeaderPeersService
                 ->all();
         }
 
-        if ($role === 'circleChair') {
+        if (in_array($role, ['chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms', 'circleChair'], true)) {
             $assignedCircleIds = Circle::query()
                 ->where('chair_user_id', $userId)
                 ->pluck('id')
@@ -110,7 +110,11 @@ class LeaderPeersService
             if (empty($assignedCircleIds)) {
                 $assignedCircleIds = DB::table('circle_members')
                     ->where('user_id', $userId)
-                    ->whereIn('role', ['chair', 'circle_chair', 'vice_chair'])
+                    ->whereIn('role', [
+                        'chair', 'circle_chair', 'vice_chair',
+                        'business_growth_committee_chair', 'membership_growth_committee_chair', 'events_impacts_committee_chair',
+                        'chair_business_growth', 'chair_membership', 'chair_events_programs',
+                    ])
                     ->whereNull('deleted_at')
                     ->pluck('circle_id')
                     ->all();

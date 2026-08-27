@@ -28,7 +28,9 @@ class LeaderRoleMatrixService
         $defaults = $this->permissionService->getDefaultRoleCapabilities();
 
         $standardRoles = [
-            'circleChair' => 'Circle Chair',
+            'chairBusinessGrowth' => 'Chair - Business Growth Committee',
+            'chairMembership' => 'Chair - Membership Committee',
+            'chairEventsPrograms' => 'Chair - Events & Programs Committee',
             'circleFounder' => 'Circle Founder',
             'circleDirector' => 'Circle Director',
             'industryDirector' => 'Industry Director',
@@ -57,7 +59,13 @@ class LeaderRoleMatrixService
 
         // Add custom dynamic roles from database
         $customRoles = Role::query()
-            ->whereNotIn('key', ['global_admin', 'super_admin', 'chair', 'eed', 'ded', 'industry_director', 'Circle Director', 'Circle Founder', 'member', 'user'])
+            ->whereNotIn('key', [
+                'global_admin', 'super_admin', 'chair', 'eed', 'ded', 'industry_director',
+                'Circle Director', 'Circle Founder', 'member', 'user',
+                'circleChair', 'Circle_Chair', 'chairBusinessGrowth', 'chairMembership', 'chairEventsPrograms',
+                'chair_business_growth', 'chair_membership', 'chair_events_programs',
+                'business_growth_committee_chair', 'membership_growth_committee_chair', 'events_impacts_committee_chair',
+            ])
             ->get();
 
         foreach ($customRoles as $cr) {
