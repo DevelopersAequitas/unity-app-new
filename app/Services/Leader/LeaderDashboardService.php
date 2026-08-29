@@ -39,56 +39,49 @@ class LeaderDashboardService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $admin = null;
-        if ($user) {
-            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
-        }
-
-        // If authenticated user is a DED, use the robust DistrictAnalyticsService
-        if ($admin && AdminAccess::isDed($admin)) {
-            return $this->getDedMetrics($admin, $circleId);
-        }
-
         $peersService = app(LeaderPeersService::class);
         $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
 
         $circle = null;
+        $resolvedCircleId = null;
+        $resolvedCircleName = 'All Circles';
+        $targetCircleIds = [];
+
+        // 1. If explicit circle_id is provided in request and valid UUID
         if ($circleId && Str::isUuid($circleId)) {
             if ($scopedCircleIds === null || in_array($circleId, $scopedCircleIds, true)) {
                 $circle = Circle::query()->where('id', $circleId)->first();
             }
         }
 
-        if (! $circle && $scopedCircleIds !== null && ! empty($scopedCircleIds)) {
-            $circle = Circle::query()->whereIn('id', $scopedCircleIds)->whereNull('deleted_at')->first();
+        // 2. If user is scoped to a single circle (e.g. circle leader/chair) and no circle was requested
+        if (! $circle && $scopedCircleIds !== null && count($scopedCircleIds) === 1) {
+            $circle = Circle::query()->where('id', $scopedCircleIds[0])->whereNull('deleted_at')->first();
         }
 
-        if (! $circle) {
+        if ($circle) {
+            $resolvedCircleId = (string) $circle->id;
+            $rawCircleName = (string) $circle->name;
+            if ($rawCircleName === 'Enter the complete name of the circle.' || $rawCircleName === '') {
+                $rawCircleName = 'Ahmedabad Tech Pioneers';
+            }
+            $resolvedCircleName = $rawCircleName;
+            $targetCircleIds = [(string) $circle->id];
+        } elseif ($scopedCircleIds !== null) {
+            // User is scoped to multiple circles (e.g. DED / Industry Director across multiple circles)
+            $resolvedCircleId = null;
+            $resolvedCircleName = 'All Circles';
+            $targetCircleIds = $scopedCircleIds;
+        } else {
+            // User has global / superAdmin / countryDirector access with no specific circle selected
             $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
             if ($resolvedDistrictId) {
-                $circle = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->first();
+                $targetCircleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
+            } else {
+                $targetCircleIds = []; // Empty means query across ALL circles platform-wide
             }
-        }
-
-        if (! $circle) {
-            $circle = Circle::query()->whereNull('deleted_at')->first();
-        }
-
-        $resolvedCircleId = $circle ? (string) $circle->id : 'd06173c0-368c-4bfd-b682-e07e67fdb320';
-        $rawCircleName = $circle ? (string) $circle->name : 'Ahmedabad Tech Pioneers';
-        if ($rawCircleName === 'Enter the complete name of the circle.' || $rawCircleName === '') {
-            $rawCircleName = 'Ahmedabad Tech Pioneers';
-        }
-        $resolvedCircleName = $rawCircleName;
-
-        // Determine effective circle IDs for metric aggregation
-        $targetCircleIds = [];
-        if ($circleId && Str::isUuid($circleId)) {
-            $targetCircleIds = [$circleId];
-        } elseif ($scopedCircleIds !== null) {
-            $targetCircleIds = $scopedCircleIds;
-        } elseif ($circle) {
-            $targetCircleIds = [(string) $circle->id];
+            $resolvedCircleId = null;
+            $resolvedCircleName = 'All Circles';
         }
 
         // Peer counts
@@ -167,7 +160,14 @@ class LeaderDashboardService
         $dealsSum = (float) $dealsQuery->sum('deal_amount');
 
         // Coins sum
-        $coinsSum = (int) $impactsQuery->sum('coins_balance');
+        $coinsQuery = User::query()->whereNull('deleted_at');
+        if (! empty($targetCircleIds)) {
+            $coinsQuery->where(function (Builder $q) use ($targetCircleIds): void {
+                $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $targetCircleIds)->whereNull('deleted_at'))
+                    ->orWhereIn('active_circle_id', $targetCircleIds);
+            });
+        }
+        $coinsSum = (int) $coinsQuery->sum('coins_balance');
 
         $dealsFormatted = $dealsSum > 0
             ? ($dealsSum >= 10000000 ? '₹'.round($dealsSum / 10000000, 2).'Cr' : '₹'.round($dealsSum / 100000, 1).'L')
@@ -176,16 +176,20 @@ class LeaderDashboardService
         // Calculate circle revenue
         $totalRevenueAmount = 0.0;
         if (! empty($targetCircleIds)) {
-            $circlesInTarget = Circle::query()->whereIn('id', $targetCircleIds)->get();
-            foreach ($circlesInTarget as $tc) {
-                $pCount = $tc->members ? $tc->members->where('status', 'approved')->count() : 0;
-                $unitPrice = (float) ($tc->circle_price_amount ?? 120000);
-                if ($unitPrice <= 0) {
-                    $unitPrice = 120000;
-                }
-                $totalRevenueAmount += ($unitPrice * $pCount);
-            }
+            $circlesInTarget = Circle::query()->whereIn('id', $targetCircleIds)->whereNull('deleted_at')->with('members')->get();
+        } else {
+            $circlesInTarget = Circle::query()->whereNull('deleted_at')->with('members')->get();
         }
+
+        foreach ($circlesInTarget as $tc) {
+            $pCount = $tc->members ? $tc->members->where('status', 'approved')->count() : 0;
+            $unitPrice = (float) ($tc->circle_price_amount ?? 120000);
+            if ($unitPrice <= 0) {
+                $unitPrice = 120000;
+            }
+            $totalRevenueAmount += ($unitPrice * $pCount);
+        }
+
         $revFormatted = $totalRevenueAmount > 0
             ? ($totalRevenueAmount >= 10000000 ? '₹'.round($totalRevenueAmount / 10000000, 2).'Cr' : '₹'.round($totalRevenueAmount / 100000, 1).'L')
             : '₹0';
