@@ -10,6 +10,7 @@ use App\Http\Requests\Leader\LeaderUpdateProfileRequest;
 use App\Http\Requests\Leader\LeaderUploadAvatarRequest;
 use App\Http\Requests\Leader\LeaderVerifyOtpRequest;
 use App\Models\User;
+use App\Models\UserPushToken;
 use App\Services\Leader\LeaderAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,24 @@ class LeaderAuthController extends Controller
                 (string) $request->validated('email_or_phone'),
                 (string) $request->validated('otp'),
             );
+
+            $pushToken = $request->input('token')
+                ?? $request->input('device_token')
+                ?? $request->input('fcm_token')
+                ?? $request->input('push_token')
+                ?? $request->input('firebase_token');
+
+            if (filled($pushToken) && ! empty($data['user']['id'])) {
+                $user = User::find($data['user']['id']);
+                if ($user) {
+                    UserPushToken::registerTokenForUser($user, [
+                        'token' => $pushToken,
+                        'platform' => $request->input('platform') ?? $request->input('device_type'),
+                        'device_id' => $request->input('device_id'),
+                        'app_version' => $request->input('app_version'),
+                    ]);
+                }
+            }
 
             return response()->json([
                 'success' => true,
