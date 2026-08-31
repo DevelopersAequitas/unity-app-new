@@ -13,6 +13,18 @@ class LeaderSendOtpRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('email_or_phone')) {
+            $identifier = $this->input('email') ?? $this->input('phone') ?? $this->input('mobile');
+            if ($identifier !== null) {
+                $this->merge([
+                    'email_or_phone' => (string) $identifier,
+                ]);
+            }
+        }
+    }
+
     /**
      * @return array<string, array<mixed>>
      */
@@ -20,6 +32,8 @@ class LeaderSendOtpRequest extends FormRequest
     {
         return [
             'email_or_phone' => ['required', 'string'],
+            'email' => ['nullable', 'string'],
+            'phone' => ['nullable', 'string'],
         ];
     }
 }

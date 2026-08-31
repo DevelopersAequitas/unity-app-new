@@ -13,6 +13,18 @@ class LeaderVerifyOtpRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('email_or_phone')) {
+            $identifier = $this->input('email') ?? $this->input('phone') ?? $this->input('mobile');
+            if ($identifier !== null) {
+                $this->merge([
+                    'email_or_phone' => (string) $identifier,
+                ]);
+            }
+        }
+    }
+
     /**
      * @return array<string, array<mixed>>
      */
@@ -20,7 +32,19 @@ class LeaderVerifyOtpRequest extends FormRequest
     {
         return [
             'email_or_phone' => ['required', 'string'],
+            'email' => ['nullable', 'string'],
+            'phone' => ['nullable', 'string'],
             'otp' => ['required', 'string'],
+            'device_name' => ['nullable', 'string'],
+            'fcm_token' => ['nullable', 'string'],
+            'token' => ['nullable', 'string'],
+            'device_token' => ['nullable', 'string'],
+            'push_token' => ['nullable', 'string'],
+            'firebase_token' => ['nullable', 'string'],
+            'platform' => ['nullable', 'string'],
+            'device_type' => ['nullable', 'string'],
+            'device_id' => ['nullable', 'string'],
+            'app_version' => ['nullable', 'string'],
         ];
     }
 }
