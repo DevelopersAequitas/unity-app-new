@@ -2,8 +2,8 @@
 
 namespace App\Http\Resources\V1;
 
-use App\Models\City;
 use App\Models\CircleCategory;
+use App\Models\City;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
 
@@ -87,6 +87,7 @@ class UserMiniResource extends JsonResource
                     return trim((string) $decoded['name']);
                 }
             }
+
             return $trimmedCity;
         }
 
