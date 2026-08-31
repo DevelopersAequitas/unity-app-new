@@ -73,11 +73,21 @@ class UserMiniResource extends JsonResource
         }
 
         $city = $user->getAttribute('city');
+        if (is_array($city)) {
+            return $city['name'] ?? null;
+        }
         if (is_object($city)) {
             return $city->name ?? null;
         }
         if (is_string($city) && trim($city) !== '') {
-            return trim($city);
+            $trimmedCity = trim($city);
+            if (str_starts_with($trimmedCity, '{')) {
+                $decoded = json_decode($trimmedCity, true);
+                if (is_array($decoded) && ! empty($decoded['name'])) {
+                    return trim((string) $decoded['name']);
+                }
+            }
+            return $trimmedCity;
         }
 
         $cityName = $user->getAttribute('city_name');
