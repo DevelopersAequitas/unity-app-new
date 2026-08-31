@@ -61,7 +61,11 @@ class MyPostsController extends BaseApiController
         }
 
         $likes = $post->likes()
-            ->with('user:id,display_name,profile_photo_file_id')
+            ->with([
+                'user.city',
+                'user.businessCategory',
+                'user.mainBusinessCategory',
+            ])
             ->orderByDesc('created_at')
             ->get();
 
