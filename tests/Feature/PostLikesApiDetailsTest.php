@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\City;
 use App\Models\CircleCategory;
+use App\Models\City;
 use App\Models\Post;
 use App\Models\PostLike;
 use App\Models\User;

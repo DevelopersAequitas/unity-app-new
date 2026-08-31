@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\LeaderWish;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
@@ -325,6 +326,12 @@ class LeaderPeersService
             'life_impacted_count' => $impact,
             'impact' => $impact,
             'impact_count' => $impact,
+            'life_impact_recognition' => [
+                'level' => $impact >= 25 ? app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['title'] : 'Aspiring Impact Leader',
+                'required_count' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['required_count'],
+                'badge_image' => asset(app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['badge_image']),
+                'hashtag' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['hashtag'],
+            ],
             'circle' => $circleName,
             'circle_name' => $circleName,
             'circle_id' => $circleId,
@@ -472,6 +479,13 @@ class LeaderPeersService
             'life_impacted_count' => $impact,
             'impact' => $impact,
             'impact_count' => $impact,
+            'life_impact_recognition' => [
+                'level' => $impact >= 25 ? app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['title'] : 'Aspiring Impact Leader',
+                'required_count' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['required_count'],
+                'badge_image' => asset(app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['badge_image']),
+                'hashtag' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['hashtag'],
+                'quote' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['quote'],
+            ],
             'circle' => $circleName,
             'circle_name' => $circleName,
             'circle_id' => $circleId,

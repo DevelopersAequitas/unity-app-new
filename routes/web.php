@@ -56,6 +56,7 @@ use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardControl
 use App\Http\Controllers\Admin\IntroductionRequestsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\LifeImpactController;
+use App\Http\Controllers\Admin\LifeImpactRecognitionsController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\MemberIntroducersController;
@@ -286,6 +287,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/member-introducers/{id}/introduced-peers', [MemberIntroducersController::class, 'introducedPeers'])->whereUuid('id')->name('member-introducers.introduced-peers');
         Route::get('/member-introducers/{id}/creative-preview', [MemberIntroducersController::class, 'creativePreview'])->whereUuid('id')->name('member-introducers.creative-preview');
         Route::post('/member-introducers/{id}/post-creative', [MemberIntroducersController::class, 'postCreativeToTimeline'])->whereUuid('id')->name('member-introducers.post-creative');
+        Route::get('/life-impact-recognitions', [LifeImpactRecognitionsController::class, 'index'])->name('life-impact-recognitions.index');
+        Route::get('/life-impact-recognitions/{id}/creative-preview', [LifeImpactRecognitionsController::class, 'creativePreview'])->whereUuid('id')->name('life-impact-recognitions.creative-preview');
+        Route::post('/life-impact-recognitions/{id}/post-creative', [LifeImpactRecognitionsController::class, 'postCreativeToTimeline'])->whereUuid('id')->name('life-impact-recognitions.post-creative');
         Route::get('/milestone-badges', [MilestoneBadgeController::class, 'index'])->name('milestone-badges.index');
         Route::get('/milestone-badges/create', [MilestoneBadgeController::class, 'create'])->name('milestone-badges.create');
         Route::post('/milestone-badges', [MilestoneBadgeController::class, 'store'])->name('milestone-badges.store');
