@@ -67,6 +67,15 @@ class StoreReferralRequest extends FormRequest
                 $this->merge(['to_user_id' => $resolvedUserId]);
             }
         }
+
+        foreach (['email', 'address', 'remarks'] as $field) {
+            if ($this->has($field)) {
+                $val = $this->input($field);
+                if ($val === null || (is_string($val) && trim($val) === '')) {
+                    $this->merge([$field => null]);
+                }
+            }
+        }
     }
 
     public function rules(): array
