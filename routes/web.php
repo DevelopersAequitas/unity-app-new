@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
+use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
@@ -243,6 +244,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
 
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
+        Route::get('/commissions', [CommissionManagementController::class, 'index'])->name('commissions.index');
+        Route::put('/commissions', [CommissionManagementController::class, 'updateBulk'])->name('commissions.update-bulk');
+        Route::post('/commissions', [CommissionManagementController::class, 'store'])->name('commissions.store');
+        Route::delete('/commissions/{id}', [CommissionManagementController::class, 'destroy'])->whereUuid('id')->name('commissions.destroy');
         Route::get('/app-updates', [AppUpdatesController::class, 'index'])->name('app-updates.index');
         Route::post('/app-updates/save/{platform}', [AppUpdatesController::class, 'saveSettings'])->name('app-updates.save');
         Route::post('/app-updates/maintenance', [AppUpdatesController::class, 'saveMaintenance'])->name('app-updates.maintenance.save');

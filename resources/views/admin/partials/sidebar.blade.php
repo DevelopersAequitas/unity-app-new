@@ -689,6 +689,13 @@
                 </a>
             </li>
             @endif
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Commission Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSuper($adminUser))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.commissions.*') ? 'active' : '' }}" href="{{ route('admin.commissions.index') }}" title="Commission Management">
+                    <i class="bi bi-percent me-2"></i><span class="menu-text">Commission Management</span>
+                </a>
+            </li>
+            @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}" title="App Updates Manager">
