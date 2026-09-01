@@ -12,6 +12,7 @@ use App\Models\AppLabel;
 use App\Models\AppMembershipLabel;
 use App\Models\AppNavigationItem;
 use App\Models\AppSocialLink;
+use App\Models\LeaderAppConfig;
 use App\Services\AppConfigService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -368,6 +369,56 @@ class AppConfigAdminController extends Controller
         $model->update($data);
 
         return $this->changed($model, 'Membership label updated successfully.');
+    }
+
+    public function leaderConfig(): JsonResponse
+    {
+        $leaderConfig = null;
+        if (Schema::hasTable('leader_app_configs')) {
+            try {
+                $leaderConfig = LeaderAppConfig::query()->latest('updated_at')->first();
+            } catch (\Throwable) {
+                $leaderConfig = null;
+            }
+        }
+
+        return $this->ok($leaderConfig?->toArray() ?? [], 'Leader app configuration fetched successfully.');
+    }
+
+    public function updateLeaderConfig(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'min_required_version' => ['required', 'string', 'max:50'],
+            'latest_version' => ['required', 'string', 'max:50'],
+            'store_url_android' => ['nullable', 'url'],
+            'store_url_ios' => ['nullable', 'url'],
+            'force_update_title' => ['nullable', 'string', 'max:255'],
+            'force_update_message' => ['nullable', 'string'],
+            'optional_update_title' => ['nullable', 'string', 'max:255'],
+            'optional_update_message' => ['nullable', 'string'],
+            'is_maintenance_mode' => ['nullable', 'boolean'],
+            'maintenance_title' => ['nullable', 'string', 'max:255'],
+            'maintenance_message' => ['nullable', 'string'],
+            'allowed_bypass_roles' => ['nullable', 'array'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        if (Schema::hasTable('leader_app_configs')) {
+            $existing = LeaderAppConfig::query()->latest('updated_at')->first();
+            if ($existing) {
+                $existing->update($data);
+                $model = $existing->fresh();
+            } else {
+                $model = LeaderAppConfig::query()->create($data + [
+                    'id' => (string) Str::uuid(),
+                    'platform' => 'all',
+                ]);
+            }
+
+            return $this->changed($model, 'Leader app configuration updated successfully.');
+        }
+
+        return $this->ok(null, 'leader_app_configs table does not exist.');
     }
 
     public function clearCache(): JsonResponse

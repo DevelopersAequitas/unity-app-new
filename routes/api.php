@@ -750,6 +750,8 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
+            Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
+            Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
             Route::post('/app-config/clear-cache', [AppConfigAdminController::class, 'clearCache']);
 
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);

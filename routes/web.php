@@ -246,6 +246,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/app-updates', [AppUpdatesController::class, 'index'])->name('app-updates.index');
         Route::post('/app-updates/save/{platform}', [AppUpdatesController::class, 'saveSettings'])->name('app-updates.save');
         Route::post('/app-updates/maintenance', [AppUpdatesController::class, 'saveMaintenance'])->name('app-updates.maintenance.save');
+        Route::post('/app-updates/leader-config', [AppUpdatesController::class, 'saveLeaderConfig'])->name('app-updates.leader-config.save');
         Route::post('/app-updates/notify-selected', [AppUpdatesController::class, 'notifySelected'])->name('app-updates.notify-selected');
         Route::post('/app-updates/releases', [AppUpdatesController::class, 'storeRelease'])->name('app-updates.releases.store');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
