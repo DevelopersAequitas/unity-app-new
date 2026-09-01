@@ -504,7 +504,7 @@ class ReferralController extends BaseApiController
                 'exception' => $e,
             ]);
 
-            return $this->error('Something went wrong', 500);
+            return $this->error($e->getMessage() ?: 'Something went wrong', 500);
         }
     }
 
