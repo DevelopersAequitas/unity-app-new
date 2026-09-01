@@ -334,22 +334,6 @@ class LeaderDashboardService
             : ($revSum >= 100000 ? '₹'.round($revSum / 100000, 1).'L' : '₹'.number_format($revSum, 0));
 
         return [
-        foreach ($circlesInTarget as $tc) {
-            $pCount = $tc->members ? $tc->members->where('status', 'approved')->count() : 0;
-            $unitPrice = (float) ($tc->circle_price_amount ?? 120000);
-            if ($unitPrice <= 0) {
-                $unitPrice = 120000;
-            }
-            $totalRevenueAmount += ($unitPrice * $pCount);
-        }
-
-        $revFormatted = $totalRevenueAmount > 0
-            ? ($totalRevenueAmount >= 10000000 ? '₹'.round($totalRevenueAmount / 10000000, 2).'Cr' : '₹'.round($totalRevenueAmount / 100000, 1).'L')
-            : '₹0';
-
-        return [
-            'circle_id' => $resolvedCircleId,
-            'circle_name' => $resolvedCircleName,
             'overall_revenue' => $revFormatted,
             'overall_deals_closed' => $dealsFormatted,
             'impact' => $impactsCount,
@@ -368,7 +352,6 @@ class LeaderDashboardService
      * Get top 5 impacters for a circle or district leaderboard.
      *
      * @return array<int, array<string, mixed>>
-     * @return array<int, array{rank: int, name: string, company: string, location: string, lives: int, coins: int}>
      */
     public function getTopImpacters(
         ?string $circleId = null,
@@ -390,7 +373,6 @@ class LeaderDashboardService
             ]);
 
         $query = clone $baseQuery;
-        $query = User::query()->whereNull('deleted_at');
 
         if ($admin && AdminAccess::isDed($admin)) {
             AdminCircleScope::applyToUsersQuery($query, $admin);
@@ -399,24 +381,16 @@ class LeaderDashboardService
             $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
 
             if ($circleId && Str::isUuid($circleId)) {
-                if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
-                    return [];
-                }
                 $query->where(function (Builder $q) use ($circleId): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->where('circle_id', $circleId)->whereNull('deleted_at'))
                         ->orWhere('active_circle_id', $circleId);
                 });
             } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds)) {
-            } elseif ($scopedCircleIds !== null) {
-                if (empty($scopedCircleIds)) {
-                    return [];
-                }
                 $query->where(function (Builder $q) use ($scopedCircleIds): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
                         ->orWhereIn('active_circle_id', $scopedCircleIds);
                 });
             } elseif ($districtId) {
-            } else {
                 $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
                 if ($resolvedDistrictId) {
                     $query->where(function (Builder $q) use ($resolvedDistrictId): void {
@@ -451,7 +425,6 @@ class LeaderDashboardService
                 ->get();
             $users = $users->merge($fillers);
         }
-        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('coins_balance')->take(5)->get();
 
         $result = [];
         $rank = 1;
@@ -535,16 +508,6 @@ class LeaderDashboardService
                 'impact' => $lives,
                 'coins' => $coins,
                 'coins_balance' => $coins,
-                $name = $u->display_name ?? 'Peer Member';
-            }
-
-            $result[] = [
-                'rank' => $rank,
-                'name' => $name,
-                'company' => (string) ($u->company_name ?? 'Enterprise Services'),
-                'location' => (string) ($u->city ?? 'Ahmedabad'),
-                'lives' => (int) ($u->life_impacted_count ?? max(50 - ($rank * 8), 10)),
-                'coins' => (int) ($u->coins_balance ?? max(1400 - ($rank * 220), 200)),
             ];
             $rank++;
         }
