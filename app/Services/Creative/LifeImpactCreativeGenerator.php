@@ -312,8 +312,8 @@ class LifeImpactCreativeGenerator
                 $darkCircleBg = imagecolorallocate($canvas, 10, 37, 64);
 
                 // 1. Profile Avatar: Center X = 540, Center Y = 662, Diameter = 225
-                $targetDiameter = 238;
-                $circleCenterX = 535;
+                $targetDiameter = 242;
+                $circleCenterX = 534;
                 $circleCenterY = 660;
 
                 $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg);
