@@ -7,6 +7,7 @@ use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Http\Resources\ReferralMemberResource;
+use App\Models\CircleMember;
 use App\Models\Referral;
 use App\Models\ReferralStatus;
 use App\Models\User;
@@ -16,7 +17,9 @@ use App\Services\Notifications\NotifyUserService;
 use App\Services\Referrals\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ReferralController extends BaseApiController
@@ -372,6 +375,17 @@ class ReferralController extends BaseApiController
         $authUser = $request->user();
         $targetUserId = (string) $request->input('to_user_id');
 
+        // Resolve UUID if numeric or member ID passed
+        if (! Str::isUuid($targetUserId)) {
+            $resolvedUser = null;
+            if (is_numeric($targetUserId)) {
+                $resolvedUser = CircleMember::find($targetUserId)?->user ?? User::where('phone', 'like', '%'.substr($targetUserId, -10))->first();
+            }
+            if ($resolvedUser) {
+                $targetUserId = (string) $resolvedUser->id;
+            }
+        }
+
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
@@ -379,7 +393,7 @@ class ReferralController extends BaseApiController
         try {
             $referral = Referral::create([
                 'from_user_id' => $authUser->id,
-                'to_user_id' => $request->input('to_user_id'),
+                'to_user_id' => $targetUserId,
                 'referral_type' => $request->input('referral_type'),
                 'referral_date' => $request->input('referral_date'),
                 'referral_of' => $request->input('referral_of'),
@@ -391,84 +405,102 @@ class ReferralController extends BaseApiController
                 'is_deleted' => false,
             ]);
 
-            $coinsLedger = app(CoinsService::class)->rewardForActivity(
-                $authUser,
-                'referral',
-                null,
-                'Activity: referral',
-                $authUser->id
-            );
+            try {
+                $coinsLedger = app(CoinsService::class)->rewardForActivity(
+                    $authUser,
+                    'referral',
+                    null,
+                    'Activity: referral',
+                    $authUser->id
+                );
 
-            if ($coinsLedger) {
-                $referral->setAttribute('coins', [
-                    'earned' => $coinsLedger->amount,
-                    'balance_after' => $coinsLedger->balance_after,
+                if ($coinsLedger) {
+                    $referral->setAttribute('coins', [
+                        'earned' => $coinsLedger->amount,
+                        'balance_after' => $coinsLedger->balance_after,
+                    ]);
+                }
+            } catch (Throwable $coinException) {
+                Log::warning('Referral coin reward failed: '.$coinException->getMessage(), [
+                    'referral_id' => (string) $referral->id,
+                    'user_id' => (string) $authUser->id,
                 ]);
             }
 
-            event(new ActivityCreated(
-                'Referral',
-                $referral,
-                (string) $authUser->id,
-                $referral->to_user_id ? (string) $referral->to_user_id : null
-            ));
-
-            $targetUser = User::find($referral->to_user_id);
-
-            if ($targetUser) {
-                $notifyUserService->notifyUser(
-                    $targetUser,
-                    $authUser,
-                    'activity_referral',
-                    [
-                        'activity_type' => 'referral',
-                        'activity_id' => (string) $referral->id,
-                        'title' => 'New Referral',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a referral',
-                    ],
-                    $referral
-                );
+            try {
+                event(new ActivityCreated(
+                    'Referral',
+                    $referral,
+                    (string) $authUser->id,
+                    $referral->to_user_id ? (string) $referral->to_user_id : null
+                ));
+            } catch (Throwable $eventException) {
+                Log::warning('Referral ActivityCreated event failed: '.$eventException->getMessage(), [
+                    'referral_id' => (string) $referral->id,
+                ]);
             }
 
-            $updatedLifeImpact = $this->increaseLifeImpact(
-                (string) $authUser->id,
-                1,
-                'referral',
-                'Gave a qualified business referral',
-                (string) $authUser->id,
-                (string) $referral->id,
-                'Life impact added for referral activity.',
-                [
-                    'referral_type' => $referral->referral_type,
-                    'referral_date' => $referral->referral_date,
-                    'referral_of' => $referral->referral_of,
-                    'phone' => $referral->phone,
-                    'email' => $referral->email,
-                    'address' => $referral->address,
-                    'hot_value' => $referral->hot_value,
-                    'remarks' => $referral->remarks,
-                    'to_user_id' => $referral->to_user_id ? (string) $referral->to_user_id : null,
-                ]
-            );
-            $referral->setAttribute('life_impacted_count', $updatedLifeImpact);
+            try {
+                $targetUser = User::find($referral->to_user_id);
 
-            // Postman example (referral create):
-            // {
-            //   "to_user_id": "<receiver-user-uuid>",
-            //   "referral_type": "service",
-            //   "referral_date": "2026-01-20",
-            //   "referral_of": "Acme Corp",
-            //   "phone": "+1234567890",
-            //   "email": "lead@example.com",
-            //   "address": "Downtown",
-            //   "hot_value": "hot",
-            //   "remarks": "High intent"
-            // }
-            // Verify SQL:
-            // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
+                if ($targetUser) {
+                    $notifyUserService->notifyUser(
+                        $targetUser,
+                        $authUser,
+                        'activity_referral',
+                        [
+                            'activity_type' => 'referral',
+                            'activity_id' => (string) $referral->id,
+                            'title' => 'New Referral',
+                            'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a referral',
+                        ],
+                        $referral
+                    );
+                }
+            } catch (Throwable $notificationException) {
+                Log::error('Referral notification failed: '.$notificationException->getMessage(), [
+                    'referral_id' => (string) $referral->id,
+                    'to_user_id' => (string) $referral->to_user_id,
+                ]);
+            }
+
+            try {
+                $updatedLifeImpact = $this->increaseLifeImpact(
+                    (string) $authUser->id,
+                    1,
+                    'referral',
+                    'Gave a qualified business referral',
+                    (string) $authUser->id,
+                    (string) $referral->id,
+                    'Life impact added for referral activity.',
+                    [
+                        'referral_type' => $referral->referral_type,
+                        'referral_date' => $referral->referral_date,
+                        'referral_of' => $referral->referral_of,
+                        'phone' => $referral->phone,
+                        'email' => $referral->email,
+                        'address' => $referral->address,
+                        'hot_value' => $referral->hot_value,
+                        'remarks' => $referral->remarks,
+                        'to_user_id' => $referral->to_user_id ? (string) $referral->to_user_id : null,
+                    ]
+                );
+                $referral->setAttribute('life_impacted_count', $updatedLifeImpact);
+            } catch (Throwable $lifeImpactException) {
+                Log::warning('Referral life impact update failed: '.$lifeImpactException->getMessage(), [
+                    'referral_id' => (string) $referral->id,
+                    'user_id' => (string) $authUser->id,
+                ]);
+            }
 
             return $this->success($referral, 'Referral saved successfully', 201);
         } catch (Throwable $e) {
+            Log::error('Referral creation failed: '.$e->getMessage(), [
+                'user_id' => (string) $authUser->id,
+                'payload' => $request->all(),
+                'exception' => $e,
+            ]);
+
             return $this->error('Something went wrong', 500);
         }
     }
