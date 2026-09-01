@@ -138,16 +138,16 @@
             @method('PUT')
 
             <div class="overflow-x-auto">
-                <table class="table table-hover align-middle mb-0 text-xs w-full" id="commissionMatrixTable">
+                <table class="table table-hover align-middle mb-0 text-xs w-full min-w-[1050px]" id="commissionMatrixTable">
                     <thead class="bg-slate-50 text-slate-600 font-semibold uppercase text-[11px] tracking-wider border-b">
                         <tr>
-                            <th class="py-3 px-4 text-left" style="min-width: 200px;">Leadership Role</th>
+                            <th class="py-3 px-4 text-left" style="min-width: 220px;">Leadership Role</th>
                             <th class="py-3 px-3 text-left" style="min-width: 140px;">Direct Referral Cut</th>
                             <th class="py-3 px-3 text-left" style="min-width: 140px;">App Join Cut</th>
                             <th class="py-3 px-3 text-left" style="min-width: 140px;">Renewal Cut</th>
-                            <th class="py-3 px-3 text-left" style="min-width: 220px;">Role Description</th>
-                            <th class="py-3 px-3 text-center" style="min-width: 90px;">Status</th>
-                            <th class="py-3 px-3 text-right" style="min-width: 120px;">Actions</th>
+                            <th class="py-3 px-3 text-left" style="min-width: 200px;">Role Description</th>
+                            <th class="py-3 px-3 text-center" style="min-width: 110px; width: 110px;">Status</th>
+                            <th class="py-3 px-4 text-center" style="min-width: 120px; width: 120px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -159,11 +159,11 @@
 
                                 <!-- Role & Key -->
                                 <td class="py-3 px-4">
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2.5">
                                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
-                                        <div>
-                                            <input type="text" name="commission_rates[{{ $index }}][role_name]" value="{{ $rate['role_name'] }}" class="font-semibold text-slate-800 text-xs border-0 bg-transparent hover:bg-slate-100 focus:bg-white focus:border focus:ring-1 focus:ring-emerald-500 rounded px-1.5 py-0.5 w-full" placeholder="Role Name">
-                                            <div class="text-[11px] text-slate-400 font-mono pl-1.5">{{ $rate['role_id'] }}</div>
+                                        <div class="flex-grow">
+                                            <input type="text" name="commission_rates[{{ $index }}][role_name]" value="{{ $rate['role_name'] }}" class="font-semibold text-slate-800 text-xs border border-transparent hover:border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded px-2 py-1 w-full transition bg-transparent hover:bg-white focus:bg-white" placeholder="Role Name">
+                                            <div class="text-[11px] text-slate-400 font-mono px-2 mt-0.5">{{ $rate['role_id'] }}</div>
                                         </div>
                                     </div>
                                 </td>
@@ -202,19 +202,22 @@
 
                                 <!-- Status -->
                                 <td class="py-3 px-3 text-center">
-                                    <div class="form-check form-switch d-inline-block">
-                                        <input class="form-check-input" type="checkbox" name="commission_rates[{{ $index }}][is_active]" value="1" {{ $rate['is_active'] ? 'checked' : '' }}>
+                                    <div class="flex items-center justify-center">
+                                        <label class="relative inline-flex items-center cursor-pointer m-0">
+                                            <input type="checkbox" name="commission_rates[{{ $index }}][is_active]" value="1" {{ $rate['is_active'] ? 'checked' : '' }} class="sr-only peer">
+                                            <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                                        </label>
                                     </div>
                                 </td>
 
                                 <!-- Actions -->
-                                <td class="py-3 px-3 text-right">
-                                    <div class="flex items-center justify-end gap-1.5">
-                                        <span class="text-[10px] text-slate-400" title="Last modified: {{ $rate['updated_at_formatted'] }}">
-                                            <i class="bi bi-clock-history"></i>
+                                <td class="py-3 px-4 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <span class="text-slate-400 hover:text-slate-600 cursor-help" title="Last updated: {{ $rate['updated_at_formatted'] }}">
+                                            <i class="bi bi-clock-history text-sm"></i>
                                         </span>
                                         @if(!in_array($rate['role_id'], ['superAdmin', 'circleFounder', 'circleChair', 'countryDirector']))
-                                            <button type="button" class="btn btn-xs btn-outline-danger p-1 leading-none rounded" onclick="deleteCommissionRate('{{ $rate['id'] }}', '{{ $rate['role_name'] }}')" title="Delete Role Rate">
+                                            <button type="button" class="inline-flex items-center justify-center w-7 h-7 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition" onclick="deleteCommissionRate('{{ $rate['id'] }}', '{{ $rate['role_name'] }}')" title="Delete Role Rate">
                                                 <i class="bi bi-trash text-xs"></i>
                                             </button>
                                         @endif
