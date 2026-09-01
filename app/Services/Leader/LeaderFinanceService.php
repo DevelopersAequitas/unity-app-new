@@ -8,10 +8,7 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-<<<<<<< HEAD
 use Illuminate\Support\Facades\Schema;
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Support\Str;
 
 class LeaderFinanceService
@@ -51,7 +48,6 @@ class LeaderFinanceService
 
         $collectionsAmount = (float) $query->sum('amount');
         if ($collectionsAmount <= 0) {
-<<<<<<< HEAD
             $collectionsAmount = 480000.0;
         }
 
@@ -170,7 +166,6 @@ class LeaderFinanceService
             ],
             'commission_rates' => $commissionRates,
             'commission_structure' => $commissionStructure,
-=======
             $collectionsAmount = 8450000.0; // 84.5L default baseline
         }
 
@@ -270,7 +265,6 @@ class LeaderFinanceService
                     'app_join_cut' => '5%',
                 ],
             ],
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ];
     }
 
@@ -372,7 +366,6 @@ class LeaderFinanceService
      * Update commission rates per role.
      *
      * @param  array<int, array<string, mixed>>  $rates
-<<<<<<< HEAD
      * @return array<string, mixed>
      */
     public function updateCommissionRates(array $rates, ?User $user = null): array
@@ -423,7 +416,6 @@ class LeaderFinanceService
             'updated_by' => $adminCode,
             'rates' => $updatedRates,
         ];
-=======
      */
     public function updateCommissionRates(array $rates): void
     {
@@ -437,7 +429,6 @@ class LeaderFinanceService
                 ]
             );
         }
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
     }
 
     /**

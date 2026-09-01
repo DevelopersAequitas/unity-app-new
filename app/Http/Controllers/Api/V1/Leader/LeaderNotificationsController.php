@@ -7,39 +7,32 @@ namespace App\Http\Controllers\Api\V1\Leader;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leader\LeaderMarkNotificationReadRequest;
 use App\Models\Notification;
-<<<<<<< HEAD
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\Leader\LeaderPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
-=======
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Support\Str;
 
 class LeaderNotificationsController extends Controller
 {
     /**
-<<<<<<< HEAD
      * Get leader user notifications list with rich metadata.
      */
     public function index(Request $request): JsonResponse
     {
         /** @var User|null $user */
-=======
      * Get user notifications list.
      */
     public function index(Request $request): JsonResponse
     {
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         $user = $request->user();
         $notifications = [];
 
         if ($user) {
-<<<<<<< HEAD
             $userId = (string) $user->id;
 
             // 1. Fetch AppNotification items
@@ -231,7 +224,6 @@ class LeaderNotificationsController extends Controller
             'data' => $items,
             'notifications' => $items,
             'items' => $items,
-=======
             $notifications = Notification::query()
                 ->where('user_id', $user->id)
                 ->orderByDesc('created_at')
@@ -273,7 +265,6 @@ class LeaderNotificationsController extends Controller
         return response()->json([
             'success' => true,
             'data' => $notifications,
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ]);
     }
 
@@ -282,7 +273,6 @@ class LeaderNotificationsController extends Controller
      */
     public function markRead(LeaderMarkNotificationReadRequest $request): JsonResponse
     {
-<<<<<<< HEAD
         /** @var User|null $user */
         $user = $request->user();
 
@@ -321,7 +311,6 @@ class LeaderNotificationsController extends Controller
                     Notification::query()
                         ->where('user_id', $userId)
                         ->whereIn('id', $idsToMark)
-=======
         $ids = $request->validated('notification_ids');
         $user = $request->user();
 
@@ -340,13 +329,11 @@ class LeaderNotificationsController extends Controller
                     Notification::query()
                         ->where('user_id', $user->id)
                         ->whereIn('id', $validUuids)
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                         ->update([
                             'is_read' => true,
                             'read_at' => now(),
                         ]);
                 }
-<<<<<<< HEAD
 
                 if (Schema::hasTable('app_notifications')) {
                     AppNotification::query()
@@ -357,14 +344,11 @@ class LeaderNotificationsController extends Controller
                             'status' => 'read',
                         ]);
                 }
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             }
         }
 
         return response()->json([
             'success' => true,
-<<<<<<< HEAD
             'status' => true,
             'message' => 'Notifications marked as read successfully.',
         ]);
@@ -493,9 +477,7 @@ class LeaderNotificationsController extends Controller
             ]);
         }
     }
-=======
             'message' => 'Notifications marked as read successfully.',
         ]);
     }
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 }

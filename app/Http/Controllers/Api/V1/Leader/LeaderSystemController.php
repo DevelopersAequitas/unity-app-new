@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Leader;
 
 use App\Http\Controllers\Controller;
-<<<<<<< HEAD
 use App\Services\SystemAppConfigService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +28,6 @@ class LeaderSystemController extends Controller
             'status' => true,
             'message' => 'Leader app system configuration retrieved successfully.',
             'data' => $data,
-=======
 use App\Models\AppConfigSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Schema;
@@ -89,7 +87,6 @@ class LeaderSystemController extends Controller
                 'store_url_ios' => $storeIos,
                 'allowed_bypass_roles' => ['superAdmin', 'super_admin'],
             ],
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ]);
     }
 }

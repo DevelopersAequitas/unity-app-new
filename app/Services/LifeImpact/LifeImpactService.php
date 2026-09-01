@@ -5,12 +5,9 @@ namespace App\Services\LifeImpact;
 use App\Models\Impact;
 use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
-<<<<<<< HEAD
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use App\Services\MilestoneBadgeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -70,7 +67,6 @@ class LifeImpactService
                 'updated_at' => now(),
             ];
 
-<<<<<<< HEAD
             if (Schema::hasColumn($historyTable, 'triggered_by_user_id')) {
                 $payload['triggered_by_user_id'] = $triggeredByUserId;
             }
@@ -99,8 +95,6 @@ class LifeImpactService
                 $payload['meta'] = $normalizedMeta;
             }
 
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             if (Schema::hasColumn($historyTable, 'impact_after')) {
                 $payload['impact_after'] = $newTotal;
             }
@@ -360,11 +354,8 @@ class LifeImpactService
 
         app(MilestoneBadgeService::class)->calculateForUserId($userId);
 
-<<<<<<< HEAD
         $this->checkAndPublishLifeImpactTimelinePosts($userId, 0, $sum);
 
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         return $sum;
     }
 

@@ -21,7 +21,6 @@ class LeaderUpdateCommissionRatesRequest extends FormRequest
         return [
             'commission_rates' => ['required', 'array', 'min:1'],
             'commission_rates.*.role_id' => ['required', 'string'],
-<<<<<<< HEAD
             'commission_rates.*.role_name' => ['nullable', 'string'],
             'commission_rates.*.direct_referral_cut_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'commission_rates.*.app_join_cut_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
@@ -41,10 +40,8 @@ class LeaderUpdateCommissionRatesRequest extends FormRequest
             'commission_rates.*.app_join_cut_percentage.min' => 'The app join cut percentage must be between 0.0 and 100.0.',
             'commission_rates.*.renewal_cut_percentage.max' => 'The renewal cut percentage must be between 0.0 and 100.0.',
             'commission_rates.*.renewal_cut_percentage.min' => 'The renewal cut percentage must be between 0.0 and 100.0.',
-=======
             'commission_rates.*.direct_referral_cut_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'commission_rates.*.app_join_cut_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ];
     }
 }

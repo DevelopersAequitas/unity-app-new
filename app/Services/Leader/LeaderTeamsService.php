@@ -164,13 +164,10 @@ class LeaderTeamsService
                     if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
                         $q->orWhereHas('city', function ($cq) use ($resolvedDistrictId, $dNameLower): void {
                             $cq->where('district_id', $resolvedDistrictId)
-<<<<<<< HEAD
                                 ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [$dNameLower])
                                 ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) LIKE ?", ['%'.$dNameLower.'%']);
-=======
                                 < orWhereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [$dNameLower])
                                     ->orWhereRaw("LOWER(NULLIF(TRIM(name), '')) LIKE ?", ['%'.$dNameLower.'%']);
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                         });
                     }
                 } elseif (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
@@ -190,12 +187,10 @@ class LeaderTeamsService
         ?User $user = null,
         ?string $status = null,
     ): array {
-<<<<<<< HEAD
         // Fetch all circles in scope for fast in-memory association
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($circlesQuery, $districtId, $user);
         $circles = $circlesQuery->with(['members'])->get();
-=======
         $isOwnCircleOrScoped = false;
 
         if ($user) {
@@ -216,7 +211,6 @@ class LeaderTeamsService
         if ($isOwnCircleOrScoped && $circles->isEmpty()) {
             return [];
         }
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
         // Fetch official 18 active master industries
         if (! Schema::hasTable('industries')) {
@@ -252,7 +246,6 @@ class LeaderTeamsService
             }
         }
 
-<<<<<<< HEAD
         // Comprehensive baseline counts for all 18 standard industries
         $baselineData = [
             'agritech' => ['circles' => 2, 'peers' => 28],
@@ -319,7 +312,6 @@ class LeaderTeamsService
             'automotive' => ['auto', 'vehicle', 'car', 'bike', 'motor', 'mobility'],
             'energy-power' => ['energy', 'power', 'oil', 'gas', 'electric'],
             'chemicals-materials' => ['chemic', 'material', 'petro', 'polymer'],
-=======
         // Default baseline metrics for superAdmin global view
         $baselineData = [
             'technology' => ['circles' => 3, 'peers' => 82],
@@ -340,7 +332,6 @@ class LeaderTeamsService
             'automotive' => ['circles' => 0, 'peers' => 0],
             'energy-power' => ['circles' => 0, 'peers' => 0],
             'chemicals-materials' => ['circles' => 0, 'peers' => 0],
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ];
 
         $results = [];
@@ -349,16 +340,13 @@ class LeaderTeamsService
             $indId = (string) $industry->id;
             $slug = (string) ($industry->slug ?: Str::slug($industry->name));
             $industryName = strtolower(trim((string) $industry->name));
-<<<<<<< HEAD
             $keywords = $keywordMap[$slug] ?? [substr($slug, 0, 4), substr($industryName, 0, 4)];
 
             // Find circles associated with this industry
             $matchingCircles = $circles->filter(function (Circle $c) use ($indId, $industryName, $slug, $keywords): bool {
-=======
 
             // Find circles associated with this industry
             $matchingCircles = $circles->filter(function (Circle $c) use ($indId, $industryName, $slug): bool {
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 $tags = is_array($c->industry_tags) ? $c->industry_tags : (is_string($c->industry_tags) ? json_decode($c->industry_tags, true) : []);
                 if (! is_array($tags)) {
                     $tags = [];
@@ -369,11 +357,9 @@ class LeaderTeamsService
                     return true;
                 }
 
-<<<<<<< HEAD
                 foreach ($tagsLower as $t) {
                     foreach ($keywords as $kw) {
                         if ($kw !== '' && str_contains($t, $kw)) {
-=======
                 if ($c->circleCategory) {
                     $catName = strtolower((string) ($c->circleCategory->name ?? ''));
                     if (str_contains($catName, $industryName) || str_contains($industryName, $catName)) {
@@ -385,7 +371,6 @@ class LeaderTeamsService
                     foreach ($c->categories as $cat) {
                         $catName = strtolower((string) ($cat->name ?? $cat->category_name ?? ''));
                         if (str_contains($catName, $industryName) || str_contains($industryName, $catName)) {
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                             return true;
                         }
                     }
@@ -396,22 +381,18 @@ class LeaderTeamsService
                     return true;
                 }
 
-<<<<<<< HEAD
                 foreach ($keywords as $kw) {
                     if ($kw !== '' && str_contains($circleNameLower, $kw)) {
                         return true;
                     }
                 }
 
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 return false;
             });
 
             $matchedCirclesCount = $matchingCircles->count();
             $matchedPeersCount = $matchingCircles->sum(fn (Circle $c) => $c->members ? $c->members->where('status', 'approved')->count() : 0);
 
-<<<<<<< HEAD
             // Baseline fallback
             $baseline = $baselineData[$slug] ?? null;
             if (! $baseline) {
@@ -432,7 +413,6 @@ class LeaderTeamsService
 
             $finalCirclesCount = max($matchedCirclesCount, (int) $baseline['circles']);
             $finalPeersCount = max($matchedPeersCount, (int) $baseline['peers']);
-=======
             if ($isOwnCircleOrScoped) {
                 if ($matchedCirclesCount === 0) {
                     continue;
@@ -444,7 +424,6 @@ class LeaderTeamsService
                 $finalCirclesCount = max($matchedCirclesCount, $baseline['circles']);
                 $finalPeersCount = max($matchedPeersCount, $baseline['peers']);
             }
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
             $iconUrl = ! empty($industry->icon_url) ? $industry->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
 
@@ -459,8 +438,6 @@ class LeaderTeamsService
             ];
         }
 
-<<<<<<< HEAD
-=======
         // If scoped user has circles but none matched standard 18 industries, synthesize from circle category
         if ($isOwnCircleOrScoped && empty($results) && $circles->isNotEmpty()) {
             foreach ($circles as $c) {
@@ -479,7 +456,6 @@ class LeaderTeamsService
             }
         }
 
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         return $results;
     }
 
@@ -1046,7 +1022,6 @@ class LeaderTeamsService
     public function getSubIndustries(string $circleId): array
     {
         $circle = Circle::query()->where('id', $circleId)->with(['city', 'circleCategory', 'categories'])->first();
-<<<<<<< HEAD
         if (! $circle) {
             $circle = Circle::query()->with(['city', 'circleCategory', 'categories'])->first();
         }
@@ -1104,7 +1079,6 @@ class LeaderTeamsService
                 $q->whereHas('circleMembers', function (Builder $cq) use ($effectiveCircleId): void {
                     $cq->where('circle_id', $effectiveCircleId)->whereNull('deleted_at');
                 })->orWhere('active_circle_id', $effectiveCircleId);
-=======
         $circleName = $circle ? (string) $circle->name : 'Ahmedabad Business Circle';
 
         $tags = is_array($circle?->industry_tags) ? $circle->industry_tags : (is_string($circle?->industry_tags) ? json_decode($circle?->industry_tags, true) : []);
@@ -1119,14 +1093,12 @@ class LeaderTeamsService
                 $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
                     $cq->where('circle_id', $circleId)->where('status', 'approved')->whereNull('deleted_at');
                 })->orWhere('active_circle_id', $circleId);
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             })
             ->get();
 
         $activeSubIndustries = [];
         $occupiedNames = [];
 
-<<<<<<< HEAD
         // Check joined_circle_categories and circle_members for level 4 mappings
         $joinedL4Map = [];
         if (Schema::hasTable('joined_circle_categories')) {
@@ -1184,7 +1156,6 @@ class LeaderTeamsService
                             'business_name' => (string) ($u->business_name ?: ($u->company_name ?: '')),
                             'profile_image' => $u->profile_picture ? (string) $u->profile_picture : null,
                         ])->values()->all(),
-=======
         if ($memberUsers->isNotEmpty()) {
             $grouped = $memberUsers->groupBy(function ($u) {
                 return trim((string) ($u->business_sub_category ?: ($u->level4Category?->name ?: ($u->businessCategory?->name ?: 'Custom Software & Web Platforms'))));
@@ -1199,13 +1170,11 @@ class LeaderTeamsService
                         'name' => (string) $subName,
                         'peer_count' => $usersGroup->count(),
                         'is_open' => false,
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                     ];
                 }
             }
         }
 
-<<<<<<< HEAD
         // 3. Fetch open sub-industries from real database table circle_category_level4
         $openLevel4 = DB::table('circle_category_level4')
             ->where('circle_category_id', $mainCategoryId)
@@ -1222,7 +1191,6 @@ class LeaderTeamsService
                 $openSubIndustries[] = [
                     'id' => (int) $l4->id,
                     'name' => $l4Name,
-=======
         // 2. Open sub-industries from categories
         $openSubIndustries = [];
         $availableTemplates = [
@@ -1240,7 +1208,6 @@ class LeaderTeamsService
                 $openSubIndustries[] = [
                     'id' => $idCounter++,
                     'name' => $templateName,
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                     'peer_count' => 0,
                     'is_open' => true,
                 ];
@@ -1252,10 +1219,7 @@ class LeaderTeamsService
             'circle_name' => $circleName,
             'category_name' => $categoryName,
             'category' => $categoryName,
-<<<<<<< HEAD
             'category_id' => $mainCategoryId,
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             'location' => $location,
             'status' => $status,
             'peers_count' => $memberUsers->count(),

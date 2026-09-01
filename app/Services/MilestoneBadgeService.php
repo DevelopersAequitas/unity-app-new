@@ -9,10 +9,7 @@ use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
-<<<<<<< HEAD
 use App\Services\Creative\LifeImpactCreativeGenerator;
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use App\Services\Notifications\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -149,7 +146,6 @@ class MilestoneBadgeService
                     ->first();
 
                 if (! $existingPost && Schema::hasTable('posts')) {
-<<<<<<< HEAD
                     if ($badge->type === MilestoneBadge::TYPE_LIFE_IMPACT) {
                         $lifeImpactGenerator = app(LifeImpactCreativeGenerator::class);
                         $meta = $lifeImpactGenerator->getRecognitionMeta((int) $badge->required_count);
@@ -207,7 +203,6 @@ class MilestoneBadgeService
                                 ],
                             ];
                         }
-=======
                     $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
 
                     try {
@@ -231,7 +226,6 @@ class MilestoneBadgeService
                                 'url' => $creativeImageUrl,
                             ],
                         ];
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                     }
 
                     Post::create([
@@ -239,11 +233,8 @@ class MilestoneBadgeService
                         'circle_id' => null,
                         'content_text' => $description,
                         'media' => $media,
-<<<<<<< HEAD
                         'tags' => $tags,
-=======
                         'tags' => ['milestone_honour', 'growth_track', 'growth_honour', (string) $user->id],
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                         'visibility' => 'public',
                         'moderation_status' => 'approved',
                         'sponsored' => false,
@@ -251,13 +242,10 @@ class MilestoneBadgeService
                         'source_type' => 'milestone_badge',
                         'source_id' => $badge->id,
                         'source_event' => 'badge_unlocked',
-<<<<<<< HEAD
                         'post_type' => $postType,
                         'title' => $postTitle,
-=======
                         'post_type' => 'growth_honour',
                         'title' => "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉",
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                         'description' => $description,
                         'image' => $creativeImageUrl,
                         'status' => 'active',

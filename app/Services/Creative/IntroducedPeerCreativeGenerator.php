@@ -300,13 +300,11 @@ class IntroducedPeerCreativeGenerator
                 }
                 $cityName = trim((string) $cityName);
 
-<<<<<<< HEAD
                 $subInfoParts = array_filter([$company, $cityName]);
                 $line2Text = implode('  •  ', $subInfoParts);
                 if (empty($line2Text)) {
                     $line2Text = 'Peers Global Member';
                 }
-=======
                 $country = $cityModel->country_code ?? $cityModel->country ?? $user->country ?? $user->business_country ?? 'IND';
                 if (is_array($country)) {
                     $country = $country['code'] ?? $country['name'] ?? 'IND';
@@ -335,7 +333,6 @@ class IntroducedPeerCreativeGenerator
                     $line2Parts[] = $locationStr;
                 }
                 $line2Text = implode(' • ', $line2Parts);
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
                 if (! empty($line2Text)) {
                     $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);

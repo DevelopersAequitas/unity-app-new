@@ -8,10 +8,7 @@ use App\Models\AdminUser;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
-<<<<<<< HEAD
 use App\Services\LifeImpact\LifeImpactService;
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -129,7 +126,6 @@ class LifeImpactCreativeTest extends TestCase
             Schema::create('life_impact_histories', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->uuid('user_id');
-<<<<<<< HEAD
                 $table->uuid('triggered_by_user_id')->nullable();
                 $table->string('activity_type', 100)->nullable();
                 $table->uuid('activity_id')->nullable();
@@ -145,11 +141,9 @@ class LifeImpactCreativeTest extends TestCase
                 $table->text('remarks')->nullable();
                 $table->string('status', 50)->default('approved');
                 $table->boolean('counted_in_total')->default(true);
-=======
                 $table->integer('impact_value')->default(1);
                 $table->integer('life_impacted')->default(1);
                 $table->string('action', 255)->nullable();
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 $table->timestamps();
             });
         }
@@ -385,7 +379,6 @@ class LifeImpactCreativeTest extends TestCase
             'post_type' => 'life_impact_recognition',
         ]);
     }
-<<<<<<< HEAD
 
     public function test_add_life_impact_automatically_posts_creative_to_timeline_when_tier_unlocked(): void
     {
@@ -419,6 +412,4 @@ class LifeImpactCreativeTest extends TestCase
             'moderation_status' => 'approved',
         ]);
     }
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 }

@@ -15,10 +15,7 @@ use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-<<<<<<< HEAD
 use Illuminate\Support\Facades\Schema;
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Support\Str;
 
 class LeaderPeersService
@@ -166,7 +163,6 @@ class LeaderPeersService
 
         $query = User::query()->whereNull('deleted_at');
 
-<<<<<<< HEAD
         // Only include legitimate in-app peers associated with circles
         $query->where(function (Builder $q): void {
             $q->whereHas('circleMembers', function (Builder $cq): void {
@@ -182,8 +178,6 @@ class LeaderPeersService
         $query->where('email', 'not like', '%devtestpeer%')
             ->where('first_name', 'not like', 'Test Peer%');
 
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         if ($circleId && Str::isUuid($circleId)) {
             if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
                 $query->whereRaw('1 = 0');
@@ -614,7 +608,6 @@ class LeaderPeersService
     ): array {
         $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
 
-<<<<<<< HEAD
         $baseQuery = fn () => User::query()
             ->whereNull('deleted_at')
             ->where(function (Builder $q): void {
@@ -630,9 +623,7 @@ class LeaderPeersService
             ->where('first_name', 'not like', 'Test Peer%');
 
         $query = $baseQuery();
-=======
         $query = User::query()->whereNull('deleted_at');
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
         if ($circleId && Str::isUuid($circleId)) {
             if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
@@ -643,7 +634,6 @@ class LeaderPeersService
                         ->orWhere('active_circle_id', $circleId);
                 });
             }
-<<<<<<< HEAD
         } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds)) {
             $query->where(function (Builder $q) use ($scopedCircleIds): void {
                 $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
@@ -666,7 +656,6 @@ class LeaderPeersService
                 ->map(fn ($id) => (string) $id)
                 ->all();
         }
-=======
         } elseif ($scopedCircleIds !== null) {
             if (empty($scopedCircleIds)) {
                 $query->whereRaw('1 = 0');
@@ -684,24 +673,19 @@ class LeaderPeersService
         }
 
         $users = $query->take(5)->get();
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
         $birthdays = [];
         $anniversaries = [];
 
-<<<<<<< HEAD
         $now = now();
         $bdayOffsets = [0, 2, 5, 8, 12];
         $annivOffsets = [1, 4, 7, 11, 15];
 
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         foreach ($users as $idx => $u) {
             $uName = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
             if ($uName === '') {
                 $uName = (string) ($u->display_name ?? 'Peer Member');
             }
-<<<<<<< HEAD
             $company = (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics');
             $designation = (string) ($u->designation ?? 'Founder & CEO');
 
@@ -774,7 +758,6 @@ class LeaderPeersService
                     'month' => $aDate->format('M'),
                     'is_today' => $offset === 0,
                     'wished' => $hasWished,
-=======
             $company = (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Enterprise');
 
             if ($idx === 0) {
@@ -804,7 +787,6 @@ class LeaderPeersService
                     'milestone' => '1 Year in Circle',
                     'date_formatted' => now()->addDays(4)->format('d M'),
                     'is_today' => false,
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 ];
             }
         }

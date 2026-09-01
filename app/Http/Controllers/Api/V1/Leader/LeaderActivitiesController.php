@@ -6,15 +6,12 @@ namespace App\Http\Controllers\Api\V1\Leader;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leader\LeaderCreateReferralRequest;
-<<<<<<< HEAD
 use App\Models\User;
 use App\Services\Leader\LeaderActivitiesService;
-=======
 use App\Models\Referral;
 use App\Models\Testimonial;
 use App\Models\User;
 use App\Services\Leader\LeaderPeersService;
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +19,6 @@ use Illuminate\Support\Str;
 
 class LeaderActivitiesController extends Controller
 {
-<<<<<<< HEAD
     public function __construct(
         private readonly LeaderActivitiesService $activitiesService,
     ) {}
@@ -83,7 +79,6 @@ class LeaderActivitiesController extends Controller
             'success' => true,
             'status' => true,
             'message' => 'Referrals retrieved successfully.',
-=======
     /**
      * Get referrals list.
      */
@@ -145,13 +140,11 @@ class LeaderActivitiesController extends Controller
 
         return response()->json([
             'success' => true,
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             'data' => $data,
         ]);
     }
 
     /**
-<<<<<<< HEAD
      * Get testimonials list with full peer details.
      */
     public function testimonials(Request $request): JsonResponse
@@ -162,7 +155,6 @@ class LeaderActivitiesController extends Controller
             'success' => true,
             'status' => true,
             'message' => 'Testimonials retrieved successfully.',
-=======
      * Get testimonials list.
      */
     public function testimonials(Request $request): JsonResponse
@@ -231,13 +223,11 @@ class LeaderActivitiesController extends Controller
 
         return response()->json([
             'success' => true,
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             'data' => $data,
         ]);
     }
 
     /**
-<<<<<<< HEAD
      * Get platform peers leaderboard ranked by coins with full peer details.
      */
     public function peersByCoins(Request $request): JsonResponse
@@ -264,7 +254,6 @@ class LeaderActivitiesController extends Controller
             'status' => true,
             'message' => 'Requirements retrieved successfully.',
             'data' => $data,
-=======
      * Get platform peers leaderboard ranked by coins.
      */
     public function peersByCoins(Request $request): JsonResponse
@@ -323,7 +312,6 @@ class LeaderActivitiesController extends Controller
                 'total_platform_coins' => (int) $users->sum('coins_balance'),
                 'leaderboard' => $leaderboard,
             ],
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ]);
     }
 
@@ -351,10 +339,7 @@ class LeaderActivitiesController extends Controller
         }
 
         $targetUserId = (string) $targetUser->id;
-<<<<<<< HEAD
-=======
 
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         $id = (string) Str::uuid();
 
         $remarks = trim((string) ($validated['notes'] ?? ''));
@@ -382,10 +367,7 @@ class LeaderActivitiesController extends Controller
 
         return response()->json([
             'success' => true,
-<<<<<<< HEAD
             'status' => true,
-=======
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             'message' => 'Referral created and forwarded to peer.',
             'data' => [
                 'referral_id' => $id,

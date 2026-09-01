@@ -7,16 +7,13 @@ namespace App\Http\Controllers\Api\V1\Leader;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leader\LeaderRecordOfflinePaymentRequest;
 use App\Http\Requests\Leader\LeaderUpdateCommissionRatesRequest;
-<<<<<<< HEAD
 use App\Models\AdminUser;
 use App\Models\User;
 use App\Services\Leader\LeaderFinanceService;
 use App\Services\Leader\LeaderPermissionService;
 use App\Support\AdminAccess;
-=======
 use App\Models\User;
 use App\Services\Leader\LeaderFinanceService;
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,11 +24,8 @@ class LeaderFinanceController extends Controller
     ) {}
 
     /**
-<<<<<<< HEAD
      * Get financial metrics and collection summaries (including commission structure).
-=======
      * Get financial metrics and collection summaries (including 10% DED commission).
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
      */
     public function metrics(Request $request): JsonResponse
     {
@@ -42,11 +36,8 @@ class LeaderFinanceController extends Controller
 
         return response()->json([
             'success' => true,
-<<<<<<< HEAD
             'message' => 'Finance metrics retrieved successfully',
-=======
             'message' => 'Finance metrics and trend datasets fetched successfully.',
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             'data' => $data,
         ]);
     }
@@ -69,7 +60,6 @@ class LeaderFinanceController extends Controller
     }
 
     /**
-<<<<<<< HEAD
      * Update commission rates per role (Super Admin only).
      */
     public function updateCommissionRates(LeaderUpdateCommissionRatesRequest $request): JsonResponse
@@ -110,7 +100,6 @@ class LeaderFinanceController extends Controller
             'success' => true,
             'message' => 'Commission rates updated successfully',
             'data' => $data,
-=======
      * Update commission rates per role (Super Admin).
      */
     public function updateCommissionRates(LeaderUpdateCommissionRatesRequest $request): JsonResponse
@@ -120,7 +109,6 @@ class LeaderFinanceController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Commission rates updated successfully.',
->>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ]);
     }
 
