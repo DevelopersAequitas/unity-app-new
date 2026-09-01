@@ -391,6 +391,10 @@ class ReferralController extends BaseApiController
         }
 
         try {
+            $email = filled($request->input('email')) ? trim((string) $request->input('email')) : null;
+            $address = filled($request->input('address')) ? trim((string) $request->input('address')) : null;
+            $remarks = filled($request->input('remarks')) ? trim((string) $request->input('remarks')) : null;
+
             $referral = Referral::create([
                 'from_user_id' => $authUser->id,
                 'to_user_id' => $targetUserId,
@@ -398,11 +402,10 @@ class ReferralController extends BaseApiController
                 'referral_date' => $request->input('referral_date'),
                 'referral_of' => $request->input('referral_of'),
                 'phone' => $request->input('phone'),
-                'email' => $request->input('email'),
-                'address' => $request->input('address'),
+                'email' => $email,
+                'address' => $address,
                 'hot_value' => $request->input('hot_value'),
-                'remarks' => $request->input('remarks'),
-                'is_deleted' => false,
+                'remarks' => $remarks,
             ]);
 
             try {
