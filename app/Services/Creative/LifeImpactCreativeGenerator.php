@@ -315,12 +315,15 @@ class LifeImpactCreativeGenerator
                 $targetDiameter = 238;
                 $circleCenterX = 535;
                 $circleCenterY = 660;
-                // // 1. Profile Avatar: Center X = 540, Center Y = 650, Diameter = 225
-                // $targetDiameter = 225;
-                // $circleCenterX = 540;
-                // $circleCenterY = 650;
 
                 $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg);
+
+                // 2. Cut / restore the name banner plate & gold ribbon border from the original template over the avatar photo
+                $templateOverlay = @imagecreatefrompng($templatePath);
+                if ($templateOverlay) {
+                    imagecopy($canvas, $templateOverlay, 280, 765, 280, 765, 520, 75);
+                    imagedestroy($templateOverlay);
+                }
 
                 // Center aligned text helper
                 $drawCenterText = function ($img, int $fontSize, int $y, $color, string $font, string $text, int $maxWidth = 900) use ($width) {
