@@ -23,7 +23,6 @@ class LeaderMarkNotificationReadRequest extends FormRequest
             'notification_id' => ['nullable', 'string'],
             'id' => ['nullable', 'string'],
             'ids' => ['nullable', 'array'],
-            'notification_ids' => ['required', 'array'],
         ];
     }
 }

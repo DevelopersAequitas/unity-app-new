@@ -141,9 +141,6 @@ class LifeImpactCreativeTest extends TestCase
                 $table->text('remarks')->nullable();
                 $table->string('status', 50)->default('approved');
                 $table->boolean('counted_in_total')->default(true);
-                $table->integer('impact_value')->default(1);
-                $table->integer('life_impacted')->default(1);
-                $table->string('action', 255)->nullable();
                 $table->timestamps();
             });
         }

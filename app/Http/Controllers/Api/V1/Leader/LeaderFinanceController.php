@@ -12,8 +12,6 @@ use App\Models\User;
 use App\Services\Leader\LeaderFinanceService;
 use App\Services\Leader\LeaderPermissionService;
 use App\Support\AdminAccess;
-use App\Models\User;
-use App\Services\Leader\LeaderFinanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +23,6 @@ class LeaderFinanceController extends Controller
 
     /**
      * Get financial metrics and collection summaries (including commission structure).
-     * Get financial metrics and collection summaries (including 10% DED commission).
      */
     public function metrics(Request $request): JsonResponse
     {
@@ -37,7 +34,6 @@ class LeaderFinanceController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Finance metrics retrieved successfully',
-            'message' => 'Finance metrics and trend datasets fetched successfully.',
             'data' => $data,
         ]);
     }
@@ -100,15 +96,6 @@ class LeaderFinanceController extends Controller
             'success' => true,
             'message' => 'Commission rates updated successfully',
             'data' => $data,
-     * Update commission rates per role (Super Admin).
-     */
-    public function updateCommissionRates(LeaderUpdateCommissionRatesRequest $request): JsonResponse
-    {
-        $this->financeService->updateCommissionRates((array) $request->validated('commission_rates'));
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Commission rates updated successfully.',
         ]);
     }
 

@@ -305,34 +305,6 @@ class IntroducedPeerCreativeGenerator
                 if (empty($line2Text)) {
                     $line2Text = 'Peers Global Member';
                 }
-                $country = $cityModel->country_code ?? $cityModel->country ?? $user->country ?? $user->business_country ?? 'IND';
-                if (is_array($country)) {
-                    $country = $country['code'] ?? $country['name'] ?? 'IND';
-                }
-                $country = strtoupper(trim((string) $country));
-                if (in_array(strtolower($country), ['india', 'in', 'ind'], true)) {
-                    $country = 'IND';
-                } elseif (empty($country) || in_array(strtolower($country), ['null', 'none'], true)) {
-                    $country = 'IND';
-                }
-
-                $locationParts = [];
-                if (! empty($cityName)) {
-                    $locationParts[] = $cityName;
-                }
-                if (! empty($country) && strtolower($country) !== strtolower($cityName)) {
-                    $locationParts[] = $country;
-                }
-                $locationStr = implode(', ', $locationParts);
-
-                $line2Parts = [];
-                if (! empty($company)) {
-                    $line2Parts[] = $company;
-                }
-                if (! empty($locationStr)) {
-                    $line2Parts[] = $locationStr;
-                }
-                $line2Text = implode(' • ', $line2Parts);
 
                 if (! empty($line2Text)) {
                     $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);

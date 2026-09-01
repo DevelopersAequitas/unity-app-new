@@ -61,7 +61,6 @@ class BusinessDealController extends BaseApiController
                 'tags' => ['business_deal'],
                 'visibility' => 'public',
                 'moderation_status' => 'approved',
-                'moderation_status' => 'pending',
                 'sponsored' => false,
                 'is_deleted' => false,
                 'source_type' => 'business_deal',

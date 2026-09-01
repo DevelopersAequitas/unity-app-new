@@ -203,29 +203,6 @@ class MilestoneBadgeService
                                 ],
                             ];
                         }
-                    $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
-
-                    try {
-                        $generator = app(IntroducedPeerCreativeGenerator::class);
-                        $fileRecord = $generator->generate($user, (int) $badge->required_count);
-                        $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
-                        $media = [
-                            [
-                                'id' => $fileRecord->id,
-                                'type' => 'image',
-                                'url' => $creativeImageUrl,
-                            ],
-                        ];
-                    } catch (\Throwable $creativeEx) {
-                        Log::error("[MilestoneBadgeService] Failed generating composite creative for badge {$badge->title}: ".$creativeEx->getMessage());
-                        $creativeImageUrl = $badge->badge_image_url ?: url('/images/introduction-template.png');
-                        $media = [
-                            [
-                                'id' => (string) Str::uuid(),
-                                'type' => 'image',
-                                'url' => $creativeImageUrl,
-                            ],
-                        ];
                     }
 
                     Post::create([
@@ -234,7 +211,6 @@ class MilestoneBadgeService
                         'content_text' => $description,
                         'media' => $media,
                         'tags' => $tags,
-                        'tags' => ['milestone_honour', 'growth_track', 'growth_honour', (string) $user->id],
                         'visibility' => 'public',
                         'moderation_status' => 'approved',
                         'sponsored' => false,
@@ -244,8 +220,6 @@ class MilestoneBadgeService
                         'source_event' => 'badge_unlocked',
                         'post_type' => $postType,
                         'title' => $postTitle,
-                        'post_type' => 'growth_honour',
-                        'title' => "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉",
                         'description' => $description,
                         'image' => $creativeImageUrl,
                         'status' => 'active',

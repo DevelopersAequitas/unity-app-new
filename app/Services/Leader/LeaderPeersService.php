@@ -623,7 +623,6 @@ class LeaderPeersService
             ->where('first_name', 'not like', 'Test Peer%');
 
         $query = $baseQuery();
-        $query = User::query()->whereNull('deleted_at');
 
         if ($circleId && Str::isUuid($circleId)) {
             if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
@@ -656,23 +655,6 @@ class LeaderPeersService
                 ->map(fn ($id) => (string) $id)
                 ->all();
         }
-        } elseif ($scopedCircleIds !== null) {
-            if (empty($scopedCircleIds)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->where(function (Builder $q) use ($scopedCircleIds): void {
-                    $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
-                        ->orWhereIn('active_circle_id', $scopedCircleIds);
-                });
-            }
-        } else {
-            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-            if ($resolvedDistrictId) {
-                $query->whereHas('circleMembers.circle', fn ($c) => $c->where('district_id', $resolvedDistrictId));
-            }
-        }
-
-        $users = $query->take(5)->get();
 
         $birthdays = [];
         $anniversaries = [];
@@ -758,35 +740,6 @@ class LeaderPeersService
                     'month' => $aDate->format('M'),
                     'is_today' => $offset === 0,
                     'wished' => $hasWished,
-            $company = (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Enterprise');
-
-            if ($idx === 0) {
-                $birthdays[] = [
-                    'id' => 'cel_b_'.($u->id ?? '1'),
-                    'peer_id' => (string) $u->id,
-                    'name' => $uName,
-                    'company' => $company,
-                    'date_formatted' => 'Today, '.now()->format('d M'),
-                    'is_today' => true,
-                ];
-            } elseif ($idx === 1) {
-                $birthdays[] = [
-                    'id' => 'cel_b_'.($u->id ?? '2'),
-                    'peer_id' => (string) $u->id,
-                    'name' => $uName,
-                    'company' => $company,
-                    'date_formatted' => now()->addDays(3)->format('d M'),
-                    'is_today' => false,
-                ];
-            } elseif ($idx === 2) {
-                $anniversaries[] = [
-                    'id' => 'cel_a_'.($u->id ?? '3'),
-                    'peer_id' => (string) $u->id,
-                    'name' => $uName,
-                    'company' => $company,
-                    'milestone' => '1 Year in Circle',
-                    'date_formatted' => now()->addDays(4)->format('d M'),
-                    'is_today' => false,
                 ];
             }
         }
