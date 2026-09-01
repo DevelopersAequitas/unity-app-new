@@ -8,6 +8,7 @@ use App\Models\AdminUser;
 use App\Models\BusinessDeal;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\Impact;
 use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Testimonial;
@@ -483,31 +484,17 @@ class LeaderDashboardService
 
             $result[] = [
                 'id' => (string) $u->id,
-                'user_id' => (string) $u->id,
-                'peer_id' => (string) $u->id,
                 'rank' => $rank,
                 'name' => $name,
-                'peer_name' => $name,
-                'company' => $company,
                 'company_name' => $company,
-                'business_name' => $company,
-                'location' => $location,
                 'city' => $location,
-                'profile_image' => $avatarUrl,
                 'profile_photo_url' => $avatarUrl,
-                'avatar_url' => $avatarUrl,
-                'category_level4' => $level4,
-                'level_4_category' => $level4,
                 'level4_category' => $level4,
                 'circle_name' => $circleName,
                 'circle_id' => $circleIdVal,
                 'designation' => (string) ($u->designation ?? $u->job_title ?? 'Member'),
-                'lives' => $lives,
                 'life_impacted_count' => $lives,
-                'lives_impacted' => $lives,
-                'impact' => $lives,
                 'coins' => $coins,
-                'coins_balance' => $coins,
             ];
             $rank++;
         }
@@ -524,31 +511,17 @@ class LeaderDashboardService
             foreach ($mockNames as $idx => [$mName, $mComp, $mLoc, $mLives, $mCoins, $mCat]) {
                 $result[] = [
                     'id' => (string) Str::uuid(),
-                    'user_id' => (string) Str::uuid(),
-                    'peer_id' => (string) Str::uuid(),
                     'rank' => $idx + 1,
                     'name' => $mName,
-                    'peer_name' => $mName,
-                    'company' => $mComp,
                     'company_name' => $mComp,
-                    'business_name' => $mComp,
-                    'location' => $mLoc,
                     'city' => $mLoc,
-                    'profile_image' => null,
                     'profile_photo_url' => null,
-                    'avatar_url' => null,
-                    'category_level4' => $mCat,
-                    'level_4_category' => $mCat,
                     'level4_category' => $mCat,
                     'circle_name' => 'Premier Circle',
                     'circle_id' => '',
                     'designation' => 'Founder & CEO',
-                    'lives' => $mLives,
                     'life_impacted_count' => $mLives,
-                    'lives_impacted' => $mLives,
-                    'impact' => $mLives,
                     'coins' => $mCoins,
-                    'coins_balance' => $mCoins,
                 ];
             }
         }
