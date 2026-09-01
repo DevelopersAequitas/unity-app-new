@@ -168,7 +168,7 @@ class LeaderAuthService
         $managedCircleNames = array_map(fn ($c) => is_array($c) ? ($c['name'] ?? '') : (string) $c, $managedCircles);
 
         return [
-            'auth_token' => $token,
+            'access_token' => $token,
             'refresh_token' => $refreshToken,
             'token_type' => 'Bearer',
             'expires_in' => 86400,
