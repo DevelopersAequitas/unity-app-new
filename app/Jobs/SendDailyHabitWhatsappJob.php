@@ -104,6 +104,16 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
         if (! $template) {
             $this->markAsFailed($sendRecord, "Active template not found for day {$sendRecord->day_number}.");
 
+            try {
+                $habitLoopService->scheduleNextDay($user, $sendRecord->day_number, $sendRecord->scheduled_at ?? now());
+            } catch (Throwable $e) {
+                Log::error('Daily Habit Loop next day scheduling failed on missing template.', [
+                    'user_id' => $user->id,
+                    'day_number' => $sendRecord->day_number,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return;
         }
 
@@ -128,6 +138,20 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
         if ($sendRecord->day_number === 2) {
             $payload['TimelineLink'] = rtrim((string) config('app.url'), '/').'/timeline';
             $payload['timeline_link'] = $payload['TimelineLink'];
+        }
+
+        // Day 4 specific dynamic variables
+        if ($sendRecord->day_number === 4) {
+            $referralLink = $habitLoopService->resolveReferralLink($user);
+            $payload['ReferralLink'] = $referralLink;
+            $payload['referral_link'] = $referralLink;
+        }
+
+        // Day 7 specific dynamic variables
+        if ($sendRecord->day_number === 7) {
+            $circleLink = $habitLoopService->resolveCircleLink($user);
+            $payload['CircleLink'] = $circleLink;
+            $payload['circle_link'] = $circleLink;
         }
 
         $success = false;
@@ -159,13 +183,13 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
                     'sent_at' => now(),
                     'error_message' => null,
                 ]);
-                $shouldScheduleNext = true;
             } else {
                 $lockedRecord->update([
                     'status' => 'failed',
                     'error_message' => $errorMessage,
                 ]);
             }
+            $shouldScheduleNext = true;
         });
 
         if ($shouldScheduleNext) {

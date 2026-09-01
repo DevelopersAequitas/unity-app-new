@@ -31,7 +31,7 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
             ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
             ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
@@ -45,7 +45,7 @@
                     ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
                 ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
                 ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
                     ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
                 ] : []),
@@ -77,7 +77,7 @@
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
@@ -625,7 +625,39 @@
                                 </li>
                                 <li class="nav-item">
                                     <a class="nav-link {{ ($introducersActive && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index', ['tab' => 'creative']) }}">
-                                        Peers Creative Post
+                                        Creative
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @elseif ($item['label'] === 'Life Impact')
+                    @php
+                        $lifeImpactActive = request()->routeIs('admin.life-impact.*') || request()->routeIs('admin.life-impact-recognitions.*');
+                        $currentTab = request('tab');
+                        $isRecognitionsRoute = request()->routeIs('admin.life-impact-recognitions.*');
+                        $isOverviewRoute = request()->routeIs('admin.life-impact.index');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $lifeImpactActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $lifeImpactActive ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index') }}" title="Life Impact">
+                            <i class="bi {{ $item['icon'] ?? 'bi-heart-pulse' }} me-2"></i><span class="menu-text me-auto text-start">Life Impact</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $lifeImpactActive ? 'show' : '' }}" id="lifeImpactSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ $isOverviewRoute ? 'active' : '' }}" href="{{ route('admin.life-impact.index') }}">
+                                        Life Impact Overview
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($isRecognitionsRoute && $currentTab !== 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index') }}">
+                                        Life Impact List
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($isRecognitionsRoute && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index', ['tab' => 'creative']) }}">
+                                        Creative
                                     </a>
                                 </li>
                             </ul>

@@ -41,11 +41,28 @@
         ];
     @endphp
 
-    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-6">
+    {{-- Page Top Header & Tab Navigation --}}
+    <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
         <div>
-            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Life Impact Overview</h2>
+            <h4 class="font-display font-bold text-lg t1 m-0 flex items-center gap-2">
+                <i class="bi bi-heart-pulse-fill text-rose-500"></i>Life Impact
+            </h4>
             <p class="text-xs t3 m-0 mt-0.5">Track peer community contributions, business deals, referrals, and overall life impact metrics.</p>
         </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ route('admin.life-impact.index') }}" class="tab-pill px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition no-underline bg-indigo-600 text-white shadow-md">
+                <i class="bi bi-bar-chart-line-fill"></i>Life Impact Overview
+            </a>
+            <a href="{{ route('admin.life-impact-recognitions.index') }}" class="tab-pill px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition no-underline surface border bs t2 hover:t1 hover:surface-2">
+                <i class="bi bi-people-fill"></i>Life Impact List
+            </a>
+            <a href="{{ route('admin.life-impact-recognitions.index', ['tab' => 'creative']) }}" class="tab-pill px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition no-underline surface border bs t2 hover:t1 hover:surface-2">
+                <i class="bi bi-stars"></i>Creative
+            </a>
+        </div>
+    </div>
+
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-6">
 
         {{-- Summary Cards Grid --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

@@ -30,6 +30,7 @@ use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Services\Users\UserMilestoneSyncService;
@@ -497,6 +498,15 @@ class UsersController extends Controller
                 ->delay($registrationTime->copy()->addHours(24));
             SendProfileCompletionWhatsappJob::dispatch((string) $user->id)
                 ->delay($registrationTime->copy()->addHours(48));
+
+            try {
+                app(DailyHabitLoopService::class)->startJourney($user, $registrationTime);
+            } catch (Throwable $e) {
+                Log::error('Failed starting Daily Habit Loop on admin user creation.', [
+                    'user_id' => (string) $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return redirect()
@@ -1792,6 +1802,15 @@ class UsersController extends Controller
                         ->delay($registrationTime->copy()->addHours(24));
                     SendProfileCompletionWhatsappJob::dispatch((string) $createdUser->id)
                         ->delay($registrationTime->copy()->addHours(48));
+
+                    try {
+                        app(DailyHabitLoopService::class)->startJourney($createdUser, $registrationTime);
+                    } catch (Throwable $e) {
+                        Log::error('Failed starting Daily Habit Loop on admin user import.', [
+                            'user_id' => (string) $createdUser->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                     $results['created']++;
                 }
             } catch (Throwable $e) {

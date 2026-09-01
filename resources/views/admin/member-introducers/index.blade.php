@@ -34,7 +34,7 @@
             <i class="bi bi-people-fill"></i>Introducers List <span class="badge {{ $activeTab === 'list' ? 'bg-white text-indigo-700' : 'bg-slate-200 text-slate-700' }} rounded-full px-2 py-0.5 text-[10px]">{{ $allIntroducers->count() }}</span>
         </a>
         <a href="{{ route('admin.member-introducers.index', ['tab' => 'creative']) }}" class="tab-pill px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition no-underline {{ $activeTab === 'creative' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-bold shadow-md' : 'surface border bs t2 hover:t1 hover:surface-2' }}">
-            <i class="bi bi-stars"></i>Peers Creative Post in Timeline
+            <i class="bi bi-stars"></i>Creative
         </a>
     </div>
 </div>
