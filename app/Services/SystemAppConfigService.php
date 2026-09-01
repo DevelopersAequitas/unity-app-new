@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\AppConfigSetting;
 use App\Models\AppMaintenance;
 use App\Models\AppVersion;
+use App\Models\LeaderAppConfig;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -22,6 +23,41 @@ class SystemAppConfigService
     {
         $product = strtolower(trim((string) ($product ?? 'peers')));
         $platform = strtolower(trim((string) ($platform ?? 'android')));
+
+        if ($product === 'leader' && Schema::hasTable('leader_app_configs')) {
+            try {
+                $leaderConfig = LeaderAppConfig::query()
+                    ->where('is_active', true)
+                    ->where(function ($query) use ($platform): void {
+                        $query->where('platform', $platform)
+                            ->orWhere('platform', 'all')
+                            ->orWhereNull('platform');
+                    })
+                    ->latest('updated_at')
+                    ->first();
+
+                if ($leaderConfig) {
+                    return [
+                        'min_required_version' => (string) ($leaderConfig->min_required_version ?: '1.0.0'),
+                        'latest_version' => (string) ($leaderConfig->latest_version ?: '1.0.0'),
+                        'store_url_android' => (string) ($leaderConfig->store_url_android ?: 'https://play.google.com/store/apps/details?id=com.peersunity.leaderapp'),
+                        'store_url_ios' => (string) ($leaderConfig->store_url_ios ?: 'https://apps.apple.com/app/leader-app/id123456789'),
+                        'force_update_title' => (string) ($leaderConfig->force_update_title ?: 'Leader App Update Required'),
+                        'force_update_message' => (string) ($leaderConfig->force_update_message ?: 'A critical new version of Leader App is required to access your circle data. Please update from the store.'),
+                        'optional_update_title' => (string) ($leaderConfig->optional_update_title ?: 'New Update Available'),
+                        'optional_update_message' => (string) ($leaderConfig->optional_update_message ?: 'A new version is available with enhanced analytics and performance improvements.'),
+                        'is_maintenance_mode' => (bool) $leaderConfig->is_maintenance_mode,
+                        'maintenance_title' => (string) ($leaderConfig->maintenance_title ?: 'System Under Maintenance'),
+                        'maintenance_message' => (string) ($leaderConfig->maintenance_message ?: 'We are currently performing essential infrastructure upgrades. Please check back shortly.'),
+                        'allowed_bypass_roles' => is_array($leaderConfig->allowed_bypass_roles) && ! empty($leaderConfig->allowed_bypass_roles)
+                            ? array_values(array_unique(array_map('strval', $leaderConfig->allowed_bypass_roles)))
+                            : ['superAdmin', 'super_admin'],
+                    ];
+                }
+            } catch (Throwable) {
+                // Ignore query failure and fall back safely to defaults
+            }
+        }
 
         $config = null;
         if (Schema::hasTable('app_config_settings')) {
