@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Ded;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AdminLoginOtpMail;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
 use App\Support\AdminAccess;
@@ -41,7 +42,7 @@ class DedAuthController extends Controller
 
         $otpRecord = AdminLoginOtp::query()->where('email', $email)->first();
         if (! $otpRecord) {
-            $otpRecord = new AdminLoginOtp();
+            $otpRecord = new AdminLoginOtp;
             $otpRecord->id = (string) Str::uuid();
             $otpRecord->email = $email;
         }
@@ -53,12 +54,8 @@ class DedAuthController extends Controller
         $otpRecord->used_at = null;
         $otpRecord->save();
 
-        Mail::raw(
-            "Your DED API login OTP is {$otp}. It expires in 5 minutes.",
-            static function ($message) use ($email): void {
-                $message->to($email)->subject('Your DED API Login OTP');
-            }
-        );
+        $name = $admin->name ?: 'DED Admin';
+        Mail::to($email)->send(new AdminLoginOtpMail($otp, $name, 'Your DED API Login OTP'));
 
         return $this->success([], 'OTP sent successfully.');
     }

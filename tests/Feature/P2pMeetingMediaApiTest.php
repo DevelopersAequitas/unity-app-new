@@ -114,11 +114,11 @@ class P2pMeetingMediaApiTest extends TestCase
 
         $createResponse->assertCreated()
             ->assertJsonPath('data.media.0.media_type', 'image')
-            ->assertJsonPath('data.media.0.url', url('/api/v1/files/' . $image->id))
+            ->assertJsonPath('data.media.0.url', url('/api/v1/files/'.$image->id))
             ->assertJsonPath('data.media.0.mime_type', 'image/png')
             ->assertJsonPath('data.media.0.size', 125478)
             ->assertJsonPath('data.media.1.media_type', 'video')
-            ->assertJsonPath('data.media.1.url', url('/api/v1/files/' . $video->id))
+            ->assertJsonPath('data.media.1.url', url('/api/v1/files/'.$video->id))
             ->assertJsonPath('data.media.1.mime_type', 'video/mp4')
             ->assertJsonPath('data.media.1.size', 455111);
 
@@ -126,15 +126,15 @@ class P2pMeetingMediaApiTest extends TestCase
         $given->assertOk()
             ->assertJsonPath('data.items.0.media.0.file_id', $image->id)
             ->assertJsonPath('data.items.0.media.0.media_type', 'image')
-            ->assertJsonPath('data.items.0.media.0.url', url('/api/v1/files/' . $image->id))
+            ->assertJsonPath('data.items.0.media.0.url', url('/api/v1/files/'.$image->id))
             ->assertJsonPath('data.items.0.media.0.mime_type', 'image/png')
             ->assertJsonPath('data.items.0.media.0.size', 125478)
             ->assertJsonPath('data.items.0.media.1.media_type', 'video');
 
         $received = $this->actingAs($peer, 'sanctum')->getJson('/api/v1/activities/p2p-meetings?filter=received');
         $received->assertOk()
-            ->assertJsonPath('data.items.0.media.0.url', url('/api/v1/files/' . $image->id))
-            ->assertJsonPath('data.items.0.media.1.url', url('/api/v1/files/' . $video->id));
+            ->assertJsonPath('data.items.0.media.0.url', url('/api/v1/files/'.$image->id))
+            ->assertJsonPath('data.items.0.media.1.url', url('/api/v1/files/'.$video->id));
     }
 
     private function users(): array
@@ -142,13 +142,13 @@ class P2pMeetingMediaApiTest extends TestCase
         $authUser = User::query()->create([
             'id' => (string) Str::uuid(),
             'display_name' => 'Auth User',
-            'email' => Str::uuid() . '@example.com',
+            'email' => Str::uuid().'@example.com',
         ]);
 
         $peer = User::query()->create([
             'id' => (string) Str::uuid(),
             'display_name' => 'Peer User',
-            'email' => Str::uuid() . '@example.com',
+            'email' => Str::uuid().'@example.com',
         ]);
 
         return [$authUser, $peer];

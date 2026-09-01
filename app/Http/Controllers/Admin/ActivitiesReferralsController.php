@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivitiesReferralsController extends Controller
 {
@@ -34,8 +34,8 @@ class ActivitiesReferralsController extends Controller
                 'activity.hot_value',
                 'activity.remarks',
                 'activity.created_at',
-                DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
-                DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
+                DB::raw($this->hasMediaSelectExpression().' as has_media'),
+                DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                 'actor.display_name as actor_display_name',
                 'actor.first_name as actor_first_name',
                 'actor.last_name as actor_last_name',
@@ -55,7 +55,7 @@ class ActivitiesReferralsController extends Controller
             ->paginate($filters['per_page'])
             ->withQueryString();
 
-        $topMembers = $this->topMembers($request);
+        $topMembers = $this->enrichTopMembers($this->topMembers($request));
 
         return view('admin.activities.referrals.index', [
             'items' => $items,
@@ -70,7 +70,7 @@ class ActivitiesReferralsController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->buildFilters($request);
-        $filename = 'referrals_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'referrals_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
@@ -123,8 +123,8 @@ class ActivitiesReferralsController extends Controller
                         'peer.first_name as peer_first_name',
                         'peer.last_name as peer_last_name',
                         'peer.email as peer_email',
-                        DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
-                        DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
+                        DB::raw($this->hasMediaSelectExpression().' as has_media'),
+                        DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                     ])
                     ->orderBy('activity.created_at')
                     ->orderBy('activity.id')
@@ -190,7 +190,9 @@ class ActivitiesReferralsController extends Controller
             'per_page' => (int) $request->get('per_page', 20),
             'circle_id' => (string) $request->get('circle_id', ''),
             'from_user' => trim((string) $request->get('from_user', '')),
+            'from_company' => trim((string) $request->get('from_company', '')),
             'to_user' => trim((string) $request->get('to_user', '')),
+            'to_company' => trim((string) $request->get('to_company', '')),
             'type' => trim((string) $request->get('type', '')),
             'referral_date' => trim((string) $request->get('referral_date', '')),
             'referral_of' => trim((string) $request->get('referral_of', '')),
@@ -223,7 +225,7 @@ class ActivitiesReferralsController extends Controller
 
         if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -239,7 +241,7 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['from_user'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['from_user']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['from_user']).'%';
             $query->where(function ($inner) use ($like) {
                 $inner->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -248,14 +250,24 @@ class ActivitiesReferralsController extends Controller
             });
         }
 
+        if (! empty($filters['from_company'])) {
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['from_company']).'%';
+            $query->where('actor.company_name', 'ILIKE', $like);
+        }
+
         if ($filters['to_user'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['to_user']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['to_user']).'%';
             $query->where(function ($inner) use ($like) {
                 $inner->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
                     ->orWhere('peer.last_name', 'ILIKE', $like)
                     ->orWhereRaw("concat_ws(' ', coalesce(peer.first_name, ''), coalesce(peer.last_name, '')) ILIKE ?", [$like]);
             });
+        }
+
+        if (! empty($filters['to_company'])) {
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['to_company']).'%';
+            $query->where('peer.company_name', 'ILIKE', $like);
         }
 
         if ($filters['type'] !== '' && $filters['referral_type'] === '') {
@@ -270,17 +282,17 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['referral_of'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['referral_of']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['referral_of']).'%';
             $query->where('activity.referral_of', 'ILIKE', $like);
         }
 
         if ($filters['phone'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['phone']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['phone']).'%';
             $query->where('activity.phone', 'ILIKE', $like);
         }
 
         if ($filters['email'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['email']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['email']).'%';
             $query->where('activity.email', 'ILIKE', $like);
         }
 
@@ -289,7 +301,7 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['remarks'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['remarks']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['remarks']).'%';
             $query->where('activity.remarks', 'ILIKE', $like);
         }
 
@@ -413,6 +425,7 @@ class ActivitiesReferralsController extends Controller
         foreach (['media_id', 'media_file_id', 'file_id', 'attachment_id', 'media_url', 'document_id', 'image_id'] as $candidate) {
             if (Schema::hasColumn('referrals', $candidate)) {
                 $column = $candidate;
+
                 return $column;
             }
         }
@@ -517,10 +530,74 @@ class ActivitiesReferralsController extends Controller
             return $displayName;
         }
 
-        $name = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+        $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
     }
 
-}
+    private function enrichTopMembers($topMembers)
+    {
+        $actorIds = $topMembers->pluck('actor_id')->filter()->values()->all();
+        if (empty($actorIds)) {
+            return $topMembers;
+        }
 
+        $users = DB::table('users')
+            ->leftJoin('cities', 'cities.id', '=', 'users.city_id')
+            ->whereIn('users.id', $actorIds)
+            ->select([
+                'users.id',
+                'users.email',
+                'users.phone',
+                'users.company_name',
+                'users.designation',
+                DB::raw("trim(coalesce(users.display_name, '')) as display_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.display_name, '')), ''), nullif(trim(concat(coalesce(users.first_name, ''), ' ', coalesce(users.last_name, ''))), ''), users.email) as peer_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.city, '')), ''), cities.name) as city_name"),
+            ])
+            ->selectSub(function ($sub) {
+                $sub->from('circle_members')
+                    ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                    ->select('circles.name')
+                    ->whereColumn('circle_members.user_id', 'users.id')
+                    ->where('circle_members.status', 'approved')
+                    ->whereNull('circle_members.deleted_at')
+                    ->limit(1);
+            }, 'circle_name')
+            ->selectSub(fn ($sub) => $sub->from('testimonials')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'testimonials_count')
+            ->selectSub(fn ($sub) => $sub->from('referrals')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'referrals_count')
+            ->selectSub(fn ($sub) => $sub->from('business_deals')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'business_deals_count')
+            ->selectSub(fn ($sub) => $sub->from('p2p_meetings')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('initiator_user_id', 'users.id')->orWhereColumn('peer_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'p2p_completed_count')
+            ->selectSub(fn ($sub) => $sub->from('requirements')->selectRaw('count(*)')->whereColumn('user_id', 'users.id')->whereNull('deleted_at'), 'requirements_count')
+            ->selectSub(fn ($sub) => $sub->from('leader_interest_submissions')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'become_leader_count')
+            ->selectSub(fn ($sub) => $sub->from('peer_recommendations')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'recommend_peer_count')
+            ->selectSub(fn ($sub) => $sub->from('visitor_registrations')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'register_visitor_count')
+            ->get()
+            ->keyBy('id');
+
+        return $topMembers->map(function ($item) use ($users) {
+            $actorId = $item->actor_id ?? $item->id ?? null;
+            if ($actorId && isset($users[$actorId])) {
+                $u = $users[$actorId];
+                $item->id = $u->id;
+                $item->actor_id = $u->id;
+                $item->email = $u->email;
+                $item->phone = $u->phone;
+                $item->designation = $u->designation;
+                $item->circle_name = $u->circle_name;
+                $item->peer_company = $u->company_name;
+                $item->peer_city = $u->city_name;
+                $item->testimonials_count = $u->testimonials_count;
+                $item->referrals_count = $u->referrals_count;
+                $item->business_deals_count = $u->business_deals_count;
+                $item->p2p_completed_count = $u->p2p_completed_count;
+                $item->requirements_count = $u->requirements_count;
+                $item->become_leader_count = $u->become_leader_count;
+                $item->recommend_peer_count = $u->recommend_peer_count;
+                $item->register_visitor_count = $u->register_visitor_count;
+            }
+
+            return $item;
+        });
+    }
+}

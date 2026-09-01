@@ -9,17 +9,28 @@ use Symfony\Component\Process\Process;
 
 class MediaProcessor
 {
-    public function __construct(private readonly Probe $probe)
-    {
-    }
+    public function __construct(private readonly Probe $probe) {}
 
     /**
-        * @param  string  $type  image|video|document
-        * @return array{path:string,mime_type:string,size_bytes:int|null,width:int|null,height:int|null,duration:int|null}
-        */
+     * @param  string  $type  image|video|document
+     * @return array{path:string,mime_type:string,size_bytes:int|null,width:int|null,height:int|null,duration:int|null}
+     */
     public function optimize(string $sourcePath, string $type, ?string $mimeType = null): array
     {
         if ($type === 'image') {
+            if (! $this->probe->imagickAvailable() && ! $this->probe->gdAvailable()) {
+                $dimensions = $this->probe->imageDimensions($sourcePath);
+
+                return [
+                    'path' => $sourcePath,
+                    'mime_type' => $mimeType ?: ($this->probe->mimeType($sourcePath) ?: 'image/jpeg'),
+                    'size_bytes' => @filesize($sourcePath) ?: null,
+                    'width' => $dimensions['width'] ?? null,
+                    'height' => $dimensions['height'] ?? null,
+                    'duration' => null,
+                ];
+            }
+
             return $this->processImage($sourcePath, $mimeType);
         }
 
@@ -78,7 +89,11 @@ class MediaProcessor
         }
 
         $destination = $this->tempFilePath('mp4');
-        $scaleFilter = "scale='min(720,iw)':-2";
+        $maxWidth = (int) config('media.video.max_width', 1280);
+        $crf = (string) config('media.video.crf', 28);
+        $preset = (string) config('media.video.preset', 'ultrafast');
+        $audioBitrate = (string) config('media.video.audio_bitrate', '128k');
+        $scaleFilter = "scale='min({$maxWidth},iw)':-2";
 
         $process = new Process([
             'ffmpeg',
@@ -90,19 +105,19 @@ class MediaProcessor
             '-c:v',
             'libx264',
             '-preset',
-            'veryfast',
+            $preset,
             '-crf',
-            '30',
+            $crf,
             '-c:a',
             'aac',
             '-b:a',
-            '96k',
+            $audioBitrate,
             '-movflags',
             '+faststart',
             $destination,
         ]);
 
-        $process->setTimeout((int) config('media.video.timeout', 180));
+        $process->setTimeout((int) config('media.video.timeout', 600));
         $process->run();
 
         $originalSize = @filesize($sourcePath) ?: null;
@@ -296,7 +311,7 @@ class MediaProcessor
     {
         if ($this->probe->imagickAvailable()) {
             try {
-                $formats = (new \Imagick())->queryFormats('WEBP');
+                $formats = (new \Imagick)->queryFormats('WEBP');
 
                 return ! empty($formats);
             } catch (\Throwable) {
@@ -342,8 +357,8 @@ class MediaProcessor
         }
 
         $extension = ltrim($extension, '.');
-        $extension = $extension ? '.' . $extension : '';
+        $extension = $extension ? '.'.$extension : '';
 
-        return $dir . '/' . uniqid('media_', true) . $extension;
+        return $dir.'/'.uniqid('media_', true).$extension;
     }
 }

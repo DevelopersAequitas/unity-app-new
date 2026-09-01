@@ -4,12 +4,9 @@
 
 @section('content')
 <div class="bg-white border rounded-4 shadow-sm p-3 p-lg-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div>
-            <a href="{{ route('admin.referral-report.index') }}" class="btn btn-link btn-sm px-0 mb-2">
-                <i class="bi bi-arrow-left me-1"></i>Back to Referral Report
-            </a>
-            <h1 class="h4 mb-1">Users Referred by {{ $summary?->referrer_name ?: 'Deleted / Unknown User' }}</h1>
+            <h1 class="h4 mb-1 fw-bold">Users Referred by {{ $summary?->referrer_name ?: 'Deleted / Unknown User' }}</h1>
             <div class="text-muted small">
                 <span>Email: {{ $summary?->referrer_email ?: 'No email' }}</span>
                 <span class="mx-1">•</span><span>Phone: {{ $summary?->referrer_phone ?: 'No phone' }}</span>
@@ -18,10 +15,13 @@
                 @endif
             </div>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-            <span class="badge bg-light text-dark border">Referral Code: {{ $summary?->referral_codes ?: '—' }}</span>
-            <span class="badge bg-light text-dark border">Total Users: {{ number_format((int) ($summary?->total_referred_users ?? 0)) }}</span>
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Coins Granted: {{ number_format((int) ($summary?->total_coins_granted ?? 0)) }}</span>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ route('admin.referral-report.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <span class="badge bg-light text-dark border p-2">Referral Code: {{ $summary?->referral_codes ?: '—' }}</span>
+            <span class="badge bg-light text-dark border p-2">Total Users: {{ number_format((int) ($summary?->total_referred_users ?? 0)) }}</span>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle p-2">Coins Granted: {{ number_format((int) ($summary?->total_coins_granted ?? 0)) }}</span>
         </div>
     </div>
 
@@ -35,7 +35,6 @@
                     <option value="{{ $size }}" @selected(($filters['per_page'] ?? 20) == $size)>{{ $size }}</option>
                 @endforeach
             </select>
-            <button type="submit" form="referralUsersFilters" class="btn btn-primary btn-sm">Apply</button>
         </div>
         <div class="small text-muted">
             @if($records->total() > 0)
@@ -51,26 +50,34 @@
             <thead class="table-light">
                 <tr>
                     <th>Referred User</th>
-                    <th>Company / City</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Company</th>
+                    <th>City</th>
                     <th>Referral Code Used</th>
                     <th class="text-center">Coins Granted</th>
                     <th>Reward Status</th>
-                    <th>Used At / Registered At</th>
+                    <th>Used At</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($records as $record)
                     <tr>
                         <td>
-                            <div class="fw-semibold text-dark">{{ $record->referred_name ?: 'Deleted / Unknown User' }}</div>
-                            <div class="text-muted small">{{ $record->referred_email ?: 'No email' }}</div>
-                            <div class="text-muted small">{{ $record->referred_phone ?: 'No phone' }}</div>
-                            <div class="text-muted small">ID: {{ $record->referred_user_id ?: '—' }}</div>
+                            <div class="fw-semibold text-dark">
+                                @if(!empty($record->referred_user_id))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $record->referred_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $record->referred_name ?: 'Deleted / Unknown User' }}
+                                    </a>
+                                @else
+                                    {{ $record->referred_name ?: 'Deleted / Unknown User' }}
+                                @endif
+                            </div>
                         </td>
-                        <td>
-                            <div>{{ $record->company_name ?: 'No company' }}</div>
-                            <div class="text-muted small">{{ $record->city ?: 'No city' }}</div>
-                        </td>
+                        <td class="text-muted small">{{ $record->referred_email ?: '—' }}</td>
+                        <td class="text-muted small">{{ $record->referred_phone ?: '—' }}</td>
+                        <td>{{ $record->company_name ?: '—' }}</td>
+                        <td class="text-muted small">{{ $record->city ?: '—' }}</td>
                         <td><span class="badge bg-light text-dark border">{{ $record->referral_code ?: '—' }}</span></td>
                         <td class="text-center">{{ number_format((int) $record->coins) }}</td>
                         <td>
@@ -89,7 +96,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">No referred users found for this referrer.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No referred users found for this referrer.</td>
                     </tr>
                 @endforelse
             </tbody>

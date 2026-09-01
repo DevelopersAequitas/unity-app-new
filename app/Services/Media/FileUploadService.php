@@ -6,6 +6,7 @@ use App\Exceptions\MediaProcessingException;
 use App\Models\FileModel;
 use App\Models\User;
 use App\Support\Media\Probe;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -15,12 +16,11 @@ class FileUploadService
     public function __construct(
         private readonly MediaProcessor $mediaProcessor,
         private readonly Probe $probe
-    ) {
-    }
+    ) {}
 
-    public function store(UploadedFile $file, ?User $user = null): FileModel
+    public function store(UploadedFile $file, ?Authenticatable $user = null, ?string $disk = null): FileModel
     {
-        $disk = config('filesystems.default', 'public');
+        $disk = $disk ?: config('filesystems.default', 'public');
         $tempOriginal = $this->storeTemporary($file);
         $optimizedTemp = null;
         $type = null;
@@ -32,9 +32,6 @@ class FileUploadService
 
             if ($this->probe->isImageMime($detectedMimeType) || $this->probe->isImageMime($clientMimeType)) {
                 $type = 'image';
-                if (! $this->probe->imagickAvailable() && ! $this->probe->gdAvailable()) {
-                    throw new MediaProcessingException('Image optimization requires GD or Imagick. Upload rejected.');
-                }
             } elseif ($this->probe->isVideoMime($detectedMimeType) || $this->probe->isVideoMime($clientMimeType)) {
                 $type = 'video';
                 if (! $this->probe->ffmpegAvailable()) {
@@ -52,8 +49,8 @@ class FileUploadService
             $optimized = $this->mediaProcessor->optimize($tempOriginal, $type, $mimeType);
             $optimizedTemp = $optimized['path'];
 
-            $model = new FileModel();
-            $model->uploader_user_id = $user?->id;
+            $model = new FileModel;
+            $model->uploader_user_id = ($user instanceof User) ? $user->id : null;
             $model->s3_key = $this->storeOptimized($optimizedTemp, $disk);
             $model->mime_type = $optimized['mime_type'];
             $model->size_bytes = $optimized['size_bytes'];
@@ -76,7 +73,12 @@ class FileUploadService
         $disk = config('filesystems.default', 'public');
 
         if ($file->s3_key) {
-            Storage::disk($disk)->delete($file->s3_key);
+            if (Storage::disk($disk)->exists($file->s3_key)) {
+                Storage::disk($disk)->delete($file->s3_key);
+            }
+            if ($disk !== 'public' && Storage::disk('public')->exists($file->s3_key)) {
+                Storage::disk('public')->delete($file->s3_key);
+            }
         }
 
         $file->delete();
@@ -84,13 +86,13 @@ class FileUploadService
 
     private function storeTemporary(UploadedFile $file): string
     {
-        $tempDir = storage_path('app/tmp/uploads/' . now()->format('Y/m/d'));
+        $tempDir = storage_path('app/tmp/uploads/'.now()->format('Y/m/d'));
         if (! is_dir($tempDir)) {
             mkdir($tempDir, 0755, true);
         }
 
-        $filename = (string) Str::uuid() . '_' . preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName());
-        $path = $tempDir . '/' . $filename;
+        $filename = (string) Str::uuid().'_'.preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName());
+        $path = $tempDir.'/'.$filename;
         $file->move($tempDir, $filename);
 
         return $path;
@@ -98,10 +100,10 @@ class FileUploadService
 
     private function storeOptimized(string $optimizedTempPath, string $disk): string
     {
-        $folder = 'uploads/' . now()->format('Y/m/d');
+        $folder = 'uploads/'.now()->format('Y/m/d');
         $extension = pathinfo($optimizedTempPath, PATHINFO_EXTENSION);
-        $filename = (string) Str::uuid() . ($extension ? '.' . $extension : '');
-        $finalPath = $folder . '/' . $filename;
+        $filename = (string) Str::uuid().($extension ? '.'.$extension : '');
+        $finalPath = $folder.'/'.$filename;
 
         $stream = fopen($optimizedTempPath, 'r');
         $stored = Storage::disk($disk)->put($finalPath, $stream);

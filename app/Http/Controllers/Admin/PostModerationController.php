@@ -4,17 +4,23 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
+use App\Models\File;
 use App\Models\Impact;
 use App\Models\Post;
+use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Services\Admin\PermissionService;
+use App\Services\Media\BirthdayCreativeImageService;
 use App\Support\AdminAccess;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -23,7 +29,13 @@ class PostModerationController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! $admin) {
+            abort(403);
+        }
+
+        $routeName = request()->route()?->getName() ?? '';
+
+        if ($routeName !== '' && ! app(PermissionService::class)->canAccessRoute($admin, $routeName)) {
             abort(403);
         }
     }
@@ -44,25 +56,33 @@ class PostModerationController extends Controller
         $industryScope = app(IndustryScopeService::class);
 
         $circleId = $request->query('circle_id', 'all');
+        $allowedModerationStatuses = ['any', 'pending', 'approved'];
+        $moderationStatus = $request->input('moderation_status', '');
+        $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
+
+        if (! in_array($moderationStatus ?: 'any', $allowedModerationStatuses, true)) {
+            $moderationStatus = '';
+        }
+        if (! in_array($inlineModerationStatus, $allowedModerationStatuses, true)) {
+            $inlineModerationStatus = 'any';
+        }
 
         $filters = [
-            'active' => $request->input('active', 'active'),
+            'active' => $request->input('active', 'all'),
             'visibility' => $request->input('visibility'),
-            'moderation_status' => $request->input('moderation_status'),
+            'moderation_status' => $moderationStatus,
             'search' => $request->input('search'),
         ];
 
         $peer = $request->query('peer');
         $inlineVisibility = $request->query('inline_visibility', 'any');
-        $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
         $inlineActive = $request->query('inline_active', 'any');
         $media = $request->query('media', 'any');
         $query = Post::withTrashed()
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
-
-        $industryScope->applyToActivityQuery($query, $admin, ['posts.user_id']);
+        $industryScope->applyToActivityQuery($query, $admin, ['posts.user_id', 'posts.source_id']);
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
@@ -80,9 +100,8 @@ class PostModerationController extends Controller
             $query->where('posts.moderation_status', $inlineModerationStatus);
         }
 
-
         if ($filters['search']) {
-            $search = '%' . $filters['search'] . '%';
+            $search = '%'.$filters['search'].'%';
             $query->where(function ($subQuery) use ($search) {
                 $subQuery->where('posts.content_text', 'ILIKE', $search)
                     ->orWhereHas('user', function ($userQuery) use ($search) {
@@ -94,9 +113,8 @@ class PostModerationController extends Controller
             });
         }
 
-
         if (filled($peer)) {
-            $peerQuery = '%' . $peer . '%';
+            $peerQuery = '%'.$peer.'%';
             $query->whereHas('user', function ($userQuery) use ($peerQuery) {
                 $userQuery->where(function ($subQuery) use ($peerQuery) {
                     $subQuery->where('name', 'ILIKE', $peerQuery)
@@ -130,7 +148,7 @@ class PostModerationController extends Controller
             });
         }
 
-        $activeFilter = $this->resolveActiveFilter($filters['active'] ?? 'active', $inlineActive);
+        $activeFilter = $this->resolveActiveFilter($filters['active'] ?? 'all', $inlineActive);
 
         if ($activeFilter === 'inactive') {
             $query->where(function ($subQuery) {
@@ -188,7 +206,7 @@ class PostModerationController extends Controller
         }
 
         if ($filters['search']) {
-            $search = '%' . $filters['search'] . '%';
+            $search = '%'.$filters['search'].'%';
             $impactQuery->where(function ($subQuery) use ($search) {
                 $subQuery->where('story_to_share', 'ILIKE', $search)
                     ->orWhereHas('user', function ($userQuery) use ($search) {
@@ -201,7 +219,7 @@ class PostModerationController extends Controller
         }
 
         if (filled($peer)) {
-            $peerQuery = '%' . $peer . '%';
+            $peerQuery = '%'.$peer.'%';
             $impactQuery->whereHas('user', function ($userQuery) use ($peerQuery) {
                 $userQuery->where(function ($subQuery) use ($peerQuery) {
                     $subQuery->where('display_name', 'ILIKE', $peerQuery)
@@ -257,9 +275,7 @@ class PostModerationController extends Controller
         $moderationOptions = [
             'any' => 'Any',
             'pending' => 'Pending',
-            'complaint' => 'Complaint',
-            'open' => 'Open',
-            'rejected' => 'Rejected',
+            'approved' => 'Approved',
         ];
 
         $circleOptionsQuery = Circle::query()->orderBy('name');
@@ -352,8 +368,55 @@ class PostModerationController extends Controller
             ])
             ->findOrFail($postId);
 
-        if (! app(IndustryScopeService::class)->userInScope($admin, (string) $post->user_id)) {
+        $targetUserIdForScope = $post->user_id;
+        if (in_array($post->post_type, ['birthday', 'anniversary'], true) && $post->source_id) {
+            $targetUserIdForScope = $post->source_id;
+        }
+
+        if (! app(IndustryScopeService::class)->userInScope($admin, (string) $targetUserIdForScope)) {
             abort(403);
+        }
+
+        if ($post->post_type === 'birthday') {
+            $celebratingUser = $post->source_id ? User::find($post->source_id) : $post->user;
+            if ($celebratingUser) {
+                $hasValidMedia = false;
+                $mediaItems = is_array($post->media) ? $post->media : [];
+                if (! empty($mediaItems)) {
+                    foreach ($mediaItems as $mediaItem) {
+                        $fileId = data_get($mediaItem, 'id');
+                        if ($fileId) {
+                            $fileRecord = File::find($fileId);
+                            if ($fileRecord && $fileRecord->s3_key) {
+                                $disk = config('filesystems.default', 'public');
+                                if (Storage::disk($disk)->exists($fileRecord->s3_key) ||
+                                    Storage::disk('public')->exists($fileRecord->s3_key)) {
+                                    $hasValidMedia = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (! $hasValidMedia) {
+                    try {
+                        $imageService = app(BirthdayCreativeImageService::class);
+                        $fileModel = $imageService->generate($celebratingUser);
+                        $mediaUrl = url("/api/v1/files/{$fileModel->id}");
+                        $post->media = [
+                            [
+                                'id' => $fileModel->id,
+                                'type' => 'image',
+                                'url' => $mediaUrl,
+                            ],
+                        ];
+                        $post->save();
+                    } catch (\Throwable $e) {
+                        Log::error('Failed to dynamically generate birthday image on View: '.$e->getMessage());
+                    }
+                }
+            }
         }
 
         return view('admin.posts.show', [

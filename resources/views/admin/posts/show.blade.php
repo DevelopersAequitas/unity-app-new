@@ -18,13 +18,15 @@
         $mediaItems = is_array($post->media) ? $post->media : [];
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h2 class="h4 mb-1">Post Details</h2>
+            <h2 class="h4 mb-1 fw-bold">Post Details</h2>
             <div class="text-muted small">Post ID: {{ $post->id }}</div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('admin.posts.index') }}" class="btn btn-sm btn-outline-secondary">Back to All Posts</a>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.posts.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
         </div>
     </div>
 
@@ -41,11 +43,45 @@
                         <dt class="col-sm-4">Circle</dt>
                         <dd class="col-sm-8">{{ $post->circle?->name ?? '—' }}</dd>
                         <dt class="col-sm-4">Visibility</dt>
-                        <dd class="col-sm-8">{{ ucfirst($post->visibility) }}</dd>
+                        <dd class="col-sm-8">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-sky-50 text-sky-700 border-sky-200">
+                                <i class="bi bi-globe2 text-sky-500 text-[11px]"></i>
+                                <span>{{ ucfirst($post->visibility ?: 'Public') }}</span>
+                            </span>
+                        </dd>
                         <dt class="col-sm-4">Moderation Status</dt>
-                        <dd class="col-sm-8">{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</dd>
+                        <dd class="col-sm-8">
+                            @php $modStatus = strtolower((string)$post->moderation_status); @endphp
+                            @if($modStatus === 'approved')
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Approved
+                                </span>
+                            @elseif($modStatus === 'pending')
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pending
+                                </span>
+                            @elseif($modStatus === 'rejected')
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-rose-50 text-rose-700 border-rose-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Rejected
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-slate-100 text-slate-700 border-slate-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> {{ ucfirst($post->moderation_status ?: '—') }}
+                                </span>
+                            @endif
+                        </dd>
                         <dt class="col-sm-4">Active?</dt>
-                        <dd class="col-sm-8">{{ $isActive ? 'Yes' : 'No' }}</dd>
+                        <dd class="col-sm-8">
+                            @if ($isActive)
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Yes
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-rose-50 text-rose-700 border-rose-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> No
+                                </span>
+                            @endif
+                        </dd>
                     </dl>
                 </div>
             </div>

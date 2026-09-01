@@ -45,14 +45,49 @@
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <p class="text-muted mb-1">Ecosystem Leadership Portal</p>
-        <h3 class="mb-0 fw-bold text-primary-gradient">DED Command Center</h3>
+<div class="card border-0 mb-4 shadow-sm position-relative overflow-hidden" style="background: linear-gradient(135deg, #F5FFFD 0%, #F7FFF9 50%, #F4FFFF 100%); border-radius: 16px; min-height: 160px; display: flex; align-items: center; border: 1px solid rgba(16, 185, 129, 0.08) !important;">
+    <div class="card-body p-4 w-100 position-relative" style="z-index: 1;">
+        <div class="d-flex align-items-center" style="gap: 32px;">
+            <!-- Left Circular Icon -->
+            <div class="d-none d-sm-flex align-items-center justify-content-center shadow-sm" style="width: 70px; height: 70px; min-width: 70px; min-height: 70px; background-color: #E6F8F5; border-radius: 50%; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.08) !important; font-size: 2.2rem;">
+                <i class="bi bi-person-circle text-emerald-600 admin-icon" aria-hidden="true"></i>
+            </div>
+            <!-- Text Content -->
+            <div class="flex-grow-1">
+                <span class="text-secondary small fw-medium d-block mb-1" style="font-size: 0.9rem; color: #475569 !important;">Welcome back,</span>
+                <h2 class="fw-bold mb-1" style="font-size: 32px; color: #0f172a; line-height: 1.15; font-family: 'Plus Jakarta Sans', sans-serif;">
+                    {{ Auth::guard('admin')->user()?->name ?? 'District Executive Director' }}
+                </h2>
+                <div class="fw-semibold mb-1" style="font-size: 0.95rem; color: #10b981 !important;">
+                    District Executive Director Dashboard @if($districtName) &bull; {{ $districtName }} District @endif
+                </div>
+                <p class="mb-0 text-muted" style="font-size: 0.85rem; color: #64748b !important;">
+                    Manage your district activities, members, referrals and leadership from one place.
+                </p>
+            </div>
+        </div>
     </div>
-    @if ($districtName)
-        <span class="fs-6 py-2 px-3 badge bg-primary text-white border border-primary-subtle">District: {{ $districtName }}</span>
-    @endif
+    <!-- Right side decorative pattern -->
+    <div class="position-absolute d-none d-md-block" style="right: 32px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.12;">
+            <circle cx="6" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="6" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="6" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="6" cy="54" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="54" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="54" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="54" r="2.5" fill="#10b981"/>
+        </svg>
+    </div>
 </div>
 
 @if (! $districtName)
@@ -71,10 +106,10 @@
 
     <!-- Circle Filter Section -->
     <div class="card p-3 mb-4 shadow-sm border-0">
-        <form method="GET" action="{{ route('admin.ded.dashboard') }}" class="row g-2 align-items-end">
+        <form method="GET" action="{{ route('admin.ded.dashboard') }}" class="row g-2 align-items-end" id="dedCircleFilterForm">
             <div class="col-md-6 col-xl-4">
                 <label for="dedDashboardCircleFilter" class="form-label small text-muted mb-1 fw-bold">Circle Scope Filter</label>
-                <select id="dedDashboardCircleFilter" name="circle_id" class="form-select">
+                <select id="dedDashboardCircleFilter" name="circle_id" class="form-select" onchange="this.form.submit()">
                     <option value="all" @selected(($selectedCircleId ?? '') === '')>District-Wide Overview</option>
                     @foreach (($districtCircles ?? collect()) as $circle)
                         <option value="{{ $circle->id }}" @selected(($selectedCircleId ?? '') === $circle->id)>
@@ -83,12 +118,9 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-auto">
-                <button class="btn btn-primary px-4">Apply Filter</button>
-            </div>
             @if (($selectedCircleId ?? '') !== '')
                 <div class="col-md-auto">
-                    <a href="{{ route('admin.ded.dashboard') }}" class="btn btn-outline-secondary">Reset</a>
+                    <a href="{{ route('admin.ded.dashboard') }}" class="btn btn-outline-secondary">Clear</a>
                 </div>
                 <div class="col-md-auto text-success small fw-medium">
                     <i class="bi bi-info-circle-fill"></i> Scoped to circle: {{ $selectedCircle?->name ?? 'selected circle' }}.
@@ -186,7 +218,7 @@
                         @endif
                     </h2>
                     @if ($trend !== '')
-                        <div class="small {{ $trendClass }} mt-1 fw-semibold">{{ $trend }}</div>
+                        <div class="small {{ $trendClass }} mt-1 fw-semibold text-truncate" title="{{ $trend }}">{{ $trend }}</div>
                     @endif
                 </a>
             </div>
@@ -312,7 +344,7 @@
                             @forelse ($quickFinder['circle_founders'] as $founder)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $founder['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $founder['id'] }}', event);">
                                             {{ $founder['name'] }}
                                         </a>
                                     </div>
@@ -330,7 +362,7 @@
                             @forelse ($quickFinder['circle_directors'] as $director)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $director['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $director['id'] }}', event);">
                                             {{ $director['name'] }}
                                         </a>
                                     </div>
@@ -348,7 +380,7 @@
                             @forelse ($quickFinder['industry_directors'] as $idr)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $idr['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $idr['id'] }}', event);">
                                             {{ $idr['name'] }}
                                         </a>
                                     </div>
@@ -366,7 +398,7 @@
                             @forelse ($quickFinder['chairs'] as $ch)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $ch['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $ch['id'] }}', event);">
                                             {{ $ch['name'] }}
                                         </a>
                                         <span class="badge bg-primary-subtle text-primary">Chair</span>
@@ -384,3 +416,16 @@
     </div>
 @endif
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.jQuery) {
+            $('#dedDashboardCircleFilter').on('change', function() {
+                const form = document.getElementById('dedCircleFilterForm');
+                if (form) form.submit();
+            });
+        }
+    });
+</script>
+@endpush

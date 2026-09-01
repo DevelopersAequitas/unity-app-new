@@ -3,19 +3,23 @@
 namespace App\Services\Circles;
 
 use App\Jobs\SendPushNotificationJob;
+use App\Mail\CircleJoinCongratulationsMail;
 use App\Mail\CircleJoinRequestStatusMail;
+use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleSubscription;
+use App\Models\EmailLog;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class CircleJoinRequestNotificationService
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function sendCdApprovedToUser(CircleJoinRequest $request): void
     {
@@ -31,7 +35,7 @@ class CircleJoinRequestNotificationService
         $circleName = $request->circle?->name ?? 'this circle';
         $reason = trim((string) $request->cd_rejection_reason);
         $title = 'Circle Join Request Rejected';
-        $body = "Your request to join {$circleName} was rejected by Circle Director." . ($reason !== '' ? " Reason: {$reason}" : '');
+        $body = "Your request to join {$circleName} was rejected by Circle Director.".($reason !== '' ? " Reason: {$reason}" : '');
 
         $this->sendUserUpdate($request, $title, $body, 'circle_join_request_cd_rejected', 'rejected_by_cd', $reason !== '' ? $reason : null, 'Your Circle Join Request Was Rejected by Circle Director');
     }
@@ -50,7 +54,7 @@ class CircleJoinRequestNotificationService
         $circleName = $request->circle?->name ?? 'this circle';
         $reason = trim((string) $request->id_rejection_reason);
         $title = 'Circle Join Request Rejected';
-        $body = "Your request to join {$circleName} was rejected by Industry Director." . ($reason !== '' ? " Reason: {$reason}" : '');
+        $body = "Your request to join {$circleName} was rejected by Industry Director.".($reason !== '' ? " Reason: {$reason}" : '');
 
         $this->sendUserUpdate($request, $title, $body, 'circle_join_request_id_rejected', 'rejected_by_id', $reason !== '' ? $reason : null, 'Your Circle Join Request Was Rejected by Industry Director');
     }
@@ -97,7 +101,7 @@ class CircleJoinRequestNotificationService
         }
 
         try {
-            Notification::query()->create([
+            $notification = Notification::query()->create([
                 'user_id' => $user->id,
                 'type' => 'activity_update',
                 'payload' => [
@@ -114,6 +118,34 @@ class CircleJoinRequestNotificationService
                 'created_at' => now(),
                 'read_at' => null,
             ]);
+
+            try {
+                AppNotification::create([
+                    'user_id' => $user->id,
+                    'type' => 'activity_update',
+                    'category' => $eventType,
+                    'title' => $title,
+                    'body' => $body,
+                    'message' => $body,
+                    'channel' => 'push',
+                    'priority' => 'medium',
+                    'reference_type' => CircleJoinRequest::class,
+                    'reference_id' => (string) $request->id,
+                    'screen' => 'circle_join_requests',
+                    'data' => array_merge($payloadData, [
+                        'notification_id' => (string) $notification->id,
+                        'from_user_id' => (string) $actor->id,
+                        'to_user_id' => (string) $user->id,
+                    ]),
+                    'status' => 'pending',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed to create AppNotification in CircleJoinRequestNotificationService', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             SendPushNotificationJob::dispatch($user, $title, $body, [
                 'type' => 'circle_join_request',
@@ -145,7 +177,7 @@ class CircleJoinRequestNotificationService
                 $this->emailLogService->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => $eventType,
                     'source_module' => 'Circles',
                     'related_type' => CircleJoinRequest::class,
@@ -158,7 +190,7 @@ class CircleJoinRequestNotificationService
                 $this->emailLogService->logFailed([
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => $eventType,
                     'subject' => $emailSubject,
                     'source_module' => 'Circles',
@@ -203,7 +235,7 @@ class CircleJoinRequestNotificationService
 
         return [
             'id' => (string) $actor->id,
-            'name' => (string) ($actor->display_name ?: trim(($actor->first_name ?? '') . ' ' . ($actor->last_name ?? ''))),
+            'name' => (string) ($actor->display_name ?: trim(($actor->first_name ?? '').' '.($actor->last_name ?? ''))),
             'role' => $role,
         ];
     }
@@ -218,5 +250,164 @@ class CircleJoinRequestNotificationService
             'circle_member' => 'Circle Member',
             default => $status,
         };
+    }
+
+    public function resolvePaymentUrl(CircleJoinRequest $request): ?string
+    {
+        $user = $request->user;
+        $circle = $request->circle;
+
+        if (! $user || ! $circle) {
+            return null;
+        }
+
+        // Try to find a pending/existing circle subscription first
+        $existing = CircleSubscription::query()
+            ->where('user_id', $user->id)
+            ->where('circle_id', $circle->id)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($existing) {
+            $existingUrl = data_get($existing->raw_checkout_response, 'hostedpage.url')
+                ?? data_get($existing->raw_checkout_response, 'hostedpage.checkout_url')
+                ?? $existing->zoho_checkout_url;
+
+            if (! empty($existingUrl)) {
+                return $existingUrl;
+            }
+        }
+
+        if (trim((string) ($circle->zoho_addon_code ?? '')) === '') {
+            return null;
+        }
+
+        // Generate checkout URL dynamically
+        try {
+            $checkout = app(ZohoBillingService::class)->createHostedPageForCircleAddon($user, $circle);
+            $checkoutUrl = $checkout['checkout_url'] ?? null;
+
+            if ($checkoutUrl) {
+                CircleSubscription::query()->create([
+                    'user_id' => $user->id,
+                    'circle_id' => $circle->id,
+                    'zoho_customer_id' => $checkout['customer_id'] ?? $user->zoho_customer_id,
+                    'zoho_subscription_id' => $checkout['subscription_id'] ?? $user->zoho_subscription_id,
+                    'zoho_hosted_page_id' => $checkout['hostedpage_id'] ?? null,
+                    'zoho_addon_id' => $circle->zoho_addon_id,
+                    'zoho_addon_code' => $circle->zoho_addon_code,
+                    'zoho_addon_name' => $circle->zoho_addon_name,
+                    'amount' => $circle->circle_price_amount,
+                    'currency_code' => $circle->circle_price_currency,
+                    'status' => 'pending',
+                    'raw_checkout_response' => $checkout['raw'] ?? null,
+                ]);
+            }
+
+            return $checkoutUrl;
+        } catch (\Throwable $throwable) {
+            Log::error('Failed to generate payment URL for join request', [
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    public function sendJoinRequestApprovedCongratulations(CircleJoinRequest $request): void
+    {
+        try {
+            // Must have both approvals completed
+            if ($request->cd_approved_at === null || $request->id_approved_at === null) {
+                Log::info('Congratulations email skipped: approvals incomplete', [
+                    'request_id' => $request->id,
+                    'cd_approved_at' => $request->cd_approved_at,
+                    'id_approved_at' => $request->id_approved_at,
+                ]);
+
+                return;
+            }
+
+            $user = $request->user;
+            if (! $user || empty($user->email)) {
+                Log::warning('Congratulations email skipped: user email not found', [
+                    'request_id' => $request->id,
+                ]);
+
+                return;
+            }
+
+            // Deduplicate
+            $alreadySent = EmailLog::query()
+                ->where('related_type', CircleJoinRequest::class)
+                ->where('related_id', (string) $request->id)
+                ->where('template_key', 'circle_join_request_approved_congratulations')
+                ->exists();
+
+            if ($alreadySent) {
+                Log::info('Congratulations email already sent for request', ['request_id' => $request->id]);
+
+                return;
+            }
+
+            // Mapped categories
+            $categoryName = 'N/A';
+            if ($request->circleCategory) {
+                $categoryName = $request->circleCategory->name;
+            } elseif ($request->level1_category_id) {
+                $cat = CircleCategory::query()->find($request->level1_category_id);
+                if ($cat) {
+                    $categoryName = $cat->name;
+                }
+            }
+
+            $circleName = $request->circle?->name ?? 'N/A';
+            $displayName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+            if (empty($displayName)) {
+                $displayName = 'Peer';
+            }
+
+            $amount = $request->circle?->circle_price_amount ?? 5000;
+            $currency = $request->circle?->circle_price_currency ?? 'INR';
+            $formattedAmount = trim($currency.' '.number_format($amount, 2));
+
+            // Fetch or generate payment URL
+            $paymentUrl = $this->resolvePaymentUrl($request);
+
+            $mailable = new CircleJoinCongratulationsMail(
+                $displayName,
+                $circleName,
+                $categoryName,
+                (string) $request->id,
+                $formattedAmount,
+                $paymentUrl
+            );
+
+            Mail::to($user->email)->send($mailable);
+
+            $this->emailLogService->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => $displayName,
+                'template_key' => 'circle_join_request_approved_congratulations',
+                'source_module' => 'Circles',
+                'related_type' => CircleJoinRequest::class,
+                'related_id' => (string) $request->id,
+            ]);
+
+            Log::info('Congratulations email sent successfully', [
+                'request_id' => $request->id,
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Failed to send congratulations email for join request', [
+                'request_id' => $request->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

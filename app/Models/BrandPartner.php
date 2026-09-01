@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -108,12 +108,16 @@ class BrandPartner extends Model
     // Logo URL Accessor
     public function getLogoUrlAttribute(): ?string
     {
-        if (!$this->logo) {
+        if (! $this->logo) {
             return null;
         }
 
         if (Str::startsWith($this->logo, ['http://', 'https://'])) {
             return $this->logo;
+        }
+
+        if (Str::isUuid($this->logo)) {
+            return url('/api/v1/files/'.$this->logo);
         }
 
         return Storage::disk('public')->url($this->logo);
@@ -122,12 +126,16 @@ class BrandPartner extends Model
     // Cover Image URL Accessor
     public function getCoverImageUrlAttribute(): ?string
     {
-        if (!$this->cover_image) {
+        if (! $this->cover_image) {
             return null;
         }
 
         if (Str::startsWith($this->cover_image, ['http://', 'https://'])) {
             return $this->cover_image;
+        }
+
+        if (Str::isUuid($this->cover_image)) {
+            return url('/api/v1/files/'.$this->cover_image);
         }
 
         return Storage::disk('public')->url($this->cover_image);
@@ -152,6 +160,11 @@ class BrandPartner extends Model
     public function saves(): HasMany
     {
         return $this->hasMany(BrandPartnerSaved::class, 'brand_partner_id');
+    }
+
+    public function couponRedemptions(): HasMany
+    {
+        return $this->hasMany(BrandPartnerCouponRedemption::class, 'brand_partner_id');
     }
 
     public function creator(): BelongsTo

@@ -1,18 +1,19 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Registration Request Received</title>
-</head>
-<body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+@extends('emails.layouts.email')
+
+@section('title', 'Registration Request Received')
+
+@section('content')
 <p>Hello {{ $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Peer' }},</p>
 
-<p>Thank you for registering on Greenpreneur. We have received your registration request.</p>
+<!-- EDITABLE_START -->
+<p>Thank you for registering with us. Your registration has been received successfully.</p>
 
-<p>Your account is currently under review by our administration team. This process ensures the quality and authenticity of our community members. We will notify you via email as soon as your account is approved and ready for use.</p>
+<p>We are glad to have you as part of the Peers Global Unity community.</p>
 
-<p>If you have any questions or require further assistance, please feel free to reach out to our support team.</p>
+<p>Have a great day!</p>
+<!-- EDITABLE_END -->
+@endsection
 
-<p>Warm regards,<br>Greenpreneur Team</p>
-</body>
-</html>
+@section('footer')
+<p style="margin:0;">Peers are partners in business and friends in life.</p>
+@endsection

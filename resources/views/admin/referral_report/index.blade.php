@@ -2,183 +2,175 @@
 
 @section('title', 'Referral Report')
 
+@include('admin.partials.grid-head')
+
 @section('content')
-<div class="bg-white border rounded-4 shadow-sm p-3 p-lg-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+@php
+    $getInitials = function($name) {
+        $words = explode(' ', trim($name));
+        $initials = '';
+        foreach ($words as $w) {
+            if(!empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+        }
+        return substr($initials, 0, 2) ?: 'P';
+    };
+    $getAvatarBg = function($name) {
+        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+        $hash = crc32($name);
+        return $colors[abs($hash) % count($colors)];
+    };
+@endphp
+
+<form id="referralReportFilters" method="GET" action="{{ route('admin.referral-report.index') }}"></form>
+
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+    <div class="flex flex-wrap justify-between items-center gap-3">
         <div>
-            <h1 class="h4 mb-1">Referral Users / Referral Report</h1>
-            <p class="text-muted mb-0">See which peer referred how many users and how many referral coins were granted.</p>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Referral Report</h2>
+            <p class="text-xs t3 m-0 mt-0.5">See which peer referred how many users and referral coins granted.</p>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="badge bg-light text-dark border">Total Referrers: {{ number_format($records->total()) }}</span>
-            <a href="{{ route('admin.referral-report.export', request()->query()) }}" class="btn btn-success btn-sm">
-                <i class="bi bi-download me-1"></i>Export CSV
+        <div class="flex gap-2 items-center">
+            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total Referrers: {{ number_format($records->total()) }}</span>
+            <a href="{{ route('admin.referral-report.export', request()->query()) }}" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition focus-ring no-underline">
+                Export CSV
             </a>
         </div>
     </div>
 
-    <form id="referralReportFilters" method="GET" action="{{ route('admin.referral-report.index') }}"></form>
-
-    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
-        <div class="small text-muted">
-            @if($records->total() > 0)
-                Records {{ $records->firstItem() }} to {{ $records->lastItem() }} of {{ $records->total() }}
-            @else
-                No records found
-            @endif
-        </div>
-        <div class="d-flex flex-wrap justify-content-end align-items-end gap-2">
-            <div>
-                <label class="form-label small text-muted mb-1">From Date</label>
-                <input type="date" name="from" form="referralReportFilters" value="{{ $filters['from'] ?? '' }}" class="form-control form-control-sm">
+    <div class="p-3 rounded-lg border bs surface-2">
+        <div class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                <input type="text" name="q" form="referralReportFilters" value="{{ $filters['q'] ?? '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Name, email, phone, code">
             </div>
-            <div>
-                <label class="form-label small text-muted mb-1">To Date</label>
-                <input type="date" name="to" form="referralReportFilters" value="{{ $filters['to'] ?? '' }}" class="form-control form-control-sm">
+            <div class="w-40">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From Date</label>
+                <input type="date" name="from" form="referralReportFilters" value="{{ $filters['from'] ?? '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+            </div>
+            <div class="w-40">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To Date</label>
+                <input type="date" name="to" form="referralReportFilters" value="{{ $filters['to'] ?? '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" form="referralReportFilters" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm cursor-pointer">Filter</button>
+                <a href="{{ route('admin.referral-report.index') }}" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border bs surface t2 hover:t1 hover:surface-3 transition text-center no-underline shadow-sm">Clear</a>
             </div>
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Referrer</th>
-                    <th>Referral Code</th>
-                    <th>Referred Users</th>
-                    <th class="text-center">Total Users</th>
-                    <th class="text-center">Coins Granted</th>
-                    <th>Last Referral Date</th>
-                    <th class="text-end">Action</th>
-                </tr>
-                <tr class="bg-light align-middle">
-                    <th>
-                        <input
-                            type="text"
-                            name="q"
-                            form="referralReportFilters"
-                            value="{{ $filters['q'] ?? '' }}"
-                            class="form-control form-control-sm"
-                            placeholder="Name, email, phone, code"
-                        >
-                    </th>
-                    <th>
-                        <input
-                            type="text"
-                            name="referral_code"
-                            form="referralReportFilters"
-                            value="{{ $filters['referral_code'] ?? '' }}"
-                            class="form-control form-control-sm"
-                            placeholder="Referral Code"
-                        >
-                    </th>
-                    <th>
-                        <input
-                            type="text"
-                            name="referred_q"
-                            form="referralReportFilters"
-                            value="{{ $filters['referred_q'] ?? '' }}"
-                            class="form-control form-control-sm"
-                            placeholder="Search referred user"
-                        >
-                    </th>
-                    <th>
-                        <select name="sort" form="referralReportFilters" class="form-select form-select-sm">
-                            <option value="last_referral_date" @selected(($filters['sort'] ?? '') === 'last_referral_date')>Sort: Last Referral</option>
-                            <option value="total_referred_users" @selected(($filters['sort'] ?? '') === 'total_referred_users')>Sort: Total Users</option>
-                        </select>
-                    </th>
-                    <th>
-                        <select name="reward_status" form="referralReportFilters" class="form-select form-select-sm" @disabled(! $hasRewardStatus)>
-                            <option value="">All Statuses</option>
-                            @foreach (['granted' => 'Granted', 'pending' => 'Pending', 'failed' => 'Failed'] as $value => $label)
-                                <option value="{{ $value }}" @selected(($filters['reward_status'] ?? '') === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </th>
-                    <th>
-                        <select name="direction" form="referralReportFilters" class="form-select form-select-sm">
-                            <option value="desc" @selected(($filters['direction'] ?? 'desc') === 'desc')>Descending</option>
-                            <option value="asc" @selected(($filters['direction'] ?? 'desc') === 'asc')>Ascending</option>
-                        </select>
-                    </th>
-                    <th class="text-end">
-                        <div class="d-flex flex-wrap justify-content-end gap-2">
-                            <select id="perPage" name="per_page" form="referralReportFilters" class="form-select form-select-sm" style="width: 80px;">
-                                @foreach ([10, 20, 50, 100] as $size)
-                                    <option value="{{ $size }}" @selected(($filters['per_page'] ?? 20) == $size)>{{ $size }}</option>
-                                @endforeach
-                            </select>
-                            <button type="submit" form="referralReportFilters" class="btn btn-primary btn-sm">Apply</button>
-                            <a href="{{ route('admin.referral-report.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
-                        </div>
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($records as $record)
-                    <tr>
-                        <td>
-                            <div class="fw-semibold text-dark">{{ $record->referrer_name ?: 'Deleted / Unknown User' }}</div>
-                            <div class="text-muted small">{{ $record->referrer_company ?: '—' }}</div>
-                            <div class="text-muted small">{{ $record->referrer_city ?? '—' }}</div>
-                            <div class="text-muted small">{{ $record->referrer_phone ?: 'No phone' }}</div>
-                        </td>
-                        <td>
-                            <span class="badge bg-light text-dark border text-wrap">{{ $record->referral_codes ?: '—' }}</span>
-                        </td>
-                        <td style="min-width: 320px;">
-                            @php
-                                $referredUsers = $referredUsersByReferrer->get((string) $record->referrer_user_id, collect());
-                            @endphp
-                            @if($referredUsers->isNotEmpty())
-                                <div class="d-flex flex-column gap-2" style="max-height: 260px; overflow-y: auto;">
-                                    @foreach($referredUsers as $referredUser)
-                                        <div class="border rounded-3 p-2 bg-light-subtle">
-                                            <div class="fw-semibold text-dark">{{ $referredUser->referred_name ?: 'Deleted / Unknown User' }}</div>
-                                            <div class="text-muted small">{{ $referredUser->referred_phone ?: 'No phone' }}</div>
-                                            <div class="text-muted small">{{ $referredUser->company_name ?: '—' }}</div>
-                                            <div class="text-muted small">{{ $referredUser->city ?: '—' }}</div>
-                                            <div class="d-flex flex-wrap gap-2 mt-1 small">
-                                                <span class="badge bg-light text-dark border">{{ $referredUser->used_at ? \Illuminate\Support\Carbon::parse($referredUser->used_at)->format('d-m-Y h:i A') : 'No date' }}</span>
-                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">{{ number_format((int) $referredUser->coins) }} coins</span>
-                                                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">{{ $referredUser->reward_status ?: '—' }}</span>
-                                            </div>
+    <div class="rounded-xl border bs surface overflow-hidden">
+        <div class="overflow-x-auto relative">
+            <table class="min-w-[1100px] w-full border-collapse text-[13px]">
+                <thead>
+                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Referrer Name</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone Number</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Code</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 280px;">Referred Users</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Total Users</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Coins Granted</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Last Referral Date</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                    @forelse ($records as $record)
+                        @php
+                            $refAvatar = $record->referrer_profile_photo_url ?? ($record->referrer_profile_photo_file_id ? url('/api/v1/files/' . $record->referrer_profile_photo_file_id) : null);
+                        @endphp
+                        <tr class="hover:surface-2 transition border-b bs">
+                            <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                <div class="flex items-center gap-2.5">
+                                    @if($refAvatar)
+                                        <img src="{{ $refAvatar }}" alt="{{ $record->referrer_name }}" class="w-8 h-8 rounded-full object-cover border bs flex-shrink-0" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+                                        <div class="w-8 h-8 rounded-full text-white font-bold items-center justify-center text-xs flex-shrink-0 hidden" style="background-color: {{ $getAvatarBg($record->referrer_name ?? '') }}">
+                                            {{ $getInitials($record->referrer_name ?? '') }}
                                         </div>
-                                    @endforeach
+                                    @else
+                                        <div class="w-8 h-8 rounded-full text-white font-bold flex items-center justify-center text-xs flex-shrink-0" style="background-color: {{ $getAvatarBg($record->referrer_name ?? '') }}">
+                                            {{ $getInitials($record->referrer_name ?? '') }}
+                                        </div>
+                                    @endif
+                                    <div class="font-semibold t1">
+                                        @if(!empty($record->referrer_user_id))
+                                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $record->referrer_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                {{ $record->referrer_name ?: 'Deleted / Unknown User' }}
+                                            </a>
+                                        @else
+                                            {{ $record->referrer_name ?: 'Deleted / Unknown User' }}
+                                        @endif
+                                    </div>
                                 </div>
-                            @else
-                                <span class="text-muted small">No referred users found.</span>
-                            @endif
-                        </td>
-                        <td class="text-center fw-semibold">{{ number_format((int) $record->total_referred_users) }}</td>
-                        <td class="text-center">
-                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
-                                {{ number_format((int) $record->total_coins_granted) }} coins
-                            </span>
-                        </td>
-                        <td>{{ $record->last_referral_date ? \Illuminate\Support\Carbon::parse($record->last_referral_date)->format('d-m-Y h:i A') : '—' }}</td>
-                        <td class="text-end">
-                            @if($record->referrer_user_id)
-                                <a href="{{ route('admin.referral-report.show', $record->referrer_user_id) }}" class="btn btn-outline-primary btn-sm">
-                                    View Users
-                                </a>
-                            @else
-                                <span class="text-muted small">No referrer ID</span>
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No referral users found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $record->referrer_company ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $record->referrer_city ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $record->referrer_phone ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs">
+                                <code class="text-[11px] font-mono bg-gray-100 px-1.5 py-0.5 rounded border bs">{{ $record->referral_codes ?: '—' }}</code>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs">
+                                @php
+                                    $referredUsers = $referredUsersByReferrer->get((string) $record->referrer_user_id, collect());
+                                @endphp
+                                @if($referredUsers->isNotEmpty())
+                                    <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                        @foreach($referredUsers as $referredUser)
+                                            <div class="p-2 rounded border bs surface-2 text-xs">
+                                                <div class="font-semibold t1">
+                                                    @if(!empty($referredUser->user_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $referredUser->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $referredUser->referred_name ?: 'Unknown' }}
+                                                        </a>
+                                                    @else
+                                                        {{ $referredUser->referred_name ?: 'Unknown' }}
+                                                    @endif
+                                                </div>
+                                                <div class="t3 text-[10px]">
+                                                    @if($referredUser->company_name) <span>{{ $referredUser->company_name }}</span> @endif
+                                                    @if($referredUser->city) &bull; <span>{{ $referredUser->city }}</span> @endif
+                                                </div>
+                                                <div class="flex gap-1.5 mt-1">
+                                                    <span class="chip px-1.5 py-0.2 text-[10px] bg-amber-50 text-amber-700 border-amber-200">{{ number_format((int) $referredUser->coins) }} coins</span>
+                                                    <span class="chip px-1.5 py-0.2 text-[10px] bg-gray-100 text-gray-600 border-gray-200">{{ $referredUser->reward_status ?: '—' }}</span>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span class="t3">—</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-center text-xs font-semibold t1">{{ number_format((int) $record->total_referred_users) }}</td>
+                            <td class="px-3 py-2.5 text-center text-xs">
+                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">
+                                    {{ number_format((int) $record->total_coins_granted) }} coins
+                                </span>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $record->last_referral_date ? \Illuminate\Support\Carbon::parse($record->last_referral_date)->format('d-m-Y h:i A') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                @if($record->referrer_user_id)
+                                    <a href="{{ route('admin.referral-report.show', $record->referrer_user_id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">
+                                        View Users
+                                    </a>
+                                @else
+                                    <span class="t3">—</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="10" class="text-center py-8 text-xs t3">No referral records found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
 
-    <div class="mt-2">
-        {{ $records->links() }}
+        <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+            {{ $records->links() }}
+        </div>
     </div>
 </div>
 @endsection

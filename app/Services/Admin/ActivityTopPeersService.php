@@ -111,7 +111,7 @@ class ActivityTopPeersService
         }
 
         if ($search !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
             $query->where(function (Builder $inner) use ($like) {
                 $inner->whereRaw("concat_ws(' ', u.first_name, u.last_name) ILIKE ?", [$like])
                     ->orWhere('u.display_name', 'ILIKE', $like)
@@ -137,6 +137,7 @@ class ActivityTopPeersService
             if (! str_contains($value, ':') && ! str_contains($value, 'T')) {
                 return $endOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
             }
+
             return $parsed;
         } catch (\Throwable $exception) {
             return null;

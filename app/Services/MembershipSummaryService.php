@@ -71,7 +71,7 @@ class MembershipSummaryService
     private function resolveProfilePhoto(User $user): ?string
     {
         if (! empty($user->profile_photo_file_id)) {
-            return url('/api/v1/files/' . $user->profile_photo_file_id);
+            return url('/api/v1/files/'.$user->profile_photo_file_id);
         }
 
         $photoUrl = trim((string) ($this->firstFilledValue($user, ['profile_photo_url', 'profile_photo']) ?? ''));
@@ -102,7 +102,7 @@ class MembershipSummaryService
             return $displayName;
         }
 
-        $fullName = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
+        $fullName = trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? '')));
 
         if ($fullName !== '') {
             return $fullName;

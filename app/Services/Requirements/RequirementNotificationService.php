@@ -2,6 +2,7 @@
 
 namespace App\Services\Requirements;
 
+use App\Models\Post;
 use App\Models\Requirement;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
@@ -10,25 +11,36 @@ use Throwable;
 
 class RequirementNotificationService
 {
-    public function __construct(private readonly NotifyUserService $notifyUserService)
-    {
-    }
+    public function __construct(private readonly NotifyUserService $notifyUserService) {}
 
     public function notifyRequirementCreated(Requirement $requirement): int
     {
-        $creator = $requirement->user;
+        $creator = $requirement->user ?? User::find($requirement->user_id);
 
         if (! $creator) {
             return 0;
         }
 
+        $creatorName = $this->resolveUserName($creator);
+        $subject = (string) ($requirement->subject ?? 'a requirement');
+        $title = 'New Requirement Posted';
+        $body = 'A new business requirement has been posted in your network.';
+
         $notifiedCount = 0;
+
+        $postId = Post::query()
+            ->where('source_id', $requirement->id)
+            ->whereIn('source_type', ['requirement', 'requirements'])
+            ->latest('created_at')
+            ->value('id');
+
+        $effectivePostId = (string) ($postId ?? $requirement->id);
 
         User::query()
             ->where('id', '!=', $creator->id)
             ->whereNull('deleted_at')
             ->orderBy('id')
-            ->chunkById(500, function ($users) use ($creator, $requirement, &$notifiedCount): void {
+            ->chunkById(500, function ($users) use ($creator, $requirement, $creatorName, $subject, $title, $body, $effectivePostId, &$notifiedCount): void {
                 foreach ($users as $user) {
                     try {
                         $notification = $this->notifyUserService->notifyUser(
@@ -36,11 +48,21 @@ class RequirementNotificationService
                             $creator,
                             'requirement_created',
                             [
+                                'title' => $title,
+                                'body' => $body,
+                                'navigation_screen' => '/post-details',
+                                'activity_type' => 'requirement',
+                                'type' => 'requirement',
                                 'notification_type' => 'requirement_created',
+                                'post_id' => $effectivePostId,
                                 'requirement_id' => (string) $requirement->id,
+                                'user_id' => (string) $creator->id,
+                                'person' => $creatorName,
+                                'requirement_title' => $subject,
+                                'requirement_subject' => $subject,
                                 'from_user' => [
                                     'id' => (string) $creator->id,
-                                    'name' => $this->resolveUserName($creator),
+                                    'name' => $creatorName,
                                     'company' => $this->resolveUserCompany($creator),
                                     'city' => (string) ($creator->city ?? ''),
                                 ],
@@ -89,7 +111,7 @@ class RequirementNotificationService
                     'comment' => $comment,
                     'to_user_id' => (string) $creator->id,
                     'title' => 'New requirement interest',
-                    'body' => $this->resolveUserName($interestedUser) . ' expressed interest in: ' . $requirement->subject,
+                    'body' => $this->resolveUserName($interestedUser).' expressed interest in: '.$requirement->subject,
                 ],
                 $requirement
             );
@@ -108,7 +130,7 @@ class RequirementNotificationService
         return (string) ($user->display_name
             ?? $user->name
             ?? $user->full_name
-            ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))
+            ?? trim(($user->first_name ?? '').' '.($user->last_name ?? ''))
             ?? 'Peer');
     }
 

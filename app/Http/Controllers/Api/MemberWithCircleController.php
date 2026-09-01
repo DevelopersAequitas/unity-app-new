@@ -34,7 +34,7 @@ class MemberWithCircleController extends BaseApiController
                 'users.phone',
                 'users.designation',
                 'users.company_name',
-            ], array_map(fn (string $column): string => 'users.' . $column, $listOptionalColumns)))
+            ], array_map(fn (string $column): string => 'users.'.$column, $listOptionalColumns)))
             ->with('activeCircle:id,name')
             ->orderByDesc('created_at')
             ->get();
@@ -77,8 +77,8 @@ class MemberWithCircleController extends BaseApiController
     {
         return User::query()
             ->select(array_merge(
-                array_map(fn (string $column): string => 'users.' . $column, $this->baseColumns()),
-                array_map(fn (string $column): string => 'users.' . $column, $availableOptionalColumns)
+                array_map(fn (string $column): string => 'users.'.$column, $this->baseColumns()),
+                array_map(fn (string $column): string => 'users.'.$column, $availableOptionalColumns)
             ))
             ->with([
                 'city:id,name',
@@ -168,7 +168,7 @@ class MemberWithCircleController extends BaseApiController
 
     private function transformMember(User $member, array $availableOptionalColumns): array
     {
-        $fullName = trim((string) $member->first_name . ' ' . (string) $member->last_name);
+        $fullName = trim((string) $member->first_name.' '.(string) $member->last_name);
         $name = $member->display_name ?: ($fullName !== '' ? $fullName : $member->email);
 
         $cityName = $member->city?->name ?? $member->getAttribute('city');
@@ -180,7 +180,7 @@ class MemberWithCircleController extends BaseApiController
         $businessDescription = $this->optionalValue($member, 'short_bio', $availableOptionalColumns)
             ?: $this->optionalValue($member, 'experience_summary', $availableOptionalColumns);
         $photoUrl = $profilePhotoId
-            ? url('/api/v1/files/' . $profilePhotoId)
+            ? url('/api/v1/files/'.$profilePhotoId)
             : $legacyProfilePhotoUrl;
 
         $circles = $member->circleMembers
@@ -261,7 +261,7 @@ class MemberWithCircleController extends BaseApiController
             'website' => $this->extractWebsite($socialMedia),
             'profile_photo_url' => $photoUrl,
             'profile_image_url' => $photoUrl,
-            'cover_photo_url' => $coverPhotoId ? url('/api/v1/files/' . $coverPhotoId) : null,
+            'cover_photo_url' => $coverPhotoId ? url('/api/v1/files/'.$coverPhotoId) : null,
             'address' => $this->optionalValue($member, 'address', $availableOptionalColumns),
             'state' => null,
             'country' => null,
@@ -283,12 +283,12 @@ class MemberWithCircleController extends BaseApiController
     private function transformListMember(User $member, array $listOptionalColumns): array
     {
         $displayName = trim((string) ($member->display_name ?? ''));
-        $fullName = trim(trim((string) ($member->first_name ?? '')) . ' ' . trim((string) ($member->last_name ?? '')));
+        $fullName = trim(trim((string) ($member->first_name ?? '')).' '.trim((string) ($member->last_name ?? '')));
         $socialMedia = $this->optionalValue($member, 'social_links', $listOptionalColumns);
         $profilePhotoId = $this->optionalValue($member, 'profile_photo_file_id', $listOptionalColumns);
         $legacyProfilePhotoUrl = $this->optionalValue($member, 'profile_photo_url', $listOptionalColumns);
         $photo = $profilePhotoId
-            ? url('/api/v1/files/' . $profilePhotoId)
+            ? url('/api/v1/files/'.$profilePhotoId)
             : $legacyProfilePhotoUrl;
         $businessDescription = $this->optionalValue($member, 'short_bio', $listOptionalColumns)
             ?: $this->optionalValue($member, 'experience_summary', $listOptionalColumns);
@@ -328,9 +328,15 @@ class MemberWithCircleController extends BaseApiController
             return null;
         }
 
-        return match ($status) {
-            User::STATUS_FREE => 'Free Peer',
-            User::STATUS_FREE_TRIAL => 'Free Trial Peer',
+        $normalized = strtolower(trim(str_replace(' ', '_', $status)));
+
+        return match ($normalized) {
+            'free_peer' => 'Free Peer',
+            'free_trial_peer' => 'Free Trial Peer',
+            'only_unity_peer' => 'Global Peer',
+            'unity_peer' => 'Green Member',
+            'chartered_peer' => 'Premium Green Member',
+            'charter_investor' => 'Green Investor',
             default => Str::of($status)
                 ->replace(['-', '_'], ' ')
                 ->title()

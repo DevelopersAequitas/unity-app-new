@@ -12,9 +12,7 @@ use Illuminate\Support\Facades\Mail;
 
 class ImpactEmailService
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function sendSubmitted(Impact $impact): void
     {
@@ -52,8 +50,8 @@ class ImpactEmailService
             $this->emailLogService->logMailableSent($mailable, [
                 'user_id' => $impact->user?->id,
                 'to_email' => $email,
-                'to_name' => $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '') . ' ' . ($impact->user?->last_name ?? '')),
-                'template_key' => 'impact_' . $type,
+                'to_name' => $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '').' '.($impact->user?->last_name ?? '')),
+                'template_key' => 'impact_'.$type,
                 'source_module' => 'Impacts',
                 'related_type' => Impact::class,
                 'related_id' => (string) $impact->id,
@@ -67,8 +65,8 @@ class ImpactEmailService
             $this->emailLogService->logMailableFailed($mailable, [
                 'user_id' => $impact->user?->id,
                 'to_email' => (string) ($impact->user?->email ?? ''),
-                'to_name' => $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '') . ' ' . ($impact->user?->last_name ?? '')),
-                'template_key' => 'impact_' . $type,
+                'to_name' => $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '').' '.($impact->user?->last_name ?? '')),
+                'template_key' => 'impact_'.$type,
                 'source_module' => 'Impacts',
                 'related_type' => Impact::class,
                 'related_id' => (string) $impact->id,

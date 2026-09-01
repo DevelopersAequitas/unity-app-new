@@ -4,9 +4,11 @@ namespace App\Http\Resources\Event;
 
 use App\Models\User;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 
 class EventOccurrenceListResource extends JsonResource
 {
@@ -25,11 +27,18 @@ class EventOccurrenceListResource extends JsonResource
         $metadata = is_array($metadata) ? $metadata : [];
         $zohoFormUrl = $event->zoho_form_url ?? data_get($metadata, 'zoho_form_url');
         $visitorRegistrationEnabled = $eventService->visitorRegistrationEnabled($event);
-        $circles = $event->relationLoaded('circles') ? $event->circles->map(fn ($circle) => [
-            'id' => $circle->id,
-            'name' => $circle->name,
-            'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
-        ])->values()->all() : [];
+        $circles = [];
+        if (Schema::hasTable('event_circles') && $event->relationLoaded('circles')) {
+            try {
+                $circles = $event->circles->map(fn ($circle) => [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                    'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
+                ])->values()->all();
+            } catch (\Throwable) {
+                $circles = [];
+            }
+        }
         if ($circles === [] && $event->circle) {
             $circles = [['id' => $event->circle->id, 'name' => $event->circle->name, 'state_name' => $event->circle->state_name ?? $event->circle->state ?? null]];
         }
@@ -78,7 +87,7 @@ class EventOccurrenceListResource extends JsonResource
             'what_youll_gain' => array_values((array) data_get($metadata, 'what_youll_gain', [])),
             'organizer' => data_get($metadata, 'organizer'),
             'is_paid' => (bool) $event->is_paid,
-            'ticket_price' => (string) ($event->ticket_price ?? '0.00'),
+            'ticket_price' => $event->ticket_price !== null ? (string) $event->ticket_price : null,
             'registration_limit' => $limit,
             'registered_count' => $registeredCount,
             'checkin_count' => (int) ($this->checked_in_count ?? 0),
@@ -101,7 +110,7 @@ class EventOccurrenceListResource extends JsonResource
                 'payment_status' => $registration?->payment_status,
                 'razorpay_order_id' => $registration?->razorpay_order_id,
                 'checkout_url' => $registration?->payment_url ?? $registration?->zoho_checkout_url ?? $registration?->zoho_payment_link_url ?? $registration?->zoho_hosted_page_url ?? null,
-                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url)) : null,
+                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration)) : null,
             ],
         ];
     }

@@ -27,7 +27,7 @@ class EventApiController extends BaseApiController
 
         $circleId = $validated['circle_id'] ?? null;
         $status = $validated['status'] ?? 'all';
-        $timezone = config('app.timezone') ?: 'Asia/Kolkata';
+        $timezone = config('app.timezone') ?: 'UTC';
         $now = now($timezone);
         $circle = null;
 
@@ -49,7 +49,9 @@ class EventApiController extends BaseApiController
                 'circles.cityRef',
                 'occurrences' => fn ($query) => $query->orderBy('start_at'),
             ])
-            ->when($circleId, fn ($query) => $query->where(function ($circleQuery) use ($circleId): void { $circleQuery->where('circle_id', $circleId)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId)); }));
+            ->when($circleId, fn ($query) => $query->where(function ($circleQuery) use ($circleId): void {
+                $circleQuery->where('circle_id', $circleId)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
+            }));
 
         $this->applyActiveEventScope($events);
 
@@ -95,13 +97,21 @@ class EventApiController extends BaseApiController
     private function expandEventItems(Event $event, string $timezone): Collection
     {
         if ($event->occurrences->isNotEmpty()) {
-            return $event->occurrences->map(fn (EventOccurrence $occurrence) => $this->eventItemPayload(
-                $event,
-                $occurrence,
-                $occurrence->start_at,
-                $occurrence->end_at,
-                $timezone
-            ));
+            $now = Carbon::now($timezone);
+            $upcomingOccurrences = $event->occurrences->filter(function (EventOccurrence $occ) use ($now): bool {
+                $end = $occ->end_at ?? $occ->start_at;
+
+                return $end ? Carbon::parse($end)->greaterThanOrEqualTo($now->copy()->startOfDay()) : true;
+            });
+
+            $selected = $upcomingOccurrences->first();
+            if ($selected) {
+                return collect([
+                    $this->eventItemPayload($event, $selected, $selected->start_at, $selected->end_at, $timezone),
+                ]);
+            }
+
+            return collect();
         }
 
         return collect([
@@ -131,12 +141,14 @@ class EventApiController extends BaseApiController
             if ($isLive) {
                 $payload['group_status'] = 'live';
                 $liveEvents[] = $payload;
+
                 continue;
             }
 
             if ($startAt->toDateString() === $today) {
                 $payload['group_status'] = 'today';
                 $todayEvents[] = $payload;
+
                 continue;
             }
 
@@ -268,7 +280,7 @@ class EventApiController extends BaseApiController
             return $bannerUrl;
         }
 
-        return url('/api/v1/files/' . $bannerUrl);
+        return url('/api/v1/files/'.$bannerUrl);
     }
 
     private function circlePayload(Circle $circle): array

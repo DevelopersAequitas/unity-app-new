@@ -2,17 +2,22 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Activity\StoreRequirementRequest;
 use App\Events\ActivityCreated;
-use App\Models\Requirement;
+use App\Http\Requests\Activity\StoreRequirementRequest;
 use App\Models\Post;
+use App\Models\Requirement;
 use App\Services\Coins\CoinsService;
+use App\Services\Requirements\RequirementNotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class RequirementController extends BaseApiController
 {
+    public function __construct(
+        private readonly RequirementNotificationService $requirementNotificationService
+    ) {}
+
     public function index(Request $request)
     {
         $authUser = $request->user();
@@ -82,6 +87,16 @@ class RequirementController extends BaseApiController
                 $requirement->setAttribute('coins', [
                     'earned' => $coinsLedger->amount,
                     'balance_after' => $coinsLedger->balance_after,
+                ]);
+            }
+
+            try {
+                $requirement->load('user');
+                $this->requirementNotificationService->notifyRequirementCreated($requirement);
+            } catch (Throwable $notificationException) {
+                Log::error('Requirement notification failed', [
+                    'requirement_id' => (string) $requirement->id,
+                    'error' => $notificationException->getMessage(),
                 ]);
             }
 

@@ -2,13 +2,15 @@
 
 namespace App\Support;
 
-use App\Models\AdminUser;
 use App\Models\AdminDedDistrict;
+use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\Admin\PermissionService;
+use App\Services\IndustryDirector\IndustryScopeService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class AdminAccess
@@ -17,17 +19,23 @@ class AdminAccess
 
     private const SUPER_ROLE_KEYS = [
         'global_admin',
-        'industry_director',
+        'global_founder',
     ];
 
     private const CIRCLE_SCOPED_KEYS = [
         'circle_leader',
+        'cd',
+        'cf',
         'chair',
         'vice_chair',
         'secretary',
         'founder',
         'director',
         'member',
+        'id',
+        'ied',
+        'industry_director',
+        'industry director',
     ];
 
     private const CIRCLE_ROLE_PRIORITY = [
@@ -56,7 +64,7 @@ class AdminAccess
             return null;
         }
 
-        $cacheKey = 'admin-access:user:' . $admin->id;
+        $cacheKey = 'admin-access:user:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $email = trim(strtolower((string) $admin->email));
@@ -76,7 +84,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:roles:' . $admin->id;
+        $cacheKey = 'admin-access:roles:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             return Role::query()
@@ -91,7 +99,9 @@ class AdminAccess
 
     public static function isSuper(?AdminUser $admin): bool
     {
-        $roleKeys = self::adminRoleKeys($admin);
+        $roleKeys = array_map(function ($k) {
+            return str_replace(' ', '_', strtolower((string) $k));
+        }, self::adminRoleKeys($admin));
 
         return (bool) array_intersect(self::SUPER_ROLE_KEYS, $roleKeys);
     }
@@ -102,9 +112,12 @@ class AdminAccess
             return false;
         }
 
-        return in_array('global_admin', self::adminRoleKeys($admin), true);
-    }
+        $roleKeys = array_map(function ($k) {
+            return str_replace(' ', '_', strtolower((string) $k));
+        }, self::adminRoleKeys($admin));
 
+        return in_array('global_admin', $roleKeys, true) || in_array('global_founder', $roleKeys, true);
+    }
 
     public static function isDed(?AdminUser $admin): bool
     {
@@ -112,7 +125,17 @@ class AdminAccess
             return false;
         }
 
-        return in_array('ded', self::adminRoleKeys($admin), true);
+        $roleKeys = array_map(function ($k) {
+            return str_replace(' ', '_', strtolower((string) $k));
+        }, self::adminRoleKeys($admin));
+
+        foreach ($roleKeys as $k) {
+            if ($k === 'ded' || str_contains($k, 'ded') || str_contains($k, 'district')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function assignedDedStateId(?AdminUser $admin): ?string
@@ -141,7 +164,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:ded-location:' . $admin->id;
+        $cacheKey = 'admin-access:ded-location:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): array {
             $query = AdminDedDistrict::query()
@@ -201,8 +224,23 @@ class AdminAccess
             return false;
         }
 
-        $roleKeys = self::adminRoleKeys($admin);
-        $hasCircleRoleKey = (bool) array_intersect(self::CIRCLE_SCOPED_KEYS, $roleKeys);
+        $roleKeys = array_map(function ($k) {
+            return str_replace(' ', '_', strtolower((string) $k));
+        }, self::adminRoleKeys($admin));
+
+        $hasCircleRoleKey = false;
+        foreach ($roleKeys as $k) {
+            if (in_array($k, self::CIRCLE_SCOPED_KEYS, true) ||
+                str_contains($k, 'circle') ||
+                str_contains($k, 'leader') ||
+                str_contains($k, 'founder') ||
+                str_contains($k, 'chair') ||
+                str_contains($k, 'secretary')
+            ) {
+                $hasCircleRoleKey = true;
+                break;
+            }
+        }
 
         if ($hasCircleRoleKey) {
             return true;
@@ -226,29 +264,36 @@ class AdminAccess
             ->exists();
     }
 
+    public static function isIndustryScoped(?AdminUser $admin): bool
+    {
+        if (! $admin || self::isSuper($admin)) {
+            return false;
+        }
+
+        $roleKeys = array_map(function ($k) {
+            return str_replace(' ', '_', strtolower((string) $k));
+        }, self::adminRoleKeys($admin));
+
+        foreach ($roleKeys as $k) {
+            if ($k === 'id' || $k === 'ied' || $k === 'industry_director' || str_contains($k, 'industry')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function allowedCircleIds(?AdminUser $admin): array
     {
         if (! $admin) {
             return [];
         }
 
-        $cacheKey = 'admin-access:circles:' . $admin->id;
+        if (self::isIndustryScoped($admin)) {
+            return app(IndustryScopeService::class)->circleIdsForAdmin($admin);
+        }
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
-            $user = self::resolveAppUser($admin);
-            if (! $user) {
-                return [];
-            }
-
-            return CircleMember::query()
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->whereNull('deleted_at')
-                ->pluck('circle_id')
-                ->unique()
-                ->values()
-                ->all();
-        });
+        return ScopeCascadeResolver::resolveDataWindow($admin->id);
     }
 
     public static function allowedUserIds(?AdminUser $admin): array
@@ -257,7 +302,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:allowed-users:' . $admin->id;
+        $cacheKey = 'admin-access:allowed-users:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $allowedCircleIds = self::allowedCircleIds($admin);
@@ -282,7 +327,7 @@ class AdminAccess
             return null;
         }
 
-        $cacheKey = 'admin-access:primary-role:' . $admin->id;
+        $cacheKey = 'admin-access:primary-role:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $user = self::resolveAppUser($admin);
@@ -313,19 +358,42 @@ class AdminAccess
                 ->whereIn($roleCol, $roles)
                 ->orderByRaw("case {$orderRoleCol} {$orderCases} else 999 end")
                 ->limit(1)
-                ->value($valueRoleCol);
+                ->value('role');
         });
     }
 
     public static function primaryCircleRoleLabel(?AdminUser $admin): string
     {
-        $roleKey = self::primaryCircleRoleKey($admin);
-
-        if (! $roleKey) {
+        if (! $admin) {
             return 'Circle Leader';
         }
 
-        return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
+        $cacheKey = 'admin-access:primary-role-label:'.$admin->id;
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
+            // 1. Try to find the highest priority role assigned via admin_user_roles
+            $query = DB::table('roles')
+                ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
+                ->where('admin_user_roles.user_id', $admin->id);
+
+            if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+                $query->orderBy('roles.hierarchy_depth', 'asc');
+            }
+
+            $role = $query->select('roles.name', 'roles.key')->first();
+
+            if ($role) {
+                return $role->name;
+            }
+
+            // 2. Fallback to circle_members table
+            $roleKey = self::primaryCircleRoleKey($admin);
+            if ($roleKey) {
+                return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
+            }
+
+            return 'Circle Leader';
+        });
     }
 
     public static function isCircleCommittee(?AdminUser $admin): bool
@@ -348,6 +416,161 @@ class AdminAccess
             return false;
         }
 
-        return in_array('global_admin', self::adminRoleKeys($admin), true);
+        if (self::isSuper($admin) || self::isGlobalAdmin($admin)) {
+            return true;
+        }
+
+        $permService = app(PermissionService::class);
+
+        return $permService->can($admin, 'admin.users.index', 'edit')
+            || $permService->can($admin, 'admin.users.edit', 'edit');
+    }
+
+    public static function isSectionAllowed(?AdminUser $admin, string $sectionLabel): bool
+    {
+        if (! $admin) {
+            return false;
+        }
+
+        if (self::isSuper($admin)) {
+            return true;
+        }
+
+        $roleIds = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->pluck('role_id')
+            ->filter()
+            ->all();
+
+        if (! empty($roleIds) && Schema::hasTable('role_module_access') && Schema::hasTable('admin_modules')) {
+            $hasModuleAccessRules = DB::table('role_module_access')
+                ->whereIn('role_id', $roleIds)
+                ->exists();
+
+            if ($hasModuleAccessRules) {
+                $normalizedLabel = strtolower(trim($sectionLabel));
+
+                $moduleSlug = match ($normalizedLabel) {
+                    'dashboard' => 'dashboard',
+                    'members', 'peers', 'all members', 'member introducers', 'sponsored member milestone awards', 'login history' => 'members',
+                    'activities', 'activity summary', 'testimonials', 'requirements', 'referrals', 'p2p meetings', 'business deals', 'connections', 'leadership requests', 'recommended peers', 'collaborations', 'registered visitor' => 'activities',
+                    'circles', 'circle categories', 'circle join requests' => 'circles',
+                    'events', 'events management', 'event gallery' => 'events',
+                    'coins', 'coin claims' => 'coins',
+                    'life impact', 'life-impact', 'impact option', 'pending impacts' => 'life-impact',
+                    'notifications & email', 'notifications', 'email logs', 'campaigns', 'daily notifications', 'app notifications', 'all app notifications', 'app-notifications' => 'notifications',
+                    'pending requests', 'pending-requests', 'ad booking requests', 'pending ad requests' => 'pending-requests',
+                    'referral report', 'referral-report' => 'referral-report',
+                    'content & posts', 'posts & timeline', 'posts', 'content', 'circulars', 'post reports' => 'content',
+                    'lead submissions', 'leads' => 'leads',
+                    'industries' => 'industries',
+                    'settings', 'app configuration', 'app updates manager', 'birthday creative', 'anniversary creative', 'tutorials', 'unity contacts', 'support tickets', 'categories' => 'settings',
+                    'role management', 'dynamic rbac', 'role-management' => 'role-management',
+                    'brand partners', 'brand-partners', 'ads', 'ad bookings', 'ad-bookings' => 'brand-partners',
+                    'finance & analytics', 'finance-analytics', 'analytics' => 'finance-analytics',
+                    'circle categories', 'circle-categories' => 'categories',
+                    'impact option', 'impact-option' => 'impacts',
+                    default => null,
+                };
+
+                $module = null;
+                if ($moduleSlug !== null) {
+                    $module = DB::table('admin_modules')
+                        ->where('slug', $moduleSlug)
+                        ->first();
+                }
+
+                if (! $module) {
+                    $module = DB::table('admin_modules')
+                        ->whereRaw('LOWER(name) = ?', [$normalizedLabel])
+                        ->first();
+                }
+
+                if ($module) {
+                    $accessRecords = DB::table('role_module_access')
+                        ->whereIn('role_id', $roleIds)
+                        ->where('module_id', $module->id)
+                        ->get();
+
+                    if ($accessRecords->isNotEmpty()) {
+                        return $accessRecords->contains(function ($row): bool {
+                            return (bool) $row->is_visible;
+                        });
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        $assignments = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            return true;
+        }
+
+        $hasAnyRestrictions = false;
+        $allowed = [];
+
+        foreach ($assignments as $assign) {
+            if (! empty($assign->allowed_sections)) {
+                $hasAnyRestrictions = true;
+                $sections = json_decode((string) $assign->allowed_sections, true) ?: [];
+                $allowed = array_merge($allowed, $sections);
+            }
+        }
+
+        if (! $hasAnyRestrictions) {
+            return true;
+        }
+
+        return in_array($sectionLabel, $allowed, true);
+    }
+
+    public static function isEditAllowed(?AdminUser $admin): bool
+    {
+        if (! $admin) {
+            return false;
+        }
+
+        if (self::isSuper($admin)) {
+            return true;
+        }
+
+        $assignments = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->pluck('permission_type')
+            ->all();
+
+        if (empty($assignments)) {
+            return true;
+        }
+
+        return in_array('edit', $assignments, true);
+    }
+
+    public static function clearAdminUserCache(?string $adminUserId): void
+    {
+        if (! $adminUserId) {
+            return;
+        }
+
+        Cache::forget('admin-access:roles:'.$adminUserId);
+        Cache::forget('admin-access:ded-location:'.$adminUserId);
+        Cache::forget('admin-access:allowed-users:'.$adminUserId);
+        Cache::forget('admin-access:primary-role:'.$adminUserId);
+        Cache::forget('admin-access:primary-role-label:'.$adminUserId);
+        Cache::forget('admin-access:user:'.$adminUserId);
+        Cache::forget('ded-circle-ids:'.$adminUserId);
+
+        if (Schema::hasTable('tbl_permission_cache')) {
+            DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->delete();
+        }
+
+        if (class_exists(ScopeCascadeResolver::class)) {
+            ScopeCascadeResolver::invalidateCache($adminUserId);
+        }
     }
 }

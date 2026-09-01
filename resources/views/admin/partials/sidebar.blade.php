@@ -8,88 +8,127 @@
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
     $isIndustryDirector = $adminUser?->roles?->pluck('key')->contains('industry_director') ?? false;
 
+    if (request()->is('admin/industry-director*')) {
+        $isGlobalAdmin = false;
+        $isSuper = false;
+        $isDed = false;
+        $isCircleScoped = false;
+        $isCircleCommittee = false;
+        $isIndustryDirector = true;
+    }
+
+
     $dashboardItem = $isIndustryDirector
         ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.industry-director.dashboard']
         : (($isCircleScoped || $isDed)
-            ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : null)
+            ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : ['icon' => 'bi-speedometer2', 'label' => 'Circle Dashboard', 'route' => 'admin.circle-member.dashboard'])
             : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
+
 
     $navItems = $isIndustryDirector
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-            ['icon' => 'bi-diagram-3', 'label' => 'Circle', 'route' => 'admin.circles.index'],
+            ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+            ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
+            ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
         : (($isCircleScoped || $isDed)
             ? [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+                ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') ? [
+                    ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+                ] : []),
+                ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Industries') ? [
+                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
+                ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ...(! $isDed ? [['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index']] : []),
-                ...($isGlobalAdmin ? [
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
+                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
+                ] : []),
+                ...(! $isDed && ! $isCircleCommittee ? [
+                    ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index'],
+                    ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
+                ] : []),
+                ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+                ] : []),
+                ...($isGlobalAdmin ? [
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                    ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
             ]
             : [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-                ['icon' => 'bi-person-lines-fill', 'label' => 'Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
-                ['icon' => 'bi-person-badge', 'label' => 'Leadership', 'route' => 'admin.execution.leadership'],
+                ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
+                ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
+                ['icon' => 'bi-award', 'label' => 'Milestone Badges', 'route' => 'admin.milestone-badges.index', 'active_routes' => ['admin.milestone-badges.*']],
+                ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications']],
-                ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
-                ...($isGlobalAdmin ? [
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
+                ...(! $isCircleCommittee ? [
+                    ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
+                ] : []),
+                ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+                ] : []),
+                ...($isGlobalAdmin ? [
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                    ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
-                ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => 'admin.execution.finance'],
-                ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
-                ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
-                ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
-                ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.execution.communications']],
-                ['icon' => 'bi-bell-fill', 'label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index'],
-                ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
-                ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
-                ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
             ]);
 
     $fullActivityMenu = [
-        ['label' => 'Summary', 'route' => 'admin.activities.index'],
-        ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
-        ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
-        ['label' => 'Referrals', 'route' => 'admin.activities.referrals.index'],
-        ['label' => 'P2P Meetings', 'route' => 'admin.activities.p2p-meetings.index'],
-        ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index'],
-        ['label' => 'Become A Leader', 'route' => 'admin.activities.become-a-leader.index'],
-        ['label' => 'Recommend A Peer', 'route' => 'admin.activities.recommend-peer.index'],
-        ['label' => 'Find & Build Collaborations', 'route' => 'admin.collaborations.index'],
-        ['label' => 'Register A Visitor', 'route' => 'admin.activities.register-visitor.index'],
+        ['label' => 'Summary', 'route' => 'admin.activities.index', 'active_routes' => ['admin.activities.index']],
+        ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index', 'active_routes' => ['admin.activities.testimonials*']],
+        ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index', 'active_routes' => ['admin.activities.requirements*']],
+        ['label' => 'Referrals', 'route' => 'admin.activities.referrals.index', 'active_routes' => ['admin.activities.referrals*']],
+        ['label' => 'P2P Meetings', 'route' => 'admin.activities.p2p-meetings.index', 'active_routes' => ['admin.activities.p2p-meetings*']],
+        ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index', 'active_routes' => ['admin.activities.business-deals*']],
+        ['label' => 'Leadership Requests', 'route' => 'admin.activities.become-a-leader.index', 'active_routes' => ['admin.activities.become-a-leader*']],
+        ['label' => 'Recommended Peers', 'route' => 'admin.activities.recommend-peer.index', 'active_routes' => ['admin.activities.recommend-peer*']],
+        ['label' => 'Collaborations', 'route' => 'admin.collaborations.index', 'active_routes' => ['admin.collaborations*']],
+        ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index', 'active_routes' => ['admin.activities.register-visitor*']],
     ];
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
-    $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = (! $isCircleCommittee && ! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
+    if ($isDed) {
+        $activityMenu = array_values(array_filter($activityMenu, function ($item) use ($adminUser) {
+            if (\App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label'])) {
+                return true;
+            }
+            return !in_array($item['label'], ['Registered Visitor', 'Recommended Peers', 'Collaborations'], true);
+        }));
+    }
+
+    $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
+    $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
-    $activityExpanded = $isIndustryDirector || $activityActive || ! $isGlobalAdmin;
+    $activityExpanded = $activityActive;
 
-    $postsMenu = ($isGlobalAdmin || $isIndustryDirector) ? [
+    $postsMenu = ($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
-        ...($isIndustryDirector ? [] : [['label' => 'Post Reports', 'route' => 'admin.post-reports.index']]),
+        ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
     ] : [];
     $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
@@ -99,40 +138,55 @@
         ['label' => 'Partner With Us', 'route' => 'admin.leads.partner-with-us.index'],
         ['label' => 'Become Speaker', 'route' => 'admin.leads.become-speaker.index'],
         ['label' => 'Become Mentor', 'route' => 'admin.leads.become-mentor.index'],
+        ['label' => 'Story Submissions', 'route' => 'admin.stories.index'],
     ];
 
     $pendingRequestsMenu = $isIndustryDirector
         ? [
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+            ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
+            ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
         ]
         : [
-            ['label' => 'Inactive Registrations', 'route' => 'admin.pending-registrations.index'],
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
-            ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+            ['label' => 'Ad Booking Requests', 'route' => 'admin.ad-bookings.index'],
+            ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
+            ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
+            ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
+            ['label' => 'Circle Peer Referrals', 'route' => 'admin.peer-referrals.index'],
         ];
 
     if ($isCircleCommittee) {
         $pendingRequestsMenu = array_values(array_filter(
             $pendingRequestsMenu,
-            fn ($item) => ! in_array(($item['label'] ?? null), ['Inactive Registrations', 'Circle Joining Requests', 'Certifications'], true)
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Circle Joining Requests', 'Certifications'], true)
         ));
     }
 
-    $leadsActive = request()->routeIs('admin.leads.*');
+    if ($isDed) {
+        $pendingRequestsMenu = array_values(array_filter(
+            $pendingRequestsMenu,
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Account Deletion Requests', 'Account Deletion Emails'], true)
+        ));
+    }
+
+    $leadsActive = request()->routeIs('admin.leads.*') || request()->routeIs('admin.stories.*');
     $pendingRequestsActive =
-        request()->routeIs('admin.pending-registrations.*') ||
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
-        request()->routeIs('admin.event-joining-requests.*') ||
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.certifications.*') ||
-        request()->routeIs('admin.impacts.pending');
+        request()->routeIs('admin.impacts.pending') ||
+        request()->routeIs('admin.ad-bookings.*') ||
+        request()->routeIs('admin.account-deletion.*') ||
+        request()->routeIs('admin.introduction-requests.*') ||
+        request()->routeIs('admin.peer-referrals.*');
 
-    $leadsMenu = ($isIndustryDirector || $isCircleCommittee) ? [] : $leadsMenu;
+    $leadsMenu = (! $isCircleCommittee && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))) ? $leadsMenu : [];
 
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.index', 'admin.campaigns.show', 'admin.campaigns.edit']],
@@ -140,12 +194,16 @@
         ['label' => 'Campaign Email Templates', 'route' => 'admin.campaign-email-templates.index', 'active_routes' => ['admin.campaign-email-templates.*']],
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
         ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
+        ['label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index', 'active_routes' => ['admin.daily-notifications.*']],
+        ['label' => 'App Notifications', 'route' => 'admin.app-notifications.index', 'active_routes' => ['admin.app-notifications.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
         || request()->routeIs('admin.campaign-pamphlets.*')
         || request()->routeIs('admin.campaign-email-templates.*')
         || request()->routeIs('admin.email-logs.*')
-        || request()->routeIs('admin.execution.communications');
+        || request()->routeIs('admin.execution.communications')
+        || request()->routeIs('admin.daily-notifications.*')
+        || request()->routeIs('admin.app-notifications.*');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
         ['label' => 'Campaigns', 'route' => 'admin.notifications.campaigns', 'icon' => 'bi-megaphone', 'active_routes' => ['admin.notifications.campaigns', 'admin.notifications.campaigns.*']],
@@ -157,20 +215,34 @@
     $notificationsActive = request()->routeIs('admin.notifications.*') || request()->is('admin/notifications*');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
+        ['label' => 'Total Attendance', 'route' => 'admin.events.total-attendance'],
+        ['label' => 'Total Registered', 'route' => 'admin.events.total-registered'],
+        ['label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
+        ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
     ];
 
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
-    $emailLogsMoreItem = (! $isDed && ! $isIndustryDirector && ! $isCircleCommittee)
-        ? ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']]
-        : null;
-    $bottomNavItems = [];
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs'], true)));
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*') || request()->routeIs('admin.event-scan-credentials.*');
-    $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
+    $eventsManagementActive = request()->routeIs('admin.events.*')
+        || request()->routeIs('admin.event-scan-credentials.*')
+        || request()->routeIs('admin.event-gallery.*')
+        || request()->routeIs('admin.event-joining-requests.*')
+        || request()->routeIs('admin.event-coupons.*');
+    $bottomNavItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) === 'Email Logs'));
+    $bottomNavItems = (! $isCircleScoped && ! $isDed && ! $isIndustryDirector) ? [] : $bottomNavItems;
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Event Gallery'], true)));
+    $bottomNavItems = array_map(function ($item) {
+        if ($item['label'] === 'Email Logs') {
+            $item['active_routes'] = ['admin.email-logs.*'];
+        } elseif ($item['label'] === 'Support Tickets') {
+            $item['active_routes'] = ['admin.support-tickets.*'];
+        }
+        return $item;
+    }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
+    $campaignsMenu = \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? $campaignsMenu : [];
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Support Tickets'], true)));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
-    $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
     $brandPartnersMenu = [
@@ -181,17 +253,109 @@
         ['label' => 'Analytics', 'route' => 'admin.brand-partners.analytics'],
         ['label' => 'Settings', 'route' => 'admin.brand-partners.settings'],
     ];
-    $hasBrandPartnersRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
+    $hasBrandPartnersRole = $isGlobalAdmin || ($adminUser?->roles?->pluck('key')->intersect(['global_admin', 'global_founder', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false);
+
+    $adsActive = request()->routeIs('admin.ads.*') || request()->routeIs('admin.ad-bookings.*');
+    $adsMenu = [
+        ['label' => 'Dashboard', 'route' => 'admin.ads.dashboard'],
+        ['label' => 'All Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.index', 'admin.ads.create', 'admin.ads.edit', 'admin.ads.show']],
+        ['label' => 'Pending Requests', 'route' => 'admin.ad-bookings.index', 'active_routes' => ['admin.ad-bookings.*']],
+        ['label' => 'Analytics', 'route' => 'admin.ads.analytics'],
+    ];
+    $hasAdsRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
+
+    $dedLeadershipMenu = [
+        ['label' => 'Industry Directors', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'industry_director']],
+        ['label' => 'Circle Founders', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'founder']],
+        ['label' => 'Circle Directors', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'director']],
+        ['label' => 'Chairs', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'chair']],
+        ['label' => 'Vice Chairs', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'vice_chair']],
+        ['label' => 'Secretaries', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'secretary']],
+        ['label' => 'Members', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'member']],
+    ];
+    $dedLeadershipActive = request()->routeIs('admin.ded.dashboard.leadership');
+
+    $dedAnalyticsMenu = [
+        ['label' => 'Active Members', 'route' => 'admin.ded.dashboard.health.active-members'],
+        ['label' => 'Leadership Spots', 'route' => 'admin.ded.dashboard.health.leadership-spots'],
+        ['label' => 'Membership Conversion', 'route' => 'admin.ded.dashboard.health.membership-conversion'],
+        ['label' => 'Referral Activity', 'route' => 'admin.ded.dashboard.health.referral-activity'],
+    ];
+    $dedAnalyticsActive = request()->routeIs('admin.ded.dashboard.health.*');
+
+    // Filter allowed sidebar sections and sub-items
+    if ($dashboardItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
+        $dashboardItem = null;
+    }
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
+        $activityMenu = [];
+    }
+    if ($referralReportItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
+        $referralReportItem = null;
+    }
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline') && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts') && ! $isGlobalAdmin) {
+        $postsMenu = [];
+    }
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads') && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions')) {
+        $leadsMenu = [];
+    }
+
+    if ($activityMenu) {
+        $activityMenu = array_values(array_filter($activityMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities');
+        }));
+    }
+    if ($postsMenu) {
+        $postsMenu = array_values(array_filter($postsMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts');
+        }));
+    }
+    if ($pendingRequestsMenu) {
+        $pendingRequestsMenu = array_values(array_filter($pendingRequestsMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests');
+        }));
+    }
+    if ($eventsManagementMenu) {
+        $eventsManagementMenu = array_values(array_filter($eventsManagementMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events');
+        }));
+    }
+
+    $navItems = array_values(array_filter($navItems, function ($item) use ($adminUser) {
+        $label = $item['label'] ?? null;
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+            return false;
+        }
+
+        return true;
+    }));
+
+    $bottomNavItems = array_values(array_filter($bottomNavItems, function ($item) use ($adminUser) {
+        $label = $item['label'] ?? null;
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+            return false;
+        }
+
+        return true;
+    }));
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
-    <div class="text-center mb-2">
+    {{-- Brand Logo --}}
+    <div class="text-center mb-2 brand-container">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
                 src="{{ asset('images/peersglobal-logo.png') }}"
                 alt="PeersGlobal"
                 style="max-height:68px; width:auto;"
-                class="d-block mx-auto my-3"
+                class="logo-full d-block mx-auto my-3"
+                loading="lazy"
+            />
+            <img
+                src="{{ asset('images/peersglobal-icon.png') }}"
+                alt="PeersGlobal"
+                style="max-height:38px; width:auto;"
+                class="logo-icon d-none mx-auto my-2"
                 loading="lazy"
             />
         </a>
@@ -201,23 +365,23 @@
         <ul class="nav flex-column">
             @if ($dashboardItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}">
-                        <i class="bi {{ $dashboardItem['icon'] }} me-2"></i>{{ $dashboardItem['label'] }}
+                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}" title="{{ $dashboardItem['label'] }}">
+                        <i class="bi {{ $dashboardItem['icon'] }} me-2"></i><span class="menu-text">{{ $dashboardItem['label'] }}</span>
                     </a>
                 </li>
             @endif
 
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" data-bs-toggle="collapse" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
-                        <span><i class="bi bi-activity me-2"></i>Activities</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $activityExpanded ? 'active' : '' }}" href="{{ !empty($activityMenu) ? route($activityMenu[0]['route']) : '#' }}" title="Activities">
+                        <i class="bi bi-activity me-2"></i><span class="menu-text me-auto text-start">Activities</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $activityExpanded ? 'show' : '' }}" id="activitiesSubmenu">
                         <ul class="nav flex-column ms-3">
                             @foreach ($activityMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                         {{ $item['label'] }}
                                     </a>
                                 </li>
@@ -229,17 +393,17 @@
 
             @if ($referralReportItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}">
-                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i>{{ $referralReportItem['label'] }}
+                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}" title="{{ $referralReportItem['label'] }}">
+                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i><span class="menu-text">{{ $referralReportItem['label'] }}</span>
                     </a>
                 </li>
             @endif
 
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
-                        <span><i class="bi bi-chat-dots me-2"></i>Posts &amp; Timeline</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $postsActive ? 'active' : '' }}" href="{{ !empty($postsMenu) ? route($postsMenu[0]['route']) : '#' }}" title="Posts &amp; Timeline">
+                        <i class="bi bi-chat-dots me-2"></i><span class="menu-text me-auto text-start">Posts &amp; Timeline</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $postsActive ? 'show' : '' }}" id="postsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -255,10 +419,11 @@
                 </li>
             @endif
 
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests'))
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
-                    <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
-                    <i class="bi bi-chevron-right menu-arrow"></i>
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $pendingRequestsActive ? 'active' : '' }}" href="{{ !empty($pendingRequestsMenu) ? route($pendingRequestsMenu[0]['route']) : '#' }}" title="Pending Requests">
+                    <i class="bi bi-hourglass-split me-2"></i><span class="menu-text me-auto text-start">Pending Requests</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
                 <div class="collapse {{ $pendingRequestsActive ? 'show' : '' }}" id="pendingRequestsSubmenu">
                     <ul class="nav flex-column ms-3">
@@ -272,18 +437,21 @@
                     </ul>
                 </div>
             </li>
+            @endif
 
-            @if ($isGlobalAdmin)
-                <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
-                        <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+            @if ($isDed && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Analytics') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Finance & Analytics')))
+                <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $dedAnalyticsActive ? 'active' : '' }}" href="{{ !empty($dedAnalyticsMenu) ? route($dedAnalyticsMenu[0]['route']) : '#' }}" title="Analytics">
+                        <i class="bi bi-graph-up-arrow me-2"></i><span class="menu-text me-auto text-start">Analytics</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
-                    <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
+                    <div class="collapse {{ $dedAnalyticsActive ? 'show' : '' }}" id="dedAnalyticsSubmenu">
                         <ul class="nav flex-column ms-3">
-                            @foreach ($eventsManagementMenu as $eventItem)
+                            @foreach ($dedAnalyticsMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                        {{ $item['label'] }}
+                                    </a>
                                 </li>
                             @endforeach
                         </ul>
@@ -291,13 +459,40 @@
                 </li>
             @endif
 
-            @if ($hasBrandPartnersRole)
-                <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
-                        <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+
+            @foreach ($bottomNavItems as $item)
+                <li class="nav-item">
+                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}" title="{{ $item['label'] }}">
+                        <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                     </a>
-                    <div class="collapse {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
+                </li>
+            @endforeach
+
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
+                <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $eventsManagementActive ? 'active' : '' }}" href="{{ !empty($eventsManagementMenu) ? route($eventsManagementMenu[0]['route']) : '#' }}" title="Events Management">
+                        <i class="bi bi-calendar-check me-2"></i><span class="menu-text me-auto text-start">Events Management</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                    </a>
+                    <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($eventsManagementMenu as $eventItem)
+                                <li class="nav-item">
+                                    <a class="nav-link {{ (isset($eventItem['active_routes']) ? request()->routeIs(...$eventItem['active_routes']) : request()->routeIs($eventItem['route'])) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
+
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
+                <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $brandPartnersActive ? 'active' : '' }}" href="{{ !empty($brandPartnersMenu) ? route($brandPartnersMenu[0]['route']) : '#' }}" title="Brand Partners">
+                        <i class="bi bi-briefcase me-2"></i><span class="menu-text me-auto text-start">Brand Partners</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                    </a>
+                    <div class="collapse brand-partners-submenu {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
                         <ul class="nav flex-column ms-3">
                             @foreach ($brandPartnersMenu as $item)
                                 @if (Route::has($item['route']))
@@ -313,13 +508,35 @@
                 </li>
             @endif
 
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
+                <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="{{ !empty($adsMenu) ? route($adsMenu[0]['route']) : '#' }}" title="Ads">
+                        <i class="bi bi-megaphone me-2"></i><span class="menu-text me-auto text-start">Ads</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                    </a>
+                    <div class="collapse {{ $adsActive ? 'show' : '' }}" id="adsSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($adsMenu as $item)
+                                @if (Route::has($item['route']))
+                                    <li class="nav-item">
+                                        <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                            {{ $item['label'] }}
+                                        </a>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
+
             @foreach ($navItems as $item)
                 @if ($item['label'] === 'Notifications & Email')
                     @if (Route::has($item['route']))
                         <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
-                                <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
-                                <i class="bi bi-chevron-right menu-arrow"></i>
+                            <a class="nav-link d-flex align-items-center justify-content-between {{ $campaignsActive ? 'active' : '' }}" href="{{ !empty($campaignsMenu) ? route($campaignsMenu[0]['route']) : '#' }}" title="{{ $item['label'] }}">
+                                <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text me-auto text-start">{{ $item['label'] }}</span>
+                                <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                             </a>
                             <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
                                 <ul class="nav flex-column ms-3">
@@ -334,16 +551,128 @@
                             </div>
                         </li>
                     @endif
+                @elseif ($item['label'] === 'Milestone Badges')
+                    @php
+                        $badgesActive = request()->routeIs('admin.milestone-badges.*');
+                        $currentType = request('type');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $badgesActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $badgesActive ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'life_impact']) }}" title="Milestone Badges">
+                            <i class="bi bi-award me-2"></i><span class="menu-text me-auto text-start">Milestone Badges</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $badgesActive ? 'show' : '' }}" id="milestoneBadgesSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && $currentType === 'life_impact') ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'life_impact']) }}">
+                                        Life Impact Badges
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && $currentType === 'coins') ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'coins']) }}">
+                                        Coin Badges
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && $currentType === 'member_introduction') ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'member_introduction']) }}">
+                                        Member Introduction Badges
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && empty($currentType)) ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index') }}">
+                                        All Badges
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @elseif ($item['label'] === 'Peers')
+                    @php
+                        $peersActive = request()->routeIs('admin.users.*');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $peersActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $peersActive ? 'active' : '' }}" href="{{ route('admin.users.index') }}" title="Peers">
+                            <i class="bi bi-people me-2"></i><span class="menu-text me-auto text-start">Peers</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $peersActive ? 'show' : '' }}" id="peersSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.users.index') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">All Peers</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.users.upcoming-events') ? 'active' : '' }}" href="{{ route('admin.users.upcoming-events') }}">Upcoming Birthdays &amp; Anniversaries</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @elseif ($item['label'] === 'Member Introducers')
+                    @php
+                        $introducersActive = request()->routeIs('admin.member-introducers.*');
+                        $currentTab = request('tab');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $introducersActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $introducersActive ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}" title="Member Introducers">
+                            <i class="bi {{ $item['icon'] ?? 'bi-person-check' }} me-2"></i><span class="menu-text me-auto text-start">Member Introducers</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $introducersActive ? 'show' : '' }}" id="memberIntroducersSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($introducersActive && $currentTab !== 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}">
+                                        Introducers List
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($introducersActive && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index', ['tab' => 'creative']) }}">
+                                        Creative
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @elseif ($item['label'] === 'Life Impact')
+                    @php
+                        $lifeImpactActive = request()->routeIs('admin.life-impact.*') || request()->routeIs('admin.life-impact-recognitions.*');
+                        $currentTab = request('tab');
+                        $isRecognitionsRoute = request()->routeIs('admin.life-impact-recognitions.*');
+                        $isOverviewRoute = request()->routeIs('admin.life-impact.index');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $lifeImpactActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $lifeImpactActive ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index') }}" title="Life Impact">
+                            <i class="bi {{ $item['icon'] ?? 'bi-heart-pulse' }} me-2"></i><span class="menu-text me-auto text-start">Life Impact</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $lifeImpactActive ? 'show' : '' }}" id="lifeImpactSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ $isOverviewRoute ? 'active' : '' }}" href="{{ route('admin.life-impact.index') }}">
+                                        Life Impact Overview
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($isRecognitionsRoute && $currentTab !== 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index') }}">
+                                        Life Impact List
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($isRecognitionsRoute && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index', ['tab' => 'creative']) }}">
+                                        Creative
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
-                            <span class="nav-link disabled">
-                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                            <span class="nav-link disabled" title="{{ $item['label'] }}">
+                                <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                             </span>
                         @else
                             @if (Route::has($item['route']))
-                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                    <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}" title="{{ $item['label'] }}">
+                                    <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                                 </a>
                             @endif
                         @endif
@@ -352,62 +681,89 @@
             @endforeach
 
 
-            @if (! $isIndustryDirector && ! $isCircleCommittee)
-                <li class="nav-item menu-parent {{ $notificationsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $notificationsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#notificationsSubmenu" role="button" aria-expanded="{{ $notificationsActive ? 'true' : 'false' }}" aria-controls="notificationsSubmenu">
-                        <span><i class="bi bi-bell me-2"></i>Notifications</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}" title="App Configuration">
+                    <i class="bi bi-sliders me-2"></i><span class="menu-text">App Configuration</span>
+                </a>
+            </li>
+            @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}" title="App Updates Manager">
+                        <i class="bi bi-arrow-up-circle me-2"></i><span class="menu-text">App Updates Manager</span>
                     </a>
-                    <div class="collapse {{ $notificationsActive ? 'show' : '' }}" id="notificationsSubmenu">
-                        <div class="sidebar-section-hint">Engagement Tools</div>
-                        <ul class="nav flex-column notifications-submenu">
-                            @foreach ($notificationsMenu as $notificationItem)
-                                @php($notificationItemActive = request()->routeIs(...$notificationItem['active_routes']))
-                                <li class="nav-item">
-                                    <a class="nav-link {{ $notificationItemActive ? 'active' : '' }}" href="{{ route($notificationItem['route']) }}">
-                                        <i class="bi {{ $notificationItem['icon'] }} me-2"></i>
-                                        <span>{{ $notificationItem['label'] }}</span>
-                                    </a>
-                                </li>
-                            @endforeach
+                </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Birthday Creative'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}" title="Birthday Creative">
+                        <i class="bi bi-gift me-2"></i><span class="menu-text">Birthday Creative</span>
+                    </a>
+                </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Anniversary Creative'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}" title="Anniversary Creative">
+                        <i class="bi bi-images me-2"></i><span class="menu-text">Anniversary Creative</span>
+                    </a>
+                </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}" title="Tutorials">
+                        <i class="bi bi-play-btn me-2"></i><span class="menu-text">Tutorials</span>
+                    </a>
+                </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
+                {{-- Dynamic RBAC & Role Management Menu --}}
+                <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="{{ route('admin.rbac.permission-matrix.index') }}" title="Dynamic RBAC">
+                        <i class="bi bi-shield-lock me-2"></i><span class="menu-text me-auto text-start">Dynamic RBAC</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                    </a>
+                    <div class="collapse {{ request()->routeIs('admin.rbac.*') ? 'show' : '' }}" id="rbacSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.permission-matrix.*') ? 'active' : '' }}" href="{{ route('admin.rbac.permission-matrix.index') }}">Permission Matrix</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.module-access.*') ? 'active' : '' }}" href="{{ route('admin.rbac.module-access.index') }}">Module Access</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.modules.*') ? 'active' : '' }}" href="{{ route('admin.rbac.modules.index') }}">Admin Modules</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.pages.*') ? 'active' : '' }}" href="{{ route('admin.rbac.pages.index') }}">Admin Pages</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.page-groups.*') ? 'active' : '' }}" href="{{ route('admin.rbac.page-groups.index') }}">Page Groups</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.data-scope.*') ? 'active' : '' }}" href="{{ route('admin.rbac.data-scope.index') }}">Data Scope</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.workflow-rules.*') ? 'active' : '' }}" href="{{ route('admin.rbac.workflow-rules.index') }}">Workflow Rules</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.hierarchy') ? 'active' : '' }}" href="{{ route('admin.rbac.hierarchy') }}">Role Hierarchy</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.lifespan.*') ? 'active' : '' }}" href="{{ route('admin.rbac.lifespan.index') }}">Role History</a>
+                            </li>
                         </ul>
                     </div>
                 </li>
-            @endif
+                @endif
 
-            @if ($isGlobalAdmin)
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
-                        <i class="bi bi-sliders me-2"></i>App Configuration
-                    </a>
-                </li>
-            @endif
 
-            @if ($bottomNavItems || ! $isDed)
-                <li class="nav-item mt-3 pt-2 border-top small text-muted px-3">More</li>
-            @endif
-
-            @if ($emailLogsMoreItem)
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$emailLogsMoreItem['active_routes']) ? 'active' : '' }}" href="{{ route($emailLogsMoreItem['route']) }}">
-                        <i class="bi {{ $emailLogsMoreItem['icon'] }} me-2"></i>{{ $emailLogsMoreItem['label'] }}
-                    </a>
-                </li>
-            @endif
-
-            @foreach ($bottomNavItems as $item)
-                <li class="nav-item">
-                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                        <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
-                    </a>
-                </li>
-            @endforeach
-
-            @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [])
+            @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
-                    <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
-                    <i class="bi bi-chevron-right menu-arrow"></i>
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $leadsActive ? 'active' : '' }}" href="{{ !empty($leadsMenu) ? route($leadsMenu[0]['route']) : '#' }}" title="Leads">
+                    <i class="bi bi-person-lines-fill me-2"></i><span class="menu-text me-auto text-start">Leads</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
                 <div class="collapse {{ $leadsActive ? 'show' : '' }}" id="leadsSubmenu">
                     <ul class="nav flex-column ms-3">
@@ -421,34 +777,17 @@
                     </ul>
                 </div>
             </li>
-
             @endif
 
-            @if ($isDed)
-                <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
-                        <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
-                    </a>
-                    <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
-                        <ul class="nav flex-column ms-3">
-                            @foreach ($eventsManagementMenu as $eventItem)
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </li>
-            @endif
+
         </ul>
     </nav>
 
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('admin.logout') }}">
             @csrf
-            <button class="btn btn-outline-secondary w-100">
-                <i class="bi bi-box-arrow-right me-2"></i>Logout
+            <button class="btn btn-outline-secondary w-100" title="Logout">
+                <i class="bi bi-box-arrow-right me-2"></i><span class="menu-text">Logout</span>
             </button>
         </form>
     </div>
@@ -457,29 +796,95 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu', 'campaignsSubmenu', 'notificationsSubmenu', 'eventsManagementSubmenu'].forEach((submenuId) => {
-                const submenu = document.getElementById(submenuId);
-                if (!submenu) {
-                    return;
+            const sidebar = document.querySelector('.admin-sidebar');
+            const menuParents = document.querySelectorAll('.admin-sidebar .menu-parent');
+
+            if (sidebar) {
+                const savedScroll = sessionStorage.getItem('sidebar_scroll_top');
+                if (savedScroll !== null) {
+                    sidebar.scrollTop = parseInt(savedScroll, 10);
+                }
+                const activeLink = sidebar.querySelector('.nav-link.active');
+                if (activeLink) {
+                    activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                 }
 
-                const parentItem = submenu.closest('.menu-parent');
-                if (!parentItem) {
-                    return;
-                }
+                sidebar.addEventListener('scroll', () => {
+                    sessionStorage.setItem('sidebar_scroll_top', sidebar.scrollTop);
+                }, { passive: true });
 
-                if (submenu.classList.contains('show')) {
-                    parentItem.classList.add('open');
-                }
-
-                submenu.addEventListener('show.bs.collapse', () => {
-                    parentItem.classList.add('open');
+                sidebar.querySelectorAll('a').forEach((link) => {
+                    link.addEventListener('click', () => {
+                        sessionStorage.setItem('sidebar_scroll_top', sidebar.scrollTop);
+                    });
                 });
+            }
 
-                submenu.addEventListener('hide.bs.collapse', () => {
+            menuParents.forEach((parentItem) => {
+                const submenu = parentItem.querySelector('.collapse');
+                if (!submenu) return;
+
+                const arrow = parentItem.querySelector('.menu-arrow');
+                const toggle = parentItem.querySelector('a');
+
+                // Sync initial state on load
+                if (submenu.classList.contains('show') || parentItem.classList.contains('open')) {
+                    parentItem.classList.add('open');
+                    submenu.classList.add('show');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'true');
+                } else {
                     parentItem.classList.remove('open');
-                });
+                    submenu.classList.remove('show');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+                }
+
+                // Toggle submenu when clicking the arrow specifically
+                if (arrow) {
+                    arrow.addEventListener('click', (e) => {
+                        if (document.querySelector('.admin-shell')?.classList.contains('sidebar-collapsed')) {
+                            return;
+                        }
+
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
+
+                        menuParents.forEach((otherParent) => {
+                            if (otherParent !== parentItem) {
+                                otherParent.classList.remove('open');
+                                const otherSub = otherParent.querySelector('.collapse');
+                                if (otherSub) otherSub.classList.remove('show');
+                                const otherTog = otherParent.querySelector('a');
+                                if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
+                            }
+                        });
+
+                        if (isOpen) {
+                            parentItem.classList.remove('open');
+                            submenu.classList.remove('show');
+                            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+                        } else {
+                            parentItem.classList.add('open');
+                            submenu.classList.add('show');
+                            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+                        }
+                    });
+                }
             });
         });
     </script>
+@endpush
+
+@push('styles')
+    <style>
+        .admin-sidebar .menu-parent.open > .collapse,
+        .admin-sidebar .collapse.show {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            overflow: visible !important;
+        }
+    </style>
 @endpush

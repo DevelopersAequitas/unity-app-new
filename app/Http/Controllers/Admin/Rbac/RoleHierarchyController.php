@@ -1,0 +1,1283 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Admin\Rbac;
+
+use App\Http\Controllers\Controller;
+use App\Models\Role;
+use App\Models\RoleHierarchy;
+use App\Services\Admin\AdminAuditService;
+use App\Support\AdminAccess;
+use App\Support\ScopeCascadeResolver;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
+
+class RoleHierarchyController extends Controller
+{
+    public function __construct(private readonly AdminAuditService $audit) {}
+
+    public function index(Request $request): View|JsonResponse
+    {
+        $rolesQuery = Role::query()->where('status', 'active');
+        if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+            $rolesQuery->orderBy('hierarchy_depth');
+        }
+        $roles = $rolesQuery->get();
+
+        // Build parent-child relationships map
+        $relations = DB::table('role_hierarchies')->get();
+        $parentToChildren = [];
+        $childToParents = [];
+
+        foreach ($relations as $rel) {
+            $parentToChildren[$rel->parent_role_id][] = $rel->child_role_id;
+            $childToParents[$rel->child_role_id][] = $rel->parent_role_id;
+        }
+
+        // Find root nodes (roles that have no parents)
+        $roots = [];
+        foreach ($roles as $role) {
+            if (empty($childToParents[$role->id])) {
+                $roots[] = $role;
+            }
+        }
+
+        // Fetch peers and scope entities for the assignment interface
+        $peers = DB::table('admin_users')->orderBy('name')->get();
+        $peers = $this->enrichPeersWithScopes($peers);
+        $districts = DB::table('districts')->orderBy('name')->get();
+        $industries = DB::table('industries')->orderBy('name')->get();
+        $circles = DB::table('circles')->orderBy('name')->get();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'roles' => $roles,
+                'roots' => $roots,
+                'parentToChildren' => $parentToChildren,
+                'childToParents' => $childToParents,
+                'peers' => $peers,
+                'districts' => $districts,
+                'industries' => $industries,
+                'circles' => $circles,
+            ]);
+        }
+
+        return view('admin.rbac.tree', [
+            'roles' => $roles,
+            'roots' => $roots,
+            'parentToChildren' => $parentToChildren,
+            'childToParents' => $childToParents,
+            'peers' => $peers,
+            'districts' => $districts,
+            'industries' => $industries,
+            'circles' => $circles,
+        ]);
+    }
+
+    public function fullMap(): View
+    {
+        $rolesQuery = Role::query()->where('status', 'active');
+        if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+            $rolesQuery->orderBy('hierarchy_depth');
+        }
+        $roles = $rolesQuery->get();
+
+        $relations = DB::table('role_hierarchies')->get();
+        $parentToChildren = [];
+        $childToParents = [];
+
+        foreach ($relations as $rel) {
+            $parentToChildren[$rel->parent_role_id][] = $rel->child_role_id;
+            $childToParents[$rel->child_role_id][] = $rel->parent_role_id;
+        }
+
+        $roots = [];
+        foreach ($roles as $role) {
+            if (empty($childToParents[$role->id])) {
+                $roots[] = $role;
+            }
+        }
+
+        return view('admin.rbac.tree_fullmap', [
+            'roles' => $roles,
+            'roots' => $roots,
+            'parentToChildren' => $parentToChildren,
+            'childToParents' => $childToParents,
+        ]);
+    }
+
+    public function storeRole(Request $request): RedirectResponse
+    {
+        $this->checkEditPermission();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'key' => ['required', 'string', 'max:255', 'unique:roles,key'],
+            'description' => ['nullable', 'string'],
+            'role_type' => ['nullable', 'in:system,admin,user'],
+            'scope_rule' => ['nullable', 'in:mandatory,optional,not_applicable'],
+            'parent_role_ids' => ['nullable', 'array'],
+            'parent_role_ids.*' => ['exists:roles,id'],
+        ]);
+
+        DB::transaction(function () use ($validated, $request) {
+            $roleId = (string) Str::uuid();
+            $role = Role::create([
+                'id' => $roleId,
+                'key' => $validated['key'],
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'role_type' => $validated['role_type'] ?? 'user',
+                'scope_rule' => $validated['scope_rule'] ?? 'not_applicable',
+                'status' => 'active',
+                'is_assignable' => true,
+                'role_code' => $validated['key'],
+                'hierarchy_depth' => 0,
+            ]);
+
+            if (! empty($validated['parent_role_ids'])) {
+                foreach ($validated['parent_role_ids'] as $parentId) {
+                    RoleHierarchy::create([
+                        'parent_role_id' => $parentId,
+                        'child_role_id' => $roleId,
+                    ]);
+                }
+            }
+
+            // Recompute depth of this role and descendants
+            $role->recomputeDepth();
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.create',
+                    'roles',
+                    $roleId,
+                    [],
+                    $role->toArray(),
+                    $request
+                );
+            }
+        });
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Role created successfully.',
+            ], 201);
+        }
+
+        return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role created successfully.');
+    }
+
+    public function updateParent(Request $request): JsonResponse
+    {
+        $this->checkEditPermission();
+
+        $validated = $request->validate([
+            'role_id' => ['required', 'uuid', 'exists:roles,id'],
+            'parent_role_ids' => ['nullable', 'array'],
+            'parent_role_ids.*' => ['exists:roles,id'],
+        ]);
+
+        $roleId = $validated['role_id'];
+        $parentIds = $validated['parent_role_ids'] ?? [];
+
+        // Check for cycle dependencies
+        $role = Role::findOrFail($roleId);
+        $descendants = $role->allDescendantIds();
+
+        foreach ($parentIds as $parentId) {
+            if ($parentId === $roleId || in_array($parentId, $descendants, true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Relocation failed: parent cannot be itself or a descendant node.',
+                ], 422);
+            }
+        }
+
+        DB::transaction(function () use ($role, $roleId, $parentIds, $request) {
+            // Delete old relationships
+            DB::table('role_hierarchies')->where('child_role_id', $roleId)->delete();
+
+            // Insert new relationships
+            foreach ($parentIds as $parentId) {
+                RoleHierarchy::create([
+                    'parent_role_id' => $parentId,
+                    'child_role_id' => $roleId,
+                ]);
+            }
+
+            // Recompute depths recursively
+            $role->recomputeDepth();
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.relocate',
+                    'roles',
+                    $roleId,
+                    [],
+                    ['parent_role_ids' => $parentIds],
+                    $request
+                );
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Role hierarchy updated successfully.',
+        ]);
+    }
+
+    public function cloneProfile(Request $request): RedirectResponse
+    {
+        $this->checkEditPermission();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'clone_from' => ['required', 'uuid', 'exists:roles,id'],
+            'parent_role_ids' => ['required', 'array'],
+            'parent_role_ids.*' => ['exists:roles,id'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        $cloneFromRole = Role::findOrFail($validated['clone_from']);
+        $newKey = Str::slug($validated['name'], '_');
+
+        // Check unique key
+        if (Role::query()->where('key', $newKey)->exists()) {
+            $newKey = $newKey.'_'.time();
+        }
+
+        $newRoleId = (string) Str::uuid();
+
+        DB::transaction(function () use ($validated, $cloneFromRole, $newKey, $newRoleId, $request) {
+            // Create role
+            $role = Role::create([
+                'id' => $newRoleId,
+                'key' => $newKey,
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'role_type' => $cloneFromRole->role_type ?: 'admin',
+                'scope_rule' => $cloneFromRole->scope_rule ?: 'optional',
+                'status' => 'active',
+                'is_assignable' => true,
+                'role_code' => $newKey,
+                'hierarchy_depth' => 0,
+            ]);
+
+            // Add relationships
+            foreach ($validated['parent_role_ids'] as $parentId) {
+                RoleHierarchy::create([
+                    'parent_role_id' => $parentId,
+                    'child_role_id' => $newRoleId,
+                ]);
+            }
+
+            // Copy permissions from cloned role
+            $permissions = DB::table('rbac_role_permission_groups')
+                ->where('role_id', $cloneFromRole->id)
+                ->get();
+
+            foreach ($permissions as $perm) {
+                DB::table('rbac_role_permission_groups')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $newRoleId,
+                    'permission_group_id' => $perm->permission_group_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Recompute hierarchy depth
+            $role->recomputeDepth();
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.clone',
+                    'roles',
+                    $newRoleId,
+                    ['clone_source_id' => $cloneFromRole->id],
+                    $role->toArray(),
+                    $request
+                );
+            }
+        });
+
+        return redirect()->route('admin.rbac.hierarchy')->with('success', 'Profile cloned successfully.');
+    }
+
+    public function updateRole(Request $request, string $id): RedirectResponse
+    {
+        $this->checkEditPermission();
+
+        $role = Role::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'key' => ['required', 'string', 'max:255', 'unique:roles,key,'.$id],
+            'description' => ['nullable', 'string'],
+            'role_type' => ['required', 'in:system,admin,user'],
+            'scope_rule' => ['required', 'in:mandatory,optional,not_applicable'],
+            'parent_role_ids' => ['nullable', 'array'],
+            'parent_role_ids.*' => ['exists:roles,id'],
+        ]);
+
+        DB::transaction(function () use ($role, $validated, $request) {
+            $old = $role->toArray();
+
+            $role->update([
+                'name' => $validated['name'],
+                'key' => $validated['key'],
+                'role_code' => $validated['key'],
+                'description' => $validated['description'] ?? null,
+                'role_type' => $validated['role_type'],
+                'scope_rule' => $validated['scope_rule'],
+            ]);
+
+            // Update parent relationships if provided
+            if (array_key_exists('parent_role_ids', $validated)) {
+                $parentIds = $validated['parent_role_ids'] ?? [];
+
+                // Anti-cycle check
+                $descendants = $role->allDescendantIds();
+                foreach ($parentIds as $parentId) {
+                    if ($parentId === $role->id || in_array($parentId, $descendants, true)) {
+                        return; // skip bad parent silently — validation layer should catch this
+                    }
+                }
+
+                DB::table('role_hierarchies')->where('child_role_id', $role->id)->delete();
+                foreach ($parentIds as $parentId) {
+                    RoleHierarchy::create([
+                        'parent_role_id' => $parentId,
+                        'child_role_id' => $role->id,
+                    ]);
+                }
+
+                $role->recomputeDepth();
+            }
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.update',
+                    'roles',
+                    $role->id,
+                    $old,
+                    $role->fresh()->toArray(),
+                    $request
+                );
+            }
+        });
+
+        return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role "'.$role->name.'" updated successfully.');
+    }
+
+    public function deleteRole(Request $request, string $id): RedirectResponse
+    {
+        $this->checkEditPermission();
+
+        $role = Role::findOrFail($id);
+
+        DB::transaction(function () use ($role, $request) {
+            $old = $role->toArray();
+
+            // Remove all hierarchy references
+            DB::table('role_hierarchies')
+                ->where('child_role_id', $role->id)
+                ->orWhere('parent_role_id', $role->id)
+                ->delete();
+
+            $role->delete();
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.delete',
+                    'roles',
+                    $role->id,
+                    $old,
+                    [],
+                    $request
+                );
+            }
+        });
+
+        return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role deleted successfully.');
+    }
+
+    public function assignRole(Request $request): RedirectResponse
+    {
+        $this->checkEditPermission();
+
+        $validated = $request->validate([
+            'admin_user_id' => ['required', 'uuid', 'exists:admin_users,id'],
+            'role_id' => ['required', 'uuid', 'exists:roles,id'],
+            'scope_id' => ['nullable', 'string'],
+            'allowed_sections' => ['nullable', 'array'],
+            'allowed_sections.*' => ['string'],
+            'permission_type' => ['nullable', 'string', 'in:edit,view'],
+        ]);
+
+        $role = Role::findOrFail($validated['role_id']);
+        $this->performAssignment($validated['admin_user_id'], $role, $validated['scope_id'] ?? null, $request);
+
+        return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role assigned to peer successfully.');
+    }
+
+    public function getAssignments(string $id): JsonResponse
+    {
+        $role = Role::findOrFail($id);
+        $roleKey = str_replace(' ', '_', strtolower($role->key));
+
+        $assignments = DB::table('admin_user_roles')
+            ->where('role_id', $role->id)
+            ->join('admin_users', 'admin_user_roles.user_id', '=', 'admin_users.id')
+            ->select(
+                'admin_user_roles.id as assignment_id',
+                'admin_users.id as user_id',
+                'admin_users.name',
+                'admin_users.email',
+                'admin_user_roles.allowed_sections',
+                'admin_user_roles.permission_type'
+            )
+            ->get()
+            ->map(function ($assign) use ($roleKey) {
+                $scopeId = null;
+                $scopeName = 'Global';
+
+                $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
+                $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
+                $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                    str_contains($roleKey, 'circle') ||
+                    str_contains($roleKey, 'leader') ||
+                    str_contains($roleKey, 'founder') ||
+                    str_contains($roleKey, 'chair') ||
+                    str_contains($roleKey, 'secretary');
+
+                if ($isDed) {
+                    $scope = DB::table('admin_ded_districts')
+                        ->where('admin_user_id', $assign->user_id)
+                        ->first();
+                    if ($scope) {
+                        $scopeId = $scope->district_id;
+                        $scopeName = 'District: '.$scope->district_name;
+                    }
+                } elseif ($isId) {
+                    $scope = DB::table('industry_director_assignments')
+                        ->where('admin_user_id', $assign->user_id)
+                        ->where('is_active', true)
+                        ->first();
+                    if ($scope) {
+                        $scopeId = $scope->industry_id;
+                        $scopeName = 'Industry: '.$scope->industry_name;
+                    }
+                } elseif ($isCircle) {
+                    $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($assign->email)])->first();
+                    if ($appUser) {
+                        $colName = 'circle_director_user_id';
+                        $dbRole = 'circle_director';
+
+                        if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
+                            $colName = 'circle_founder_user_id';
+                            $dbRole = 'circle_founder';
+                        } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
+                            $colName = 'vice_chair_user_id';
+                            $dbRole = 'vice_chair';
+                        } elseif (str_contains($roleKey, 'chair')) {
+                            $colName = 'chair_user_id';
+                            $dbRole = 'chair';
+                        } elseif (str_contains($roleKey, 'secretary')) {
+                            $colName = 'secretary_user_id';
+                            $dbRole = 'secretary';
+                        }
+
+                        $circle = DB::table('circles')
+                            ->where($colName, $appUser->id)
+                            ->first();
+
+                        if (! $circle) {
+                            $rolesToMatch = [$dbRole];
+                            if ($dbRole === 'circle_director') {
+                                $rolesToMatch[] = 'director';
+                            } elseif ($dbRole === 'circle_founder') {
+                                $rolesToMatch[] = 'founder';
+                            }
+
+                            $circle = DB::table('circles')
+                                ->join('circle_members', 'circles.id', '=', 'circle_members.circle_id')
+                                ->where('circle_members.user_id', $appUser->id)
+                                ->whereIn(DB::raw('circle_members.role::text'), $rolesToMatch)
+                                ->whereNull('circle_members.deleted_at')
+                                ->select('circles.*')
+                                ->first();
+                        }
+
+                        if ($circle) {
+                            $scopeId = $circle->id;
+                            $scopeName = 'Circle: '.$circle->name;
+                        }
+                    }
+                }
+
+                return [
+                    'user_id' => $assign->user_id,
+                    'name' => $assign->name,
+                    'email' => $assign->email,
+                    'scope_id' => $scopeId,
+                    'scope_name' => $scopeName,
+                    'allowed_sections' => json_decode((string) $assign->allowed_sections, true) ?: [],
+                    'permission_type' => $assign->permission_type ?: 'edit',
+                ];
+            });
+
+        $assignedUserIds = $assignments->pluck('user_id')->all();
+        $query = DB::table('admin_users');
+        if ($role->scope_rule === 'none' && ! empty($assignedUserIds)) {
+            $query->whereNotIn('id', $assignedUserIds);
+        }
+        $availablePeers = $query->orderBy('name')->get(['id', 'name', 'email']);
+        $availablePeers = $this->enrichPeersWithScopes($availablePeers);
+
+        return response()->json([
+            'success' => true,
+            'role' => [
+                'id' => $role->id,
+                'name' => $role->name,
+                'key' => $role->key,
+                'scope_rule' => $role->scope_rule,
+            ],
+            'assignments' => $assignments,
+            'available_peers' => $availablePeers,
+        ]);
+    }
+
+    protected function enrichPeersWithScopes($peers)
+    {
+        if ($peers->isEmpty()) {
+            return $peers;
+        }
+
+        $peerIds = $peers->pluck('id')->filter()->all();
+        $emails = $peers->pluck('email')->filter()->map(fn ($e) => strtolower(trim((string) $e)))->all();
+
+        // 1. DED District mapping
+        $dedDistrictsMap = [];
+        if (Schema::hasTable('admin_ded_districts')) {
+            $dedRows = DB::table('admin_ded_districts')
+                ->whereIn('admin_user_id', $peerIds)
+                ->get();
+
+            $districtNamesToLookup = [];
+            foreach ($dedRows as $row) {
+                if (! empty($row->district_id)) {
+                    $dedDistrictsMap[$row->admin_user_id] = $row->district_id;
+                } elseif (! empty($row->district_name)) {
+                    $districtNamesToLookup[$row->admin_user_id] = strtolower(trim($row->district_name));
+                }
+            }
+
+            if (! empty($districtNamesToLookup) && Schema::hasTable('districts')) {
+                $districtsRows = DB::table('districts')
+                    ->whereIn(DB::raw('LOWER(TRIM(name))'), array_values($districtNamesToLookup))
+                    ->get(['id', 'name']);
+                $districtsByName = [];
+                foreach ($districtsRows as $dRow) {
+                    if (! empty($dRow->name)) {
+                        $districtsByName[strtolower(trim($dRow->name))] = $dRow->id;
+                    }
+                }
+                foreach ($districtNamesToLookup as $adminUserId => $dName) {
+                    if (isset($districtsByName[$dName])) {
+                        $dedDistrictsMap[$adminUserId] = $districtsByName[$dName];
+                    }
+                }
+            }
+        }
+
+        // 2. Industry mapping
+        $industryMap = [];
+        if (Schema::hasTable('industry_director_assignments')) {
+            $idRows = DB::table('industry_director_assignments')
+                ->whereIn('admin_user_id', $peerIds)
+                ->where('is_active', true)
+                ->get();
+            foreach ($idRows as $row) {
+                if (! empty($row->industry_id)) {
+                    $industryMap[$row->admin_user_id] = $row->industry_id;
+                }
+            }
+        }
+
+        // 3. App Users lookup by email
+        $appUsers = DB::table('users')
+            ->whereIn(DB::raw('LOWER(TRIM(email))'), $emails)
+            ->get();
+
+        $emailToAppUser = [];
+        $appUserIds = [];
+        foreach ($appUsers as $u) {
+            $lowEmail = strtolower(trim((string) $u->email));
+            $emailToAppUser[$lowEmail] = $u;
+            $appUserIds[] = $u->id;
+        }
+
+        // Cities lookup for users missing district
+        $cityIdsToLookup = $appUsers->pluck('city_id')->filter()->unique()->all();
+        $cityDistrictMap = [];
+        if (! empty($cityIdsToLookup) && Schema::hasTable('cities')) {
+            $cities = DB::table('cities')->whereIn('id', $cityIdsToLookup)->get();
+            $cityDistrictNames = [];
+            foreach ($cities as $c) {
+                if (! empty($c->district)) {
+                    $cityDistrictNames[$c->id] = strtolower(trim($c->district));
+                }
+            }
+            if (! empty($cityDistrictNames) && Schema::hasTable('districts')) {
+                $districtsRows = DB::table('districts')
+                    ->whereIn(DB::raw('LOWER(TRIM(name))'), array_values($cityDistrictNames))
+                    ->get(['id', 'name']);
+                $districtsByName = [];
+                foreach ($districtsRows as $dRow) {
+                    if (! empty($dRow->name)) {
+                        $districtsByName[strtolower(trim($dRow->name))] = $dRow->id;
+                    }
+                }
+                foreach ($cityDistrictNames as $cId => $dName) {
+                    if (isset($districtsByName[$dName])) {
+                        $cityDistrictMap[$cId] = $districtsByName[$dName];
+                    }
+                }
+            }
+        }
+
+        // Industry categories lookup for users missing industry
+        $industryIdsFromDb = Schema::hasTable('industries') ? DB::table('industries')->pluck('id')->all() : [];
+        $industryNamesMap = [];
+        if (Schema::hasTable('industries')) {
+            $indRows = DB::table('industries')->get(['id', 'name']);
+            foreach ($indRows as $iRow) {
+                if (! empty($iRow->name)) {
+                    $industryNamesMap[strtolower(trim($iRow->name))] = $iRow->id;
+                }
+            }
+        }
+
+        // Circle memberships lookup
+        $circleMemberships = [];
+        if (! empty($appUserIds)) {
+            if (Schema::hasTable('circle_members')) {
+                $cmRows = DB::table('circle_members')
+                    ->whereIn('user_id', $appUserIds)
+                    ->select('user_id', 'circle_id')
+                    ->get();
+                foreach ($cmRows as $cm) {
+                    if (! empty($cm->circle_id)) {
+                        $circleMemberships[$cm->user_id][] = $cm->circle_id;
+                    }
+                }
+            }
+
+            if (Schema::hasTable('circle_join_requests')) {
+                $cjrRows = DB::table('circle_join_requests')
+                    ->whereIn('user_id', $appUserIds)
+                    ->select('user_id', 'circle_id')
+                    ->get();
+                foreach ($cjrRows as $cjr) {
+                    if (! empty($cjr->circle_id)) {
+                        $circleMemberships[$cjr->user_id][] = $cjr->circle_id;
+                    }
+                }
+            }
+
+            // Circles leaders lookup
+            if (Schema::hasTable('circles')) {
+                $circleQuery = DB::table('circles');
+                $circleQuery->where(function ($q) use ($appUserIds) {
+                    $q->whereIn('circle_director_user_id', $appUserIds)
+                        ->orWhereIn('circle_founder_user_id', $appUserIds);
+                    if (Schema::hasColumn('circles', 'chair_user_id')) {
+                        $q->orWhereIn('chair_user_id', $appUserIds);
+                    }
+                    if (Schema::hasColumn('circles', 'vice_chair_user_id')) {
+                        $q->orWhereIn('vice_chair_user_id', $appUserIds);
+                    }
+                    if (Schema::hasColumn('circles', 'secretary_user_id')) {
+                        $q->orWhereIn('secretary_user_id', $appUserIds);
+                    }
+                });
+
+                $circleLeaderRows = $circleQuery->get();
+                foreach ($circleLeaderRows as $cRow) {
+                    $leaderCols = ['circle_director_user_id', 'circle_founder_user_id', 'chair_user_id', 'vice_chair_user_id', 'secretary_user_id'];
+                    foreach ($leaderCols as $col) {
+                        if (isset($cRow->$col) && ! empty($cRow->$col)) {
+                            $circleMemberships[$cRow->$col][] = $cRow->id;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $peers->map(function ($peer) use (
+            $dedDistrictsMap,
+            $industryMap,
+            $emailToAppUser,
+            $cityDistrictMap,
+            $industryIdsFromDb,
+            $industryNamesMap,
+            $circleMemberships
+        ) {
+            $adminUserId = $peer->id ?? null;
+            $lowEmail = strtolower(trim((string) ($peer->email ?? '')));
+            $appUser = $emailToAppUser[$lowEmail] ?? null;
+
+            // Resolve district_id
+            $districtId = $dedDistrictsMap[$adminUserId] ?? null;
+            if (! $districtId && $appUser) {
+                if (! empty($appUser->city_id) && isset($cityDistrictMap[$appUser->city_id])) {
+                    $districtId = $cityDistrictMap[$appUser->city_id];
+                }
+                if (! $districtId && ! empty($appUser->city) && Schema::hasTable('districts')) {
+                    $cName = strtolower(trim((string) $appUser->city));
+                    $dist = DB::table('districts')->whereRaw('LOWER(TRIM(name)) = ?', [$cName])->first();
+                    if ($dist) {
+                        $districtId = $dist->id;
+                    }
+                }
+            }
+
+            // Resolve industry_id
+            $industryId = $industryMap[$adminUserId] ?? null;
+            if (! $industryId && $appUser) {
+                $catId = $appUser->main_business_category_id ?: ($appUser->business_category_id ?? null);
+                if ($catId) {
+                    if (in_array($catId, $industryIdsFromDb, true)) {
+                        $industryId = $catId;
+                    } elseif (Schema::hasTable('circle_categories')) {
+                        $cat = DB::table('circle_categories')->where('id', $catId)->first();
+                        if ($cat && ! empty($cat->name)) {
+                            $catName = strtolower(trim((string) $cat->name));
+                            if (isset($industryNamesMap[$catName])) {
+                                $industryId = $industryNamesMap[$catName];
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Resolve circle_ids
+            $userCircles = [];
+            if ($appUser) {
+                if (isset($circleMemberships[$appUser->id])) {
+                    $userCircles = array_merge($userCircles, $circleMemberships[$appUser->id]);
+                }
+                if (! empty($appUser->active_circle_id)) {
+                    $userCircles[] = $appUser->active_circle_id;
+                }
+            }
+            $userCircles = array_values(array_unique(array_filter($userCircles)));
+
+            if (is_object($peer)) {
+                $peer->district_id = $districtId;
+                $peer->industry_id = $industryId;
+                $peer->circle_ids = $userCircles;
+            } elseif (is_array($peer)) {
+                $peer['district_id'] = $districtId;
+                $peer['industry_id'] = $industryId;
+                $peer['circle_ids'] = $userCircles;
+            }
+
+            return $peer;
+        });
+    }
+
+    public function assignPeer(Request $request, string $id): JsonResponse
+    {
+        $this->checkEditPermission();
+
+        $role = Role::findOrFail($id);
+
+        $validated = $request->validate([
+            'admin_user_id' => ['required', 'uuid', 'exists:admin_users,id'],
+            'scope_id' => ['nullable', 'string'],
+            'allowed_sections' => ['nullable', 'array'],
+            'allowed_sections.*' => ['string'],
+            'permission_type' => ['nullable', 'string', 'in:edit,view'],
+        ]);
+
+        $this->performAssignment($validated['admin_user_id'], $role, $validated['scope_id'] ?? null, $request);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Role assigned successfully.',
+        ]);
+    }
+
+    public function removeAssignment(Request $request, string $id, string $userId): JsonResponse
+    {
+        $this->checkEditPermission();
+
+        $role = Role::findOrFail($id);
+        $roleKey = strtolower($role->key);
+        $adminUser = DB::table('admin_users')->where('id', $userId)->first();
+
+        if (! $adminUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found.',
+            ], 404);
+        }
+
+        DB::transaction(function () use ($role, $roleKey, $userId, $adminUser, $request) {
+            DB::table('admin_user_roles')
+                ->where('user_id', $userId)
+                ->where('role_id', $role->id)
+                ->delete();
+
+            $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
+            $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
+            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                str_contains($roleKey, 'circle') ||
+                str_contains($roleKey, 'leader') ||
+                str_contains($roleKey, 'founder') ||
+                str_contains($roleKey, 'chair') ||
+                str_contains($roleKey, 'secretary');
+
+            if ($isDed) {
+                DB::table('admin_ded_districts')->where('admin_user_id', $userId)->delete();
+            } elseif ($isId) {
+                DB::table('industry_director_assignments')->where('admin_user_id', $userId)->delete();
+            } elseif ($isCircle) {
+                $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+                if ($appUser) {
+                    $colName = 'circle_director_user_id';
+                    $dbRole = 'circle_director';
+
+                    if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
+                        $colName = 'circle_founder_user_id';
+                        $dbRole = 'circle_founder';
+                    } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
+                        $colName = 'vice_chair_user_id';
+                        $dbRole = 'vice_chair';
+                    } elseif (str_contains($roleKey, 'chair')) {
+                        $colName = 'chair_user_id';
+                        $dbRole = 'chair';
+                    } elseif (str_contains($roleKey, 'secretary')) {
+                        $colName = 'secretary_user_id';
+                        $dbRole = 'secretary';
+                    }
+
+                    if ($colName) {
+                        DB::table('circles')->where($colName, $appUser->id)->update([
+                            $colName => null,
+                            'updated_at' => now(),
+                        ]);
+                    }
+
+                    $rolesToDelete = [$dbRole];
+                    if ($dbRole === 'circle_director') {
+                        $rolesToDelete[] = 'director';
+                    } elseif ($dbRole === 'circle_founder') {
+                        $rolesToDelete[] = 'founder';
+                    }
+
+                    DB::table('circle_members')
+                        ->where('user_id', $appUser->id)
+                        ->whereIn(DB::raw('circle_members.role::text'), $rolesToDelete)
+                        ->delete();
+
+                    if (Schema::hasTable('tbl_permission_cache')) {
+                        DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                    }
+                }
+            }
+
+            AdminAccess::clearAdminUserCache($userId);
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.remove_assignment',
+                    'admin_user_roles',
+                    $userId,
+                    ['role_key' => $role->key],
+                    [],
+                    $request
+                );
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Role assignment removed successfully.',
+        ]);
+    }
+
+    private function performAssignment(string $adminUserId, Role $role, ?string $scopeId, Request $request): void
+    {
+        $adminUser = DB::table('admin_users')->where('id', $adminUserId)->first();
+        if (! $adminUser) {
+            return;
+        }
+
+        DB::transaction(function () use ($adminUserId, $role, $scopeId, $adminUser, $request) {
+            $roleKey = str_replace(' ', '_', strtolower($role->key));
+
+            // Detach conflicting roles (e.g. detach global_admin when assigning a scoped role like DED)
+            if ($roleKey !== 'global_admin' && $roleKey !== 'global_founder') {
+                $superRoleIds = DB::table('roles')->whereIn('key', ['global_admin', 'global_founder'])->pluck('id')->all();
+                if (! empty($superRoleIds)) {
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUserId)
+                        ->whereIn('role_id', $superRoleIds)
+                        ->delete();
+                }
+            } else {
+                $scopedRoleIds = DB::table('roles')->whereNotIn('key', ['global_admin', 'global_founder'])->pluck('id')->all();
+                if (! empty($scopedRoleIds)) {
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUserId)
+                        ->whereIn('role_id', $scopedRoleIds)
+                        ->delete();
+                }
+            }
+
+            $existingUserRole = DB::table('admin_user_roles')
+                ->where('user_id', $adminUserId)
+                ->where('role_id', $role->id)
+                ->first();
+
+            $allowedSections = $request->has('allowed_sections') ? json_encode($request->input('allowed_sections') ?? []) : null;
+            $permissionType = $request->input('permission_type', 'edit');
+
+            if (! $existingUserRole) {
+                DB::table('admin_user_roles')->insert([
+                    'id' => (string) Str::uuid(),
+                    'user_id' => $adminUserId,
+                    'role_id' => $role->id,
+                    'allowed_sections' => $allowedSections,
+                    'permission_type' => $permissionType,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                DB::table('admin_user_roles')
+                    ->where('id', $existingUserRole->id)
+                    ->update([
+                        'allowed_sections' => $allowedSections,
+                        'permission_type' => $permissionType,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
+            $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
+            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                str_contains($roleKey, 'circle') ||
+                str_contains($roleKey, 'leader') ||
+                str_contains($roleKey, 'founder') ||
+                str_contains($roleKey, 'chair') ||
+                str_contains($roleKey, 'secretary');
+
+            if ($isDed) {
+                if ($scopeId) {
+                    $district = DB::table('districts')->where('id', $scopeId)->first();
+                    if (! $district) {
+                        $district = DB::table('districts')->whereRaw('LOWER(TRIM(name)) = ?', [strtolower(trim($scopeId))])->first();
+                    }
+                    $state = $district && ! empty($district->state_id) ? DB::table('states')->where('id', $district->state_id)->first() : null;
+                    $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+
+                    $resolvedDistrictId = $district->id ?? $scopeId;
+                    $resolvedDistrictName = $district->name ?? $scopeId;
+                    $resolvedStateId = $district->state_id ?? ($state->id ?? null);
+                    $resolvedStateName = $state->name ?? '';
+
+                    DB::table('admin_ded_districts')->where('admin_user_id', $adminUserId)->delete();
+
+                    DB::table('admin_ded_districts')->insert([
+                        'id' => (string) Str::uuid(),
+                        'admin_user_id' => $adminUserId,
+                        'user_id' => $appUser?->id,
+                        'district_id' => $resolvedDistrictId,
+                        'district_name' => $resolvedDistrictName,
+                        'state_id' => $resolvedStateId,
+                        'state_name' => $resolvedStateName,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    if ($appUser) {
+                        DB::table('circle_members')
+                            ->where('user_id', $appUser->id)
+                            ->whereNull('deleted_at')
+                            ->update([
+                                'role' => 'ded',
+                                'updated_at' => now(),
+                            ]);
+                    }
+                }
+            } elseif ($isId) {
+                if ($scopeId) {
+                    $industry = DB::table('industries')->where('id', $scopeId)->first();
+
+                    DB::table('industry_director_assignments')
+                        ->where('admin_user_id', $adminUserId)
+                        ->delete();
+
+                    DB::table('industry_director_assignments')->insert([
+                        'id' => (string) Str::uuid(),
+                        'admin_user_id' => $adminUserId,
+                        'industry_id' => $scopeId,
+                        'industry_name' => $industry->name ?? '',
+                        'assigned_by' => auth('admin')->id(),
+                        'is_active' => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            } elseif ($isCircle) {
+                if ($scopeId) {
+                    $circle = DB::table('circles')->where('id', $scopeId)->first();
+                    $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+
+                    if (! $appUser) {
+                        $appUserId = (string) Str::uuid();
+                        $parts = explode(' ', trim($adminUser->name ?? 'Admin'));
+                        $firstName = $parts[0] ?? 'Admin';
+                        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : 'User';
+
+                        DB::table('users')->insert([
+                            'id' => $appUserId,
+                            'first_name' => $firstName,
+                            'last_name' => $lastName,
+                            'display_name' => $adminUser->name ?? 'Admin User',
+                            'email' => strtolower($adminUser->email),
+                            'password_hash' => $adminUser->password ?? bcrypt(Str::random(16)),
+                            'status' => 'active',
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+
+                        $appUser = DB::table('users')->where('id', $appUserId)->first();
+                    }
+
+                    if ($appUser) {
+                        $colName = 'circle_director_user_id';
+                        $dbRole = 'circle_director';
+
+                        if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
+                            $colName = 'circle_founder_user_id';
+                            $dbRole = 'circle_founder';
+                        } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
+                            $colName = 'vice_chair_user_id';
+                            $dbRole = 'vice_chair';
+                        } elseif (str_contains($roleKey, 'chair')) {
+                            $colName = 'chair_user_id';
+                            $dbRole = 'chair';
+                        } elseif (str_contains($roleKey, 'secretary')) {
+                            $colName = 'secretary_user_id';
+                            $dbRole = 'secretary';
+                        }
+
+                        if ($colName) {
+                            DB::table('circles')->where($colName, $appUser->id)->update([
+                                $colName => null,
+                                'updated_at' => now(),
+                            ]);
+
+                            DB::table('circles')->where('id', $scopeId)->update([
+                                $colName => $appUser->id,
+                                'updated_at' => now(),
+                            ]);
+                        }
+
+                        $rolesToDelete = [$dbRole];
+                        if ($dbRole === 'circle_director') {
+                            $rolesToDelete[] = 'director';
+                        } elseif ($dbRole === 'circle_founder') {
+                            $rolesToDelete[] = 'founder';
+                        }
+
+                        DB::table('circle_members')
+                            ->where('user_id', $appUser->id)
+                            ->whereIn(DB::raw('circle_members.role::text'), $rolesToDelete)
+                            ->delete();
+
+                        $existingMember = DB::table('circle_members')
+                            ->where('circle_id', $scopeId)
+                            ->where('user_id', $appUser->id)
+                            ->first();
+
+                        if ($existingMember) {
+                            DB::table('circle_members')
+                                ->where('id', $existingMember->id)
+                                ->update([
+                                    'role' => $dbRole,
+                                    'status' => 'approved',
+                                    'updated_at' => now(),
+                                    'deleted_at' => null,
+                                ]);
+                        } else {
+                            DB::table('circle_members')->insert([
+                                'id' => (string) Str::uuid(),
+                                'circle_id' => $scopeId,
+                                'user_id' => $appUser->id,
+                                'role' => $dbRole,
+                                'status' => 'approved',
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+                        }
+
+                        if (Schema::hasTable('tbl_permission_cache')) {
+                            DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                        }
+                    }
+                }
+            }
+
+            AdminAccess::clearAdminUserCache($adminUserId);
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                $this->audit->log(
+                    $admin,
+                    'admin.rbac.role.assign',
+                    'admin_user_roles',
+                    $adminUserId,
+                    [],
+                    [
+                        'role_key' => $role->key,
+                        'scope_id' => $scopeId,
+                    ],
+                    $request
+                );
+            }
+        });
+    }
+
+    private function checkEditPermission(): void
+    {
+        $admin = auth('admin')->user();
+        if ($admin && ! AdminAccess::isEditAllowed($admin)) {
+            abort(403, 'You do not have edit permissions.');
+        }
+    }
+
+    public function removeCurrentRole(Request $request): RedirectResponse
+    {
+        $admin = Auth::guard('admin')->user();
+        if (! $admin) {
+            abort(401);
+        }
+
+        $roleKeys = AdminAccess::adminRoleKeys($admin);
+
+        // If the user already only has the 'user' role, reject the request
+        if (collect($roleKeys)->reject('user')->isEmpty()) {
+            return redirect()->back()->withErrors(['message' => 'You already have the default User role.']);
+        }
+
+        // Get or create the 'user' role
+        $userRole = Role::where('key', 'user')->first();
+        if (! $userRole) {
+            $userRoleId = (string) Str::uuid();
+            DB::table('roles')->insert([
+                'id' => $userRoleId,
+                'key' => 'user',
+                'name' => 'User',
+                'description' => 'Default User Role',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $userRole = Role::find($userRoleId);
+        }
+
+        // Get all role keys for audit logging
+        $oldRoles = DB::table('roles')
+            ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
+            ->where('admin_user_roles.user_id', $admin->id)
+            ->pluck('roles.key')
+            ->toArray();
+
+        DB::transaction(function () use ($admin, $userRole, $oldRoles, $request) {
+            // Delete existing role assignments
+            DB::table('admin_user_roles')
+                ->where('user_id', $admin->id)
+                ->delete();
+
+            // Insert new default 'user' role assignment
+            $insertData = [
+                'user_id' => $admin->id,
+                'role_id' => $userRole->id,
+            ];
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                $insertData['id'] = (string) Str::uuid();
+                $insertData['created_at'] = now();
+            }
+            DB::table('admin_user_roles')->insert($insertData);
+
+            // Deactivate industry director assignments
+            if (Schema::hasTable('industry_director_assignments')) {
+                DB::table('industry_director_assignments')
+                    ->where('admin_user_id', $admin->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            // Delete DED district scope rollups
+            if (Schema::hasTable('admin_ded_districts')) {
+                DB::table('admin_ded_districts')
+                    ->where('admin_user_id', $admin->id)
+                    ->delete();
+            }
+
+            // Log action in audit log
+            $this->audit->log(
+                $admin,
+                'admin.profile.remove_current_role',
+                'admin_user_roles',
+                $admin->id,
+                ['roles' => $oldRoles],
+                ['roles' => ['user']],
+                $request
+            );
+        });
+
+        // Invalidate permissions and role caches
+        ScopeCascadeResolver::invalidateCache($admin->id);
+        Cache::forget('admin-access:ded-location:'.$admin->id);
+        Cache::forget('admin-access:primary-role:'.$admin->id);
+        Cache::forget('admin-access:primary-role-label:'.$admin->id);
+
+        // Sign out the user and invalidate the admin session
+        Auth::guard('admin')->logout();
+        $request->session()->invalidate();
+        $request->session()->forget(['admin_user_id', 'admin_login_email']);
+        $request->session()->regenerateToken();
+
+        return redirect()->route('admin.login')->with('status', 'Your role has been removed successfully. Your account has been changed to the default User role.');
+    }
+}

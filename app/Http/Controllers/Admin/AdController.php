@@ -6,33 +6,75 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Ads\StoreAdRequest;
 use App\Http\Requests\Admin\Ads\UpdateAdRequest;
 use App\Models\Ad;
+use App\Models\FileModel;
+use App\Services\Ads\AdAnalyticsService;
+use App\Services\Media\FileUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class AdController extends Controller
 {
+    private const PLACEMENTS = ['timeline', 'dashboard', 'home', 'banner', 'popup', 'sidebar'];
+
+    public function __construct(
+        private readonly AdAnalyticsService $analyticsService,
+        private readonly FileUploadService $fileUploadService
+    ) {}
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
+        $placement = trim((string) $request->query('placement', ''));
+        $status = trim((string) $request->query('status', ''));
+
+        $isPgSql = DB::connection()->getDriverName() === 'pgsql';
+        $likeOp = $isPgSql ? 'ILIKE' : 'LIKE';
 
         $ads = Ad::query()
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where('title', 'ILIKE', '%' . $search . '%');
+            ->withCount(['views', 'clicks'])
+            ->when($search !== '', function ($query) use ($search, $likeOp) {
+                $query->where(function ($sub) use ($search, $likeOp) {
+                    $sub->where('title', $likeOp, '%'.$search.'%')
+                        ->orWhere('subtitle', $likeOp, '%'.$search.'%')
+                        ->orWhere('description', $likeOp, '%'.$search.'%');
+                });
+            })
+            ->when($placement !== '' && Schema::hasColumn('ads', 'placement'), function ($query) use ($placement) {
+                $query->where('placement', $placement);
+            })
+            ->when($status !== '' && Schema::hasColumn('ads', 'is_active'), function ($query) use ($status) {
+                if ($status === 'active') {
+                    $query->where('is_active', true);
+                } elseif ($status === 'inactive') {
+                    $query->where('is_active', false);
+                }
             })
             ->orderByDesc('created_at')
             ->paginate(20)
             ->appends($request->query());
 
-        return view('admin.ads.index', compact('ads', 'search'));
+        return view('admin.ads.index', compact('ads', 'search', 'placement', 'status'));
+    }
+
+    public function show(Ad $ad): View
+    {
+        $analytics = $this->analyticsService->getAdAnalytics($ad->id);
+
+        return view('admin.ads.show', compact('ad', 'analytics'));
     }
 
     public function create(): View
     {
         return view('admin.ads.create', [
             'ad' => new Ad(['is_active' => true]),
+            'placements' => self::PLACEMENTS,
         ]);
     }
 
@@ -56,6 +98,7 @@ class AdController extends Controller
     {
         return view('admin.ads.edit', [
             'ad' => $ad,
+            'placements' => self::PLACEMENTS,
         ]);
     }
 
@@ -68,7 +111,14 @@ class AdController extends Controller
             $data['image_path'] = $this->storeImage($request);
 
             if ($oldImagePath && ! str_starts_with($oldImagePath, 'http')) {
-                Storage::disk('public')->delete($oldImagePath);
+                if (Str::isUuid($oldImagePath)) {
+                    $oldFileModel = FileModel::find($oldImagePath);
+                    if ($oldFileModel) {
+                        $this->fileUploadService->delete($oldFileModel);
+                    }
+                } else {
+                    Storage::disk('public')->delete($oldImagePath);
+                }
             }
         }
 
@@ -82,7 +132,14 @@ class AdController extends Controller
         $imagePath = $ad->normalizedImagePath();
 
         if ($imagePath && ! str_starts_with($imagePath, 'http')) {
-            Storage::disk('public')->delete($imagePath);
+            if (Str::isUuid($imagePath)) {
+                $fileModel = FileModel::find($imagePath);
+                if ($fileModel) {
+                    $this->fileUploadService->delete($fileModel);
+                }
+            } else {
+                Storage::disk('public')->delete($imagePath);
+            }
         }
 
         $ad->delete();
@@ -106,22 +163,28 @@ class AdController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         if (! empty($data['starts_at'])) {
-            $data['starts_at'] = \Illuminate\Support\Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
+            $data['starts_at'] = Carbon::parse($data['starts_at'], config('app.timezone', 'UTC'))->utc();
         } else {
             $data['starts_at'] = null;
         }
 
         if (! empty($data['ends_at'])) {
-            $data['ends_at'] = \Illuminate\Support\Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
+            $data['ends_at'] = Carbon::parse($data['ends_at'], config('app.timezone', 'UTC'))->utc();
         } else {
             $data['ends_at'] = null;
         }
+
+        // Handle nullable integer fields
+        $data['timeline_position'] = isset($data['timeline_position']) && $data['timeline_position'] !== '' ? (int) $data['timeline_position'] : null;
+        $data['sort_order'] = isset($data['sort_order']) && $data['sort_order'] !== '' ? (int) $data['sort_order'] : 0;
 
         return $data;
     }
 
     private function storeImage(StoreAdRequest|UpdateAdRequest $request): string
     {
-        return (string) $request->file('image')->store('ads', 'public');
+        $fileModel = $this->fileUploadService->store($request->file('image'), Auth::guard('admin')->user());
+
+        return $fileModel->id;
     }
 }

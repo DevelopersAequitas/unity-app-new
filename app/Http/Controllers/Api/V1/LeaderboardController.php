@@ -18,6 +18,30 @@ class LeaderboardController extends Controller
             ->limit(20)
             ->get();
 
+        $loggedInUser = request()->user();
+        $myRank = null;
+
+        if ($loggedInUser) {
+            $allIds = $this->baseLeaderboardQuery()
+                ->orderByRaw('COALESCE(coins_balance, 0) DESC')
+                ->orderBy('display_name', 'asc')
+                ->pluck('id')
+                ->toArray();
+
+            $rankIndex = array_search($loggedInUser->id, $allIds);
+            if ($rankIndex !== false) {
+                $userRank = $rankIndex + 1;
+                if ($userRank > 20) {
+                    $userModel = $this->baseLeaderboardQuery()->find($loggedInUser->id);
+                    if ($userModel) {
+                        $transformed = $this->transformMembers(collect([$userModel]))->first();
+                        $transformed['rank'] = $userRank;
+                        $myRank = $transformed;
+                    }
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => null,
@@ -25,6 +49,7 @@ class LeaderboardController extends Controller
                 'leaderboard_type' => 'coins',
                 'total' => $members->count(),
                 'members' => $this->transformMembers($members),
+                'my_rank' => $myRank,
             ],
         ]);
     }
@@ -37,6 +62,30 @@ class LeaderboardController extends Controller
             ->limit(20)
             ->get();
 
+        $loggedInUser = request()->user();
+        $myRank = null;
+
+        if ($loggedInUser) {
+            $allIds = $this->baseLeaderboardQuery()
+                ->orderByRaw('COALESCE(life_impacted_count, 0) DESC')
+                ->orderBy('display_name', 'asc')
+                ->pluck('id')
+                ->toArray();
+
+            $rankIndex = array_search($loggedInUser->id, $allIds);
+            if ($rankIndex !== false) {
+                $userRank = $rankIndex + 1;
+                if ($userRank > 20) {
+                    $userModel = $this->baseLeaderboardQuery()->find($loggedInUser->id);
+                    if ($userModel) {
+                        $transformed = $this->transformMembers(collect([$userModel]))->first();
+                        $transformed['rank'] = $userRank;
+                        $myRank = $transformed;
+                    }
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => null,
@@ -44,6 +93,7 @@ class LeaderboardController extends Controller
                 'leaderboard_type' => 'impacts',
                 'total' => $members->count(),
                 'members' => $this->transformMembers($members),
+                'my_rank' => $myRank,
             ],
         ]);
     }
@@ -91,7 +141,7 @@ class LeaderboardController extends Controller
                 'category' => $member->business_type,
                 'profile_photo' => [
                     'file_id' => $profilePhotoFileId,
-                    'url' => $profilePhotoFileId ? rtrim((string) config('app.url'), '/') . '/api/v1/files/' . $profilePhotoFileId : null,
+                    'url' => $profilePhotoFileId ? rtrim((string) config('app.url'), '/').'/api/v1/files/'.$profilePhotoFileId : null,
                 ],
                 'coins_balance' => (int) ($member->coins_balance ?? 0),
                 'life_impacted_count' => (int) ($member->life_impacted_count ?? 0),

@@ -33,7 +33,7 @@ class LifeImpactBackfillService
 
     public function recalculateUsersWithHistory(bool $resetMissingUsersToZero = false): int
     {
-        $historyTable = (new LifeImpactHistory())->getTable();
+        $historyTable = (new LifeImpactHistory)->getTable();
         $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
             ? 'COALESCE(impact_value, 0)'
             : (Schema::hasColumn($historyTable, 'life_impacted')
@@ -88,7 +88,7 @@ class LifeImpactBackfillService
     public function createManualImpact(array $data): LifeImpactHistory
     {
         $userId = (string) $data['user_id'];
-        $impactValue = max(0, (int) $data['impact_value']);
+        $impactValue = (int) $data['impact_value'];
         $referenceDate = $data['reference_date'] ?? now()->toDateString();
 
         $meta = array_filter([
@@ -108,7 +108,7 @@ class LifeImpactBackfillService
             'title' => (string) $data['title'],
             'description' => $this->normalizeNullableString($data['description'] ?? null),
             'meta' => $meta,
-            'action_key' => 'manual:' . Str::uuid()->toString(),
+            'action_key' => 'manual:'.Str::uuid()->toString(),
             'status' => 'approved',
             'created_at' => $referenceDate,
         ]);
@@ -116,6 +116,12 @@ class LifeImpactBackfillService
         $history->save();
 
         $this->recalculateTotals([$userId]);
+
+        if (Schema::hasColumn($history->getTable(), 'impact_after')) {
+            $currentTotal = (int) (DB::table('users')->where('id', $userId)->value('life_impacted_count') ?? 0);
+            $history->impact_after = $currentTotal;
+            $history->save();
+        }
 
         return $history->refresh();
     }
@@ -306,7 +312,7 @@ class LifeImpactBackfillService
             return 0;
         }
 
-        $historyTable = (new LifeImpactHistory())->getTable();
+        $historyTable = (new LifeImpactHistory)->getTable();
         $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
             ? 'COALESCE(impact_value, 0)'
             : (Schema::hasColumn($historyTable, 'life_impacted')
@@ -345,7 +351,7 @@ class LifeImpactBackfillService
 
     private function buildHistory(array $data): LifeImpactHistory
     {
-        $history = new LifeImpactHistory();
+        $history = new LifeImpactHistory;
 
         $history->id = (string) Str::uuid();
         $history->user_id = (string) $data['user_id'];

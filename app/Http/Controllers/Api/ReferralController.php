@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Events\ActivityCreated;
+use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
+use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\Referral;
+use App\Models\ReferralStatus;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
@@ -57,9 +58,143 @@ class ReferralController extends BaseApiController
         ]);
     }
 
-    public function stats(Request $request, ReferralService $referralService)
+    public function stats(Request $request)
     {
-        return $this->success($referralService->getReferralStats($request->user()));
+        $userId = $request->user()->id;
+        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+
+        $givenPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser', 'status'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('from_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'given_page');
+
+        $receivedPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser', 'status'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('to_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'received_page');
+
+        $givenItems = ActivityReferralResource::collection($givenPaginator->items());
+        $receivedItems = ActivityReferralResource::collection($receivedPaginator->items());
+
+        return $this->success([
+            'counts' => [
+                'referrals_given' => $givenPaginator->total(),
+                'referrals_received' => $receivedPaginator->total(),
+                'total_referrals' => $givenPaginator->total() + $receivedPaginator->total(),
+            ],
+            'referrals_given' => [
+                'data' => $givenItems,
+                'meta' => [
+                    'current_page' => $givenPaginator->currentPage(),
+                    'per_page' => $givenPaginator->perPage(),
+                    'total' => $givenPaginator->total(),
+                    'last_page' => $givenPaginator->lastPage(),
+                ],
+            ],
+            'referrals_received' => [
+                'data' => $receivedItems,
+                'meta' => [
+                    'current_page' => $receivedPaginator->currentPage(),
+                    'per_page' => $receivedPaginator->perPage(),
+                    'total' => $receivedPaginator->total(),
+                    'last_page' => $receivedPaginator->lastPage(),
+                ],
+            ],
+        ]);
+    }
+
+    public function statsByUser(Request $request, string $userId)
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+
+        $givenPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser', 'status'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('from_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'given_page');
+
+        $receivedPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser', 'status'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('to_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'received_page');
+
+        $givenItems = ActivityReferralResource::collection($givenPaginator->items());
+        $receivedItems = ActivityReferralResource::collection($receivedPaginator->items());
+
+        $resolvedCity = $user->city_of_residence ?: (is_string($user->city) ? $user->city : data_get($user, 'city.name'));
+
+        return $this->success([
+            'user' => [
+                'id' => (string) $user->id,
+                'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'company_name' => $user->company_name,
+                'designation' => $user->designation,
+                'city' => $resolvedCity,
+                'membership_status' => $user->membership_status,
+                'profile_photo_url' => $user->profile_photo_url,
+                'public_profile_slug' => $user->public_profile_slug,
+            ],
+            'counts' => [
+                'referrals_given' => $givenPaginator->total(),
+                'referrals_received' => $receivedPaginator->total(),
+                'total_referrals' => $givenPaginator->total() + $receivedPaginator->total(),
+            ],
+            'referrals_given' => [
+                'data' => $givenItems,
+                'meta' => [
+                    'current_page' => $givenPaginator->currentPage(),
+                    'per_page' => $givenPaginator->perPage(),
+                    'total' => $givenPaginator->total(),
+                    'last_page' => $givenPaginator->lastPage(),
+                ],
+            ],
+            'referrals_received' => [
+                'data' => $receivedItems,
+                'meta' => [
+                    'current_page' => $receivedPaginator->currentPage(),
+                    'per_page' => $receivedPaginator->perPage(),
+                    'total' => $receivedPaginator->total(),
+                    'last_page' => $receivedPaginator->lastPage(),
+                ],
+            ],
+        ]);
     }
 
     public function validateCode(string $code, ReferralService $referralService)
@@ -82,17 +217,17 @@ class ReferralController extends BaseApiController
 
         $referralCodeColumn = $this->referralLinksCodeColumn();
         $referralUserColumn = $this->referralLinksUserColumn();
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $queryText) . '%';
+        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $queryText).'%';
 
         $query = User::query()
-            ->leftJoin('referral_links as rl', 'rl.' . $referralUserColumn, '=', 'users.id')
+            ->leftJoin('referral_links as rl', 'rl.'.$referralUserColumn, '=', 'users.id')
             ->select([
                 'users.id as user_id',
                 'users.display_name',
                 'users.first_name',
                 'users.last_name',
                 'users.company_name',
-                DB::raw('rl."' . $referralCodeColumn . '" as referral_code'),
+                DB::raw('rl."'.$referralCodeColumn.'" as referral_code'),
             ])
             ->where(function ($query) use ($like, $referralCodeColumn): void {
                 $query->where('users.display_name', 'ILIKE', $like)
@@ -100,14 +235,14 @@ class ReferralController extends BaseApiController
                     ->orWhere('users.last_name', 'ILIKE', $like)
                     ->orWhere('users.email', 'ILIKE', $like)
                     ->orWhere('users.phone', 'ILIKE', $like)
-                    ->orWhere('rl.' . $referralCodeColumn, 'ILIKE', $like);
+                    ->orWhere('rl.'.$referralCodeColumn, 'ILIKE', $like);
             })
             ->orderBy('users.display_name')
             ->limit(20);
 
         $items = $query->get()
             ->map(function ($row): array {
-                $displayName = trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '') . ' ' . ($row->last_name ?? ''))));
+                $displayName = trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '').' '.($row->last_name ?? ''))));
 
                 return [
                     'user_id' => (string) $row->user_id,
@@ -128,7 +263,7 @@ class ReferralController extends BaseApiController
         $payload = $referralService->generateOrGetReferral($user);
         $user->loadMissing(['activeCircle:id,name']);
 
-        $resolvedName = trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
+        $resolvedName = trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '').' '.($user->last_name ?? ''))));
         $resolvedCity = is_string($user->city)
             ? $user->city
             : data_get($user, 'city.name');
@@ -163,7 +298,6 @@ class ReferralController extends BaseApiController
             ],
         ]);
     }
-
 
     private function referralLinksUserColumn(): string
     {
@@ -290,7 +424,7 @@ class ReferralController extends BaseApiController
                         'activity_type' => 'referral',
                         'activity_id' => (string) $referral->id,
                         'title' => 'New Referral',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' sent you a referral',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a referral',
                     ],
                     $referral
                 );
@@ -357,5 +491,68 @@ class ReferralController extends BaseApiController
         }
 
         return $this->success($referral);
+    }
+
+    public function statuses()
+    {
+        $statuses = ReferralStatus::orderBy('id')->get(['id', 'name']);
+
+        return $this->success($statuses, 'Referral statuses fetched successfully.');
+    }
+
+    public function updateStatus(Request $request, string $id, NotifyUserService $notifyUserService)
+    {
+        $referral = Referral::where('id', $id)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $referral) {
+            return $this->error('Referral not found', 404);
+        }
+
+        $request->validate([
+            'status_id' => 'required|exists:referral_status,id',
+        ]);
+
+        $statusId = $request->input('status_id');
+        $referral->status_id = $statusId;
+        $referral->save();
+
+        // Load status and users for notification context
+        $referral->load(['status', 'fromUser', 'toUser']);
+        $statusName = $referral->status ? $referral->status->name : 'Pending';
+
+        $authUser = $request->user();
+
+        // Determine who to notify
+        $recipient = null;
+        if ($authUser->id === $referral->from_user_id) {
+            $recipient = $referral->toUser;
+        } elseif ($authUser->id === $referral->to_user_id) {
+            $recipient = $referral->fromUser;
+        }
+
+        if ($recipient) {
+            $updaterName = $authUser->display_name ?? trim(($authUser->first_name ?? '').' '.($authUser->last_name ?? ''));
+            if (empty($updaterName)) {
+                $updaterName = 'A member';
+            }
+
+            $notifyUserService->notifyUser(
+                $recipient,
+                $authUser,
+                'activity_referral_status_updated',
+                [
+                    'activity_type' => 'referral',
+                    'activity_id' => (string) $referral->id,
+                    'title' => 'Referral Status Updated',
+                    'body' => "{$updaterName} updated the status of the referral to \"{$statusName}\".",
+                ],
+                $referral
+            );
+        }
+
+        return $this->success($referral, 'Referral status updated successfully.');
     }
 }

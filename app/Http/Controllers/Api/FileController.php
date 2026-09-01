@@ -1,23 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
+use App\Exceptions\MediaProcessingException;
 use App\Http\Resources\FileResource;
 use App\Models\File;
+use App\Models\FileModel;
+use App\Models\Post;
+use App\Models\User;
+use App\Services\Creative\IntroducedPeerCreativeGenerator;
+use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\Media\FileUploadService;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use App\Exceptions\MediaProcessingException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class FileController extends BaseApiController
 {
     public function __construct(
         private readonly FileUploadService $fileUploadService
-    ) {
-    }
+    ) {}
 
     /**
      * Serve a file by its UUID.
@@ -25,11 +33,152 @@ class FileController extends BaseApiController
     public function show(Request $request, string $id)
     {
         try {
-            $file = File::find($id);
+            $file = Str::isUuid($id) ? File::find($id) : null;
 
-            if (!$file) {
-                Log::warning("File API lookup failed: Database record not found for UUID: {$id}", [
-                    'uuid' => $id,
+            if (! $file && Str::isUuid($id)) {
+                // Self-healing: check if this file ID is referenced by a timeline post and recreate the record if needed
+                try {
+                    $post = Post::where('media', 'LIKE', '%"id":"'.$id.'"%')
+                        ->orWhere('image', 'LIKE', '%'.$id.'%')
+                        ->first();
+
+                    if ($post && (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id))) {
+                        $introducer = User::find($post->source_id);
+                        if (! $introducer && $post->source_type === 'milestone_badge') {
+                            // For milestone badges, user ID may be stored in tags or post user_id
+                            $userId = collect($post->tags ?? [])->last();
+                            $introducer = User::find($userId) ?: User::find($post->user_id);
+                        }
+
+                        if ($introducer) {
+                            $count = User::where('introduced_by', $introducer->id)->count();
+                            if ($count === 0) {
+                                $count = 1;
+                            }
+
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.webp';
+                            $fileModel->mime_type = 'image/webp';
+                            $fileModel->save();
+
+                            $generator = app(IntroducedPeerCreativeGenerator::class);
+                            $generator->generate($introducer, $count, $fileModel);
+
+                            // Refresh the parent file lookup
+                            $file = File::find($id);
+                        }
+                    } elseif ($post && $post->post_type === 'welcome' && $post->source_id) {
+                        $user = User::find($post->source_id);
+                        if ($user) {
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
+                            $fileModel->mime_type = 'image/png';
+                            $fileModel->save();
+
+                            $generator = app(WearTheBadgeImageGenerator::class);
+                            $generator->generate($user, $fileModel);
+
+                            // Refresh the parent file lookup
+                            $file = File::find($id);
+                        }
+                    } else {
+                        // Check if referenced by user directly
+                        $user = User::where('welcome_creative_url', 'LIKE', '%'.$id.'%')
+                            ->orWhere('profile_card_image_url', 'LIKE', '%'.$id.'%')
+                            ->first();
+
+                        if ($user) {
+                            $fileModel = new FileModel;
+                            $fileModel->id = $id;
+                            $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
+                            $fileModel->mime_type = 'image/png';
+                            $fileModel->save();
+
+                            $generator = app(WearTheBadgeImageGenerator::class);
+                            $generator->generate($user, $fileModel);
+
+                            // Refresh the parent file lookup
+                            $file = File::find($id);
+                        }
+                    }
+                } catch (\Throwable $regenEx) {
+                    Log::error("File API Self-Healing database recreation failed for UUID {$id}: ".$regenEx->getMessage());
+                }
+            }
+
+            if (! $file) {
+                $cleanId = ltrim(preg_replace('#^(storage/|public/)+#i', '', $id), '/');
+                $baseName = basename($cleanId);
+                $candidatePaths = array_values(array_unique([
+                    $id,
+                    $cleanId,
+                    'milestone-badges/'.$cleanId,
+                    'ads/'.$cleanId,
+                    $baseName,
+                    'milestone-badges/'.$baseName,
+                    'ads/'.$baseName,
+                    'uploads/'.$baseName,
+                ]));
+
+                $disks = array_unique([config('filesystems.default', 'public'), 'public', 'local']);
+                $foundDisk = null;
+                $foundPath = null;
+                $absolutePath = null;
+
+                foreach ($disks as $diskName) {
+                    foreach ($candidatePaths as $candidate) {
+                        try {
+                            if (Storage::disk($diskName)->exists($candidate)) {
+                                $foundDisk = $diskName;
+                                $foundPath = $candidate;
+                                break 2;
+                            }
+                        } catch (\Throwable $e) {
+                        }
+                    }
+                }
+
+                if (! $foundPath) {
+                    foreach ($candidatePaths as $candidate) {
+                        $checkPaths = [
+                            public_path($candidate),
+                            public_path('storage/'.$candidate),
+                            storage_path('app/'.$candidate),
+                            storage_path('app/public/'.$candidate),
+                            storage_path('app/public/milestone-badges/'.$candidate),
+                            storage_path('app/public/ads/'.$candidate),
+                        ];
+                        foreach ($checkPaths as $absPath) {
+                            if (is_file($absPath)) {
+                                $absolutePath = $absPath;
+                                break 2;
+                            }
+                        }
+                    }
+                }
+
+                if ($foundDisk && $foundPath) {
+                    $rawMime = Storage::disk($foundDisk)->mimeType($foundPath);
+                    $mime = $this->resolveMimeType($foundPath, $rawMime);
+                    $size = Storage::disk($foundDisk)->size($foundPath);
+                    $stream = Storage::disk($foundDisk)->readStream($foundPath);
+
+                    return $this->buildStreamResponse($request, $stream, $size, $mime);
+                }
+
+                if ($absolutePath && is_file($absolutePath)) {
+                    $rawMime = mime_content_type($absolutePath) ?: null;
+                    $mime = $this->resolveMimeType($absolutePath, $rawMime);
+                    $size = filesize($absolutePath);
+                    $stream = fopen($absolutePath, 'rb');
+
+                    return $this->buildStreamResponse($request, $stream, $size, $mime);
+                }
+
+                Log::warning("File API lookup failed: Database record and physical file not found for: {$id}", [
+                    'id' => $id,
                     'ip' => $request->ip(),
                     'user_id' => auth()->id() ?? auth('admin')->id(),
                 ]);
@@ -38,44 +187,97 @@ class FileController extends BaseApiController
 
             $disk = config('filesystems.default', 'public');
 
-            if (!$file->s3_key || !Storage::disk($disk)->exists($file->s3_key)) {
-                if (!$file->is_orphaned) {
-                    $file->is_orphaned = true;
-                    $file->save();
+            if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
+                if ($file->s3_key && Storage::disk('public')->exists($file->s3_key)) {
+                    $disk = 'public';
+                } else {
+                    // Try self-healing: check if this file is a timeline creative post that can be regenerated on-the-fly
+                    $regenerated = false;
+                    try {
+                        $post = Post::where('media', 'LIKE', '%"id":"'.$file->id.'"%')
+                            ->orWhere('image', 'LIKE', '%'.$file->id.'%')
+                            ->first();
+
+                        if ($post && (($post->post_type === 'growth_honour' || $post->post_type === 'milestone_honour' || $post->source_type === 'milestone_badge') && ($post->source_id || $post->user_id))) {
+                            $introducer = User::find($post->source_id);
+                            if (! $introducer && $post->source_type === 'milestone_badge') {
+                                $userId = collect($post->tags ?? [])->last();
+                                $introducer = User::find($userId) ?: User::find($post->user_id);
+                            }
+
+                            if ($introducer) {
+                                $count = User::where('introduced_by', $introducer->id)->count();
+                                if ($count === 0) {
+                                    $count = 1;
+                                }
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    $generator = app(IntroducedPeerCreativeGenerator::class);
+                                    $generator->generate($introducer, $count, $fileModel);
+                                    $regenerated = true;
+                                }
+                            }
+                        } elseif ($post && $post->post_type === 'welcome' && $post->source_id) {
+                            $user = User::find($post->source_id);
+                            if ($user) {
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    $generator = app(WearTheBadgeImageGenerator::class);
+                                    $generator->generate($user, $fileModel);
+                                    $regenerated = true;
+                                }
+                            }
+                        }
+
+                        if (! $regenerated) {
+                            $user = User::where('welcome_creative_url', 'LIKE', '%'.$file->id.'%')
+                                ->orWhere('profile_card_image_url', 'LIKE', '%'.$file->id.'%')
+                                ->first();
+                            if ($user) {
+                                $fileModel = FileModel::find($file->id);
+                                if ($fileModel) {
+                                    $generator = app(WearTheBadgeImageGenerator::class);
+                                    $generator->generate($user, $fileModel);
+                                    $regenerated = true;
+                                }
+                            }
+                        }
+                    } catch (\Throwable $regenEx) {
+                        Log::error("File API Self-Healing failed for UUID {$id}: ".$regenEx->getMessage());
+                    }
+
+                    if ($regenerated && Storage::disk($disk)->exists($file->s3_key)) {
+                        Log::info("File API Self-Healing succeeded: Regenerated missing physical file for UUID: {$id}");
+                    } else {
+                        try {
+                            if (Schema::hasColumn('files', 'is_orphaned') && ! $file->is_orphaned) {
+                                $file->is_orphaned = true;
+                                $file->save();
+                            }
+                        } catch (\Throwable $dbEx) {
+                            Log::warning("Could not mark file {$id} as orphaned: ".$dbEx->getMessage());
+                        }
+
+                        Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
+                            'uuid' => $id,
+                            's3_key' => $file->s3_key,
+                            'disk' => $disk,
+                            'ip' => $request->ip(),
+                            'user_id' => auth()->id() ?? auth('admin')->id(),
+                        ]);
+                        abort(404, 'File not found');
+                    }
                 }
-
-                Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
-                    'uuid' => $id,
-                    's3_key' => $file->s3_key,
-                    'disk' => $disk,
-                    'ip' => $request->ip(),
-                    'user_id' => auth()->id() ?? auth('admin')->id(),
-                ]);
-                abort(404, 'File not found');
             }
 
-            $mime = $file->mime_type
-                ?: Storage::disk($disk)->mimeType($file->s3_key)
-                ?: 'application/octet-stream';
+            $rawMime = $file->mime_type ?: Storage::disk($disk)->mimeType($file->s3_key);
+            $mime = $this->resolveMimeType($file->s3_key, $rawMime);
+            $size = $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key);
+            $stream = Storage::disk($disk)->readStream($file->s3_key);
 
-            if ($request->isMethod('HEAD')) {
-                return response('', 200, [
-                    'Content-Type'  => $mime,
-                    'Content-Length' => $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key),
-                    'Cache-Control' => 'public, max-age=31536000',
-                ]);
-            }
-
-            return Storage::disk($disk)->response(
-                $file->s3_key,
-                null,
-                [
-                    'Content-Type'  => $mime,
-                    'Cache-Control' => 'public, max-age=31536000',
-                ]
-            );
+            return $this->buildStreamResponse($request, $stream, $size, $mime);
         } catch (\Throwable $e) {
-            Log::error("File API error for UUID {$id}: " . $e->getMessage(), [
+            Log::error("File API error for UUID {$id}: ".$e->getMessage(), [
                 'uuid' => $id,
                 'exception' => $e,
             ]);
@@ -102,7 +304,7 @@ class FileController extends BaseApiController
 
                 $result = $this->processSingleUpload($file, $request);
 
-                if ($result instanceof \Illuminate\Http\JsonResponse) {
+                if ($result instanceof JsonResponse) {
                     return $result;
                 }
 
@@ -122,6 +324,10 @@ class FileController extends BaseApiController
 
         $resource = $this->processSingleUpload($filesInput, $request);
 
+        if ($resource instanceof JsonResponse) {
+            return $resource;
+        }
+
         return $this->success($resource, 'File uploaded successfully', 201);
     }
 
@@ -140,4 +346,168 @@ class FileController extends BaseApiController
         return new FileResource($model);
     }
 
+    private function resolveMimeType(string $pathOrName, ?string $fallbackMime): string
+    {
+        $extension = strtolower(pathinfo($pathOrName, PATHINFO_EXTENSION));
+
+        $extensionMap = [
+            'mp4' => 'video/mp4',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            'm4v' => 'video/x-m4v',
+            'ogv' => 'video/ogg',
+            'avi' => 'video/x-msvideo',
+            'mkv' => 'video/x-matroska',
+            '3gp' => 'video/3gpp',
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'aac' => 'audio/aac',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+        ];
+
+        if (isset($extensionMap[$extension])) {
+            return $extensionMap[$extension];
+        }
+
+        if ($fallbackMime && $fallbackMime !== 'application/octet-stream' && $fallbackMime !== 'text/html') {
+            return $fallbackMime;
+        }
+
+        return 'application/octet-stream';
+    }
+
+    private function buildStreamResponse(Request $request, $stream, int $fileSize, string $mime)
+    {
+        if (! is_resource($stream)) {
+            abort(404, 'File resource unreadable');
+        }
+
+        $rangeHeader = $request->header('Range');
+
+        if ($rangeHeader && preg_match('/bytes=\s*(\d*)\s*-\s*(\d*)/i', (string) $rangeHeader, $matches)) {
+            $rawStart = $matches[1];
+            $rawEnd = $matches[2];
+
+            if ($rawStart === '' && $rawEnd !== '') {
+                $suffixLength = (int) $rawEnd;
+                $start = max(0, $fileSize - $suffixLength);
+                $end = $fileSize - 1;
+            } elseif ($rawStart !== '' && $rawEnd === '') {
+                $start = (int) $rawStart;
+                $end = $fileSize - 1;
+            } else {
+                $start = (int) $rawStart;
+                $end = (int) $rawEnd;
+            }
+
+            if ($start > $end || $start >= $fileSize) {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+
+                return response('', 416, [
+                    'Content-Range' => "bytes */{$fileSize}",
+                    'Accept-Ranges' => 'bytes',
+                ]);
+            }
+
+            $end = min($end, $fileSize - 1);
+            $length = $end - $start + 1;
+
+            $headers = [
+                'Content-Type' => $mime,
+                'Accept-Ranges' => 'bytes',
+                'Content-Range' => "bytes {$start}-{$end}/{$fileSize}",
+                'Content-Length' => (string) $length,
+                'Cache-Control' => 'no-cache, must-revalidate',
+            ];
+
+            if ($request->isMethod('HEAD')) {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+
+                return response('', 206, $headers);
+            }
+
+            return response()->stream(function () use ($stream, $start, $length) {
+                try {
+                    while (ob_get_level() > 0) {
+                        @ob_end_clean();
+                    }
+
+                    if ($start > 0) {
+                        if (@fseek($stream, $start) !== 0) {
+                            $discardLeft = $start;
+                            while ($discardLeft > 0 && ! feof($stream)) {
+                                $discardSize = min(64 * 1024, $discardLeft);
+                                $read = fread($stream, $discardSize);
+                                if ($read === false || $read === '') {
+                                    break;
+                                }
+                                $discardLeft -= strlen($read);
+                            }
+                        }
+                    }
+
+                    $bytesLeft = $length;
+                    $bufferSize = 64 * 1024;
+
+                    while ($bytesLeft > 0 && ! feof($stream)) {
+                        $readSize = min($bufferSize, $bytesLeft);
+                        $buffer = fread($stream, $readSize);
+                        if ($buffer === false || $buffer === '') {
+                            break;
+                        }
+                        echo $buffer;
+                        if (ob_get_level() > 0) {
+                            @ob_flush();
+                        }
+                        flush();
+                        $bytesLeft -= strlen($buffer);
+                    }
+                } finally {
+                    if (is_resource($stream)) {
+                        fclose($stream);
+                    }
+                }
+            }, 206, $headers);
+        }
+
+        $headers = [
+            'Content-Type' => $mime,
+            'Accept-Ranges' => 'bytes',
+            'Content-Length' => (string) $fileSize,
+            'Cache-Control' => 'no-cache, must-revalidate',
+        ];
+
+        if ($request->isMethod('HEAD')) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            return response('', 200, $headers);
+        }
+
+        return response()->stream(function () use ($stream) {
+            try {
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                fpassthru($stream);
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+        }, 200, $headers);
+    }
 }

@@ -12,9 +12,7 @@ class CoinClaimApprovedMail extends Mailable
     use Queueable;
     use SerializesModels;
 
-    public function __construct(public CoinClaimRequest $claim)
-    {
-    }
+    public function __construct(public CoinClaimRequest $claim) {}
 
     public function build(): self
     {

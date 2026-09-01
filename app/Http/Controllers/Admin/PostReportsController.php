@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Post;
 use App\Models\PostReport;
-use App\Support\AdminAccess;
+use App\Services\Admin\PermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +18,13 @@ class PostReportsController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! $admin) {
+            abort(403);
+        }
+
+        $routeName = request()->route()?->getName() ?? '';
+
+        if ($routeName !== '' && ! app(PermissionService::class)->canAccessRoute($admin, $routeName)) {
             abort(403);
         }
     }
@@ -74,11 +80,11 @@ class PostReportsController extends Controller
         }
 
         if (filled($postId)) {
-            $query->whereHas('post', fn ($postQuery) => $postQuery->where('id', 'ILIKE', '%' . $postId . '%'));
+            $query->whereHas('post', fn ($postQuery) => $postQuery->where('id', 'ILIKE', '%'.$postId.'%'));
         }
 
         if (filled($peer)) {
-            $peerLike = '%' . $peer . '%';
+            $peerLike = '%'.$peer.'%';
             $query->whereHas('post.user', function ($userQuery) use ($peerLike) {
                 $userQuery->where(function ($subQuery) use ($peerLike) {
                     $subQuery->where('name', 'ILIKE', $peerLike)
@@ -94,7 +100,7 @@ class PostReportsController extends Controller
         }
 
         if (filled($reporter)) {
-            $reporterLike = '%' . $reporter . '%';
+            $reporterLike = '%'.$reporter.'%';
             $query->whereHas('reporter', function ($reporterQuery) use ($reporterLike) {
                 $reporterQuery->where(function ($subQuery) use ($reporterLike) {
                     $subQuery->where('name', 'ILIKE', $reporterLike)
@@ -108,8 +114,8 @@ class PostReportsController extends Controller
 
         if (filled($reasonText)) {
             $query->where(function ($subQuery) use ($reasonText) {
-                $subQuery->where('reason', 'ILIKE', '%' . $reasonText . '%')
-                    ->orWhereHas('reasonOption', fn ($reasonQuery) => $reasonQuery->where('title', 'ILIKE', '%' . $reasonText . '%'));
+                $subQuery->where('reason', 'ILIKE', '%'.$reasonText.'%')
+                    ->orWhereHas('reasonOption', fn ($reasonQuery) => $reasonQuery->where('title', 'ILIKE', '%'.$reasonText.'%'));
             });
         }
 

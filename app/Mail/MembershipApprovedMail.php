@@ -16,8 +16,7 @@ class MembershipApprovedMail extends Mailable
         public User $user,
         public Carbon $membershipStartsAt,
         public Carbon $membershipEndsAt,
-    ) {
-    }
+    ) {}
 
     private function logoUrl(): ?string
     {
@@ -36,7 +35,7 @@ class MembershipApprovedMail extends Mailable
             }
         }
 
-        return 'https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png';
+        return 'https://peersunity.com/images/peersglobal-logo.png';
     }
 
     public function build()
@@ -45,7 +44,7 @@ class MembershipApprovedMail extends Mailable
             ->view('emails.membership-approved')
             ->with([
                 'user' => $this->user,
-                'userName' => $this->user->name ?: trim((string) (($this->user->first_name ?? '') . ' ' . ($this->user->last_name ?? ''))) ?: ($this->user->display_name ?: 'Peer'),
+                'userName' => $this->user->name ?: trim((string) (($this->user->first_name ?? '').' '.($this->user->last_name ?? ''))) ?: ($this->user->display_name ?: 'Peer'),
                 'membershipStartsAt' => $this->membershipStartsAt->format('d M Y'),
                 'membershipEndsAt' => $this->membershipEndsAt->format('d M Y'),
                 'currentYear' => now()->year,

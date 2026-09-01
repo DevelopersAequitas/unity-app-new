@@ -7,26 +7,39 @@ namespace App\Http\Controllers\Api\V1\Leader;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leader\LeaderMarkNotificationReadRequest;
 use App\Models\Notification;
+<<<<<<< HEAD
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\Leader\LeaderPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+=======
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Support\Str;
 
 class LeaderNotificationsController extends Controller
 {
     /**
+<<<<<<< HEAD
      * Get leader user notifications list with rich metadata.
      */
     public function index(Request $request): JsonResponse
     {
         /** @var User|null $user */
+=======
+     * Get user notifications list.
+     */
+    public function index(Request $request): JsonResponse
+    {
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         $user = $request->user();
         $notifications = [];
 
         if ($user) {
+<<<<<<< HEAD
             $userId = (string) $user->id;
 
             // 1. Fetch AppNotification items
@@ -218,6 +231,49 @@ class LeaderNotificationsController extends Controller
             'data' => $items,
             'notifications' => $items,
             'items' => $items,
+=======
+            $notifications = Notification::query()
+                ->where('user_id', $user->id)
+                ->orderByDesc('created_at')
+                ->take(20)
+                ->get()
+                ->map(fn (Notification $n) => [
+                    'id' => (string) $n->id,
+                    'title' => (string) ($n->title ?? 'New Notification'),
+                    'message' => (string) ($n->body ?? $n->message ?? 'You have a new update.'),
+                    'category' => (string) ($n->type ?? 'general'),
+                    'is_unread' => ! (bool) ($n->is_read ?? false),
+                    'created_at' => $n->created_at ? $n->created_at->toIso8601String() : now()->toIso8601String(),
+                ])
+                ->values()
+                ->all();
+        }
+
+        if (empty($notifications)) {
+            $notifications = [
+                [
+                    'id' => '00000000-0000-0000-0000-000000000001',
+                    'title' => 'New Referral Received',
+                    'message' => 'You received a new lead from Ananya Roy.',
+                    'category' => 'referral',
+                    'is_unread' => true,
+                    'created_at' => '2026-08-25T08:30:00Z',
+                ],
+                [
+                    'id' => '00000000-0000-0000-0000-000000000002',
+                    'title' => 'Monthly Report Reminder',
+                    'message' => 'August monthly report submission window is now open.',
+                    'category' => 'report',
+                    'is_unread' => true,
+                    'created_at' => '2026-08-24T14:00:00Z',
+                ],
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $notifications,
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ]);
     }
 
@@ -226,6 +282,7 @@ class LeaderNotificationsController extends Controller
      */
     public function markRead(LeaderMarkNotificationReadRequest $request): JsonResponse
     {
+<<<<<<< HEAD
         /** @var User|null $user */
         $user = $request->user();
 
@@ -264,11 +321,32 @@ class LeaderNotificationsController extends Controller
                     Notification::query()
                         ->where('user_id', $userId)
                         ->whereIn('id', $idsToMark)
+=======
+        $ids = $request->validated('notification_ids');
+        $user = $request->user();
+
+        if ($user && is_array($ids)) {
+            if (in_array('all', $ids, true)) {
+                Notification::query()
+                    ->where('user_id', $user->id)
+                    ->update([
+                        'is_read' => true,
+                        'read_at' => now(),
+                    ]);
+            } else {
+                $validUuids = array_values(array_filter($ids, fn ($id) => is_string($id) && Str::isUuid($id)));
+
+                if (! empty($validUuids)) {
+                    Notification::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('id', $validUuids)
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                         ->update([
                             'is_read' => true,
                             'read_at' => now(),
                         ]);
                 }
+<<<<<<< HEAD
 
                 if (Schema::hasTable('app_notifications')) {
                     AppNotification::query()
@@ -279,11 +357,14 @@ class LeaderNotificationsController extends Controller
                             'status' => 'read',
                         ]);
                 }
+=======
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             }
         }
 
         return response()->json([
             'success' => true,
+<<<<<<< HEAD
             'status' => true,
             'message' => 'Notifications marked as read successfully.',
         ]);
@@ -412,4 +493,9 @@ class LeaderNotificationsController extends Controller
             ]);
         }
     }
+=======
+            'message' => 'Notifications marked as read successfully.',
+        ]);
+    }
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 }

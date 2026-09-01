@@ -24,11 +24,19 @@ class StoreCircleRequest extends FormRequest
             'announcement' => ['nullable', 'string'],
             'city_id' => ['required', 'uuid', 'exists:cities,id'],
             'country' => ['required', 'string', 'max:100'],
-            'founder_user_id' => ['required', 'uuid', 'exists:users,id'],
-            'director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'circle_founder_user_id' => ['required', 'uuid', 'exists:users,id'],
+            'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'eed_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'business_growth_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'membership_growth_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'events_impacts_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'power_house_chair_1_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'power_house_chair_2_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'power_house_chair_3_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'cover_file_id' => ['nullable', 'uuid'],
+            'circle_image_file_id' => ['nullable', 'uuid'],
             'type' => ['required', Rule::in(Circle::TYPE_OPTIONS)],
             'status' => ['nullable', Rule::in(Circle::STATUS_OPTIONS)],
             'circle_stage' => ['nullable', Rule::in(Circle::STAGE_OPTIONS)],
@@ -36,6 +44,10 @@ class StoreCircleRequest extends FormRequest
             'industry_tags.*' => ['string', 'max:50'],
             'meeting_mode' => ['nullable', Rule::in(Circle::MEETING_MODE_OPTIONS)],
             'meeting_frequency' => ['nullable', Rule::in(Circle::MEETING_FREQUENCY_OPTIONS)],
+            'meeting_link' => ['nullable', 'string', 'max:1000'],
+            'meeting_passcode' => ['nullable', 'string', 'max:250'],
+            'meeting_venue' => ['nullable', 'string', 'max:1000'],
+            'meeting_landmark' => ['nullable', 'string', 'max:500'],
             'launch_date' => ['nullable', 'date'],
             'meeting_repeat' => ['nullable', 'array'],
             'calendar_meetings' => ['nullable', 'array'],
@@ -72,7 +84,7 @@ class StoreCircleRequest extends FormRequest
             $this->merge($payload);
         }
 
-        if ($this->filled('founder_user_id')) {
+        if ($this->filled('circle_founder_user_id')) {
             return;
         }
 
@@ -86,7 +98,7 @@ class StoreCircleRequest extends FormRequest
 
         if ($defaultFounder) {
             $this->merge([
-                'founder_user_id' => $defaultFounder->id,
+                'circle_founder_user_id' => $defaultFounder->id,
             ]);
         }
     }

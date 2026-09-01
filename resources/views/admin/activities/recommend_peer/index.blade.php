@@ -1,12 +1,25 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Recommend A Peer')
+@section('title', 'Recommended Peers')
+
+@include('admin.partials.grid-head')
 
 @section('content')
-    <style>
-        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
-    </style>
     @php
+        $getInitials = function($name) {
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if(!empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+        $getAvatarBg = function($name) {
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
+
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
                 return $display;
@@ -20,95 +33,173 @@
         };
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h1 class="h4 mb-0">Recommend A Peer</h1>
-        <span class="badge bg-light text-dark border">Total: {{ number_format($items->total()) }}</span>
-    </div>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <!-- Header Component -->
+        @include('admin.activities.partials.header', ['title' => 'Recommended Peers'])
 
-    <form id="adminactivitiesrecommend-peerindexFiltersForm" method="GET" action="{{ route('admin.activities.recommend-peer.index') }}">
-    @include('admin.components.activity-filter-bar-v2', [
-        'actionUrl' => route('admin.activities.recommend-peer.index'),
-        'resetUrl' => route('admin.activities.recommend-peer.index'),
-        'filters' => $filters,
-        'circles' => $circles ?? collect(),
-        'showExport' => false,
-        'renderFormTag' => false,
-        'formId' => 'adminactivitiesrecommend-peerindexFiltersForm',
-    ])
+        <!-- Metrics Cards -->
+        <div class="activities-stats-grid">
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-hand-thumbs-up-fill"></i>
+                </div>
+                <div>
+                    <div class="metric-val">{{ number_format($items->total()) }}</div>
+                    <div class="metric-label">Total Recommendations</div>
+                </div>
+            </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Submitted At</th>
-                        <th>Peer Name</th>
-                        <th>Peer Phone</th>
-                        <th>Recommended Peer Name</th>
-                        <th>Recommended Peer Mobile</th>
-                        <th>How Well Known</th>
-                        <th>Is Aware</th>
-                        <th>Coins Awarded</th>
-                        <th>Created At</th>
-                    </tr>
-                    <tr>
-                        <th class="text-muted">—</th>
-                        <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Peer Phone" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="recommended_peer_name" value="{{ $filters['recommended_peer_name'] ?? '' }}" placeholder="Recommended Peer Name" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="recommended_peer_mobile" value="{{ $filters['recommended_peer_mobile'] ?? '' }}" placeholder="Recommended Peer Mobile" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="how_well_known" value="{{ $filters['how_well_known'] ?? '' }}" placeholder="How Well Known" class="form-control form-control-sm"></th>
-                        <th>
-                            <select name="is_aware" class="form-select form-select-sm">
-                                <option value="">Any</option>
-                                <option value="yes" @selected(($filters['is_aware'] ?? '')==='yes')>Yes</option>
-                                <option value="no" @selected(($filters['is_aware'] ?? '')==='no')>No</option>
-                            </select>
-                        </th>
-                        <th><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="form-control form-control-sm"></th>
-                        <th>
-                            <div class="d-flex justify-content-end gap-2">
-                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-                                <a href="{{ route('admin.activities.recommend-peer.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        @php
-                            $peerName = $item->from_user_name ?? '—';
-                        @endphp
-                        <tr>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $peerName,
-                                    'company' => $item->from_company ?? '',
-                                    'city' => $item->from_city ?? '',
-                                ])
-                            </td>
-                            <td>{{ $item->from_phone ?? '—' }}</td>
-                            <td>{{ $item->peer_name ?? '—' }}</td>
-                            <td>{{ $item->peer_mobile ?? '—' }}</td>
-                            <td>{{ $item->how_well_known ?? '—' }}</td>
-                            <td>{{ $item->is_aware ? 'Yes' : 'No' }}</td>
-                            <td>{{ $item->coins_awarded ? 'Yes' : 'No' }}</td>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="9" class="text-center text-muted">No recommendations found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-success-subtle text-success">
+                    <i class="bi bi-person-fill-check"></i>
+                </div>
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->filter(fn($item) => $item->is_aware)->count()) }}
+                    </div>
+                    <div class="metric-label">Peers Aware (Page)</div>
+                </div>
+            </div>
         </div>
-    </div>
 
-    </form>
+        <!-- Filters Section -->
+        <form id="adminactivitiesrecommend-peerindexFiltersForm" method="GET" action="{{ route('admin.activities.recommend-peer.index') }}" class="space-y-4">
+            @include('admin.components.activity-filter-bar-v2', [
+                'actionUrl' => route('admin.activities.recommend-peer.index'),
+                'resetUrl' => route('admin.activities.recommend-peer.index'),
+                'filters' => $filters,
+                'circles' => $circles ?? collect(),
+                'showExport' => false,
+                'renderFormTag' => false,
+                'formId' => 'adminactivitiesrecommend-peerindexFiltersForm',
+            ])
 
-    <div class="mt-3">
-        {{ $items->links() }}
+            <!-- Table Card -->
+            <div class="rounded-xl border bs surface overflow-hidden">
+                <div class="overflow-x-auto relative">
+                    <table class="min-w-full border-collapse text-[13px]">
+                        <thead>
+                            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Recommender Details</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Recommender Phone</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Recommended Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Recommended Peer Mobile</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">How Well Known</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Is Aware</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Coins Awarded</th>
+                            </tr>
+                            <tr class="surface-2 border-b bs filter-row">
+                                <th class="px-2 py-1 text-center t3">—</th>
+                                <th class="px-2 py-1">
+                                    <input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                </th>
+                                <th class="px-2 py-1"><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="recommended_peer_name" value="{{ $filters['recommended_peer_name'] ?? '' }}" placeholder="Rec Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="recommended_peer_mobile" value="{{ $filters['recommended_peer_mobile'] ?? '' }}" placeholder="Mobile" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="how_well_known" value="{{ $filters['how_well_known'] ?? '' }}" placeholder="Known" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1">
+                                    <select name="is_aware" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select">
+                                        <option value="">Any</option>
+                                        <option value="yes" @selected(($filters['is_aware'] ?? '')==='yes')>Yes</option>
+                                        <option value="no" @selected(($filters['is_aware'] ?? '')==='no')>No</option>
+                                    </select>
+                                </th>
+                                <th class="px-2 py-1">
+                                    <div class="flex justify-end">
+                                        <button type="button" onclick="clearAdminFilters(event, 'adminactivitiesrecommend-peerindexFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs surface t2 hover:t1 hover:surface-3 transition">Clear</button>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                            @forelse ($items as $item)
+                                @php
+                                    $peerName = $item->from_user_name ?? '—';
+                                @endphp
+                                <tr class="hover:surface-2 transition border-b bs">
+                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
+                                    <td class="px-3 py-2.5">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
+                                                {{ $getInitials($peerName) }}
+                                            </div>
+                                            <div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($item->user_id ?? $item->actor_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $peerName }}
+                                                        </a>
+                                                    @else
+                                                        {{ $peerName }}
+                                                    @endif
+                                                </div>
+                                                <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                    @if($item->from_company) <span class="truncate max-w-[140px]" title="{{ $item->from_company }}">{{ $item->from_company }}</span> @endif
+                                                    @if($item->from_company && $item->from_city) <span class="text-slate-400 select-none">•</span> @endif
+                                                    @if($item->from_city) <span class="truncate max-w-[100px] text-slate-500" title="{{ $item->from_city }}">{{ $item->from_city }}</span> @endif
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->from_phone ?? '—' }}</td>
+                                    <td class="px-3 py-2.5">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($item->peer_name ?? '') }}">
+                                                {{ $getInitials($item->peer_name ?? '') }}
+                                            </div>
+                                            <div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($item->recommended_user_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->recommended_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $item->peer_name ?? '—' }}
+                                                        </a>
+                                                    @else
+                                                        {{ $item->peer_name ?? '—' }}
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $item->peer_mobile ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->how_well_known ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                        @if($item->is_aware)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Yes
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>No
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                        @if($item->coins_awarded)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                                <i class="bi bi-coin text-[11px] text-amber-500"></i>Awarded
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                                No
+                                            </span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="8" class="text-center py-8 text-xs t3">No entries found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                    {{ $items->links() }}
+                </div>
+            </div>
+        </form>
     </div>
 @endsection
+

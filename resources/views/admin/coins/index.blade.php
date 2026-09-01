@@ -2,157 +2,175 @@
 
 @section('title', 'Coins')
 
-@push('styles')
-    <style>
-        .coins-table-wrapper {
-            width: 100%;
-        }
+@include('admin.partials.grid-head')
 
-        .coins-table-scroll {
-            width: 100%;
-            overflow-x: auto;
-            overflow-y: visible;
+@php
+    $getInitials = function (?string $name): string {
+        if (! $name) return 'P';
+        $words = explode(' ', trim($name));
+        $initials = '';
+        foreach ($words as $w) {
+            if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
         }
+        return substr($initials, 0, 2) ?: 'P';
+    };
 
-        .coins-table {
-            width: max-content;
-            min-width: 1200px;
-        }
-
-        .coins-table thead th {
-            white-space: nowrap;
-            word-break: keep-all;
-        }
-
-        .coins-filter-actions {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: nowrap;
-            white-space: nowrap;
-        }
-
-        .coins-filter-actions .btn {
-            flex: 0 0 auto;
-        }
-    </style>
-@endpush
+    $getAvatarBg = function (?string $name): string {
+        if (! $name) return '#6366f1';
+        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+        $hash = crc32($name);
+        return $colors[abs($hash) % count($colors)];
+    };
+@endphp
 
 @section('content')
     @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
+        <div class="alert alert-success mb-4">{{ session('success') }}</div>
     @endif
 
-    <div class="card shadow-sm">
-        <div class="d-flex flex-wrap justify-content-between align-items-center p-3 gap-2 border-bottom">
-            <div class="d-flex align-items-center gap-2">
-                <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
-                <select id="perPage" name="per_page" form="coinsFiltersForm" class="form-select form-select-sm" style="width: 90px;">
-                    @foreach ([10, 20, 25, 50, 100] as $size)
-                        <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
-                    @endforeach
-                </select>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Coins Management</h2>
+                <p class="text-xs t3 m-0 mt-0.5">Overview of peer coin balances and reward activity metrics.</p>
             </div>
-            <a href="{{ route('admin.coins.create') }}" class="btn btn-sm btn-primary">Add Coins</a>
-        </div>
-
-        <div class="coins-table-wrapper">
-            <div class="coins-table-scroll">
-            <table class="table mb-0 align-middle table-hover coins-table">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 300px; min-width: 300px;">Peer Name</th>
-                        <th class="text-center" style="width: 120px; min-width: 120px;"><span class="d-inline-block">Total<br>Coins</span></th>
-                        <th class="text-center text-nowrap" style="width: 120px; min-width: 120px;">Testimonials</th>
-                        <th class="text-center text-nowrap" style="width: 120px; min-width: 120px;">Referrals</th>
-                        <th class="text-center" style="width: 140px; min-width: 140px;"><span class="d-inline-block">Business<br>Deals</span></th>
-                        <th class="text-center" style="width: 140px; min-width: 140px;"><span class="d-inline-block">P2P<br>Meetings</span></th>
-                        <th class="text-center text-nowrap" style="width: 130px; min-width: 130px;">Requirements</th>
-                    </tr>
-
-                    <tr class="align-middle">
-                        <th>
-                            <div class="d-flex flex-column gap-2">
-                                <input
-                                    id="coinsQ"
-                                    type="text"
-                                    name="q"
-                                    form="coinsFiltersForm"
-                                    class="form-control form-control-sm"
-                                    placeholder="Peer/Company/City"
-                                    value="{{ $filters['q'] }}"
-                                >
-                                <select id="coinsCircle" name="circle_id" form="coinsFiltersForm" class="form-select form-select-sm">
-                                    <option value="all">All Circles</option>
-                                    @foreach ($circles as $circle)
-                                        <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </th>
-                        <th class="text-center text-muted small">—</th>
-                        <th class="text-center text-muted small">—</th>
-                        <th class="text-center text-muted small">—</th>
-                        <th class="text-center text-muted small">—</th>
-                        <th class="text-center text-muted small">—</th>
-                        <th class="text-end">
-                            <form id="coinsFiltersForm" method="GET" class="coins-filter-actions justify-content-end">
-                                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                                <a href="{{ route('admin.coins.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                                <button type="button" id="coinsExportBtn" class="btn btn-sm btn-outline-primary">Export</button>
-                            </form>
-                            <form id="coinsExportForm" method="GET" action="{{ route('admin.coins.export') }}" class="d-none"></form>
-                        </th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    @forelse ($members as $member)
-                        @php
-                            $stats = $activityStats[$member->id] ?? null;
-                            $totalCoins = (int) ($member->coins_balance ?? 0);
-                            $testimonialCount = (int) ($stats->testimonial_count ?? 0);
-                            $referralCount = (int) ($stats->referral_count ?? 0);
-                            $businessDealCount = (int) ($stats->business_deal_count ?? 0);
-                            $p2pMeetingCount = (int) ($stats->p2p_meeting_count ?? 0);
-                            $requirementCount = (int) ($stats->requirement_count ?? 0);
-                        @endphp
-                        <tr>
-                            <td>
-                                @include('admin.shared.peer_card', ['user' => $member])
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('admin.coins.ledger', $member) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $totalCoins }}</a>
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('admin.coins.ledger.type', [$member, 'testimonial']) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $testimonialCount }}</a>
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('admin.coins.ledger.type', [$member, 'referral']) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $referralCount }}</a>
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('admin.coins.ledger.type', [$member, 'business_deal']) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $businessDealCount }}</a>
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('admin.coins.ledger.type', [$member, 'p2p_meeting']) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $p2pMeetingCount }}</a>
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('admin.coins.ledger.type', [$member, 'requirement']) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $requirementCount }}</a>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">No members found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="flex items-center gap-1.5">
+                    <label for="perPage" class="text-xs t3 m-0 font-medium">Rows per page:</label>
+                    <select id="perPage" name="per_page" form="coinsFiltersForm" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        @foreach ([10, 20, 25, 50, 100] as $size)
+                            <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button type="button" id="coinsExportBtn" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition">
+                    Export
+                </button>
+                    <a href="{{ route('admin.coins.create') }}" class="chip px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white border-0 no-underline flex items-center gap-1.5">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add Coins
+                    </a>
             </div>
         </div>
 
-        <div class="p-3">
-            {{ $members->links() }}
-        </div>
+        <form id="coinsFiltersForm" method="GET" action="{{ route('admin.coins.index') }}" class="admin-filter-form space-y-4">
+            <div class="rounded-xl border bs surface overflow-hidden">
+                <div class="overflow-x-auto relative w-full">
+                    <table class="w-full min-w-[1180px] border-collapse text-[13px]">
+                        <thead>
+                            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width: 180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 160px;">Company</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 110px;">City</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 130px;">Circle</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 150px;">Total Coins</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 110px;">Testimonials</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 100px;">Referrals</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 110px;">Business Deals</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 110px;">P2P Meetings</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 110px;">Requirements</th>
+                            </tr>
+
+                            <tr class="surface-2 border-b bs align-middle filter-row">
+                                <th class="px-3 py-2 text-left sticky left-0 z-10 surface-2" style="min-width: 180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
+                                    <input
+                                        id="coinsQ"
+                                        type="text"
+                                        name="q"
+                                        class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
+                                        placeholder="Search peer, company, city"
+                                        value="{{ $filters['q'] }}"
+                                    >
+                                </th>
+                                <th class="px-3 py-2" style="min-width: 160px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                                <th class="px-3 py-2" style="min-width: 110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                                <th class="px-3 py-2 text-left" style="min-width: 130px;">
+                                    <select id="coinsCircle" name="circle_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal">
+                                        <option value="all">All Circles</option>
+                                        @foreach ($circles as $circle)
+                                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </th>
+                                <th class="text-center t3 text-xs" style="min-width: 150px;">-</th>
+                                <th class="text-center t3 text-xs" style="min-width: 110px;">-</th>
+                                <th class="text-center t3 text-xs" style="min-width: 100px;">-</th>
+                                <th class="text-center t3 text-xs" style="min-width: 110px;">-</th>
+                                <th class="text-center t3 text-xs" style="min-width: 110px;">-</th>
+                                <th class="px-3 py-2 text-center" style="min-width: 110px;">
+                                    <button type="button" onclick="clearAdminFilters(event, 'coinsFiltersForm')" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                            @forelse ($members as $member)
+                                @php
+                                    $stats = $activityStats[$member->id] ?? null;
+                                    $totalCoins = (int) ($member->coins_balance ?? 0);
+                                    $testimonialCount = (int) ($stats->testimonial_count ?? 0);
+                                    $referralCount = (int) ($stats->referral_count ?? 0);
+                                    $businessDealCount = (int) ($stats->business_deal_count ?? 0);
+                                    $p2pMeetingCount = (int) ($stats->p2p_meeting_count ?? 0);
+                                    $requirementCount = (int) ($stats->requirement_count ?? 0);
+
+                                    $memberName = $member ? ($member->display_name ?: trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''))) : '—';
+                                    $company = $member->company_name ?? $member->company ?? $member->business_name ?? '—';
+                                    $city = $member->city ?? '—';
+                                    $userCircles = $member ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
+                                    $circleName = $userCircles !== '' ? $userCircles : '—';
+                                @endphp
+                                <tr class="hover:surface-2 transition border-b bs">
+                                    <td class="px-3 py-2.5 text-left align-middle sticky left-0 z-10 surface" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                        @if ($member)
+                                            <div class="flex items-center gap-2 whitespace-nowrap">
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($memberName) }}">
+                                                    {{ $getInitials($memberName) }}
+                                                </div>
+                                                <a href="{{ route('admin.users.show', $member->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                    {{ $memberName }}
+                                                </a>
+                                            </div>
+                                        @else
+                                            <span class="t3">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width: 160px;"><x-admin-grid-text :text="$company" :lines="2" /></td>
+                                    <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width: 110px;"><x-admin-grid-text :text="$city" :lines="2" /></td>
+                                    <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width: 130px;"><x-admin-grid-text :text="$circleName" :lines="2" /></td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 150px;">
+                                        <a href="{{ route('admin.coins.ledger', $member) }}" class="chip px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($totalCoins) }}</a>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 110px;">
+                                        <a href="{{ route('admin.coins.ledger.type', [$member, 'testimonial']) }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($testimonialCount) }}</a>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 100px;">
+                                        <a href="{{ route('admin.coins.ledger.type', [$member, 'referral']) }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($referralCount) }}</a>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 110px;">
+                                        <a href="{{ route('admin.coins.ledger.type', [$member, 'business_deal']) }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($businessDealCount) }}</a>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 110px;">
+                                        <a href="{{ route('admin.coins.ledger.type', [$member, 'p2p_meeting']) }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($p2pMeetingCount) }}</a>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 110px;">
+                                        <a href="{{ route('admin.coins.ledger.type', [$member, 'requirement']) }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($requirementCount) }}</a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="10" class="text-center py-8 text-xs t3">No members found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                    {{ $members->links() }}
+                </div>
+            </div>
+        </form>
+        <form id="coinsExportForm" method="GET" action="{{ route('admin.coins.export') }}" class="d-none"></form>
     </div>
 
     @push('scripts')
@@ -222,3 +240,4 @@
         </script>
     @endpush
 @endsection
+

@@ -7,6 +7,7 @@ use App\Models\Circle;
 use App\Models\CoinLedger;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use App\Support\Coins\CoinLedgerFormatter;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -58,7 +59,7 @@ class CoinsController extends Controller
             ->orderByDesc('total_coins_sort')
             ->orderBy('users.display_name');
 
-        $filename = 'coins_index_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'coins_index_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($query): void {
             $handle = fopen('php://output', 'w');
@@ -206,7 +207,7 @@ class CoinsController extends Controller
         $filters = $this->ledgerFilters($request);
         $query = $this->ledgerQuery($member, $filters, $activeType)->orderByDesc('created_at');
 
-        $filename = 'coins_ledger_' . ($activeType ?: 'all') . '_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'coins_ledger_'.($activeType ?: 'all').'_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($query): void {
             $handle = fopen('php://output', 'w');
@@ -298,10 +299,8 @@ class CoinsController extends Controller
             });
         }
 
-
         return $query;
     }
-
 
     private function coinStatsByUserId(array $memberIds): array
     {
@@ -345,7 +344,7 @@ class CoinsController extends Controller
             }])
             ->select('coins_ledger.*')
             ->selectRaw("COALESCE(NULLIF(split_part(split_part(reference, '|', 1), ':', 2), ''), '') as reason_type")
-            ->selectRaw($this->ledgerRemarkSelectSql() . ' as admin_remark')
+            ->selectRaw($this->ledgerRemarkSelectSql().' as admin_remark')
             ->when($type && isset(self::ACTIVITY_REFERENCE_PATTERNS[$type]), function (Builder $q) use ($type) {
                 $q->where('reference', 'ILIKE', self::ACTIVITY_REFERENCE_PATTERNS[$type]);
             })
@@ -356,7 +355,7 @@ class CoinsController extends Controller
                 if (is_numeric($coins)) {
                     $q->where('amount', (int) $coins);
                 } else {
-                    $q->whereRaw('CAST(amount AS TEXT) ILIKE ?', ['%' . $coins . '%']);
+                    $q->whereRaw('CAST(amount AS TEXT) ILIKE ?', ['%'.$coins.'%']);
                 }
             })
             ->orderByDesc('created_at');
@@ -372,7 +371,7 @@ class CoinsController extends Controller
     {
         $value = strtolower(trim($whyFilter));
         $query->where(function (Builder $nested) use ($value) {
-            $nested->whereRaw('LOWER(reference) LIKE ?', ['%' . $value . '%']);
+            $nested->whereRaw('LOWER(reference) LIKE ?', ['%'.$value.'%']);
 
             foreach (self::ACTIVITY_REFERENCE_PATTERNS as $type => $pattern) {
                 if (str_contains(strtolower(CoinLedgerFormatter::why($type)), $value) || str_contains($type, $value)) {
@@ -449,7 +448,9 @@ class CoinsController extends Controller
     {
         $query = Circle::query()->orderBy('name');
 
-        if (app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+        } elseif (app(IndustryScopeService::class)->isIndustryDirector($admin)) {
             $circleIds = app(IndustryScopeService::class)->circleIdsForAdmin($admin);
             $query->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
         }

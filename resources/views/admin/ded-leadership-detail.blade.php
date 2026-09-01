@@ -122,9 +122,8 @@
             <label for="dateTo" class="form-label small text-muted mb-1 fw-bold">Joined To</label>
             <input type="date" id="dateTo" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
         </div>
-        <div class="col-12 d-flex justify-content-end gap-2 mt-3">
-            <a href="{{ route('admin.ded.dashboard.leadership', ['role' => $role]) }}" class="btn btn-outline-secondary px-4">Reset Filters</a>
-            <button type="submit" class="btn btn-primary px-4">Apply Filters</button>
+        <div class="col-12 d-flex justify-content-end mt-3">
+            <a href="{{ route('admin.ded.dashboard.leadership', ['role' => $role]) }}" class="btn btn-outline-secondary px-4">Clear</a>
         </div>
     </form>
 </div>
@@ -139,8 +138,10 @@
             <thead class="table-light">
                 <tr>
                     <th>Name</th>
-                    <th>Contact Info</th>
-                    <th>Company / Industry</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Company</th>
+                    <th>Industry</th>
                     @if (in_array($role, ['industry_director', 'founder', 'director']))
                         <th>Covered Circles</th>
                         <th>Members Managed</th>
@@ -166,15 +167,11 @@
                         <td>
                             <div class="fw-bold text-dark">{{ $r['name'] }}</div>
                         </td>
-                        <td>
-                            <div class="small">
-                                <div><i class="bi bi-phone"></i> {{ $r['phone'] }}</div>
-                                <div><i class="bi bi-envelope"></i> {{ $r['email'] }}</div>
-                            </div>
-                        </td>
-                        <td>
-                            <div>{{ $r['company'] }}</div>
-                            <span class="badge bg-light text-secondary border small mt-1">{{ $r['industry'] }}</span>
+                        <td class="small text-muted">{{ $r['phone'] }}</td>
+                        <td class="small text-muted">{{ $r['email'] }}</td>
+                        <td class="small text-muted">{{ $r['company'] }}</td>
+                        <td class="small">
+                            <span class="badge bg-light text-secondary border small">{{ $r['industry'] }}</span>
                         </td>
                         @if (in_array($role, ['industry_director', 'founder', 'director']))
                             <td>
@@ -226,9 +223,9 @@
                                         Edit
                                     </a>
                                 @else
-                                    <a href="{{ route('admin.users.show', $r['id']) }}" class="btn btn-outline-secondary px-3" target="_blank" rel="noopener">
-                                        View Profile
-                                    </a>
+                                     <a href="#" class="btn btn-outline-secondary px-3" onclick="event.preventDefault(); openActivityPeerModal('{{ $r['id'] }}', event);">
+                                         View Profile
+                                     </a>
                                 @endif
                                 <button class="btn btn-outline-primary px-3" type="button" data-bs-toggle="collapse" data-bs-target="#details-{{ $r['id'] }}" aria-expanded="false" aria-controls="details-{{ $r['id'] }}">
                                     Details
@@ -237,7 +234,7 @@
                         </td>
                     </tr>
                     <tr class="collapse-row">
-                        <td colspan="10" class="p-0 border-0">
+                        <td colspan="12" class="p-0 border-0">
                             <div class="collapse" id="details-{{ $r['id'] }}">
                                 <div class="p-3 bg-light border-top">
                                     <div class="row g-3">
@@ -248,44 +245,32 @@
                                                     <td class="border-0 fw-semibold text-dark">{{ $r['name'] }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <th class="w-40 text-muted border-0 small">Company</th>
-                                                    <td class="border-0 text-dark">{{ $r['company'] }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="w-40 text-muted border-0 small">Email</th>
-                                                    <td class="border-0 text-dark">{{ $r['email'] }}</td>
-                                                </tr>
-                                                <tr>
                                                     <th class="w-40 text-muted border-0 small">Phone</th>
                                                     <td class="border-0 text-dark">{{ $r['phone'] }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <th class="w-40 text-muted border-0 small">District</th>
-                                                    <td class="border-0 text-dark">{{ $districtName }}</td>
+                                                    <th class="w-40 text-muted border-0 small">City</th>
+                                                    <td class="border-0 text-dark">{{ $r['city'] }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <th class="w-40 text-muted border-0 small">Circle Memberships</th>
-                                                    <td class="border-0 text-dark">{{ $r['circle_memberships_list'] }}</td>
+                                                    <th class="w-40 text-muted border-0 small">Industry</th>
+                                                    <td class="border-0 text-dark">{{ $r['industry'] }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <th class="w-40 text-muted border-0 small">Leadership Roles</th>
-                                                    <td class="border-0 text-dark">{{ $r['leadership_roles_list'] }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="w-40 text-muted border-0 small">Coins</th>
-                                                    <td class="border-0 fw-bold text-warning">{{ number_format($r['coins_balance']) }}</td>
+                                                    <th class="w-40 text-muted border-0 small">Circle</th>
+                                                    <td class="border-0 text-dark">{{ $r['circle_name'] }}</td>
                                                 </tr>
                                             </table>
                                         </div>
                                         <div class="col-md-6">
                                             <table class="table table-sm mb-0 bg-transparent">
                                                 <tr>
-                                                    <th class="w-40 text-muted border-0 small">Referrals</th>
-                                                    <td class="border-0 text-dark">{{ $r['activity']['referrals'] }}</td>
+                                                    <th class="w-40 text-muted border-0 small">Activity Score</th>
+                                                    <td class="border-0 fw-bold text-primary">{{ $r['activity']['score'] }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <th class="w-40 text-muted border-0 small">Requirements</th>
-                                                    <td class="border-0 text-dark">{{ $r['activity']['requirements'] }}</td>
+                                                    <th class="w-40 text-muted border-0 small">Referrals Passed</th>
+                                                    <td class="border-0 text-dark">{{ $r['activity']['referrals'] }}</td>
                                                 </tr>
                                                 <tr>
                                                     <th class="w-40 text-muted border-0 small">Testimonials</th>
@@ -294,26 +279,6 @@
                                                 <tr>
                                                     <th class="w-40 text-muted border-0 small">Business Deals</th>
                                                     <td class="border-0 text-dark">{{ $r['activity']['deals'] }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="w-40 text-muted border-0 small">P2P Meetings</th>
-                                                    <td class="border-0 text-dark">{{ $r['activity']['meetings'] }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="w-40 text-muted border-0 small">Revenue Contribution</th>
-                                                    <td class="border-0 fw-bold text-success">₹{{ number_format($r['revenue']) }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="w-40 text-muted border-0 small">Join Date</th>
-                                                    <td class="border-0 text-dark">{{ $r['created_at'] ? \Illuminate\Support\Carbon::parse($r['created_at'])->format('Y-m-d') : '—' }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="w-40 text-muted border-0 small">Status</th>
-                                                    <td class="border-0">
-                                                        <span class="badge py-1 px-2.5 rounded-pill small badge-status-{{ $r['status'] }}">
-                                                            {{ ucfirst($r['status']) }}
-                                                        </span>
-                                                    </td>
                                                 </tr>
                                             </table>
                                         </div>
@@ -324,7 +289,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-4">No leadership records found.</td>
+                        <td colspan="12" class="text-center text-muted py-4">No leadership records found.</td>
                     </tr>
                 @endforelse
             </tbody>

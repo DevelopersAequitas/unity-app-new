@@ -11,15 +11,13 @@ use Throwable;
 
 class PeerMonthlyImpactScriptController extends BaseApiController
 {
-    public function __construct(private readonly PeerMonthlyImpactScriptService $service)
-    {
-    }
+    public function __construct(private readonly PeerMonthlyImpactScriptService $service) {}
 
     public function __invoke(Request $request): JsonResponse
     {
         try {
             return $this->success(
-                $this->service->buildForUser($request->user()),
+                $this->service->buildForUser($request->user(), $request),
                 'Peer monthly impact script fetched successfully.'
             )->setEncodingOptions(JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         } catch (Throwable $e) {

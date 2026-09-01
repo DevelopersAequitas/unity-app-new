@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1\Ded;
 use App\Http\Controllers\Controller;
 use App\Services\Api\Ded\DedApiService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 
 class DedPendingRequestsController extends Controller
 {

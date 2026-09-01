@@ -8,12 +8,23 @@ use Illuminate\Validation\Rule;
 
 class VisitorEventRegistrationRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
     protected function prepareForValidation(): void
     {
+        $firstName = $this->input('visitor_first_name', $this->input('first_name'));
+        $lastName = $this->input('visitor_last_name', $this->input('last_name'));
+        $dynamicFullName = null;
+
+        if ($firstName !== null || $lastName !== null) {
+            $dynamicFullName = trim(($firstName ?? '').' '.($lastName ?? ''));
+        }
+
         $this->merge(array_filter([
-            'visitor_name' => $this->input('visitor_name', $this->input('full_name')),
+            'visitor_name' => $this->input('visitor_name', $this->input('full_name', $dynamicFullName)),
             'visitor_email' => $this->input('visitor_email', $this->input('email')),
             'visitor_phone' => $this->input('visitor_phone', $this->input('phone')),
             'visitor_company' => $this->input('visitor_company', $this->input('company_name')),
@@ -24,6 +35,8 @@ class VisitorEventRegistrationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'visitor_first_name' => ['sometimes', 'string', 'max:100'],
+            'visitor_last_name' => ['sometimes', 'string', 'max:100'],
             'visitor_name' => ['required', 'string', 'max:150'],
             'visitor_email' => ['required', 'email', 'max:150'],
             'visitor_phone' => ['required', 'string', 'max:20'],
@@ -32,11 +45,11 @@ class VisitorEventRegistrationRequest extends FormRequest
             'visitor_designation' => ['nullable', 'string', 'max:150'],
             'visitor_business_category_id' => $this->visitorBusinessCategorySubIdRules(),
             'visitor_business_category' => ['nullable', 'string', 'max:150'],
-            'visitor_business_category_main_id' => ['required', 'integer'],
-            'visitor_business_category_sub_id' => $this->visitorBusinessCategorySubIdRules(true),
+            'visitor_business_category_main_id' => ['nullable', 'integer'],
+            'visitor_business_category_sub_id' => $this->visitorBusinessCategorySubIdRules(false),
             'visitor_business_website' => ['nullable', 'url', 'max:255'],
             'visitor_business_brief' => ['nullable', 'string', 'max:2000'],
-            'invited_by_type' => ['required', 'string', 'max:50'],
+            'invited_by_type' => ['nullable', 'string', 'max:50'],
             'invited_by_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'full_name' => ['sometimes', 'string', 'max:150'],
             'email' => ['sometimes', 'nullable', 'email', 'max:150'],
@@ -52,6 +65,7 @@ class VisitorEventRegistrationRequest extends FormRequest
             'zoho_form_entry_id' => ['nullable', 'string', 'max:255'],
             'zoho_payment_id' => ['nullable', 'string', 'max:255'],
             'zoho_payment_status' => ['nullable', 'string', 'max:100'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
             'source' => ['sometimes', 'string', 'in:app,api,visitor_app,visitor_web,web_form,admin,zoho_form'],
             'metadata' => ['nullable', 'array'],
         ];

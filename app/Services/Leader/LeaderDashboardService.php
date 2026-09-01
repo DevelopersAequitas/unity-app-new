@@ -181,6 +181,7 @@ class LeaderDashboardService
             $circlesInTarget = Circle::query()->whereNull('deleted_at')->with('members')->get();
         }
 
+<<<<<<< HEAD
         $admin = null;
         if ($user) {
             $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
@@ -334,6 +335,24 @@ class LeaderDashboardService
             : ($revSum >= 100000 ? '₹'.round($revSum / 100000, 1).'L' : '₹'.number_format($revSum, 0));
 
         return [
+=======
+        foreach ($circlesInTarget as $tc) {
+            $pCount = $tc->members ? $tc->members->where('status', 'approved')->count() : 0;
+            $unitPrice = (float) ($tc->circle_price_amount ?? 120000);
+            if ($unitPrice <= 0) {
+                $unitPrice = 120000;
+            }
+            $totalRevenueAmount += ($unitPrice * $pCount);
+        }
+
+        $revFormatted = $totalRevenueAmount > 0
+            ? ($totalRevenueAmount >= 10000000 ? '₹'.round($totalRevenueAmount / 10000000, 2).'Cr' : '₹'.round($totalRevenueAmount / 100000, 1).'L')
+            : '₹0';
+
+        return [
+            'circle_id' => $resolvedCircleId,
+            'circle_name' => $resolvedCircleName,
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             'overall_revenue' => $revFormatted,
             'overall_deals_closed' => $dealsFormatted,
             'impact' => $impactsCount,
@@ -351,7 +370,11 @@ class LeaderDashboardService
     /**
      * Get top 5 impacters for a circle or district leaderboard.
      *
+<<<<<<< HEAD
      * @return array<int, array<string, mixed>>
+=======
+     * @return array<int, array{rank: int, name: string, company: string, location: string, lives: int, coins: int}>
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
      */
     public function getTopImpacters(
         ?string $circleId = null,
@@ -363,6 +386,7 @@ class LeaderDashboardService
             $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
         }
 
+<<<<<<< HEAD
         $baseQuery = User::query()
             ->whereNull('deleted_at')
             ->with([
@@ -373,6 +397,9 @@ class LeaderDashboardService
             ]);
 
         $query = clone $baseQuery;
+=======
+        $query = User::query()->whereNull('deleted_at');
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
         if ($admin && AdminAccess::isDed($admin)) {
             AdminCircleScope::applyToUsersQuery($query, $admin);
@@ -381,16 +408,33 @@ class LeaderDashboardService
             $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
 
             if ($circleId && Str::isUuid($circleId)) {
+<<<<<<< HEAD
+=======
+                if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+                    return [];
+                }
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 $query->where(function (Builder $q) use ($circleId): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->where('circle_id', $circleId)->whereNull('deleted_at'))
                         ->orWhere('active_circle_id', $circleId);
                 });
+<<<<<<< HEAD
             } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds)) {
+=======
+            } elseif ($scopedCircleIds !== null) {
+                if (empty($scopedCircleIds)) {
+                    return [];
+                }
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 $query->where(function (Builder $q) use ($scopedCircleIds): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
                         ->orWhereIn('active_circle_id', $scopedCircleIds);
                 });
+<<<<<<< HEAD
             } elseif ($districtId) {
+=======
+            } else {
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
                 $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
                 if ($resolvedDistrictId) {
                     $query->where(function (Builder $q) use ($resolvedDistrictId): void {
@@ -401,6 +445,7 @@ class LeaderDashboardService
             }
         }
 
+<<<<<<< HEAD
         $users = $query->orderByDesc('life_impacted_count')
             ->orderByDesc('coins_balance')
             ->take(5)
@@ -425,12 +470,16 @@ class LeaderDashboardService
                 ->get();
             $users = $users->merge($fillers);
         }
+=======
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('coins_balance')->take(5)->get();
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 
         $result = [];
         $rank = 1;
         foreach ($users as $u) {
             $name = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
             if ($name === '') {
+<<<<<<< HEAD
                 $name = (string) ($u->display_name ?? 'Peer Member');
             }
 
@@ -508,10 +557,23 @@ class LeaderDashboardService
                 'impact' => $lives,
                 'coins' => $coins,
                 'coins_balance' => $coins,
+=======
+                $name = $u->display_name ?? 'Peer Member';
+            }
+
+            $result[] = [
+                'rank' => $rank,
+                'name' => $name,
+                'company' => (string) ($u->company_name ?? 'Enterprise Services'),
+                'location' => (string) ($u->city ?? 'Ahmedabad'),
+                'lives' => (int) ($u->life_impacted_count ?? max(50 - ($rank * 8), 10)),
+                'coins' => (int) ($u->coins_balance ?? max(1400 - ($rank * 220), 200)),
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
             ];
             $rank++;
         }
 
+<<<<<<< HEAD
         if (empty($result)) {
             $mockNames = [
                 ['Siddharth Verma', 'Apex Dynamics Pvt Ltd', 'Mumbai', 48, 1240, 'FinTech SaaS'],
@@ -553,6 +615,8 @@ class LeaderDashboardService
             }
         }
 
+=======
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         return $result;
     }
 }

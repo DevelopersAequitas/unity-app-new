@@ -48,6 +48,6 @@ class EventGallery extends Model
             return null;
         }
 
-        return '/api/v1/files/' . $media->file_id;
+        return '/api/v1/files/'.$media->file_id;
     }
 }

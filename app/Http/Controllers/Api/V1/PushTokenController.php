@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
@@ -26,6 +28,11 @@ class PushTokenController extends BaseApiController
             $user = $request->user();
             $token = (string) ($validated['fcm_token'] ?? $validated['token']);
 
+            if (Schema::hasTable('user_push_tokens')) {
+                UserPushToken::where('token', $token)
+                    ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
+                    ->delete();
+            }
             UserPushToken::where('token', $token)
                 ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
                 ->delete();
@@ -92,7 +99,7 @@ class PushTokenController extends BaseApiController
                 'last_seen_at' => $pushToken->last_seen_at ?? null,
             ], 'Push token saved successfully');
         } catch (Throwable $throwable) {
-            Log::error('PushTokenController store exception: ' . $throwable->getMessage(), [
+            Log::error('PushTokenController store exception: '.$throwable->getMessage(), [
                 'trace' => $throwable->getTraceAsString(),
                 'user_id' => isset($user) ? $user->id : null,
                 'token' => isset($token) ? $token : null,

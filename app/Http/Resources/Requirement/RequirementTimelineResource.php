@@ -17,7 +17,7 @@ class RequirementTimelineResource extends JsonResource
             'user_name' => data_get($creator, 'name')
                 ?: data_get($creator, 'full_name')
                 ?: data_get($creator, 'display_name')
-                ?: trim((string) data_get($creator, 'first_name', '') . ' ' . (string) data_get($creator, 'last_name', '')),
+                ?: trim((string) data_get($creator, 'first_name', '').' '.(string) data_get($creator, 'last_name', '')),
             'company' => data_get($creator, 'company') ?: data_get($creator, 'company_name', ''),
             'city' => data_get($creator, 'city', ''),
             'profile_photo_url' => $this->resolveProfilePhotoUrl($creator),
@@ -33,7 +33,7 @@ class RequirementTimelineResource extends JsonResource
                 return [
                     'type' => data_get($item, 'type', 'image'),
                     'file_id' => $fileId,
-                    'url' => data_get($item, 'url') ?: ($fileId ? url('/api/v1/files/' . $fileId) : null),
+                    'url' => data_get($item, 'url') ?: ($fileId ? url('/api/v1/files/'.$fileId) : null),
                 ];
             })->values()->all(),
             'region_filter' => $this->region_filter ?? [],
@@ -52,7 +52,7 @@ class RequirementTimelineResource extends JsonResource
         $profilePhotoId = data_get($creator, 'profile_photo_id') ?: data_get($creator, 'profile_photo_file_id');
 
         if ($profilePhotoId) {
-            return url('/api/v1/files/' . $profilePhotoId);
+            return url('/api/v1/files/'.$profilePhotoId);
         }
 
         return data_get($creator, 'profile_photo_url');

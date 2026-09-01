@@ -2,8 +2,24 @@
 
 @section('title', 'Become A Leader - Peer Activity')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
+        $getInitials = function($name) {
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if(!empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+        $getAvatarBg = function($name) {
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
+
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
                 return $display;
@@ -32,54 +48,69 @@
         $peerName = $displayName($peer->display_name ?? null, $peer->first_name ?? null, $peer->last_name ?? null);
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div>
-            <h1 class="h4 mb-1">Become A Leader</h1>
-            <div class="text-muted">Peer: {{ $peerName }} ({{ $peer->email ?? '—' }})</div>
-        </div>
-        <a href="{{ route('admin.activities.index') }}" class="btn btn-outline-secondary">Back to Activities</a>
-    </div>
+    <!-- Activities Hub Header -->
+    @include('admin.activities.partials.header', ['title' => 'Leadership Requests'])
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Submitted At</th>
-                        <th>Applying For</th>
-                        <th>Referred Name</th>
-                        <th>Referred Mobile</th>
-                        <th>Leadership Roles</th>
-                        <th>City / Region</th>
-                        <th>Primary Domain</th>
-                        <th>Why Interested</th>
-                        <th>Created At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        <tr>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                            <td>{{ $item->applying_for ?? '—' }}</td>
-                            <td>{{ $item->referred_name ?? '—' }}</td>
-                            <td>{{ $item->referred_mobile ?? '—' }}</td>
-                            <td>{{ $formatRoles($item->leadership_roles ?? null) }}</td>
-                            <td>{{ $item->contribute_city ?? '—' }}</td>
-                            <td>{{ $item->primary_domain ?? '—' }}</td>
-                            <td>{{ $truncate($item->why_interested ?? null) }}</td>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="9" class="text-center text-muted">No entries found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Become A Leader Submissions</h2>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $peer->email ?? '-' }}</p>
+            </div>
+            <a href="{{ route('admin.activities.become-a-leader.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
+                Back to List
+            </a>
         </div>
-    </div>
 
-    <div class="mt-3">
-        {{ $items->links() }}
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Applying For</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referred Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Leadership Roles</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City / Region</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Primary Domain</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Why Interested</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($items as $item)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $item->applying_for ?? '—' }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($item->referred_name)
+                                        <div class="font-semibold t1">{{ $item->referred_name }}</div>
+                                        <div class="t3 text-[10px]">{{ $item->referred_mobile ?: '—' }}</div>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $formatRoles($item->leadership_roles ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->contribute_city ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->primary_domain ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[280px] truncate" title="{{ $item->why_interested }}">
+                                    {{ $item->why_interested ?? '—' }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-xs t3">No entries found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $items->links() }}
+            </div>
+        </div>
     </div>
 @endsection
+

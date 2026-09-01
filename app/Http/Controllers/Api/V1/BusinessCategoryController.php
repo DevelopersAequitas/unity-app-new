@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Models\CircleCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -11,27 +12,142 @@ class BusinessCategoryController extends BaseApiController
 {
     public function main(): JsonResponse
     {
+        $table = Schema::hasTable('business_categories') ? 'business_categories' : 'circle_categories';
+
+        if (! Schema::hasTable($table)) {
+            return $this->error('Business categories table not found.', 404);
+        }
+
+        if ($table === 'business_categories') {
+            $businessCategories = DB::table('business_categories');
+            if (Schema::hasColumn('business_categories', 'is_active')) {
+                $businessCategories->where('is_active', true);
+            }
+            $businessCategories = $this->orderCategoryQuery($businessCategories, 'business_categories')->get();
+
+            $circleCategories = collect();
+            if (Schema::hasTable('circle_categories')) {
+                $circleCategories = DB::table('circle_categories')
+                    ->where('level', 1)
+                    ->get();
+            }
+
+            $items = $businessCategories->map(function ($bc) use ($circleCategories) {
+                $cleanBcName = trim(preg_replace('/\s+Circles?\b/i', '', $bc->name));
+
+                $matchedCc = $circleCategories->first(function ($cc) use ($cleanBcName) {
+                    $cleanCcName = trim(preg_replace('/\s+Circles?\b/i', '', $cc->name));
+
+                    return strcasecmp($cleanBcName, $cleanCcName) === 0;
+                });
+
+                return [
+                    'id' => $matchedCc ? (int) $matchedCc->id : (int) $bc->id,
+                    'name' => (string) $bc->name,
+                ];
+            })->values();
+        } else {
+            $query = DB::table('circle_categories')
+                ->select(['id', 'name'])
+                ->where('level', 1);
+
+            if (Schema::hasColumn('circle_categories', 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            $items = $this->orderCategoryQuery($query, 'circle_categories')
+                ->get()
+                ->map(fn ($category): array => [
+                    'id' => (int) $category->id,
+                    'name' => (string) $category->name,
+                ])
+                ->values();
+        }
+
+        return $this->success($items, 'Main business categories fetched successfully.');
+    }
+
+    public function show(string $idOrSlug): JsonResponse
+    {
         if (! Schema::hasTable('circle_categories')) {
             return $this->error('Circle categories table not found.', 404);
         }
 
-        $query = DB::table('circle_categories')
-            ->select(['id', 'name'])
-            ->where('level', 1);
+        if (Schema::hasTable('business_categories') && ctype_digit($idOrSlug) && (int) $idOrSlug <= 11) {
+            $businessCategory = DB::table('business_categories')->where('id', $idOrSlug)->first();
+            if ($businessCategory) {
+                $targetName = trim(preg_replace('/\s+Circles?\b/i', '', $businessCategory->name));
+                $circleCategory = DB::table('circle_categories')
+                    ->where('level', 1)
+                    ->get()
+                    ->first(fn ($cc): bool => strcasecmp(trim(preg_replace('/\s+Circles?\b/i', '', $cc->name)), $targetName) === 0);
 
-        if (Schema::hasColumn('circle_categories', 'is_active')) {
-            $query->where('is_active', true);
+                if ($circleCategory) {
+                    $idOrSlug = (string) $circleCategory->id;
+                }
+            }
         }
 
-        $items = $this->orderCategoryQuery($query, 'circle_categories')
-            ->get()
-            ->map(fn ($category): array => [
-                'id' => (int) $category->id,
-                'name' => (string) $category->name,
-            ])
-            ->values();
+        $categoryQuery = CircleCategory::query()->where('level', 1);
 
-        return $this->success($items, 'Main business categories fetched successfully.');
+        if (ctype_digit($idOrSlug)) {
+            $categoryQuery->where('id', (int) $idOrSlug);
+        } else {
+            $categoryQuery->where('slug', $idOrSlug);
+        }
+
+        $category = $categoryQuery->first();
+
+        if (! $category) {
+            return $this->error('Business category not found.', 404);
+        }
+
+        $category->name = trim(preg_replace('/\s+Circles?\b/i', '', $category->name));
+
+        $level2Categories = $category->level2Categories()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $level3Categories = $category->level3Categories()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $level4Categories = $category->level4Categories()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $level2Count = $level2Categories->count();
+        $level3Count = $level3Categories->count();
+        $level4Count = $level4Categories->count();
+
+        return response()->json([
+            'success' => true,
+            'message' => null,
+            'data' => [
+                'id' => $category->id,
+                'parent_id' => $category->parent_id,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'circle_key' => $category->circle_key,
+                'level' => $category->level,
+                'sort_order' => $category->sort_order,
+                'is_active' => (bool) $category->is_active,
+                'created_at' => $category->created_at,
+                'updated_at' => $category->updated_at,
+                'counts' => [
+                    'level2' => $level2Count,
+                    'level3' => $level3Count,
+                    'level4' => $level4Count,
+                    'total_children' => $level2Count + $level3Count + $level4Count,
+                ],
+                'level2_categories' => $level2Categories,
+                'level3_categories' => $level3Categories,
+                'level4_categories' => $level4Categories,
+            ],
+        ]);
     }
 
     public function children(string $parentId): JsonResponse
@@ -40,12 +156,22 @@ class BusinessCategoryController extends BaseApiController
             return $this->error('Circle categories table not found.', 404);
         }
 
+        $otherOption = [
+            'id' => 'other',
+            'name' => 'Other',
+            'is_other' => true,
+            'parent_id' => is_numeric($parentId) ? (int) $parentId : $parentId,
+        ];
+
         $selfChildren = $this->selfReferencingChildren($parentId);
         if ($selfChildren->isNotEmpty()) {
+            $selfChildren->push($otherOption);
+
             return $this->success($selfChildren, 'Business sub categories fetched successfully.');
         }
 
         $legacyChildren = $this->legacyLevelChildren($parentId);
+        $legacyChildren->push($otherOption);
 
         return $this->success($legacyChildren, 'Business sub categories fetched successfully.');
     }
@@ -178,7 +304,6 @@ class BusinessCategoryController extends BaseApiController
             ])
             ->values();
     }
-
 
     private function level2CategoriesTable(): string
     {

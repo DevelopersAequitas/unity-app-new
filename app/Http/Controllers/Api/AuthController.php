@@ -2,39 +2,46 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Jobs\SendFounderEngagementJob;
+use App\Jobs\SendPrMediaVisibilityWhatsappJob;
+use App\Jobs\SendProfileCompletionWhatsappJob;
+use App\Jobs\SendWelcomeWhatsappJob;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
+use App\Mail\RegistrationRequestReceivedMail;
 use App\Mail\WelcomePeerMail;
-use App\Exceptions\MediaProcessingException;
-use App\Models\EmailLog;
-use App\Models\FileModel;
-
+use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
-use App\Models\CircleCategoryLevel2;
 use App\Models\CircleMember;
+use App\Models\CustomCategoryRequest;
+use App\Models\EmailLog;
+use App\Models\FileModel;
 use App\Models\JoinedCircleCategory;
-
 use App\Models\OtpCode;
 use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
+use App\Models\UserPushToken;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Media\FileUploadService;
+use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
-use App\Services\Media\FileUploadService;
+use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends BaseApiController
@@ -61,7 +68,7 @@ class AuthController extends BaseApiController
             'first_name' => (string) ($data['first_name'] ?? ''),
             'last_name' => (string) ($data['last_name'] ?? ''),
             'phone' => (string) ($data['phone'] ?? ''),
-            'display_name' => trim((string) (($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))),
+            'display_name' => trim((string) (($data['first_name'] ?? '').' '.($data['last_name'] ?? ''))),
             'has_referral_code' => filled($normalizedReferralCode),
             'referral_code' => (string) ($normalizedReferralCode ?? ''),
         ]);
@@ -119,6 +126,7 @@ class AuthController extends BaseApiController
 
         $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
         $this->persistOptionalJoinedCategories($persistedUser, $data, $circleMember);
+        $this->persistOptionalCustomCategoryRequest($persistedUser, $data);
 
         $referralMeta = null;
 
@@ -152,7 +160,40 @@ class AuthController extends BaseApiController
 
         $this->sendRegistrationRequestReceivedEmail($persistedUser);
 
+        $registrationTime = $persistedUser->created_at ? $persistedUser->created_at->copy() : now();
+
+        SendWelcomeWhatsappJob::dispatch((string) $persistedUser->id);
+        SendFounderEngagementJob::dispatch((string) $persistedUser->id)
+            ->delay(now()->addHours(3));
+        SendPrMediaVisibilityWhatsappJob::dispatch((string) $persistedUser->id)
+            ->delay($registrationTime->copy()->addHours(24));
+        SendProfileCompletionWhatsappJob::dispatch((string) $persistedUser->id)
+            ->delay($registrationTime->copy()->addHours(48));
+
+        try {
+            app(DailyHabitLoopService::class)->startJourney($persistedUser, $registrationTime);
+        } catch (\Throwable $e) {
+            Log::error('Failed starting Daily Habit Loop on registration.', [
+                'user_id' => (string) $persistedUser->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
+
+        $pushToken = $request->input('token')
+            ?? $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token')
+            ?? $request->input('firebase_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($persistedUser, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
 
         Log::info('auth.register.before_response', [
             'user_id' => (string) $persistedUser->id,
@@ -163,9 +204,9 @@ class AuthController extends BaseApiController
         return response()->json([
             'success' => true,
             'message' => 'Registration successful.',
-            'data'    => [
+            'data' => [
                 'token' => $token,
-                'user'  => $this->buildRegisterUserPayload($persistedUser),
+                'user' => $this->buildRegisterUserPayload($persistedUser),
                 'referral' => $referralMeta,
                 'categories' => $this->buildJoinedCategoriesPayload($persistedUser),
             ],
@@ -273,6 +314,27 @@ class AuthController extends BaseApiController
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    private function persistOptionalCustomCategoryRequest(User $user, array $data): void
+    {
+        $otherCategoryName = trim((string) ($data['other_category_name'] ?? $data['custom_category_name'] ?? ''));
+        $level1CategoryId = (int) ($data['level1_category_id'] ?? $data['level_1_category_id'] ?? $data['main_business_category_id'] ?? 0);
+
+        if ($otherCategoryName === '' || $level1CategoryId <= 0) {
+            return;
+        }
+
+        if (! Schema::hasTable('custom_category_requests')) {
+            return;
+        }
+
+        CustomCategoryRequest::query()->create([
+            'user_id' => (string) $user->id,
+            'level1_category_id' => $level1CategoryId,
+            'category_name' => $otherCategoryName,
+            'status' => 'pending',
+        ]);
     }
 
     private function resolveRegisterCategoryPath(array $data): array
@@ -515,7 +577,6 @@ class AuthController extends BaseApiController
         ]);
     }
 
-
     private function validateActiveRegisterBusinessCategory(array $data): ?JsonResponse
     {
         $businessCategoryId = $data['business_category_id'] ?? null;
@@ -560,7 +621,6 @@ class AuthController extends BaseApiController
 
         return 'level4_categories';
     }
-
 
     private function resolveRegisterReferrerUserId(array $data, ?array $referralPreview): ?string
     {
@@ -618,33 +678,60 @@ class AuthController extends BaseApiController
                 'name' => (string) $mainBusinessCategory->name,
             ]
             : null;
-        $payload['business_category'] = $businessCategory
-            ? [
-                'id' => (int) $businessCategory->id,
-                'name' => (string) $businessCategory->name,
-            ]
-            : null;
+
+        $otherCategoryReq = null;
+        if ($user->id && $user->main_business_category_id && Schema::hasTable('custom_category_requests')) {
+            $otherCategoryReq = CustomCategoryRequest::query()
+                ->where('user_id', (string) $user->id)
+                ->where('level1_category_id', (int) $user->main_business_category_id)
+                ->latest()
+                ->first();
+        }
+
+        $otherName = $otherCategoryReq?->category_name ?? $user->business_sub_category ?? null;
+
+        if (blank($businessCategory) && $otherName !== null && $otherName !== '') {
+            $payload['is_other_category'] = true;
+            $payload['other_category_name'] = $otherName;
+            $payload['custom_category_name'] = $otherName;
+            $payload['business_sub_category'] = $otherName;
+            $payload['business_category'] = [
+                'id' => 'other',
+                'name' => $otherName,
+                'is_other' => true,
+            ];
+        } else {
+            $payload['is_other_category'] = (bool) ($otherName !== null && $otherName !== '');
+            $payload['other_category_name'] = $otherName;
+            $payload['custom_category_name'] = $otherName;
+            $payload['business_category'] = $businessCategory
+                ? [
+                    'id' => (int) $businessCategory->id,
+                    'name' => (string) $businessCategory->name,
+                ]
+                : null;
+        }
+
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
         $storedProfilePhotoPath = $user->getRawOriginal('profile_photo_url');
         $payload['profile_photo_id'] = $profilePhotoId;
         $payload['profile_photo_url'] = $profilePhotoId
-            ? url('/api/v1/files/' . $profilePhotoId)
+            ? url('/api/v1/files/'.$profilePhotoId)
             : ($storedProfilePhotoPath ? $this->resolvePublicDiskUrl($storedProfilePhotoPath) : $user->profile_photo_url);
         $payload['city_of_residence'] = $user->getAttribute('city_of_residence');
         $payload['referred_by'] = $referrer
             ? [
                 'id' => (string) $referrer->id,
-                'display_name' => trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? '')))),
+                'display_name' => trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '').' '.($referrer->last_name ?? '')))),
             ]
             : null;
 
         return $payload;
     }
 
-
     private function sendRegistrationRequestReceivedEmail(User $user): void
     {
-        $mailable = new \App\Mail\RegistrationRequestReceivedMail($user);
+        $mailable = new RegistrationRequestReceivedMail($user);
 
         try {
             Mail::to($user->email)->send($mailable);
@@ -652,7 +739,7 @@ class AuthController extends BaseApiController
             app(EmailLogService::class)->logMailableSent($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'registration_request_received',
                 'source_module' => 'Auth',
                 'related_type' => User::class,
@@ -672,7 +759,7 @@ class AuthController extends BaseApiController
                 app(EmailLogService::class)->logMailableFailed($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'registration_request_received',
                     'source_module' => 'Auth',
                     'related_type' => User::class,
@@ -697,19 +784,22 @@ class AuthController extends BaseApiController
             return;
         }
 
-        try {
-            Mail::to($user->email)->send(new WelcomePeerMail($user));
+        $mailable = new WelcomePeerMail($user);
 
-            EmailLog::query()->create([
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'welcome_peer',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
                 'payload' => [
                     'flow' => 'registration',
-                    'mailable_class' => WelcomePeerMail::class,
                 ],
-                'status' => 'sent',
-                'sent_at' => now(),
-                'created_at' => now(),
             ]);
         } catch (\Throwable $e) {
             Log::error('Welcome peer mail failed', [
@@ -719,18 +809,18 @@ class AuthController extends BaseApiController
             ]);
 
             try {
-                EmailLog::query()->create([
+                app(EmailLogService::class)->logMailableFailed($mailable, [
+                    'user_id' => (string) ($user->id ?? ''),
                     'to_email' => (string) ($user->email ?? ''),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'welcome_peer',
+                    'source_module' => 'Auth',
+                    'related_type' => User::class,
+                    'related_id' => (string) ($user->id ?? ''),
                     'payload' => [
                         'flow' => 'registration',
-                        'mailable_class' => WelcomePeerMail::class,
-                        'error' => $e->getMessage(),
                     ],
-                    'status' => 'failed',
-                    'sent_at' => now(),
-                    'created_at' => now(),
-                ]);
+                ], $e);
             } catch (\Throwable) {
                 // Registration must not fail due to mail/log persistence errors.
             }
@@ -742,10 +832,10 @@ class AuthController extends BaseApiController
         // Build a display name from first + last name unless the client sent one explicitly.
         $displayName = trim((string) ($data['display_name'] ?? ''));
         if ($displayName === '') {
-            $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
+            $displayName = trim($data['first_name'].' '.($data['last_name'] ?? ''));
         }
 
-        $user = new User();
+        $user = new User;
         $user->id = (string) Str::uuid();
         $user->first_name = $data['first_name'];
         $user->last_name = $data['last_name'] ?? null;
@@ -770,13 +860,14 @@ class AuthController extends BaseApiController
         $this->fillIfUserColumnExists($user, 'linkedin_profile', $data['linkedin_url'] ?? null);
         $this->fillIfUserColumnExists($user, 'instagram_handle', $data['instagram_url'] ?? null);
         $this->fillIfUserColumnExists($user, 'facebook_profile', $data['facebook_url'] ?? null);
-        
+
         $this->fillIfUserColumnExists($user, 'website', $data['website'] ?? null);
         $this->fillIfUserColumnExists($user, 'sustainability_contribution', $data['sustainability_contribution'] ?? null);
         $this->fillIfUserColumnExists($user, 'sustainability_areas', $data['sustainability_areas'] ?? []);
         $this->fillIfUserColumnExists($user, 'greenpreneur_goals', $data['greenpreneur_goals'] ?? []);
         $this->fillIfUserColumnExists($user, 'interests', $data['interests'] ?? []);
         $this->fillIfUserColumnExists($user, 'community_directory_listing', $data['community_directory_listing'] ?? 'No');
+        $this->fillIfUserColumnExists($user, 'anniversary_date', $data['anniversary_date'] ?? null);
 
         if (Schema::hasColumn('users', 'city_of_residence')) {
             $user->city_of_residence = $data['city_of_residence'] ?? $data['city'] ?? null;
@@ -794,6 +885,11 @@ class AuthController extends BaseApiController
                 : (int) $data['business_category_id'];
         }
 
+        $otherCategoryName = $data['other_category_name'] ?? $data['custom_category_name'] ?? null;
+        if (filled($otherCategoryName)) {
+            $this->fillIfUserColumnExists($user, 'business_sub_category', trim((string) $otherCategoryName));
+        }
+
         if (! blank($data['resolved_referred_by_user_id'] ?? null)) {
             if (Schema::hasColumn('users', 'introduced_by')) {
                 $user->introduced_by = (string) $data['resolved_referred_by_user_id'];
@@ -806,7 +902,7 @@ class AuthController extends BaseApiController
 
         $trialEndsAt = now()->addDays(3);
 
-        $user->status = 'inactive';
+        $user->status = 'active';
         $user->registration_source = 'App';
         $user->membership_status = User::STATUS_FREE_TRIAL;
         $user->membership_starts_at = now();
@@ -834,7 +930,7 @@ class AuthController extends BaseApiController
             'phone' => (string) ($user->phone ?? ''),
         ]);
 
-        $user->public_profile_slug = app(\App\Services\Users\PublicProfileSlugService::class)->generateUniqueForUser($user);
+        $user->public_profile_slug = app(PublicProfileSlugService::class)->generateUniqueForUser($user);
         $user->save();
 
         Log::info('auth.register.after_user_saved', [
@@ -894,28 +990,40 @@ class AuthController extends BaseApiController
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email'    => ['required', 'email'],
+            'email' => ['required', 'email'],
             'password' => ['required', 'string'],
             'timezone' => ['nullable', 'string', 'max:100'],
         ]);
 
-        // Find user by email
-        $user = User::where('email', $credentials['email'])->first();
+        $email = strtolower(trim($credentials['email']));
+
+        // Find user by email (case-insensitive and trimmed)
+        $user = User::where('email', $email)
+            ->orWhereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
 
         if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
-                'data'    => null,
+                'data' => null,
             ], 401);
         }
 
-        // IMPORTANT: use password_hash column
-        if (! Hash::check($credentials['password'], $user->password_hash)) {
+        // IMPORTANT: check password_hash column first, fallback to password column
+        $hashToTest = ! empty($user->password_hash) ? $user->password_hash : ($user->password ?? '');
+        try {
+            $passwordCheck = Hash::check($credentials['password'], $hashToTest);
+        } catch (\Throwable $exception) {
+            Log::warning("Password check exception for user {$user->email}: ".$exception->getMessage());
+            $passwordCheck = false;
+        }
+
+        if (! $passwordCheck) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
-                'data'    => null,
+                'data' => null,
             ], 401);
         }
 
@@ -934,23 +1042,38 @@ class AuthController extends BaseApiController
             } elseif ($user->status === 'rejected') {
                 $message = 'Your registration request has been rejected. Please contact support for further details.';
             }
+
             return response()->json([
                 'success' => false,
                 'message' => $message,
-                'data'    => null,
+                'data' => null,
             ], 403);
         }
 
         // Create Sanctum token
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $pushToken = $request->input('token')
+            ?? $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token')
+            ?? $request->input('firebase_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($user, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
+
         // If you already have a UserResource, you can use it here instead of returning $user directly
         return response()->json([
             'success' => true,
             'message' => 'Login successful.',
-            'data'    => [
+            'data' => [
                 'token' => $token,
-                'user'  => new UserResource($user),
+                'user' => new UserResource($user),
             ],
         ]);
     }
@@ -978,6 +1101,7 @@ class AuthController extends BaseApiController
             } elseif ($user->status === 'rejected') {
                 $message = 'Your registration request has been rejected. Please contact support for further details.';
             }
+
             return response()->json([
                 'success' => false,
                 'message' => $message,
@@ -988,12 +1112,12 @@ class AuthController extends BaseApiController
         $otp = (string) random_int(1000, 9999);
 
         OtpCode::create([
-            'user_id'    => $user->id,
-            'email'      => $user->email,
-            'purpose'    => 'login_otp',
-            'code'       => Hash::make($otp),
-            'expires_at' => now()->addMinutes(5),
-            'used_at'    => null,
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'purpose' => 'login_otp',
+            'code' => Hash::make($otp),
+            'expires_at' => now()->addMinutes((int) config('auth.otp_expire_minutes', 10)),
+            'used_at' => null,
         ]);
 
         $mailable = new LoginOtpMail($otp, $user);
@@ -1004,7 +1128,7 @@ class AuthController extends BaseApiController
             app(EmailLogService::class)->logMailableSent($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'login_otp',
                 'source_module' => 'Auth',
                 'related_type' => User::class,
@@ -1017,7 +1141,7 @@ class AuthController extends BaseApiController
             app(EmailLogService::class)->logMailableFailed($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'login_otp',
                 'source_module' => 'Auth',
                 'related_type' => User::class,
@@ -1027,13 +1151,17 @@ class AuthController extends BaseApiController
                 ],
             ], $exception);
 
-            throw $exception;
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send OTP email due to a mail server issue. Please try again later or request OTP via WhatsApp.',
+                'data' => null,
+            ], 503);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'OTP sent successfully.',
-            'data'    => null,
+            'data' => null,
         ]);
     }
 
@@ -1041,7 +1169,7 @@ class AuthController extends BaseApiController
     {
         $data = $request->validate([
             'email' => ['required', 'email'],
-            'otp'   => ['required', 'digits:4'],
+            'otp' => ['required', 'digits:4'],
         ]);
 
         $user = User::where('email', $data['email'])->first();
@@ -1050,7 +1178,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'You are not a registered user.',
-                'data'    => null,
+                'data' => null,
             ], 404);
         }
 
@@ -1064,7 +1192,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid OTP.',
-                'data'    => null,
+                'data' => null,
             ], 422);
         }
 
@@ -1072,7 +1200,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'OTP has expired.',
-                'data'    => null,
+                'data' => null,
             ], 422);
         }
 
@@ -1080,7 +1208,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid OTP.',
-                'data'    => null,
+                'data' => null,
             ], 422);
         }
 
@@ -1101,6 +1229,7 @@ class AuthController extends BaseApiController
             } elseif ($user->status === 'rejected') {
                 $message = 'Your registration request has been rejected. Please contact support for further details.';
             }
+
             return response()->json([
                 'success' => false,
                 'message' => $message,
@@ -1113,6 +1242,20 @@ class AuthController extends BaseApiController
         $user->refresh();
 
         $token = $user->createToken('api')->plainTextToken;
+
+        $pushToken = $request->input('token')
+            ?? $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token')
+            ?? $request->input('firebase_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($user, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
 
         UserLoginHistory::create([
             'user_id' => $user->id,
@@ -1159,12 +1302,12 @@ class AuthController extends BaseApiController
         $otp = (string) random_int(1000, 9999);
 
         OtpCode::create([
-            'user_id'    => $user->id,
-            'email'      => $user->email,
-            'purpose'    => 'password_reset',
-            'code'       => Hash::make($otp),
-            'expires_at' => now()->addMinutes(5),
-            'used_at'    => null,
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'purpose' => 'password_reset',
+            'code' => Hash::make($otp),
+            'expires_at' => now()->addMinutes((int) config('auth.otp_expire_minutes', 10)),
+            'used_at' => null,
         ]);
 
         $mailable = new PasswordResetOtpMail($otp, $user);
@@ -1175,7 +1318,7 @@ class AuthController extends BaseApiController
             app(EmailLogService::class)->logMailableSent($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'password_reset_otp',
                 'source_module' => 'Auth',
                 'related_type' => User::class,
@@ -1188,7 +1331,7 @@ class AuthController extends BaseApiController
             app(EmailLogService::class)->logMailableFailed($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'password_reset_otp',
                 'source_module' => 'Auth',
                 'related_type' => User::class,
@@ -1198,22 +1341,26 @@ class AuthController extends BaseApiController
                 ],
             ], $exception);
 
-            throw $exception;
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send password reset OTP email due to a mail server issue. Please try again later.',
+                'data' => null,
+            ], 503);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'If your email is registered, a password reset OTP has been sent.',
-            'data'    => null,
+            'data' => null,
         ]);
     }
 
     public function resetPassword(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'email'                 => ['required', 'email'],
-            'otp'                   => ['required', 'digits:4'],
-            'password'              => ['required', 'min:8', 'confirmed'],
+            'email' => ['required', 'email'],
+            'otp' => ['required', 'digits:4'],
+            'password' => ['required', 'min:8', 'confirmed'],
         ]);
 
         $user = User::where('email', $data['email'])->first();
@@ -1222,7 +1369,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'You are not a registered user.',
-                'data'    => null,
+                'data' => null,
             ], 404);
         }
 
@@ -1236,7 +1383,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid OTP.',
-                'data'    => null,
+                'data' => null,
             ], 422);
         }
 
@@ -1244,7 +1391,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'OTP has expired.',
-                'data'    => null,
+                'data' => null,
             ], 422);
         }
 
@@ -1252,7 +1399,7 @@ class AuthController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid OTP.',
-                'data'    => null,
+                'data' => null,
             ], 422);
         }
 
@@ -1265,17 +1412,31 @@ class AuthController extends BaseApiController
         return response()->json([
             'success' => true,
             'message' => 'Password reset successfully.',
-            'data'    => null,
+            'data' => null,
         ]);
     }
 
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
         $user = Auth::guard('sanctum')->user();
 
-        if ($user && $user->currentAccessToken()) {
-            app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
-            $user->currentAccessToken()->delete();
+        if ($user) {
+            $deviceId = $request->input('device_id');
+            $token = $request->input('token') ?? $request->input('fcm_token');
+
+            if (Schema::hasTable('user_push_tokens')) {
+                $query = UserPushToken::where(UserPushToken::getUserIdColumn(), $user->id);
+                if ($deviceId || $token) {
+                    $query->when($deviceId, fn ($q) => $q->where('device_id', $deviceId))
+                        ->when($token, fn ($q) => $q->where('token', $token));
+                    $query->delete();
+                }
+            }
+
+            if ($user->currentAccessToken()) {
+                app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
+                $user->currentAccessToken()->delete();
+            }
         }
 
         return $this->success(null, 'Logged out successfully');

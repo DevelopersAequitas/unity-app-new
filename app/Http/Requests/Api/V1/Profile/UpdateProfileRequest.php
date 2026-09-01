@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Api\V1\Profile;
 
 use App\Support\ContactVisibility;
@@ -41,6 +43,7 @@ class UpdateProfileRequest extends FormRequest
             'about' => ['sometimes', 'nullable', 'string'],
             'gender' => ['sometimes', 'nullable', 'in:male,female,other'],
             'dob' => ['sometimes', 'nullable', 'date'],
+            'anniversary_date' => ['sometimes', 'nullable', 'date'],
             'experience_years' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:80'],
             'experience_summary' => ['sometimes', 'nullable', 'string'],
             'city_id' => ['sometimes', 'nullable'],
@@ -58,6 +61,8 @@ class UpdateProfileRequest extends FormRequest
             'social_links.website' => ['nullable', 'url', 'max:500'],
             'profile_photo_id' => ['sometimes', 'nullable'],
             'cover_photo_id' => ['sometimes', 'nullable'],
+            'intro_video_id' => ['sometimes', 'nullable'],
+            'profile_video_id' => ['sometimes', 'nullable'],
             'state' => ['sometimes', 'nullable', 'string', 'max:100'],
             'country' => ['sometimes', 'nullable', 'string', 'max:100'],
             'preferred_language' => ['sometimes', 'nullable', 'string', 'max:50'],
@@ -65,7 +70,7 @@ class UpdateProfileRequest extends FormRequest
             'business_category_id' => ['sometimes', 'nullable'],
             'business_sub_category' => ['sometimes', 'nullable', 'string', 'max:255'],
             'company_type' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'year_of_establishment' => ['sometimes', 'nullable', 'integer', 'min:1800', 'max:' . $currentYear],
+            'year_of_establishment' => ['sometimes', 'nullable', 'integer', 'min:1800', 'max:'.$currentYear],
             'annual_revenue_range' => ['sometimes', 'nullable', 'string', 'max:100'],
             'number_of_employees' => ['sometimes', 'nullable', 'string', 'max:50'],
             'gst_number' => ['sometimes', 'nullable', 'string', 'max:30'],
@@ -85,7 +90,7 @@ class UpdateProfileRequest extends FormRequest
             'facebook_profile' => ['sometimes', 'nullable', 'url', 'max:500'],
             'youtube_channel' => ['sometimes', 'nullable', 'url', 'max:500'],
             'other_website' => ['sometimes', 'nullable', 'url', 'max:500'],
-            'profile_visibility'         => ['sometimes', 'nullable', Rule::in(['everyone', 'connected_only', 'circle_only', 'hidden'])],
+            'profile_visibility' => ['sometimes', 'nullable', Rule::in(['everyone', 'connected_only', 'circle_only', 'hidden'])],
             'contact_visibility' => ['sometimes', 'nullable', Rule::in(ContactVisibility::allowedValues())],
             'business_address' => ['sometimes', 'nullable', 'string'],
             'business_city' => ['sometimes', 'nullable', 'string', 'max:100'],
@@ -98,7 +103,7 @@ class UpdateProfileRequest extends FormRequest
             'industries_of_interest.*' => ['string', 'max:150'],
             'collaboration_goals' => ['sometimes', 'nullable', 'array'],
             'collaboration_goals.*' => ['string', 'max:150'],
-            'preferred_meeting_format' => ['sometimes', 'nullable', Rule::in(['in_person', 'virtual', 'both'])],
+            'preferred_meeting_format' => ['sometimes', 'nullable', 'string', 'max:50'],
             'willing_to_mentor' => ['sometimes', 'nullable', 'boolean'],
             'open_to_cross_city_collaboration' => ['sometimes', 'nullable', 'boolean'],
             'open_to_speaking_at_events' => ['sometimes', 'nullable', 'boolean'],

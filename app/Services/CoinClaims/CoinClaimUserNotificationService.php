@@ -6,15 +6,14 @@ use App\Events\UserNotificationCreated;
 use App\Jobs\SendFcmNotificationJob;
 use App\Models\CoinClaimRequest;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Support\CoinClaims\CoinClaimActivityRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CoinClaimUserNotificationService
 {
-    public function __construct(private readonly CoinClaimActivityRegistry $registry)
-    {
-    }
+    public function __construct(private readonly CoinClaimActivityRegistry $registry) {}
 
     public function sendApproved(CoinClaimRequest $claim): Notification
     {
@@ -25,7 +24,7 @@ class CoinClaimUserNotificationService
         $payload = [
             'notification_type' => 'coin_claim_approved',
             'title' => 'Coin claim approved',
-            'body' => 'Your claim for ' . $activityLabel . ' was approved. ' . ($coinsAwarded ?? 0) . ' coins added.',
+            'body' => 'Your claim for '.$activityLabel.' was approved. '.($coinsAwarded ?? 0).' coins added.',
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => $coinsAwarded,
@@ -45,7 +44,7 @@ class CoinClaimUserNotificationService
         $payload = [
             'notification_type' => 'coin_claim_rejected',
             'title' => 'Coin claim rejected',
-            'body' => 'Your claim for ' . $activityLabel . ' was rejected. Reason: ' . $reason,
+            'body' => 'Your claim for '.$activityLabel.' was rejected. Reason: '.$reason,
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => null,
@@ -67,12 +66,38 @@ class CoinClaimUserNotificationService
         try {
             $notification = Notification::create([
                 'user_id' => $claim->user_id,
-                'type' => $type,
+                'type' => 'activity_update',
                 'payload' => $payload,
                 'is_read' => false,
                 'created_at' => now(),
                 'read_at' => null,
             ]);
+
+            try {
+                AppNotification::create([
+                    'user_id' => $claim->user_id,
+                    'type' => $type,
+                    'category' => 'coin_claim',
+                    'title' => (string) ($payload['title'] ?? 'Notification'),
+                    'body' => (string) ($payload['body'] ?? 'You have a new notification'),
+                    'message' => (string) ($payload['body'] ?? 'You have a new notification'),
+                    'channel' => 'push',
+                    'priority' => 'medium',
+                    'reference_type' => CoinClaimRequest::class,
+                    'reference_id' => (string) $claim->id,
+                    'screen' => 'coin_claims',
+                    'data' => array_merge($payload, [
+                        'notification_id' => (string) $notification->id,
+                    ]),
+                    'status' => 'pending',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed to create AppNotification in CoinClaimUserNotificationService', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             DB::afterCommit(function () use ($notification, $payload, $claim, $type): void {
                 event(new UserNotificationCreated((string) $claim->user_id, [

@@ -21,7 +21,7 @@ class EventGalleryController extends Controller
 
         $events = EventGallery::query()
             ->when($search !== '', function ($query) use ($search) {
-                $query->where('event_name', 'ILIKE', '%' . $search . '%');
+                $query->where('event_name', 'ILIKE', '%'.$search.'%');
             })
             ->withCount([
                 'media',
@@ -44,6 +44,14 @@ class EventGalleryController extends Controller
                         ->orderBy('created_at');
                 }])
                 ->find($selectedEventId);
+        }
+
+        if (! $selectedEvent && $events->isNotEmpty()) {
+            $selectedEvent = $events->first();
+            $selectedEvent->load(['media' => function ($query) {
+                $query->orderBy('sort_order')
+                    ->orderBy('created_at');
+            }]);
         }
 
         return view('admin.event_gallery.index', [
@@ -154,7 +162,7 @@ class EventGalleryController extends Controller
         $thumbnailFileId = null;
 
         if ($request->hasFile('thumbnail_file')) {
-            $thumbRequest = new Request();
+            $thumbRequest = new Request;
             $thumbRequest->files->set('file', $request->file('thumbnail_file'));
             $thumbRequest->setUserResolver($request->getUserResolver());
 

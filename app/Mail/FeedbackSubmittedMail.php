@@ -11,9 +11,7 @@ class FeedbackSubmittedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public FeedbackForm $feedbackForm)
-    {
-    }
+    public function __construct(public FeedbackForm $feedbackForm) {}
 
     public function build(): self
     {

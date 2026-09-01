@@ -4,6 +4,9 @@ use App\Exceptions\QrGenerationException;
 use App\Http\Middleware\AdminCircleScope;
 use App\Http\Middleware\AdminRoleMiddleware;
 use App\Http\Middleware\AllowFixedMembersToken;
+use App\Http\Middleware\ApplyDynamicDataScope;
+use App\Http\Middleware\CheckDynamicPermission;
+use App\Http\Middleware\CheckLeaderCapability;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApiAccess;
 use App\Http\Middleware\EnsureIndustryDirector;
@@ -15,7 +18,6 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -29,15 +31,22 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
+        $middleware->validateCsrfTokens(except: [
+            'admin/pending-requests/certifications/*',
+        ]);
         $middleware->alias([
             'admin.auth' => EnsureAdminAuthenticated::class,
             'admin.role' => AdminRoleMiddleware::class,
             'admin.industry-director' => EnsureIndustryDirector::class,
             'admin.circle' => AdminCircleScope::class,
+            'admin.permission' => CheckDynamicPermission::class,
+            'admin.data-scope' => ApplyDynamicDataScope::class,
             'fixed.members.token' => AllowFixedMembersToken::class,
             'ensure.ded.api' => EnsureDedApiAccess::class,
             'scan.app.user' => EnsureScanAppUser::class,
             'unity.user' => EnsureUnityUser::class,
+            'leader.can' => CheckLeaderCapability::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

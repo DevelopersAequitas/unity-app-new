@@ -2,12 +2,13 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
+ * @extends Factory<User>
  */
 class UserFactory extends Factory
 {
@@ -25,7 +26,7 @@ class UserFactory extends Factory
     {
         $firstName = $this->faker->firstName();
         $lastName = $this->faker->lastName();
-        $displayName = trim($firstName . ' ' . $lastName);
+        $displayName = trim($firstName.' '.$lastName);
 
         return [
             'first_name' => $firstName,
@@ -37,8 +38,7 @@ class UserFactory extends Factory
             'membership_status' => 'visitor',
             'coins_balance' => 0,
             'password_hash' => static::$password ??= Hash::make('password'),
-            'public_profile_slug' => Str::slug($displayName) . '-' . Str::random(6),
+            'public_profile_slug' => Str::slug($displayName).'-'.Str::random(6),
         ];
     }
-
 }

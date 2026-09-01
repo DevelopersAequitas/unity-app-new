@@ -7,6 +7,7 @@ use App\Http\Requests\CoinClaims\RejectCoinClaimRequest;
 use App\Models\Circle;
 use App\Models\CoinClaimRequest;
 use App\Models\User;
+use App\Services\Admin\PermissionService;
 use App\Services\CoinClaims\CoinClaimEmailService;
 use App\Services\Coins\CoinsService;
 use App\Support\AdminCircleScope;
@@ -26,8 +27,7 @@ class CoinClaimsController extends Controller
         private readonly CoinClaimActivityRegistry $registry,
         private readonly CoinsService $coinsService,
         private readonly CoinClaimEmailService $emailService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -143,10 +143,13 @@ class CoinClaimsController extends Controller
             });
         }
 
-        AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'coin_claim_requests.user_id', null);
+        $admin = Auth::guard('admin')->user();
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'coin_claim_requests.user_id', null);
 
         $claims = $query->orderByDesc('created_at')->paginate(25)->appends($request->query());
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
+        $circles = $circlesQuery->get(['id', 'name']);
 
         return view('admin.coin_claims.index', [
             'claims' => $claims,
@@ -189,6 +192,10 @@ class CoinClaimsController extends Controller
         Log::info('Coin claim approve requested', ['request_id' => $requestId, 'id' => $id]);
 
         $admin = Auth::guard('admin')->user();
+
+        if ($admin && ! app(PermissionService::class)->can($admin, 'admin.coin-claims.index', 'approve')) {
+            abort(403, 'You do not have permission to approve coin claims.');
+        }
 
         try {
             $message = DB::transaction(function () use ($id, $admin, $requestId, $request) {
@@ -248,7 +255,7 @@ class CoinClaimsController extends Controller
                     $this->coinsService->reward(
                         $claim->user,
                         $coins,
-                        'Coin claim approved: ' . $claim->activity_code . ' #' . $claim->id,
+                        'Coin claim approved: '.$claim->activity_code.' #'.$claim->id,
                         [
                             'source' => 'coin_claim_approved',
                             'claim_id' => (string) $claim->id,
@@ -284,6 +291,10 @@ class CoinClaimsController extends Controller
         Log::info('Coin claim reject requested', ['request_id' => $requestId, 'id' => $id]);
 
         $admin = Auth::guard('admin')->user();
+
+        if ($admin && ! app(PermissionService::class)->can($admin, 'admin.coin-claims.index', 'reject') && ! app(PermissionService::class)->can($admin, 'admin.coin-claims.index', 'approve')) {
+            abort(403, 'You do not have permission to reject coin claims.');
+        }
 
         try {
             $message = DB::transaction(function () use ($id, $admin, $request) {

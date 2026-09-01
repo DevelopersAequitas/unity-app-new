@@ -3,7 +3,6 @@
 namespace App\Services\Events;
 
 use App\Models\Event;
-use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\User;
 use App\Services\Zoho\ZohoBillingPaymentLinkService;
@@ -34,11 +33,12 @@ class EventPaymentService
 
     public function applyInitialPaymentState(EventRegistration $registration, Event $event, string $registrationType): EventRegistration
     {
-        $paymentRequired = $this->paymentRequired($event);
+        $amount = $registration->amount !== null ? (float) $registration->amount : $this->amount($event);
+        $paymentRequired = $this->paymentRequired($event) && $amount > 0;
         $updates = [
             'payment_required' => $paymentRequired,
             'payment_status' => $paymentRequired ? 'pending' : 'not_required',
-            'amount' => $paymentRequired ? $this->amount($event) : 0,
+            'amount' => $amount,
             'currency' => $this->currency($event),
             'registration_type' => $registrationType,
         ];
@@ -46,6 +46,8 @@ class EventPaymentService
         if ($paymentRequired) {
             $updates['status'] = 'pending_payment';
             $updates['checkin_status'] = 'pending';
+        } else {
+            $updates['status'] = 'registered';
         }
 
         $registration->forceFill($this->filterRegistrationColumns($updates))->save();
@@ -70,7 +72,7 @@ class EventPaymentService
         if (! in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
             if ($gateway === 'zoho_billing_payment_link') {
                 if (empty($currentPaymentUrl)) {
-                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
+                    $registration = app(ZohoBillingPaymentLinkService::class)
                         ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
                     Log::warning('event_registration_payment_url_missing_creating_zoho_link', [
                         'registration_id' => (string) $registration->id,
@@ -79,7 +81,7 @@ class EventPaymentService
                         'payment_gateway' => $registration->payment_gateway,
                         'payment_status' => $registration->payment_status,
                     ]);
-                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
+                    $registration = app(ZohoBillingPaymentLinkService::class)
                         ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
                 } else {
                     $registration->forceFill($this->filterRegistrationColumns([
@@ -152,7 +154,7 @@ class EventPaymentService
             'form_url' => $formUrl,
             'qr_code_url' => $requiresPayment
                 ? null
-                : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
+                : app(EventRegistrationQrService::class)->qrCodeUrl($registration),
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
@@ -193,7 +195,6 @@ class EventPaymentService
             'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
         ];
     }
-
 
     private function invitedByUserPayload(?User $user): ?array
     {

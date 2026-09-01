@@ -7,24 +7,25 @@ use App\Http\Requests\Admin\Impacts\StoreImpactRequest;
 use App\Http\Requests\Impacts\ReviewImpactRequest;
 use App\Models\Impact;
 use App\Models\User;
+use App\Services\Admin\PermissionService;
 use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImpactsController extends Controller
 {
     public function __construct(
         private readonly ImpactService $impactService,
         private readonly ImpactActionService $impactActionService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -108,21 +109,32 @@ class ImpactsController extends Controller
                                 ->orWhere('email', 'ILIKE', $term);
                         });
                 });
-            })
+            });
+
+        $admin = Auth::guard('admin')->user();
+        $this->applyDedImpactScope($impacts);
+
+        $impactsPaginator = $impacts
             ->orderByDesc('created_at')
             ->paginate(25)
             ->withQueryString();
 
         $impactActions = Impact::availableActions();
         $adminId = (string) Auth::guard('admin')->id();
-        $peers = User::query()
+
+        $peersQuery = User::query()
             ->select(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'business_type', 'city'])
             ->when($adminId !== '', fn ($query) => $query->where('id', '!=', $adminId))
-            ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), email) ASC")
-            ->get();
+            ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), email) ASC");
+
+        if ($admin) {
+            AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
+        }
+
+        $peers = $peersQuery->get();
 
         return view('admin.impacts.index', [
-            'impacts' => $impacts,
+            'impacts' => $impactsPaginator,
             'impactActions' => $impactActions,
             'impactActionItems' => $this->impactActionService->listForAdmin(),
             'peers' => $peers,
@@ -190,7 +202,6 @@ class ImpactsController extends Controller
 
         return redirect()->route('admin.impacts.index')->with('success', 'Impact action added successfully.');
     }
-
 
     public function updateAction(Request $request, string $id): RedirectResponse
     {
@@ -336,8 +347,8 @@ class ImpactsController extends Controller
             ]);
 
             foreach ($impacts as $impact) {
-                $impactedPeer = $impact->impactedPeer?->display_name ?: trim(($impact->impactedPeer?->first_name ?? '') . ' ' . ($impact->impactedPeer?->last_name ?? ''));
-                $submittedBy = $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '') . ' ' . ($impact->user?->last_name ?? ''));
+                $impactedPeer = $impact->impactedPeer?->display_name ?: trim(($impact->impactedPeer?->first_name ?? '').' '.($impact->impactedPeer?->last_name ?? ''));
+                $submittedBy = $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '').' '.($impact->user?->last_name ?? ''));
 
                 fputcsv($handle, [
                     optional($impact->impact_date)->toDateString(),
@@ -375,7 +386,7 @@ class ImpactsController extends Controller
             ->where('status', 'approved');
         $this->applyDedImpactScope($totalLifeImpactedQuery);
         $totalLifeImpacted = (int) $totalLifeImpactedQuery
-            ->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(life_impacted, 1)'));
+            ->sum(DB::raw('COALESCE(life_impacted, 1)'));
 
         return view('admin.impacts.show', [
             'impact' => $impact,
@@ -400,7 +411,6 @@ class ImpactsController extends Controller
 
         return redirect()->back()->with('success', 'Impact rejected successfully.');
     }
-
 
     private function ensureCanAccessImpactsModule(): void
     {
@@ -444,14 +454,23 @@ class ImpactsController extends Controller
         $impact = Impact::query()->findOrFail($id);
         $this->ensureCanAccessImpact($impact);
 
-        if (AdminAccess::isDed(Auth::guard('admin')->user()) && (string) $impact->status !== 'pending') {
+        $admin = Auth::guard('admin')->user();
+        if ((AdminAccess::isDed($admin) || AdminAccess::isCircleScoped($admin)) && (string) $impact->status !== 'pending') {
             abort(403);
         }
     }
 
     private function ensureGlobalAdmin(): void
     {
-        if (! AdminAccess::isGlobalAdmin(Auth::guard('admin')->user())) {
+        $admin = Auth::guard('admin')->user();
+
+        if (! $admin) {
+            abort(403);
+        }
+
+        $routeName = request()->route()?->getName() ?? 'admin.impacts.index';
+
+        if (! app(PermissionService::class)->canAccessRoute($admin, $routeName)) {
             abort(403);
         }
     }

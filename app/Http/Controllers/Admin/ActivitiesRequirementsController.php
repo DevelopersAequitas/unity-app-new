@@ -2,16 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
+use App\Models\File;
 use App\Models\Requirement;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivitiesRequirementsController extends Controller
 {
@@ -49,11 +50,11 @@ class ActivitiesRequirementsController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
-        $topMembers = $this->topMembers($request);
+        $topMembers = $this->enrichTopMembers($this->topMembers($request));
 
         return view('admin.activities.requirements.index', [
             'items' => $items,
@@ -69,9 +70,9 @@ class ActivitiesRequirementsController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->buildFilters($request);
-        $filename = 'requirements_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'requirements_'.now()->format('Ymd_His').'.csv';
 
-        return response()->streamDownload(function () use ($request, $filters) {
+        return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
             @ini_set('output_buffering', '0');
             while (ob_get_level() > 0) {
@@ -85,6 +86,8 @@ class ActivitiesRequirementsController extends Controller
                 fputcsv($handle, [
                     'ID',
                     'Created By Name',
+                    'Created By Company',
+                    'Created By City',
                     'Created By Email',
                     'Subject',
                     'Description',
@@ -111,6 +114,8 @@ class ActivitiesRequirementsController extends Controller
                         'actor.first_name as actor_first_name',
                         'actor.last_name as actor_last_name',
                         'actor.email as actor_email',
+                        'actor.company_name as from_company',
+                        'actor.city as from_city',
                     ])
                     ->orderBy('activity.created_at')
                     ->orderBy('activity.id')
@@ -125,6 +130,8 @@ class ActivitiesRequirementsController extends Controller
                             fputcsv($handle, [
                                 $row->id,
                                 $actorName,
+                                $row->from_company ?? '',
+                                $row->from_city ?? '',
                                 $row->actor_email ?? '',
                                 $row->subject ?? '',
                                 $row->description ?? '',
@@ -166,6 +173,8 @@ class ActivitiesRequirementsController extends Controller
             'to_dt' => $this->parseDayBoundary($toAtRaw, true),
             'circle_id' => (string) $request->query('circle_id', ''),
             'from_user' => trim((string) $request->query('from_user', '')),
+            'from_company' => trim((string) $request->query('from_company', '')),
+            'from_city' => trim((string) $request->query('from_city', '')),
             'subject' => trim((string) $request->query('subject', '')),
             'region' => trim((string) $request->query('region', '')),
             'category' => trim((string) $request->query('category', '')),
@@ -183,7 +192,7 @@ class ActivitiesRequirementsController extends Controller
 
         if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['q']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -195,7 +204,7 @@ class ActivitiesRequirementsController extends Controller
         }
 
         if ($filters['from_user'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_user']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_user']).'%';
             $query->where(function ($inner) use ($like) {
                 $inner->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -204,18 +213,30 @@ class ActivitiesRequirementsController extends Controller
             });
         }
 
+        if (! empty($filters['from_company'])) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_company']).'%';
+            $query->where('actor.company_name', 'ILIKE', $like);
+        }
+
+        if (! empty($filters['from_city'])) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_city']).'%';
+            $query->where(function ($inner) use ($like) {
+                $inner->where('actor.city', 'ILIKE', $like);
+            });
+        }
+
         if ($filters['subject'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['subject']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['subject']).'%';
             $query->where('activity.subject', 'ILIKE', $like);
         }
 
         if ($filters['region'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['region']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['region']).'%';
             $query->whereRaw("coalesce(nullif(activity.region_filter->>'region_label', ''), nullif(activity.region_filter->>'region_name', ''), nullif(activity.region_filter->>'city_name', '')) ILIKE ?", [$like]);
         }
 
         if ($filters['category'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['category']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['category']).'%';
             $query->whereRaw("coalesce(nullif(activity.category_filter->>'category', ''), nullif(activity.category_filter->>'name', '')) ILIKE ?", [$like]);
         }
 
@@ -309,7 +330,6 @@ class ActivitiesRequirementsController extends Controller
             ->get();
     }
 
-
     private function statusOptions()
     {
         return Requirement::query()
@@ -351,7 +371,7 @@ class ActivitiesRequirementsController extends Controller
             return $displayName;
         }
 
-        $name = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+        $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
     }
@@ -415,7 +435,7 @@ class ActivitiesRequirementsController extends Controller
             }
 
             if ($id && Str::isUuid($id)) {
-                return url('/api/v1/files/' . $id);
+                return url('/api/v1/files/'.$id);
             }
 
             return $id ?: null;
@@ -427,7 +447,7 @@ class ActivitiesRequirementsController extends Controller
             }
 
             if (Str::isUuid($item)) {
-                return url('/api/v1/files/' . $item);
+                return url('/api/v1/files/'.$item);
             }
 
             return $item;
@@ -443,5 +463,71 @@ class ActivitiesRequirementsController extends Controller
         }
 
         return $value !== null ? (string) $value : '';
+    }
+
+    private function enrichTopMembers($topMembers)
+    {
+        $actorIds = $topMembers->pluck('actor_id')->filter()->values()->all();
+        if (empty($actorIds)) {
+            return $topMembers;
+        }
+
+        $users = DB::table('users')
+            ->leftJoin('cities', 'cities.id', '=', 'users.city_id')
+            ->whereIn('users.id', $actorIds)
+            ->select([
+                'users.id',
+                'users.email',
+                'users.phone',
+                'users.company_name',
+                'users.designation',
+                DB::raw("trim(coalesce(users.display_name, '')) as display_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.display_name, '')), ''), nullif(trim(concat(coalesce(users.first_name, ''), ' ', coalesce(users.last_name, ''))), ''), users.email) as peer_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.city, '')), ''), cities.name) as city_name"),
+            ])
+            ->selectSub(function ($sub) {
+                $sub->from('circle_members')
+                    ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                    ->select('circles.name')
+                    ->whereColumn('circle_members.user_id', 'users.id')
+                    ->where('circle_members.status', 'approved')
+                    ->whereNull('circle_members.deleted_at')
+                    ->limit(1);
+            }, 'circle_name')
+            ->selectSub(fn ($sub) => $sub->from('testimonials')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'testimonials_count')
+            ->selectSub(fn ($sub) => $sub->from('referrals')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'referrals_count')
+            ->selectSub(fn ($sub) => $sub->from('business_deals')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'business_deals_count')
+            ->selectSub(fn ($sub) => $sub->from('p2p_meetings')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('initiator_user_id', 'users.id')->orWhereColumn('peer_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'p2p_completed_count')
+            ->selectSub(fn ($sub) => $sub->from('requirements')->selectRaw('count(*)')->whereColumn('user_id', 'users.id')->whereNull('deleted_at'), 'requirements_count')
+            ->selectSub(fn ($sub) => $sub->from('leader_interest_submissions')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'become_leader_count')
+            ->selectSub(fn ($sub) => $sub->from('peer_recommendations')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'recommend_peer_count')
+            ->selectSub(fn ($sub) => $sub->from('visitor_registrations')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'register_visitor_count')
+            ->get()
+            ->keyBy('id');
+
+        return $topMembers->map(function ($item) use ($users) {
+            $actorId = $item->actor_id ?? $item->id ?? null;
+            if ($actorId && isset($users[$actorId])) {
+                $u = $users[$actorId];
+                $item->id = $u->id;
+                $item->actor_id = $u->id;
+                $item->email = $u->email;
+                $item->phone = $u->phone;
+                $item->designation = $u->designation;
+                $item->circle_name = $u->circle_name;
+                $item->peer_company = $u->company_name;
+                $item->peer_city = $u->city_name;
+                $item->testimonials_count = $u->testimonials_count;
+                $item->referrals_count = $u->referrals_count;
+                $item->business_deals_count = $u->business_deals_count;
+                $item->p2p_completed_count = $u->p2p_completed_count;
+                $item->requirements_count = $u->requirements_count;
+                $item->become_leader_count = $u->become_leader_count;
+                $item->recommend_peer_count = $u->recommend_peer_count;
+                $item->register_visitor_count = $u->register_visitor_count;
+            }
+
+            return $item;
+        });
     }
 }

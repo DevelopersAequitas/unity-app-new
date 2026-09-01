@@ -15,14 +15,14 @@ class AdminCampaignPolicy
      */
     private function hasAdminAccess($user): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
         $roleKeys = AdminAccess::adminRoleKeys($user);
         $allowedRoles = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
 
-        return !empty(array_intersect($allowedRoles, $roleKeys));
+        return ! empty(array_intersect($allowedRoles, $roleKeys));
     }
 
     /**
@@ -72,7 +72,7 @@ class AdminCampaignPolicy
     {
         return $this->hasAdminAccess($user) && in_array($campaign->status, [
             AdminCampaign::STATUS_SCHEDULED,
-            AdminCampaign::STATUS_ACTIVE
+            AdminCampaign::STATUS_ACTIVE,
         ], true);
     }
 
@@ -92,7 +92,7 @@ class AdminCampaignPolicy
         return $this->hasAdminAccess($user) && in_array($campaign->status, [
             AdminCampaign::STATUS_ACTIVE,
             AdminCampaign::STATUS_SCHEDULED,
-            AdminCampaign::STATUS_PAUSED
+            AdminCampaign::STATUS_PAUSED,
         ], true);
     }
 
@@ -103,7 +103,7 @@ class AdminCampaignPolicy
     {
         return $this->hasAdminAccess($user) && in_array($campaign->status, [
             AdminCampaign::STATUS_SENT,
-            AdminCampaign::STATUS_COMPLETED
+            AdminCampaign::STATUS_COMPLETED,
         ], true);
     }
 
@@ -114,7 +114,7 @@ class AdminCampaignPolicy
     {
         return $this->hasAdminAccess($user) && in_array($campaign->status, [
             AdminCampaign::STATUS_FAILED,
-            AdminCampaign::STATUS_STOPPED
+            AdminCampaign::STATUS_STOPPED,
         ], true);
     }
 }

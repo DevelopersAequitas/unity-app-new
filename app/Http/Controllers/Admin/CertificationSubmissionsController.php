@@ -4,15 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CertificationSubmission;
+use App\Models\EntrepreneurCertificationSubmission;
+use App\Models\LeadershipCertificationSubmission;
 use App\Services\Certifications\CertificateGeneratorService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class CertificationSubmissionsController extends Controller
 {
-    public function __construct(private readonly CertificateGeneratorService $certificateGenerator)
-    {
-    }
+    public function __construct(private readonly CertificateGeneratorService $certificateGenerator) {}
 
     public function index(Request $request)
     {
@@ -36,12 +36,26 @@ class CertificationSubmissionsController extends Controller
             $search = trim((string) $filters['search']);
             $query->where(function ($q) use ($search) {
                 foreach (['full_name', 'business_name', 'email', 'contact_no'] as $column) {
-                    $q->orWhereRaw('LOWER(' . $column . ') LIKE ?', ['%' . strtolower($search) . '%']);
+                    $q->orWhereRaw('LOWER('.$column.') LIKE ?', ['%'.strtolower($search).'%']);
                 }
             });
         }
 
         $items = $query->latest()->paginate(15)->withQueryString();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Certifications retrieved successfully.',
+                'data' => $items->items(),
+                'pagination' => [
+                    'current_page' => $items->currentPage(),
+                    'last_page' => $items->lastPage(),
+                    'per_page' => $items->perPage(),
+                    'total' => $items->total(),
+                ],
+            ]);
+        }
 
         return view('admin.certifications.index', [
             'items' => $items,
@@ -66,6 +80,14 @@ class CertificationSubmissionsController extends Controller
             $data['admin_note'] ?? $submission->admin_note,
             auth('admin')->id(),
         );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => $message,
+                'data' => $submission,
+            ]);
+        }
 
         return redirect()
             ->route('admin.certifications.index', ['search' => $submission->email])
@@ -100,6 +122,20 @@ class CertificationSubmissionsController extends Controller
             'rejected_by' => auth('admin')->id(),
             'rejected_at' => now(),
         ])->save();
+
+        if ($submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP) {
+            LeadershipCertificationSubmission::query()->where('id', $submission->id)->update(['status' => 'rejected']);
+        } elseif ($submission->certification_type === CertificationSubmission::TYPE_ENTREPRENEUR) {
+            EntrepreneurCertificationSubmission::query()->where('id', $submission->id)->update(['status' => 'rejected']);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Certification submission rejected successfully.',
+                'data' => $submission->fresh(),
+            ]);
+        }
 
         return back()->with('success', 'Certification submission rejected successfully.');
     }

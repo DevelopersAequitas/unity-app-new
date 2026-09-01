@@ -2,7 +2,11 @@
 
 namespace App\Models;
 
+use App\Jobs\SendWearTheBadgeWhatsappJob;
+use App\Models\Notifications\NotificationDeliveryLog;
 use App\Services\Admin\DistrictSyncService;
+use App\Services\Creative\WearTheBadgeImageGenerator;
+use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,6 +17,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
@@ -21,9 +28,12 @@ use Throwable;
 class User extends Authenticatable
 {
     public const STATUS_FREE_TRIAL = 'free_trial_peer';
+
     public const STATUS_FREE = 'free_peer';
-    public const STATUS_GREEN_PEER = 'Only Green Peer';
-    public const STATUS_GREEN_PEER_LABEL = 'Only Green Peer';
+
+    public const STATUS_GREEN_PEER = 'Only Unity Peer';
+
+    public const STATUS_GREEN_PEER_LABEL = 'Global Peer';
 
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 
@@ -33,7 +43,9 @@ class User extends Authenticatable
     use SoftDeletes;
 
     protected $table = 'users';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -106,12 +118,15 @@ class User extends Authenticatable
         'membership_expiry',
         'coins_balance',
         'coins_remark',
+        'membership_expiry_date_remark',
         'coin_medal_rank',
         'coin_milestone_title',
         'coin_milestone_meaning',
         'contribution_award_name',
         'contribution_award_recognition',
         'profile_photo_url',
+        'welcome_creative_url',
+        'profile_card_image_url',
         'short_bio',
         'long_bio_html',
         'industry_tags',
@@ -166,6 +181,12 @@ class User extends Authenticatable
         'sustainability_areas',
         'greenpreneur_goals',
         'community_directory_listing',
+        'anniversary_date',
+        'android_fcm_token',
+        'ios_fcm_token',
+        'bookmarks',
+        'global_peer_certificate_sent_at',
+        'global_peer_certificate_file_id',
     ];
 
     protected $hidden = [
@@ -195,7 +216,9 @@ class User extends Authenticatable
         'circle_joined_at' => 'datetime',
         'circle_expires_at' => 'datetime',
         'welcome_membership_email_sent_at' => 'datetime',
+        'global_peer_certificate_sent_at' => 'datetime',
         'dob' => 'date',
+        'anniversary_date' => 'date',
         'skills' => 'array',
         'interests' => 'array',
         'social_links' => 'array',
@@ -218,6 +241,7 @@ class User extends Authenticatable
         'sustainability_areas' => 'array',
         'greenpreneur_goals' => 'array',
         'contacts_allowed' => 'boolean',
+        'bookmarks' => 'array',
     ];
 
     public function getAuthPassword()
@@ -227,12 +251,102 @@ class User extends Authenticatable
 
     public function getLifeImpactedCountAttribute($value): int
     {
-        return (int) ($value ?? 0);
+        if ($value !== null) {
+            return (int) $value;
+        }
+
+        if (! $this->exists || ! isset($this->id)) {
+            return 0;
+        }
+
+        static $hasLifeImpactHistories = null;
+        if ($hasLifeImpactHistories === null) {
+            $hasLifeImpactHistories = Schema::hasTable('life_impact_histories');
+        }
+
+        if ($hasLifeImpactHistories) {
+            static $hasStatus = null, $hasCounted = null, $hasImpactValue = null, $hasLifeImpacted = null;
+            if ($hasStatus === null) {
+                $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
+                $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+                $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+                $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+            }
+
+            $valueExpr = ($hasImpactValue && $hasLifeImpacted)
+                ? 'COALESCE(NULLIF(impact_value, 0), NULLIF(life_impacted, 0), 0)'
+                : ($hasImpactValue ? 'COALESCE(NULLIF(impact_value, 0), 0)' : ($hasLifeImpacted ? 'COALESCE(NULLIF(life_impacted, 0), 0)' : '0'));
+
+            $query = DB::table('life_impact_histories')
+                ->where('user_id', (string) $this->id);
+
+            if ($hasCounted) {
+                $query->where(function ($q): void {
+                    $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                });
+            }
+
+            if ($hasStatus) {
+                $query->where(function ($q): void {
+                    $q->whereNull('status')->orWhere('status', 'approved');
+                });
+            }
+
+            $sum = (int) $query->sum(DB::raw($valueExpr));
+            if ($sum > 0) {
+                return $sum;
+            }
+        }
+
+        static $hasImpacts = null;
+        if ($hasImpacts === null) {
+            $hasImpacts = Schema::hasTable('impacts');
+        }
+
+        if ($hasImpacts) {
+            static $hasImpactsStatus = null, $hasImpactsLife = null;
+            if ($hasImpactsStatus === null) {
+                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+            }
+            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : '1';
+
+            $query = DB::table('impacts')
+                ->where('user_id', (string) $this->id);
+
+            if ($hasImpactsStatus) {
+                $query->where(function ($q): void {
+                    $q->whereNull('status')->orWhere('status', 'approved');
+                });
+            }
+
+            $sum = (int) $query->sum(DB::raw($impactsLifeExpr));
+            if ($sum > 0) {
+                return $sum;
+            }
+        }
+
+        return 0;
     }
 
     public function contactPosts(): HasMany
     {
         return $this->hasMany(ContactPost::class, 'user_id');
+    }
+
+    public function approvedSentConnections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'requester_id')->where('is_approved', true);
+    }
+
+    public function approvedReceivedConnections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'addressee_id')->where('is_approved', true);
+    }
+
+    public function introducedMembers(): HasMany
+    {
+        return $this->hasMany(User::class, 'introduced_by');
     }
 
     protected static function booted(): void
@@ -249,13 +363,75 @@ class User extends Authenticatable
             }
 
             if (empty($user->display_name)) {
-                $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
+                $user->display_name = trim($user->first_name.' '.($user->last_name ?? ''));
+            }
+
+            if (empty($user->peer_id)) {
+                $hasPeerIdColumn = true;
+                try {
+                    $hasPeerIdColumn = Schema::hasColumn('users', 'peer_id');
+                } catch (Throwable) {
+                    $hasPeerIdColumn = false;
+                }
+
+                if ($hasPeerIdColumn) {
+                    $usedSeq = false;
+                    try {
+                        if (DB::getDriverName() === 'pgsql') {
+                            $seqCheck = DB::selectOne("SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relname = 'peer_id_seq' AND c.relkind = 'S') AS seq_exists");
+                            if (! empty($seqCheck?->seq_exists)) {
+                                $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
+                                if (! empty($seqResult?->peer_id)) {
+                                    $user->peer_id = (string) $seqResult->peer_id;
+                                    $usedSeq = true;
+                                }
+                            }
+                        }
+                    } catch (Throwable) {
+                        $usedSeq = false;
+                    }
+
+                    if (! $usedSeq) {
+                        $maxNum = 0;
+                        try {
+                            $maxUser = static::query()
+                                ->where('peer_id', 'LIKE', 'PG3182736%')
+                                ->get()
+                                ->filter(fn ($u): bool => ! empty($u->peer_id) && preg_match('/^PG3182736([0-9]+)$/', (string) $u->peer_id))
+                                ->sortByDesc(fn ($u): int => (int) substr((string) $u->peer_id, 9))
+                                ->first();
+
+                            if ($maxUser && ! empty($maxUser->peer_id)) {
+                                $maxNum = (int) substr((string) $maxUser->peer_id, 9);
+                            }
+                        } catch (Throwable) {
+                            $maxNum = 0;
+                        }
+                        $user->peer_id = 'PG3182736'.($maxNum + 1);
+                    }
+                }
+            }
+        });
+
+        static::created(function (self $user): void {
+            try {
+                app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
+            } catch (Throwable) {
+                // Safeguard: User creation completes safely even if image generation encounters an error
             }
         });
 
         static::saved(function (self $user): void {
             if ($user->wasRecentlyCreated || $user->wasChanged(['city_id', 'city', 'business_city', 'state', 'business_state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromUser($user);
+            }
+
+            if ($user->wasRecentlyCreated || $user->wasChanged(['coins_balance', 'life_impacted_count', 'members_introduced_count'])) {
+                app(MilestoneBadgeService::class)->calculateForUser($user);
+            }
+
+            if ($user->shouldSendWearTheBadgeWhatsapp()) {
+                SendWearTheBadgeWhatsappJob::dispatch((string) $user->id);
             }
         });
     }
@@ -323,6 +499,76 @@ class User extends Authenticatable
         return true;
     }
 
+    /**
+     * Resolve the welcome creative URL for this user.
+     * If NULL in database, automatically generate the creative image, save it to storage and SQL, and return the URL.
+     */
+    public function resolveWelcomeCreativeUrl(bool $forceRegenerate = false): string
+    {
+        $existing = $this->getAttribute('welcome_creative_url') ?? $this->getAttribute('profile_card_image_url');
+        if (! $forceRegenerate && filled($existing)) {
+            $uuid = null;
+            if (preg_match('/\/api\/v1\/files\/([0-9a-fA-F-]{36})/', (string) $existing, $matches)) {
+                $uuid = $matches[1];
+            }
+
+            if ($uuid) {
+                $fileRecord = FileModel::find($uuid) ?? File::find($uuid);
+                if ($fileRecord && $fileRecord->s3_key) {
+                    $disk = config('filesystems.default', 'public');
+                    if (Storage::disk($disk)->exists($fileRecord->s3_key) || Storage::disk('public')->exists($fileRecord->s3_key)) {
+                        return (string) $existing;
+                    }
+                }
+            } else {
+                return (string) $existing;
+            }
+
+            $forceRegenerate = true;
+        }
+
+        try {
+            return app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($this, $forceRegenerate);
+        } catch (Throwable $e) {
+            Log::warning("User {$this->id}: Could not automatically generate welcome creative URL on demand: {$e->getMessage()}");
+
+            return (string) ($existing ?? '');
+        }
+    }
+
+    public function shouldSendWearTheBadgeWhatsapp(): bool
+    {
+        if ($this->hasSentWearTheBadgeWhatsapp()) {
+            return false;
+        }
+
+        // Check if profile is 100% complete
+        $isProfileComplete = $this->calculateProfileCompletionPercentage() === 100;
+
+        // Check if first-payment condition is satisfied
+        $isPaid = filled($this->last_payment_at) || ! in_array((string) $this->membership_status, ['visitor', 'free_peer', 'free_trial_peer', ''], true);
+
+        return $isProfileComplete || $isPaid;
+    }
+
+    public function hasSentWearTheBadgeWhatsapp(): bool
+    {
+        if (! Schema::hasTable('notification_delivery_logs')) {
+            return false;
+        }
+
+        try {
+            return NotificationDeliveryLog::query()
+                ->where('user_id', $this->id)
+                ->where('channel', 'whatsapp')
+                ->where('provider', 'wear_the_badge')
+                ->where('status', 'sent')
+                ->exists();
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
     public function membershipDatesMatch(): bool
     {
         return $this->normalizedMembershipDate($this->membership_ends_at) === $this->normalizedMembershipDate($this->membership_expiry);
@@ -366,6 +612,11 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'introduced_by');
     }
 
+    public function introducedPeers(): HasMany
+    {
+        return $this->hasMany(User::class, 'introduced_by');
+    }
+
     public function referredByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'referred_by_user_id');
@@ -381,9 +632,14 @@ class User extends Authenticatable
         return $this->belongsTo(CircleCategory::class, 'business_category_id');
     }
 
+    public function level4Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'business_category_id');
+    }
+
     public function foundedCircles(): HasMany
     {
-        return $this->hasMany(Circle::class, 'founder_user_id');
+        return $this->hasMany(Circle::class, 'circle_founder_user_id');
     }
 
     public function circleMembers(): HasMany
@@ -399,6 +655,11 @@ class User extends Authenticatable
     public function joinedCircleCategories(): HasMany
     {
         return $this->hasMany(JoinedCircleCategory::class, 'user_id');
+    }
+
+    public function customCategoryRequests(): HasMany
+    {
+        return $this->hasMany(CustomCategoryRequest::class, 'user_id');
     }
 
     public function circleSubscriptions(): HasMany
@@ -432,17 +693,34 @@ class User extends Authenticatable
 
     public function adminDisplayName(): string
     {
-        $displayName = trim((string) ($this->display_name ?? ''));
-
-        if ($displayName !== '') {
-            return $displayName;
+        $rawDisplayName = trim((string) ($this->getRawOriginal('display_name') ?? $this->attributes['display_name'] ?? ''));
+        if ($rawDisplayName !== '' && ! str_contains($rawDisplayName, '@')) {
+            return $rawDisplayName;
         }
 
-        $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
-        );
+        $rawFullName = trim((string) ($this->getRawOriginal('full_name') ?? $this->attributes['full_name'] ?? ''));
+        if ($rawFullName !== '' && ! str_contains($rawFullName, '@')) {
+            return $rawFullName;
+        }
 
-        return $fullName !== '' ? $fullName : 'Unknown';
+        $firstNameLastName = trim(
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
+        );
+        if ($firstNameLastName !== '' && ! str_contains($firstNameLastName, '@')) {
+            return $firstNameLastName;
+        }
+
+        if ($rawDisplayName !== '') {
+            return $rawDisplayName;
+        }
+
+        if ($rawFullName !== '') {
+            return $rawFullName;
+        }
+
+        $email = trim((string) ($this->email ?? ''));
+
+        return $email !== '' ? $email : '—';
     }
 
     public function getDisplayNameAttribute()
@@ -450,7 +728,7 @@ class User extends Authenticatable
         $firstName = trim($this->first_name ?? '');
         $lastName = trim($this->last_name ?? '');
 
-        $fullName = trim($firstName . ' ' . $lastName);
+        $fullName = trim($firstName.' '.$lastName);
 
         if ($fullName !== '') {
             return $fullName;
@@ -482,27 +760,29 @@ class User extends Authenticatable
     public function adminCircleLabel(): string
     {
         if ($this->relationLoaded('circleMembers')) {
-            $name = trim((string) optional($this->circleMembers->first()?->circle)->name);
-            return $name !== '' ? $name : 'No Circle';
+            $names = $this->circleMembers->map(fn ($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
+
+            return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         }
 
         if ($this->relationLoaded('circles')) {
-            $name = trim((string) optional($this->circles->first())->name);
-            return $name !== '' ? $name : 'No Circle';
+            $names = $this->circles->map(fn ($c) => trim((string) $c->name))->filter()->unique();
+
+            return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         }
 
         try {
-            $member = $this->circleMembers()
+            $members = $this->circleMembers()
                 ->where('status', 'approved')
                 ->whereNull('deleted_at')
                 ->with(['circle:id,name'])
                 ->orderByDesc('joined_at')
-                ->first();
+                ->get();
 
-            $name = trim((string) optional($member?->circle)->name);
+            $names = $members->map(fn ($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
 
-            return $name !== '' ? $name : 'No Circle';
-        } catch (\Throwable $e) {
+            return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
+        } catch (Throwable $e) {
             return 'No Circle';
         }
     }
@@ -526,7 +806,7 @@ class User extends Authenticatable
         }
 
         $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
 
         if ($fullName !== '') {
@@ -830,7 +1110,7 @@ class User extends Authenticatable
             ?? null;
 
         if ($profilePhotoId) {
-            return url('/api/v1/files/' . $profilePhotoId);
+            return url('/api/v1/files/'.$profilePhotoId);
         }
 
         $storedProfilePhotoUrl = $this->attributes['profile_photo_url'] ?? null;
@@ -852,7 +1132,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return url('/api/v1/files/' . $this->profile_video_id);
+        return url('/api/v1/files/'.$this->profile_video_id);
     }
 
     public function isFreeMember(): bool
@@ -869,7 +1149,7 @@ class User extends Authenticatable
     {
         $name = (string) ($this->getAttribute('name')
             ?? $this->display_name
-            ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')));
+            ?? trim(($this->first_name ?? '').' '.($this->last_name ?? '')));
 
         $companyName = (string) ($this->getAttribute('company_name') ?? '');
         $city = (string) ($this->getAttribute('city') ?? '');
@@ -897,5 +1177,104 @@ class User extends Authenticatable
             'city' => $city,
             'industry' => $industry,
         ];
+    }
+
+    /**
+     * Calculate user profile completion percentage (0 to 100)
+     * matching the 5-section Flutter specification.
+     */
+    public function calculateProfileCompletionPercentage(): int
+    {
+        $isCompleted = static function (mixed $value): bool {
+            if ($value === null) {
+                return false;
+            }
+
+            if (is_string($value)) {
+                return trim($value) !== '';
+            }
+
+            if (is_array($value)) {
+                return count($value) > 0;
+            }
+
+            if ($value instanceof \Countable) {
+                return count($value) > 0;
+            }
+
+            return true;
+        };
+
+        // Section 1: Personal Details (14 fields)
+        $personal = [
+            $this->getAttribute('first_name') ?: $this->getAttribute('display_name'),
+            $this->getAttribute('last_name'),
+            $this->getAttribute('email'),
+            $this->getAttribute('phone') ?: $this->getAttribute('secondary_mobile'),
+            $this->getAttribute('gender'),
+            $this->getAttribute('dob'),
+            $this->getAttribute('anniversary_date'),
+            $this->getAttribute('city') ?: $this->getAttribute('city_id') ?: $this->getAttribute('city_of_residence'),
+            $this->getAttribute('state'),
+            $this->getAttribute('country'),
+            $this->getAttribute('profile_photo_file_id') ?: $this->getAttribute('profile_photo_id') ?: $this->getAttribute('profile_photo_url'),
+            $this->getAttribute('cover_photo_file_id') ?: $this->getAttribute('cover_photo_id'),
+            $this->getAttribute('profile_video_id') ?: $this->getAttribute('intro_video_id'),
+            $this->getAttribute('short_bio') ?: $this->getAttribute('long_bio_html') ?: $this->getAttribute('experience_summary'),
+        ];
+
+        // Section 2: Business Details (19 fields)
+        $business = [
+            $this->getAttribute('company_name'),
+            $this->getAttribute('designation'),
+            $this->getAttribute('business_category_id') ?: $this->getAttribute('main_business_category_id'),
+            $this->getAttribute('business_sub_category'),
+            $this->getAttribute('company_type'),
+            $this->getAttribute('business_type'),
+            $this->getAttribute('year_of_establishment'),
+            $this->getAttribute('annual_revenue_range') ?: $this->getAttribute('turnover_range'),
+            $this->getAttribute('number_of_employees'),
+            $this->getAttribute('gst_number'),
+            $this->getAttribute('business_website') ?: $this->getAttribute('website'),
+            $this->getAttribute('superpower'),
+            $this->getAttribute('i_can_help_with'),
+            $this->getAttribute('i_am_looking_for'),
+            $this->getAttribute('business_keywords'),
+            $this->getAttribute('products_services_offered'),
+            $this->getAttribute('business_address'),
+            $this->getAttribute('business_pincode'),
+            $this->getAttribute('business_logo_id'),
+        ];
+
+        // Section 3: Interests & Skills (2 fields)
+        $interestsSkills = [
+            $this->getAttribute('skills'),
+            $this->getAttribute('interests') ?: $this->getAttribute('hobbies_interests') ?: $this->getAttribute('industries_of_interest') ?: $this->getAttribute('collaboration_goals'),
+        ];
+
+        // Section 4: Social Links (6 fields)
+        $socialLinks = [
+            $this->getAttribute('linkedin_profile') ?: data_get($this->getAttribute('social_links'), 'linkedin'),
+            $this->getAttribute('instagram_handle') ?: data_get($this->getAttribute('social_links'), 'instagram'),
+            $this->getAttribute('twitter_handle') ?: data_get($this->getAttribute('social_links'), 'twitter'),
+            $this->getAttribute('facebook_profile') ?: data_get($this->getAttribute('social_links'), 'facebook'),
+            $this->getAttribute('youtube_channel') ?: data_get($this->getAttribute('social_links'), 'youtube'),
+            $this->getAttribute('other_website') ?: data_get($this->getAttribute('social_links'), 'website'),
+        ];
+
+        // Section 5: Contact Visibility / Privacy (1 field)
+        $privacy = [
+            $this->getAttribute('contact_visibility'),
+        ];
+
+        $personalPct = (collect($personal)->filter($isCompleted)->count() / 14) * 100;
+        $businessPct = (collect($business)->filter($isCompleted)->count() / 19) * 100;
+        $interestsPct = (collect($interestsSkills)->filter($isCompleted)->count() / 2) * 100;
+        $socialPct = (collect($socialLinks)->filter($isCompleted)->count() / 6) * 100;
+        $privacyPct = (collect($privacy)->filter($isCompleted)->count() / 1) * 100;
+
+        $totalPercentage = (int) round(($personalPct + $businessPct + $interestsPct + $socialPct + $privacyPct) / 5);
+
+        return min(100, max(0, $totalPercentage));
     }
 }

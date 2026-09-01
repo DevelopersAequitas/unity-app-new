@@ -12,7 +12,18 @@ class NotificationPreference extends Model
     use HasUuids;
 
     protected $keyType = 'string';
+
     public $incrementing = false;
+
+    protected $attributes = [
+        'push_enabled' => true,
+        'email_enabled' => true,
+        'chat_enabled' => true,
+        'event_enabled' => true,
+        'circle_enabled' => true,
+        'business_enabled' => true,
+        'campaign_enabled' => true,
+    ];
 
     protected $fillable = [
         'user_id', 'push_enabled', 'email_enabled', 'chat_enabled', 'event_enabled', 'circle_enabled',

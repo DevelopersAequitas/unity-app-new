@@ -7,7 +7,7 @@ use App\Models\BecomeMentorSubmission;
 use App\Models\BecomeSpeakerSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
-use App\Models\SmeBusinessStorySubmission;
+use App\Models\PartnerWithUsSubmission;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -92,6 +92,7 @@ class LeadSubmissionsController extends Controller
                 foreach ($searchColumns as $index => $column) {
                     if ($index === 0) {
                         $builder->where($column, 'ILIKE', $like);
+
                         continue;
                     }
 
@@ -196,7 +197,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.entrepreneur-certification.index',
                 'show_route' => 'admin.leads.entrepreneur-certification.show',
                 'search_columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'notes'],
-                'columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at'],
                 'long_text_columns' => ['notes'],
                 'filter_fields' => [
                     'name' => ['full_name'],
@@ -213,7 +214,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.leadership-certification.index',
                 'show_route' => 'admin.leads.leadership-certification.show',
                 'search_columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'notes'],
-                'columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at'],
                 'long_text_columns' => ['notes'],
                 'filter_fields' => [
                     'name' => ['full_name'],
@@ -226,17 +227,17 @@ class LeadSubmissionsController extends Controller
                 'key' => 'partner_with_us',
                 'title' => 'Partner With Us Leads',
                 'menu_label' => 'Partner With Us',
-                'model' => SmeBusinessStorySubmission::class,
+                'model' => PartnerWithUsSubmission::class,
                 'index_route' => 'admin.leads.partner-with-us.index',
                 'show_route' => 'admin.leads.partner-with-us.show',
-                'search_columns' => ['id', 'full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'notes'],
-                'columns' => ['id', 'full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'status', 'notes', 'created_at', 'updated_at'],
-                'long_text_columns' => ['company_introduction', 'co_founders_and_partners_details', 'notes'],
+                'search_columns' => ['id', 'first_name', 'last_name', 'email_id', 'mobile_number', 'brand_or_company_name', 'city', 'industry', 'about_your_business', 'partnership_goal', 'why_partner_with_peers_global', 'notes'],
+                'columns' => ['first_name', 'last_name', 'email_id', 'mobile_number', 'city', 'brand_or_company_name', 'industry', 'status', 'notes', 'created_at'],
+                'long_text_columns' => ['about_your_business', 'partnership_goal', 'why_partner_with_peers_global', 'notes'],
                 'filter_fields' => [
-                    'name' => ['full_name'],
-                    'phone' => 'contact_number',
-                    'email' => 'email',
-                    'company' => 'business_name',
+                    'name' => ['first_name', 'last_name'],
+                    'phone' => 'mobile_number',
+                    'email' => 'email_id',
+                    'company' => 'brand_or_company_name',
                 ],
             ],
             'become_speaker' => [
@@ -247,7 +248,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.become-speaker.index',
                 'show_route' => 'admin.leads.become-speaker.show',
                 'search_columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile_url', 'company_name', 'brief_bio', 'topics_to_speak_on', 'notes'],
-                'columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile_url', 'company_name', 'brief_bio', 'topics_to_speak_on', 'image_file_id', 'image_url', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile_url', 'company_name', 'brief_bio', 'topics_to_speak_on', 'image_file_id', 'image_url', 'status', 'notes', 'created_at'],
                 'long_text_columns' => ['brief_bio', 'topics_to_speak_on', 'notes'],
                 'filter_fields' => [
                     'name' => ['first_name', 'last_name'],
@@ -265,7 +266,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.become-mentor.index',
                 'show_route' => 'admin.leads.become-mentor.show',
                 'search_columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile', 'notes'],
-                'columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile', 'status', 'notes', 'created_at'],
                 'long_text_columns' => ['notes'],
                 'filter_fields' => [
                     'name' => ['first_name', 'last_name'],
@@ -281,3 +282,4 @@ class LeadSubmissionsController extends Controller
         return $resources[$key];
     }
 }
+// Cleaned up syntax

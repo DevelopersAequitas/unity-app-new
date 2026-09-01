@@ -114,21 +114,48 @@
             <div class="small text-muted mb-2">Main Category: <strong class="text-dark">{{ $category->name }}</strong></div>
             @foreach($children as $level2Node)
                 <div class="border rounded p-3 mb-3">
-                    <div class="fw-semibold mb-2">Level 2: {{ $level2Node['category']->name }}</div>
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                        <span class="fw-semibold text-dark">Level 2: {{ $level2Node['category']->name }}</span>
+                        <form method="POST" action="{{ route('admin.categories.level2.destroy', $level2Node['category']) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 2 category and all its children?')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 2 Category">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
 
                     @if(empty($level2Node['children']))
                         <div class="text-muted ms-2">No level 3 categories.</div>
                     @else
                         @foreach($level2Node['children'] as $level3Node)
                             <div class="ms-3 border-start ps-3 mb-2">
-                                <div class="fw-medium">Level 3: {{ $level3Node['category']->name }}</div>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-medium text-secondary">Level 3: {{ $level3Node['category']->name }}</span>
+                                    <form method="POST" action="{{ route('admin.categories.level3.destroy', $level3Node['category']) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 3 category and all its children?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 3 Category">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
 
                                 @if(empty($level3Node['children']))
                                     <div class="text-muted ms-2">No level 4 categories.</div>
                                 @else
-                                    <ul class="mb-0 mt-1">
+                                    <ul class="list-unstyled mb-0 mt-1">
                                         @foreach($level3Node['children'] as $level4Category)
-                                            <li>Level 4: {{ $level4Category->name }}</li>
+                                            <li class="d-flex justify-content-between align-items-center py-1">
+                                                <span class="text-muted">• Level 4: {{ $level4Category->name }}</span>
+                                                <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </li>
                                         @endforeach
                                     </ul>
                                 @endif

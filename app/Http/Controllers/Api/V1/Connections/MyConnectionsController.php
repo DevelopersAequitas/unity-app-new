@@ -18,8 +18,10 @@ class MyConnectionsController extends BaseApiController
             ->with([
                 'requester.profilePhotoFile',
                 'requester.city',
+                'requester.level4Category',
                 'addressee.profilePhotoFile',
                 'addressee.city',
+                'addressee.level4Category',
             ])
             ->where('is_approved', true)
             ->where(function ($query) use ($authUser) {

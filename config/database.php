@@ -41,6 +41,7 @@ return [
             'journal_mode' => null,
             'synchronous' => null,
             'transaction_mode' => 'DEFERRED',
+            'search_path' => '',
         ],
 
         'mysql' => [
@@ -96,7 +97,7 @@ return [
             'prefix_indexes' => true,
             'search_path' => env('DB_SEARCH_PATH', env('DB_SCHEMA', 'public')),
             'sslmode' => 'prefer',
-            'timezone' => 'UTC',
+            'timezone' => env('DB_TIMEZONE', 'Asia/Kolkata'),
         ],
 
         'sqlsrv' => [

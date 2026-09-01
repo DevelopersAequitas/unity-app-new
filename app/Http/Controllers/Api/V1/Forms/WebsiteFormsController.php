@@ -9,6 +9,7 @@ use App\Http\Requests\Forms\SubmitLeadershipCertificationRequest;
 use App\Http\Requests\Forms\SubmitPartnerWithUsRequest;
 use App\Http\Requests\Forms\SubmitSmeBusinessStoryRequest;
 use App\Mail\WebsiteFormConfirmationMail;
+use App\Models\AdminUser;
 use App\Models\BecomeSpeakerSubmission;
 use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
@@ -16,12 +17,14 @@ use App\Models\FileModel;
 use App\Models\LeadershipCertificationSubmission;
 use App\Models\PartnerWithUsSubmission;
 use App\Models\SmeBusinessStorySubmission;
+use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class WebsiteFormsController extends BaseApiController
@@ -29,6 +32,16 @@ class WebsiteFormsController extends BaseApiController
     public function indexBecomeSpeaker(Request $request)
     {
         $query = BecomeSpeakerSubmission::query();
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
         $this->applyCommonFilters($query, $request, ['first_name', 'last_name', 'email', 'city', 'company_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -41,9 +54,20 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
-    public function showBecomeSpeaker(string $id)
+    public function showBecomeSpeaker(Request $request, string $id)
     {
-        $item = BecomeSpeakerSubmission::find($id);
+        $query = BecomeSpeakerSubmission::where('id', $id);
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
+        $item = $query->first();
 
         if (! $item) {
             return $this->submissionNotFound();
@@ -86,17 +110,81 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
-    public function indexLeadershipCertification(Request $request)
+    public function myCertifications(Request $request)
     {
-        $query = LeadershipCertificationSubmission::query();
-        $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthenticated.',
+                'data' => [],
+            ], 401);
+        }
+
+        $query = CertificationSubmission::query()
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+                if (! empty($user->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+            });
+
+        if ($type = $request->query('type')) {
+            $query->where('certification_type', $type);
+        }
+
+        if ($status = $request->query('status')) {
+            $query->where('status', $status);
+        }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
         return response()->json([
             'status' => true,
-            'message' => 'Submissions fetched successfully.',
+            'message' => 'My certifications fetched successfully.',
             'data' => $items->items(),
+            'meta' => $this->paginationMeta($items),
+        ]);
+    }
+
+    public function indexLeadershipCertification(Request $request)
+    {
+        $query = LeadershipCertificationSubmission::query();
+        $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
+
+        $onlyMy = $request->boolean('my') || str_contains($request->path(), '/my');
+        $user = Auth::guard('admin')->user() ?? $request->user();
+
+        if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
+            $query->where(function ($q) use ($user) {
+                if (! empty($user->email)) {
+                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
+            });
+        }
+
+        $items = $query->latest()->paginate($this->resolvePerPage($request));
+
+        $mappedItems = collect($items->items())->map(function ($item) {
+            $unified = CertificationSubmission::find($item->id);
+            $item->status = $unified ? $unified->status : $item->status;
+
+            $url = null;
+            if ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) {
+                $url = $unified->certificate_download_url;
+            }
+            $item->certificate_url = $url;
+            $item->certificate_download_url = $url;
+
+            return $item;
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Submissions fetched successfully.',
+            'data' => $mappedItems,
             'meta' => $this->paginationMeta($items),
         ]);
     }
@@ -108,6 +196,12 @@ class WebsiteFormsController extends BaseApiController
         if (! $item) {
             return $this->submissionNotFound();
         }
+
+        $unified = CertificationSubmission::find($item->id);
+        $item->status = $unified ? $unified->status : $item->status;
+        $url = ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) ? $unified->certificate_download_url : null;
+        $item->certificate_url = $url;
+        $item->certificate_download_url = $url;
 
         return response()->json([
             'status' => true,
@@ -121,12 +215,38 @@ class WebsiteFormsController extends BaseApiController
         $query = EntrepreneurCertificationSubmission::query();
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
 
+        $onlyMy = $request->boolean('my') || str_contains($request->path(), '/my');
+        $user = Auth::guard('admin')->user() ?? $request->user();
+
+        if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
+            $query->where(function ($q) use ($user) {
+                if (! empty($user->email)) {
+                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
+            });
+        }
+
         $items = $query->latest()->paginate($this->resolvePerPage($request));
+
+        $mappedItems = collect($items->items())->map(function ($item) {
+            $unified = CertificationSubmission::find($item->id);
+            $item->status = $unified ? $unified->status : $item->status;
+
+            $url = null;
+            if ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) {
+                $url = $unified->certificate_download_url;
+            }
+            $item->certificate_url = $url;
+            $item->certificate_download_url = $url;
+
+            return $item;
+        });
 
         return response()->json([
             'status' => true,
             'message' => 'Submissions fetched successfully.',
-            'data' => $items->items(),
+            'data' => $mappedItems,
             'meta' => $this->paginationMeta($items),
         ]);
     }
@@ -139,6 +259,12 @@ class WebsiteFormsController extends BaseApiController
             return $this->submissionNotFound();
         }
 
+        $unified = CertificationSubmission::find($item->id);
+        $item->status = $unified ? $unified->status : $item->status;
+        $url = ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) ? $unified->certificate_download_url : null;
+        $item->certificate_url = $url;
+        $item->certificate_download_url = $url;
+
         return response()->json([
             'status' => true,
             'message' => 'Submission fetched successfully.',
@@ -146,10 +272,37 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
+    public function userCertifications(string $userId)
+    {
+        $submissions = CertificationSubmission::where('user_id', $userId)->get();
+
+        $data = $submissions->map(function ($sub) {
+            return [
+                'id' => $sub->id,
+                'certification_type' => $sub->certification_type,
+                'full_name' => $sub->full_name,
+                'email' => $sub->email,
+                'total_score' => (int) $sub->total_score,
+                'percentage' => (int) $sub->percentage,
+                'status' => $sub->status,
+                'certificate_number' => $sub->certificate_number,
+                'certificate_url' => $sub->status === CertificationSubmission::STATUS_APPROVED ? $sub->certificate_download_url : null,
+                'approved_at' => $sub->approved_at ? $sub->approved_at->toISOString() : null,
+                'created_at' => $sub->created_at->toISOString(),
+            ];
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'User certifications retrieved successfully.',
+            'data' => $data,
+        ]);
+    }
+
     public function indexPartnerWithUs(Request $request)
     {
         $query = PartnerWithUsSubmission::query();
-        $this->applyCommonFilters($query, $request, ['full_name', 'email_id', 'brand_or_company_name', 'city', 'industry']);
+        $this->applyCommonFilters($query, $request, ['first_name', 'last_name', 'email_id', 'brand_or_company_name', 'city', 'industry']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
@@ -202,17 +355,17 @@ class WebsiteFormsController extends BaseApiController
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'city' => $data['city'],
-                'linkedin_profile_url' => $data['linkedin_profile_url'],
+                'linkedin_profile_url' => $data['linkedin_profile_url'] ?? null,
                 'company_name' => $data['company_name'],
                 'brief_bio' => $data['brief_bio'],
-                'topics_to_speak_on' => $data['topics_to_speak_on'],
+                'topics_to_speak_on' => $data['topics_to_speak_on'] ?? null,
                 'image_file_id' => $storedImage?->id,
                 'status' => 'new',
             ]);
 
             $this->sendConfirmationEmail(
                 email: $submission->email,
-                recipientName: trim($submission->first_name . ' ' . $submission->last_name) ?: $submission->first_name,
+                recipientName: trim($submission->first_name.' '.$submission->last_name) ?: $submission->first_name,
                 subject: 'Your Speaker Application Has Been Received',
                 formTitle: 'Become a Speaker',
                 confirmationMessage: 'Your speaker application has been received successfully.',
@@ -240,7 +393,7 @@ class WebsiteFormsController extends BaseApiController
                     'brief_bio' => $submission->brief_bio,
                     'topics_to_speak_on' => $submission->topics_to_speak_on,
                     'image_file_id' => $submission->image_file_id,
-                    'image_url' => $storedImage ? url('/api/v1/files/' . $storedImage->id) : null,
+                    'image_url' => $storedImage ? url('/api/v1/files/'.$storedImage->id) : null,
                     'created_at' => optional($submission->created_at)?->toISOString(),
                 ],
             ], 201);
@@ -345,10 +498,12 @@ class WebsiteFormsController extends BaseApiController
                     ['status' => 'new']
                 ));
 
+                $userId = $request->user()?->id ?? User::query()->whereRaw('LOWER(email) = ?', [strtolower((string) $legacySubmission->email)])->value('id');
+
                 CertificationSubmission::create([
                     'id' => $legacySubmission->id,
                     'certification_type' => CertificationSubmission::TYPE_LEADERSHIP,
-                    'user_id' => $request->user()?->id,
+                    'user_id' => $userId,
                     'full_name' => $legacySubmission->full_name,
                     'business_name' => $legacySubmission->business_name,
                     'email' => $legacySubmission->email,
@@ -397,11 +552,13 @@ class WebsiteFormsController extends BaseApiController
                 ],
             ], 201);
         } catch (\Throwable $exception) {
-            Log::error('Leadership certification submission failed', [
+            Log::error('Leadership certification submission failed: '.$exception->getMessage(), [
                 'email' => $data['email'] ?? null,
                 'contact_no' => $data['contact_no'] ?? null,
                 'ip' => $request->ip(),
+                'exception' => $exception::class,
                 'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -431,10 +588,12 @@ class WebsiteFormsController extends BaseApiController
                     ['status' => 'new']
                 ));
 
+                $userId = $request->user()?->id ?? User::query()->whereRaw('LOWER(email) = ?', [strtolower((string) $legacySubmission->email)])->value('id');
+
                 CertificationSubmission::create([
                     'id' => $legacySubmission->id,
                     'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
-                    'user_id' => $request->user()?->id,
+                    'user_id' => $userId,
                     'full_name' => $legacySubmission->full_name,
                     'business_name' => $legacySubmission->business_name,
                     'email' => $legacySubmission->email,
@@ -483,11 +642,13 @@ class WebsiteFormsController extends BaseApiController
                 ],
             ], 201);
         } catch (\Throwable $exception) {
-            Log::error('Entrepreneur certification submission failed', [
+            Log::error('Entrepreneur certification submission failed: '.$exception->getMessage(), [
                 'email' => $data['email'] ?? null,
                 'contact_no' => $data['contact_no'] ?? null,
                 'ip' => $request->ip(),
+                'exception' => $exception::class,
                 'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -510,7 +671,8 @@ class WebsiteFormsController extends BaseApiController
 
         try {
             $submission = PartnerWithUsSubmission::create([
-                'full_name' => $data['full_name'],
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
                 'mobile_number' => $data['mobile_number'],
                 'email_id' => $data['email_id'],
                 'city' => $data['city'],
@@ -525,7 +687,7 @@ class WebsiteFormsController extends BaseApiController
 
             $this->sendConfirmationEmail(
                 email: $submission->email_id,
-                recipientName: $submission->full_name,
+                recipientName: trim($submission->first_name.' '.$submission->last_name) ?: $submission->first_name,
                 subject: 'Your Partnership Request Has Been Received',
                 formTitle: 'Partner with Us',
                 confirmationMessage: 'Your partnership request has been received successfully.',
@@ -543,7 +705,8 @@ class WebsiteFormsController extends BaseApiController
                 'message' => 'Partner with us form submitted successfully.',
                 'data' => [
                     'id' => $submission->id,
-                    'full_name' => $submission->full_name,
+                    'first_name' => $submission->first_name,
+                    'last_name' => $submission->last_name,
                     'mobile_number' => $submission->mobile_number,
                     'email_id' => $submission->email_id,
                     'city' => $submission->city,
@@ -575,9 +738,9 @@ class WebsiteFormsController extends BaseApiController
     private function storeWebsiteFormImage(UploadedFile $file): FileModel
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/' . now()->format('Y/m/d');
+        $folder = 'uploads/'.now()->format('Y/m/d');
         $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
-        $filename = (string) Str::uuid() . '.' . $extension;
+        $filename = (string) Str::uuid().'.'.$extension;
         $path = $file->storeAs($folder, $filename, $disk);
 
         return FileModel::create([
@@ -597,9 +760,9 @@ class WebsiteFormsController extends BaseApiController
             $query->where(function ($subQuery) use ($search, $searchColumns) {
                 foreach ($searchColumns as $index => $column) {
                     if ($index === 0) {
-                        $subQuery->where($column, 'ilike', '%' . $search . '%');
+                        $subQuery->where($column, 'ilike', '%'.$search.'%');
                     } else {
-                        $subQuery->orWhere($column, 'ilike', '%' . $search . '%');
+                        $subQuery->orWhere($column, 'ilike', '%'.$search.'%');
                     }
                 }
             });
@@ -631,16 +794,13 @@ class WebsiteFormsController extends BaseApiController
             'company_name' => $item->company_name,
             'brief_bio' => $item->brief_bio,
             'topics_to_speak_on' => $item->topics_to_speak_on,
-            'status' => $item->status,
             'notes' => $item->notes,
             'image_file_id' => $item->image_file_id,
-            'image_url' => $item->image_file_id ? url('/api/v1/files/' . $item->image_file_id) : null,
+            'image_url' => $item->image_file_id ? url('/api/v1/files/'.$item->image_file_id) : null,
             'created_at' => optional($item->created_at)?->toISOString(),
             'updated_at' => optional($item->updated_at)?->toISOString(),
         ];
     }
-
-
 
     private function extractAnswers(array $data, array $fields): array
     {
@@ -675,7 +835,6 @@ class WebsiteFormsController extends BaseApiController
             default => 'Needs Improvement',
         };
     }
-
 
     private function calculateEntrepreneurCertificationScore(array $data): array
     {
@@ -768,5 +927,26 @@ class WebsiteFormsController extends BaseApiController
                 'payload' => ['form_title' => $formTitle],
             ], $exception);
         }
+    }
+
+    private function isUserAdmin(Request $request): bool
+    {
+        $user = Auth::guard('admin')->user() ?? $request->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user instanceof AdminUser) {
+            return true;
+        }
+
+        return AdminUser::query()
+            ->where('id', $user->getAuthIdentifier())
+            ->orWhere(function ($q) use ($user) {
+                if (! empty($user->email)) {
+                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+            })->exists();
     }
 }

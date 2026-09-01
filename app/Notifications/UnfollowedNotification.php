@@ -11,9 +11,7 @@ class UnfollowedNotification extends Notification
 {
     use Queueable;
 
-    public function __construct(private readonly User $fromUser)
-    {
-    }
+    public function __construct(private readonly User $fromUser) {}
 
     public function toArray($notifiable): array
     {

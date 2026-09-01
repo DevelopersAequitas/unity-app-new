@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Circle\StoreCircleRequest;
 use App\Http\Requests\Circle\UpdateCircleMemberRequest;
 use App\Http\Resources\CircleMemberResource;
@@ -47,20 +46,19 @@ class CircleController extends BaseApiController
     {
         $query = Circle::query()
             ->with([
-                'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'founder.cityRelation:id,name',
-                'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'director.cityRelation:id,name',
+                'circleFounder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'circleFounder.cityRelation:id,name',
+                'circleDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'circleDirector.cityRelation:id,name',
                 'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
                 'industryDirector.cityRelation:id,name',
                 'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
                 'ded.cityRelation:id,name',
                 'city:id,name,state,district,country,country_code',
                 'categories' => function ($query) {
-                    $query->select([
-                        'circle_categories.id',
-                        DB::raw('circle_categories.name as category_name'),
-                    ])->orderBy('circle_categories.name');
+                    $query->select('circle_categories.*')
+                        ->selectRaw('circle_categories.name as category_name')
+                        ->orderBy('circle_categories.name');
                 },
             ])
             ->withCount([
@@ -74,7 +72,7 @@ class CircleController extends BaseApiController
 
         if ($search = trim((string) ($request->input('search') ?? $request->input('q', '')))) {
             $query->where(function ($q) use ($search) {
-                $like = '%' . $search . '%';
+                $like = '%'.$search.'%';
                 $q->where('name', 'ILIKE', $like)
                     ->orWhere('description', 'ILIKE', $like)
                     ->orWhere('purpose', 'ILIKE', $like)
@@ -115,19 +113,21 @@ class CircleController extends BaseApiController
     {
         $circle = Circle::with([
             'city:id,name,state,district,country,country_code',
-            'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'founder:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'founder.cityRelation:id,name',
-            'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'director:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'director.cityRelation:id,name',
-            'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'industryDirector:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'industryDirector.cityRelation:id,name',
-            'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'ded:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'ded.cityRelation:id,name',
+            'eed:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
+            'eed.cityRelation:id,name',
+            'members.user:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'categories' => function ($query) {
-                $query->select([
-                    'circle_categories.id',
-                    DB::raw('circle_categories.name as category_name'),
-                ])->orderBy('circle_categories.name');
+                $query->select('circle_categories.*')
+                    ->selectRaw('circle_categories.name as category_name')
+                    ->orderBy('circle_categories.name');
             },
         ])
             ->withCount([
@@ -160,21 +160,21 @@ class CircleController extends BaseApiController
         $data = $request->validated();
 
         return DB::transaction(function () use ($data, $authUser) {
-            $circle = new Circle();
+            $circle = new Circle;
             $circle->fill($data);
             $circle->slug = Circle::generateUniqueSlug((string) ($data['name'] ?? 'circle'));
-            $circle->founder_user_id = $authUser->id;
+            $circle->circle_founder_user_id = $authUser->id;
             $circle->save();
 
             CircleMember::create([
                 'circle_id' => $circle->id,
                 'user_id' => $authUser->id,
-                'role' => 'founder',
+                'role' => 'circle_founder',
                 'status' => 'approved',
                 'joined_at' => now(),
             ]);
 
-            $circle->load(['city', 'founder']);
+            $circle->load(['city', 'circleFounder']);
 
             return $this->success(new CircleResource($circle), 'Circle created successfully', 201);
         });
@@ -193,7 +193,7 @@ class CircleController extends BaseApiController
             return $this->error('Circle not found', 404);
         }
 
-        if ($circle->founder_user_id === $user->id) {
+        if ($circle->circle_founder_user_id === $user->id) {
             return $this->success(null, 'You are the founder of this circle');
         }
 
@@ -314,7 +314,7 @@ class CircleController extends BaseApiController
 
         if ($search = trim((string) $request->input('search', ''))) {
             $membersQuery->whereHas('user', function ($query) use ($search) {
-                $like = '%' . $search . '%';
+                $like = '%'.$search.'%';
                 $query->where('display_name', 'ILIKE', $like)
                     ->orWhere('first_name', 'ILIKE', $like)
                     ->orWhere('last_name', 'ILIKE', $like)
@@ -378,5 +378,30 @@ class CircleController extends BaseApiController
         $member->save();
 
         return $this->success(new CircleMemberResource($member), 'Circle member updated');
+    }
+
+    public function joinedCircles(Request $request)
+    {
+        $user = $request->user();
+        $userName = $user->name ?? $this->resolveDisplayName($user);
+
+        $memberships = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->with('circle:id,name')
+            ->get()
+            ->map(function ($membership) use ($user, $userName) {
+                return [
+                    'circle_id' => $membership->circle_id,
+                    'member_id' => $user->id,
+                    'circle_name' => $membership->circle?->name,
+                    'member_name' => $userName,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return $this->success($memberships, 'Joined circles fetched successfully.');
     }
 }

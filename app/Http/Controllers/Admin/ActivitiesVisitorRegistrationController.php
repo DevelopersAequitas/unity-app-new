@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
-use App\Models\VisitorRegistration;
 use App\Models\User;
+use App\Models\VisitorRegistration;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +46,7 @@ class ActivitiesVisitorRegistrationController extends Controller
             ]);
 
         if ($search !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -56,9 +56,8 @@ class ActivitiesVisitorRegistrationController extends Controller
             });
         }
 
-
         if ($peerNameFilter !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $peerNameFilter) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $peerNameFilter).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -67,15 +66,15 @@ class ActivitiesVisitorRegistrationController extends Controller
         }
 
         if ($peerPhone !== '') {
-            $query->where('peer.phone', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $peerPhone) . '%');
+            $query->where('peer.phone', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $peerPhone).'%');
         }
 
         if ($eventType !== '') {
-            $query->where('event_type', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $eventType) . '%');
+            $query->where('event_type', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $eventType).'%');
         }
 
         if ($eventName !== '') {
-            $query->where('event_name', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $eventName) . '%');
+            $query->where('event_name', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $eventName).'%');
         }
 
         if ($eventDate !== '') {
@@ -91,23 +90,23 @@ class ActivitiesVisitorRegistrationController extends Controller
         }
 
         if ($visitorName !== '') {
-            $query->where('visitor_full_name', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $visitorName) . '%');
+            $query->where('visitor_full_name', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $visitorName).'%');
         }
 
         if ($visitorMobile !== '') {
-            $query->where('visitor_mobile', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $visitorMobile) . '%');
+            $query->where('visitor_mobile', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $visitorMobile).'%');
         }
 
         if ($visitorCity !== '') {
-            $query->where('visitor_city', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $visitorCity) . '%');
+            $query->where('visitor_city', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $visitorCity).'%');
         }
 
         if ($visitorBusiness !== '') {
-            $query->where('visitor_business', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $visitorBusiness) . '%');
+            $query->where('visitor_business', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $visitorBusiness).'%');
         }
 
         if ($statusFilter !== '') {
-            $query->where('status', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $statusFilter) . '%');
+            $query->where('status', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $statusFilter).'%');
         }
 
         if ($coinsAwarded !== '' && is_numeric($coinsAwarded)) {
@@ -169,7 +168,7 @@ class ActivitiesVisitorRegistrationController extends Controller
 
     private function circleOptions()
     {
-        return DB::table('circles')->select(['id','name'])->orderBy('name')->get();
+        return DB::table('circles')->select(['id', 'name'])->orderBy('name')->get();
     }
 
     private function parseDayBoundary($value, bool $endOfDay): ?Carbon

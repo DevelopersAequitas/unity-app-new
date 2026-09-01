@@ -31,7 +31,7 @@ class SubmitBecomeMentorRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
             'city' => ['required', 'string', 'max:150'],
-            'linkedin_profile' => ['required', 'url', 'max:500'],
+            'linkedin_profile' => ['nullable', 'url', 'max:500'],
         ];
     }
 

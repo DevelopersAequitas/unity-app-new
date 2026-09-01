@@ -18,10 +18,10 @@ return [
     'video' => [
         'max_width' => env('MEDIA_VIDEO_MAX_WIDTH', 1280),
         'crf' => env('MEDIA_VIDEO_CRF', 28),
-        'preset' => env('MEDIA_VIDEO_PRESET', 'veryfast'),
+        'preset' => env('MEDIA_VIDEO_PRESET', 'ultrafast'),
         'audio_bitrate' => env('MEDIA_VIDEO_AUDIO_BITRATE', '128k'),
         'poster_max_width' => env('MEDIA_VIDEO_POSTER_WIDTH', 800),
         'poster_second' => env('MEDIA_VIDEO_POSTER_SECOND', 1),
-        'timeout' => env('MEDIA_VIDEO_TIMEOUT', 180),
+        'timeout' => env('MEDIA_VIDEO_TIMEOUT', 600),
     ],
 ];

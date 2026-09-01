@@ -63,7 +63,7 @@ class ContributionMilestoneResolverTest extends TestCase
 
     public function test_user_model_sync_method_updates_contribution_fields_from_count(): void
     {
-        $user = new User();
+        $user = new User;
         $user->members_introduced_count = 16;
 
         $changed = $user->syncContributionMilestoneAttributes();

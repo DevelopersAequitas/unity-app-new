@@ -11,9 +11,7 @@ use Throwable;
 
 class ZohoWebhookController extends Controller
 {
-    public function __construct(private readonly ZohoBillingService $zohoBillingService, private readonly ZohoEventPaymentService $zohoEventPaymentService)
-    {
-    }
+    public function __construct(private readonly ZohoBillingService $zohoBillingService, private readonly ZohoEventPaymentService $zohoEventPaymentService) {}
 
     public function handle(Request $request)
     {

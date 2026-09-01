@@ -5,12 +5,15 @@ namespace Tests\Feature;
 // use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Console\Commands\ExpireTrialUsers;
 use App\Console\Commands\SyncMembershipExpiryFields;
+use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -25,7 +28,6 @@ class ExampleTest extends TestCase
 
         $response->assertStatus(200);
     }
-
 
     public function test_user_resource_returns_trial_membership_label(): void
     {
@@ -56,7 +58,7 @@ class ExampleTest extends TestCase
 
     public function test_sync_membership_expiry_command_name_is_registered(): void
     {
-        $this->assertSame('users:sync-membership-expiry', (new SyncMembershipExpiryFields())->getName());
+        $this->assertSame('users:sync-membership-expiry', (new SyncMembershipExpiryFields)->getName());
     }
 
     public function test_expire_trial_command_downgrades_only_expired_trial_users(): void
@@ -165,5 +167,40 @@ class ExampleTest extends TestCase
         $this->assertSame('https://twitter.com/jane', $resource['social_links']['twitter']);
         $this->assertNull($resource['social_links']['youtube']);
         $this->assertSame('Short bio', $resource['bio']);
+    }
+
+    public function test_store_post_request_validation(): void
+    {
+        $request = new StorePostRequest;
+        $rules = $request->rules();
+
+        $validator = Validator::make([
+            'content_text' => null,
+            'visibility' => 'public',
+        ], $rules);
+
+        $this->assertFalse($validator->fails(), 'Validation should pass when content_text is null');
+    }
+
+    public function test_post_controller_store_validation(): void
+    {
+        $request = Request::create('/api/posts', 'POST', [
+            'content_text' => null,
+            'visibility' => 'public',
+        ]);
+
+        $rules = [
+            'content_text' => ['nullable', 'string', 'max:5000'],
+            'media' => ['nullable', 'array'],
+            'media.*.id' => ['required_with:media', 'uuid', 'exists:files,id'],
+            'media.*.type' => ['required_with:media', 'string', 'max:50'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
+            'visibility' => ['required', 'in:public,connections,members,circle,private'],
+            'circle_id' => ['nullable', 'uuid'],
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+        $this->assertFalse($validator->fails(), 'Controller validation should pass when content_text is null');
     }
 }

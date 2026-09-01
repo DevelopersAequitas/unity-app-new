@@ -5,20 +5,20 @@ namespace App\Console\Commands;
 use App\Events\UserNotificationCreated;
 use App\Jobs\SendFcmNotificationJob;
 use App\Models\Ad;
+use App\Models\AppNotification;
 use App\Models\Category;
 use App\Models\Circle;
 use App\Models\CollaborationPost;
 use App\Models\DailyNotificationReminder;
 use App\Models\Event;
-use App\Models\Notification;
-use App\Models\User;
-use App\Models\Referral;
-use App\Models\BusinessDeal;
-use App\Models\Testimonial;
 use App\Models\LifeImpactHistory;
-use App\Models\LeaderInterestSubmission;
+use App\Models\Notification;
+use App\Models\Referral;
+use App\Models\Testimonial;
+use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -36,13 +36,14 @@ class SendDailyEngagementReminders extends Command
         $this->info('Daily engagement reminders command started.');
 
         $targetUserId = $this->option('user-id');
-        $now = now()->tz('Asia/Kolkata');
+        $now = now()->tz(config('app.timezone', 'UTC'));
 
         // Fetch all reminder templates and key by activity to prevent feature duplication overlap
         $reminders = DailyNotificationReminder::all()->keyBy('activity');
 
         if ($reminders->isEmpty()) {
             $this->error('No reminder templates found in daily_notifications_reminder. Please seed the table.');
+
             return self::FAILURE;
         }
 
@@ -57,7 +58,7 @@ class SendDailyEngagementReminders extends Command
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
                     $query->where(function ($q) {
                         $q->whereNull('last_login_at')
-                          ->orWhere('last_login_at', '<', today());
+                            ->orWhere('last_login_at', '<', today());
                     });
                 });
                 $this->dispatchReminders($users, $reminder, []);
@@ -65,14 +66,14 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 2. Peers: Daily peer discovery suggestion
-        $activity = "Daily peer discovery suggestion";
+        $activity = 'Daily peer discovery suggestion';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
                 foreach ($users as $user) {
                     $peer = User::query()->where('id', '!=', $user->id)->where('status', 'active')->inRandomOrder()->first() ?? $randomPeer;
                     $this->dispatchSingleReminder($user, $reminder, [
-                        '{Suggested Peer Name}' => $peer ? ($peer->first_name . ' ' . $peer->last_name) : 'A Peer',
+                        '{Suggested Peer Name}' => $peer ? ($peer->first_name.' '.$peer->last_name) : 'A Peer',
                         '{Industry}' => $peer?->designation ?: 'Business',
                     ]);
                 }
@@ -80,7 +81,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 3. Circles: Trending circle highlight
-        $activity = "Trending circle highlight";
+        $activity = 'Trending circle highlight';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -103,7 +104,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 4. Leaderboard: Daily leaderboard teaser
-        $activity = "Daily leaderboard teaser";
+        $activity = 'Daily leaderboard teaser';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -112,17 +113,17 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 5. Coins: Reminder of unused wallet balance
-        $activity = "Reminder of unused wallet balance";
+        $activity = 'Reminder of unused wallet balance';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
                     $query->where('coins_balance', '>', 0)
-                          ->whereNotExists(function ($sub) {
-                              $sub->select(DB::raw(1))
-                                  ->from('coins_ledger')
-                                  ->whereColumn('coins_ledger.user_id', 'users.id')
-                                  ->where('created_at', '>', now()->subDays(3));
-                          });
+                        ->whereNotExists(function ($sub) {
+                            $sub->select(DB::raw(1))
+                                ->from('coins_ledger')
+                                ->whereColumn('coins_ledger.user_id', 'users.id')
+                                ->where('created_at', '>', now()->subDays(3));
+                        });
                 });
                 foreach ($users as $user) {
                     $this->dispatchSingleReminder($user, $reminder, [
@@ -133,7 +134,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 6. Referral Report: Encouragement to refer more peers
-        $activity = "Encouragement to refer more peers";
+        $activity = 'Encouragement to refer more peers';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -149,7 +150,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 7. Events Management: Highlight upcoming events nearby
-        $activity = "Highlight upcoming events nearby";
+        $activity = 'Highlight upcoming events nearby';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -167,7 +168,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 8. Business Deals: Inspire users to log a business deal
-        $activity = "Inspire users to log a business deal";
+        $activity = 'Inspire users to log a business deal';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -183,7 +184,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 9. Testimonials: Prompt to give a testimonial
-        $activity = "Prompt to give a testimonial";
+        $activity = 'Prompt to give a testimonial';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -199,7 +200,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 10. Life Impact: Inspire users to share their story
-        $activity = "Inspire users to share their story";
+        $activity = 'Inspire users to share their story';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -215,7 +216,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 11. Activities Summary: Daily activity digest
-        $activity = "Daily activity digest";
+        $activity = 'Daily activity digest';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -224,7 +225,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 12. Find & Build Collaboration: Highlight open collaboration opportunities
-        $activity = "Highlight open collaboration opportunities";
+        $activity = 'Highlight open collaboration opportunities';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -239,7 +240,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 13. Industries: Industry-specific trending news/tip
-        $activity = "Industry-specific trending news/tip";
+        $activity = 'Industry-specific trending news/tip';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -247,7 +248,7 @@ class SendDailyEngagementReminders extends Command
                     'Networking boosts local trade opportunities up to 40%.',
                     'Collaborative marketing can reduce customer acquisition costs by 30%.',
                     'Regular updates with peers improve collaboration success rates.',
-                    'Cross-industry partnerships are the key source of 2026 innovation.'
+                    'Cross-industry partnerships are the key source of 2026 innovation.',
                 ];
                 foreach ($users as $user) {
                     $insight = $insights[array_rand($insights)];
@@ -260,7 +261,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 14. Wallet & Finance: Reward redemption nudge
-        $activity = "Reward redemption nudge";
+        $activity = 'Reward redemption nudge';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -271,7 +272,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 15. Event Gallery: Throwback to a past event photo
-        $activity = "Throwback to a past event photo";
+        $activity = 'Throwback to a past event photo';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -283,7 +284,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 16. Leadership: Inspire users to apply for leadership
-        $activity = "Inspire users to apply for leadership";
+        $activity = 'Inspire users to apply for leadership';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -292,18 +293,18 @@ class SendDailyEngagementReminders extends Command
                             ->orWhere('leadership_roles', '[]')
                             ->orWhere('leadership_roles', '{}');
                     })
-                    ->whereNotExists(function ($sub) {
-                        $sub->select(DB::raw(1))
-                            ->from('leader_interest_submissions')
-                            ->whereColumn('leader_interest_submissions.user_id', 'users.id');
-                    });
+                        ->whereNotExists(function ($sub) {
+                            $sub->select(DB::raw(1))
+                                ->from('leader_interest_submissions')
+                                ->whereColumn('leader_interest_submissions.user_id', 'users.id');
+                        });
                 });
                 $this->dispatchReminders($users, $reminder, []);
             }
         }
 
         // 17. Notifications & Email: Weekly community newsletter teaser
-        $activity = "Weekly community newsletter teaser";
+        $activity = 'Weekly community newsletter teaser';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -312,7 +313,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 18. App-Wide: Streak/engagement reminder
-        $activity = "Streak/engagement reminder";
+        $activity = 'Streak/engagement reminder';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 // Fetch active users who logged in recently
@@ -336,7 +337,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 19. Become A Leader: Showcase a leader success story
-        $activity = "Showcase a leader success story";
+        $activity = 'Showcase a leader success story';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -346,13 +347,13 @@ class SendDailyEngagementReminders extends Command
                     ->inRandomOrder()
                     ->first();
                 $this->dispatchReminders($users, $reminder, [
-                    '{Leader Name}' => $leader ? ($leader->first_name . ' ' . $leader->last_name) : 'Anjali Sharma',
+                    '{Leader Name}' => $leader ? ($leader->first_name.' '.$leader->last_name) : 'Anjali Sharma',
                 ]);
             }
         }
 
         // 20. Ads: Daily curated offer/deal highlight
-        $activity = "Daily curated offer/deal highlight";
+        $activity = 'Daily curated offer/deal highlight';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -364,7 +365,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 21. Circle Categories: Explore new category prompt
-        $activity = "Explore new category prompt";
+        $activity = 'Explore new category prompt';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -376,7 +377,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 22. Impact Cycles: Cycle progress reminder
-        $activity = "Cycle progress reminder";
+        $activity = 'Cycle progress reminder';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -388,7 +389,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 23. App-Wide: Re-engagement after prolonged inactivity
-        $activity = "Re-engagement after prolonged inactivity";
+        $activity = 'Re-engagement after prolonged inactivity';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing, function ($query) {
@@ -399,7 +400,7 @@ class SendDailyEngagementReminders extends Command
         }
 
         // 24. Recommend A Peer: Prompt to recommend someone
-        $activity = "Prompt to recommend someone";
+        $activity = 'Prompt to recommend someone';
         if ($reminder = $reminders->get($activity)) {
             if ($this->shouldRunTiming($reminder->action_trigger_timing, $now)) {
                 $users = $this->getTargetUsers($targetUserId, $activity, $reminder->action_trigger_timing);
@@ -416,7 +417,7 @@ class SendDailyEngagementReminders extends Command
     /**
      * Fetch users eligible for receiving notifications.
      */
-    protected function getTargetUsers(?string $targetUserId, string $activity, string $timing, ?callable $additionalConstraints = null): \Illuminate\Support\Collection
+    protected function getTargetUsers(?string $targetUserId, string $activity, string $timing, ?callable $additionalConstraints = null): Collection
     {
         $query = User::query()->where('status', 'active');
 
@@ -460,7 +461,7 @@ class SendDailyEngagementReminders extends Command
     /**
      * Dispatch reminders to a collection of users.
      */
-    protected function dispatchReminders(\Illuminate\Support\Collection $users, DailyNotificationReminder $reminder, array $placeholders): void
+    protected function dispatchReminders(Collection $users, DailyNotificationReminder $reminder, array $placeholders): void
     {
         foreach ($users as $user) {
             $this->dispatchSingleReminder($user, $reminder, $placeholders);
@@ -493,12 +494,38 @@ class SendDailyEngagementReminders extends Command
                 'read_at' => null,
             ]);
 
+            // Create in-app AppNotification for the new system
+            $appNotification = AppNotification::create([
+                'user_id' => $user->id,
+                'type' => 'system',
+                'category' => 'engagement_reminder',
+                'title' => $title,
+                'body' => $body,
+                'message' => $body,
+                'channel' => 'push',
+                'priority' => 'medium',
+                'screen' => 'home',
+                'data' => [
+                    'notification_type' => 'engagement_reminder',
+                    'title' => $title,
+                    'body' => $body,
+                    'feature' => $reminder->feature,
+                    'activity' => $reminder->activity,
+                ],
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
             // Broadcast real-time notifications event
             event(new UserNotificationCreated((string) $user->id, [
-                'id' => (string) $dbNotification->id,
-                'type' => (string) $dbNotification->type,
-                'payload' => $dbNotification->payload,
-                'created_at' => optional($dbNotification->created_at)->toISOString(),
+                'id' => (string) $appNotification->id,
+                'type' => (string) $appNotification->type,
+                'category' => (string) $appNotification->category,
+                'title' => (string) $appNotification->title,
+                'body' => (string) $appNotification->body,
+                'message' => (string) $appNotification->body,
+                'payload' => $appNotification->data,
+                'created_at' => optional($appNotification->created_at)->toISOString(),
             ]));
 
             // Dispatch async FCM push notification delivery job
@@ -508,7 +535,7 @@ class SendDailyEngagementReminders extends Command
                 $body,
                 [
                     'notification_type' => 'engagement_reminder',
-                    'notification_id' => (string) $dbNotification->id,
+                    'notification_id' => (string) $appNotification->id,
                 ]
             );
         } catch (Throwable $e) {
@@ -576,7 +603,7 @@ class SendDailyEngagementReminders extends Command
             ->where('logged_in_at', '>=', now()->subDays(10))
             ->orderByDesc('logged_in_at')
             ->pluck('logged_in_at')
-            ->map(fn($t) => Carbon::parse($t)->toDateString())
+            ->map(fn ($t) => Carbon::parse($t)->toDateString())
             ->unique()
             ->values();
 

@@ -19,7 +19,7 @@
                         <td style="padding:28px;">
                             <p style="margin:0 0 12px; color:#0f172a; font-size:18px; font-weight:700;">Hi {{ $user->display_name ?? $user->first_name ?? 'there' }},</p>
                             <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:22px;">
-                                Use the one-time password (OTP) below to complete your login to Peers Global Unity. Enter this code on the verification screen to continue.
+                                <!-- EDITABLE_START -->Use the one-time password (OTP) below to complete your login to Peers Global Unity. Enter this code on the verification screen to continue.<!-- EDITABLE_END -->
                             </p>
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:22px 0;">
                                 <tr>

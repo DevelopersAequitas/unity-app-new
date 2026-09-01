@@ -74,8 +74,13 @@ class ProfileController extends Controller
             unset($data['cover_photo_id']);
         }
 
+        if (array_key_exists('intro_video_id', $data)) {
+            $data['profile_video_id'] = $data['intro_video_id'];
+            unset($data['intro_video_id']);
+        }
+
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
-            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
+            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
@@ -141,6 +146,7 @@ class ProfileController extends Controller
             'about',
             'gender',
             'dob',
+            'anniversary_date',
             'experience_years',
             'experience_summary',
             'city_id',
@@ -154,6 +160,8 @@ class ProfileController extends Controller
             'social_links',
             'profile_photo_id',
             'cover_photo_id',
+            'intro_video_id',
+            'profile_video_id',
             'business_logo_id',
             'business_category_id',
             'business_sub_category',
@@ -215,5 +223,4 @@ class ProfileController extends Controller
             'collaboration_goals',
         ];
     }
-
 }

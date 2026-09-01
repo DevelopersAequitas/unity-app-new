@@ -1,34 +1,24 @@
-<table style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 30px;" width="100%" cellspacing="0" cellpadding="0">
-<tbody>
-<tr>
-<td align="center">
-<table style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);" width="600" cellspacing="0" cellpadding="0"><!-- HEADER -->
-<tbody>
-<tr>
-<td style="padding: 14px 14px; background-color: #240e5c; text-align: center;"><img style="vertical-align: middle;" src="https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png" alt="Peers Global" width="135" /></td>
-</tr>
-<!-- BODY -->
-<tr>
-<td style="padding: 20px 20px; font-size: 16px; color: #333333;">
-Dear {{ $otherName ?? '' }}<br /><br />
-Great news! You’ve just <strong>received a testimonial</strong> from {{ $actorName ?? '' }}.<br /><br />
-Here’s what they shared about you:<br />
-<em>"{{ $testimonialContent ?? '' }}"</em><br /><br />
-Testimonials are proof of the impact you’re creating in the community — keep shining and inspiring others.<br /><br />
-You can view and showcase this testimonial anytime from your Unity dashboard.<br /><br />
-With appreciation,<br />
-<strong>Peers Global Team</strong>
-</td>
-</tr>
-<!-- FOOTER -->
-<tr>
-<td style="padding: 10px 14px; background-color: #240e5c; text-align: center; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">
-<p style="font-size: 14px; font-weight: bold; color: #ffffff; margin: 4px 0;">Peers are partners in business and friends in life.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
+@extends('emails.layouts.email')
+
+@section('title', 'Testimonial Received')
+
+@section('content')
+<p>Dear {{ $otherName ?? '' }},</p>
+
+<!-- EDITABLE_START -->
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Great news! You’ve just <strong>received a testimonial</strong> from {{ $actorName ?? '' }}.</p>
+<p style="margin: 0 0 8px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Here’s what they shared about you:</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9; font-style: italic; background: rgba(255,255,255,0.05); padding: 12px; border-left: 3px solid #6366f1;">"{{ $testimonialContent ?? '' }}"</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Testimonials are proof of the impact you’re creating in the community — keep shining and inspiring others.</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">You can view and showcase this testimonial anytime from your Unity dashboard.</p>
+<!-- EDITABLE_END -->
+
+<p style="margin: 24px 0 0 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">
+    With appreciation,<br>
+    <strong>Peers Global Team</strong>
+</p>
+@endsection
+
+@section('footer')
+<p style="margin:0;">Peers are partners in business and friends in life.</p>
+@endsection

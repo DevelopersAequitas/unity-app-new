@@ -2,30 +2,33 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ActivitiesExportRequest;
 use App\Models\BusinessDeal;
+use App\Models\File;
 use App\Models\LeaderInterestSubmission;
 use App\Models\P2pMeeting;
 use App\Models\PeerRecommendation;
 use App\Models\Referral;
 use App\Models\Requirement;
+use App\Models\SupportTicket;
 use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 // NOTE: After deploy run `php artisan optimize:clear` (optional) `composer dump-autoload`.
 class ActivitiesController extends Controller
 {
-
     public function index(Request $request): View
     {
         $filters = $this->buildFilters($request);
@@ -53,7 +56,6 @@ class ActivitiesController extends Controller
             'topDistrictPeers' => $topDistrictPeers,
         ]);
     }
-
 
     private function buildTopDistrictPeers($summaryQuery)
     {
@@ -89,7 +91,9 @@ class ActivitiesController extends Controller
             ->select([
                 'users.id',
                 'users.email',
+                'users.phone',
                 'users.company_name',
+                'users.designation',
                 DB::raw("trim(coalesce(users.display_name, '' )) as display_name"),
                 DB::raw("coalesce(nullif(trim(coalesce(users.display_name, '')), ''), nullif(trim(concat(coalesce(users.first_name, ''), ' ', coalesce(users.last_name, ''))), ''), users.email) as peer_name"),
                 DB::raw("coalesce(nullif(trim(coalesce(users.city, '')), ''), cities.name) as city_name"),
@@ -178,8 +182,19 @@ class ActivitiesController extends Controller
             $this->applyDateRangeToSubQuery($sub, $from, $to, 'visitor_registrations.created_at');
         }, 'register_visitor_count');
 
-        if ($filters['q'] !== '') {
-            $like = "%{$filters['q']}%";
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('support_tickets')
+                ->selectRaw('count(*)')
+                ->where(function ($q) {
+                    $q->whereColumn('support_tickets.user_id', 'users.id')
+                        ->orWhereColumn('support_tickets.email', 'users.email');
+                });
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'support_tickets.created_at');
+        }, 'support_tickets_count');
+
+        $searchQ = trim((string) ($filters['q'] ?? ''));
+        if ($searchQ !== '') {
+            $like = "%{$searchQ}%";
             $query->where(function ($q) use ($like) {
                 $q->where('users.display_name', 'ILIKE', $like)
                     ->orWhere('users.first_name', 'ILIKE', $like)
@@ -189,7 +204,6 @@ class ActivitiesController extends Controller
                     ->orWhere('cities.name', 'ILIKE', $like);
             });
         }
-
 
         if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'any') {
             $query->whereExists(function ($sub) use ($filters) {
@@ -275,7 +289,7 @@ class ActivitiesController extends Controller
             ->select('circles.id', 'circles.name')
             ->orderBy('circles.name');
 
-        if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+        if (AdminAccess::isCircleScoped($admin)) {
             $circleId = AdminCircleScope::resolveCircleId($admin);
             if ($circleId) {
                 $query->where('circles.id', $circleId);
@@ -306,9 +320,9 @@ class ActivitiesController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         return view('admin.activities.list-testimonials', [
             'member' => $member,
@@ -409,9 +423,9 @@ class ActivitiesController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         return view('admin.activities.list-requirements', [
             'member' => $member,
@@ -425,8 +439,8 @@ class ActivitiesController extends Controller
     {
         $validated = $request->validated();
         $activityType = $validated['activity_type'];
-        $filenamePrefix = $activityType === 'summary' ? 'activities_summary' : 'activity_' . $activityType;
-        $filename = $filenamePrefix . '_' . now()->format('Ymd_His') . '.csv';
+        $filenamePrefix = $activityType === 'summary' ? 'activities_summary' : 'activity_'.$activityType;
+        $filename = $filenamePrefix.'_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($request, $activityType) {
             @ini_set('zlib.output_compression', '0');
@@ -572,8 +586,8 @@ class ActivitiesController extends Controller
     {
         $memberKey = $this->resolveMemberKey($activityType);
 
-        $query = DB::table($this->activityTable($activityType) . ' as activity')
-            ->leftJoin('users as member_user', 'member_user.id', '=', 'activity.' . $memberKey)
+        $query = DB::table($this->activityTable($activityType).' as activity')
+            ->leftJoin('users as member_user', 'member_user.id', '=', 'activity.'.$memberKey)
             ->select($this->exportSelectColumns($activityType));
 
         $requiresPeer = $this->activityRequiresPeer($activityType);
@@ -583,7 +597,7 @@ class ActivitiesController extends Controller
         $this->applyCircleScopeToActivityQuery(
             $query,
             auth('admin')->user(),
-            'activity.' . $memberKey,
+            'activity.'.$memberKey,
             $requiresPeer ? $this->relatedUserJoinColumn($activityType) : null
         );
 
@@ -756,6 +770,7 @@ class ActivitiesController extends Controller
         $decoded = is_string($value) ? json_decode($value, true) : $value;
         if (is_array($decoded)) {
             $decoded = array_filter($decoded);
+
             return $decoded ? implode(', ', $decoded) : null;
         }
 
@@ -780,7 +795,7 @@ class ActivitiesController extends Controller
 
         $regionLabel = $decoded['region_label'] ?? null;
         $cityName = $decoded['city_name'] ?? null;
-        $region = trim(($regionLabel ?? '') . ($cityName ? ', ' . $cityName : ''));
+        $region = trim(($regionLabel ?? '').($cityName ? ', '.$cityName : ''));
 
         return $region !== '' ? $region : null;
     }
@@ -824,7 +839,7 @@ class ActivitiesController extends Controller
             default => Requirement::class,
         };
 
-        return (new $modelClass())->getTable();
+        return (new $modelClass)->getTable();
     }
 
     private function relatedUserJoinColumn(string $activityType): string
@@ -950,7 +965,7 @@ class ActivitiesController extends Controller
             ->mapWithKeys(function ($user) {
                 $name = $user->display_name;
                 if (! $name) {
-                    $name = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                    $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
                 }
 
                 $name = $name ?: $user->email;
@@ -1026,9 +1041,387 @@ class ActivitiesController extends Controller
         }
 
         if (is_string($value) && Str::isUuid($value)) {
-            return url('/api/v1/files/' . $value);
+            return url('/api/v1/files/'.$value);
         }
 
         return null;
+    }
+
+    public function peerSummary(Request $request, string $userId): JsonResponse
+    {
+        $admin = auth('admin')->user();
+
+        $user = User::withTrashed()
+            ->where('id', $userId)
+            ->orWhere('email', $userId)
+            ->first();
+
+        if (! $user) {
+            $guestTicket = SupportTicket::where('email', $userId)->orWhere('id', $userId)->first();
+            if (! $guestTicket) {
+                return response()->json(['error' => 'User not found'], 404);
+            }
+
+            $ticketCount = SupportTicket::where('email', $guestTicket->email)->count();
+            $name = $guestTicket->contact_name ?: $guestTicket->email;
+            $initials = strtoupper(substr(trim($name), 0, 1)) ?: 'G';
+
+            return response()->json([
+                'id' => $guestTicket->email,
+                'name' => $name,
+                'designation' => 'Guest Contact',
+                'company' => '',
+                'city' => '',
+                'circle' => 'Guest User',
+                'email' => $guestTicket->email,
+                'phone' => '—',
+                'avatarBg' => '#64748b',
+                'initials' => $initials,
+                'testimonials' => 0,
+                'testimonialsUrl' => '#',
+                'referrals' => 0,
+                'referralsUrl' => '#',
+                'deals' => 0,
+                'dealsUrl' => '#',
+                'p2p' => 0,
+                'p2pUrl' => '#',
+                'requirements' => 0,
+                'requirementsUrl' => '#',
+                'leadership' => 0,
+                'leadershipUrl' => '#',
+                'recommendations' => 0,
+                'recommendationsUrl' => '#',
+                'visitors' => 0,
+                'visitorsUrl' => '#',
+                'supportTickets' => $ticketCount,
+                'supportTicketsUrl' => route('admin.support-tickets.index', ['search' => $guestTicket->email]),
+                'score' => $ticketCount,
+            ]);
+        }
+
+        $name = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if (empty(trim((string) $name))) {
+            $name = $user->email ?? 'Member';
+        }
+
+        $cityName = $user->city;
+        if (! $cityName && $user->city_id) {
+            $cityName = DB::table('cities')->where('id', $user->city_id)->value('name');
+        }
+
+        $circleName = DB::table('circle_members as cm')
+            ->join('circles as c', 'c.id', '=', 'cm.circle_id')
+            ->where('cm.user_id', $user->id)
+            ->where('cm.status', 'approved')
+            ->whereNull('cm.deleted_at')
+            ->orderByRaw("case when cm.role::text in ('chair', 'vice_chair', 'secretary', 'founder', 'director', 'committee_leader') then 0 else 1 end")
+            ->orderByDesc('cm.joined_at')
+            ->orderByDesc('cm.created_at')
+            ->value('c.name');
+
+        $testimonialsCount = Testimonial::where(fn ($q) => $q->where('from_user_id', $user->id)->orWhere('to_user_id', $user->id))->where('is_deleted', false)->whereNull('deleted_at')->count();
+        $referralsCount = Referral::where(fn ($q) => $q->where('from_user_id', $user->id)->orWhere('to_user_id', $user->id))->where('is_deleted', false)->whereNull('deleted_at')->count();
+        $dealsCount = BusinessDeal::where(fn ($q) => $q->where('from_user_id', $user->id)->orWhere('to_user_id', $user->id))->where('is_deleted', false)->whereNull('deleted_at')->count();
+        $p2pCount = P2pMeeting::where(fn ($q) => $q->where('initiator_user_id', $user->id)->orWhere('peer_user_id', $user->id))->where('is_deleted', false)->whereNull('deleted_at')->whereDate('meeting_date', '<', now()->toDateString())->count();
+        $requirementsCount = Requirement::where('user_id', $user->id)->whereNull('deleted_at')->count();
+        $leadershipCount = LeaderInterestSubmission::where('user_id', $user->id)->count();
+        $recommendationsCount = PeerRecommendation::where('user_id', $user->id)->count();
+        $visitorsCount = VisitorRegistration::where('user_id', $user->id)->count();
+        $supportTicketsCount = SupportTicket::where(fn ($q) => $q->where('user_id', $user->id)->orWhere('email', $user->email))->count();
+
+        $score = $testimonialsCount + $referralsCount + $dealsCount + $p2pCount + $requirementsCount + $leadershipCount + $recommendationsCount + $visitorsCount + $supportTicketsCount;
+
+        $colors = ['#6366f1', '#ec4899', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#3b82f6'];
+        $avatarBg = $colors[abs(crc32((string) $user->id)) % count($colors)];
+        $initials = strtoupper(substr(trim($name), 0, 1)) ?: 'P';
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $name,
+            'designation' => $user->designation ?? 'Member',
+            'company' => $user->company_name ?? '',
+            'city' => $cityName ?? '',
+            'circle' => $circleName ?? '',
+            'email' => $user->email ?? '—',
+            'phone' => $user->phone ?? '—',
+            'avatarBg' => $avatarBg,
+            'initials' => $initials,
+            'testimonials' => $testimonialsCount,
+            'testimonialsUrl' => route('admin.activities.testimonials.index', ['q' => $user->id]),
+            'referrals' => $referralsCount,
+            'referralsUrl' => route('admin.activities.referrals.index', ['q' => $user->id]),
+            'deals' => $dealsCount,
+            'dealsUrl' => route('admin.activities.business-deals.index', ['q' => $user->id]),
+            'p2p' => $p2pCount,
+            'p2pUrl' => route('admin.activities.p2p-meetings.index', ['q' => $user->id]),
+            'requirements' => $requirementsCount,
+            'requirementsUrl' => route('admin.activities.requirements.index', ['q' => $user->id]),
+            'leadership' => $leadershipCount,
+            'leadershipUrl' => route('admin.activities.become-a-leader.index'),
+            'recommendations' => $recommendationsCount,
+            'recommendationsUrl' => route('admin.activities.recommend-peer.index'),
+            'visitors' => $visitorsCount,
+            'visitorsUrl' => route('admin.activities.register-visitor.index'),
+            'supportTickets' => $supportTicketsCount,
+            'supportTicketsUrl' => route('admin.support-tickets.index', ['search' => $user->email]),
+            'score' => $score,
+        ]);
+    }
+
+    public function peerActivityDetails(Request $request, string $userId, string $type): JsonResponse
+    {
+        $user = User::withTrashed()
+            ->where('id', $userId)
+            ->orWhere('email', $userId)
+            ->first();
+
+        $items = [];
+
+        try {
+            switch ($type) {
+                case 'testimonials':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = Testimonial::with(['fromUser', 'toUser'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('from_user_id', $user->id)
+                                ->orWhere('to_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isFromMe = $r->from_user_id === $user->id;
+                        $otherUser = $isFromMe ? $r->toUser : $r->fromUser;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+
+                        return [
+                            'title' => $isFromMe ? 'Given to '.$otherName : 'Received from '.$otherName,
+                            'details' => $r->content ?: '—',
+                            'badge' => $r->rating ? $r->rating.' ★' : 'Testimonial',
+                            'badgeClass' => 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'referrals':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = Referral::with(['fromUser', 'toUser'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('from_user_id', $user->id)
+                                ->orWhere('to_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isFromMe = $r->from_user_id === $user->id;
+                        $otherUser = $isFromMe ? $r->toUser : $r->fromUser;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+
+                        return [
+                            'title' => ($isFromMe ? 'Given to ' : 'Received from ').$otherName,
+                            'details' => ($r->referral_of ?: 'Referral').($r->remarks ? ' • '.$r->remarks : ''),
+                            'badge' => ucfirst((string) ($r->referral_type ?: 'Referral')),
+                            'badgeClass' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                            'date' => $r->referral_date ? Carbon::parse($r->referral_date)->format('d M Y') : ($r->created_at ? $r->created_at->format('d M Y') : '—'),
+                        ];
+                    });
+                    break;
+
+                case 'deals':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = BusinessDeal::with(['fromUser', 'toUser'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('from_user_id', $user->id)
+                                ->orWhere('to_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isFromMe = $r->from_user_id === $user->id;
+                        $otherUser = $isFromMe ? $r->toUser : $r->fromUser;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+                        $amount = $r->deal_amount ? '₹'.number_format((float) $r->deal_amount) : 'Business Deal';
+
+                        return [
+                            'title' => 'Deal with '.$otherName,
+                            'details' => ($r->business_type ?: 'Deal').($r->comment ? ' • '.$r->comment : ''),
+                            'badge' => $amount,
+                            'badgeClass' => 'bg-amber-50 text-amber-700 border-amber-200',
+                            'date' => $r->deal_date ? Carbon::parse($r->deal_date)->format('d M Y') : ($r->created_at ? $r->created_at->format('d M Y') : '—'),
+                        ];
+                    });
+                    break;
+
+                case 'p2p':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = P2pMeeting::with(['initiator', 'peer'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('initiator_user_id', $user->id)
+                                ->orWhere('peer_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isInitiator = $r->initiator_user_id === $user->id;
+                        $otherUser = $isInitiator ? $r->peer : $r->initiator;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+
+                        return [
+                            'title' => 'P2P Meeting with '.$otherName,
+                            'details' => ($r->meeting_place ? 'Location: '.$r->meeting_place : 'P2P Meeting').($r->remarks ? ' • '.$r->remarks : ''),
+                            'badge' => 'P2P Meeting',
+                            'badgeClass' => 'bg-sky-50 text-sky-700 border-sky-200',
+                            'date' => $r->meeting_date ? Carbon::parse($r->meeting_date)->format('d M Y') : ($r->created_at ? $r->created_at->format('d M Y') : '—'),
+                        ];
+                    });
+                    break;
+
+                case 'requirements':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = Requirement::where('user_id', $user->id)
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->subject ?: 'Requirement',
+                            'details' => $r->description ?: '—',
+                            'badge' => ucfirst((string) ($r->status ?: 'Active')),
+                            'badgeClass' => 'bg-rose-50 text-rose-700 border-rose-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'leadership':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = LeaderInterestSubmission::where('user_id', $user->id)
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->applying_for ?: 'Leadership Role',
+                            'details' => ($r->primary_domain ? 'Domain: '.$r->primary_domain : 'Leadership Request').($r->why_interested ? ' • '.$r->why_interested : ''),
+                            'badge' => $r->contribute_city ?: 'Submitted',
+                            'badgeClass' => 'bg-purple-50 text-purple-700 border-purple-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'recommendations':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = PeerRecommendation::where('user_id', $user->id)
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->peer_name ?: 'Recommended Peer',
+                            'details' => ($r->peer_business ? 'Business: '.$r->peer_business : 'Peer Recommendation').($r->note ? ' • '.$r->note : ''),
+                            'badge' => $r->peer_city ?: 'Recommended',
+                            'badgeClass' => 'bg-violet-50 text-violet-700 border-violet-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'visitors':
+                    if (! $user) {
+                        break;
+                    }
+                    $records = VisitorRegistration::where('user_id', $user->id)
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->visitor_full_name ?: 'Visitor',
+                            'details' => ($r->visitor_business ? 'Business: '.$r->visitor_business : 'Visitor Registration').($r->event_name ? ' • Event: '.$r->event_name : ''),
+                            'badge' => ucfirst((string) ($r->status ?: 'Registered')),
+                            'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'support_tickets':
+                    $query = SupportTicket::query();
+                    if ($user) {
+                        $query->where(function ($q) use ($user) {
+                            $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                        });
+                    } else {
+                        $query->where('email', $userId)->orWhere('id', $userId);
+                    }
+
+                    $records = $query->latest()->take(50)->get();
+
+                    $items = $records->map(function ($r) {
+                        $statusBadge = match ($r->status) {
+                            'open' => 'bg-sky-50 text-sky-700 border-sky-200',
+                            'in_progress' => 'bg-amber-50 text-amber-700 border-amber-200',
+                            'resolved' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                            'closed' => 'bg-gray-100 text-gray-700 border-gray-200',
+                            default => 'bg-gray-100 text-gray-700 border-gray-200',
+                        };
+
+                        return [
+                            'title' => '#'.$r->ticket_number.' - '.($r->subject ?: 'Support Ticket'),
+                            'details' => ($r->description ?: '—').($r->admin_note ? ' • Note: '.$r->admin_note : ''),
+                            'badge' => ucfirst(str_replace('_', ' ', (string) ($r->status ?: 'Open'))),
+                            'badgeClass' => $statusBadge,
+                            'date' => $r->created_at ? $r->created_at->format('d M Y H:i') : '—',
+                            'url' => route('admin.support-tickets.show', $r->id),
+                        ];
+                    });
+                    break;
+
+                default:
+                    return response()->json(['error' => 'Invalid activity type'], 400);
+            }
+
+            return response()->json([
+                'type' => $type,
+                'items' => $items,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("[PeerDetails] Failed to load {$type} for user {$userId}: ".$e->getMessage());
+
+            return response()->json(['error' => 'Failed to load details: '.$e->getMessage()], 500);
+        }
     }
 }

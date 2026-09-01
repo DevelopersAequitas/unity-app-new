@@ -32,6 +32,7 @@ class Referral extends Model
         'address',
         'hot_value',
         'remarks',
+        'status_id',
     ];
 
     protected $casts = [
@@ -47,12 +48,27 @@ class Referral extends Model
         });
     }
 
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(ReferralStatus::class, 'status_id');
+    }
+
     public function fromUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'from_user_id');
     }
 
     public function toUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'to_user_id');
+    }
+
+    public function givenByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'from_user_id');
+    }
+
+    public function receivedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'to_user_id');
     }

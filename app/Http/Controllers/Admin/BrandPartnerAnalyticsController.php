@@ -10,8 +10,7 @@ class BrandPartnerAnalyticsController extends Controller
 {
     public function __construct(
         private readonly BrandPartnerAnalyticsService $analyticsService
-    ) {
-    }
+    ) {}
 
     public function index(): View
     {
@@ -25,7 +24,7 @@ class BrandPartnerAnalyticsController extends Controller
     {
         $stats = $this->analyticsService->getDashboardStats();
         $charts = $this->analyticsService->getDashboardCharts();
-        
+
         return view('admin.brand-partners.analytics', compact('stats', 'charts'));
     }
 }

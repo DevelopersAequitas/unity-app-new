@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $event->title }} - Visitor Registration</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v={{ time() }}">
     <style>
         :root { color-scheme: light; --brand: #1f5eff; --danger: #b42318; --muted: #667085; --border: #d0d5dd; --success: #067647; }
         body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #101828; }
@@ -188,6 +189,11 @@
                 <label for="invited_by_user_id">Invited by user ID</label>
                 <input id="invited_by_user_id" name="invited_by_user_id" value="{{ old('invited_by_user_id') }}" placeholder="UUID if available">
                 @error('invited_by_user_id')<div class="error">{{ $message }}</div>@enderror
+            </div>
+            <div>
+                <label for="coupon_code">Coupon code (Optional)</label>
+                <input id="coupon_code" name="coupon_code" value="{{ old('coupon_code') }}" placeholder="Enter coupon code (e.g. VIPPASS60)" style="text-transform: uppercase;">
+                @error('coupon_code')<div class="error">{{ $message }}</div>@enderror
             </div>
             <div class="full">
                 <button class="button" type="submit">Submit registration</button>

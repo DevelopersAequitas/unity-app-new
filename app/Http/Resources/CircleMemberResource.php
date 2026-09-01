@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources;
 
+use App\Models\City;
 use App\Models\JoinedCircleCategory;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
@@ -25,8 +28,11 @@ class CircleMemberResource extends JsonResource
                 $cityName = $this->resolveCityName($user);
                 $categories = $this->resolveJoinedCircleCategories($user);
                 $primaryCategory = $categories[0]['level1_category'] ?? null;
-                $categoryId = $primaryCategory['id'] ?? null;
-                $categoryName = $primaryCategory['name'] ?? null;
+                $categoryId = $primaryCategory['id'] ?? $user?->business_category_id ?? $user?->main_business_category_id ?? null;
+                $categoryName = $primaryCategory['name']
+                    ?? $user?->businessCategory?->name
+                    ?? $user?->mainBusinessCategory?->name
+                    ?? null;
                 $photoFileId = data_get($user, 'profile_photo_file_id')
                     ?: data_get($user, 'image_file_id')
                     ?: data_get($user, 'avatar_file_id')
@@ -34,9 +40,13 @@ class CircleMemberResource extends JsonResource
                     ?: data_get($user, 'photo_file_id')
                     ?: data_get($user, 'profile_file_id');
 
+                $photoUrl = $photoFileId
+                    ? url("/api/v1/files/{$photoFileId}")
+                    : ($user?->profile_photo_url ?? null);
+
                 $name = $user?->name
                     ?? $user?->display_name
-                    ?? trim(($user?->first_name ?? '') . ' ' . ($user?->last_name ?? ''))
+                    ?? trim(($user?->first_name ?? '').' '.($user?->last_name ?? ''))
                     ?: $user?->email;
 
                 return [
@@ -54,12 +64,10 @@ class CircleMemberResource extends JsonResource
                     'business_sub_category' => $user?->business_sub_category,
                     'categories' => $categories,
                     'membership_status' => $user?->membership_status ?? null,
-                    'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
+                    'life_impacted_count' => (int) ($user?->life_impacted_count ?? 0),
                     'is_active' => $user?->is_active ?? null,
                     'profile_photo_file_id' => $photoFileId,
-                    'profile_photo_url' => $photoFileId
-                        ? url("/api/v1/files/{$photoFileId}")
-                        : null,
+                    'profile_photo_url' => $photoUrl,
                     'designation' => $user?->designation ?? null,
                     'company_name' => $user?->company_name ?? null,
                     'created_at' => optional($user?->created_at)->toISOString(),
@@ -86,7 +94,7 @@ class CircleMemberResource extends JsonResource
             ? $user->getRelationValue('city')
             : ($user->relationLoaded('cityRelation') ? $user->getRelationValue('cityRelation') : null);
 
-        if (is_object($cityRelation)) {
+        if ($cityRelation instanceof City || is_object($cityRelation)) {
             return $cityRelation->name ?? null;
         }
 
@@ -102,7 +110,13 @@ class CircleMemberResource extends JsonResource
 
         $cityName = $user->getAttribute('city_name');
 
-        return is_string($cityName) && $cityName !== '' ? $cityName : null;
+        if (is_string($cityName) && $cityName !== '') {
+            return $cityName;
+        }
+
+        $cityOfResidence = $user->getAttribute('city_of_residence');
+
+        return is_string($cityOfResidence) && $cityOfResidence !== '' ? $cityOfResidence : null;
     }
 
     private function resolveJoinedCircleCategories($user): array
@@ -151,5 +165,4 @@ class CircleMemberResource extends JsonResource
             ->values()
             ->all();
     }
-
 }

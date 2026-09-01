@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -19,8 +20,11 @@ class CircleMember extends Model
     use SoftDeletes;
 
     public const LEADERSHIP_ROLE_OPTIONS = [
-        'founder',
-        'director',
+        'circle_founder',
+        'circle_director',
+        'industry_director',
+        'ded',
+        'eed',
         'chair',
         'vice_chair',
         'secretary',
@@ -29,8 +33,11 @@ class CircleMember extends Model
 
     public const ROLE_OPTIONS = [
         'member',
-        'founder',
-        'director',
+        'circle_founder',
+        'circle_director',
+        'industry_director',
+        'ded',
+        'eed',
         'chair',
         'vice_chair',
         'secretary',
@@ -106,25 +113,67 @@ class CircleMember extends Model
         });
 
         static::saving(function (CircleMember $member): void {
-            if (! $member->role) {
+            if (! $member->role && ! $member->role_id) {
                 return;
             }
 
-            if ($member->role_id && ! $member->isDirty('role')) {
-                return;
+            if ($member->role_id && (! $member->role || $member->isDirty('role_id'))) {
+                $roleModel = Role::find($member->role_id);
+                if ($roleModel && $roleModel->key) {
+                    $member->role = $roleModel->key;
+                }
             }
 
-            try {
-                $member->role_id = Role::mustIdByKey($member->role);
-            } catch (RuntimeException $exception) {
-                Log::error('Circle member role key missing in roles table.', [
-                    'circle_member_id' => $member->id,
-                    'circle_id' => $member->circle_id,
-                    'user_id' => $member->user_id,
-                    'role' => $member->role,
-                ]);
+            if ($member->role) {
+                if (Str::isUuid($member->role) && $roleById = Role::find($member->role)) {
+                    $member->role_id = $roleById->id;
+                    $member->role = $roleById->key;
+                } elseif (! $member->role_id || $member->isDirty('role')) {
+                    try {
+                        $member->role_id = Role::mustIdByKey($member->role);
+                    } catch (RuntimeException $exception) {
+                        Log::error('Circle member role key missing in roles table.', [
+                            'circle_member_id' => $member->id,
+                            'circle_id' => $member->circle_id,
+                            'user_id' => $member->user_id,
+                            'role' => $member->role,
+                        ]);
 
-                throw $exception;
+                        $member->role_id = Role::idByKey($member->role);
+                    }
+                }
+            }
+        });
+
+        static::saved(function (CircleMember $member): void {
+            if (! empty($member->circle_id)) {
+                Circle::syncLeadershipFromMembers($member->circle_id);
+            }
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                Cache::forget('admin-access:allowed-users:'.$admin->id);
+                Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                Cache::forget('admin-access:primary-role:'.$admin->id);
+                Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                Cache::forget('admin-access:user:'.$admin->id);
+                Cache::forget('admin-access:roles:'.$admin->id);
+            }
+        });
+
+        static::deleted(function (CircleMember $member): void {
+            if (! empty($member->circle_id)) {
+                Circle::syncLeadershipFromMembers($member->circle_id);
+            }
+
+            $admin = auth('admin')->user();
+            if ($admin) {
+                Cache::forget('admin-access:allowed-users:'.$admin->id);
+                Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                Cache::forget('admin-access:primary-role:'.$admin->id);
+                Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                Cache::forget('admin-access:user:'.$admin->id);
+                Cache::forget('admin-access:roles:'.$admin->id);
             }
         });
     }

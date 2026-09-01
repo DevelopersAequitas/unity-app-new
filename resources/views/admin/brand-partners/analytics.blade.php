@@ -6,8 +6,12 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h4 mb-0">Analytics &amp; Performance Reports</h1>
     <div class="d-flex gap-2">
-        <a href="{{ route('admin.brand-partners.dashboard') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
-        <a href="{{ route('admin.brand-partners.index') }}" class="btn btn-sm btn-outline-secondary">All Partners</a>
+        <a href="{{ route('admin.brand-partners.dashboard') }}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5 shadow-sm">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a href="{{ route('admin.brand-partners.index') }}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5">
+            <i class="bi bi-people"></i> All Partners
+        </a>
     </div>
 </div>
 

@@ -8,7 +8,10 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+<<<<<<< HEAD
 use Illuminate\Support\Facades\Schema;
+=======
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
 use Illuminate\Support\Str;
 
 class LeaderFinanceService
@@ -48,6 +51,7 @@ class LeaderFinanceService
 
         $collectionsAmount = (float) $query->sum('amount');
         if ($collectionsAmount <= 0) {
+<<<<<<< HEAD
             $collectionsAmount = 480000.0;
         }
 
@@ -166,6 +170,107 @@ class LeaderFinanceService
             ],
             'commission_rates' => $commissionRates,
             'commission_structure' => $commissionStructure,
+=======
+            $collectionsAmount = 8450000.0; // 84.5L default baseline
+        }
+
+        // 10% DED Overriding Commission
+        $dedCommission = $collectionsAmount * 0.10;
+
+        $duesAmount = 1220000.0; // 12.2L
+        $projectedAnnualRevenue = $collectionsAmount * 1.75; // ~1.48Cr
+
+        return [
+            'total_collections' => '₹'.number_format($collectionsAmount / 100000, 1).'L',
+            'ded_commission_earned' => '₹'.number_format($dedCommission / 100000, 2).'L',
+            'ded_commission_amount' => $dedCommission,
+            'total_dues' => '₹'.number_format($duesAmount / 100000, 1).'L',
+            'projected_annual_revenue' => '₹'.number_format($projectedAnnualRevenue / 10000000, 2).'Cr',
+            'deals_closed' => 28,
+            'coin_issuances_total' => 14500,
+            'revenue_trend' => [
+                [
+                    'month' => 'Jan',
+                    'value' => 45.0,
+                    'collections_raw' => 4500000,
+                    'dues_raw' => 500000,
+                ],
+                [
+                    'month' => 'Feb',
+                    'value' => 52.5,
+                    'collections_raw' => 5250000,
+                    'dues_raw' => 600000,
+                ],
+                [
+                    'month' => 'Mar',
+                    'value' => 61.0,
+                    'collections_raw' => 6100000,
+                    'dues_raw' => 800000,
+                ],
+                [
+                    'month' => 'Apr',
+                    'value' => 58.0,
+                    'collections_raw' => 5800000,
+                    'dues_raw' => 750000,
+                ],
+                [
+                    'month' => 'May',
+                    'value' => 74.5,
+                    'collections_raw' => 7450000,
+                    'dues_raw' => 900000,
+                ],
+                [
+                    'month' => 'Jun',
+                    'value' => 84.5,
+                    'collections_raw' => 8450000,
+                    'dues_raw' => 1220000,
+                ],
+            ],
+            'business_deals' => [
+                ['month' => 'Jan', 'value' => 14.0],
+                ['month' => 'Feb', 'value' => 18.0],
+                ['month' => 'Mar', 'value' => 22.0],
+                ['month' => 'Apr', 'value' => 19.0],
+                ['month' => 'May', 'value' => 25.0],
+                ['month' => 'Jun', 'value' => 28.0],
+            ],
+            'commission_rates' => [
+                [
+                    'label' => 'Direct Referral Commission',
+                    'rate' => '10%',
+                    'description' => 'Earned on direct peer joins into your circles.',
+                    'status' => 'Active',
+                ],
+                [
+                    'label' => 'District Override Royalty',
+                    'rate' => '10%',
+                    'description' => 'Quarterly override on total district revenue.',
+                    'status' => 'Active',
+                ],
+            ],
+            'commission_structure' => [
+                [
+                    'role' => 'Circle Chair',
+                    'direct_referral_cut' => '0%',
+                    'app_join_cut' => '0%',
+                ],
+                [
+                    'role' => 'Circle Founder / Director',
+                    'direct_referral_cut' => '5%',
+                    'app_join_cut' => '2.5%',
+                ],
+                [
+                    'role' => 'Industry Director',
+                    'direct_referral_cut' => '10%',
+                    'app_join_cut' => '4%',
+                ],
+                [
+                    'role' => 'District Exec Director (DED)',
+                    'direct_referral_cut' => '10%',
+                    'app_join_cut' => '5%',
+                ],
+            ],
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
         ];
     }
 
@@ -267,6 +372,7 @@ class LeaderFinanceService
      * Update commission rates per role.
      *
      * @param  array<int, array<string, mixed>>  $rates
+<<<<<<< HEAD
      * @return array<string, mixed>
      */
     public function updateCommissionRates(array $rates, ?User $user = null): array
@@ -317,6 +423,21 @@ class LeaderFinanceService
             'updated_by' => $adminCode,
             'rates' => $updatedRates,
         ];
+=======
+     */
+    public function updateCommissionRates(array $rates): void
+    {
+        foreach ($rates as $rate) {
+            DB::table('leader_commission_rates')->updateOrInsert(
+                ['role_id' => (string) $rate['role_id']],
+                [
+                    'direct_referral_cut_percentage' => (float) $rate['direct_referral_cut_percentage'],
+                    'app_join_cut_percentage' => (float) $rate['app_join_cut_percentage'],
+                    'updated_at' => now(),
+                ]
+            );
+        }
+>>>>>>> be4dcd0b01c2f48201ccc286cb3a426a32738d5f
     }
 
     /**

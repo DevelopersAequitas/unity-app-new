@@ -93,9 +93,9 @@ class MessageController extends BaseApiController
     private function storeAttachment(UploadedFile $file, string $uploaderUserId): array
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/' . now()->format('Y/m/d');
+        $folder = 'uploads/'.now()->format('Y/m/d');
         $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName());
-        $name = (string) Str::uuid() . '_' . ($safeName ?: 'attachment');
+        $name = (string) Str::uuid().'_'.($safeName ?: 'attachment');
         $path = $file->storeAs($folder, $name, $disk);
 
         $fileModel = FileModel::create([
@@ -116,7 +116,7 @@ class MessageController extends BaseApiController
             'name' => $file->getClientOriginalName(),
             'mime' => $mime,
             'size' => (int) $fileModel->size_bytes,
-            'url' => '/api/v1/files/' . $fileModel->id,
+            'url' => '/api/v1/files/'.$fileModel->id,
         ];
     }
 }

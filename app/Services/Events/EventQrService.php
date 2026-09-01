@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Events;
 
 use App\Exceptions\QrGenerationException;
@@ -10,6 +12,7 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\RoundBlockSizeMode;
 use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\SvgWriter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -23,26 +26,49 @@ class EventQrService
         return hash_hmac('sha256', Str::random(80).'|'.Str::uuid(), config('app.key'));
     }
 
+    public function baseUrl(): string
+    {
+        if (app()->bound('request') && request()->hasHeader('Host')) {
+            $requestBase = rtrim(request()->schemeAndHttpHost(), '/');
+            if (! empty($requestBase) && ! str_contains($requestBase, 'localhost') && ! str_contains($requestBase, '127.0.0.1')) {
+                return $requestBase;
+            }
+        }
+
+        $configUrl = rtrim((string) config('app.url'), '/');
+
+        if (! app()->environment('production')) {
+            if (empty($configUrl)) {
+                return 'https://dev.peersunity.com';
+            }
+
+            if (str_contains($configUrl, 'peersunity.com') && ! str_contains($configUrl, 'dev.peersunity.com')) {
+                $configUrl = str_replace('peersunity.com', 'dev.peersunity.com', $configUrl);
+            }
+        }
+
+        return $configUrl ?: 'https://dev.peersunity.com';
+    }
+
     public function payload(string $qrToken): string
     {
-        return url('/api/v1/events/checkin/qr/'.$qrToken);
+        $baseUrl = $this->baseUrl();
+
+        return $baseUrl.'/api/v1/events/checkin/qr/'.$qrToken;
     }
 
     public function generateAndStore(EventRegistration $registration): array
     {
-        if (! extension_loaded('gd')) {
-            Log::error('event_qr_generation_gd_missing', [
-                'event_registration_id' => (string) $registration->id,
-                'event_id' => (string) $registration->event_id,
-            ]);
-
-            throw QrGenerationException::gdMissing();
+        if (empty($registration->qr_token)) {
+            $registration->forceFill(['qr_token' => $this->generateToken()])->save();
+            $registration->refresh();
         }
 
         $payload = $this->payload($registration->qr_token);
 
         try {
-            $png = $this->makePng($payload);
+            $imageContent = $this->makePng($payload);
+            $ext = 'png';
         } catch (Throwable $exception) {
             Log::error('event_qr_generation_failed', [
                 'event_registration_id' => (string) $registration->id,
@@ -54,9 +80,9 @@ class EventQrService
             throw QrGenerationException::gdMissing();
         }
 
-        $relativePath = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png';
+        $relativePath = ! empty($registration->qr_code_path) ? ltrim((string) $registration->qr_code_path, '/') : ('event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.'.$ext);
 
-        Storage::disk('public')->put($relativePath, $png);
+        Storage::disk('public')->put($relativePath, $imageContent);
 
         $url = $this->url($relativePath);
         $qrData = ['path' => $relativePath, 'url' => $url];
@@ -67,7 +93,7 @@ class EventQrService
         ];
 
         if (Schema::hasColumn('event_registrations', 'qr_code_svg')) {
-            $updates['qr_code_svg'] = null;
+            $updates['qr_code_svg'] = $this->makeSvg($payload);
         }
 
         if (Schema::hasColumn('event_registrations', 'qr_generated_at')) {
@@ -85,25 +111,50 @@ class EventQrService
             return null;
         }
 
-        $path = ltrim($path, '/');
-        $segments = explode('/', $path);
-
-        if (count($segments) === 3 && $segments[0] === 'event-qrcodes') {
-            return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
+        $parsedPath = parse_url($path, PHP_URL_PATH) ?: $path;
+        $path = ltrim($parsedPath, '/');
+        if (str_contains($path, 'event-qrcodes/')) {
+            $path = substr($path, strpos($path, 'event-qrcodes/'));
         }
 
-        return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
+        $path = preg_replace('/\.svg$/i', '.png', $path) ?? $path;
+        $segments = explode('/', $path);
+
+        $baseUrl = $this->baseUrl();
+
+        if (count($segments) >= 3 && $segments[0] === 'event-qrcodes') {
+            return $baseUrl.'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
+        }
+
+        return $baseUrl.'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
     }
 
-    private function makePng(string $payload): string
+    public function makePng(string $payload): string
     {
-        $writer = new PngWriter();
+        $writer = new PngWriter;
         $qrCode = new QrCode(
             data: $payload,
             encoding: new Encoding('UTF-8'),
             errorCorrectionLevel: ErrorCorrectionLevel::High,
             size: 1024,
             margin: 40,
+            roundBlockSizeMode: RoundBlockSizeMode::Margin,
+            foregroundColor: new Color(0, 0, 0),
+            backgroundColor: new Color(255, 255, 255),
+        );
+
+        return $writer->write($qrCode)->getString();
+    }
+
+    public function makeSvg(string $payload): string
+    {
+        $writer = new SvgWriter;
+        $qrCode = new QrCode(
+            data: $payload,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: 500,
+            margin: 20,
             roundBlockSizeMode: RoundBlockSizeMode::Margin,
             foregroundColor: new Color(0, 0, 0),
             backgroundColor: new Color(255, 255, 255),

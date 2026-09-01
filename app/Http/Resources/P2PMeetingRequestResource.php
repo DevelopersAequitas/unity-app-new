@@ -14,7 +14,7 @@ class P2PMeetingRequestResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $this->resource->loadMissing(['requester', 'invitee']);
+        $this->resource->loadMissing(['requester', 'invitee', 'rescheduleRequests']);
 
         return [
             'id' => (string) $this->id,
@@ -26,6 +26,7 @@ class P2PMeetingRequestResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'requester' => $this->requester?->publicProfileArray(),
             'invitee' => $this->invitee?->publicProfileArray(),
+            'reschedule_requests' => $this->rescheduleRequests,
         ];
     }
 }

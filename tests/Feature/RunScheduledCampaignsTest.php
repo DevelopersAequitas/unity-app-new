@@ -2,15 +2,14 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\AdminCampaign;
-use App\Models\CampaignSchedule;
-use App\Models\CampaignDelivery;
 use App\Jobs\ProcessCampaignDeliveryJob;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\DB;
+use App\Models\AdminCampaign;
+use App\Models\CampaignDelivery;
+use App\Models\CampaignSchedule;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
 
 class RunScheduledCampaignsTest extends TestCase
 {
@@ -113,6 +112,7 @@ class RunScheduledCampaignsTest extends TestCase
             $reflection = new \ReflectionClass($job);
             $property = $reflection->getProperty('deliveryId');
             $property->setAccessible(true);
+
             return $property->getValue($job) === $delivery->id;
         });
     }
@@ -144,7 +144,7 @@ class RunScheduledCampaignsTest extends TestCase
 
         // 3. Call the Artisan Command
         $this->artisan('campaigns:run')
-            ->expectsOutputToContain("No campaign schedules due at this time.")
+            ->expectsOutputToContain('No campaign schedules due at this time.')
             ->assertExitCode(0);
 
         // 4. Assert NO CampaignDelivery run was created

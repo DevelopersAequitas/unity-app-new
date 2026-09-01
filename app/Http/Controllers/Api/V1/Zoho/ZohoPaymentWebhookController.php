@@ -38,7 +38,30 @@ class ZohoPaymentWebhookController extends Controller
                 'payment_id' => $request->input('payment_id') ?? data_get($request->all(), 'payment.payment_id'),
                 'status' => $request->input('status'),
             ]);
+
             return response()->json(['success' => false, 'message' => 'Unauthorized webhook request.'], 401);
+        }
+
+        $payload = $request->all();
+        $isPureSubscription = (
+            (data_get($payload, 'subscription') !== null || data_get($payload, 'data.subscription') !== null)
+            && data_get($payload, 'metadata.registration_id') === null
+            && data_get($payload, 'data.metadata.registration_id') === null
+            && data_get($payload, 'custom_fields.registration_id') === null
+            && data_get($payload, 'data.custom_fields.registration_id') === null
+            && ! str_contains(strtolower((string) data_get($payload, 'payment.description', '')), 'event')
+            && ! str_contains(strtolower((string) data_get($payload, 'description', '')), 'event')
+        );
+
+        if ($isPureSubscription) {
+            Log::info('zoho_payment_webhook_ignored_pure_membership_subscription', [
+                'event_type' => $request->input('event') ?? $request->input('event_type'),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ignored non-event subscription membership payment webhook.',
+            ]);
         }
 
         try {

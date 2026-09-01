@@ -3,22 +3,18 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
-use App\Models\Circle;
 use App\Models\LeaderInterestSubmission;
-use App\Models\Role;
-use App\Models\User;
 use App\Services\Admin\AdminAuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class LeadershipController extends BaseApiController
 {
-    private const SUPPORTED_ROLES = ['ded','id','cf','cd','chair','vice_chair','secretary','powerhouse','advisor','honorary','industry_advisor','circle_advisor','circle_influencer'];
+    private const SUPPORTED_ROLES = ['ded', 'id', 'cf', 'cd', 'chair', 'vice_chair', 'secretary', 'powerhouse', 'advisor', 'honorary', 'industry_advisor', 'circle_advisor', 'circle_influencer'];
 
-    public function __construct(private readonly AdminAuditService $audit)
-    {
-    }
+    public function __construct(private readonly AdminAuditService $audit) {}
 
     public function roles(): JsonResponse
     {
@@ -84,8 +80,8 @@ class LeadershipController extends BaseApiController
         abort_unless(in_array($validated['role'], self::SUPPORTED_ROLES, true), 422, 'Unsupported role.');
 
         $circleRole = match ($validated['role']) {
-            'cf' => 'founder',
-            'cd' => 'director',
+            'cf', 'founder' => 'circle_founder',
+            'cd', 'director' => 'circle_director',
             'powerhouse' => 'committee_leader',
             default => $validated['role'],
         };
@@ -95,7 +91,7 @@ class LeadershipController extends BaseApiController
         if ($exists) {
             DB::table('circle_members')->where('user_id', $validated['user_id'])->where('circle_id', $validated['circle_id'])->update(['role' => $circleRole, 'status' => 'approved', 'updated_at' => now()]);
         } else {
-            DB::table('circle_members')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $validated['user_id'], 'circle_id' => $validated['circle_id'], 'role' => $circleRole, 'status' => 'approved', 'joined_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('circle_members')->insert(['id' => (string) Str::uuid(), 'user_id' => $validated['user_id'], 'circle_id' => $validated['circle_id'], 'role' => $circleRole, 'status' => 'approved', 'joined_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
         }
 
         return $this->success(['assigned' => true]);
@@ -104,7 +100,13 @@ class LeadershipController extends BaseApiController
     public function assignmentUpdate(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate(['role' => ['required', 'string']]);
-        DB::table('circle_members')->where('id', $id)->update(['role' => $validated['role'], 'updated_at' => now()]);
+        $circleRole = match ($validated['role']) {
+            'cf', 'founder' => 'circle_founder',
+            'cd', 'director' => 'circle_director',
+            'powerhouse' => 'committee_leader',
+            default => $validated['role'],
+        };
+        DB::table('circle_members')->where('id', $id)->update(['role' => $circleRole, 'updated_at' => now()]);
 
         return $this->success(['updated' => true]);
     }

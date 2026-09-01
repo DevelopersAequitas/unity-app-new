@@ -4,11 +4,12 @@ namespace App\Support;
 
 use App\Models\AdminUser;
 use App\Models\CircleMember;
+use App\Models\Event;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Cache;
 
 class AdminCircleScope
 {
@@ -25,7 +26,19 @@ class AdminCircleScope
 
     public static function resolveCircleId(?AdminUser $admin): ?string
     {
-        if (! $admin || ! AdminAccess::isCircleScoped($admin)) {
+        if (! $admin) {
+            return null;
+        }
+
+        $activeScopeId = session('activeScopeId');
+        if ($activeScopeId && $activeScopeId !== 'All') {
+            $allowed = AdminAccess::allowedCircleIds($admin);
+            if (in_array($activeScopeId, $allowed, true)) {
+                return $activeScopeId;
+            }
+        }
+
+        if (! AdminAccess::isCircleScoped($admin)) {
             return null;
         }
 
@@ -57,6 +70,26 @@ class AdminCircleScope
         return $query->value('circle_members.circle_id');
     }
 
+    public static function getSessionCircleIds(?AdminUser $admin): array
+    {
+        if (! $admin) {
+            return [];
+        }
+
+        $allCircles = AdminAccess::allowedCircleIds($admin);
+        $activeScopeId = session('activeScopeId');
+
+        if ($activeScopeId && $activeScopeId !== 'All') {
+            if (in_array($activeScopeId, $allCircles, true)) {
+                return [$activeScopeId];
+            }
+
+            return [];
+        }
+
+        return $allCircles;
+    }
+
     public static function circleUserIdsSubquery(string $circleId): Builder
     {
         return self::circleUserIdsSubqueryForCircleIds([$circleId]);
@@ -73,7 +106,16 @@ class AdminCircleScope
 
     public static function applyToActivityQuery($query, ?AdminUser $admin, string $primaryColumn, ?string $peerColumn): void
     {
-        if (AdminAccess::isDed($admin)) {
+        if (! $admin) {
+            return;
+        }
+
+        if (AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        $activeScopeId = session('activeScopeId');
+        if (AdminAccess::isDed($admin) && (! $activeScopeId || $activeScopeId === 'All')) {
             $query->where(function ($districtQuery) use ($admin, $primaryColumn, $peerColumn) {
                 self::applyDedDistrictScope($districtQuery, $admin, $primaryColumn);
 
@@ -83,17 +125,15 @@ class AdminCircleScope
                     });
                 }
             });
+
             return;
         }
 
-        if (! AdminAccess::isCircleScoped($admin)) {
-            return;
-        }
+        $allowedCircleIds = self::getSessionCircleIds($admin);
 
-        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-
-        if ($allowedCircleIds === []) {
+        if (empty($allowedCircleIds)) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -108,19 +148,26 @@ class AdminCircleScope
 
     public static function applyToUsersQuery($query, ?AdminUser $admin): void
     {
-        if (AdminAccess::isDed($admin)) {
+        if (! $admin) {
+            return;
+        }
+
+        if (AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        $activeScopeId = session('activeScopeId');
+        if (AdminAccess::isDed($admin) && (! $activeScopeId || $activeScopeId === 'All')) {
             self::applyDedDistrictScope($query, $admin);
+
             return;
         }
 
-        if (! AdminAccess::isCircleScoped($admin)) {
-            return;
-        }
+        $allowedCircleIds = self::getSessionCircleIds($admin);
 
-        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-
-        if ($allowedCircleIds === []) {
+        if (empty($allowedCircleIds)) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -152,106 +199,59 @@ class AdminCircleScope
         }
 
         $location = AdminAccess::assignedDedLocation($admin);
-        $districtName = $location['district_name'] ?? null;
-        $stateName = $location['state_name'] ?? null;
+        $districtName = trim((string) ($location['district_name'] ?? ''));
         $districtId = $location['district_id'] ?? null;
 
-        if (! $districtName) {
+        if (! $districtName && ! $districtId) {
             return [];
         }
 
-        $cacheKey = 'ded-circle-ids:' . $admin->id;
+        $cacheKey = 'ded-circle-ids:'.$admin->id;
 
-        self::$cachedCircleIds = Cache::remember($cacheKey, 300, function () use ($districtName, $stateName, $districtId) {
+        self::$cachedCircleIds = Cache::remember($cacheKey, 300, function () use ($districtName, $districtId) {
             $query = DB::table('circles as c');
             if (Schema::hasColumn('circles', 'deleted_at')) {
                 $query->whereNull('c.deleted_at');
             }
 
-            $query->where(function ($q) use ($districtName, $stateName, $districtId) {
-                $hasCond = false;
-
+            $query->where(function ($q) use ($districtName, $districtId) {
                 if (Schema::hasColumn('circles', 'district_id') && $districtId) {
-                    $q->where('c.district_id', $districtId);
-                    $hasCond = true;
+                    $q->orWhere('c.district_id', $districtId);
                 }
 
-                if (Schema::hasColumn('circles', 'city')) {
-                    $method = $hasCond ? 'orWhere' : 'where';
-                    $q->{$method}(function ($sub) use ($districtName) {
-                        $sub->whereRaw("LOWER(NULLIF(TRIM(c.city), '')) = ?", [mb_strtolower($districtName)]);
-                    });
-                    $hasCond = true;
+                if (Schema::hasColumn('circles', 'city') && $districtName !== '') {
+                    $q->orWhereRaw("LOWER(NULLIF(TRIM(c.city), '')) = ?", [mb_strtolower($districtName)]);
+                    $q->orWhereRaw("LOWER(NULLIF(TRIM(c.city), '')) LIKE ?", ['%'.mb_strtolower($districtName).'%']);
                 }
 
                 if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
-                    $method = $hasCond ? 'orWhereExists' : 'whereExists';
-                    $q->{$method}(function ($citySubQuery) use ($districtName, $stateName): void {
+                    $q->orWhereExists(function ($citySubQuery) use ($districtName, $districtId): void {
                         $citySubQuery->selectRaw(1)
                             ->from('cities as ded_scope_circle_cities')
-                            ->whereColumn('ded_scope_circle_cities.id', "c.city_id");
-
-                        self::applyCityDistrictPredicate($citySubQuery, 'ded_scope_circle_cities', $districtName, $stateName);
+                            ->whereColumn('ded_scope_circle_cities.id', 'c.city_id')
+                            ->where(function ($cSub) use ($districtName, $districtId) {
+                                if ($districtId && Schema::hasColumn('cities', 'district_id')) {
+                                    $cSub->orWhere('ded_scope_circle_cities.district_id', $districtId);
+                                }
+                                if ($districtName !== '') {
+                                    if (Schema::hasColumn('cities', 'name')) {
+                                        $cSub->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_circle_cities.name), '')) = ?", [mb_strtolower($districtName)]);
+                                        $cSub->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_circle_cities.name), '')) LIKE ?", ['%'.mb_strtolower($districtName).'%']);
+                                    }
+                                    if (Schema::hasColumn('cities', 'district')) {
+                                        $cSub->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_circle_cities.district), '')) = ?", [mb_strtolower($districtName)]);
+                                        $cSub->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_circle_cities.district), '')) LIKE ?", ['%'.mb_strtolower($districtName).'%']);
+                                    }
+                                    if (Schema::hasColumn('cities', 'district_name')) {
+                                        $cSub->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_circle_cities.district_name), '')) = ?", [mb_strtolower($districtName)]);
+                                    }
+                                }
+                            });
                     });
                 }
             });
 
-            $rawCircles = $query->get(['c.id', 'c.name']);
-
-            // Fetch other district names in lowercase
-            $otherDistricts = Cache::remember('other-districts-lower:' . mb_strtolower($districtName), 3600, function () use ($districtName) {
-                if (! Schema::hasTable('districts')) {
-                    return [];
-                }
-                return DB::table('districts')
-                    ->whereRaw('LOWER(name) != ?', [mb_strtolower($districtName)])
-                    ->pluck('name')
-                    ->map(fn($name) => mb_strtolower($name))
-                    ->all();
-            });
-
-            $singleWordMap = [];
-            $multiWordList = [];
-
-            foreach ($otherDistricts as $d) {
-                if (str_contains($d, ' ')) {
-                    $multiWordList[] = $d;
-                } else {
-                    $singleWordMap[$d] = true;
-                }
-            }
-
-            $filteredIds = [];
-            foreach ($rawCircles as $circle) {
-                $circleNameLower = mb_strtolower($circle->name);
-                
-                // 1. Single word check
-                $words = preg_split('/[^a-z0-9]+/u', $circleNameLower, -1, PREG_SPLIT_NO_EMPTY);
-                $exclude = false;
-                foreach ($words as $word) {
-                    if (isset($singleWordMap[$word])) {
-                        $exclude = true;
-                        break;
-                    }
-                }
-                
-                // 2. Multi word check
-                if (!$exclude) {
-                    foreach ($multiWordList as $multi) {
-                        $pattern = '/\b' . preg_quote($multi, '/') . '\b/u';
-                        if (preg_match($pattern, $circleNameLower)) {
-                            $exclude = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (!$exclude) {
-                    $filteredIds[] = $circle->id;
-                }
-            }
-
-            return $filteredIds;
+            return $query->pluck('c.id')->unique()->values()->all();
         });
 
         return self::$cachedCircleIds;
@@ -269,6 +269,7 @@ class AdminCircleScope
 
         if (! $districtName) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -306,7 +307,7 @@ class AdminCircleScope
             });
 
             // 2. User is a member of a circle in the district
-            if (!empty($allowedCircleIds)) {
+            if (! empty($allowedCircleIds)) {
                 $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
                     $subQuery->selectRaw(1)
                         ->from('circle_members as scm')
@@ -317,180 +318,16 @@ class AdminCircleScope
             }
 
             // 2.5 User is a founder, director, or industry director of an allowed circle
-            if (!empty($allowedCircleIds)) {
+            if (! empty($allowedCircleIds)) {
                 $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
                     $subQuery->selectRaw(1)
                         ->from('circles as sc')
                         ->whereIn('sc.id', $allowedCircleIds)
                         ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('sc.founder_user_id', $userIdExpression)
-                              ->orWhereColumn('sc.director_user_id', $userIdExpression)
-                              ->orWhereColumn('sc.industry_director_user_id', $userIdExpression);
+                            $q->whereColumn('sc.circle_founder_user_id', $userIdExpression)
+                                ->orWhereColumn('sc.circle_director_user_id', $userIdExpression)
+                                ->orWhereColumn('sc.industry_director_user_id', $userIdExpression);
                         });
-                });
-            }
-
-            // 3. Has referrals inside district circles
-            if (Schema::hasTable('referrals') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('referrals as sr')
-                        ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('sr.from_user_id', $userIdExpression)
-                              ->orWhereColumn('sr.to_user_id', $userIdExpression);
-                        })
-                        ->where('sr.is_deleted', false)
-                        ->whereNull('sr.deleted_at')
-                        ->whereExists(function ($cmQuery) use ($allowedCircleIds) {
-                            $cmQuery->selectRaw(1)
-                                ->from('circle_members as scm')
-                                ->where(function ($orQ) {
-                                    $orQ->whereColumn('scm.user_id', 'sr.from_user_id')
-                                        ->orWhereColumn('scm.user_id', 'sr.to_user_id');
-                                })
-                                ->whereIn('scm.circle_id', $allowedCircleIds)
-                                ->where('scm.status', 'approved')
-                                ->whereNull('scm.deleted_at');
-                        });
-                });
-            }
-
-            // 4. Has testimonials inside district circles
-            if (Schema::hasTable('testimonials') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('testimonials as st')
-                        ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('st.from_user_id', $userIdExpression)
-                              ->orWhereColumn('st.to_user_id', $userIdExpression);
-                        })
-                        ->where('st.is_deleted', false)
-                        ->whereNull('st.deleted_at')
-                        ->whereExists(function ($cmQuery) use ($allowedCircleIds) {
-                            $cmQuery->selectRaw(1)
-                                ->from('circle_members as scm')
-                                ->where(function ($orQ) {
-                                    $orQ->whereColumn('scm.user_id', 'st.from_user_id')
-                                        ->orWhereColumn('scm.user_id', 'st.to_user_id');
-                                })
-                                ->whereIn('scm.circle_id', $allowedCircleIds)
-                                ->where('scm.status', 'approved')
-                                ->whereNull('scm.deleted_at');
-                        });
-                });
-            }
-
-            // 5. Has requirements inside district circles
-            if (Schema::hasTable('requirements') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('requirements as srq')
-                        ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('srq.user_id', $userIdExpression);
-
-                            if (Schema::hasTable('requirement_interests')) {
-                                $q->orWhereExists(function ($interestQ) use ($userIdExpression) {
-                                    $interestQ->selectRaw(1)
-                                        ->from('requirement_interests as sri')
-                                        ->whereColumn('sri.requirement_id', 'srq.id')
-                                        ->whereColumn('sri.user_id', $userIdExpression);
-                                });
-                            }
-                        })
-                        ->whereNull('srq.deleted_at')
-                        ->whereExists(function ($cmQuery) use ($allowedCircleIds) {
-                            $cmQuery->selectRaw(1)
-                                ->from('circle_members as scm')
-                                ->where(function ($orQ) {
-                                    $orQ->whereColumn('scm.user_id', 'srq.user_id');
-
-                                    if (Schema::hasTable('requirement_interests')) {
-                                        $orQ->orWhereExists(function ($interestInnerQ) {
-                                            $interestInnerQ->selectRaw(1)
-                                                ->from('requirement_interests as sri2')
-                                                ->whereColumn('sri2.requirement_id', 'srq.id')
-                                                ->whereColumn('sri2.user_id', 'scm.user_id');
-                                        });
-                                    }
-                                })
-                                ->whereIn('scm.circle_id', $allowedCircleIds)
-                                ->where('scm.status', 'approved')
-                                ->whereNull('scm.deleted_at');
-                        });
-                });
-            }
-
-            // 6. Has business deals inside district circles
-            if (Schema::hasTable('business_deals') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('business_deals as sbd')
-                        ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('sbd.from_user_id', $userIdExpression)
-                              ->orWhereColumn('sbd.to_user_id', $userIdExpression);
-                        })
-                        ->where('sbd.is_deleted', false)
-                        ->whereNull('sbd.deleted_at')
-                        ->whereExists(function ($cmQuery) use ($allowedCircleIds) {
-                            $cmQuery->selectRaw(1)
-                                ->from('circle_members as scm')
-                                ->where(function ($orQ) {
-                                    $orQ->whereColumn('scm.user_id', 'sbd.from_user_id')
-                                        ->orWhereColumn('scm.user_id', 'sbd.to_user_id');
-                                })
-                                ->whereIn('scm.circle_id', $allowedCircleIds)
-                                ->where('scm.status', 'approved')
-                                ->whereNull('scm.deleted_at');
-                        });
-                });
-            }
-
-            // 7. Has P2P meetings inside district circles
-            if (Schema::hasTable('p2p_meetings') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('p2p_meetings as spm')
-                        ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('spm.initiator_user_id', $userIdExpression)
-                              ->orWhereColumn('spm.peer_user_id', $userIdExpression);
-                        })
-                        ->where('spm.is_deleted', false)
-                        ->whereNull('spm.deleted_at')
-                        ->whereExists(function ($cmQuery) use ($allowedCircleIds) {
-                            $cmQuery->selectRaw(1)
-                                ->from('circle_members as scm')
-                                ->where(function ($orQ) {
-                                    $orQ->whereColumn('scm.user_id', 'spm.initiator_user_id')
-                                        ->orWhereColumn('scm.user_id', 'spm.peer_user_id');
-                                })
-                                ->whereIn('scm.circle_id', $allowedCircleIds)
-                                ->where('scm.status', 'approved')
-                                ->whereNull('scm.deleted_at');
-                        });
-                });
-            }
-
-            // 8. Has any activity associated with district circles
-            if (Schema::hasTable('activities') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('activities as sa')
-                        ->whereIn('sa.circle_id', $allowedCircleIds)
-                        ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('sa.user_id', $userIdExpression)
-                              ->orWhereColumn('sa.related_user_id', $userIdExpression);
-                        });
-                });
-            }
-
-            // 9. Has any join request inside district circles
-            if (Schema::hasTable('circle_join_requests') && !empty($allowedCircleIds)) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($userIdExpression, $allowedCircleIds): void {
-                    $subQuery->selectRaw(1)
-                        ->from('circle_join_requests as scjr')
-                        ->whereColumn('scjr.user_id', $userIdExpression)
-                        ->whereIn('scjr.circle_id', $allowedCircleIds)
-                        ->whereIn('scjr.status', ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee']);
                 });
             }
         });
@@ -513,6 +350,7 @@ class AdminCircleScope
     {
         if (! Schema::hasColumn('users', 'city')) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -521,7 +359,7 @@ class AdminCircleScope
 
     private static function applyCityDistrictPredicate($query, string $cityAlias, string $districtName, ?string $stateName): void
     {
-        $query->where(function ($cityQuery) use ($cityAlias, $districtName, $stateName) {
+        $query->where(function ($cityQuery) use ($cityAlias, $districtName) {
             $hasLocationColumn = false;
 
             if (Schema::hasColumn('cities', 'name')) {
@@ -551,11 +389,15 @@ class AdminCircleScope
 
     public static function applyToCirclesQuery($query, ?AdminUser $admin, string $circleAlias = 'circles'): void
     {
-        if (! AdminAccess::isDed($admin)) {
+        if (! $admin) {
             return;
         }
 
-        $allowedCircleIds = self::getDedCircleIds($admin);
+        if (AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        $allowedCircleIds = self::getSessionCircleIds($admin);
 
         if (empty($allowedCircleIds)) {
             $query->whereRaw('1=0');
@@ -566,29 +408,20 @@ class AdminCircleScope
 
     public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
     {
-        if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
-            if (AdminAccess::isDed($admin) || AdminAccess::isCircleScoped($admin)) {
-                $query->whereRaw('1=0');
-            }
+        if (! $admin || ! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
             return;
         }
 
-        if (AdminAccess::isDed($admin)) {
-            $query->whereExists(function ($subQuery) use ($eventTable, $admin) {
-                $subQuery->selectRaw(1)
-                    ->from('circles as ded_scope_circles')
-                    ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
-
-                self::applyToCirclesQuery($subQuery, $admin, 'ded_scope_circles');
-            });
+        if (AdminAccess::isSuper($admin)) {
             return;
         }
 
-        if (AdminAccess::isCircleScoped($admin)) {
-            $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-            $allowedCircleIds === []
-                ? $query->whereRaw('1=0')
-                : $query->whereIn("{$eventTable}.circle_id", $allowedCircleIds);
+        $allowedCircleIds = self::getSessionCircleIds($admin);
+
+        if (empty($allowedCircleIds)) {
+            $query->whereRaw('1=0');
+        } else {
+            $query->whereIn("{$eventTable}.circle_id", $allowedCircleIds);
         }
     }
 
@@ -598,7 +431,7 @@ class AdminCircleScope
             return true;
         }
 
-        $query = \App\Models\Event::query()->whereKey($eventId);
+        $query = Event::query()->whereKey($eventId);
         self::applyToEventsQuery($query, $admin);
 
         return $query->exists();

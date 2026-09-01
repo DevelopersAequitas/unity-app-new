@@ -14,21 +14,19 @@ use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestAdminController extends BaseApiController
 {
-    public function __construct(private readonly CircleJoinRequestService $service)
-    {
-    }
+    public function __construct(private readonly CircleJoinRequestService $service) {}
 
     public function index(AdminListCircleJoinRequests $request): JsonResponse
     {
         $this->ensureCanView($request->user());
 
-        $query = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
+        $query = CircleJoinRequest::query()->with(['user', 'circle.categories', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
         $this->applyUserScope($query, $request->user());
 
         $validated = $request->validated();
 
         if (! empty($validated['search'])) {
-            $search = '%' . str_replace(['%', '_'], ['\%', '\_'], (string) $validated['search']) . '%';
+            $search = '%'.str_replace(['%', '_'], ['\%', '\_'], (string) $validated['search']).'%';
             $query->whereHas('user', fn ($q) => $q->where('display_name', 'ILIKE', $search)
                 ->orWhere('first_name', 'ILIKE', $search)
                 ->orWhere('last_name', 'ILIKE', $search)
@@ -60,7 +58,7 @@ class CircleJoinRequestAdminController extends BaseApiController
     {
         $this->ensureCanView($request->user());
 
-        $record = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
+        $record = CircleJoinRequest::query()->with(['user', 'circle.categories', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
         $this->ensureCanAccessRecord($request->user(), $record);
 
         return $this->success($record);
@@ -122,7 +120,7 @@ class CircleJoinRequestAdminController extends BaseApiController
     private function ensureCanApproveCd($user, CircleJoinRequest $record): void
     {
         $this->ensureCanAccessRecord($user, $record);
-        abort_unless($this->hasAnyRole($user, ['global_admin', 'circle_leader', 'director']) || (string) $record->circle?->director_user_id === (string) $user->id, 403);
+        abort_unless($this->hasAnyRole($user, ['global_admin', 'circle_leader', 'circle_director', 'director']) || (string) $record->circle?->circle_director_user_id === (string) $user->id, 403);
     }
 
     private function ensureCanApproveId($user, CircleJoinRequest $record): void
@@ -137,7 +135,7 @@ class CircleJoinRequestAdminController extends BaseApiController
             return;
         }
 
-        if ((string) $record->circle?->director_user_id === (string) $user->id || (string) $record->circle?->industry_director_user_id === (string) $user->id) {
+        if ((string) $record->circle?->circle_director_user_id === (string) $user->id || (string) $record->circle?->industry_director_user_id === (string) $user->id) {
             return;
         }
 
@@ -151,7 +149,7 @@ class CircleJoinRequestAdminController extends BaseApiController
         }
 
         $query->where(function ($q) use ($user) {
-            $q->whereHas('circle', fn ($cq) => $cq->where('director_user_id', $user->id)->orWhere('industry_director_user_id', $user->id));
+            $q->whereHas('circle', fn ($cq) => $cq->where('circle_director_user_id', $user->id)->orWhere('industry_director_user_id', $user->id));
         });
     }
 

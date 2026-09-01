@@ -21,11 +21,14 @@ class CircleMembershipExpiryNotification extends Notification
 
     public function toArray($notifiable)
     {
-        return [
-            'notification_type' => 'circle_membership_expiry_reminder',
-            'title' => 'Circle Membership Expiring Soon',
-            'body' => 'Your Circle Membership will expire soon. Please renew before the expiry date to continue enjoying your Circle benefits and access.',
+        return array_filter([
+            'title' => 'Membership Expiring Soon',
+            'body' => 'Your membership will expire soon. Tap to renew now.',
+            'navigation_screen' => '/profile',
+            'type' => 'membership_expiry',
+            'activity_type' => 'membership_expiry',
+            'user_id' => (string) ($notifiable->id ?? $this->circleMember->user_id ?? ''),
             'expires_at' => $this->circleMember->expires_at ? $this->circleMember->expires_at->toIso8601String() : null,
-        ];
+        ], fn ($value) => $value !== null && $value !== '');
     }
 }

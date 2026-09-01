@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
-use App\Models\AdminAuditLog;
 use App\Models\CircleJoinRequest;
 use App\Services\Admin\IndustryScopeService;
+use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
@@ -29,8 +30,7 @@ class CircleJoinRequestsController extends Controller
     public function __construct(
         private readonly CircleJoinRequestService $service,
         private readonly IndustryScopeService $industryScope,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -38,9 +38,7 @@ class CircleJoinRequestsController extends Controller
         $actor = AdminAccess::resolveAppUser($admin);
         $this->reconcileDedApprovalWorkflowState();
 
-        $query = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy']);
-        $query->visibleToAdminUser($admin);
-        $query = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
+        $query = CircleJoinRequest::query()->with(['user', 'circle.template', 'circle.categories', 'circleCategory', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy']);
 
         if ($this->industryScope->isIndustryDirector($admin)) {
             $industryCircleIds = $this->industryScope->circleIdsForAdmin($admin);
@@ -51,7 +49,7 @@ class CircleJoinRequestsController extends Controller
 
         $search = trim((string) $request->query('search', ''));
         if ($search !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
             $query->whereHas('user', fn ($q) => $q->where('display_name', 'ILIKE', $like)
                 ->orWhere('email', 'ILIKE', $like)
                 ->orWhere('phone', 'ILIKE', $like)
@@ -70,21 +68,22 @@ class CircleJoinRequestsController extends Controller
                 $query->where('circle_join_requests.status', $statusFilter)
                     ->where(function ($q) {
                         $q->whereNull('circle_join_requests.ded_approval_status')
-                          ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
-                          ->orWhereNull('circle_join_requests.ded_approved_at');
+                            ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
+                            ->orWhereNull('circle_join_requests.ded_approved_at');
                     });
             } else {
                 $query->whereIn('circle_join_requests.status', [
-                        CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
-                        CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
-                    ])
+                    CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
+                    CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+                ])
                     ->where(function ($q) {
                         $q->whereNull('circle_join_requests.ded_approval_status')
-                          ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
-                          ->orWhereNull('circle_join_requests.ded_approved_at');
+                            ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
+                            ->orWhereNull('circle_join_requests.ded_approved_at');
                     });
             }
             $query->when($request->query('circle_id'), fn ($q, $v) => $q->where('circle_id', $v))
+                ->when($request->query('circle_category_id'), fn ($q, $v) => $q->where('level1_category_id', $v))
                 ->when($request->query('date_from'), fn ($q, $v) => $q->whereDate('requested_at', '>=', $v))
                 ->when($request->query('date_to'), fn ($q, $v) => $q->whereDate('requested_at', '<=', $v));
         } else {
@@ -96,7 +95,8 @@ class CircleJoinRequestsController extends Controller
 
             $query->whereIn('status', $pendingStatuses)
                 ->when($request->query('circle_id'), fn ($q, $v) => $q->where('circle_id', $v))
-                ->when($request->query('status'), fn ($q, $v) => in_array($v, $pendingStatuses, true) ? $q->where('status', $v) : $q->whereRaw('1=0'))
+                ->when($request->query('circle_category_id'), fn ($q, $v) => $q->where('level1_category_id', $v))
+                ->when($request->query('status') && $request->query('status') !== 'all', fn ($q, $v) => in_array($v, $pendingStatuses, true) ? $q->where('status', $v) : $q->whereRaw('1=0'))
                 ->when($request->query('date_from'), fn ($q, $v) => $q->whereDate('requested_at', '>=', $v))
                 ->when($request->query('date_to'), fn ($q, $v) => $q->whereDate('requested_at', '<=', $v));
 
@@ -117,10 +117,13 @@ class CircleJoinRequestsController extends Controller
             return $joinRequest;
         });
 
+        $categories = CircleCategory::query()->orderBy('name')->get();
+
         return view('admin.circle_join_requests.index', [
             'requests' => $requests,
             'circles' => $this->circleOptions($admin),
-            'filters' => $request->only(['search', 'circle_id', 'status', 'date_from', 'date_to']),
+            'categories' => $categories,
+            'filters' => $request->only(['search', 'circle_id', 'circle_category_id', 'status', 'date_from', 'date_to']),
         ]);
     }
 
@@ -130,10 +133,15 @@ class CircleJoinRequestsController extends Controller
         $actor = AdminAccess::resolveAppUser($admin);
         $this->reconcileDedApprovalWorkflowState($id);
 
-        $record = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy'])->findOrFail($id);
+        $record = CircleJoinRequest::query()->with(['user', 'circle.template', 'circle.categories', 'circleCategory', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy'])->findOrFail($id);
         abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
 
         $selectedCategoryIds = $this->resolveSelectedCategoryIds($record);
+
+        $level1 = $selectedCategoryIds['level1_category_id'] ? CircleCategory::query()->find($selectedCategoryIds['level1_category_id']) : $record->circleCategory;
+        $level2 = $selectedCategoryIds['level2_category_id'] ? CircleCategoryLevel2::query()->find($selectedCategoryIds['level2_category_id']) : null;
+        $level3 = $selectedCategoryIds['level3_category_id'] ? CircleCategoryLevel3::query()->find($selectedCategoryIds['level3_category_id']) : null;
+        $level4 = $selectedCategoryIds['level4_category_id'] ? CircleCategoryLevel4::query()->find($selectedCategoryIds['level4_category_id']) : null;
 
         return view('admin.circle_join_requests.show', [
             'record' => $record,
@@ -141,10 +149,11 @@ class CircleJoinRequestsController extends Controller
             'canApproveId' => $this->canApproveId($admin, $actor, $record),
             'canApproveDed' => $this->canApproveDed($admin, $actor, $record),
             'categoryPath' => [
-                'level1' => $selectedCategoryIds['level1_category_id'] ? CircleCategory::query()->find($selectedCategoryIds['level1_category_id']) : null,
-                'level2' => $selectedCategoryIds['level2_category_id'] ? CircleCategoryLevel2::query()->find($selectedCategoryIds['level2_category_id']) : null,
-                'level3' => $selectedCategoryIds['level3_category_id'] ? CircleCategoryLevel3::query()->find($selectedCategoryIds['level3_category_id']) : null,
-                'level4' => $selectedCategoryIds['level4_category_id'] ? CircleCategoryLevel4::query()->find($selectedCategoryIds['level4_category_id']) : null,
+                'level1' => $level1,
+                'level2' => $level2,
+                'level3' => $level3,
+                'level4' => $level4,
+                'subCategory' => $level4 ?? ($level3 ?? $level2),
             ],
         ]);
     }
@@ -189,16 +198,16 @@ class CircleJoinRequestsController extends Controller
 
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($request): void {
             abort_unless($this->canApproveDed($admin, $actor, $record), 403);
-            
-            DB::transaction(function () use ($record, $request, $actor): void {
+
+            DB::transaction(function () use ($record, $request): void {
                 $req = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
                 $req->ded_approval_status = 'rejected';
                 $req->status = CircleJoinRequest::STATUS_CANCELLED;
-                
+
                 $notes = (array) $req->notes;
                 $notes['ded_rejection_reason'] = $request->input('remarks');
                 $req->notes = $notes;
-                
+
                 $req->save();
             });
         }, 'DED rejection completed successfully.');
@@ -245,7 +254,6 @@ class CircleJoinRequestsController extends Controller
         }
     }
 
-
     private function approveRequest(CircleJoinRequest $record, $actor): void
     {
         DB::transaction(function () use ($record, $actor): void {
@@ -287,6 +295,16 @@ class CircleJoinRequestsController extends Controller
                 'to' => $request->status,
             ]);
         });
+
+        $record->refresh();
+        try {
+            app(CircleJoinRequestNotificationService::class)->sendJoinRequestApprovedCongratulations($record);
+        } catch (\Throwable $e) {
+            Log::error('Failed to trigger congratulations email from admin controller', [
+                'request_id' => $record->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function approveRequestByDed(CircleJoinRequest $record, $admin, $actor, ?string $remarks = null): void
@@ -356,26 +374,66 @@ class CircleJoinRequestsController extends Controller
     private function resolveSelectedCategoryIds(CircleJoinRequest $record): array
     {
         $notes = $record->notes;
-        $notesSelection = is_array($notes) ? ($notes['category_selection'] ?? []) : [];
+        if (is_string($notes)) {
+            $decoded = json_decode($notes, true);
+            $notes = is_array($decoded) ? $decoded : [];
+        }
+        if (! is_array($notes)) {
+            $notes = [];
+        }
+
+        $notesSelection = $notes['category_selection'] ?? ($notes['category_selection_ids'] ?? $notes);
+        if (! is_array($notesSelection)) {
+            $notesSelection = [];
+        }
 
         $resolve = static function (string $key) use ($record, $notesSelection): ?int {
             $value = $record->getAttribute($key);
-            if ($value !== null) {
+            if ($value !== null && $value !== '') {
                 return (int) $value;
             }
 
-            if (is_array($notesSelection) && array_key_exists($key, $notesSelection) && $notesSelection[$key] !== null) {
+            if (array_key_exists($key, $notesSelection) && $notesSelection[$key] !== null && $notesSelection[$key] !== '') {
                 return (int) $notesSelection[$key];
             }
 
             return null;
         };
 
+        $l1 = $resolve('level1_category_id');
+        $l2 = $resolve('level2_category_id');
+        $l3 = $resolve('level3_category_id');
+        $l4 = $resolve('level4_category_id');
+
+        if ($l4) {
+            $l4Model = CircleCategoryLevel4::query()->find($l4);
+            if ($l4Model) {
+                $l3 = $l3 ?: ($l4Model->level3_id ?? $l4Model->level3_category_id ?? null);
+                $l2 = $l2 ?: ($l4Model->level2_id ?? $l4Model->level2_category_id ?? null);
+                $l1 = $l1 ?: ($l4Model->circle_category_id ?? $l4Model->level1_category_id ?? null);
+            }
+        }
+
+        if ($l3) {
+            $l3Model = CircleCategoryLevel3::query()->find($l3);
+            if ($l3Model) {
+                $l2 = $l2 ?: ($l3Model->level2_id ?? $l3Model->level2_category_id ?? null);
+                $l1 = $l1 ?: ($l3Model->circle_category_id ?? $l3Model->level1_category_id ?? null);
+            }
+        }
+
+        if ($l2) {
+            $l2Model = CircleCategoryLevel2::query()->find($l2);
+            if ($l2Model) {
+                $l1 = $l1 ?: ($l2Model->circle_category_id ?? $l2Model->level1_category_id ?? null);
+            }
+        }
+
         return [
-            'level1_category_id' => $resolve('level1_category_id'),
-            'level2_category_id' => $resolve('level2_category_id'),
-            'level3_category_id' => $resolve('level3_category_id'),
-            'level4_category_id' => $resolve('level4_category_id'),
+            'level1_category_id' => $l1 ? (int) $l1 : null,
+            'level2_category_id' => $l2 ? (int) $l2 : null,
+            'level3_category_id' => $l3 ? (int) $l3 : null,
+            'level4_category_id' => $l4 ? (int) $l4 : null,
         ];
     }
 
@@ -383,7 +441,9 @@ class CircleJoinRequestsController extends Controller
     {
         $query = Circle::query()->orderBy('name');
 
-        if ($this->industryScope->isIndustryDirector($admin)) {
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+        } elseif ($this->industryScope->isIndustryDirector($admin)) {
             $circleIds = $this->industryScope->circleIdsForAdmin($admin);
             $query->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
         }
@@ -403,6 +463,7 @@ class CircleJoinRequestsController extends Controller
 
         if (AdminAccess::isDed($admin)) {
             $allowedCircleIds = AdminCircleScope::getDedCircleIds($admin);
+
             return in_array((string) $record->circle_id, $allowedCircleIds, true);
         }
 
@@ -420,7 +481,7 @@ class CircleJoinRequestsController extends Controller
             $record->load('circle');
         }
 
-        return (string) $record->circle?->director_user_id === (string) $actor->id
+        return (string) $record->circle?->circle_director_user_id === (string) $actor->id
             || (string) $record->circle?->industry_director_user_id === (string) $actor->id;
     }
 
@@ -446,7 +507,7 @@ class CircleJoinRequestsController extends Controller
             return false;
         }
 
-        return (string) $record->circle?->director_user_id === (string) $actor->id;
+        return (string) $record->circle?->circle_director_user_id === (string) $actor->id;
     }
 
     private function canApproveId($admin, $actor, CircleJoinRequest $record): bool

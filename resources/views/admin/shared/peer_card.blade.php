@@ -14,27 +14,48 @@
     }
 
     $company = trim((string) ($user?->company_name ?? $user?->business_name ?? $user?->company ?? ''));
-    if ($company === '') {
-        $company = 'No Company';
-    }
-
     $city = trim((string) ($user?->city ?? ''));
-    if ($city === '') {
-        $city = 'No City';
-    }
 
-    $circleName = trim((string) optional($user?->circleMembers?->first()?->circle)->name);
-    if ($circleName === '') {
-        $circleName = trim((string) optional($user?->circles?->first())->name);
+    $circleNames = collect();
+    if ($user?->relationLoaded('circleMembers')) {
+        $circleNames = $user->circleMembers->map(fn($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
     }
-    if ($circleName === '') {
-        $circleName = 'No Circle';
+    if ($circleNames->isEmpty() && $user?->relationLoaded('circles')) {
+        $circleNames = $user->circles->map(fn($c) => trim((string) $c->name))->filter()->unique();
     }
+    if ($circleNames->isEmpty()) {
+        $circleNames = collect([$user?->adminCircleLabel() ?? '']);
+    }
+    $circleName = $circleNames->filter()->unique()->implode(', ');
+    $initial = strtoupper(substr($name, 0, 1));
+    $photoUrl = $user?->profile_photo_url;
 @endphp
 
-<div class="d-flex flex-column">
-    <div class="fw-semibold text-dark">{{ $name }}</div>
-    <div class="text-muted small">{{ $company }}</div>
-    <div class="text-muted small">{{ $city }}</div>
-    <div class="text-muted small">{{ $circleName }}</div>
+<div class="flex items-center gap-2.5">
+    @if (!empty($photoUrl))
+        <img src="{{ $photoUrl }}" alt="{{ $name }}" class="w-8 h-8 rounded-full object-cover border bs shrink-0" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+        <div class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 font-bold items-center justify-center text-xs border bs shrink-0" style="display:none;">
+            {{ $initial !== '' ? $initial : 'P' }}
+        </div>
+    @else
+        <div class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-xs border bs shrink-0">
+            {{ $initial !== '' ? $initial : 'P' }}
+        </div>
+    @endif
+    <div class="flex flex-col min-w-0 text-left">
+        @if($user && $user->id)
+            <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $user->id }}', event);" class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12.5px] truncate no-underline hover:underline" title="{{ $name }}">{{ $name }}</a>
+        @else
+            <div class="font-semibold t1 text-[12.5px] truncate" title="{{ $name }}">{{ $name }}</div>
+        @endif
+        <div class="text-[11px] t3 flex items-center gap-1.5 flex-wrap">
+            @if($company !== '')<span>{{ $company }}</span>@endif
+            @if($company !== '' && $city !== '')<span>&bull;</span>@endif
+            @if($city !== '')<span>{{ $city }}</span>@endif
+        </div>
+        @if($circleName !== '')
+            <div class="text-[10px] t3 opacity-75 truncate">{{ $circleName }}</div>
+        @endif
+    </div>
 </div>
+

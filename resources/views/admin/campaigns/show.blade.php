@@ -8,14 +8,16 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h1 class="h4 mb-0">{{ $campaign->title }}</h1>
+            <h1 class="h4 mb-0 fw-bold">{{ $campaign->title }}</h1>
             <div class="text-muted small">Campaign Detail / Report</div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('admin.campaigns.index') }}" class="btn btn-outline-secondary">Back</a>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.campaigns.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
             @if ($campaign->isEditable())
                 <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-outline-primary">Edit</a>
-                <form method="POST" action="{{ route('admin.campaigns.send', $campaign) }}" onsubmit="return confirm('Send this campaign now? This cannot be undone.');">
+                <form method="POST" action="{{ route('admin.campaigns.send', $campaign) }}" class="mb-0" onsubmit="return confirm('Send this campaign now? This cannot be undone.');">
                     @csrf
                     <button class="btn btn-success">Send Campaign</button>
                 </form>
@@ -24,7 +26,7 @@
     </div>
 
     <div class="row g-3 mb-4">
-        <div class="col-lg-4"><div class="card shadow-sm h-100"><div class="card-body">
+        <div class="col-lg-6"><div class="card shadow-sm h-100"><div class="card-body">
             <h2 class="h6">Campaign Details</h2>
             <dl class="row mb-0 small">
                 <dt class="col-5">Type</dt><dd class="col-7">{{ Str::headline($campaign->campaign_type) }}</dd>
@@ -56,7 +58,7 @@
                 @endif
             </dl>
         </div></div></div>
-        <div class="col-lg-4"><div class="card shadow-sm h-100"><div class="card-body">
+        <div class="col-lg-6"><div class="card shadow-sm h-100"><div class="card-body">
             <h2 class="h6">Totals</h2>
             <div class="row text-center g-2">
                 <div class="col-6"><div class="border rounded p-2"><div class="small text-muted">Recipients</div><div class="h5 mb-0">{{ number_format($campaign->total_recipients) }}</div></div></div>
@@ -64,66 +66,6 @@
                 <div class="col-6"><div class="border rounded p-2"><div class="small text-muted">Notifications</div><div class="h5 mb-0">{{ number_format($campaign->total_notification_sent) }}</div></div></div>
                 <div class="col-6"><div class="border rounded p-2"><div class="small text-muted">Failed</div><div class="h5 mb-0">{{ number_format($campaign->total_failed) }}</div></div></div>
             </div>
-        </div></div></div>
-        <div class="col-lg-4"><div class="card shadow-sm h-100"><div class="card-body">
-            <h2 class="h6">Selected Filters</h2>
-            @if (! empty($campaign->email_template_snapshot) || $campaign->emailTemplate)
-                @php
-                    $templateName = data_get($campaign->email_template_snapshot, 'name', $campaign->emailTemplate?->name);
-                    $templateType = data_get($campaign->email_template_snapshot, 'template_type', $campaign->emailTemplate?->template_type);
-                @endphp
-                <div class="mb-2">
-                    <span class="text-muted small d-block">Selected Email Template</span>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="campaign-template-mini campaign-template-mini-{{ $templateType }}"><span></span><span></span><span></span><span></span></div>
-                        <span class="badge bg-info-subtle text-info border border-info-subtle">{{ $templateName ?? 'Simple Text' }}</span>
-                    </div>
-                </div>
-            @endif
-            @if (! empty($campaign->pamphlet_snapshot))
-                <div class="mb-2">
-                    <span class="text-muted small d-block">Selected Pamphlet</span>
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ $campaign->pamphlet_snapshot['title'] ?? $campaign->pamphlet_id }}</span>
-                    @if (! empty($campaign->pamphlet_snapshot['image_url']))
-                        <div class="small mt-1 text-break">Image: {{ $campaign->pamphlet_snapshot['image_url'] }}</div>
-                    @endif
-                </div>
-            @endif
-            @if (! empty($filterSummary['business_categories']))
-                <div class="mb-2">
-                    <span class="text-muted small d-block">Business Categories</span>
-                    @foreach ($filterSummary['business_categories'] as $categoryName)
-                        <span class="badge bg-light text-dark border me-1 mb-1">{{ $categoryName }}</span>
-                    @endforeach
-                </div>
-            @endif
-            @if($campaign->audience_type === 'specific_members' && !empty($filterSummary['selected_users']))
-                <div class="mb-3">
-                    <span class="text-muted small d-block mb-1">Selected Members</span>
-                    <div class="table-responsive border rounded" style="max-height: 200px; overflow-y: auto;">
-                        <table class="table table-sm table-striped align-middle mb-0" style="font-size: 0.75rem;">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Member ID</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($filterSummary['selected_users'] as $u)
-                                    <tr>
-                                        <td>{{ $u['name'] }}</td>
-                                        <td>{{ $u['email'] ?? '-' }}</td>
-                                        <td class="text-muted">{{ $u['id'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @else
-                <pre class="bg-light border rounded p-2 small mb-0" style="white-space:pre-wrap;">{{ json_encode($campaign->filters ?: [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
-            @endif
         </div></div></div>
     </div>
 

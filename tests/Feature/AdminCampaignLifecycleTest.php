@@ -2,16 +2,14 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\AdminUser;
 use App\Models\AdminCampaign;
+use App\Models\AdminUser;
 use App\Models\CampaignSchedule;
-use App\Models\CampaignDelivery;
-use App\Models\AdminAuditLog;
 use App\Models\Role;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Tests\TestCase;
 
 class AdminCampaignLifecycleTest extends TestCase
 {
@@ -35,7 +33,7 @@ class AdminCampaignLifecycleTest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -204,7 +202,7 @@ class AdminCampaignLifecycleTest extends TestCase
 
         foreach ($statuses as $status) {
             $campaign = AdminCampaign::create([
-                'title' => 'Editable Campaign ' . $status,
+                'title' => 'Editable Campaign '.$status,
                 'campaign_type' => 'email_only',
                 'audience_type' => 'all_members',
                 'filters' => [],
@@ -225,7 +223,7 @@ class AdminCampaignLifecycleTest extends TestCase
 
         foreach ($statuses as $status) {
             $campaign = AdminCampaign::create([
-                'title' => 'Non-Editable Campaign ' . $status,
+                'title' => 'Non-Editable Campaign '.$status,
                 'campaign_type' => 'email_only',
                 'audience_type' => 'all_members',
                 'filters' => [],

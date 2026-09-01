@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
-use App\Http\Resources\PostResource;
 use App\Http\Resources\PostCommentResource;
+use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
 use App\Models\Circle;
+use App\Models\CircleMember;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\P2pMeeting;
@@ -16,14 +17,15 @@ use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\User;
 use App\Services\AdFeedService;
-use App\Services\Notifications\NotifyUserService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationService;
+use App\Services\Notifications\NotifyUserService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -73,6 +75,7 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::date as impact_date')
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
+            ->selectRaw('posts.post_type as post_type')
             ->where('posts.visibility', 'public')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at');
@@ -107,7 +110,8 @@ class PostController extends BaseApiController
             ->selectRaw('impacts.impacted_peer_id as impacted_peer_id')
             ->selectRaw('impacts.impact_date as impact_date')
             ->selectRaw('impacts.action as impact_action')
-            ->selectRaw('COALESCE(impacts.life_impacted, 1) as life_impacted')
+            ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
+            ->selectRaw('NULL::text as post_type')
             ->where('impacts.status', 'approved')
             ->whereNotNull('impacts.timeline_posted_at');
 
@@ -203,6 +207,7 @@ class PostController extends BaseApiController
                     $bestMeeting = $authorMeetings
                         ->filter(function (P2pMeeting $meeting) use ($rowCreatedAt): bool {
                             $diff = abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+
                             return $diff <= 120;
                         })
                         ->sortBy(function (P2pMeeting $meeting) use ($rowCreatedAt): int {
@@ -218,17 +223,36 @@ class PostController extends BaseApiController
             }
         }
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId) {
+        $isDownloadable = CircleMember::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists();
+
+        $verifiedAuthorIds = CircleMember::whereIn('user_id', $authorIds)
+            ->where('status', 'approved')
+            ->pluck('user_id')
+            ->unique()
+            ->map(fn ($id) => (string) $id)
+            ->toArray();
+
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
                 ? $activityCreativesByPostId->get((string) $row->id)
                 : null;
 
+            $authorId = (string) ($row->author_id ?? '');
+            $isVerified = $authorId !== '' ? (
+                in_array($authorId, $verifiedAuthorIds, true)
+                || (bool) ($author->is_verified ?? false)
+            ) : false;
+
             $item = [
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
+                'post_type' => isset($row->post_type) ? (string) $row->post_type : null,
+                'is_verified' => $isVerified,
                 'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'visibility' => (string) $row->visibility,
@@ -240,7 +264,7 @@ class PostController extends BaseApiController
                     'first_name' => $author->first_name,
                     'last_name' => $author->last_name,
                     'profile_photo_url' => $author->profile_photo_file_id
-                        ? url('/api/v1/files/' . $author->profile_photo_file_id)
+                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
                 ] : null,
                 'circle' => $circle ? [
@@ -252,9 +276,14 @@ class PostController extends BaseApiController
                 'is_liked_by_me' => (bool) $row->is_liked_by_me,
                 'saves_count' => (int) $row->saves_count,
                 'is_saved' => (bool) $row->is_saved_by_me,
-                'created_at' => $this->formatToIstDateTime($row->created_at),
-                'updated_at' => $this->formatToIstDateTime($row->updated_at),
+                'created_at' => $this->formatToDefaultDateTime($row->created_at),
+                'updated_at' => $this->formatToDefaultDateTime($row->updated_at),
             ];
+
+            if (isset($row->post_type) && (string) $row->post_type === 'global_peer_certificate') {
+                $item['is_downloadable'] = $isDownloadable;
+                $item['is_verified_peer'] = in_array((string) $row->author_id, $verifiedAuthorIds, true);
+            }
 
             if (
                 (string) $row->source_type === 'post'
@@ -262,7 +291,7 @@ class PostController extends BaseApiController
                 && (string) ($row->post_source_event ?? '') === 'completed'
             ) {
                 $acceptedByName = trim((string) ($row->accepted_by_display_name
-                    ?: trim(((string) ($row->accepted_by_first_name ?? '')) . ' ' . ((string) ($row->accepted_by_last_name ?? '')))));
+                    ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
 
                 $item['accepted_by'] = $row->accepted_by_id ? [
                     'id' => (string) $row->accepted_by_id,
@@ -333,14 +362,14 @@ class PostController extends BaseApiController
         ];
     }
 
-    private function formatToIstDateTime(mixed $value): ?string
+    private function formatToDefaultDateTime(mixed $value): ?string
     {
         if (empty($value)) {
             return null;
         }
 
         return Carbon::parse((string) $value)
-            ->timezone('Asia/Kolkata')
+            ->timezone(config('app.timezone', 'UTC'))
             ->format('Y-m-d H:i:s');
     }
 
@@ -378,11 +407,11 @@ class PostController extends BaseApiController
         }
 
         $tags = $this->decodeJsonColumn($row->tags ?? null);
+
         return in_array('p2p_meeting', $tags, true);
     }
 
     /**
-     * @param  mixed  $rawMedia
      * @return array<int, array<string, mixed>>
      */
     private function expandP2pMedia(mixed $rawMedia): array
@@ -410,7 +439,7 @@ class PostController extends BaseApiController
                 return [
                     'file_id' => $fileId,
                     'media_type' => $mediaType,
-                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/'.$fileId) : null,
                     'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
                     'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
                     'size' => $file->size ?? $file->size_bytes ?? null,
@@ -427,6 +456,7 @@ class PostController extends BaseApiController
     {
         if (is_string($rawMedia)) {
             $decoded = json_decode($rawMedia, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -500,14 +530,14 @@ class PostController extends BaseApiController
         $user = Auth::user();
 
         $data = $request->validate([
-            'content_text'   => ['required', 'string', 'max:5000'],
-            'media'          => ['nullable', 'array'],
-            'media.*.id'     => ['required_with:media', 'uuid', 'exists:files,id'],
-            'media.*.type'   => ['required_with:media', 'string', 'max:50'],
-            'tags'           => ['nullable', 'array'],
-            'tags.*'         => ['string', 'max:100'],
-            'visibility'     => ['required', 'in:public,connections,members,circle,private'],
-            'circle_id'      => ['nullable', 'uuid'],
+            'content_text' => ['nullable', 'string', 'max:5000'],
+            'media' => ['nullable', 'array'],
+            'media.*.id' => ['required_with:media', 'uuid', 'exists:files,id'],
+            'media.*.type' => ['required_with:media', 'string', 'max:50'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
+            'visibility' => ['required', 'in:public,connections,members,circle,private'],
+            'circle_id' => ['nullable', 'uuid'],
         ]);
 
         $mediaItems = [];
@@ -524,23 +554,23 @@ class PostController extends BaseApiController
                 }
 
                 $mediaItems[] = [
-                    'id'   => $file->id,
+                    'id' => $file->id,
                     'type' => $item['type'],
-                    'url'  => url("/api/v1/files/{$file->id}"),
+                    'url' => url("/api/v1/files/{$file->id}"),
                 ];
             }
         }
 
         $post = Post::create([
-            'user_id'           => $user->id,
-            'circle_id'         => $data['circle_id'] ?? null,
-            'content_text'      => $data['content_text'],
-            'media'             => $mediaItems ?: [],
-            'tags'              => $data['tags'] ?? [],
-            'visibility'        => $data['visibility'],
+            'user_id' => $user->id,
+            'circle_id' => $data['circle_id'] ?? null,
+            'content_text' => $data['content_text'] ?? null,
+            'media' => $mediaItems ?: [],
+            'tags' => $data['tags'] ?? [],
+            'visibility' => $data['visibility'],
             'moderation_status' => 'pending',
-            'sponsored'         => false,
-            'is_deleted'        => false,
+            'sponsored' => false,
+            'is_deleted' => false,
         ]);
 
         $this->dispatchNewPostNotifications($notificationService, $post);
@@ -549,6 +579,106 @@ class PostController extends BaseApiController
         return response()->json([
             'success' => true,
             'message' => 'Post created successfully',
+            'data' => [
+                'id' => $post->id,
+                'user_id' => $post->user_id,
+                'circle_id' => $post->circle_id,
+                'content_text' => $post->content_text,
+                'media' => $post->media ?? [],
+                'tags' => $post->tags ?? [],
+                'visibility' => $post->visibility,
+                'moderation_status' => $post->moderation_status,
+                'sponsored' => $post->sponsored,
+                'is_deleted' => $post->is_deleted,
+                'created_at' => $post->created_at,
+                'updated_at' => $post->updated_at,
+            ],
+        ]);
+    }
+
+    public function update(Request $request, string $id, NotificationDispatchService $notifications)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $post = Post::where('id', $id)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $post) {
+            return $this->error('This post is managed by the system and cannot be modified.', 404);
+        }
+
+        if ($post->user_id !== $user->id) {
+            return $this->error('You are not authorized to edit this post.', 403);
+        }
+
+        if (! empty($post->source_type) || (! empty($post->post_type) && $post->post_type !== 'standard') || ! empty($post->template_id)) {
+            return $this->error('Generated template posts cannot be edited.', 403);
+        }
+
+        $data = $request->validate([
+            'content_text' => ['nullable', 'string', 'max:5000'],
+            'media' => ['nullable', 'array'],
+            'media.*.id' => ['required_with:media', 'uuid', 'exists:files,id'],
+            'media.*.type' => ['required_with:media', 'string', 'max:50'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
+            'visibility' => ['sometimes', 'required', 'in:public,connections,members,circle,private'],
+            'circle_id' => ['nullable', 'uuid'],
+        ]);
+
+        if (array_key_exists('content_text', $data)) {
+            $post->content_text = $data['content_text'];
+        }
+
+        if (array_key_exists('circle_id', $data)) {
+            $post->circle_id = $data['circle_id'];
+        }
+
+        if (array_key_exists('visibility', $data)) {
+            $post->visibility = $data['visibility'];
+        }
+
+        if (array_key_exists('tags', $data)) {
+            $post->tags = $data['tags'] ?? [];
+        }
+
+        if (array_key_exists('media', $data)) {
+            $mediaItems = [];
+            if (! empty($data['media'])) {
+                $fileIds = collect($data['media'])->pluck('id')->all();
+                $files = File::whereIn('id', $fileIds)->get()->keyBy('id');
+
+                foreach ($data['media'] as $item) {
+                    $file = $files->get($item['id']);
+                    if (! $file) {
+                        continue;
+                    }
+
+                    $mediaItems[] = [
+                        'id' => $file->id,
+                        'type' => $item['type'],
+                        'url' => url("/api/v1/files/{$file->id}"),
+                    ];
+                }
+            }
+            $post->media = $mediaItems;
+        }
+
+        $post->save();
+
+        if (array_key_exists('content_text', $data)) {
+            $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Post updated successfully',
             'data' => [
                 'id' => $post->id,
                 'user_id' => $post->user_id,
@@ -584,30 +714,30 @@ class PostController extends BaseApiController
         }
 
         return $this->success([
-            'id'                => $post->id,
-            'content_text'      => $post->content_text,
-            'media'             => $post->media ?? [],
-            'tags'              => $post->tags ?? [],
-            'visibility'        => $post->visibility,
+            'id' => $post->id,
+            'content_text' => $post->content_text,
+            'media' => $post->media ?? [],
+            'tags' => $post->tags ?? [],
+            'visibility' => $post->visibility,
             'moderation_status' => $post->moderation_status,
-            'author'            => $post->relationLoaded('user') && $post->user ? [
-                'id'               => $post->user->id,
-                'display_name'     => $post->user->display_name,
-                'first_name'       => $post->user->first_name,
-                'last_name'        => $post->user->last_name,
-                'profile_photo_url'=> $post->user->profile_photo_url,
+            'author' => $post->relationLoaded('user') && $post->user ? [
+                'id' => $post->user->id,
+                'display_name' => $post->user->display_name,
+                'first_name' => $post->user->first_name,
+                'last_name' => $post->user->last_name,
+                'profile_photo_url' => $post->user->profile_photo_url,
             ] : null,
-            'circle'            => $post->relationLoaded('circle') && $post->circle ? [
-                'id'   => $post->circle->id,
+            'circle' => $post->relationLoaded('circle') && $post->circle ? [
+                'id' => $post->circle->id,
                 'name' => $post->circle->name,
             ] : null,
-            'likes_count'       => isset($post->likes_count) ? (int) $post->likes_count : 0,
-            'comments_count'    => isset($post->comments_count) ? (int) $post->comments_count : 0,
-            'is_liked_by_me'    => (bool) ($post->is_liked_by_me ?? false),
-            'saves_count'       => isset($post->saves_count) ? (int) $post->saves_count : 0,
-            'is_saved'          => (bool) ($post->is_saved_by_me ?? false),
-            'created_at'        => $post->created_at,
-            'updated_at'        => $post->updated_at,
+            'likes_count' => isset($post->likes_count) ? (int) $post->likes_count : 0,
+            'comments_count' => isset($post->comments_count) ? (int) $post->comments_count : 0,
+            'is_liked_by_me' => (bool) ($post->is_liked_by_me ?? false),
+            'saves_count' => isset($post->saves_count) ? (int) $post->saves_count : 0,
+            'is_saved' => (bool) ($post->is_saved_by_me ?? false),
+            'created_at' => $post->created_at,
+            'updated_at' => $post->updated_at,
         ]);
     }
 
@@ -647,36 +777,8 @@ class PostController extends BaseApiController
             'user_id' => $authUser->id,
         ]);
 
-        if ($like->wasRecentlyCreated && (string) $post->user_id !== (string) $authUser->id) {
-            try {
-                if ($postOwner = User::find($post->user_id)) {
-                    $likerName = $this->displayName($authUser);
-                    $notifications->sendToUser(
-                        $postOwner,
-                        'post_like',
-                        $likerName . ' liked your post',
-                        $likerName . ' liked your post',
-                        [
-                            'post_id' => (string) $post->id,
-                            'like_id' => (string) $like->id,
-                            'actor_id' => (string) $authUser->id,
-                            'screen' => 'post_detail',
-                            'tap_destination' => 'post_detail',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                        ],
-                        [
-                            'actor_id' => (string) $authUser->id,
-                            'channel' => 'push',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                            'dedupe_key' => 'post_like:' . $post->id . ':' . $authUser->id,
-                        ]
-                    );
-                }
-            } catch (Throwable $e) {
-                Log::warning('Post like notification failed', ['post_id' => (string) $post->id, 'liker_user_id' => (string) $authUser->id, 'error' => $e->getMessage()]);
-            }
+        if ($like->wasRecentlyCreated) {
+            $this->sendPostLikeNotification($post, $like, $authUser, $notifications);
         }
 
         $likeCount = PostLike::where('post_id', $post->id)->count();
@@ -721,45 +823,14 @@ class PostController extends BaseApiController
 
         $data = $request->validated();
 
-        $comment = new PostComment();
+        $comment = new PostComment;
         $comment->post_id = $post->id;
         $comment->user_id = $authUser->id;
         $comment->content = $data['content'];
         $comment->parent_id = $data['parent_id'] ?? null;
         $comment->save();
 
-        if ((string) $post->user_id !== (string) $authUser->id) {
-            try {
-                if ($postOwner = User::find($post->user_id)) {
-                    $commenterName = $this->displayName($authUser);
-                    $preview = Str::limit(trim((string) $comment->content), 120) ?: ($commenterName . ' commented on your post');
-                    $notifications->sendToUser(
-                        $postOwner,
-                        'post_comment',
-                        $commenterName . ' commented on your post',
-                        $preview,
-                        [
-                            'post_id' => (string) $post->id,
-                            'comment_id' => (string) $comment->id,
-                            'actor_id' => (string) $authUser->id,
-                            'screen' => 'post_detail',
-                            'tap_destination' => 'post_detail',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                        ],
-                        [
-                            'actor_id' => (string) $authUser->id,
-                            'channel' => 'push',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                            'dedupe_key' => 'post_comment:' . $comment->id,
-                        ]
-                    );
-                }
-            } catch (Throwable $e) {
-                Log::warning('Post comment notification failed', ['post_id' => (string) $post->id, 'comment_id' => (string) $comment->id, 'error' => $e->getMessage()]);
-            }
-        }
+        $this->sendPostCommentNotification($post, $comment, $authUser, $notifications);
 
         $this->dispatchMentionNotifications($mentionNotifications, $post, $authUser, $comment->content, $comment);
 
@@ -809,8 +880,9 @@ class PostController extends BaseApiController
         }
     }
 
-    private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, string $text, ?PostComment $comment): void
+    private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, ?string $text, ?PostComment $comment): void
     {
+        $text = $text ?? '';
         $mentionedUsers = $this->mentionedUsers($text)->reject(fn (User $user) => (string) $user->id === (string) $actor->id)->values();
         if ($mentionedUsers->isEmpty()) {
             return;
@@ -823,14 +895,14 @@ class PostController extends BaseApiController
                 ['screen' => 'post_details', 'post_id' => (string) $post->id, 'comment_id' => $comment?->id, 'mentioned_by' => (string) $actor->id, 'type' => 'mention'],
                 $actor,
                 $comment ?: $post,
-                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:' . ($comment?->id ?? $post->id)]
+                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:'.($comment?->id ?? $post->id)]
             );
         } catch (Throwable $e) {
             Log::warning('Mention notification failed', ['post_id' => (string) $post->id, 'error' => $e->getMessage()]);
         }
     }
 
-    private function mentionedUsers(string $text): \Illuminate\Support\Collection
+    private function mentionedUsers(string $text): Collection
     {
         preg_match_all('/@([A-Za-z0-9_.-]{2,50})/', $text, $matches);
         $handles = collect($matches[1] ?? [])->filter()->unique()->values();
@@ -840,7 +912,7 @@ class PostController extends BaseApiController
 
         return User::query()->where(function ($query) use ($handles): void {
             foreach ($handles as $handle) {
-                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle . '@%');
+                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle.'@%');
             }
         })->get();
     }
@@ -852,7 +924,201 @@ class PostController extends BaseApiController
 
     private function displayName(User $user): string
     {
-        return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
+        return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
     }
 
+    private function sendPostLikeNotification(Post $post, PostLike $like, User $authUser, NotificationService $notifications): void
+    {
+        $targets = [];
+        $likerName = $this->displayName($authUser);
+
+        if (in_array($post->post_type, ['introduction', 'birthday', 'anniversary', 'global_peer_certificate'], true)) {
+            $subjectUser = User::find($post->source_id);
+            if ($subjectUser) {
+                $subjectName = $this->displayName($subjectUser);
+                if ($post->post_type === 'introduction') {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => 'New Like on Introduction',
+                            'body' => $likerName.' liked your introduction post',
+                        ];
+                    }
+                    if ($subjectUser->introduced_by) {
+                        $introducerUser = User::find($subjectUser->introduced_by);
+                        if ($introducerUser && (string) $introducerUser->id !== (string) $authUser->id) {
+                            $targets[] = [
+                                'user' => $introducerUser,
+                                'title' => 'New Like on Introduction',
+                                'body' => $likerName.' liked the introduction of '.$subjectName,
+                            ];
+                        }
+                    }
+                } else {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $title = match ($post->post_type) {
+                            'birthday' => 'Birthday Wish Liked',
+                            'anniversary' => 'Anniversary Wish Liked',
+                            'global_peer_certificate' => 'Certificate Liked',
+                            default => 'Post Liked',
+                        };
+                        $body = match ($post->post_type) {
+                            'birthday' => $likerName.' liked your birthday post',
+                            'anniversary' => $likerName.' liked your anniversary post',
+                            'global_peer_certificate' => $likerName.' liked your Global Peer Certificate post',
+                            default => $likerName.' liked your post',
+                        };
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => $title,
+                            'body' => $body,
+                        ];
+                    }
+                }
+            }
+        } else {
+            if ((string) $post->user_id !== (string) $authUser->id) {
+                $postOwner = User::find($post->user_id);
+                if ($postOwner) {
+                    $targets[] = [
+                        'user' => $postOwner,
+                        'title' => 'Post Liked',
+                        'body' => $likerName.' liked your post',
+                    ];
+                }
+            }
+        }
+
+        foreach ($targets as $target) {
+            try {
+                $notifications->sendToUser(
+                    $target['user'],
+                    'post_like',
+                    $target['title'],
+                    $target['body'],
+                    [
+                        'post_id' => (string) $post->id,
+                        'like_id' => (string) $like->id,
+                        'actor_id' => (string) $authUser->id,
+                        'screen' => 'post_detail',
+                        'tap_destination' => 'post_detail',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                    ],
+                    [
+                        'actor_id' => (string) $authUser->id,
+                        'channel' => 'push',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                        'dedupe_key' => 'post_like:'.$post->id.':'.$authUser->id.':'.$target['user']->id,
+                    ]
+                );
+            } catch (Throwable $e) {
+                Log::warning('Post like notification failed', [
+                    'post_id' => (string) $post->id,
+                    'liker_user_id' => (string) $authUser->id,
+                    'recipient_user_id' => (string) $target['user']->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    private function sendPostCommentNotification(Post $post, PostComment $comment, User $authUser, NotificationService $notifications): void
+    {
+        $targets = [];
+        $commenterName = $this->displayName($authUser);
+        $preview = Str::limit(trim((string) $comment->content), 120);
+
+        if (in_array($post->post_type, ['introduction', 'birthday', 'anniversary', 'global_peer_certificate'], true)) {
+            $subjectUser = User::find($post->source_id);
+            if ($subjectUser) {
+                $subjectName = $this->displayName($subjectUser);
+                if ($post->post_type === 'introduction') {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => 'New Comment on Introduction',
+                            'body' => $commenterName.' commented on your introduction post',
+                        ];
+                    }
+                    if ($subjectUser->introduced_by) {
+                        $introducerUser = User::find($subjectUser->introduced_by);
+                        if ($introducerUser && (string) $introducerUser->id !== (string) $authUser->id) {
+                            $targets[] = [
+                                'user' => $introducerUser,
+                                'title' => 'New Comment on Introduction',
+                                'body' => $commenterName.' commented on the introduction of '.$subjectName,
+                            ];
+                        }
+                    }
+                } else {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $title = match ($post->post_type) {
+                            'birthday' => 'New Birthday Comment',
+                            'anniversary' => 'New Anniversary Comment',
+                            'global_peer_certificate' => 'New Comment on Certificate',
+                            default => 'New Comment on Post',
+                        };
+                        $body = match ($post->post_type) {
+                            'birthday' => $commenterName.' commented on your birthday post',
+                            'anniversary' => $commenterName.' commented on your anniversary post',
+                            'global_peer_certificate' => $commenterName.' commented on your Global Peer Certificate post',
+                            default => $commenterName.' commented on your post',
+                        };
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => $title,
+                            'body' => $body,
+                        ];
+                    }
+                }
+            }
+        } else {
+            if ((string) $post->user_id !== (string) $authUser->id) {
+                $postOwner = User::find($post->user_id);
+                if ($postOwner) {
+                    $targets[] = [
+                        'user' => $postOwner,
+                        'title' => 'New Comment on Post',
+                        'body' => $commenterName.' commented on your post',
+                    ];
+                }
+            }
+        }
+
+        foreach ($targets as $target) {
+            try {
+                $notifications->sendToUser(
+                    $target['user'],
+                    'post_comment',
+                    $target['title'],
+                    $preview ?: $target['body'],
+                    [
+                        'post_id' => (string) $post->id,
+                        'comment_id' => (string) $comment->id,
+                        'actor_id' => (string) $authUser->id,
+                        'screen' => 'post_detail',
+                        'tap_destination' => 'post_detail',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                    ],
+                    [
+                        'actor_id' => (string) $authUser->id,
+                        'channel' => 'push',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                        'dedupe_key' => 'post_comment:'.$comment->id.':'.$target['user']->id,
+                    ]
+                );
+            } catch (Throwable $e) {
+                Log::warning('Post comment notification failed', [
+                    'post_id' => (string) $post->id,
+                    'comment_id' => (string) $comment->id,
+                    'recipient_user_id' => (string) $target['user']->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
 }

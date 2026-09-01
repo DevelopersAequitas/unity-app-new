@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin\BrandPartners;
 
+use App\Models\BrandPartner;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateBrandPartnerRequest extends FormRequest
@@ -14,11 +15,11 @@ class UpdateBrandPartnerRequest extends FormRequest
     public function rules(): array
     {
         $partner = $this->route('brand_partner');
-        $partnerId = $partner instanceof \App\Models\BrandPartner ? $partner->id : $partner;
+        $partnerId = $partner instanceof BrandPartner ? $partner->id : $partner;
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'unique:brand_partners,slug,' . $partnerId],
+            'slug' => ['required', 'string', 'max:255', 'unique:brand_partners,slug,'.$partnerId],
             'logo' => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp,jpg', 'max:5120'],
             'cover_image' => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp,jpg', 'max:10240'],
             'short_description' => ['nullable', 'string', 'max:500'],

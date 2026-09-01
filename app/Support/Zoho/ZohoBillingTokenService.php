@@ -29,36 +29,57 @@ class ZohoBillingTokenService
     public function refreshAccessToken(): array
     {
         $url = config('zoho_billing.oauth_token_url');
+        $refreshToken = config('zoho_billing.refresh_token');
+        $clientId = config('zoho_billing.client_id');
+        $clientSecret = config('zoho_billing.client_secret');
+
+        if (empty($refreshToken) || empty($clientId) || empty($clientSecret)) {
+            Log::warning('Zoho Billing configuration missing required OAuth credentials', [
+                'has_client_id' => ! empty($clientId),
+                'has_client_secret' => ! empty($clientSecret),
+                'has_refresh_token' => ! empty($refreshToken),
+            ]);
+
+            throw new RuntimeException('Zoho OAuth credentials missing in configuration.');
+        }
 
         try {
             $response = Http::asForm()
                 ->timeout(config('zoho_billing.http_timeout', 20))
                 ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
                 ->post($url, [
-                    'refresh_token' => config('zoho_billing.refresh_token'),
-                    'client_id' => config('zoho_billing.client_id'),
-                    'client_secret' => config('zoho_billing.client_secret'),
+                    'refresh_token' => $refreshToken,
+                    'client_id' => $clientId,
+                    'client_secret' => $clientSecret,
                     'redirect_uri' => config('zoho_billing.redirect_uri'),
                     'grant_type' => 'refresh_token',
-                ])
-                ->throw();
+                ]);
         } catch (RequestException $exception) {
-            Log::error('Zoho token refresh failed', [
+            Log::error('Zoho token refresh HTTP request failed', [
                 'status' => optional($exception->response)->status(),
-                'body' => optional($exception->response)->json() ?? optional($exception->response)->body(),
             ]);
 
-            throw new RuntimeException('Unable to refresh Zoho access token.');
+            throw new RuntimeException('Unable to connect to Zoho authorization server.');
+        }
+
+        if ($response->failed()) {
+            Log::error('Zoho token refresh HTTP response failed', [
+                'status' => $response->status(),
+                'error_code' => data_get($response->json(), 'error'),
+            ]);
+
+            throw new RuntimeException('Zoho authorization request failed.');
         }
 
         $json = $response->json();
 
         if (! is_array($json) || empty($json['access_token'])) {
-            Log::error('Zoho token refresh returned invalid payload', [
-                'payload_keys' => is_array($json) ? array_keys($json) : null,
+            $errorCode = is_array($json) ? ($json['error'] ?? 'missing_access_token') : 'invalid_json_payload';
+            Log::error('Zoho token refresh returned error or missing access token', [
+                'error_code' => $errorCode,
             ]);
 
-            throw new RuntimeException('Zoho token refresh response is invalid.');
+            throw new RuntimeException('Zoho token refresh failed.');
         }
 
         return $json;

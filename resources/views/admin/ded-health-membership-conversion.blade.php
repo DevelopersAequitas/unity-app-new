@@ -93,9 +93,8 @@
             <label for="dateTo" class="form-label small text-muted mb-1 fw-bold">Request Date To</label>
             <input type="date" id="dateTo" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
         </div>
-        <div class="col-12 d-flex justify-content-end gap-2 mt-3">
-            <a href="{{ route('admin.ded.dashboard.health.membership-conversion') }}" class="btn btn-outline-secondary px-4">Reset Filters</a>
-            <button type="submit" class="btn btn-primary px-4">Apply Filters</button>
+        <div class="col-12 d-flex justify-content-end mt-3">
+            <a href="{{ route('admin.ded.dashboard.health.membership-conversion') }}" class="btn btn-outline-secondary px-4">Clear</a>
         </div>
     </form>
 </div>
@@ -110,7 +109,8 @@
             <thead class="table-light">
                 <tr>
                     <th>Applicant</th>
-                    <th>Contact Info</th>
+                    <th>Phone</th>
+                    <th>Email</th>
                     <th>Circle Name</th>
                     <th>Status</th>
                     <th>Requested At</th>
@@ -122,12 +122,8 @@
                         <td>
                             <div class="fw-bold text-dark">{{ $r['user_name'] }}</div>
                         </td>
-                        <td>
-                            <div class="small text-muted">
-                                <div><i class="bi bi-phone"></i> {{ $r['user_phone'] }}</div>
-                                <div><i class="bi bi-envelope"></i> {{ $r['user_email'] }}</div>
-                            </div>
-                        </td>
+                        <td class="small text-muted">{{ $r['user_phone'] }}</td>
+                        <td class="small text-muted">{{ $r['user_email'] }}</td>
                         <td>
                             <div class="fw-semibold text-primary">{{ $r['circle_name'] }}</div>
                         </td>
@@ -148,7 +144,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">No membership conversion records found.</td>
+                        <td colspan="6" class="text-center text-muted py-4">No membership conversion records found.</td>
                     </tr>
                 @endforelse
             </tbody>

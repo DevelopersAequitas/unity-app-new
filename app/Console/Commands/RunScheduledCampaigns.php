@@ -2,27 +2,34 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\CampaignSchedule;
-use App\Models\CampaignDelivery;
 use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Models\AdminAuditLog;
+use App\Models\AdminCampaign;
+use App\Models\CampaignDelivery;
+use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
+use App\Services\AdminCampaigns\CampaignSendService;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RunScheduledCampaigns extends Command
 {
     protected $signature = 'campaigns:run {--manual}';
+
     protected $description = 'Trigger pending campaign schedule deliveries';
 
     public function handle(CampaignScheduleCalculator $calculator): int
     {
         $startTime = microtime(true);
-        $now = \Carbon\Carbon::now('UTC')->startOfMinute();
+        $now = Carbon::now('UTC')->startOfMinute();
         $triggeredType = $this->option('manual') ? 'manual_check' : 'scheduler';
 
         // Update heartbeat in cache
-        \Illuminate\Support\Facades\Cache::put('scheduler_last_run_at', $now->toIso8601String(), 600);
+        Cache::put('scheduler_last_run_at', $now->toIso8601String(), 600);
 
         try {
             // Find active schedules that are due (next_run_at is in the past or now)
@@ -59,8 +66,8 @@ class RunScheduledCampaigns extends Command
                                 try {
                                     $ipAddress = '127.0.0.1';
                                     $userAgent = 'Console Scheduler';
-                                    \App\Models\AdminAuditLog::create([
-                                        'id' => (string) \Illuminate\Support\Str::uuid(),
+                                    AdminAuditLog::create([
+                                        'id' => (string) Str::uuid(),
                                         'admin_user_id' => null, // triggered by scheduler
                                         'action' => 'active', // transitions to active
                                         'target_table' => 'admin_campaigns',
@@ -75,7 +82,7 @@ class RunScheduledCampaigns extends Command
                                         'created_at' => now(),
                                     ]);
                                 } catch (\Exception $e) {
-                                    Log::warning('Failed to log campaign schedule active transition: ' . $e->getMessage());
+                                    Log::warning('Failed to log campaign schedule active transition: '.$e->getMessage());
                                 }
                             }
 
@@ -91,7 +98,7 @@ class RunScheduledCampaigns extends Command
                             // 2. Update the in-memory object's last_run_at and calculate next run date
                             $schedule->last_run_at = $schedule->next_run_at;
                             $nextRun = $calculator->calculateNextRunAt($schedule, $now);
-                            
+
                             // 3. Update the schedule record
                             $schedule->update([
                                 'last_run_at' => $schedule->last_run_at,
@@ -114,14 +121,42 @@ class RunScheduledCampaigns extends Command
                             ProcessCampaignDeliveryJob::dispatch($delivery->id);
                         }
                     } catch (\Exception $e) {
-                        Log::error("Failed to trigger campaign ID {$schedule->campaign_id}: " . $e->getMessage());
+                        Log::error("Failed to trigger campaign ID {$schedule->campaign_id}: ".$e->getMessage());
                     }
                 }
-            } else {
-                $this->info("No campaign schedules due at this time.");
             }
 
-            $this->info("Triggered {$triggeredCount} of {$processedCount} campaign schedules.");
+            // 2. Process queued/immediate admin campaigns directly
+            $queuedCampaigns = AdminCampaign::query()
+                ->where('status', 'queued')
+                ->whereNull('sent_at')
+                ->has('recipients')
+                ->get();
+
+            $queuedTriggered = 0;
+            foreach ($queuedCampaigns as $campaign) {
+                $this->info("Processing queued campaign '{$campaign->title}' (ID: {$campaign->id})");
+                try {
+                    // Temporarily set to draft so CampaignSendService will accept it
+                    $campaign->update(['status' => AdminCampaign::STATUS_DRAFT]);
+                    app(CampaignSendService::class)->send($campaign);
+                    $queuedTriggered++;
+                } catch (\Exception $e) {
+                    Log::error("Failed to run queued campaign ID {$campaign->id}: ".$e->getMessage());
+                    $campaign->update(['status' => 'failed']);
+                }
+            }
+
+            if ($processedCount > 0) {
+                $this->info("Triggered {$triggeredCount} of {$processedCount} campaign schedules.");
+            } elseif ($queuedTriggered === 0) {
+                $this->info('No campaign schedules due at this time.');
+            }
+
+            if ($queuedTriggered > 0) {
+                $this->info("Processed {$queuedTriggered} queued campaigns.");
+            }
+
             return Command::SUCCESS;
 
         } catch (\Throwable $e) {

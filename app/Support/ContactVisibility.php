@@ -5,8 +5,11 @@ namespace App\Support;
 class ContactVisibility
 {
     public const EVERYONE = 'everyone';
+
     public const CONNECTED_ONLY = 'connected_only';
+
     public const CIRCLE_ONLY = 'circle_only';
+
     public const HIDDEN = 'hidden';
 
     /** @return array<int, string> */

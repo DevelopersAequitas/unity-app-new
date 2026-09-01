@@ -253,6 +253,27 @@ class LifeImpactCreativeGenerator
             $cityName = trim((string) $cityName);
 
             $subInfoParts = array_filter([$company, $cityName]);
+            $country = $cityModel->country_code ?? $cityModel->country ?? $user->country ?? $user->business_country ?? 'IND';
+            if (is_array($country)) {
+                $country = $country['code'] ?? $country['name'] ?? 'IND';
+            }
+            $country = strtoupper(trim((string) $country));
+            if (in_array(strtolower($country), ['india', 'in', 'ind'], true)) {
+                $country = 'IND';
+            } elseif (empty($country) || in_array(strtolower($country), ['null', 'none'], true)) {
+                $country = 'IND';
+            }
+
+            $locationParts = [];
+            if (! empty($cityName)) {
+                $locationParts[] = $cityName;
+            }
+            if (! empty($country) && strtolower($country) !== strtolower($cityName)) {
+                $locationParts[] = $country;
+            }
+            $locationStr = implode(', ', $locationParts);
+
+            $subInfoParts = array_filter([$company, $locationStr]);
             $subInfoLine = implode('  •  ', $subInfoParts);
             if (empty($subInfoLine)) {
                 $subInfoLine = 'Peers Global Member';
@@ -294,6 +315,10 @@ class LifeImpactCreativeGenerator
                 $targetDiameter = 240;
                 $circleCenterX = 535;
                 $circleCenterY = 662;
+                // 1. Profile Avatar: Center X = 540, Center Y = 650, Diameter = 225
+                $targetDiameter = 225;
+                $circleCenterX = 540;
+                $circleCenterY = 650;
 
                 $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg);
 

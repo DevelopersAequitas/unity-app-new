@@ -108,7 +108,7 @@ class FcmService
                     $tokenUpdates['failed_at'] = now();
                 }
                 if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
-                    $tokenUpdates['failure_reason'] = $message ?: 'Invalid Firebase token';
+                    $tokenUpdates['failure_reason'] = ($firebaseResponse['error']['message'] ?? null) ?: 'Invalid Firebase token';
                 }
                 if ($tokenUpdates !== []) {
                     UserPushToken::where('token', $deviceToken)->update($tokenUpdates);
@@ -255,7 +255,6 @@ class FcmService
         ];
     }
 
-
     public function credentialsAvailable(): bool
     {
         return $this->resolveFirebaseCredentialsPath() !== null;
@@ -299,13 +298,16 @@ class FcmService
     {
         $candidates = [];
 
+        $candidates[] = $path;
+
         if (str_starts_with($path, '/') || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':' && in_array($path[2], ['/', '\\'], true))) {
             $candidates[] = $path;
         }
 
         $candidates[] = base_path($path);
         $candidates[] = storage_path($path);
-        $candidates[] = storage_path('app/' . ltrim($path, '/\\'));
+        $candidates[] = storage_path('app/'.ltrim($path, '/\\'));
+        $candidates[] = storage_path('app/firebase/'.ltrim($path, '/\\'));
 
         return array_values(array_unique($candidates));
     }
@@ -391,7 +393,7 @@ class FcmService
         $encodedHeader = $this->base64UrlEncode(json_encode($header, JSON_THROW_ON_ERROR));
         $encodedPayload = $this->base64UrlEncode(json_encode($payload, JSON_THROW_ON_ERROR));
 
-        $signatureInput = $encodedHeader . '.' . $encodedPayload;
+        $signatureInput = $encodedHeader.'.'.$encodedPayload;
 
         $signature = '';
         $signed = openssl_sign($signatureInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
@@ -400,7 +402,7 @@ class FcmService
             throw new RuntimeException('Unable to sign Firebase JWT.');
         }
 
-        return $signatureInput . '.' . $this->base64UrlEncode($signature);
+        return $signatureInput.'.'.$this->base64UrlEncode($signature);
     }
 
     private function base64UrlEncode(string $value): string
@@ -415,11 +417,13 @@ class FcmService
         foreach ($data as $key => $value) {
             if ($value === null) {
                 $normalized[(string) $key] = '';
+
                 continue;
             }
 
             if (is_bool($value)) {
                 $normalized[(string) $key] = $value ? 'true' : 'false';
+
                 continue;
             }
 

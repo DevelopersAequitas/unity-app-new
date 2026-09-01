@@ -2,28 +2,35 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Profile\StoreIntroducedPeerRequest;
 use App\Http\Requests\Profile\StoreUserLinkRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Requests\Profile\UpdateTimezoneRequest;
 use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
+use App\Http\Resources\UserMiniResource;
 use App\Http\Resources\UserProfileResource;
+use App\Http\Resources\V1\LimitedUserResource;
+use App\Models\ProfileView;
+use App\Models\User;
+use App\Notifications\ProfileViewedNotification;
+use App\Services\Blocks\PeerBlockService;
+use App\Services\ProfileVisibilityService;
+use App\Services\PushNotificationService;
+use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class ProfileController extends BaseApiController
 {
     public function show(Request $request)
     {
-        $user = $request->user()->load([
-            'profilePhotoFile',
-            'coverPhotoFile',
-            'userLinks',
-        ]);
+        $user = $this->loadProfileRelations($request->user());
 
         return $this->success(new UserProfileResource($user), 'Profile fetched successfully');
     }
@@ -101,8 +108,13 @@ class ProfileController extends BaseApiController
             unset($data['cover_photo_id']);
         }
 
+        if (array_key_exists('intro_video_id', $data)) {
+            $data['profile_video_id'] = $data['intro_video_id'];
+            unset($data['intro_video_id']);
+        }
+
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
-            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
+            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
@@ -123,9 +135,63 @@ class ProfileController extends BaseApiController
             'linkedin_profile_db' => $user->linkedin_profile,
         ]);
 
-        $user->load(['profilePhotoFile', 'coverPhotoFile', 'userLinks']);
+        $user = $this->loadProfileRelations($user);
 
         return $this->success(new UserProfileResource($user), 'Profile updated successfully');
+    }
+
+    private function loadProfileRelations(User $user): User
+    {
+        $user->load([
+            'city',
+            'activeCircle.cityRef',
+            'mainBusinessCategory',
+            'businessCategory',
+            'profilePhotoFile',
+            'coverPhotoFile',
+            'userLinks',
+            'introducedBy',
+            'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+        ]);
+
+        if (Schema::hasTable('followers')) {
+            $user->loadCount([
+                'followers as followers_count',
+                'following as following_count',
+            ]);
+        }
+
+        if (Schema::hasTable('posts')) {
+            $user->loadCount([
+                'posts as posts_count',
+            ]);
+        }
+
+        if (Schema::hasTable('connections')) {
+            $user->loadCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
+
+        return $user;
+    }
+
+    private function joinedCircleMembershipsQuery($query): void
+    {
+        $query
+            ->where('status', (string) config('circle.member_joined_status', 'approved'))
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->where(function ($nested): void {
+                $nested->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $nested->orWhere('expires_at', '>=', now());
+                }
+            })
+            ->orderByDesc('joined_at')
+            ->with('circle:id,name,slug');
     }
 
     private function persistProfilePayloadToUsersTable($user, array $payload): void
@@ -157,7 +223,7 @@ class ProfileController extends BaseApiController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $media
+     * @param  array<int, array<string, mixed>>  $media
      * @return array<int, array{id: string, url: string, type: string}>
      */
     private function formatMediaPayload(array $media): array
@@ -165,7 +231,7 @@ class ProfileController extends BaseApiController
         return collect($media)
             ->map(fn (array $item): array => [
                 'id' => (string) $item['id'],
-                'url' => url('/api/v1/files/' . $item['id']),
+                'url' => url('/api/v1/files/'.$item['id']),
                 'type' => (string) $item['type'],
             ])
             ->values()
@@ -187,6 +253,7 @@ class ProfileController extends BaseApiController
             'about',
             'gender',
             'dob',
+            'anniversary_date',
             'experience_years',
             'experience_summary',
             'city_id',
@@ -202,6 +269,8 @@ class ProfileController extends BaseApiController
             'social_links',
             'profile_photo_id',
             'cover_photo_id',
+            'intro_video_id',
+            'profile_video_id',
             'business_logo_id',
             'business_category_id',
             'business_sub_category',
@@ -311,5 +380,221 @@ class ProfileController extends BaseApiController
         $link->delete();
 
         return $this->success(null, 'Link deleted successfully');
+    }
+
+    public function introducedPeers(Request $request, IntroducedPeerService $service): JsonResponse
+    {
+        $user = $request->user();
+        $peers = $service->getIntroducedPeers($user);
+
+        return $this->success(
+            LimitedUserResource::collection($peers),
+            'Introduced peers fetched successfully'
+        );
+    }
+
+    public function introducer(Request $request): JsonResponse
+    {
+        $user = $request->user()->loadMissing('introducedBy');
+
+        if (! $user->introducedBy) {
+            return $this->success(null, 'No introducer set for this peer.');
+        }
+
+        return $this->success(
+            new LimitedUserResource($user->introducedBy),
+            'Introducer fetched successfully'
+        );
+    }
+
+    public function addIntroducedPeer(StoreIntroducedPeerRequest $request, IntroducedPeerService $service): JsonResponse
+    {
+        $user = $request->user();
+        $peerId = $request->validated('peer_id');
+
+        try {
+            $introduced = $service->introducePeer($user, $peerId);
+
+            return $this->success(
+                new LimitedUserResource($introduced),
+                'Peer introduced successfully',
+                201
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+    }
+
+    public function memberIntroducedPeers(
+        Request $request,
+        string $memberId,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService
+    ): JsonResponse {
+        if (! Str::isUuid($memberId)) {
+            return $this->error('Member not found', 404);
+        }
+
+        $member = User::query()
+            ->with(['city', 'profilePhotoFile'])
+            ->whereNull('deleted_at')
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->find($memberId);
+
+        if (! $member) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $member->id)) {
+            return $this->error('Peer not found.', 404);
+        }
+
+        if (! $profileVisibilityService->canView($authUser, $member)) {
+            return $this->error('Profile is restricted.', 403);
+        }
+
+        // Real count from the database: COUNT users WHERE introduced_by = selected member ID
+        $introducedPeersCount = User::query()
+            ->where('introduced_by', $member->id)
+            ->whereNull('deleted_at')
+            ->count();
+
+        // Get list of introduced peers, excluding blocked ones and applying visibility rules
+        $excludedUserIds = array_values(array_unique(array_filter(array_merge(
+            $peerBlockService->blockedUserIdsFor((string) $authUser->id),
+            $peerBlockService->usersWhoBlockedMeIdsFor((string) $authUser->id)
+        ))));
+
+        $peersQuery = User::query()
+            ->where('introduced_by', $member->id)
+            ->whereNull('deleted_at');
+
+        if ($authUser) {
+            $profileVisibilityService->applyVisibleTo($peersQuery, $authUser);
+        }
+
+        if (! empty($excludedUserIds)) {
+            $peersQuery->whereNotIn('id', $excludedUserIds);
+        }
+
+        // Avoid N+1 queries by eager loading necessary relations
+        $introducedPeers = $peersQuery
+            ->with(['city', 'profilePhotoFile', 'coverPhotoFile', 'introducedBy', 'level4Category'])
+            ->get();
+
+        // Build member object response
+        $cityName = null;
+        $cityRelation = $member->relationLoaded('city') ? $member->getRelation('city') : null;
+        if ($cityRelation) {
+            $cityName = $cityRelation->name;
+        } else {
+            $cityName = is_string($member->city) ? $member->city : ($member->city_of_residence ?? null);
+        }
+
+        $memberName = $member->display_name ?? trim(($member->first_name ?? '').' '.($member->last_name ?? ''));
+
+        $memberData = [
+            'id' => $member->id,
+            'name' => $memberName !== '' ? trim((string) $memberName) : null,
+            'first_name' => $member->first_name,
+            'last_name' => $member->last_name,
+            'city' => $cityName,
+            'business' => $member->company_name,
+            'designation' => $member->designation,
+            'profile_photo_image' => $member->profile_photo_url,
+        ];
+
+        return $this->success([
+            'member' => $memberData,
+            'introduced_peers_count' => (int) $introducedPeersCount,
+            'introduced_peers' => LimitedUserResource::collection($introducedPeers),
+        ], 'Member introduced peers fetched successfully.');
+    }
+
+    public function recordView(Request $request): JsonResponse
+    {
+        $request->validate([
+            'viewed_id' => 'required|uuid|exists:users,id',
+        ]);
+
+        $viewer = $request->user();
+        $viewedId = $request->input('viewed_id');
+
+        if ($viewer->id === $viewedId) {
+            return $this->error('You cannot record a view of your own profile.', 400);
+        }
+
+        $profileView = ProfileView::where('viewed_id', $viewedId)
+            ->where('viewer_id', $viewer->id)
+            ->first();
+
+        $isNewView = false;
+        if (! $profileView) {
+            $profileView = ProfileView::create([
+                'viewed_id' => $viewedId,
+                'viewer_id' => $viewer->id,
+            ]);
+            $isNewView = true;
+        } else {
+            $profileView->touch();
+        }
+
+        if ($isNewView) {
+            $viewedUser = User::find($viewedId);
+            if ($viewedUser) {
+                $notification = new ProfileViewedNotification($viewer);
+                $payload = $notification->toArray($viewedUser);
+
+                app(PushNotificationService::class)->storeAndSend(
+                    $viewedUser,
+                    $payload['title'],
+                    $payload['body'],
+                    $payload,
+                    [
+                        'notification_type' => $payload['notification_type'],
+                        'viewer_id' => $viewer->id,
+                        'viewer_name' => $payload['viewer_name'],
+                    ]
+                );
+            }
+        }
+
+        return $this->success([
+            'id' => $profileView->id,
+            'viewed_id' => $profileView->viewed_id,
+            'viewer_id' => $profileView->viewer_id,
+            'created_at' => $profileView->created_at,
+        ], 'Profile view recorded and notification sent successfully.');
+    }
+
+    public function getViews(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $totalViews = ProfileView::where('viewed_id', $user->id)
+            ->distinct('viewer_id')
+            ->count('viewer_id');
+
+        $views = ProfileView::with('viewer')
+            ->where('viewed_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->unique('viewer_id')
+            ->values()
+            ->map(function ($view) {
+                return [
+                    'id' => $view->id,
+                    'viewed_at' => $view->created_at ? $view->created_at->toIso8601String() : null,
+                    'viewer' => $view->viewer ? (new UserMiniResource($view->viewer))->resolve() : null,
+                ];
+            });
+
+        return $this->success([
+            'total_views' => $totalViews,
+            'views' => $views,
+        ], 'Profile views retrieved successfully.');
     }
 }

@@ -16,7 +16,7 @@ class BrandPartnerCategoryController extends Controller
 
         $categories = BrandPartnerCategory::query()
             ->when($search !== '', function ($query) use ($search) {
-                $query->where('name', 'ILIKE', '%' . $search . '%');
+                $query->where('name', 'ILIKE', '%'.$search.'%');
             })
             ->orderBy('sort_order')
             ->orderByDesc('created_at')

@@ -12,7 +12,9 @@ class District extends Model
     use HasUuids;
 
     protected $table = 'districts';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

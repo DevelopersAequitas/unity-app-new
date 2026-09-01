@@ -2,17 +2,55 @@
 
 @section('title', 'Edit Circle')
 
+@push('styles')
+<style>
+    #editCircleTabs .nav-link {
+        color: var(--text-secondary);
+        border-radius: var(--radius-md);
+        transition: all var(--duration-fast) var(--ease-smooth);
+        border: 1px solid transparent;
+    }
+    #editCircleTabs .nav-link:hover {
+        background-color: var(--border-light);
+    }
+    #editCircleTabs .nav-link.active {
+        background-color: var(--primary);
+        color: #ffffff;
+        box-shadow: var(--shadow-sm);
+    }
+    .form-section-title {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .meeting-row {
+        background-color: var(--bg-muted);
+        border: 1px solid var(--border) !important;
+        transition: all var(--duration-fast) var(--ease-smooth);
+    }
+    .meeting-row:hover {
+        border-color: var(--primary-light) !important;
+        box-shadow: var(--shadow-sm);
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h5 class="mb-0">Edit Circle</h5>
-        <small class="text-muted">Update circle details</small>
+        <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-circle-fill text-primary me-2"></i>Edit Circle</h4>
+        <p class="text-muted small mb-0">Update circle details, settings, and meeting schedule</p>
     </div>
-    <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary btn-sm">Back to Details</a>
+    <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
 </div>
 
 @if ($errors->any())
-    <div class="alert alert-danger">
+    <div class="alert alert-danger mb-4">
         <strong>There were some problems with your input.</strong>
         <ul class="mb-0 small">
             @foreach ($errors->all() as $error)
@@ -27,7 +65,7 @@
     if (is_array($industryTagsValue)) {
         $industryTagsValue = implode(', ', $industryTagsValue);
     }
-    $founderId = old('founder_user_id', $defaultFounder?->id);
+    $founderId = old('circle_founder_user_id', $defaultFounder?->id);
     $calendar = is_array($circle->calendar) ? $circle->calendar : [];
     $meetingScheduleFrequency = old('meeting_schedule_frequency');
     $meetingScheduleTimes = old('meeting_schedule_default_meet_time');
@@ -55,186 +93,399 @@
     }
 @endphp
 
-<form action="{{ route('admin.circles.update', $circle) }}" method="POST">
-    @csrf
-    @method('PUT')
-
-    <div class="row g-3">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Circle Details</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Name</label>
-                        <input type="text" name="name" class="form-control" value="{{ old('name', $circle->name) }}" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Circle Founder</label>
-                        <select name="founder_user_id" class="form-select" required>
-                            <option value="">Select a member</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">Defaults to the logged-in admin user.</div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Type</label>
-                        <select name="type" class="form-select" required>
-                            <option value="" disabled>Select type</option>
-                            @foreach ($types as $type)
-                                <option value="{{ $type }}" @selected(old('type', $circle->type) === $type)>{{ ucfirst($type) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select" required>
-                            @foreach ($statuses as $status)
-                                <option value="{{ $status }}" @selected(old('status', $circle->status) === $status)>{{ ucfirst($status) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Circle Package</label>
-                        <select name="circle_package" class="form-select">
-                            <option value="">Select package</option>
-                            @foreach ($circlePackages as $package)
-                                @php
-                                    $packageValue = $package['addon_code'] ?: $package['addon_id'];
-                                @endphp
-                                <option value="{{ $packageValue }}" @selected(old('circle_package', $circle->zoho_addon_code ?: $circle->zoho_addon_id) === $packageValue)>
-                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">Only active Zoho addons with code starting with <code>Package-</code> are listed.</div>
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="2">{{ old('description', $circle->description) }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Purpose</label>
-                        <textarea name="purpose" class="form-control" rows="2">{{ old('purpose', $circle->purpose) }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Announcement</label>
-                        <textarea name="announcement" class="form-control" rows="2">{{ old('announcement', $circle->announcement) }}</textarea>
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label">Industry Tags</label>
-                        <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail">
-                        <div class="form-text">Separate tags with commas.</div>
-                    </div>
-
-                    @include('admin.circles.partials.categories-selector')
-
-                </div>
-            </div>
-        </div>
+<div class="card-activities-wrapper mb-4">
+    <div class="card-body p-0">
+        <ul class="nav nav-pills nav-fill bg-light border-bottom p-2 gap-1" id="editCircleTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active py-2 px-3 fw-semibold" id="basic-info-tab" data-bs-toggle="pill" data-bs-target="#basic-info" type="button" role="tab" aria-controls="basic-info" aria-selected="true">
+                    <i class="bi bi-info-circle me-1"></i>1. Basic Info
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="details-tab" data-bs-toggle="pill" data-bs-target="#details" type="button" role="tab" aria-controls="details" aria-selected="false">
+                    <i class="bi bi-file-text me-1"></i>2. Description & Tags
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="leadership-tab" data-bs-toggle="pill" data-bs-target="#leadership" type="button" role="tab" aria-controls="leadership" aria-selected="false">
+                    <i class="bi bi-people me-1"></i>3. Leadership & Location
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="schedule-tab" data-bs-toggle="pill" data-bs-target="#schedule" type="button" role="tab" aria-controls="schedule" aria-selected="false">
+                    <i class="bi bi-calendar-event me-1"></i>4. Meeting Settings
+                </button>
+            </li>
+        </ul>
 
 
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Circle Settings</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Meeting Mode</label>
-                        <select name="meeting_mode" class="form-select">
-                            <option value="">Select mode</option>
-                            @foreach ($meetingModes as $mode)
-                                <option value="{{ $mode }}" @selected(old('meeting_mode', $circle->meeting_mode) === $mode)>{{ ucfirst($mode) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Meeting Frequency</label>
-                        <select name="meeting_frequency" class="form-select">
-                            <option value="">Select frequency</option>
-                            @foreach ($meetingFrequencies as $frequency)
-                                <option value="{{ $frequency }}" @selected(old('meeting_frequency', $circle->meeting_frequency) === $frequency)>{{ ucfirst($frequency) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Launch Date</label>
-                        <input type="date" name="launch_date" class="form-control" value="{{ old('launch_date', $circle->launch_date) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Stage</label>
-                        <select name="circle_stage" class="form-select">
-                            <option value="">Select stage</option>
-                            @foreach ($circleStages as $stage)
-                                <option value="{{ $stage }}" @selected(old('circle_stage', $circle->circle_stage) === $stage)>{{ $stage }}</option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">Select the current maturity stage of this circle.</div>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Director</label>
-                        <select name="director_user_id" class="form-select">
-                            <option value="">Select director</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Industry Director</label>
-                        <select name="industry_director_user_id" class="form-select">
-                            <option value="">Select industry director</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">DED</label>
-                        <select name="ded_user_id" class="form-select">
-                            <option value="">Select DED</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('ded_user_id', $circle->ded_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label">Cover Image</label>
-                        <input type="hidden" name="cover_file_id" id="coverFileId" value="{{ old('cover_file_id', $circle->cover_file_id) }}">
-                        @if ($circle->cover_file_id)
-                            <div id="coverPreviewBlock" class="mb-2 d-flex align-items-center gap-2">
-                                <a id="coverPreviewLink" href="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
-                                <small class="text-muted">File ID: {{ $circle->cover_file_id }}</small>
-                                <img id="coverPreviewImage" src="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" alt="Cover preview" class="rounded border" style="max-height:80px;border-radius:8px;">
+        <form id="editCircleForm" action="{{ route('admin.circles.update', $circle) }}" method="POST" class="p-4" novalidate>
+            @csrf
+            @method('PUT')
+
+            <div class="tab-content" id="editCircleTabsContent">
+                <!-- Tab 1: Basic Info -->
+                <div class="tab-pane fade show active" id="basic-info" role="tabpanel" aria-labelledby="basic-info-tab">
+                    <h5 class="form-section-title"><i class="bi bi-card-text text-primary me-2"></i>Basic Identification</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Name</label>
+                            <input type="text" name="name" class="form-control" value="{{ old('name', $circle->name) }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Circle Founder</label>
+                            <select name="circle_founder_user_id" class="form-select" required>
+                                <option value="">Select a member</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Defaults to the logged-in admin user.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Type</label>
+                            <select name="type" class="form-select js-no-searchable-select" required>
+                                <option value="" disabled>Select type</option>
+                                @foreach ($types as $type)
+                                    <option value="{{ $type }}" @selected(old('type', $circle->type) === $type)>{{ ucfirst($type) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Status</label>
+                            <select name="status" class="form-select js-no-searchable-select" required>
+                                @foreach ($statuses as $status)
+                                    <option value="{{ $status }}" @selected(old('status', $circle->status) === $status)>{{ ucfirst($status) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Circle Package</label>
+                            <select name="circle_package" class="form-select js-no-searchable-select">
+                                <option value="">Select package</option>
+                                @foreach ($circlePackages as $package)
+                                    @php
+                                        $packageValue = $package['addon_code'] ?: $package['addon_id'];
+                                    @endphp
+                                    <option value="{{ $packageValue }}" @selected(old('circle_package', $circle->zoho_addon_code ?: $circle->zoho_addon_id) === $packageValue)>
+                                        {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6 mt-4">
+                            <label class="form-label fw-semibold">Cover Image</label>
+                            <input type="hidden" name="cover_file_id" id="coverFileId" value="{{ old('cover_file_id', $circle->cover_file_id) }}">
+                            
+                            <div id="coverPreviewBlock" class="mb-3 {{ $circle->cover_file_id ? 'd-flex' : 'd-none' }} align-items-center gap-3 border rounded-3 p-3 bg-light">
+                                <img id="coverPreviewImage" src="{{ $circle->cover_file_id ? url('/api/v1/files/' . $circle->cover_file_id) : '#' }}" alt="Cover preview" class="rounded border shadow-sm" style="max-height: 90px; max-width: 160px; object-fit: cover;">
+                                <div>
+                                    <div class="d-flex gap-2 mb-1">
+                                        <a id="coverPreviewLink" href="{{ $circle->cover_file_id ? url('/api/v1/files/' . $circle->cover_file_id) : '#' }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                        <button type="button" id="coverRemoveBtn" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash me-1"></i>Remove
+                                        </button>
+                                    </div>
+                                    <div class="text-muted small">File ID: <span id="coverFileIdLabel">{{ $circle->cover_file_id ?: 'None' }}</span></div>
+                                </div>
                             </div>
-                        @else
-                            <div id="coverPreviewBlock" class="mb-2 d-none align-items-center gap-2">
-                                <a id="coverPreviewLink" href="#" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
-                                <img id="coverPreviewImage" src="#" alt="Cover preview" class="rounded border" style="max-height:80px;border-radius:8px;">
+
+                            <input type="file" class="form-control" id="coverFileInput" accept="image/*">
+                            <div class="form-text" id="coverUploadStatus">Upload a cover image file up to 10MB.</div>
+                        </div>
+
+                        <div class="col-md-6 mt-4">
+                            <label class="form-label fw-semibold">Circle Image</label>
+                            <input type="hidden" name="circle_image_file_id" id="circleImageFileId" value="{{ old('circle_image_file_id', $circle->circle_image_file_id) }}">
+                            
+                            <div id="circleImagePreviewBlock" class="mb-3 {{ $circle->circle_image_file_id ? 'd-flex' : 'd-none' }} align-items-center gap-3 border rounded-3 p-3 bg-light">
+                                <img id="circleImagePreviewImage" src="{{ $circle->circle_image_file_id ? url('/api/v1/files/' . $circle->circle_image_file_id) : '#' }}" alt="Circle image preview" class="rounded border shadow-sm" style="max-height: 90px; max-width: 160px; object-fit: cover;">
+                                <div>
+                                    <div class="d-flex gap-2 mb-1">
+                                        <a id="circleImagePreviewLink" href="{{ $circle->circle_image_file_id ? url('/api/v1/files/' . $circle->circle_image_file_id) : '#' }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                        <button type="button" id="circleImageRemoveBtn" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash me-1"></i>Remove
+                                        </button>
+                                    </div>
+                                    <div class="text-muted small">File ID: <span id="circleImageFileIdLabel">{{ $circle->circle_image_file_id ?: 'None' }}</span></div>
+                                </div>
                             </div>
-                        @endif
-                        <input type="file" class="form-control" id="coverFileInput" accept="image/*">
-                        <div class="form-text" id="coverUploadStatus">Upload up to 10MB.</div>
+
+                            <input type="file" class="form-control" id="circleImageFileInput" accept="image/*">
+                            <div class="form-text" id="circleImageUploadStatus">Upload a circle image file up to 10MB.</div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary">Cancel</a>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('details-tab')">
+                                Next: Description & Tags <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-                    <span>Meeting Schedule</span>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="addMeetingBtn">+ Add Meeting</button>
+                <!-- Tab 2: Description & Tags -->
+                <div class="tab-pane fade" id="details" role="tabpanel" aria-labelledby="details-tab">
+                    <h5 class="form-section-title"><i class="bi bi-justify-left text-primary me-2"></i>Description & Categorization</h5>
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Provide a brief description of the circle...">{{ old('description', $circle->description) }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Purpose</label>
+                            <textarea name="purpose" class="form-control" rows="3" placeholder="What is the key purpose or mission of this circle?">{{ old('purpose', $circle->purpose) }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Announcement</label>
+                            <textarea name="announcement" class="form-control" rows="3" placeholder="Active announcements for members...">{{ old('announcement', $circle->announcement) }}</textarea>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Industry Tags</label>
+                            <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail, Healthcare">
+                            <div class="form-text">Separate tags with commas.</div>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label class="form-label fw-semibold">Circle Categories</label>
+                            <div class="p-3 border rounded bg-light-subtle">
+                                @include('admin.circles.partials.categories-selector')
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('basic-info-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('leadership-tab')">
+                                Next: Leadership & Location <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    @php
-                        $meetings = old('meetings', $circle->meetings ?? []);
-                        if (!is_array($meetings)) {
-                            $meetings = [];
-                        }
-                    @endphp
+
+                <!-- Tab 3: Leadership & Location -->
+                <div class="tab-pane fade" id="leadership" role="tabpanel" aria-labelledby="leadership-tab">
+                    <h5 class="form-section-title"><i class="bi bi-shield-lock text-primary me-2"></i>Circle Leadership</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Circle Director</label>
+                            <select name="circle_director_user_id" class="form-select">
+                                <option value="">Select director</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected(old('circle_director_user_id', $circle->circle_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Industry Director</label>
+                            <select name="industry_director_user_id" class="form-select">
+                                <option value="">Select industry director</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">DED</label>
+                            <select name="ded_user_id" class="form-select">
+                                <option value="">Select DED</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected(old('ded_user_id', $circle->ded_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">EED</label>
+                            <select name="eed_user_id" class="form-select">
+                                <option value="">Select EED</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected(old('eed_user_id', $circle->eed_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Committee Leadership -->
+                    <h6 class="fw-bold text-secondary mt-3 mb-2">Committee Leadership</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Business Growth Committee Chair</label>
+                            <select name="business_growth_committee_chair_user_id" class="form-select">
+                                <option value="">Select Business Growth Committee Chair</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) old('business_growth_committee_chair_user_id', data_get($circle->calendar, 'leadership.business_growth_committee_chair_user_id') ?? data_get($circle->calendar, 'leadership_team.business_growth_committee_chair.id')) === (string) $user->id)>
+                                        {{ $user->adminNameCompanyCityLabel() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Membership Growth Committee Chair</label>
+                            <select name="membership_growth_committee_chair_user_id" class="form-select">
+                                <option value="">Select Membership Growth Committee Chair</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) old('membership_growth_committee_chair_user_id', data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id') ?? data_get($circle->calendar, 'leadership_team.membership_growth_committee_chair.id')) === (string) $user->id)>
+                                        {{ $user->adminNameCompanyCityLabel() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Events & Impacts Committee Chair</label>
+                            <select name="events_impacts_committee_chair_user_id" class="form-select">
+                                <option value="">Select Events & Impacts Committee Chair</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) old('events_impacts_committee_chair_user_id', data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id') ?? data_get($circle->calendar, 'leadership_team.events_impacts_committee_chair.id')) === (string) $user->id)>
+                                        {{ $user->adminNameCompanyCityLabel() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <h5 class="form-section-title"><i class="bi bi-geo-alt text-primary me-2"></i>Geographic Location</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Country</label>
+                            <select name="country" id="countrySelect" class="form-select js-no-searchable-select" required>
+                                @foreach ($countries as $country)
+                                    <option value="{{ $country }}" @selected(old('country', $selectedCountry) === $country)>{{ $country }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold">City</label>
+                            <select name="city_id" id="citySelect" class="form-select" required>
+                                <option value="" disabled>Select city</option>
+                                @foreach ($cities as $city)
+                                    <option value="{{ $city->id }}" @selected(old('city_id', $circle->city_id) == $city->id)>
+                                        {{ $city->name }}{{ $city->state ? ', ' . $city->state : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Derived Country</label>
+                            <input type="text" class="form-control bg-light" value="{{ old('country', $selectedCountry) }}" readonly>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('details-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
+                                Next: Meeting Settings <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Meeting Settings & Schedule -->
+                <div class="tab-pane fade" id="schedule" role="tabpanel" aria-labelledby="schedule-tab">
+                    <h5 class="form-section-title"><i class="bi bi-sliders text-primary me-2"></i>Meeting Configuration</h5>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Meeting Mode</label>
+                            <select name="meeting_mode" id="meetingModeSelect" class="form-select js-no-searchable-select">
+                                <option value="">Select mode</option>
+                                @foreach ($meetingModes as $mode)
+                                    <option value="{{ $mode }}" @selected(old('meeting_mode', $circle->meeting_mode) === $mode)>{{ ucfirst($mode) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Meeting Frequency</label>
+                            <select name="meeting_frequency" class="form-select js-no-searchable-select">
+                                <option value="">Select frequency</option>
+                                @foreach ($meetingFrequencies as $frequency)
+                                    <option value="{{ $frequency }}" @selected(old('meeting_frequency', $circle->meeting_frequency) === $frequency)>{{ ucfirst($frequency) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Circle Stage</label>
+                            <select name="circle_stage" class="form-select js-no-searchable-select">
+                                <option value="">Select stage</option>
+                                @foreach ($circleStages as $stage)
+                                    <option value="{{ $stage }}" @selected(old('circle_stage', $circle->circle_stage) === $stage)>{{ $stage }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Launch Date</label>
+                            <input type="date" name="launch_date" class="form-control" value="{{ old('launch_date', $circle->launch_date) }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Calendar Timezone</label>
+                            <input type="text" class="form-control bg-light" value="{{ config('app.timezone', 'UTC') }}" readonly>
+                            <input type="hidden" name="calendar_timezone" value="{{ config('app.timezone', 'UTC') }}">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Online Details Section -->
+                    <div id="onlineDetailsSection" class="p-3 border rounded-3 bg-light-subtle mb-3 d-none">
+                        <h6 class="fw-semibold text-primary mb-3">
+                            <i class="bi bi-camera-video me-1"></i>Online Meeting Details
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Online Meeting Link</label>
+                                <input type="url" name="meeting_link" class="form-control" value="{{ old('meeting_link', $circle->meeting_link) }}" placeholder="https://zoom.us/j/... or Google Meet / Teams link">
+                                <div class="form-text">Provide the meeting join URL for circle members.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Meeting Passcode / ID</label>
+                                <input type="text" name="meeting_passcode" class="form-control" value="{{ old('meeting_passcode', $circle->meeting_passcode) }}" placeholder="e.g. 123456 or Passcode">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Offline Details Section -->
+                    <div id="offlineDetailsSection" class="p-3 border rounded-3 bg-light-subtle mb-3 d-none">
+                        <h6 class="fw-semibold text-success mb-3">
+                            <i class="bi bi-geo-alt me-1"></i>Offline / Venue Details
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Physical Meeting Address / Venue</label>
+                                <textarea name="meeting_venue" class="form-control" rows="2" placeholder="Enter physical meeting venue name, hall/room number, and street address...">{{ old('meeting_venue', $circle->meeting_venue) }}</textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Landmark / Instructions</label>
+                                <input type="text" name="meeting_landmark" class="form-control" value="{{ old('meeting_landmark', $circle->meeting_landmark) }}" placeholder="e.g. Near City Center Mall, 3rd Floor">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0 fw-semibold text-dark"><i class="bi bi-clock-history text-primary me-2"></i>Weekly/Monthly Meeting Schedule</h5>
+                        <button type="button" class="btn btn-sm btn-outline-primary px-3" id="addMeetingBtn">
+                            <i class="bi bi-plus-lg me-1"></i>Add Meeting
+                        </button>
+                    </div>
 
                     <div id="meetingRows">
+                        @php
+                            $meetings = $calendarMeetings;
+                        @endphp
+
                         @forelse($meetings as $rowIndex => $meeting)
                             @php
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
@@ -242,11 +493,11 @@
                                 $rowTime = (string) data_get($meeting, 'default_meet_time', '');
                             @endphp
 
-                            <div class="border rounded p-3 meeting-row mb-3" data-index="{{ $rowIndex }}">
+                            <div class="border rounded-3 p-3 meeting-row mb-3" data-index="{{ $rowIndex }}">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-4">
-                                        <label class="form-label">Frequency</label>
-                                        <select name="meetings[{{ $rowIndex }}][frequency]" class="form-select js-meeting-frequency">
+                                        <label class="form-label small fw-semibold">Frequency</label>
+                                        <select name="meeting_schedule_frequency[{{ $rowIndex }}]" class="form-select js-meeting-frequency">
                                             <option value="">Select Frequency</option>
                                             <option value="weekly" {{ $rowFrequency === 'weekly' ? 'selected' : '' }}>Weekly</option>
                                             <option value="monthly" {{ $rowFrequency === 'monthly' ? 'selected' : '' }}>Monthly</option>
@@ -254,8 +505,8 @@
                                     </div>
 
                                     <div class="col-md-4 js-meeting-day-wrap">
-                                        <label class="form-label">Day of Week</label>
-                                        <select name="meetings[{{ $rowIndex }}][day_of_week]" class="form-select js-meeting-day">
+                                        <label class="form-label small fw-semibold">Day of Week</label>
+                                        <select name="meeting_schedule_day_of_week[{{ $rowIndex }}]" class="form-select js-meeting-day">
                                             <option value="">Select Day</option>
                                             <option value="monday" {{ $rowDay === 'monday' ? 'selected' : '' }}>Monday</option>
                                             <option value="tuesday" {{ $rowDay === 'tuesday' ? 'selected' : '' }}>Tuesday</option>
@@ -268,27 +519,29 @@
                                     </div>
 
                                     <div class="col-md-3 js-meeting-time-wrap">
-                                        <label class="form-label">Default Meet Time</label>
+                                        <label class="form-label small fw-semibold">Default Meet Time</label>
                                         <input
                                             type="time"
-                                            name="meetings[{{ $rowIndex }}][default_meet_time]"
+                                            name="meeting_schedule_default_meet_time[{{ $rowIndex }}]"
                                             class="form-control js-meeting-time"
                                             value="{{ $rowTime }}"
                                         >
                                     </div>
 
                                     <div class="col-md-1">
-                                        <button type="button" class="btn btn-outline-danger js-remove-meeting">Remove</button>
+                                        <button type="button" class="btn btn-outline-danger w-100 js-remove-meeting" {{ $rowIndex === 0 && count($meetings) === 1 ? 'disabled' : '' }}>
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="mt-2 small text-muted">Preview: <span class="js-meeting-preview">—</span></div>
+                                <div class="mt-2 small text-muted">Preview: <span class="js-meeting-preview fw-semibold">—</span></div>
                             </div>
                         @empty
-                            <div class="border rounded p-3 meeting-row mb-3" data-index="0">
+                            <div class="border rounded-3 p-3 meeting-row mb-3" data-index="0">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-4">
-                                        <label class="form-label">Frequency</label>
-                                        <select name="meetings[0][frequency]" class="form-select js-meeting-frequency">
+                                        <label class="form-label small fw-semibold">Frequency</label>
+                                        <select name="meeting_schedule_frequency[0]" class="form-select js-meeting-frequency">
                                             <option value="">Select Frequency</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
@@ -296,8 +549,8 @@
                                     </div>
 
                                     <div class="col-md-4 js-meeting-day-wrap">
-                                        <label class="form-label">Day of Week</label>
-                                        <select name="meetings[0][day_of_week]" class="form-select js-meeting-day">
+                                        <label class="form-label small fw-semibold">Day of Week</label>
+                                        <select name="meeting_schedule_day_of_week[0]" class="form-select js-meeting-day">
                                             <option value="">Select Day</option>
                                             <option value="monday">Monday</option>
                                             <option value="tuesday">Tuesday</option>
@@ -310,69 +563,51 @@
                                     </div>
 
                                     <div class="col-md-3 js-meeting-time-wrap">
-                                        <label class="form-label">Default Meet Time</label>
+                                        <label class="form-label small fw-semibold">Default Meet Time</label>
                                         <input
                                             type="time"
-                                            name="meetings[0][default_meet_time]"
+                                            name="meeting_schedule_default_meet_time[0]"
                                             class="form-control js-meeting-time"
                                             value=""
                                         >
                                     </div>
 
                                     <div class="col-md-1">
-                                        <button type="button" class="btn btn-outline-danger js-remove-meeting">Remove</button>
+                                        <button type="button" class="btn btn-outline-danger w-100 js-remove-meeting" disabled>
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="mt-2 small text-muted">Preview: <span class="js-meeting-preview">—</span></div>
+                                <div class="mt-2 small text-muted">Preview: <span class="js-meeting-preview fw-semibold">—</span></div>
                             </div>
                         @endforelse
                     </div>
-                    <input type="hidden" name="calendar_timezone" value="Asia/Kolkata">
-                </div>
-            </div>
-        </div>
-<div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Location</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Country</label>
-                        <select name="country" id="countrySelect" class="form-select" required>
-                            @foreach ($countries as $country)
-                                <option value="{{ $country }}" @selected(old('country', $selectedCountry) === $country)>{{ $country }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label">City</label>
-                        <select name="city_id" class="form-select" required>
-                            <option value="" disabled>Select city</option>
-                            @foreach ($cities as $city)
-                                <option value="{{ $city->id }}" @selected(old('city_id', $circle->city_id) == $city->id)>
-                                    {{ $city->name }}{{ $city->state ? ', ' . $city->state : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Derived Country</label>
-                        <input type="text" class="form-control" value="{{ old('country', $selectedCountry) }}" readonly>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="col-12 d-flex justify-content-end gap-2">
-            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-        </div>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('leadership-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="bi bi-check-circle me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
     </div>
-</form>
+</div>
 @endsection
 
 @push('scripts')
 <script>
-
+    function switchTab(tabId) {
+        const tabEl = document.getElementById(tabId);
+        if (tabEl) {
+            const tab = new bootstrap.Tab(tabEl);
+            tab.show();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
 
     document.getElementById('countrySelect')?.addEventListener('change', (event) => {
         const url = new URL(window.location.href);
@@ -382,9 +617,32 @@
 
     @include('admin.circles.partials.categories-selector-script')
 
+    function initCitySelect2() {
+        if (window.jQuery && window.jQuery.fn.select2) {
+            const $citySelect = $('#citySelect');
+            if ($citySelect.hasClass('select2-hidden-accessible')) {
+                $citySelect.select2('destroy');
+            }
+            $citySelect.select2({
+                placeholder: "Select city",
+                allowClear: true,
+                width: '100%'
+            });
+        }
+    }
+
+    // Initialize on page load
+    initCitySelect2();
+
+    // Re-initialize when leadership tab is shown to fix Select2 width calculations inside hidden tabs
+    document.getElementById('leadership-tab')?.addEventListener('shown.bs.tab', function () {
+        initCitySelect2();
+    });
+
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const uploadUrl = @json(route('admin.files.upload'));
 
+    // Cover File Upload
     document.getElementById('coverFileInput')?.addEventListener('change', async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -419,14 +677,20 @@
             const previewLink = document.getElementById('coverPreviewLink');
             const previewImage = document.getElementById('coverPreviewImage');
             const previewBlock = document.getElementById('coverPreviewBlock');
+            const fileIdLabel = document.getElementById('coverFileIdLabel');
+            
             if (previewLink) {
                 previewLink.href = `/api/v1/files/${fileId}`;
             }
             if (previewImage) {
                 previewImage.src = `/api/v1/files/${fileId}`;
             }
+            if (fileIdLabel) {
+                fileIdLabel.textContent = fileId;
+            }
             if (previewBlock) {
                 previewBlock.classList.remove('d-none');
+                previewBlock.classList.add('d-flex');
             }
             statusEl.textContent = 'Upload successful.';
         } catch (error) {
@@ -434,6 +698,89 @@
         }
     });
 
+    // Cover File Remove
+    document.getElementById('coverRemoveBtn')?.addEventListener('click', () => {
+        document.getElementById('coverFileId').value = '';
+        const previewBlock = document.getElementById('coverPreviewBlock');
+        if (previewBlock) {
+            previewBlock.classList.remove('d-flex');
+            previewBlock.classList.add('d-none');
+        }
+        const fileInput = document.getElementById('coverFileInput');
+        if (fileInput) fileInput.value = '';
+        const statusEl = document.getElementById('coverUploadStatus');
+        if (statusEl) statusEl.textContent = 'Image removed. Save to apply.';
+    });
+
+    // Circle Image File Upload
+    document.getElementById('circleImageFileInput')?.addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const statusEl = document.getElementById('circleImageUploadStatus');
+        statusEl.textContent = 'Uploading...';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+            });
+
+            if (!response.ok) {
+                statusEl.textContent = 'Upload failed. Please try again.';
+                return;
+            }
+
+            const payload = await response.json();
+            const fileId = payload?.data?.id ?? payload?.data?.[0]?.id;
+            if (!fileId) {
+                statusEl.textContent = 'Upload failed. Missing file id.';
+                return;
+            }
+
+            document.getElementById('circleImageFileId').value = fileId;
+            const previewLink = document.getElementById('circleImagePreviewLink');
+            const previewImage = document.getElementById('circleImagePreviewImage');
+            const previewBlock = document.getElementById('circleImagePreviewBlock');
+            const fileIdLabel = document.getElementById('circleImageFileIdLabel');
+            
+            if (previewLink) {
+                previewLink.href = `/api/v1/files/${fileId}`;
+            }
+            if (previewImage) {
+                previewImage.src = `/api/v1/files/${fileId}`;
+            }
+            if (fileIdLabel) {
+                fileIdLabel.textContent = fileId;
+            }
+            if (previewBlock) {
+                previewBlock.classList.remove('d-none');
+                previewBlock.classList.add('d-flex');
+            }
+            statusEl.textContent = 'Upload successful.';
+        } catch (error) {
+            statusEl.textContent = 'Upload failed. Please try again.';
+        }
+    });
+
+    // Circle Image File Remove
+    document.getElementById('circleImageRemoveBtn')?.addEventListener('click', () => {
+        document.getElementById('circleImageFileId').value = '';
+        const previewBlock = document.getElementById('circleImagePreviewBlock');
+        if (previewBlock) {
+            previewBlock.classList.remove('d-flex');
+            previewBlock.classList.add('d-none');
+        }
+        const fileInput = document.getElementById('circleImageFileInput');
+        if (fileInput) fileInput.value = '';
+        const statusEl = document.getElementById('circleImageUploadStatus');
+        if (statusEl) statusEl.textContent = 'Image removed. Save to apply.';
+    });
 
     const meetingRows = document.getElementById('meetingRows');
     const addMeetingBtn = document.getElementById('addMeetingBtn');
@@ -480,12 +827,12 @@
             row.querySelectorAll('select, input').forEach((el) => {
                 const name = el.getAttribute('name');
                 if (!name) return;
-                el.setAttribute('name', name.replace(/meetings\[\d+\]/, `meetings[${index}]`));
+                el.setAttribute('name', name.replace(/\[\d+\]/, `[${index}]`));
             });
 
             const removeBtn = row.querySelector('.js-remove-meeting');
             if (removeBtn) {
-                removeBtn.disabled = index === 0;
+                removeBtn.disabled = index === 0 && rows.length === 1;
             }
         });
     };
@@ -513,6 +860,36 @@
     meetingRows?.querySelectorAll('.meeting-row').forEach((row) => bindMeetingRow(row));
     addMeetingBtn?.addEventListener('click', createMeetingRow);
 
+    // Toggle meeting details sections based on selected mode
+    function toggleMeetingDetails() {
+        const modeSelect = document.getElementById('meetingModeSelect');
+        if (!modeSelect) return;
+        const mode = (modeSelect.value || '').toLowerCase();
+        const onlineSec = document.getElementById('onlineDetailsSection');
+        const offlineSec = document.getElementById('offlineDetailsSection');
 
+        if (!onlineSec || !offlineSec) return;
+
+        if (mode === 'online') {
+            onlineSec.classList.remove('d-none');
+            offlineSec.classList.add('d-none');
+        } else if (mode === 'offline') {
+            onlineSec.classList.add('d-none');
+            offlineSec.classList.remove('d-none');
+        } else if (mode === 'hybrid') {
+            onlineSec.classList.remove('d-none');
+            offlineSec.classList.remove('d-none');
+        } else {
+            onlineSec.classList.add('d-none');
+            offlineSec.classList.add('d-none');
+        }
+    }
+
+    document.getElementById('meetingModeSelect')?.addEventListener('change', toggleMeetingDetails);
+    toggleMeetingDetails();
+
+    document.getElementById('schedule-tab')?.addEventListener('shown.bs.tab', function () {
+        toggleMeetingDetails();
+    });
 </script>
 @endpush

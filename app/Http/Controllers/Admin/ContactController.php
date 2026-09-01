@@ -78,6 +78,7 @@ class ContactController extends Controller
         $header = fgetcsv($handle);
         if ($header === false) {
             fclose($handle);
+
             return back()->withErrors(['csv_file' => 'CSV file is empty.'])->withInput();
         }
 
@@ -85,6 +86,7 @@ class ContactController extends Controller
         $unknownColumns = array_diff($header, self::CSV_COLUMNS);
         if ($unknownColumns !== []) {
             fclose($handle);
+
             return back()->withErrors(['csv_file' => 'Unsupported CSV columns: '.implode(', ', $unknownColumns).'.'])->withInput();
         }
 
@@ -102,12 +104,14 @@ class ContactController extends Controller
             $fullName = trim((string) ($rowData['full_name'] ?? ''));
             if ($fullName === '') {
                 fclose($handle);
+
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: Full name is required."])->withInput();
             }
 
             $email = trim((string) ($rowData['email'] ?? ''));
             if ($email !== '' && ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 fclose($handle);
+
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: Email must be a valid email address."])->withInput();
             }
 
@@ -115,6 +119,7 @@ class ContactController extends Controller
                 $parsed = $this->parseJsonCsvValue($rowData[$jsonField] ?? null, $rowNumber, $jsonField);
                 if (is_string($parsed)) {
                     fclose($handle);
+
                     return back()->withErrors(['csv_file' => $parsed])->withInput();
                 }
                 $rowData[$jsonField] = $parsed;
@@ -129,6 +134,7 @@ class ContactController extends Controller
             }
             if ($userId !== '' && ! User::query()->whereKey($userId)->exists()) {
                 fclose($handle);
+
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: user_id must be a valid user ID."])->withInput();
             }
             $payload['user_id'] = $userId !== '' ? $userId : null;
@@ -139,6 +145,7 @@ class ContactController extends Controller
                     $contact->fill($payload);
                     $contact->save();
                     $imported++;
+
                     continue;
                 }
             }
@@ -255,23 +262,29 @@ class ContactController extends Controller
         }, $fileName, ['Content-Type' => 'text/csv']);
     }
 
-
     public function exportSelected(Request $request, string $userId): StreamedResponse
     {
-        $validated = $request->validate([
-            'selected_ids' => ['required', 'array', 'min:1'],
-            'selected_ids.*' => ['required', 'string'],
-        ]);
+        if ($request->boolean('select_all_matching')) {
+            $contacts = ContactPost::query()
+                ->where('user_id', $userId)
+                ->latest('created_at')
+                ->get();
+        } else {
+            $validated = $request->validate([
+                'selected_ids' => ['required', 'array', 'min:1'],
+                'selected_ids.*' => ['required', 'string'],
+            ]);
 
-        $selectedIds = array_values(array_unique($validated['selected_ids']));
-        $contacts = ContactPost::query()
-            ->where('user_id', $userId)
-            ->whereIn('id', $selectedIds)
-            ->latest('created_at')
-            ->get();
+            $selectedIds = array_values(array_unique($validated['selected_ids']));
+            $contacts = ContactPost::query()
+                ->where('user_id', $userId)
+                ->whereIn('id', $selectedIds)
+                ->latest('created_at')
+                ->get();
 
-        if ($contacts->count() !== count($selectedIds)) {
-            abort(422, 'Selected contacts must exist and belong to the selected user.');
+            if ($contacts->count() !== count($selectedIds)) {
+                abort(422, 'Selected contacts must exist and belong to the selected user.');
+            }
         }
 
         $columns = [

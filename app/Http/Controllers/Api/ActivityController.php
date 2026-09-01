@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\StoreActivityRequest;
 use App\Http\Resources\ActivityResource;
 use App\Http\Resources\CoinLedgerResource;
@@ -17,7 +16,7 @@ class ActivityController extends BaseApiController
         $authUser = $request->user();
         $data = $request->validated();
 
-        $activity = new Activity();
+        $activity = new Activity;
         $activity->user_id = $authUser->id;
         $activity->related_user_id = $data['related_user_id'] ?? null;
         $activity->circle_id = $data['circle_id'] ?? null;
@@ -71,11 +70,11 @@ class ActivityController extends BaseApiController
         $coinsBalance = (int) $authUser->coins_balance;
 
         $stats = CoinLedger::where('user_id', $authUser->id)
-            ->selectRaw("
+            ->selectRaw('
                 COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total_earned,
                 COALESCE(SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), 0) as total_spent,
                 COUNT(*) as transactions_count
-            ")
+            ')
             ->first();
 
         return $this->success([

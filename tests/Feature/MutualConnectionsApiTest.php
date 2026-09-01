@@ -61,7 +61,7 @@ class MutualConnectionsApiTest extends TestCase
 
         Sanctum::actingAs($this->createUser('Auth User'));
 
-        $this->getJson('/api/v1/network/mutual-connections/' . Str::uuid())
+        $this->getJson('/api/v1/network/mutual-connections/'.Str::uuid())
             ->assertNotFound()
             ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'Target user not found.');
@@ -202,7 +202,7 @@ class MutualConnectionsApiTest extends TestCase
             'first_name' => strtok($name, ' ') ?: $name,
             'last_name' => trim(strstr($name, ' ') ?: ''),
             'display_name' => $name,
-            'email' => Str::slug($name) . '-' . Str::random(6) . '@example.com',
+            'email' => Str::slug($name).'-'.Str::random(6).'@example.com',
             'status' => 'active',
             'membership_status' => 'premium',
         ], $attributes));

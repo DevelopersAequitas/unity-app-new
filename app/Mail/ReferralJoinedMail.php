@@ -17,8 +17,7 @@ class ReferralJoinedMail extends Mailable
         public readonly string $referrerName,
         public readonly string $peerName,
         public readonly string $referralCode,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

@@ -1,4 +1,70 @@
 <?php
+
 namespace App\Http\Controllers\Api\V1\Admin;
-use App\Http\Controllers\Api\BaseApiController; use App\Models\Notifications\{NotificationCampaign,NotificationDeliveryLog}; use App\Services\Notifications\{CampaignService,NotificationService}; use Illuminate\Http\Request;
-class NotificationCampaignController extends BaseApiController { private function validateData(Request $r):array{return $r->validate(['code'=>'required|string','name'=>'required|string','category'=>'required|string','description'=>'nullable|string','channel'=>'nullable|in:push,email,both','trigger_type'=>'required|string','frequency'=>'nullable|string','priority'=>'nullable|in:urgent,high,medium,low','audience_type'=>'nullable|string','title_template'=>'required|string','body_template'=>'required|string','email_subject_template'=>'nullable|string','email_body_template'=>'nullable|string','tap_screen'=>'nullable|string','stop_rule'=>'nullable|string','daily_limit'=>'nullable|integer','cooldown_hours'=>'nullable|integer','is_active'=>'boolean','config'=>'array']);} public function index(){return $this->success(NotificationCampaign::latest()->paginate(25),'Campaigns fetched successfully.');} public function store(Request $r){$data=$this->validateData($r);$data['created_by_user_id']=$r->user()?->id;return $this->success(NotificationCampaign::create($data),'Campaign created successfully.',201);} public function update(Request $r,string $id){$c=NotificationCampaign::findOrFail($id);$c->update($this->validateData($r));return $this->success($c,'Campaign updated successfully.');} public function toggle(string $id){$c=NotificationCampaign::findOrFail($id);$c->update(['is_active'=>!$c->is_active]);return $this->success($c,'Campaign status updated successfully.');} public function preview(Request $r,string $id,NotificationService $s){$c=NotificationCampaign::findOrFail($id);$p=$r->input('placeholders',['name'=>'Peer']);return $this->success(['title'=>$s->renderTemplate($c->title_template,$p),'body'=>$s->renderTemplate($c->body_template,$p),'screen'=>$c->tap_screen],'Campaign preview generated successfully.');} public function run(string $id,CampaignService $s){return $this->success($s->runCampaign(NotificationCampaign::findOrFail($id)),'Campaign run completed.');} public function runs(string $id){return $this->success(NotificationCampaign::findOrFail($id)->runs()->latest()->paginate(25),'Campaign runs fetched successfully.');} public function logs(){return $this->success(NotificationDeliveryLog::latest()->paginate(50),'Notification delivery logs fetched successfully.');}}
+
+use App\Http\Controllers\Api\BaseApiController;
+use App\Models\Notifications\NotificationCampaign;
+use App\Models\Notifications\NotificationDeliveryLog;
+use App\Services\Notifications\CampaignService;
+use App\Services\Notifications\NotificationService;
+use Illuminate\Http\Request;
+
+class NotificationCampaignController extends BaseApiController
+{
+    private function validateData(Request $r): array
+    {
+        return $r->validate(['code' => 'required|string', 'name' => 'required|string', 'category' => 'required|string', 'description' => 'nullable|string', 'channel' => 'nullable|in:push,email,both', 'trigger_type' => 'required|string', 'frequency' => 'nullable|string', 'priority' => 'nullable|in:urgent,high,medium,low', 'audience_type' => 'nullable|string', 'title_template' => 'required|string', 'body_template' => 'required|string', 'email_subject_template' => 'nullable|string', 'email_body_template' => 'nullable|string', 'tap_screen' => 'nullable|string', 'stop_rule' => 'nullable|string', 'daily_limit' => 'nullable|integer', 'cooldown_hours' => 'nullable|integer', 'is_active' => 'boolean', 'config' => 'array']);
+    }
+
+    public function index()
+    {
+        return $this->success(NotificationCampaign::latest()->paginate(25), 'Campaigns fetched successfully.');
+    }
+
+    public function store(Request $r)
+    {
+        $data = $this->validateData($r);
+        $data['created_by_user_id'] = $r->user()?->id;
+
+        return $this->success(NotificationCampaign::create($data), 'Campaign created successfully.', 201);
+    }
+
+    public function update(Request $r, string $id)
+    {
+        $c = NotificationCampaign::findOrFail($id);
+        $c->update($this->validateData($r));
+
+        return $this->success($c, 'Campaign updated successfully.');
+    }
+
+    public function toggle(string $id)
+    {
+        $c = NotificationCampaign::findOrFail($id);
+        $c->update(['is_active' => ! $c->is_active]);
+
+        return $this->success($c, 'Campaign status updated successfully.');
+    }
+
+    public function preview(Request $r, string $id, NotificationService $s)
+    {
+        $c = NotificationCampaign::findOrFail($id);
+        $p = $r->input('placeholders', ['name' => 'Peer']);
+
+        return $this->success(['title' => $s->renderTemplate($c->title_template, $p), 'body' => $s->renderTemplate($c->body_template, $p), 'screen' => $c->tap_screen], 'Campaign preview generated successfully.');
+    }
+
+    public function run(string $id, CampaignService $s)
+    {
+        return $this->success($s->runCampaign(NotificationCampaign::findOrFail($id)), 'Campaign run completed.');
+    }
+
+    public function runs(string $id)
+    {
+        return $this->success(NotificationCampaign::findOrFail($id)->runs()->latest()->paginate(25), 'Campaign runs fetched successfully.');
+    }
+
+    public function logs()
+    {
+        return $this->success(NotificationDeliveryLog::latest()->paginate(50), 'Notification delivery logs fetched successfully.');
+    }
+}

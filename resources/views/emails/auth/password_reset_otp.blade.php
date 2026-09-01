@@ -19,7 +19,7 @@
                         <td style="padding:28px;">
                             <p style="margin:0 0 12px; color:#0f172a; font-size:18px; font-weight:700;">Hi {{ $user->display_name ?? $user->first_name ?? 'there' }},</p>
                             <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:22px;">
-                                We received a request to reset your password. Use the one-time password (OTP) below to continue. For your security, please do not share this code with anyone.
+                                <!-- EDITABLE_START -->We received a request to reset your password. Use the one-time password (OTP) below to continue. For your security, please do not share this code with anyone.<!-- EDITABLE_END -->
                             </p>
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:22px 0;">
                                 <tr>
@@ -28,9 +28,11 @@
                                     </td>
                                 </tr>
                             </table>
-                            <p style="margin:0 0 8px; color:#0f172a; font-size:15px; font-weight:600;">OTP valid for 5 minutes.</p>
+                            <p style="margin:0 0 8px; color:#0f172a; font-size:15px; font-weight:600;">
+                                <!-- EDITABLE_START -->OTP valid for 5 minutes.<!-- EDITABLE_END -->
+                            </p>
                             <p style="margin:0 0 16px; color:#475569; font-size:14px; line-height:21px;">
-                                If you did not request a password reset, please ignore this email or secure your account.
+                                <!-- EDITABLE_START -->If you did not request a password reset, please ignore this email or secure your account.<!-- EDITABLE_END -->
                             </p>
                             <p style="margin:0; color:#94a3b8; font-size:13px; line-height:20px;">
                                 Thank you,<br>

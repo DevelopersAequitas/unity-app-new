@@ -1,12 +1,25 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Become A Leader')
+@section('title', 'Leadership Requests')
+
+@include('admin.partials.grid-head')
 
 @section('content')
-    <style>
-        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
-    </style>
     @php
+        $getInitials = function($name) {
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if(!empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+        $getAvatarBg = function($name) {
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
+
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
                 return $display;
@@ -33,95 +46,157 @@
         };
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h1 class="h4 mb-0">Become A Leader</h1>
-        <span class="badge bg-light text-dark border">Total: {{ number_format($items->total()) }}</span>
-    </div>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <!-- Header Component -->
+        @include('admin.activities.partials.header', ['title' => 'Leadership Requests'])
 
-    <form id="adminactivitiesbecome-a-leaderindexFiltersForm" method="GET" action="{{ route('admin.activities.become-a-leader.index') }}">
-    @include('admin.components.activity-filter-bar-v2', [
-        'actionUrl' => route('admin.activities.become-a-leader.index'),
-        'resetUrl' => route('admin.activities.become-a-leader.index'),
-        'filters' => $filters,
-        'circles' => $circles ?? collect(),
-        'showExport' => false,
-        'renderFormTag' => false,
-        'formId' => 'adminactivitiesbecome-a-leaderindexFiltersForm',
-    ])
+        <!-- Metrics Cards -->
+        <div class="activities-stats-grid">
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-award-fill"></i>
+                </div>
+                <div>
+                    <div class="metric-val">{{ number_format($items->total()) }}</div>
+                    <div class="metric-label">Total Submissions</div>
+                </div>
+            </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Submitted At</th>
-                        <th>Peer Name</th>
-                        <th>Peer Phone</th>
-                        <th>Applying For</th>
-                        <th>Referred Name</th>
-                        <th>Referred Mobile</th>
-                        <th>Leadership Roles</th>
-                        <th>City / Region</th>
-                        <th>Primary Domain</th>
-                        <th>Why Interested</th>
-                        <th>Created At</th>
-                    </tr>
-                    <tr>
-                        <th class="text-muted">—</th>
-                        <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Peer Phone" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="applying_for" value="{{ $filters['applying_for'] ?? '' }}" placeholder="Applying For" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="referred_name" value="{{ $filters['referred_name'] ?? '' }}" placeholder="Referred Name" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="referred_mobile" value="{{ $filters['referred_mobile'] ?? '' }}" placeholder="Referred Mobile" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="leadership_roles" value="{{ $filters['leadership_roles'] ?? '' }}" placeholder="Leadership Roles" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="city_region" value="{{ $filters['city_region'] ?? '' }}" placeholder="City / Region" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="primary_domain" value="{{ $filters['primary_domain'] ?? '' }}" placeholder="Primary Domain" class="form-control form-control-sm"></th>
-                        <th class="text-muted">—</th>
-                        <th>
-                            <div class="d-flex justify-content-end gap-2">
-                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-                                <a href="{{ route('admin.activities.become-a-leader.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        @php
-                            $peerName = $item->peer_name ?? '—';
-                        @endphp
-                        <tr>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $peerName,
-                                    'company' => $item->peer_company ?? '',
-                                    'city' => $item->peer_city ?? '',
-                                ])
-                            </td>
-                            <td>{{ $item->peer_phone ?? '—' }}</td>
-                            <td>{{ $item->applying_for ?? '—' }}</td>
-                            <td>{{ $item->referred_name ?? '—' }}</td>
-                            <td>{{ $item->referred_mobile ?? '—' }}</td>
-                            <td>{{ $formatRoles($item->leadership_roles ?? null) }}</td>
-                            <td>{{ $item->contribute_city ?? '—' }}</td>
-                            <td>{{ $item->primary_domain ?? '—' }}</td>
-                            <td>{{ $truncate($item->why_interested ?? null) }}</td>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="11" class="text-center text-muted">No submissions found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-success-subtle text-success">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->filter(fn($item) => $item->created_at >= now()->subDays(30))->count()) }}
+                    </div>
+                    <div class="metric-label">Recent Submissions (30 Days)</div>
+                </div>
+            </div>
         </div>
-    </div>
 
-    </form>
+        <!-- Filters Section -->
+        <form id="adminactivitiesbecome-a-leaderindexFiltersForm" method="GET" action="{{ route('admin.activities.become-a-leader.index') }}" class="space-y-4">
+            @include('admin.components.activity-filter-bar-v2', [
+                'actionUrl' => route('admin.activities.become-a-leader.index'),
+                'resetUrl' => route('admin.activities.become-a-leader.index'),
+                'filters' => $filters,
+                'circles' => $circles ?? collect(),
+                'showExport' => false,
+                'renderFormTag' => false,
+                'formId' => 'adminactivitiesbecome-a-leaderindexFiltersForm',
+            ])
 
-    <div class="mt-3">
-        {{ $items->links() }}
+            <!-- Table Card -->
+            <div class="rounded-xl border bs surface overflow-hidden">
+                <div class="overflow-x-auto relative">
+                    <table class="min-w-full border-collapse text-[13px]">
+                        <thead>
+                            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Details</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Phone</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Applying For</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referred Details</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Leadership Roles</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City / Region</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Primary Domain</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Why Interested</th>
+                            </tr>
+                            <tr class="surface-2 border-b bs filter-row">
+                                <th class="px-2 py-1 text-center t3">—</th>
+                                <th class="px-2 py-1">
+                                    <input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                </th>
+                                <th class="px-2 py-1"><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="applying_for" value="{{ $filters['applying_for'] ?? '' }}" placeholder="Applying For" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1">
+                                    <input type="text" name="referred_name" value="{{ $filters['referred_name'] ?? '' }}" placeholder="Referred Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
+                                    <input type="text" name="referred_mobile" value="{{ $filters['referred_mobile'] ?? '' }}" placeholder="Mobile" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                </th>
+                                <th class="px-2 py-1"><input type="text" name="leadership_roles" value="{{ $filters['leadership_roles'] ?? '' }}" placeholder="Roles" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1">
+                                    <input type="text" name="city_region" value="{{ $filters['city_region'] ?? '' }}" placeholder="City" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                </th>
+                                <th class="px-2 py-1"><input type="text" name="primary_domain" value="{{ $filters['primary_domain'] ?? '' }}" placeholder="Domain" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1">
+                                    <div class="flex justify-end">
+                                        <button type="button" onclick="clearAdminFilters(event, 'adminactivitiesbecome-a-leaderindexFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                            @forelse ($items as $item)
+                                @php
+                                    $peerName = $item->peer_name ?? '—';
+                                @endphp
+                                <tr class="hover:surface-2 transition border-b bs">
+                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
+                                    <td class="px-3 py-2.5">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
+                                                {{ $getInitials($peerName) }}
+                                            </div>
+                                            <div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($item->user_id ?? $item->actor_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $peerName }}
+                                                        </a>
+                                                    @else
+                                                        {{ $peerName }}
+                                                    @endif
+                                                </div>
+                                                <div class="t3 text-[10px] flex items-center gap-1 flex-wrap">
+                                                    @if($item->peer_company) <span class="truncate max-w-[140px]" title="{{ $item->peer_company }}">{{ $item->peer_company }}</span> @endif
+                                                    @if($item->peer_company && $item->peer_city) <span class="text-slate-400 select-none">•</span> @endif
+                                                    @if($item->peer_city) <span class="truncate max-w-[100px] text-slate-500" title="{{ $item->peer_city }}">{{ $item->peer_city }}</span> @endif
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->peer_phone ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs">
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $item->applying_for ?? '—' }}</span>
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs">
+                                        @if($item->referred_name)
+                                            <div class="font-semibold t1">
+                                                @if(!empty($item->referred_user_id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->referred_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $item->referred_name }}
+                                                    </a>
+                                                @else
+                                                    {{ $item->referred_name }}
+                                                @endif
+                                            </div>
+                                            <div class="t3 text-[10px]">{{ $item->referred_mobile ?: '—' }}</div>
+                                        @else
+                                            <span class="t3">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $formatRoles($item->leadership_roles ?? null) }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->contribute_city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->primary_domain ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 max-w-[220px] truncate" title="{{ $item->why_interested }}">
+                                        {{ $item->why_interested ?? '—' }}
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="9" class="text-center py-8 text-xs t3">No submissions found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                    {{ $items->links() }}
+                </div>
+            </div>
+        </form>
     </div>
 @endsection
+

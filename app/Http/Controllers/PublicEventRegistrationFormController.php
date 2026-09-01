@@ -8,15 +8,17 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
+use App\Services\Events\EventCouponService;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
-use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventRegistrationQrService;
+use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PublicEventRegistrationFormController extends Controller
@@ -87,10 +89,33 @@ class PublicEventRegistrationFormController extends Controller
         }
 
         try {
+            $data = $request->validated();
+
+            if (! empty($data['coupon_code'])) {
+                try {
+                    $couponService = app(EventCouponService::class);
+                    $coupon = $couponService->validateCoupon((string) $data['coupon_code'], $event, $occurrence);
+                    $originalPrice = $this->payments->amount($event);
+                    $discountCalculation = $couponService->calculateDiscount($coupon, $originalPrice);
+
+                    $data['coupon_id'] = $coupon->id;
+                    $data['coupon_code'] = $coupon->code;
+                    $data['original_amount'] = $originalPrice;
+                    $data['discount_amount'] = $discountCalculation['discount_amount'];
+                    $data['amount'] = $discountCalculation['final_price'];
+
+                    $couponService->applyCoupon($coupon);
+                } catch (ValidationException $e) {
+                    return back()
+                        ->withInput()
+                        ->withErrors(['coupon_code' => 'Invalid or expired coupon code']);
+                }
+            }
+
             $registration = $this->registrations->registerVisitor(
                 $event,
                 $occurrence,
-                $request->validated(),
+                $data,
                 'web_form'
             );
         } catch (\Throwable $exception) {
@@ -109,7 +134,6 @@ class PublicEventRegistrationFormController extends Controller
 
         return redirect()->to($this->registrations->visitorRegistrationFormUrl($registration));
     }
-
 
     private function occurrenceUnavailableMessage(Event $event, EventOccurrence $occurrence): ?string
     {

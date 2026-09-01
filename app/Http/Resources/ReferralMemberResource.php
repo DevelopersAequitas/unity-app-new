@@ -13,7 +13,7 @@ class ReferralMemberResource extends JsonResource
 
         return [
             'id' => (string) ($referredUser?->id ?? ''),
-            'name' => (string) ($referredUser?->display_name ?? trim((string) (($referredUser?->first_name ?? '') . ' ' . ($referredUser?->last_name ?? '')))),
+            'name' => (string) ($referredUser?->display_name ?? trim((string) (($referredUser?->first_name ?? '').' '.($referredUser?->last_name ?? '')))),
             'email' => $referredUser?->email,
             'business_name' => $referredUser?->company_name,
             'position' => $referredUser?->designation,

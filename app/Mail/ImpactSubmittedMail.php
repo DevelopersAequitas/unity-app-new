@@ -12,9 +12,7 @@ class ImpactSubmittedMail extends Mailable
     use Queueable;
     use SerializesModels;
 
-    public function __construct(public Impact $impact)
-    {
-    }
+    public function __construct(public Impact $impact) {}
 
     public function build(): self
     {

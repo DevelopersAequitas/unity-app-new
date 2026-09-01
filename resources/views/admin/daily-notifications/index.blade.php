@@ -1,136 +1,122 @@
 @extends('admin.layouts.app')
 @section('title', 'Daily Notification Reminders')
 
+@include('admin.partials.grid-head')
+
 @section('content')
-<div class="container-fluid">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+    <div class="flex flex-wrap justify-between items-center gap-3">
         <div>
-            <h1 class="h3 mb-1 text-gray-800">Daily Notification Reminders</h1>
-            <p class="text-muted mb-0">Manage and edit the 24 daily engagement notifications and schedules sent to members.</p>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Daily Notification Reminders</h2>
+            <p class="text-xs t3 m-0 mt-0.5">Manage and edit the daily engagement notifications and schedules sent to members.</p>
         </div>
+        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total Reminders: {{ $reminders->count() }}</span>
     </div>
 
     <!-- Alert Messages -->
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+            {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            {{ session('error') }}
         </div>
     @endif
 
-    <!-- Search Card -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0">
-                            <i class="bi bi-search text-muted"></i>
-                        </span>
-                        <input type="text" id="tableSearch" class="form-control border-start-0 ps-0" placeholder="Search by feature, activity, title, body or timing...">
-                    </div>
-                </div>
-                <div class="col-md-6 text-end">
-                    <span class="badge bg-secondary py-2 px-3">Total Reminders: {{ $reminders->count() }}</span>
-                </div>
-            </div>
+    <!-- Search Filter Card -->
+    <div class="p-3 rounded-lg border bs surface-2">
+        <div class="max-w-md">
+            <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+            <input type="text" id="tableSearch" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by feature, activity, title, body or timing...">
         </div>
     </div>
 
-    <!-- Data Table Card -->
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover table-striped mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th scope="col" class="ps-4" style="width: 15%;">Feature</th>
-                            <th scope="col" style="width: 20%;">Activity</th>
-                            <th scope="col" style="width: 30%;">Notification (Title & Body)</th>
-                            <th scope="col" style="width: 15%;">Action / Trigger Timing</th>
-                            <th scope="col" style="width: 10%;">Eligible Users</th>
-                            <th scope="col" class="text-end pe-4" style="width: 10%;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reminderTableBody">
-                        @forelse($reminders as $reminder)
-                            <tr>
-                                <td class="ps-4">
-                                    <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 fw-semibold">
-                                        {{ $reminder->feature }}
+    <div class="rounded-xl border bs surface overflow-hidden">
+        <div class="overflow-x-auto relative">
+            <table class="min-w-full border-collapse text-[13px]">
+                <thead>
+                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Feature</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Activity</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Notification Title</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Notification Body</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Action / Trigger Timing</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Eligible Users</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reminderTableBody" class="divide-y divide-gray-200/50">
+                    @forelse($reminders as $reminder)
+                        <tr class="hover:surface-2 transition border-b bs">
+                            <td class="px-3 py-2.5 text-xs">
+                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
+                                    {{ $reminder->feature }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs font-semibold t1">
+                                <x-admin-grid-text :text="$reminder->activity" />
+                            </td>
+                            <td class="px-3 py-2.5 text-xs font-bold t1">
+                                <x-admin-grid-text :text="$reminder->notification_title" />
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[350px]">
+                                @php
+                                    $formattedBody = preg_replace('/\{([^}]+)\}/', '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200" title="Dynamic template variable replaced with real data when dispatched">{$1}</span>', e($reminder->notification_body));
+                                @endphp
+                                <div class="leading-relaxed">{!! $formattedBody !!}</div>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
+                                ⏱️ <span class="font-medium t1">{{ $reminder->action_trigger_timing }}</span>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs">
+                                <button type="button" 
+                                        class="view-eligible-users-btn border-0 bg-transparent cursor-pointer"
+                                        data-id="{{ $reminder->id }}"
+                                        data-activity="{{ $reminder->activity }}">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
+                                        <i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $counts[$reminder->activity] ?? 0 }}</span>
                                     </span>
-                                </td>
-                                <td class="text-wrap">
-                                    <div class="fw-medium text-dark">{{ $reminder->activity }}</div>
-                                </td>
-                                <td>
-                                    <div class="fw-bold text-dark mb-1">{{ $reminder->notification_title }}</div>
-                                    <div class="text-muted small text-wrap" style="max-width: 450px;">
-                                        {{ $reminder->notification_body }}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <i class="bi bi-clock text-info me-2"></i>
-                                        <span class="fw-semibold text-secondary">{{ $reminder->action_trigger_timing }}</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <button type="button" 
-                                            class="btn btn-link p-0 border-0 fw-semibold view-eligible-users-btn"
-                                            data-id="{{ $reminder->id }}"
-                                            data-activity="{{ $reminder->activity }}"
-                                            style="text-decoration: none;">
-                                        <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
-                                            <i class="bi bi-people-fill me-1"></i>{{ $counts[$reminder->activity] ?? 0 }}
-                                        </span>
-                                    </button>
-                                </td>
-                                <td class="text-end pe-4">
-                                    <div class="d-inline-flex gap-2">
-                                        <form method="POST" action="{{ route('admin.daily-notifications.send', $reminder->id) }}" onsubmit="return confirm('Are you sure you want to send this notification to all eligible users immediately?');">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-success">
-                                                <i class="bi bi-send-fill me-1"></i>Send
-                                            </button>
-                                        </form>
-                                        <button type="button" 
-                                                class="btn btn-sm btn-outline-primary edit-reminder-btn" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#editReminderModal"
-                                                data-id="{{ $reminder->id }}"
-                                                data-feature="{{ $reminder->feature }}"
-                                                data-activity="{{ $reminder->activity }}"
-                                                data-notification_title="{{ $reminder->notification_title }}"
-                                                data-notification_body="{{ $reminder->notification_body }}"
-                                                data-action_trigger_timing="{{ $reminder->action_trigger_timing }}">
-                                            <i class="bi bi-pencil-square me-1"></i>Edit
+                                </button>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                <div class="flex justify-end gap-1.5 items-center">
+                                    <form method="POST" action="{{ route('admin.daily-notifications.send', $reminder->id) }}" class="inline" onsubmit="return confirm('Are you sure you want to send this notification to all eligible users immediately?');">
+                                        @csrf
+                                        <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">
+                                            Send
                                         </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">
-                                    <i class="bi bi-info-circle display-4 mb-3 d-block text-gray-400"></i>
-                                    No reminders found in database. Run the seeder to populate.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                                    </form>
+                                    <button type="button" 
+                                            class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition edit-reminder-btn" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editReminderModal"
+                                            data-id="{{ $reminder->id }}"
+                                            data-feature="{{ $reminder->feature }}"
+                                            data-activity="{{ $reminder->activity }}"
+                                            data-notification_title="{{ $reminder->notification_title }}"
+                                            data-notification_body="{{ $reminder->notification_body }}"
+                                            data-action_trigger_timing="{{ $reminder->action_trigger_timing }}">
+                                        Edit
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="text-center py-8 text-xs t3">
+                                No reminders found in database. Run the seeder to populate.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
 
 <!-- Edit Reminder Modal -->
 <div class="modal fade" id="editReminderModal" tabindex="-1" aria-labelledby="editReminderModalLabel" aria-hidden="true">
@@ -187,6 +173,9 @@
                         <div class="col-12">
                             <label for="edit_notification_body" class="form-label fw-semibold">Notification Body</label>
                             <textarea class="form-control @error('notification_body') is-invalid @enderror" id="edit_notification_body" name="notification_body" rows="4" required></textarea>
+                            <div class="form-text text-muted mt-1">
+                                <i class="bi bi-info-circle text-primary me-1"></i>Dynamic variables like <code>{Advertiser Name}</code>, <code>{Suggested Peer Name}</code>, <code>{Circle Name}</code>, <code>{Industry}</code> are automatically substituted with real names upon delivery.
+                            </div>
                             @error('notification_body')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror

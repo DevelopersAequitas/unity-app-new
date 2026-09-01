@@ -2,6 +2,4 @@
 
 namespace App\Http\Requests\Admin;
 
-class UpdateCircularRequest extends StoreCircularRequest
-{
-}
+class UpdateCircularRequest extends StoreCircularRequest {}

@@ -102,7 +102,31 @@ class NotificationEngineController extends BaseApiController
         }
 
         if ($request->filled('type')) {
-            $query->where('type', $request->type);
+            $typeFilter = (string) $request->type;
+            $normalizedType = strtolower(str_replace('-', '_', trim($typeFilter)));
+
+            $query->where(function ($q) use ($typeFilter, $normalizedType): void {
+                $q->where('type', $typeFilter)
+                    ->orWhere('type', $normalizedType)
+                    ->orWhere('category', $typeFilter)
+                    ->orWhere('category', $normalizedType)
+                    ->orWhere('data->type', $typeFilter)
+                    ->orWhere('data->type', $normalizedType)
+                    ->orWhere('data->notification_type', $typeFilter)
+                    ->orWhere('data->notification_type', $normalizedType)
+                    ->orWhere('data->activity_type', $typeFilter)
+                    ->orWhere('data->activity_type', $normalizedType);
+
+                if (in_array($normalizedType, ['impact', 'life_impact', 'impacts'], true)) {
+                    $q->orWhereIn('type', ['impact_submitted', 'impact_received', 'impact_approved', 'impact_rejected', 'life_impact'])
+                        ->orWhere('category', 'life_impact');
+                }
+
+                if (in_array($normalizedType, ['connection', 'connections', 'connection_request', 'connection_accepted', 'connect'], true)) {
+                    $q->orWhereIn('type', ['connection_request', 'connection_accepted', 'connection', 'connection_received'])
+                        ->orWhereIn('category', ['connection_request', 'connection_accepted', 'connection']);
+                }
+            });
         }
 
         $perPage = min(max((int) $request->get('per_page', 20), 1), 100);
@@ -113,28 +137,44 @@ class NotificationEngineController extends BaseApiController
             $unreadQuery->whereNull('deleted_at');
         }
 
-        return $this->success([
-            'notifications' => collect($paginator->items())->map(fn (AppNotification $notification): array => [
+        $mappedNotifications = collect($paginator->items())->map(function (AppNotification $notification): array {
+            $dataPayload = $notification->dataPayload();
+            $type = (string) ($notification->type !== 'activity_update'
+                ? $notification->type
+                : ($dataPayload['type'] ?? $dataPayload['notification_type'] ?? $notification->category ?? $notification->type));
+
+            return [
                 'id' => (string) $notification->id,
-                'type' => $notification->type,
-                'category' => $notification->category,
-                'title' => $notification->title,
-                'body' => $notification->body,
-                'message' => $notification->body,
-                'channel' => $notification->channel,
-                'priority' => $notification->priority,
-                'screen' => $notification->screen,
-                'tap_destination' => $notification->data['tap_destination'] ?? $notification->screen,
+                'type' => $type,
+                'category' => (string) ($notification->category ?? $type),
+                'title' => (string) ($notification->title ?? ''),
+                'body' => (string) ($notification->body ?? $notification->message ?? ''),
+                'message' => (string) ($notification->body ?? $notification->message ?? ''),
+                'channel' => (string) ($notification->channel ?? 'push'),
+                'priority' => (string) ($notification->priority ?? 'normal'),
+                'screen' => (string) ($notification->screen ?? $dataPayload['navigation_screen'] ?? '/post-details'),
+                'tap_destination' => (string) ($dataPayload['tap_destination'] ?? $notification->screen ?? $dataPayload['navigation_screen'] ?? '/post-details'),
                 'reference_type' => $notification->reference_type,
                 'reference_id' => $notification->reference_id,
-                'data' => $notification->data ?? [],
+                'data' => $dataPayload,
+                'payload' => array_merge($dataPayload, [
+                    'title' => (string) ($notification->title ?? ''),
+                    'body' => (string) ($notification->body ?? ''),
+                    'notification_type' => $type,
+                ]),
                 'status' => $notification->status,
                 'is_read' => $notification->read_at !== null,
                 'sent_at' => $notification->sent_at,
                 'read_at' => $notification->read_at,
                 'clicked_at' => $notification->clicked_at,
                 'created_at' => $notification->created_at,
-            ])->values(),
+            ];
+        })->values();
+
+        return $this->success([
+            'notifications' => $mappedNotifications,
+            'items' => $mappedNotifications,
+            'data' => $mappedNotifications,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -153,6 +193,7 @@ class NotificationEngineController extends BaseApiController
     public function readAll(Request $request, NotificationService $service)
     {
         $updated = $service->markAllAsRead($request->user());
+
         return $this->success(['updated_count' => $updated, 'updated' => $updated], $updated > 0 ? 'All notifications marked as read.' : 'No unread notifications found.');
     }
 
@@ -160,7 +201,6 @@ class NotificationEngineController extends BaseApiController
     {
         return $this->success($service->recordClick($request->user(), $id), 'Notification click recorded.');
     }
-
 
     public function check(Request $request)
     {
@@ -733,7 +773,7 @@ class NotificationEngineController extends BaseApiController
         }
 
         return trim((string) ($user->display_name ?? ''))
-            ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')))
+            ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? '')))
             ?: (string) ($user->name ?? $user->email ?? $user->id);
     }
 }

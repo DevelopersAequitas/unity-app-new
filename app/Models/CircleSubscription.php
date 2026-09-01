@@ -12,7 +12,9 @@ class CircleSubscription extends Model
     use HasFactory;
 
     protected $table = 'circle_subscriptions';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class Notification extends Model
 {
@@ -38,6 +39,15 @@ class Notification extends Model
         'created_at' => 'datetime',
         'read_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+        });
+    }
 
     public function user(): BelongsTo
     {

@@ -2,359 +2,307 @@
 
 @section('title', 'Brand Partners')
 
-@section('content')
+@include('admin.partials.grid-head')
+
+@push('styles')
 <style>
-    @media (min-width: 768px) {
-        .bp-card-wrapper,
-        .bp-table-wrapper {
-            overflow: visible !important;
-        }
-    }
-    .bp-action-dropdown {
-        max-height: 380px !important;
-        overflow-y: auto !important;
-        z-index: 1060 !important;
-    }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; transition: all .2s ease; display: block; width: 100%; text-align: left; text-decoration: none !important; }
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .kpi-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; font-size: 1.1rem; }
+  .kpi-num { font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1.35rem; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .kpi-title { font-size: 11px; font-weight: 600; color: var(--text-2); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
 </style>
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Brand Partners</h1>
-    <div class="d-flex gap-2">
-        <a href="{{ route('admin.brand-partners.dashboard') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
-        <a href="{{ route('admin.brand-partners.categories.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Categories</a>
-        <a href="{{ route('admin.brand-partners.offers') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gift me-1"></i>Offers</a>
-        @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-            <a href="{{ route('admin.brand-partners.create') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Partner</a>
-        @endif
-    </div>
-</div>
+@endpush
 
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-@endif
-
-<!-- Filters & Search Card -->
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-        <form method="GET" action="{{ route('admin.brand-partners.index') }}" class="row g-2 align-items-center">
-            <div class="col-md-3">
-                <input type="text" name="q" value="{{ $search }}" class="form-control form-control-sm" placeholder="Search by name, slug, or offer...">
+@section('content')
+    @if(session('success'))
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="bi bi-check-circle-fill text-emerald-600"></i>
+                <span>{{ session('success') }}</span>
             </div>
-            <div class="col-md-2">
-                <select name="category_id" class="form-select form-select-sm">
-                    <option value="">All Categories</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}" @selected($categoryId == $category->id)>{{ $category->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select name="status" class="form-select form-select-sm">
-                    <option value="">All Statuses</option>
-                    <option value="active" @selected($status == 'active')>Active</option>
-                    <option value="inactive" @selected($status == 'inactive')>Inactive</option>
-                </select>
-            </div>
-            <div class="col-md-1">
-                <select name="featured" class="form-select form-select-sm">
-                    <option value="">Featured?</option>
-                    <option value="1" @selected($featured == '1')>Yes</option>
-                    <option value="0" @selected($featured == '0')>No</option>
-                </select>
-            </div>
-            <div class="col-md-1">
-                <select name="sponsored" class="form-select form-select-sm">
-                    <option value="">Sponsored?</option>
-                    <option value="1" @selected($sponsored == '1')>Yes</option>
-                    <option value="0" @selected($sponsored == '0')>No</option>
-                </select>
-            </div>
-            <div class="col-md-1">
-                <select name="has_offer" class="form-select form-select-sm">
-                    <option value="">Has Offer?</option>
-                    <option value="1" @selected($hasOffer == '1')>Yes</option>
-                </select>
-            </div>
-            <div class="col-md-2 d-flex gap-1">
-                <button type="submit" class="btn btn-sm btn-secondary flex-grow-1"><i class="bi bi-search me-1"></i>Filter</button>
-                <a href="{{ route('admin.brand-partners.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Datatable Card -->
-<div class="card border-0 shadow-sm bp-card-wrapper">
-    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold mb-0 text-secondary">Partners List</h6>
-        
-        <!-- Export Dropdown -->
-        @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'analytics_team']))
-            <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="exportMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-download me-1"></i>Export
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportMenu">
-                    <li><a class="dropdown-item" href="{{ route('admin.brand-partners.export', array_merge(request()->query(), ['format' => 'csv'])) }}"><i class="bi bi-filetype-csv me-2 text-primary"></i>CSV Sheet</a></li>
-                    <li><a class="dropdown-item" href="{{ route('admin.brand-partners.export', array_merge(request()->query(), ['format' => 'excel'])) }}"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Excel Sheet</a></li>
-                    <li><a class="dropdown-item" target="_blank" href="{{ route('admin.brand-partners.export', array_merge(request()->query(), ['format' => 'pdf'])) }}"><i class="bi bi-filetype-pdf me-2 text-danger"></i>Print PDF</a></li>
-                </ul>
-            </div>
-        @endif
-    </div>
-    
-    <div class="table-responsive bp-table-wrapper">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th style="width: 80px;">Logo</th>
-                    <th>Brand Name</th>
-                    <th>Category</th>
-                    <th class="text-center">Featured</th>
-                    <th class="text-center">Sponsored</th>
-                    <th>Active Offer</th>
-                    <th>Status</th>
-                    <th class="text-center">Views</th>
-                    <th class="text-center">Clicks</th>
-                    <th class="text-end" style="width: 150px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="border-top-0">
-                @forelse($partners as $partner)
-                    <tr>
-                        <td>
-                            @if($partner->logo_url)
-                                <img src="{{ $partner->logo_url }}" alt="{{ $partner->name }}" class="img-thumbnail rounded-circle" style="width: 48px; height: 48px; object-fit: cover;">
-                            @else
-                                <div class="bg-light rounded-circle text-center d-flex align-items-center justify-content-center fw-bold text-secondary" style="width: 48px; height: 48px;">
-                                    {{ Str::upper(Str::substr($partner->name, 0, 2)) }}
-                                </div>
-                            @endif
-                        </td>
-                        <td>
-                            <div class="fw-bold text-dark">{{ $partner->name }}</div>
-                            <span class="text-muted small">/{{ $partner->slug }}</span>
-                            @if($partner->is_verified)
-                                <i class="bi bi-patch-check-fill text-primary ms-1" title="Verified Brand"></i>
-                            @endif
-                        </td>
-                        <td>
-                            <span class="badge" style="background-color: {{ $partner->category?->color ?? '#999999' }}15; color: {{ $partner->category?->color ?? '#666666' }}">
-                                <i class="bi {{ $partner->category?->icon ?? 'bi-tag' }} me-1"></i>{{ $partner->category?->name ?? 'Uncategorized' }}
-                            </span>
-                        </td>
-                        <td class="text-center">
-                            <form method="POST" action="{{ route('admin.brand-partners.toggle-featured', $partner) }}">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="border-0 bg-transparent text-decoration-none">
-                                    <i class="bi {{ $partner->is_featured ? 'bi-star-fill text-warning fs-5' : 'bi-star text-muted fs-5' }}"></i>
-                                </button>
-                            </form>
-                        </td>
-                        <td class="text-center">
-                            <form method="POST" action="{{ route('admin.brand-partners.toggle-sponsored', $partner) }}">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="border-0 bg-transparent text-decoration-none">
-                                    <i class="bi {{ $partner->is_sponsored ? 'bi-award-fill text-info fs-5' : 'bi-award text-muted fs-5' }}"></i>
-                                </button>
-                            </form>
-                        </td>
-                        <td>
-                            @if($partner->offer_title)
-                                <div class="fw-medium text-success">{{ $partner->offer_title }}</div>
-                                @if($partner->coupon_code)
-                                    <code class="bg-light px-2 py-1 rounded small border">{{ $partner->coupon_code }}</code>
-                                @endif
-                            @else
-                                <span class="text-muted small">—</span>
-                            @endif
-                        </td>
-                        <td>
-                            <span class="badge {{ $partner->is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle' }} px-2.5 py-1.5">
-                                {{ $partner->is_active ? 'Active' : 'Inactive' }}
-                            </span>
-                        </td>
-                        <td class="text-center fw-medium">{{ number_format($partner->views_count) }}</td>
-                        <td class="text-center fw-medium">{{ number_format($partner->clicks_count) }}</td>
-                        <td class="text-end">
-                            <div class="dropdown">
-                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false">
-                                    Actions
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-sm bp-action-dropdown">
-                                    <li>
-                                        <a class="dropdown-item" href="{{ route('admin.brand-partners.show', $partner) }}"><i class="bi bi-eye me-2 text-primary"></i>View Details</a>
-                                    </li>
-                                    @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-                                        <li>
-                                            <a class="dropdown-item" href="{{ route('admin.brand-partners.edit', $partner) }}"><i class="bi bi-pencil me-2 text-primary"></i>Edit Partner</a>
-                                        </li>
-                                    @endif
-                                    <li>
-                                        <a class="dropdown-item" href="{{ route('admin.brand-partners.show', $partner) }}#analytics"><i class="bi bi-bar-chart-line me-2 text-success"></i>View Analytics</a>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.duplicate', $partner) }}">
-                                                @csrf
-                                                <button type="submit" class="dropdown-item"><i class="bi bi-copy me-2 text-secondary"></i>Duplicate</button>
-                                            </form>
-                                        </li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.toggle-status', $partner) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="dropdown-item">
-                                                    <i class="bi {{ $partner->is_active ? 'bi-eye-slash text-warning' : 'bi-eye text-success' }} me-2"></i>
-                                                    {{ $partner->is_active ? 'Deactivate' : 'Activate' }}
-                                                </button>
-                                            </form>
-                                        </li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.toggle-featured', $partner) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="dropdown-item">
-                                                    <i class="bi {{ $partner->is_featured ? 'bi-star-fill text-warning' : 'bi-star text-muted' }} me-2"></i>
-                                                    {{ $partner->is_featured ? 'Unfeature' : 'Feature' }}
-                                                </button>
-                                            </form>
-                                        </li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.toggle-sponsored', $partner) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="dropdown-item">
-                                                    <i class="bi {{ $partner->is_sponsored ? 'bi-award-fill text-info' : 'bi-award text-muted' }} me-2"></i>
-                                                    {{ $partner->is_sponsored ? 'Unsponsor' : 'Sponsor' }}
-                                                </button>
-                                            </form>
-                                        </li>
-                                        <li><hr class="dropdown-divider"></li>
-                                    @endif
-                                    <li>
-                                        <button type="button" class="dropdown-item btn-copy-public-link" data-link="{{ url('/brand-partners/' . $partner->slug) }}">
-                                            <i class="bi bi-link-45deg me-2 text-secondary"></i>Copy Public Link
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button type="button" class="dropdown-item btn-share-partner" data-title="{{ $partner->name }}" data-text="Check out {{ $partner->name }} on PGU! Coupon Code: {{ $partner->coupon_code ?? 'None' }}" data-url="{{ url('/brand-partners/' . $partner->slug) }}">
-                                            <i class="bi bi-share me-2 text-secondary"></i>Share Partner
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button type="button" class="dropdown-item btn-copy-coupon-code" data-code="{{ $partner->coupon_code }}" @disabled(empty($partner->coupon_code))>
-                                            <i class="bi bi-ticket-perforated me-2 text-success"></i>Copy Coupon Code
-                                        </button>
-                                    </li>
-                                    @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.priority-up', $partner) }}">
-                                                @csrf
-                                                <button type="submit" class="dropdown-item"><i class="bi bi-arrow-up-circle me-2 text-secondary"></i>Priority Up</button>
-                                            </form>
-                                        </li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.priority-down', $partner) }}">
-                                                @csrf
-                                                <button type="submit" class="dropdown-item"><i class="bi bi-arrow-down-circle me-2 text-secondary"></i>Priority Down</button>
-                                            </form>
-                                        </li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.send-notification', $partner) }}" onsubmit="return confirm('Send manual push & database notification alert to all active users?')">
-                                                @csrf
-                                                <button type="submit" class="dropdown-item" @disabled(!$partner->is_active)><i class="bi bi-bell me-2 text-warning"></i>Send Notification</button>
-                                            </form>
-                                        </li>
-                                    @endif
-                                    @if(auth('admin')->user() && auth('admin')->user()->roles->pluck('key')->contains('global_admin'))
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li>
-                                            <form method="POST" action="{{ route('admin.brand-partners.destroy', $partner) }}" onsubmit="return confirm('Delete this brand partner permanently? This cannot be undone.')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash me-2 text-danger"></i>Delete Partner</button>
-                                            </form>
-                                        </li>
-                                    @endif
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="11" class="text-center py-5 text-muted">
-                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                            No brand partners found.
-                        </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-    
-    @if($partners->hasPages())
-        <div class="card-footer bg-white border-top py-3">
-            {{ $partners->links() }}
+            <button type="button" class="text-emerald-700 hover:text-emerald-900 border-0 bg-transparent cursor-pointer text-sm" onclick="this.parentElement.remove()">&times;</button>
         </div>
     @endif
-</div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Copy Public Link
-        document.querySelectorAll('.btn-copy-public-link').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const link = this.getAttribute('data-link');
-                navigator.clipboard.writeText(link).then(() => {
-                    alert('Public link copied to clipboard!');
-                }).catch(err => {
-                    console.error('Failed to copy: ', err);
-                });
-            });
-        });
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Brand Partners</h2>
+                <p class="text-xs t3 m-0 mt-0.5">Manage partner listings, offers, analytics, and featured spots.</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="{{ route('admin.brand-partners.dashboard') }}" class="px-3 py-1 text-xs font-semibold rounded-full border bs t2 hover:t1 hover:surface-2 transition no-underline">Dashboard</a>
+                <a href="{{ route('admin.brand-partners.categories.index') }}" class="px-3 py-1 text-xs font-semibold rounded-full border bs t2 hover:t1 hover:surface-2 transition no-underline">Categories</a>
+                <a href="{{ route('admin.brand-partners.offers') }}" class="px-3 py-1 text-xs font-semibold rounded-full border bs t2 hover:t1 hover:surface-2 transition no-underline">Offers</a>
+                @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
+                    <a href="{{ route('admin.brand-partners.create') }}" class="px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
+                        <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Add Partner
+                    </a>
+                @endif
+            </div>
+        </div>
 
-        // Copy Coupon Code
-        document.querySelectorAll('.btn-copy-coupon-code').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const code = this.getAttribute('data-code');
-                if (code) {
-                    navigator.clipboard.writeText(code).then(() => {
-                        alert('Coupon code "' + code + '" copied to clipboard!');
-                    }).catch(err => {
-                        console.error('Failed to copy code: ', err);
-                    });
-                }
-            });
-        });
+        <!-- KPI / Status Summary Cards Section -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <!-- Total Partners -->
+            <a href="{{ route('admin.brand-partners.index') }}" class="kpi-card no-underline {{ empty($status) && empty($featured) && empty($sponsored) && empty($hasOffer) ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-sm' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title">Total Partners</div>
+                    <div class="kpi-icon bg-indigo-50 text-indigo-600"><i class="bi bi-buildings"></i></div>
+                </div>
+                <div class="kpi-num text-indigo-600">{{ number_format($counts['total'] ?? 0) }}</div>
+                <div class="kpi-sub">All Brand Listings</div>
+            </a>
 
-        // Share Partner
-        document.querySelectorAll('.btn-share-partner').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const title = this.getAttribute('data-title');
-                const text = this.getAttribute('data-text');
-                const url = this.getAttribute('data-url');
+            <!-- Active Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['status' => 'active'])) }}" class="kpi-card no-underline {{ $status === 'active' ? 'border-emerald-500 ring-1 ring-emerald-500 shadow-sm bg-emerald-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-emerald-700">Active Partners</div>
+                    <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="bi bi-check-circle-fill"></i></div>
+                </div>
+                <div class="kpi-num text-emerald-600">{{ number_format($counts['active'] ?? 0) }}</div>
+                <div class="kpi-sub">Live &amp; Visible</div>
+            </a>
 
-                if (navigator.share) {
-                    navigator.share({
-                        title: title,
-                        text: text,
-                        url: url
-                    }).catch(err => console.log('Share cancelled or failed', err));
-                } else {
-                    const shareText = text + ' ' + url;
-                    navigator.clipboard.writeText(shareText).then(() => {
-                        alert('Share text and link copied to clipboard!');
-                    });
-                }
-            });
-        });
-    });
-</script>
+            <!-- Inactive Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['status' => 'inactive'])) }}" class="kpi-card no-underline {{ $status === 'inactive' ? 'border-rose-500 ring-1 ring-rose-500 shadow-sm bg-rose-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-rose-700">Inactive Partners</div>
+                    <div class="kpi-icon bg-rose-50 text-rose-600"><i class="bi bi-pause-circle-fill"></i></div>
+                </div>
+                <div class="kpi-num text-rose-600">{{ number_format($counts['inactive'] ?? 0) }}</div>
+                <div class="kpi-sub">Hidden / Inactive</div>
+            </a>
+
+            <!-- Featured Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['featured' => '1'])) }}" class="kpi-card no-underline {{ $featured === '1' ? 'border-amber-500 ring-1 ring-amber-500 shadow-sm bg-amber-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-amber-700">Featured</div>
+                    <div class="kpi-icon bg-amber-50 text-amber-600"><i class="bi bi-star-fill"></i></div>
+                </div>
+                <div class="kpi-num text-amber-600">{{ number_format($counts['featured'] ?? 0) }}</div>
+                <div class="kpi-sub">Highlighted Spots</div>
+            </a>
+
+            <!-- Sponsored Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['sponsored' => '1'])) }}" class="kpi-card no-underline {{ $sponsored === '1' ? 'border-purple-500 ring-1 ring-purple-500 shadow-sm bg-purple-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-purple-700">Sponsored</div>
+                    <div class="kpi-icon bg-purple-50 text-purple-600"><i class="bi bi-award-fill"></i></div>
+                </div>
+                <div class="kpi-num text-purple-600">{{ number_format($counts['sponsored'] ?? 0) }}</div>
+                <div class="kpi-sub">Priority Ads</div>
+            </a>
+
+            <!-- Active Offers -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['has_offer' => '1'])) }}" class="kpi-card no-underline {{ $hasOffer === '1' ? 'border-cyan-500 ring-1 ring-cyan-500 shadow-sm bg-cyan-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-cyan-700">Offers</div>
+                    <div class="kpi-icon bg-cyan-50 text-cyan-600"><i class="bi bi-gift-fill"></i></div>
+                </div>
+                <div class="kpi-num text-cyan-600">{{ number_format($counts['has_offer'] ?? 0) }}</div>
+                <div class="kpi-sub">Active Deals</div>
+            </a>
+        </div>
+
+        <!-- Filters & Search Card -->
+        <div class="p-3 rounded-lg border bs surface-2">
+            <form method="GET" action="{{ route('admin.brand-partners.index') }}" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                    <input type="text" name="q" value="{{ $search }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, slug, or offer..." onkeydown="if (event.key === 'Enter') this.form.submit()">
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Category</label>
+                    <select name="category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
+                        <option value="">All Categories</option>
+                        @foreach($categories as $category)
+                            <option value="{{ $category->id }}" @selected($categoryId == $category->id)>{{ $category->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
+                        <option value="">All Statuses</option>
+                        <option value="active" @selected($status === 'active')>Active</option>
+                        <option value="inactive" @selected($status === 'inactive')>Inactive</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Featured</label>
+                    <select name="featured" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
+                        <option value="">Any</option>
+                        <option value="1" @selected($featured === '1')>Yes</option>
+                        <option value="0" @selected($featured === '0')>No</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Sponsored</label>
+                    <select name="sponsored" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
+                        <option value="">Any</option>
+                        <option value="1" @selected($sponsored === '1')>Yes</option>
+                        <option value="0" @selected($sponsored === '0')>No</option>
+                    </select>
+                </div>
+                <div class="flex justify-end">
+                    <a href="{{ route('admin.brand-partners.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left w-14">Logo</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Brand Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Category</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Featured</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Sponsored</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Active Offer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Views</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Clicks</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse($partners as $partner)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5">
+                                    @if($partner->logo_url)
+                                        <img src="{{ $partner->logo_url }}" alt="{{ $partner->name }}" class="w-9 h-9 rounded-full object-cover border bs">
+                                    @else
+                                        <div class="w-9 h-9 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs">
+                                            {{ Str::upper(Str::substr($partner->name, 0, 2)) }}
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <div class="font-semibold t1">
+                                        <a href="{{ route('admin.brand-partners.show', $partner) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                            {{ $partner->name }}
+                                        </a>
+                                    </div>
+                                    <div class="t3 text-[11px]">/{{ $partner->slug }}</div>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if($partner->category)
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                            <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ $partner->category->color ?: '#6366f1' }}"></span>
+                                            <span>{{ $partner->category->name }}</span>
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border bg-slate-100 text-slate-700 border-slate-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                            <span>Uncategorized</span>
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center text-xs">
+                                    <form method="POST" action="{{ route('admin.brand-partners.toggle-featured', $partner) }}" class="inline">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="border-0 bg-transparent cursor-pointer p-1 rounded-full hover:bg-slate-100 transition" title="Toggle Featured">
+                                            <i class="bi {{ $partner->is_featured ? 'bi-star-fill text-amber-500' : 'bi-star text-slate-400' }} admin-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="px-3 py-2.5 text-center text-xs">
+                                    <form method="POST" action="{{ route('admin.brand-partners.toggle-sponsored', $partner) }}" class="inline">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="border-0 bg-transparent cursor-pointer p-1 rounded-full hover:bg-slate-100 transition" title="Toggle Sponsored">
+                                            <i class="bi {{ $partner->is_sponsored ? 'bi-award-fill text-indigo-500' : 'bi-circle text-slate-400' }} admin-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($partner->offer_title)
+                                        <div class="font-medium text-emerald-700">{{ $partner->offer_title }}</div>
+                                        @if($partner->coupon_code)
+                                            <code class="text-[10px] font-mono bg-gray-100 px-1.5 py-0.5 rounded border bs">{{ $partner->coupon_code }}</code>
+                                        @endif
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
+                                        <form method="POST" action="{{ route('admin.brand-partners.toggle-status', $partner) }}" class="inline">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="border-0 bg-transparent cursor-pointer p-0 text-left transition hover:scale-105" title="{{ $partner->is_active ? 'Click to deactivate' : 'Click to activate' }}">
+                                                @if($partner->is_active)
+                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition shadow-xs">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                        <span>Active</span>
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition shadow-xs">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                        <span>Inactive</span>
+                                                    </span>
+                                                @endif
+                                            </button>
+                                        </form>
+                                    @else
+                                        @if($partner->is_active)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                <span>Active</span>
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                <span>Inactive</span>
+                                            </span>
+                                        @endif
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ number_format($partner->views_count) }}</td>
+                                <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ number_format($partner->clicks_count) }}</td>
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <div class="flex justify-end gap-1.5 items-center">
+                                        <a href="{{ route('admin.brand-partners.show', $partner) }}" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition shadow-xs no-underline">
+                                            <i class="bi bi-eye text-[11px]" aria-hidden="true"></i>
+                                            <span>View</span>
+                                        </a>
+                                        @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
+                                            <a href="{{ route('admin.brand-partners.edit', $partner) }}" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs no-underline">
+                                                <i class="bi bi-pencil text-[11px]" aria-hidden="true"></i>
+                                                <span>Edit</span>
+                                            </a>
+                                            <form method="POST" action="{{ route('admin.brand-partners.toggle-status', $partner) }}" class="inline">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full border {{ $partner->is_active ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' }} transition shadow-xs cursor-pointer" title="{{ $partner->is_active ? 'Deactivate Brand Partner' : 'Activate Brand Partner' }}">
+                                                    <i class="bi {{ $partner->is_active ? 'bi-pause-circle' : 'bi-play-circle' }} text-[11px]"></i>
+                                                    <span>{{ $partner->is_active ? 'Deactivate' : 'Activate' }}</span>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="10" class="text-center py-8 text-xs t3">No brand partners found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $partners->links() }}
+            </div>
+        </div>
+    </div>
 @endsection
+

@@ -5,6 +5,7 @@ namespace App\Http\Requests\Impacts;
 use App\Models\Impact;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class StoreImpactRequest extends FormRequest
@@ -30,7 +31,7 @@ class StoreImpactRequest extends FormRequest
             'action' => ['required', 'string', Rule::in($actions)],
             'life_impacted' => ['nullable', 'integer', 'min:1', 'max:100'],
             'impacted_peer_id' => ['required', 'uuid', 'exists:users,id'],
-            'story_to_share' => ['required', 'string', 'max:5000'],
+            'story_to_share' => ['nullable', 'string', 'max:5000'],
             'additional_remarks' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -46,7 +47,7 @@ class StoreImpactRequest extends FormRequest
 
     protected function failedValidation(ValidatorContract $validator): void
     {
-        throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+        throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation failed.',
             'errors' => $validator->errors(),

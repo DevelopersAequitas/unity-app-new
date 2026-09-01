@@ -39,20 +39,20 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Theme Color</label>
-                        <div class="input-group input-group-sm">
-                            <input type="color" name="color" id="catColor" class="form-control form-control-color" style="max-width: 48px; height: 31px;" value="#4A90E2">
-                            <input type="text" id="catColorHex" class="form-control form-control-sm" placeholder="#4A90E2" maxlength="7">
+                        <label class="form-label text-xs font-semibold text-slate-700">Theme Color</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" name="color" id="catColor" class="form-control form-control-color p-1 rounded-3 border bs cursor-pointer" style="width: 44px; height: 38px; flex-shrink: 0;" value="#4A90E2">
+                            <input type="text" id="catColorHex" class="form-control form-control-sm text-xs font-mono" placeholder="#4A90E2" maxlength="7" value="#4A90E2" style="height: 38px;">
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Sort Order</label>
+                        <label class="form-label text-xs font-semibold text-slate-700">Sort Order</label>
                         <input type="number" name="sort_order" id="catSortOrder" class="form-control form-control-sm" min="0">
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Status</label>
+                        <label class="form-label text-xs font-semibold text-slate-700">Status</label>
                         <select name="status" id="catStatus" class="form-select form-select-sm" required>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
@@ -103,21 +103,30 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="text-center">
-                                    <code class="px-2 py-1 rounded small text-white border" style="background-color: {{ $category->color ?? '#666666' }}">{{ $category->color ?? '—' }}</code>
+                                <td class="text-center align-middle">
+                                    <div class="d-inline-flex align-items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border" style="background-color: {{ $category->color ?? '#64748b' }}18; color: {{ $category->color ?? '#64748b' }}; border-color: {{ $category->color ?? '#64748b' }}40;">
+                                        <span class="rounded-circle" style="width: 8px; height: 8px; background-color: {{ $category->color ?? '#64748b' }};"></span>
+                                        {{ strtoupper($category->color ?? '—') }}
+                                    </div>
                                 </td>
                                 <td>
-                                    <span class="badge {{ $category->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }} px-2 py-1">
-                                        {{ Str::headline($category->status) }}
-                                    </span>
+                                    @if($category->status === 'active')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Inactive
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-primary edit-category-btn" title="Edit"><i class="bi bi-pencil"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill edit-category-btn" title="Edit"><i class="bi bi-pencil"></i></button>
                                     @if(auth('admin')->user() && auth('admin')->user()->roles->pluck('key')->contains('global_admin'))
                                         <form method="POST" action="{{ route('admin.brand-partners.categories.destroy', $category) }}" class="d-inline" onsubmit="return confirm('Deleting this category will remove the category association from any connected brand partners. Proceed?')">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" title="Delete"><i class="bi bi-trash"></i></button>
                                         </form>
                                     @endif
                                 </td>

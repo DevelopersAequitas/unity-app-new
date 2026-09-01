@@ -9,8 +9,8 @@ use App\Mail\WebsiteFormConfirmationMail;
 use App\Models\BecomeMentorSubmission;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class BecomeMentorController extends BaseApiController
 {
@@ -18,12 +18,21 @@ class BecomeMentorController extends BaseApiController
     {
         $query = BecomeMentorSubmission::query();
 
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
         if ($search = trim((string) $request->query('search', ''))) {
             $query->where(function ($subQuery) use ($search) {
-                $subQuery->where('first_name', 'ilike', '%' . $search . '%')
-                    ->orWhere('last_name', 'ilike', '%' . $search . '%')
-                    ->orWhere('email', 'ilike', '%' . $search . '%')
-                    ->orWhere('city', 'ilike', '%' . $search . '%');
+                $subQuery->where('first_name', 'ilike', '%'.$search.'%')
+                    ->orWhere('last_name', 'ilike', '%'.$search.'%')
+                    ->orWhere('email', 'ilike', '%'.$search.'%')
+                    ->orWhere('city', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -55,9 +64,20 @@ class BecomeMentorController extends BaseApiController
         ]);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $submission = BecomeMentorSubmission::find($id);
+        $query = BecomeMentorSubmission::where('id', $id);
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
+        $submission = $query->first();
 
         if (! $submission) {
             return response()->json([
@@ -111,13 +131,13 @@ class BecomeMentorController extends BaseApiController
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'city' => $data['city'],
-                'linkedin_profile' => $data['linkedin_profile'],
+                'linkedin_profile' => $data['linkedin_profile'] ?? null,
                 'status' => 'new',
             ]);
 
             $this->sendConfirmationEmail(
                 email: $submission->email,
-                recipientName: trim($submission->first_name . ' ' . $submission->last_name) ?: $submission->first_name,
+                recipientName: trim($submission->first_name.' '.$submission->last_name) ?: $submission->first_name,
                 subject: 'Your Mentor Application Has Been Received',
                 formTitle: 'Become a Mentor',
                 confirmationMessage: 'We have successfully received your “Become a Mentor” form submission on Peers Global. Our team will review your details and connect with you soon.',

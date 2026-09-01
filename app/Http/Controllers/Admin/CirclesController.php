@@ -24,11 +24,11 @@ class CirclesController extends Controller
             $query->where('name', 'ILIKE', "%{$search}%");
         }
 
-        if (!empty($status)) {
+        if (! empty($status)) {
             $query->where('status', $status);
         }
 
-        if (!empty($cityId)) {
+        if (! empty($cityId)) {
             $query->where('city_id', $cityId);
         }
 

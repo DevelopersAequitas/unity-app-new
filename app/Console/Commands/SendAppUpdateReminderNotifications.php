@@ -3,9 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\AppVersion;
-use App\Models\Notification;
-use App\Models\UserPushToken;
-use App\Services\Firebase\FcmService;
+use App\Models\UserMobileVersion;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -14,170 +13,93 @@ class SendAppUpdateReminderNotifications extends Command
 {
     protected $signature = 'app:update-reminder-notifications';
 
-    protected $description = 'Send app update reminder push notifications to users with outdated installed app versions.';
+    protected $description = 'Send app update reminder push notifications to users with outdated installed app versions in user_mobile_versions.';
 
-    public function handle(FcmService $fcmService): int
+    public function handle(NotificationService $notificationService): int
     {
         Log::info('App update reminder command started');
         $this->info('App update reminder command started.');
 
-        $version = $this->latestVersionConfig();
+        // 1. Fetch platform configurations
+        $androidConfig = AppVersion::where('platform', 'android')->where('is_active', true)->first();
+        $iosConfig = AppVersion::where('platform', 'ios')->where('is_active', true)->first();
 
-        if (! $version) {
-            Log::warning('App update reminder skipped because no active app version was found.');
-            $this->warn('No active app version found.');
+        if (! $androidConfig && ! $iosConfig) {
+            Log::warning('App update reminder skipped because no active app version configuration was found.');
+            $this->warn('No active configurations found.');
 
             return self::SUCCESS;
         }
 
-        $latestVersion = (string) $version['latest_version'];
-        $minVersion = (string) $version['min_version'];
-        $updateType = (string) $version['update_type'];
-        $playStoreUrl = (string) config('app_links.android.store_url', '');
-        $appStoreUrl = (string) config('app_links.ios.store_url', '');
+        $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share';
+        $appStoreUrl = 'https://apps.apple.com/in/app/peers-global-unity/id6739198477';
 
-        Log::info('Latest app version found for update reminders', [
-            'latest_version' => $latestVersion,
-            'min_version' => $minVersion,
-            'update_type' => $updateType,
-        ]);
-
-        $outdatedTokens = UserPushToken::query()
-            ->with('user')
-            ->whereNotNull('token')
-            ->where('token', '!=', '')
-            ->whereNotNull('app_version')
-            ->where('app_version', '!=', '')
-            ->get()
-            ->filter(fn (UserPushToken $pushToken): bool => version_compare((string) $pushToken->app_version, $latestVersion, '<'));
-
-        Log::info('Total eligible app update reminder tokens found', [
-            'eligible_tokens' => $outdatedTokens->count(),
-        ]);
+        // 2. Fetch all mobile versions with users
+        $userVersions = UserMobileVersion::with('user')->get();
 
         $sentCount = 0;
         $failedCount = 0;
-        $recentlySkippedCount = 0;
-        $missingUserSkippedCount = 0;
-        $cutoff = now()->subHours(14);
-        $isForceUpdate = in_array(strtolower($updateType), ['force', 'mandatory', 'forced'], true);
-        $title = $isForceUpdate ? 'Important App Update Required' : 'Update Available 🚀';
-        $body = $isForceUpdate
-            ? 'Please update Peers Global Unity to continue using the latest features safely.'
-            : 'A newer Peers Global Unity app is ready. Update now for smoother networking and latest improvements.';
+        $skippedCount = 0;
 
-        foreach ($outdatedTokens as $pushToken) {
-            if (! $pushToken->user) {
-                $missingUserSkippedCount++;
+        foreach ($userVersions as $record) {
+            if (! $record->user) {
                 continue;
             }
 
-            if ($pushToken->last_update_notification_sent_at?->greaterThan($cutoff)) {
-                $recentlySkippedCount++;
+            $config = strtolower($record->platform) === 'ios' ? $iosConfig : $androidConfig;
+            if (! $config || ! $config->is_active) {
                 continue;
             }
 
-            $data = [
-                'type' => 'app_update',
-                'notification_type' => 'app_update',
-                'latest_version' => $latestVersion,
-                'min_version' => $minVersion,
-                'update_type' => $updateType,
-                'playstore_url' => $playStoreUrl,
-                'appstore_url' => $appStoreUrl,
-            ];
+            // Compare version
+            if (version_compare($record->app_version, $config->latest_version, '<')) {
+                $isForce = in_array(strtolower((string) $config->update_type), ['force', 'forced', 'mandatory'], true)
+                    || version_compare($record->app_version, $config->min_version, '<');
 
-            try {
-                $fcmService->sendToDevice(
-                    (string) $pushToken->token,
-                    $title,
-                    $body,
-                    $data,
-                    null,
-                    1,
-                    [
-                        'user_id' => (string) $pushToken->user_id,
-                        'device_id' => $pushToken->device_id,
-                        'platform' => $pushToken->platform,
-                        'notification_type' => 'app_update',
-                    ],
-                );
+                $title = $isForce ? 'Important App Update Required' : 'New Version Available 🚀';
+                $body = $isForce
+                    ? 'Please update Peers Global Unity to continue using the latest features safely.'
+                    : 'A newer Peers Global Unity app is ready. Update now for smoother networking and latest improvements.';
 
-                Notification::create([
-                    'user_id' => $pushToken->user_id,
+                $data = [
                     'type' => 'app_update',
-                    'payload' => [
-                        'notification_type' => 'app_update',
-                        'title' => $title,
-                        'body' => $body,
-                        'to_user_id' => (string) $pushToken->user_id,
-                        'data' => $data,
-                    ],
-                    'is_read' => false,
-                    'created_at' => now(),
-                    'read_at' => null,
-                ]);
+                    'notification_type' => 'app_update',
+                    'latest_version' => $config->latest_version,
+                    'min_version' => $config->min_version,
+                    'update_type' => $config->update_type,
+                    'playstore_url' => $playStoreUrl,
+                    'appstore_url' => $appStoreUrl,
+                ];
 
-                $pushToken->forceFill([
-                    'last_update_notification_sent_at' => now(),
-                ])->save();
+                try {
+                    $result = $notificationService->sendToUser($record->user, 'app_update', $title, $body, $data, [
+                        'channel' => 'push',
+                        'bypass_daily_limit' => true,
+                    ]);
 
-                $sentCount++;
-            } catch (Throwable $exception) {
-                $failedCount++;
-
-                Log::error('App update reminder failed for token', [
-                    'user_id' => (string) $pushToken->user_id,
-                    'token_prefix' => substr((string) $pushToken->token, 0, 12) . '...',
-                    'error' => $exception->getMessage(),
-                ]);
-
-                report($exception);
+                    if ($result) {
+                        $sentCount++;
+                    } else {
+                        $skippedCount++;
+                    }
+                } catch (Throwable $exception) {
+                    $failedCount++;
+                    Log::error('App update reminder notification failed', [
+                        'user_id' => (string) $record->user_id,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
             }
         }
 
         Log::info('App update reminder command finished', [
-            'eligible_tokens' => $outdatedTokens->count(),
-            'skipped_recent_notification' => $recentlySkippedCount,
-            'skipped_missing_user' => $missingUserSkippedCount,
             'sent_count' => $sentCount,
             'failed_count' => $failedCount,
+            'skipped_count' => $skippedCount,
         ]);
 
-        $this->info(sprintf(
-            'Done. Eligible: %d, sent: %d, failed: %d, skipped recent: %d, skipped missing user: %d.',
-            $outdatedTokens->count(),
-            $sentCount,
-            $failedCount,
-            $recentlySkippedCount,
-            $missingUserSkippedCount,
-        ));
+        $this->info(sprintf('Done. Sent: %d, Failed: %d, Skipped: %d.', $sentCount, $failedCount, $skippedCount));
 
         return $failedCount > 0 ? self::FAILURE : self::SUCCESS;
-    }
-
-    private function latestVersionConfig(): ?array
-    {
-        $version = AppVersion::query()
-            ->where('platform', 'android')
-            ->where('is_active', true)
-            ->first();
-
-        if (! $version) {
-            $version = AppVersion::query()
-                ->where('platform', 'ios')
-                ->where('is_active', true)
-                ->first();
-        }
-
-        if (! $version) {
-            return null;
-        }
-
-        return [
-            'latest_version' => $version->latest_version,
-            'min_version' => $version->min_version,
-            'update_type' => $version->update_type,
-        ];
     }
 }

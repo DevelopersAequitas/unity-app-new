@@ -12,6 +12,7 @@ use App\Models\CircleChatMessage;
 use App\Models\CircleChatMessageRead;
 use App\Models\CircleMember;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -24,8 +25,7 @@ class CircleChatService
 {
     public function __construct(
         private readonly CircleChatAccessService $accessService,
-    ) {
-    }
+    ) {}
 
     public function getMessages(User $user, Circle $circle, int $perPage = 20, ?string $beforeMessageId = null): LengthAwarePaginator
     {
@@ -145,7 +145,7 @@ class CircleChatService
 
         broadcast(new CircleChatMessagesRead($circle->id, $missingIds, [
             'id' => (string) $user->id,
-            'name' => trim((string) ($user->display_name ?: $user->first_name . ' ' . $user->last_name)),
+            'name' => trim((string) ($user->display_name ?: $user->first_name.' '.$user->last_name)),
         ]))->toOthers();
 
         return count($missingIds);
@@ -171,7 +171,7 @@ class CircleChatService
             'readers' => $reads->map(function (CircleChatMessageRead $read): array {
                 return [
                     'id' => (string) $read->user_id,
-                    'name' => trim((string) (($read->user->display_name ?? '') ?: (($read->user->first_name ?? '') . ' ' . ($read->user->last_name ?? '')))),
+                    'name' => trim((string) (($read->user->display_name ?? '') ?: (($read->user->first_name ?? '').' '.($read->user->last_name ?? '')))),
                     'company_name' => $read->user->company_name,
                     'profile_photo_url' => $read->user->profile_photo_url,
                     'read_at' => $read->read_at,
@@ -224,9 +224,9 @@ class CircleChatService
     private function storeAttachment(UploadedFile $file): array
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/circle-chat/' . now()->format('Y/m/d');
+        $folder = 'uploads/circle-chat/'.now()->format('Y/m/d');
         $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName()) ?: 'attachment';
-        $storedPath = $file->storeAs($folder, (string) Str::uuid() . '_' . $safeName, $disk);
+        $storedPath = $file->storeAs($folder, (string) Str::uuid().'_'.$safeName, $disk);
 
         return [
             'file_path' => $storedPath,
@@ -250,7 +250,7 @@ class CircleChatService
             return;
         }
 
-        $senderName = trim((string) ($sender->display_name ?: $sender->first_name . ' ' . $sender->last_name));
+        $senderName = trim((string) ($sender->display_name ?: $sender->first_name.' '.$sender->last_name));
         $preview = $message->message_type === 'text'
             ? Str::limit((string) $message->message_text, 100)
             : ($message->message_type === 'image' ? '📷 Image' : '🎬 Video');
@@ -262,8 +262,8 @@ class CircleChatService
                 'user_id' => $recipientId,
                 'type' => 'new_message',
                 'payload' => [
-                    'title' => 'New message in ' . $circle->name,
-                    'body' => $senderName . ': ' . $preview,
+                    'title' => 'New message in '.$circle->name,
+                    'body' => $senderName.': '.$preview,
                     'type' => 'circle_chat_message',
                     'circle_id' => (string) $circle->id,
                     'circle_name' => $circle->name,
@@ -279,6 +279,36 @@ class CircleChatService
                 'created_at' => now(),
                 'read_at' => null,
             ]);
+
+            try {
+                AppNotification::create([
+                    'user_id' => $recipientId,
+                    'type' => 'new_message',
+                    'category' => 'chat',
+                    'title' => 'New message in '.$circle->name,
+                    'body' => $senderName.': '.$preview,
+                    'message' => $senderName.': '.$preview,
+                    'channel' => 'push',
+                    'priority' => 'medium',
+                    'reference_type' => Circle::class,
+                    'reference_id' => (string) $circle->id,
+                    'screen' => 'circle_chat',
+                    'data' => [
+                        'notification_id' => (string) $notification->id,
+                        'circle_id' => (string) $circle->id,
+                        'message_id' => (string) $message->id,
+                        'sender_id' => (string) $sender->id,
+                        'type' => 'new_message',
+                    ],
+                    'status' => 'pending',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed to create AppNotification in CircleChatService', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             event(new UserNotificationCreated((string) $recipientId, [
                 'id' => (string) $notification->id,

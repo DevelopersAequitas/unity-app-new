@@ -11,7 +11,9 @@ class State extends Model
     use HasUuids;
 
     protected $table = 'states';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Ad extends Model
@@ -28,7 +28,10 @@ class Ad extends Model
         'image_path',
         'redirect_url',
         'button_text',
+        'placement',
         'page_name',
+        'timeline_position',
+        'sort_order',
         'is_active',
         'starts_at',
         'ends_at',
@@ -76,11 +79,7 @@ class Ad extends Model
             return $path;
         }
 
-        if (! Storage::disk('public')->exists($path)) {
-            return null;
-        }
-
-        return Storage::disk('public')->url($path);
+        return url('/api/v1/files/'.ltrim($path, '/'));
     }
 
     public function setImagePathAttribute($value): void
@@ -112,5 +111,15 @@ class Ad extends Model
         }
 
         return $path;
+    }
+
+    public function views(): HasMany
+    {
+        return $this->hasMany(AdView::class, 'ad_id');
+    }
+
+    public function clicks(): HasMany
+    {
+        return $this->hasMany(AdClick::class, 'ad_id');
     }
 }

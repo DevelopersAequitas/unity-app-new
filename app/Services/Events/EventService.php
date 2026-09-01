@@ -2,6 +2,7 @@
 
 namespace App\Services\Events;
 
+use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventOccurrence;
@@ -12,8 +13,8 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class EventService
@@ -52,12 +53,17 @@ class EventService
             $this->syncEventCircles($event, $circleIds);
             $this->occurrenceGenerator->generate($event);
 
-            return $event->load(['circle', 'circles', 'occurrences']);
+            $relations = ['circle', 'occurrences'];
+            if (Schema::hasTable('event_circles')) {
+                $relations[] = 'circles';
+            }
+
+            return $event->load($relations);
         });
 
         // afterResponse() runs the job immediately after the HTTP response is sent.
         // This means: no queue worker needed, no blocking the API response.
-        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return $event;
     }
@@ -71,7 +77,12 @@ class EventService
             $this->syncEventCircles($event, $circleIds);
             $this->occurrenceGenerator->regenerateFuture($event);
 
-            return $event->load(['circle', 'circles', 'occurrences']);
+            $relations = ['circle', 'occurrences'];
+            if (Schema::hasTable('event_circles')) {
+                $relations[] = 'circles';
+            }
+
+            return $event->load($relations);
         });
     }
 
@@ -86,8 +97,14 @@ class EventService
 
         $totalEventsBeforeFilters = Event::query()->count();
 
+        $withRelations = ['event.circle'];
+        if (Schema::hasTable('event_circles')) {
+            $withRelations[] = 'event.circles.cityRef';
+        }
+        $withRelations['registrations'] = fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0');
+
         $query = EventOccurrence::query()
-            ->with(['event.circle', 'event.circles.cityRef', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
+            ->with($withRelations)
             ->withCount([
                 'registrations as registered_count' => fn ($q) => $q
                     ->whereNull('deleted_at')
@@ -104,7 +121,12 @@ class EventService
             ])
             ->whereHas('event', function (Builder $eventQuery) use ($filters, $eventType, $search, $user): void {
                 $this->applyEventTypeFilter($eventQuery, $eventType)
-                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void { $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v)); }))
+                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void {
+                        $circleQuery->where('circle_id', $v);
+                        if (Schema::hasTable('event_circles')) {
+                            $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                        }
+                    }))
                     ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
                     ->when($search, function ($q, $v): void {
                         $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -119,13 +141,31 @@ class EventService
         $this->applyOccurrenceStatusFilter($query, $status, $timezone);
         $totalAfterStatusFilters = (clone $query)->count();
 
-        if (! $this->statusFilterControlsDateWindow($status) && ($filters['upcoming'] ?? null) === 'true') {
-            $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
+        if (! $this->statusFilterControlsDateWindow($status)) {
+            if (isset($filters['from_date']) || isset($filters['to_date'])) {
+                $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
+                    ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+            } else {
+                $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
+            }
         }
 
-        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
-            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
         $totalAfterDateFilters = (clone $query)->count();
+
+        if (! ($filters['all_occurrences'] ?? false)) {
+            $earliestOccurrenceIds = (clone $query)
+                ->orderBy('start_at', 'asc')
+                ->get(['id', 'event_id', 'start_at'])
+                ->groupBy('event_id')
+                ->map(fn ($occurrences) => $occurrences->first()->id)
+                ->values();
+
+            if ($earliestOccurrenceIds->isNotEmpty()) {
+                $query->whereIn('id', $earliestOccurrenceIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
 
         if (app()->environment(['local', 'staging'])) {
             Log::info('Events API user', [
@@ -153,6 +193,87 @@ class EventService
         return $query->orderBy('start_at')->paginate($perPage);
     }
 
+    public function listPastOccurrences(string $circleId, ?User $user = null, int $perPage = 10): LengthAwarePaginator
+    {
+        $timezone = config('app.timezone') ?: 'UTC';
+        $now = Carbon::now($timezone);
+
+        $this->ensureMissingOneTimeOccurrencesForCircle($circleId, $timezone);
+
+        $withRelations = ['event.circle'];
+        if (Schema::hasTable('event_circles')) {
+            $withRelations[] = 'event.circles.cityRef';
+        }
+        $withRelations['registrations'] = fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0');
+
+        $query = EventOccurrence::query()
+            ->with($withRelations)
+            ->withCount([
+                'registrations as registered_count' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where(function ($countQuery): void {
+                        $countQuery->where('status', 'registered')
+                            ->orWhere('payment_status', 'paid')
+                            ->orWhere(function ($inner): void {
+                                $inner->where('payment_required', false)->where('status', '!=', 'cancelled');
+                            });
+                    }),
+                'registrations as checked_in_count' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where('checkin_status', 'checked_in'),
+            ])
+            ->whereHas('event', function (Builder $eventQuery) use ($circleId, $user): void {
+                $eventQuery->where(function ($circleQuery) use ($circleId): void {
+                    $circleQuery->where('circle_id', $circleId);
+                    if (Schema::hasTable('event_circles')) {
+                        $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
+                    }
+                });
+
+                $this->applyValidEventStatusScope($eventQuery);
+                $this->applyEventVisibilityScope($eventQuery, $user);
+            });
+
+        $this->applyValidOccurrenceStatusScope($query);
+
+        $query->where(function (Builder $q) use ($now): void {
+            $q->where(function (Builder $sub) use ($now): void {
+                $sub->whereNotNull('end_at')->where('end_at', '<', $now);
+            })->orWhere(function (Builder $sub) use ($now): void {
+                $sub->whereNull('end_at')->whereNotNull('start_at')->where('start_at', '<', $now);
+            })->orWhere(function (Builder $sub) use ($now): void {
+                $sub->whereNull('end_at')->whereNull('start_at')
+                    ->whereHas('event', function (Builder $eq) use ($now): void {
+                        $eq->where(function (Builder $eventSub) use ($now): void {
+                            $eventSub->whereNotNull('end_at')->where('end_at', '<', $now);
+                        })->orWhere(function (Builder $eventSub) use ($now): void {
+                            $eventSub->whereNull('end_at')->where('start_at', '<', $now);
+                        });
+                    });
+            });
+        });
+
+        return $query->orderBy(DB::raw('COALESCE(end_at, start_at)'), 'desc')->paginate($perPage);
+    }
+
+    private function ensureMissingOneTimeOccurrencesForCircle(string $circleId, string $timezone): void
+    {
+        $eventQuery = Event::query()
+            ->whereDoesntHave('occurrences')
+            ->where(function ($circleQuery) use ($circleId): void {
+                $circleQuery->where('circle_id', $circleId);
+                if (Schema::hasTable('event_circles')) {
+                    $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
+                }
+            })
+            ->where(function (Builder $recurrenceQuery): void {
+                $recurrenceQuery->whereNull('recurrence_type')->orWhere('recurrence_type', 'none');
+            });
+
+        $this->applyValidEventStatusScope($eventQuery);
+
+        $eventQuery->limit(100)->get()->each(fn (Event $event) => $this->occurrenceGenerator->generate($event));
+    }
 
     private function applyEventTypeFilter(Builder $query, ?string $eventType): Builder
     {
@@ -216,7 +337,12 @@ class EventService
         $search = $filters['search'] ?? $filters['title'] ?? null;
 
         $this->applyEventTypeFilter($eventQuery, $eventType)
-            ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void { $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v)); }))
+            ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void {
+                $circleQuery->where('circle_id', $v);
+                if (Schema::hasTable('event_circles')) {
+                    $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                }
+            }))
             ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
             ->when($search, function ($q, $v): void {
                 $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -560,10 +686,9 @@ class EventService
             'invoice_sync_status' => $registration->zoho_invoice_id ? 'synced' : ($registration->zoho_invoice_sync_error ? 'failed' : 'pending'),
             'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
             'qr_status' => empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated',
-            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
+            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration),
         ];
     }
-
 
     private function invitedByUserPayload(?User $user): ?array
     {
@@ -586,6 +711,7 @@ class EventService
     {
         if (is_string($metadata)) {
             $decoded = json_decode($metadata, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -600,6 +726,7 @@ class EventService
     {
         if (is_string($rows)) {
             $decoded = json_decode($rows, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -643,16 +770,52 @@ class EventService
         if ($actor && empty($data['organizer_user_id'])) {
             $data['organizer_user_id'] = $actor->id;
         }
+        $hasLocationInput = array_key_exists('venue_name', $data)
+            || array_key_exists('address_line', $data)
+            || array_key_exists('city', $data)
+            || array_key_exists('state', $data)
+            || array_key_exists('google_maps_url', $data);
+
         $hasMetadataInput = array_key_exists('metadata', $data)
             || ! empty($data['zoho_form_url'])
             || array_key_exists('what_youll_gain', $data)
             || array_key_exists('organizer_name', $data)
             || array_key_exists('organizer_phone', $data)
             || array_key_exists('organizer_email', $data)
-            || array_key_exists('organizer_website', $data);
+            || array_key_exists('organizer_website', $data)
+            || $hasLocationInput;
 
         if ($hasMetadataInput) {
             $metadata = $this->normalizeMetadata($data['metadata'] ?? []);
+            if ($hasLocationInput) {
+                $locationMeta = [
+                    'venue_name' => filled($data['venue_name'] ?? null) ? trim((string) $data['venue_name']) : null,
+                    'address_line' => filled($data['address_line'] ?? null) ? trim((string) $data['address_line']) : null,
+                    'city' => filled($data['city'] ?? null) ? trim((string) $data['city']) : null,
+                    'state' => filled($data['state'] ?? null) ? trim((string) $data['state']) : null,
+                    'google_maps_url' => filled($data['google_maps_url'] ?? null) ? trim((string) $data['google_maps_url']) : null,
+                ];
+
+                foreach ($locationMeta as $key => $val) {
+                    if (array_key_exists($key, $data)) {
+                        if ($val !== null) {
+                            $metadata[$key] = $val;
+                        } else {
+                            unset($metadata[$key]);
+                        }
+                    }
+                }
+
+                $locationParts = array_values(array_unique(array_filter([
+                    $metadata['venue_name'] ?? null,
+                    $metadata['address_line'] ?? null,
+                    $metadata['city'] ?? null,
+                    $metadata['state'] ?? null,
+                ], fn ($val) => filled($val))));
+
+                $data['location_text'] = $locationParts ? implode(', ', $locationParts) : null;
+                unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url']);
+            }
             if (! empty($data['zoho_form_url'])) {
                 $metadata['zoho_form_url'] = $data['zoho_form_url'];
             }
@@ -694,6 +857,37 @@ class EventService
             $data['member_registration_enabled'] = $data['member_registration_enabled'] ?? true;
         }
 
+        $recurrenceType = $data['recurrence_type'] ?? null;
+        if ($recurrenceType === 'none') {
+            $data['recurrence_interval'] = null;
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_week'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+            $data['recurrence_ends_at'] = null;
+        } elseif ($recurrenceType === 'weekly') {
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+        } elseif ($recurrenceType === 'monthly') {
+            $data['recurrence_month'] = null;
+            if (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'fixed') {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+                if (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
+            } elseif (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'weekday') {
+                $data['recurrence_day_of_month'] = null;
+            } else {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+                if (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
+            }
+        }
+
         if (array_key_exists('event_type', $data)) {
             $data['event_type'] = $this->normalizeEventType($data['event_type']);
         }
@@ -701,7 +895,7 @@ class EventService
             $data['circle_id'] = $data['circle_ids'][0];
         }
 
-        unset($data['circle_ids']);
+        unset($data['circle_ids'], $data['monthly_pattern']);
 
         return $data;
     }
@@ -732,6 +926,7 @@ class EventService
 
         if ($circleIds === []) {
             DB::table('event_circles')->where('event_id', $event->id)->delete();
+
             return;
         }
 
@@ -745,4 +940,3 @@ class EventService
         }
     }
 }
-

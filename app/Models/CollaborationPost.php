@@ -19,10 +19,13 @@ class CollaborationPost extends Model
     public $incrementing = false;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_EXPIRED = 'expired';
+
     public const STATUS_DELETED = 'deleted';
 
     public const COMPLETION_INCOMPLETE = 'incomplete';
+
     public const COMPLETION_COMPLETED = 'completed';
 
     protected $fillable = [

@@ -24,6 +24,8 @@ class ConnectionResource extends JsonResource
                 'profile_photo_url' => $this->requester?->profile_photo_url,
                 'company_name' => $this->requester?->company_name,
                 'city' => $this->resolveCity($this->requester),
+                'category' => $this->requester?->level4Category?->name ?? null,
+                'designation' => $this->requester?->designation ?? null,
             ],
             'addressee' => [
                 'id' => $this->addressee?->id,
@@ -33,6 +35,8 @@ class ConnectionResource extends JsonResource
                 'profile_photo_url' => $this->addressee?->profile_photo_url,
                 'company_name' => $this->addressee?->company_name,
                 'city' => $this->resolveCity($this->addressee),
+                'category' => $this->addressee?->level4Category?->name ?? null,
+                'designation' => $this->addressee?->designation ?? null,
             ],
         ];
     }

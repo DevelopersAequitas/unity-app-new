@@ -4,21 +4,21 @@ return [
     'activities' => [
         'attend_circle_meeting' => [
             'label' => 'Attend Circle Meeting',
-            'coins' => 10,
+            'coins' => 1000,
             'fields' => [
                 ['key' => 'meeting_date', 'label' => 'Meeting Date', 'type' => 'date', 'required' => true],
             ],
         ],
         'vyapaarjagat_story' => [
             'label' => 'VyapaarJagat Story',
-            'coins' => 20,
+            'coins' => 2000,
             'fields' => [
                 ['key' => 'story_url', 'label' => 'Story URL', 'type' => 'url', 'required' => true],
             ],
         ],
         'host_member_spotlight' => [
             'label' => 'Host Member Spotlight',
-            'coins' => 15,
+            'coins' => 1500,
             'fields' => [
                 ['key' => 'member_name', 'label' => 'Member Name', 'type' => 'text', 'required' => true],
                 ['key' => 'spotlight_date', 'label' => 'Spotlight Date', 'type' => 'date', 'required' => true],
@@ -27,21 +27,21 @@ return [
         ],
         'bring_speaker' => [
             'label' => 'Bring Speaker',
-            'coins' => 15,
+            'coins' => 1500,
             'fields' => [
                 ['key' => 'speaker_name', 'label' => 'Speaker Name', 'type' => 'text', 'required' => true],
             ],
         ],
         'join_circle' => [
             'label' => 'Join Circle',
-            'coins' => 10,
+            'coins' => 1000,
             'fields' => [
                 ['key' => 'circle_name', 'label' => 'Circle Name', 'type' => 'text', 'required' => true],
             ],
         ],
         'renew_membership' => [
             'label' => 'Renew Membership',
-            'coins' => 25,
+            'coins' => 2500,
             'fields' => [
                 ['key' => 'renewal_date', 'label' => 'Renewal Date', 'type' => 'date', 'required' => true],
                 ['key' => 'payment_proof_file', 'label' => 'Payment Proof', 'type' => 'file', 'required' => true],
@@ -49,7 +49,7 @@ return [
         ],
         'invite_visitor' => [
             'label' => 'Invite Visitor',
-            'coins' => 10,
+            'coins' => 1000,
             'fields' => [
                 ['key' => 'visitor_name', 'label' => 'Visitor Name', 'type' => 'text', 'required' => true],
                 ['key' => 'visitor_mobile', 'label' => 'Visitor Mobile', 'type' => 'phone', 'required' => true],
@@ -60,7 +60,7 @@ return [
         ],
         'new_member_addition' => [
             'label' => 'New Member Addition',
-            'coins' => 50,
+            'coins' => 5000,
             'fields' => [
                 ['key' => 'new_member_name', 'label' => 'New Member Name', 'type' => 'text', 'required' => true],
                 ['key' => 'new_member_mobile', 'label' => 'New Member Mobile', 'type' => 'phone', 'required' => true],

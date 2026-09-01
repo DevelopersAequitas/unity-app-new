@@ -13,13 +13,11 @@ class CollaborationCompletedMail extends Mailable
     use Queueable;
     use SerializesModels;
 
-    public function __construct(public CollaborationPost $collaboration, public User $recipient)
-    {
-    }
+    public function __construct(public CollaborationPost $collaboration, public User $recipient) {}
 
     public function build(): self
     {
-        return $this->subject('Collaboration completed: ' . $this->collaboration->title)
+        return $this->subject('Collaboration completed: '.$this->collaboration->title)
             ->view('emails.collaborations.completed');
     }
 }

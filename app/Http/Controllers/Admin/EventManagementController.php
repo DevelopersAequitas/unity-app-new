@@ -1,27 +1,35 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\Circle;
 use App\Models\Event;
+use App\Models\EventOccurrence;
+use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
-use App\Models\EventQrScanLog;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventRegistrationQrService;
+use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Services\Notifications\EventRegistrationWhatsappService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -39,6 +47,7 @@ class EventManagementController extends Controller
     {
         $query = Event::query()
             ->with(['circle', 'circles'])
+            ->withCount(['occurrences'])
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')])
             ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')])
             ->when($request->event_type, fn ($q, $v) => $q->where('event_type', $v))
@@ -48,22 +57,144 @@ class EventManagementController extends Controller
             ->when($request->date_to, fn ($q, $v) => $q->where('start_at', '<=', $v))
             ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'));
 
-        AdminCircleScope::applyToEventsQuery($query, Auth::guard('admin')->user());
+        $admin = Auth::guard('admin')->user();
+        AdminCircleScope::applyToEventsQuery($query, $admin);
 
         $events = $query
             ->latest('start_at')
             ->paginate(20)
             ->withQueryString();
 
-        return view('admin.events.index', ['events' => $events, 'circles' => Circle::query()->orderBy('name')->get(['id', 'name'])]);
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
+        $circles = $circlesQuery->get(['id', 'name']);
+
+        return view('admin.events.index', ['events' => $events, 'circles' => $circles]);
     }
 
+    public function totalAttendance(Request $request): View
+    {
+        $admin = Auth::guard('admin')->user();
+        $query = EventRegistration::query()
+            ->with(['event.circle', 'occurrence', 'user'])
+            ->whereHas('event', function ($eq) use ($admin) {
+                AdminCircleScope::applyToEventsQuery($eq, $admin);
+            })
+            ->where(function ($q): void {
+                $q->where('checkin_status', 'checked_in')
+                    ->orWhereNotNull('checked_in_at');
+            })
+            ->where('status', '!=', 'cancelled')
+            ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
+            ->when($request->circle_id, fn ($q, $v) => $q->whereHas('event', fn ($eq) => $eq->where('circle_id', $v)))
+            ->when($request->date_from, fn ($q, $v) => $q->whereDate('checked_in_at', '>=', $v))
+            ->when($request->date_to, fn ($q, $v) => $q->whereDate('checked_in_at', '<=', $v))
+            ->when($request->type, function ($q, $type): void {
+                if ($type === 'member') {
+                    $q->whereNotNull('user_id');
+                } elseif ($type === 'visitor') {
+                    $q->whereNull('user_id');
+                }
+            })
+            ->when($request->search, function ($q, $term): void {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
+                $q->where(function ($inner) use ($like): void {
+                    $inner->where('visitor_name', 'ilike', $like)
+                        ->orWhere('visitor_email', 'ilike', $like)
+                        ->orWhere('visitor_phone', 'ilike', $like)
+                        ->orWhereHas('user', function ($uq) use ($like): void {
+                            $uq->where('display_name', 'ilike', $like)
+                                ->orWhere('email', 'ilike', $like)
+                                ->orWhere('first_name', 'ilike', $like)
+                                ->orWhere('last_name', 'ilike', $like);
+                        })
+                        ->orWhereHas('event', fn ($eq) => $eq->where('title', 'ilike', $like));
+                });
+            });
+
+        $query->whereHas('event', function ($eq) use ($admin): void {
+            AdminCircleScope::applyToEventsQuery($eq, $admin);
+        });
+
+        $summary = [
+            'total_attendance' => (clone $query)->count(),
+            'checked_in_today' => (clone $query)->whereDate('checked_in_at', now()->toDateString())->count(),
+            'members' => (clone $query)->whereNotNull('user_id')->count(),
+            'visitors' => (clone $query)->whereNull('user_id')->count(),
+        ];
+
+        $attendances = $query->latest('checked_in_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
+
+        $eventsQuery = Event::query()->orderBy('title');
+        AdminCircleScope::applyToEventsQuery($eventsQuery, $admin);
+        $events = $eventsQuery->get(['id', 'title']);
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+
+        return view('admin.events.total-attendance', compact('attendances', 'summary', 'events', 'circles'));
+    }
+
+    public function totalRegistered(Request $request): View
+    {
+        $admin = Auth::guard('admin')->user();
+        $query = EventRegistration::query()
+            ->with(['event.circle', 'occurrence', 'user'])
+            ->where('status', '!=', 'cancelled')
+            ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
+            ->when($request->occurrence_id, fn ($q, $v) => $q->where('occurrence_id', $v))
+            ->when($request->circle_id, fn ($q, $v) => $q->whereHas('event', fn ($eq) => $eq->where('circle_id', $v)))
+            ->when($request->payment_status, function ($q, $v): void {
+                if ($v === 'paid') {
+                    $q->whereIn('payment_status', ['paid', 'completed', 'success']);
+                } elseif ($v === 'free') {
+                    $q->where(fn ($sub) => $sub->where('payment_required', false)->orWhereNull('payment_status')->orWhere('payment_status', 'free'));
+                } else {
+                    $q->where('payment_status', $v);
+                }
+            })
+            ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
+            ->when($request->date_to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
+            ->when($request->search, function ($q, $term): void {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
+                $q->where(function ($inner) use ($like): void {
+                    $inner->where('visitor_name', 'ilike', $like)
+                        ->orWhere('visitor_email', 'ilike', $like)
+                        ->orWhere('visitor_phone', 'ilike', $like)
+                        ->orWhereHas('user', function ($uq) use ($like): void {
+                            $uq->where('display_name', 'ilike', $like)
+                                ->orWhere('email', 'ilike', $like)
+                                ->orWhere('first_name', 'ilike', $like)
+                                ->orWhere('last_name', 'ilike', $like);
+                        })
+                        ->orWhereHas('event', fn ($eq) => $eq->where('title', 'ilike', $like));
+                });
+            });
+
+        $query->whereHas('event', function ($eq) use ($admin): void {
+            AdminCircleScope::applyToEventsQuery($eq, $admin);
+        });
+
+        $summary = [
+            'total_registered' => (clone $query)->count(),
+            'paid' => (clone $query)->whereIn('payment_status', ['paid', 'completed', 'success'])->count(),
+            'free' => (clone $query)->where(fn ($q) => $q->where('payment_required', false)->orWhereNull('payment_status')->orWhere('payment_status', 'free'))->count(),
+            'checked_in' => (clone $query)->where('checkin_status', 'checked_in')->count(),
+        ];
+
+        $registrations = $query->latest('created_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
+
+        $eventsQuery = Event::query()->orderBy('title');
+        AdminCircleScope::applyToEventsQuery($eventsQuery, $admin);
+        $events = $eventsQuery->get(['id', 'title']);
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+
+        return view('admin.events.total-registered', compact('registrations', 'summary', 'events', 'circles'));
+    }
 
     public function joiningRequests(Request $request): View
     {
-        $status = $request->input('status', 'pending');
+        $status = $request->input('status', 'all');
         $admin = Auth::guard('admin')->user();
-        $requestTable = (new EventRegistrationRequest())->getTable();
+        $requestTable = (new EventRegistrationRequest)->getTable();
 
         if (! Schema::hasTable($requestTable)) {
             $summary = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'total' => 0];
@@ -90,7 +221,12 @@ class EventManagementController extends Controller
                 'approvedBy',
                 'rejectedBy',
             ])
-            ->when($status !== 'all' && $status !== '', fn ($q) => $q->where('status', $status))
+            ->when($status === 'checked_in', function ($q): void {
+                $q->whereHas('registration', function ($regQuery): void {
+                    $regQuery->whereNotNull('checked_in_at');
+                });
+            })
+            ->when($status !== 'all' && $status !== '' && $status !== 'checked_in', fn ($q) => $q->where('status', $status))
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
             ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
@@ -119,6 +255,9 @@ class EventManagementController extends Controller
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
             'rejected' => (clone $summaryBase)->where('status', 'rejected')->count(),
+            'checked_in' => (clone $summaryBase)->whereHas('registration', function ($regQuery): void {
+                $regQuery->whereNotNull('checked_in_at');
+            })->count(),
             'total' => (clone $summaryBase)->count(),
         ];
 
@@ -132,7 +271,7 @@ class EventManagementController extends Controller
 
     public function approveJoiningRequest(Request $request, string $id): RedirectResponse
     {
-        abort_unless(Schema::hasTable((new EventRegistrationRequest())->getTable()), 404);
+        abort_unless(Schema::hasTable((new EventRegistrationRequest)->getTable()), 404);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
         abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
@@ -148,7 +287,7 @@ class EventManagementController extends Controller
     public function rejectJoiningRequest(Request $request, string $id): RedirectResponse
     {
         $data = $request->validate(['admin_note' => ['required', 'string', 'max:2000']]);
-        abort_unless(Schema::hasTable((new EventRegistrationRequest())->getTable()), 404);
+        abort_unless(Schema::hasTable((new EventRegistrationRequest)->getTable()), 404);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
         abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
@@ -192,7 +331,7 @@ class EventManagementController extends Controller
             return $event;
         });
 
-        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
     }
@@ -215,7 +354,14 @@ class EventManagementController extends Controller
 
     public function show(string $id): View
     {
-        $event = Event::query()->with(['circle', 'circles', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
+        $event = Event::query()->with([
+            'circle',
+            'circles',
+            'occurrences' => fn ($q) => $q->orderBy('start_at'),
+            'registrations' => fn ($q) => $q->orderByDesc('created_at'),
+            'registrations.user',
+            'registrations.occurrence',
+        ])->findOrFail($id);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         $event->registrations->each(function (EventRegistration $registration): void {
@@ -224,26 +370,36 @@ class EventManagementController extends Controller
                 $this->registrationQr->ensureQrGenerated($registration);
             }
         });
-        $event->load(['registrations.user', 'registrations.occurrence']);
+        $event->load([
+            'registrations' => fn ($q) => $q->orderByDesc('created_at'),
+            'registrations.user',
+            'registrations.occurrence',
+        ]);
 
         return view('admin.events.show', compact('event'));
     }
 
-    public function attendance(Request $request, string $id): View
+    public function attendance(Request $request, ?string $id = null): View
     {
-        $event = Event::query()->findOrFail($id);
+        $eventId = $id ?? $request->query('id') ?? $request->query('event_id');
+        if (! $eventId) {
+            abort(404, 'Event ID is required.');
+        }
+
+        $event = Event::query()->findOrFail($eventId);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
-        $scanLogs = EventQrScanLog::query()
-            ->with(['user', 'scanner'])
-            ->where('event_id', $event->id)
-            ->latest('scanned_at')
-            ->limit(200)
-            ->get();
+        $scanLogs = Schema::hasTable((new EventQrScanLog)->getTable())
+            ? EventQrScanLog::query()
+                ->with(['user', 'scanner'])
+                ->where('event_id', $event->id)
+                ->latest('scanned_at')
+                ->limit(200)
+                ->get()
+            : collect();
 
         return view('admin.events.attendance', compact('event', 'report', 'scanLogs'));
     }
-
 
     public function syncZohoInvoice(string $registrationId): RedirectResponse
     {
@@ -254,6 +410,66 @@ class EventManagementController extends Controller
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
     }
 
+    public function addVisitorDirectly(Request $request, string $id, string $occurrenceId, EventRegistrationService $registrationService): RedirectResponse
+    {
+        $event = Event::query()->findOrFail($id);
+        $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        $validated = $request->validate([
+            'visitor_first_name' => ['required', 'string', 'max:120'],
+            'visitor_last_name' => ['required', 'string', 'max:120'],
+            'visitor_email' => ['required', 'email', 'max:255'],
+            'visitor_phone' => ['required', 'string', 'max:50'],
+            'visitor_company' => ['nullable', 'string', 'max:255'],
+            'visitor_city' => ['nullable', 'string', 'max:255'],
+            'visitor_designation' => ['nullable', 'string', 'max:255'],
+            'visitor_business_brief' => ['nullable', 'string'],
+        ]);
+
+        $visitorFullName = trim($validated['visitor_first_name'].' '.$validated['visitor_last_name']);
+
+        try {
+            DB::transaction(function () use ($event, $occurrence, $validated, $visitorFullName, $registrationService) {
+                // Register visitor using registerVisitor helper, which maps inputs correctly.
+                $registration = $registrationService->registerVisitor($event, $occurrence, [
+                    'visitor_name' => $visitorFullName,
+                    'visitor_email' => $validated['visitor_email'],
+                    'visitor_phone' => $validated['visitor_phone'],
+                    'visitor_company' => $validated['visitor_company'] ?? null,
+                    'visitor_city' => $validated['visitor_city'] ?? null,
+                    'visitor_designation' => $validated['visitor_designation'] ?? null,
+                    'visitor_business_brief' => $validated['visitor_business_brief'] ?? null,
+                    'source' => 'admin_panel',
+                ]);
+
+                // Directly approve registration payment status so QR code is generated instantly
+                $registration->forceFill([
+                    'payment_status' => 'paid',
+                    'payment_required' => false,
+                    'status' => 'registered',
+                ])->save();
+
+                // Upgrade membership of visitor user to free_trial_peer and active status
+                if ($registration->user) {
+                    $registration->user->forceFill([
+                        'membership_status' => 'free_trial_peer',
+                        'status' => 'active',
+                    ])->save();
+                }
+
+                // Fire mail delivery with QR Code attached (ensureQrGenerated automatically dispatches email inside)
+                $registrationQr = app(EventRegistrationQrService::class);
+                $registrationQr->ensureQrGenerated($registration);
+            });
+
+            return back()->with('success', 'Visitor registered successfully. QR Code pass generated and email notification sent!');
+        } catch (\Throwable $e) {
+            Log::error('admin_add_visitor_directly_failed', ['error' => $e->getMessage()]);
+
+            return back()->withInput()->with('error', 'Failed to register visitor: '.$e->getMessage());
+        }
+    }
 
     private function applyJoiningRequestScope($query, $admin): void
     {
@@ -261,10 +477,11 @@ class EventManagementController extends Controller
             return;
         }
 
-        $requestTable = (new EventRegistrationRequest())->getTable();
+        $requestTable = (new EventRegistrationRequest)->getTable();
 
         if (! Schema::hasTable($requestTable) || ! Schema::hasColumn($requestTable, 'user_id')) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -322,6 +539,7 @@ class EventManagementController extends Controller
             'recurrence_day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'recurrence_month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'recurrence_ends_at' => ['nullable', 'date'],
+            'monthly_pattern' => ['nullable', 'string', 'in:fixed,weekday'],
             'registration_limit' => ['nullable', 'integer', 'min:1'],
             'is_paid' => ['nullable', 'boolean'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
@@ -362,6 +580,32 @@ class EventManagementController extends Controller
         $data['agenda'] = $this->cleanAgenda($data['agenda'] ?? []);
         $data['speakers'] = $this->cleanSpeakers($data['speakers'] ?? []);
 
+        $recurrenceType = $data['recurrence_type'] ?? 'none';
+        if ($recurrenceType === 'none') {
+            $data['recurrence_interval'] = null;
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_week'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+            $data['recurrence_ends_at'] = null;
+        } elseif ($recurrenceType === 'weekly') {
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+        } elseif ($recurrenceType === 'monthly') {
+            $data['recurrence_month'] = null;
+            $monthlyPattern = $request->input('monthly_pattern', 'fixed');
+            if ($monthlyPattern === 'fixed') {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+                if (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
+            } else {
+                $data['recurrence_day_of_month'] = null;
+            }
+        }
+
         if ($request->hasFile('banner')) {
             $data['banner_url'] = $this->storeBanner($request);
         } elseif (array_key_exists('banner_url', $data)) {
@@ -378,6 +622,7 @@ class EventManagementController extends Controller
             'email' => $data['organizer_email'] ?? null,
             'website' => $data['organizer_website'] ?? null,
         ];
+
         $data['metadata'] = $metadata;
 
         unset($data['banner'], $data['what_youll_gain'], $data['organizer_name'], $data['organizer_phone'], $data['organizer_email'], $data['organizer_website']);
@@ -393,6 +638,7 @@ class EventManagementController extends Controller
         $circleIds = collect($circleIds)->filter()->unique()->values()->all();
         if ($circleIds === []) {
             DB::table('event_circles')->where('event_id', $event->id)->delete();
+
             return;
         }
 
@@ -407,29 +653,33 @@ class EventManagementController extends Controller
 
     private function withDefaults(array $data): array
     {
-        $locationMeta = array_filter([
-            'venue_name' => $data['venue_name'] ?? null,
-            'address_line' => $data['address_line'] ?? null,
-            'city' => $data['city'] ?? null,
-            'state' => $data['state'] ?? null,
-            'google_maps_url' => $data['google_maps_url'] ?? null,
-            'zoho_form_url' => $data['zoho_form_url'] ?? null,
-        ], fn ($value) => filled($value));
+        $locationMeta = [
+            'venue_name' => filled($data['venue_name'] ?? null) ? trim((string) $data['venue_name']) : null,
+            'address_line' => filled($data['address_line'] ?? null) ? trim((string) $data['address_line']) : null,
+            'city' => filled($data['city'] ?? null) ? trim((string) $data['city']) : null,
+            'state' => filled($data['state'] ?? null) ? trim((string) $data['state']) : null,
+            'google_maps_url' => filled($data['google_maps_url'] ?? null) ? trim((string) $data['google_maps_url']) : null,
+            'zoho_form_url' => filled($data['zoho_form_url'] ?? null) ? trim((string) $data['zoho_form_url']) : null,
+        ];
 
-        $locationParts = array_filter([
-            $data['venue_name'] ?? null,
-            $data['address_line'] ?? null,
-            $data['city'] ?? null,
-            $data['state'] ?? null,
-        ], fn ($value) => filled($value));
+        $locationParts = array_values(array_unique(array_filter([
+            $locationMeta['venue_name'],
+            $locationMeta['address_line'],
+            $locationMeta['city'],
+            $locationMeta['state'],
+        ], fn ($value) => filled($value))));
 
-        if (blank($data['location_text'] ?? null) && $locationParts) {
-            $data['location_text'] = implode(', ', $locationParts);
+        $data['location_text'] = $locationParts ? implode(', ', $locationParts) : null;
+
+        $metadata = (array) ($data['metadata'] ?? []);
+        foreach ($locationMeta as $key => $val) {
+            if ($val !== null) {
+                $metadata[$key] = $val;
+            } else {
+                unset($metadata[$key]);
+            }
         }
-
-        if ($locationMeta) {
-            $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), $locationMeta);
-        }
+        $data['metadata'] = $metadata;
 
         unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url'], $data['circle_ids']);
 
@@ -445,6 +695,22 @@ class EventManagementController extends Controller
         }
 
         return $data;
+    }
+
+    public function sendWhatsappQr(string $id, EventRegistrationWhatsappService $whatsappService): RedirectResponse
+    {
+        $registration = EventRegistration::query()->findOrFail($id);
+
+        // Ensure existing QR code is generated if missing
+        app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
+
+        $success = $whatsappService->sendNotification($registration, force: true);
+
+        if ($success) {
+            return back()->with('success', 'WhatsApp QR pass sent successfully.');
+        }
+
+        return back()->with('error', 'Failed to send WhatsApp message. Please check recipient phone number and WhatsApp configuration.');
     }
 
     private function cleanAgenda(array $rows): array
@@ -475,6 +741,7 @@ class EventManagementController extends Controller
     {
         if (is_string($metadata)) {
             $decoded = json_decode($metadata, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -489,7 +756,7 @@ class EventManagementController extends Controller
     {
         $path = $request->file('banner')->store('events/banners', 'public');
 
-        $file = new FileModel();
+        $file = new FileModel;
         $file->s3_key = $path;
         $file->mime_type = Storage::disk('public')->mimeType($path);
         $file->size_bytes = Storage::disk('public')->size($path);

@@ -1,34 +1,32 @@
-<table style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 30px;" width="100%" cellspacing="0" cellpadding="0">
-<tbody>
-<tr>
-<td align="center">
-<table style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);" width="600" cellspacing="0" cellpadding="0">
-<tbody>
-<tr>
-<td style="padding: 14px 14px; background-color: #240e5c; text-align: center;"><img style="vertical-align: middle;" src="https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png" alt="Peers Global" width="135" /></td>
-</tr>
-<tr>
-<td style="padding: 18px 20px; font-size: 16px; color: #333333;">
-Dear <strong>{{ $ticket->contact_name }}</strong>,<br /><br />
-Your support ticket has been resolved.<br /><br />
-<strong>Ticket Number:</strong> {{ $ticket->ticket_number }}<br />
-<strong>Subject:</strong> {{ $ticket->subject }}<br />
-<strong>Status:</strong> Resolved<br /><br />
-<strong>Admin Note:</strong><br />
-{{ $ticket->admin_note ?: '-' }}<br /><br />
-If you still need help, please contact our support team again.<br /><br />
-Thank you,<br />
-<strong>Peers Global Team</strong>
-</td>
-</tr>
-<tr>
-<td style="padding: 10px 14px; background-color: #240e5c; text-align: center; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">
-<p style="font-size: 14px; font-weight: bold; color: #ffffff; margin: 4px 0;">Peers are partners in business and friends in life.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
+@extends('emails.layouts.email')
+
+@section('title', 'Support Ticket Resolved')
+
+@section('content')
+<p>Dear {{ $ticket->contact_name }},</p>
+
+<!-- EDITABLE_START -->
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Your support ticket has been resolved.</p>
+<p style="margin: 0 0 8px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;"><strong>Ticket Number:</strong> {{ $ticket->ticket_number }}</p>
+<p style="margin: 0 0 8px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;"><strong>Subject:</strong> {{ $ticket->subject }}</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;"><strong>Status:</strong> Resolved</p>
+
+@if(!empty($ticket->admin_note))
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">
+    <strong>Admin Note:</strong><br>
+    {{ $ticket->admin_note }}
+</p>
+@endif
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">If you still need help, please contact our support team again.</p>
+<!-- EDITABLE_END -->
+
+<p style="margin: 24px 0 0 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">
+    Thank you,<br>
+    <strong>Peers Global Team</strong>
+</p>
+@endsection
+
+@section('footer')
+<p style="margin:0;">Peers are partners in business and friends in life.</p>
+@endsection

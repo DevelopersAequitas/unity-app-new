@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Circle;
+use App\Models\CircleMember;
+use App\Models\Impact;
 use App\Models\Industry;
 use App\Models\Payment;
 use App\Services\Admin\AdminAuditService;
@@ -14,9 +16,7 @@ use Illuminate\Support\Facades\Schema;
 
 class IndustryManagementController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit)
-    {
-    }
+    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -72,12 +72,14 @@ class IndustryManagementController extends BaseApiController
         $validated = $request->validate(['user_id' => ['required', 'uuid', 'exists:users,id']]);
         $industry = Industry::query()->findOrFail($id);
         $this->circleIndustryQuery($id, (string) $industry->name)->update(['industry_director_user_id' => $validated['user_id']]);
+
         return $this->success(['assigned' => true]);
     }
 
     public function circles(string $id): JsonResponse
     {
         $industry = Industry::query()->findOrFail($id);
+
         return $this->success($this->circleIndustryQuery($id, (string) $industry->name)->paginate(20));
     }
 
@@ -90,9 +92,9 @@ class IndustryManagementController extends BaseApiController
         return $this->success([
             'total_circles' => $circles->count(),
             'active_circles' => (clone $circles)->where('status', 'active')->count(),
-            'total_members' => \App\Models\CircleMember::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->whereNull('deleted_at')->count(),
+            'total_members' => CircleMember::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->whereNull('deleted_at')->count(),
             'total_revenue' => Payment::query()->whereIn('circle_id', $circleIds)->where('status', 'paid')->sum('amount'),
-            'total_impacts' => \App\Models\Impact::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->count(),
+            'total_impacts' => Impact::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->count(),
         ]);
     }
 

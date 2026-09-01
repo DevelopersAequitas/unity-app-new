@@ -16,8 +16,14 @@ use Throwable;
 
 class MembershipUpgradeService
 {
-    public const ONLY_GREEN_PEER_STATUS = 'Only Green Peer';
-    public const ONLY_GREEN_PEER_LABEL = 'Only Green Peer';
+    public const ONLY_GREEN_PEER_STATUS = 'Only Unity Peer';
+
+    public const ONLY_GREEN_PEER_LABEL = 'Global Peer';
+
+    public function markAsOnlyUnityPeerAfterPayment(User $user, array|Model|null $paymentOrPlanData = null): User
+    {
+        return $this->markAsOnlyGreenPeerAfterPayment($user, $paymentOrPlanData);
+    }
 
     /**
      * Mark a successfully paid membership purchase as Only Green Peer without touching coins or circle data.

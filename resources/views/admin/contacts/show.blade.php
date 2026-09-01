@@ -59,13 +59,15 @@
         || ! in_array($detailFilters['quick'] ?? 'any', ['any', ''], true);
 @endphp
 
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <p class="text-muted mb-1">Contacts</p>
-        <h1 class="h4 mb-0">Contact Detail</h1>
+        <h1 class="h4 mb-0 fw-bold">Contact Detail</h1>
     </div>
-    <div class="d-flex flex-wrap gap-2 justify-content-end">
-        <a href="{{ route('admin.contacts.index') }}" class="btn btn-outline-secondary">Back to Contacts</a>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('admin.contacts.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
     </div>
 </div>
 
@@ -102,11 +104,8 @@
                 <option value="this_month" @selected(($detailFilters['quick'] ?? 'any') === 'this_month')>This Month</option>
             </select>
         </div>
-        <div class="col-12 col-xl-1 d-flex gap-2">
-            <button type="submit" class="btn btn-primary flex-fill">Filter</button>
-        </div>
         <div class="col-12 d-flex justify-content-end">
-            <a href="{{ route('admin.contacts.show', $contactPost->id) }}" class="btn btn-outline-secondary">Reset</a>
+            <a href="{{ route('admin.contacts.show', $contactPost->id) }}" class="btn btn-outline-secondary">Clear</a>
         </div>
     </form>
 </div>

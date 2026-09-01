@@ -8,6 +8,7 @@ use App\Models\ScanAppUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -44,18 +45,29 @@ class EventScanCredentialController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validated($request);
-        $event = Event::query()->findOrFail($data['event_id']);
+        $eventIds = array_values(array_unique($data['event_ids']));
+        $firstEvent = Event::query()->find($eventIds[0]);
 
-        ScanAppUser::query()->create([
+        $attributes = [
             'name' => $data['name'],
             'username' => $data['username'],
             'password_hash' => Hash::make($data['password']),
             'hotel_name' => $data['hotel_name'],
-            'event_id' => $event->id,
-            'event_name' => $event->title,
+            'event_id' => $firstEvent?->id,
+            'event_ids' => $eventIds,
+            'event_name' => $firstEvent?->title,
             'is_active' => (bool) ($data['is_active'] ?? false),
-            'created_by_admin_id' => auth('admin')->id(),
-        ]);
+        ];
+
+        if (Schema::hasColumn('scan_app_users', 'plain_password')) {
+            $attributes['plain_password'] = $data['password'];
+        }
+
+        if (Schema::hasColumn('scan_app_users', 'created_by_admin_id')) {
+            $attributes['created_by_admin_id'] = auth('admin')->id();
+        }
+
+        ScanAppUser::query()->create($attributes);
 
         return redirect()->route('admin.event-scan-credentials.index')->with('success', 'Scanner credential created successfully.');
     }
@@ -71,19 +83,24 @@ class EventScanCredentialController extends Controller
     public function update(Request $request, ScanAppUser $eventScanCredential): RedirectResponse
     {
         $data = $this->validated($request, $eventScanCredential);
-        $event = Event::query()->findOrFail($data['event_id']);
+        $eventIds = array_values(array_unique($data['event_ids']));
+        $firstEvent = Event::query()->find($eventIds[0]);
 
         $updates = [
             'name' => $data['name'],
             'username' => $data['username'],
             'hotel_name' => $data['hotel_name'],
-            'event_id' => $event->id,
-            'event_name' => $event->title,
+            'event_id' => $firstEvent?->id,
+            'event_ids' => $eventIds,
+            'event_name' => $firstEvent?->title,
             'is_active' => (bool) ($data['is_active'] ?? false),
         ];
 
         if (! empty($data['password'])) {
             $updates['password_hash'] = Hash::make($data['password']);
+            if (Schema::hasColumn('scan_app_users', 'plain_password')) {
+                $updates['plain_password'] = $data['password'];
+            }
         }
 
         $eventScanCredential->update($updates);
@@ -104,7 +121,15 @@ class EventScanCredentialController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $eventScanCredential->forceFill(['password_hash' => Hash::make($data['password'])])->save();
+        $updates = [
+            'password_hash' => Hash::make($data['password']),
+        ];
+
+        if (Schema::hasColumn('scan_app_users', 'plain_password')) {
+            $updates['plain_password'] = $data['password'];
+        }
+
+        $eventScanCredential->forceFill($updates)->save();
 
         return back()->with('success', 'Scanner credential password reset successfully.');
     }
@@ -116,7 +141,8 @@ class EventScanCredentialController extends Controller
             'username' => ['required', 'string', 'max:255', Rule::unique('scan_app_users', 'username')->ignore($credential?->id)],
             'password' => [$credential ? 'nullable' : 'required', 'string', 'min:8', 'confirmed'],
             'hotel_name' => ['required', 'string', 'max:255'],
-            'event_id' => ['required', 'uuid', 'exists:events,id'],
+            'event_ids' => ['required', 'array', 'min:1'],
+            'event_ids.*' => ['uuid', 'exists:events,id'],
             'is_active' => ['nullable', 'boolean'],
         ]);
     }

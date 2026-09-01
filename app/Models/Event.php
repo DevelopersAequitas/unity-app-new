@@ -93,7 +93,6 @@ class Event extends Model
         'recurrence_month' => 'integer',
     ];
 
-
     protected static function booted(): void
     {
         static::creating(function (Event $event): void {
@@ -142,5 +141,24 @@ class Event extends Model
     public function organizer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'organizer_user_id');
+    }
+
+    public function getComputedStatusAttribute(): string
+    {
+        $rawStatus = strtolower((string) ($this->status ?? 'scheduled'));
+        if ($rawStatus === 'cancelled') {
+            return 'cancelled';
+        }
+
+        if ($rawStatus === 'completed') {
+            return 'completed';
+        }
+
+        $compareDate = $this->end_at ?? $this->start_at;
+        if ($compareDate && $compareDate->isPast()) {
+            return 'completed';
+        }
+
+        return $rawStatus;
     }
 }

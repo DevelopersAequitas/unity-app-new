@@ -13,9 +13,7 @@ use Illuminate\Support\Str;
 
 class FcmService
 {
-    public function __construct(private FirebaseFcmService $firebase)
-    {
-    }
+    public function __construct(private FirebaseFcmService $firebase) {}
 
     public function sendToToken(UserPushToken|string $token, string $title, string $body, array $data, ?AppNotification $notification = null, ?string $imageUrl = null): array
     {
@@ -25,7 +23,7 @@ class FcmService
         // Resolve image URL from data payload if not explicitly provided
         if ($imageUrl === null) {
             $imageUrl = $data['image_url'] ?? $data['event_banner'] ?? null;
-            if (!is_string($imageUrl) || trim($imageUrl) === '') {
+            if (! is_string($imageUrl) || trim($imageUrl) === '') {
                 $imageUrl = null;
             }
         }
@@ -188,7 +186,35 @@ class FcmService
             $query->latest($latestColumn);
         }
 
-        return $query->get()
+        $tokens = $query->get();
+
+        $user = User::find($userId);
+        if ($user) {
+            if (filled($user->android_fcm_token)) {
+                $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->android_fcm_token);
+                if (! $hasAndroidToken) {
+                    $tokens->push(new UserPushToken([
+                        UserPushToken::getUserIdColumn() => $userId,
+                        'token' => $user->android_fcm_token,
+                        'platform' => 'android',
+                        'is_active' => true,
+                    ]));
+                }
+            }
+            if (filled($user->ios_fcm_token)) {
+                $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->ios_fcm_token);
+                if (! $hasIosToken) {
+                    $tokens->push(new UserPushToken([
+                        UserPushToken::getUserIdColumn() => $userId,
+                        'token' => $user->ios_fcm_token,
+                        'platform' => 'ios',
+                        'is_active' => true,
+                    ]));
+                }
+            }
+        }
+
+        return $tokens
             ->unique(fn (UserPushToken $token) => $token->device_id ?: $token->token)
             ->values();
     }
@@ -219,6 +245,9 @@ class FcmService
 
         if ($updates !== []) {
             UserPushToken::where('token', $token)->update($updates);
+
+            User::where('android_fcm_token', $token)->update(['android_fcm_token' => null]);
+            User::where('ios_fcm_token', $token)->update(['ios_fcm_token' => null]);
         }
     }
 

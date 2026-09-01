@@ -20,7 +20,7 @@ class RegistrationRequestReceivedMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Registration Request Received - Greenpreneur')
+        return $this->subject('Welcome to Peers Global Unity')
             ->view('emails.registration_request_received')
             ->with([
                 'user' => $this->user,

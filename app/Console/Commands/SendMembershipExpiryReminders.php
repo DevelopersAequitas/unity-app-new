@@ -6,6 +6,7 @@ use App\Events\UserNotificationCreated;
 use App\Jobs\SendFcmNotificationJob;
 use App\Mail\MembershipExpiryReminderMail;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Notifications\MembershipExpiryNotification;
 use App\Services\EmailLogs\EmailLogService;
@@ -13,6 +14,7 @@ use App\Services\Membership\MembershipNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -34,8 +36,6 @@ class SendMembershipExpiryReminders extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int
      */
     public function handle(): int
     {
@@ -48,7 +48,7 @@ class SendMembershipExpiryReminders extends Command
             ->where('membership_ends_at', '<', now())
             ->get();
 
-        $this->info('Found ' . $expiredUsers->count() . ' expired users.');
+        $this->info('Found '.$expiredUsers->count().' expired users.');
 
         $sentCount = 0;
         $failedCount = 0;
@@ -61,6 +61,7 @@ class SendMembershipExpiryReminders extends Command
             // Prevent duplicate emails within the same scheduled execution
             if ($email === '' || in_array($email, $sentEmails, true)) {
                 $skippedCount++;
+
                 continue;
             }
 
@@ -83,6 +84,37 @@ class SendMembershipExpiryReminders extends Command
                 $notificationObj = new MembershipExpiryNotification($user);
                 $notifPayload = $notificationObj->toArray($user);
 
+                $appNotificationId = null;
+                $appNotificationType = null;
+                $appNotificationData = null;
+                $appNotificationCreatedAt = null;
+
+                if (Schema::hasTable('app_notifications')) {
+                    // Create in-app AppNotification for the new system
+                    $appNotification = AppNotification::create([
+                        'user_id' => $user->id,
+                        'type' => 'membership_expired',
+                        'category' => 'membership',
+                        'title' => (string) $notifPayload['title'],
+                        'body' => (string) $notifPayload['body'],
+                        'message' => (string) $notifPayload['body'],
+                        'channel' => 'push',
+                        'priority' => 'high',
+                        'screen' => 'membership',
+                        'data' => array_merge($notifPayload, [
+                            'screen' => 'membership',
+                            'tap_destination' => 'membership',
+                        ]),
+                        'status' => 'sent',
+                        'sent_at' => now(),
+                    ]);
+
+                    $appNotificationId = $appNotification->id;
+                    $appNotificationType = $appNotification->type;
+                    $appNotificationData = $appNotification->data;
+                    $appNotificationCreatedAt = optional($appNotification->created_at)->toISOString();
+                }
+
                 $dbNotification = Notification::forceCreate([
                     'id' => (string) Str::uuid(),
                     'user_id' => $user->id,
@@ -94,10 +126,10 @@ class SendMembershipExpiryReminders extends Command
                 ]);
 
                 event(new UserNotificationCreated((string) $user->id, [
-                    'id' => (string) $dbNotification->id,
-                    'type' => (string) $dbNotification->type,
-                    'payload' => $dbNotification->payload,
-                    'created_at' => optional($dbNotification->created_at)->toISOString(),
+                    'id' => (string) ($appNotificationId ?: $dbNotification->id),
+                    'type' => (string) ($appNotificationType ?: $dbNotification->type),
+                    'payload' => $appNotificationData ?: $dbNotification->payload,
+                    'created_at' => $appNotificationCreatedAt ?: optional($dbNotification->created_at)->toISOString(),
                 ]));
 
                 SendFcmNotificationJob::dispatch(
@@ -106,7 +138,7 @@ class SendMembershipExpiryReminders extends Command
                     (string) $notifPayload['body'],
                     [
                         'notification_type' => 'membership_expired',
-                        'notification_id' => (string) $dbNotification->id,
+                        'notification_id' => (string) ($appNotificationId ?: $dbNotification->id),
                     ]
                 );
 

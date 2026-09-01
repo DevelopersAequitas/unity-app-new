@@ -4,78 +4,138 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
-use App\Models\ContactPost;
 use App\Models\User;
-use App\Support\AdminAccess;
-use App\Support\AdminCircleScope;
 use App\Services\Api\Ded\DashboardAggregationService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(): View|RedirectResponse
     {
-        $today = now();
+        $admin = Auth::guard('admin')->user();
 
-        $totalUsers = $this->safeCountTable('users');
-        $newSignups = ($this->hasTableColumn('users', 'created_at'))
-            ? DB::table('users')->whereDate('created_at', $today->toDateString())->count()
-            : 0;
-        $premiumUpgrades = ($this->hasTableColumn('users', 'membership_status'))
-            ? DB::table('users')->where('membership_status', 'premium')->count()
-            : 0;
+        if ($admin) {
+            if (AdminAccess::isIndustryScoped($admin)) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
 
-        $activeCircles = ($this->hasTableColumn('circles', 'status'))
-            ? DB::table('circles')->where('status', 'active')->count()
-            : $this->safeCountTable('circles');
-        $pendingApprovals = ($this->hasTableColumn('circles', 'status'))
-            ? DB::table('circles')->where('status', 'pending')->count()
-            : 0;
+            if (AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
+            }
 
-        $activitiesToday = ($this->hasTableColumn('activities', 'created_at'))
-            ? DB::table('activities')->whereDate('created_at', $today->toDateString())->count()
-            : 0;
+            if (AdminAccess::isCircleScoped($admin)) {
+                return redirect()->route('admin.circle-member.dashboard');
+            }
+        }
 
-        $supportRequests = $this->safeCountTable('support_requests');
-        $reportedPosts = $this->safeReportedPostsCount();
-        // $totalContactPosts = ContactPost::count();
-        // $todayContactPosts = ContactPost::whereDate('created_at', $today->toDateString())->count();
-        // $recentContactPosts = ContactPost::latest('created_at')->take(5)->get();
+        $today = now()->toDateString();
+
+        // ── Users stats: single aggregated query instead of 3 separate round-trips ──
+        $userStats = cache()->remember('admin.dashboard.user_stats', 60, function () use ($today) {
+            if (! Schema::hasTable('users')) {
+                return ['total' => 0, 'today' => 0, 'premium' => 0];
+            }
+
+            $hasCreatedAt = Schema::hasColumn('users', 'created_at');
+            $hasMembershipStatus = Schema::hasColumn('users', 'membership_status');
+
+            $row = DB::table('users')
+                ->selectRaw('COUNT(*) as total')
+                ->when($hasCreatedAt, fn ($q) => $q->selectRaw('COUNT(*) FILTER (WHERE DATE(created_at) = ?) as today', [$today]))
+                ->when($hasMembershipStatus, fn ($q) => $q->selectRaw("COUNT(*) FILTER (WHERE membership_status = 'premium') as premium"))
+                ->first();
+
+            return [
+                'total' => (int) ($row->total ?? 0),
+                'today' => (int) ($row->today ?? 0),
+                'premium' => (int) ($row->premium ?? 0),
+            ];
+        });
+
+        // ── Circles stats: single aggregated query instead of 2 separate round-trips ──
+        $circleStats = cache()->remember('admin.dashboard.circle_stats', 60, function () {
+            if (! Schema::hasTable('circles')) {
+                return ['active' => 0, 'pending' => 0];
+            }
+
+            if (! Schema::hasColumn('circles', 'status')) {
+                return ['active' => DB::table('circles')->count(), 'pending' => 0];
+            }
+
+            $row = DB::table('circles')
+                ->selectRaw("COUNT(*) FILTER (WHERE status = 'active') as active, COUNT(*) FILTER (WHERE status = 'pending') as pending")
+                ->first();
+
+            return [
+                'active' => (int) ($row->active ?? 0),
+                'pending' => (int) ($row->pending ?? 0),
+            ];
+        });
+
+        // ── Other stats: cached individually ──
+        $activitiesToday = cache()->remember('admin.dashboard.activities_today', 60, function () use ($today) {
+            return $this->hasTableColumn('activities', 'created_at')
+                ? (int) DB::table('activities')->whereDate('created_at', $today)->count()
+                : 0;
+        });
+
+        $supportRequests = cache()->remember('admin.dashboard.support_requests', 120, fn () => $this->safeCountTable('support_requests'));
+        $reportedPosts = cache()->remember('admin.dashboard.reported_posts', 120, fn () => $this->safeReportedPostsCount());
+        $coinsIssued = cache()->remember('admin.dashboard.coins_issued', 120, fn () => $this->safeCountTable('coin_ledgers'));
+        $walletCollections = cache()->remember('admin.dashboard.wallet_collections', 120, fn () => $this->safeCountTable('wallet_transactions'));
+
+        $totalUsers = $userStats['total'];
+        $newSignups = $userStats['today'];
+        $premiumUpgrades = $userStats['premium'];
+        $activeCircles = $circleStats['active'];
+        $pendingApprovals = $circleStats['pending'];
+
         $totalContactPosts = 0;
         $todayContactPosts = 0;
         $recentContactPosts = collect();
 
-        $coinsIssued = $this->safeCountTable('coin_ledgers');
-        $walletCollections = $this->safeCountTable('wallet_transactions');
-
         $stats = [
-            'newSignups' => (int) $newSignups,
-            'premiumUpgrades' => (int) $premiumUpgrades,
-            'activeCircles' => (int) $activeCircles,
-            'pendingApprovals' => (int) $pendingApprovals,
-            'coinsIssued' => (int) $coinsIssued,
-            'walletCollections' => (int) $walletCollections,
-            'supportRequests' => (int) $supportRequests,
-            'activitiesToday' => (int) $activitiesToday,
-            'reportedPosts' => (int) $reportedPosts,
+            'newSignups' => $newSignups,
+            'premiumUpgrades' => $premiumUpgrades,
+            'activeCircles' => $activeCircles,
+            'pendingApprovals' => $pendingApprovals,
+            'coinsIssued' => $coinsIssued,
+            'walletCollections' => $walletCollections,
+            'supportRequests' => $supportRequests,
+            'activitiesToday' => $activitiesToday,
+            'reportedPosts' => $reportedPosts,
             // Legacy keys for existing blade usage
-            'total_users' => (int) $totalUsers,
-            'active_circles' => (int) $activeCircles,
-            'pending_approvals' => (int) $pendingApprovals,
-            'new_signups' => (int) $newSignups,
+            'total_users' => $totalUsers,
+            'active_circles' => $activeCircles,
+            'pending_approvals' => $pendingApprovals,
+            'new_signups' => $newSignups,
         ];
 
         $pendingItems = [
-            ['title' => 'Pending Activities Today', 'count' => (int) $activitiesToday],
-            ['title' => 'Circles Awaiting Review', 'count' => (int) $pendingApprovals],
-            ['title' => 'Reported Posts', 'count' => (int) $reportedPosts],
-            ['title' => 'Support Requests', 'count' => (int) $supportRequests],
+            ['title' => 'Pending Activities Today', 'count' => $activitiesToday, 'url' => route('admin.activities.index')],
+            ['title' => 'Circles Awaiting Review', 'count' => $pendingApprovals, 'url' => route('admin.circle-joining-requests.index')],
+            ['title' => 'Reported Posts', 'count' => $reportedPosts, 'url' => route('admin.posts.index')],
+            ['title' => 'Support Requests', 'count' => $supportRequests, 'url' => route('admin.contacts.index')],
         ];
+
+        $recentPeers = User::query()
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->latest('created_at')
+            ->take(5)
+            ->get();
 
         return view('admin.dashboard', [
             'stats' => $stats,
@@ -83,9 +143,37 @@ class DashboardController extends Controller
             'totalContactPosts' => $totalContactPosts,
             'todayContactPosts' => $todayContactPosts,
             'recentContactPosts' => $recentContactPosts,
+            'recentPeers' => $recentPeers,
         ]);
     }
 
+    private function todayDate(): string
+    {
+        return now()->toDateString();
+    }
+
+    private function resolveEffectiveCircleId(Request $request): string
+    {
+        $selectedCircleId = trim((string) $request->query('circle_id', ''));
+
+        if ($selectedCircleId !== '') {
+            if ($selectedCircleId === 'all' || $selectedCircleId === 'All') {
+                session(['activeScopeId' => 'All']);
+
+                return '';
+            }
+            session(['activeScopeId' => $selectedCircleId]);
+
+            return $selectedCircleId;
+        }
+
+        $sessionScope = session('activeScopeId');
+        if ($sessionScope && $sessionScope !== 'All' && $sessionScope !== 'all') {
+            return (string) $sessionScope;
+        }
+
+        return '';
+    }
 
     public function ded(Request $request): View
     {
@@ -112,15 +200,15 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $selectedCircleId = trim((string) $request->query('circle_id', ''));
-        if ($selectedCircleId === 'all') {
-            $selectedCircleId = '';
-        }
+        $selectedCircleId = $this->resolveEffectiveCircleId($request);
 
         $selectedCircle = null;
         if ($selectedCircleId !== '') {
             $selectedCircle = $districtCircles->firstWhere('id', $selectedCircleId);
-            abort_unless($selectedCircle !== null, 403);
+            if (! $selectedCircle) {
+                $selectedCircleId = '';
+                session(['activeScopeId' => 'All']);
+            }
         }
 
         $aggregation = app(DashboardAggregationService::class);
@@ -168,7 +256,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -212,7 +300,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -254,7 +342,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -295,7 +383,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -336,7 +424,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -377,7 +465,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -413,7 +501,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
         ];
@@ -505,7 +593,6 @@ class DashboardController extends Controller
 
         return (int) $query->count();
     }
-
 
     private function applyCircleFilterToUsersQuery($query, string $circleId): void
     {

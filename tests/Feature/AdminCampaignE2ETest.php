@@ -2,28 +2,28 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\AdminUser;
 use App\Models\AdminCampaign;
-use App\Models\CampaignSchedule;
+use App\Models\AdminUser;
 use App\Models\CampaignDelivery;
-use App\Models\CampaignLog;
 use App\Models\Notification;
-use App\Models\User;
 use App\Models\Role;
-use App\Jobs\ProcessCampaignDeliveryJob;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Str;
+use App\Models\User;
+use App\Models\UserPushToken;
+use App\Services\Firebase\FcmService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Tests\TestCase;
 
 class AdminCampaignE2ETest extends TestCase
 {
     use DatabaseTransactions;
 
     protected AdminUser $admin;
+
     protected User $user1;
+
     protected User $user2;
 
     protected function setUp(): void
@@ -42,7 +42,7 @@ class AdminCampaignE2ETest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -55,9 +55,9 @@ class AdminCampaignE2ETest extends TestCase
         $this->admin->roles()->attach($globalAdminRoleId);
 
         // Auto-generate UUID for Notification model in tests since SQLite does not support gen_random_uuid()
-        \App\Models\Notification::creating(function ($notification) {
+        Notification::creating(function ($notification) {
             if (empty($notification->id)) {
-                $notification->id = (string) \Illuminate\Support\Str::uuid();
+                $notification->id = (string) Str::uuid();
             }
         });
 
@@ -304,13 +304,13 @@ class AdminCampaignE2ETest extends TestCase
         $this->withoutExceptionHandling();
 
         // Register push tokens for user1 and user2
-        \App\Models\UserPushToken::create([
+        UserPushToken::create([
             'id' => (string) Str::uuid(),
             'user_id' => $this->user1->id,
             'token' => 'fcm-token-user1',
             'platform' => 'android',
         ]);
-        \App\Models\UserPushToken::create([
+        UserPushToken::create([
             'id' => (string) Str::uuid(),
             'user_id' => $this->user2->id,
             'token' => 'fcm-token-user2',
@@ -318,13 +318,13 @@ class AdminCampaignE2ETest extends TestCase
         ]);
 
         // Mock FcmService
-        $fcmMock = $this->mock(\App\Services\Firebase\FcmService::class);
+        $fcmMock = $this->mock(FcmService::class);
         $fcmMock->shouldReceive('sendToDevice')
             ->twice()
             ->andReturn([
                 'success' => true,
                 'firebase_response' => ['name' => 'mock-message-id'],
-                'error' => null
+                'error' => null,
             ]);
 
         // Submit form data for sending immediately
@@ -337,13 +337,14 @@ class AdminCampaignE2ETest extends TestCase
             'notification_message' => 'Immediate Push Msg',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send', // Click Send Campaign
             'schedule' => [
                 'schedule_type' => 'immediately',
                 // recurrence settings that should be ignored:
                 'monthly_basis' => 'date',
-                'monthly_day_of_month' => '', 
-            ]
+                'monthly_day_of_month' => '',
+            ],
         ]);
 
         // Assert validation passes and redirects to show page
@@ -390,6 +391,8 @@ class AdminCampaignE2ETest extends TestCase
     {
         $this->actingAs($this->admin, 'admin');
 
+        $startDate = now()->addDays(5)->toDateString();
+
         $response = $this->post(route('admin.campaigns.store'), [
             'title' => 'Once Campaign E2E',
             'campaign_type' => 'email_only',
@@ -397,13 +400,14 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Once Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'once',
-                'start_date' => '2026-06-20',
+                'start_date' => $startDate,
                 'send_time' => '10:00:00',
                 'timezone' => 'UTC',
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Once Campaign E2E')->first();
@@ -412,7 +416,7 @@ class AdminCampaignE2ETest extends TestCase
 
         $this->assertEquals('scheduled', $campaign->status);
         $this->assertEquals('once', $campaign->schedule->schedule_type);
-        $this->assertEquals('2026-06-20 10:00:00', $campaign->schedule->next_run_at->format('Y-m-d H:i:s'));
+        $this->assertEquals($startDate.' 10:00:00', $campaign->schedule->next_run_at->format('Y-m-d H:i:s'));
     }
 
     /**
@@ -429,6 +433,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Daily Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -438,7 +443,7 @@ class AdminCampaignE2ETest extends TestCase
                 'end_type' => 'never',
                 'recurrence_type' => 'daily',
                 'frequency_interval' => 1,
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Daily Campaign E2E')->first();
@@ -465,6 +470,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Weekly Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -475,7 +481,7 @@ class AdminCampaignE2ETest extends TestCase
                 'recurrence_type' => 'weekly',
                 'frequency_interval' => 1,
                 'weekdays' => ['Monday', 'Friday'],
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Weekly Campaign E2E')->first();
@@ -502,6 +508,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Monthly Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -513,7 +520,7 @@ class AdminCampaignE2ETest extends TestCase
                 'frequency_interval' => 1,
                 'monthly_basis' => 'date',
                 'monthly_day_of_month' => 15,
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Monthly Campaign E2E')->first();
@@ -540,6 +547,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Yearly Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -551,7 +559,7 @@ class AdminCampaignE2ETest extends TestCase
                 'frequency_interval' => 1,
                 'yearly_month' => 6,
                 'yearly_day' => 15,
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Yearly Campaign E2E')->first();
@@ -578,12 +586,13 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Specific Body',
             'audience_type' => 'specific_members',
             'filters' => [
-                'user_ids' => [$this->user1->id]
+                'user_ids' => [$this->user1->id],
             ],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'draft',
             'schedule' => [
                 'schedule_type' => 'immediately',
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Specific Members Campaign E2E')->first();

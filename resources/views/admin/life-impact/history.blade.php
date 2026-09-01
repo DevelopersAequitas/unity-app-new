@@ -2,6 +2,8 @@
 
 @section('title', 'Life Impact History')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $memberName = $member->display_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''));
@@ -11,7 +13,7 @@
             : route('admin.life-impact.history', $member);
         $formatDate = static function ($value): string {
             if (! $value) {
-                return '—';
+                return '-';
             }
 
             try {
@@ -22,7 +24,7 @@
         };
         $clean = static function ($value): string {
             $value = trim((string) ($value ?? ''));
-            return $value !== '' ? $value : '—';
+            return $value !== '' ? $value : '-';
         };
         $categoryLabel = static function ($item) use ($categories, $clean): string {
             $actionKey = trim((string) ($item->action_key ?? ''));
@@ -48,107 +50,108 @@
         };
     @endphp
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h5 class="mb-0">{{ $heading }}</h5>
-            <small class="text-muted">{{ $member->adminDisplayInlineLabel() }}</small>
-            @if ($activeCategoryLabel)
-                <span class="badge bg-light text-dark border ms-2">Category: {{ $activeCategoryLabel }}</span>
-            @else
-                <span class="badge bg-light text-dark border ms-2">All Life Impact History</span>
-            @endif
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
+        <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+            <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">{{ $heading }}</h2>
+                <span class="text-xs t3">• {{ $member->adminDisplayInlineLabel() }}</span>
+                @if ($activeCategoryLabel)
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">Category: {{ $activeCategoryLabel }}</span>
+                @else
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">All History</span>
+                @endif
+            </div>
+            <a href="{{ route('admin.life-impact.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">Back to Life Impact</a>
         </div>
-        <a href="{{ route('admin.life-impact.index') }}" class="btn btn-outline-secondary">Back to Life Impact</a>
-    </div>
 
-    <div class="card shadow-sm">
-        <div class="border-bottom p-3">
-            <form method="GET" class="d-flex flex-wrap gap-2 align-items-end" id="lifeImpactHistoryFilterForm">
+        <div class="border bs rounded-xl p-3.5 mb-4 surface-2">
+            <form method="GET" class="flex flex-wrap gap-3 items-end" id="lifeImpactHistoryFilterForm">
                 <div>
-                    <label class="form-label small text-muted mb-1">From</label>
-                    <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="form-control form-control-sm">
+                    <label class="block text-[11px] t3 mb-1 font-medium">From</label>
+                    <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                 </div>
                 <div>
-                    <label class="form-label small text-muted mb-1">To</label>
-                    <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="form-control form-control-sm">
+                    <label class="block text-[11px] t3 mb-1 font-medium">To</label>
+                    <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                 </div>
-                <div style="min-width: 260px;">
-                    <label class="form-label small text-muted mb-1">Search</label>
-                    <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control form-control-sm" placeholder="Title / description / remarks">
+                <div class="flex-1" style="min-width: 240px;">
+                    <label class="block text-[11px] t3 mb-1 font-medium">Search</label>
+                    <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs placeholder:t3 outline-none focus-ring" placeholder="Title / description / remarks">
                 </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                    <a href="{{ $resetUrl }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <div class="flex justify-end">
+                    <a href="{{ $resetUrl }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                 </div>
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Date</th>
-                        <th>Impact Value</th>
-                        <th>Total After</th>
-                        <th>Category / Action</th>
-                        <th>Title</th>
-                        <th>Description</th>
-                        <th>Remarks</th>
-                    </tr>
-                    <tr>
-                        <th>
-                            <input
-                                type="date"
-                                name="date"
-                                form="lifeImpactHistoryFilterForm"
-                                value="{{ $filters['date'] ?? '' }}"
-                                class="form-control form-control-sm"
-                                placeholder="Date"
-                            >
-                        </th>
-                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
-                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
-                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
-                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
-                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
-                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        @php
-                            $isAdminAdjustment = ($item->action_key ?? null) === 'admin_adjustment'
-                                || ($item->impact_category ?? null) === 'admin_adjustment'
-                                || ($item->activity_type ?? null) === 'admin_adjustment';
-                        @endphp
-                        <tr>
-                            <td>{{ $formatDate($item->created_at ?? null) }}</td>
-                            <td>{{ number_format((int) ($item->impact_value ?? 0)) }}</td>
-                            <td>{{ isset($item->life_impacted) ? number_format((int) $item->life_impacted) : '—' }}</td>
-                            <td>
-                                <span class="badge {{ $isAdminAdjustment ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-primary-subtle text-primary' }}">
-                                    {{ $categoryLabel($item) }}
-                                </span>
-                                @if (! empty($item->action_key) && $item->action_key !== 'admin_adjustment')
-                                    <div class="text-muted small">{{ $item->action_key }}</div>
-                                @endif
-                            </td>
-                            <td class="text-wrap" style="max-width: 260px; white-space: normal;">{{ $clean($item->title ?? '') }}</td>
-                            <td class="text-wrap" style="max-width: 320px; white-space: normal;">{{ $clean($item->description ?? '') }}</td>
-                            <td class="text-wrap" style="max-width: 280px; white-space: normal;">{{ $clean($item->remarks ?? '') }}</td>
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Impact Value</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Total After</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Category / Action</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Title</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Description</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Remarks</th>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">No life impact history entries found.</td>
+                        <tr class="surface-2 border-b bs align-middle">
+                            <th class="px-3 py-2">
+                                <input
+                                    type="date"
+                                    name="date"
+                                    form="lifeImpactHistoryFilterForm"
+                                    value="{{ $filters['date'] ?? '' }}"
+                                    class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal"
+                                    placeholder="Date"
+                                >
+                            </th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
                         </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($items as $item)
+                            @php
+                                $isAdminAdjustment = ($item->action_key ?? null) === 'admin_adjustment'
+                                    || ($item->impact_category ?? null) === 'admin_adjustment'
+                                    || ($item->activity_type ?? null) === 'admin_adjustment';
+                            @endphp
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDate($item->created_at ?? null) }}</td>
+                                <td class="px-3 py-2.5 font-semibold text-indigo-600 text-[12.5px]">{{ number_format((int) ($item->impact_value ?? 0)) }}</td>
+                                <td class="px-3 py-2.5 text-[12.5px] t1 font-medium">{{ isset($item->life_impacted) ? number_format((int) $item->life_impacted) : '-' }}</td>
+                                <td class="px-3 py-2.5">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold {{ $isAdminAdjustment ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200' }}">
+                                        {{ $categoryLabel($item) }}
+                                    </span>
+                                    @if (! empty($item->action_key) && $item->action_key !== 'admin_adjustment')
+                                        <div class="t3 text-[10px] mt-0.5">{{ $item->action_key }}</div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t1 max-w-[220px]"><x-admin-grid-text :text="$clean($item->title ?? '')" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[280px]"><x-admin-grid-text :text="$clean($item->description ?? '')" /></td>
+                                <td class="px-3 py-2.5 text-xs t3 max-w-[240px]"><x-admin-grid-text :text="$clean($item->remarks ?? '')" /></td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-xs t3">No life impact history entries found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
 
-    <div class="mt-3">
-        {{ $items->links() }}
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $items->links() }}
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -174,3 +177,4 @@
         });
     </script>
 @endpush
+

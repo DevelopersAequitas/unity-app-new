@@ -6,11 +6,12 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\P2PMeetingRescheduleRequestResource;
 use App\Mail\P2PMeetingWorkflowMail;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
-use App\Services\Notifications\NotifyUserService;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,7 +38,11 @@ class P2PMeetingRescheduleController extends BaseApiController
     {
         $authUser = $request->user();
 
-        $result = DB::transaction(function () use ($id, $authUser, $notifyUserService) {
+        $meetingRequest = null;
+        $rescheduleRequest = null;
+        $requester = null;
+
+        $result = DB::transaction(function () use ($id, $authUser, &$meetingRequest, &$rescheduleRequest, &$requester) {
             $rescheduleRequest = P2PMeetingRescheduleRequest::query()
                 ->with(['requestedBy', 'requestedTo', 'meetingRequest.requester', 'meetingRequest.invitee'])
                 ->lockForUpdate()
@@ -80,12 +85,6 @@ class P2PMeetingRescheduleController extends BaseApiController
             $rescheduleRequest->refresh()->load(['requestedBy', 'requestedTo', 'meetingRequest.requester', 'meetingRequest.invitee']);
             $requester = $rescheduleRequest->requestedBy;
 
-            if ($requester) {
-                $this->createMeetingNotification($requester, 'p2p_reschedule_approved', $meetingRequest, $authUser, $rescheduleRequest);
-                $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_approved', $meetingRequest);
-                $this->sendWorkflowEmail($requester, $authUser, 'p2p_reschedule_approved', $meetingRequest, $rescheduleRequest);
-            }
-
             return ['meeting' => $meetingRequest];
         });
 
@@ -93,11 +92,17 @@ class P2PMeetingRescheduleController extends BaseApiController
             return $this->error($result['error'], $result['status'] ?? 422);
         }
 
+        if ($requester) {
+            $this->createMeetingNotification($requester, 'p2p_reschedule_approved', $meetingRequest, $authUser, $rescheduleRequest);
+            $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_approved', $meetingRequest);
+            $this->sendWorkflowEmail($requester, $authUser, 'p2p_reschedule_approved', $meetingRequest, $rescheduleRequest);
+        }
+
         return $this->success([
-            'p2p_meeting_request_id' => (string) $result['meeting']->id,
-            'scheduled_at' => $result['meeting']->scheduled_at?->toIso8601String(),
-            'place' => $result['meeting']->place,
-            'status' => (string) $result['meeting']->status,
+            'p2p_meeting_request_id' => (string) $meetingRequest->id,
+            'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
+            'place' => $meetingRequest->place,
+            'status' => (string) $meetingRequest->status,
         ], 'P2P meeting reschedule request approved successfully.');
     }
 
@@ -108,7 +113,11 @@ class P2PMeetingRescheduleController extends BaseApiController
             'reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $result = DB::transaction(function () use ($id, $authUser, $validated, $notifyUserService) {
+        $meetingRequest = null;
+        $rescheduleRequest = null;
+        $requester = null;
+
+        $result = DB::transaction(function () use ($id, $authUser, &$meetingRequest, &$rescheduleRequest, &$requester) {
             $rescheduleRequest = P2PMeetingRescheduleRequest::query()
                 ->with(['requestedBy', 'requestedTo', 'meetingRequest.requester', 'meetingRequest.invitee'])
                 ->lockForUpdate()
@@ -138,18 +147,13 @@ class P2PMeetingRescheduleController extends BaseApiController
             ]);
 
             if (! in_array((string) $meetingRequest->status, ['completed', 'cancelled', 'rejected'], true)) {
-                $meetingRequest->update(['status' => 'scheduled']);
+                $statusToRestore = $meetingRequest->responded_at !== null ? 'scheduled' : 'pending';
+                $meetingRequest->update(['status' => $statusToRestore]);
             }
 
             $meetingRequest->refresh()->load(['requester', 'invitee']);
             $rescheduleRequest->refresh()->load(['requestedBy', 'requestedTo', 'meetingRequest.requester', 'meetingRequest.invitee']);
             $requester = $rescheduleRequest->requestedBy;
-
-            if ($requester) {
-                $this->createMeetingNotification($requester, 'p2p_reschedule_rejected', $meetingRequest, $authUser, $rescheduleRequest, $validated['reason'] ?? null);
-                $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest);
-                $this->sendWorkflowEmail($requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest, $rescheduleRequest, $validated['reason'] ?? null);
-            }
 
             return ['reschedule_request' => $rescheduleRequest];
         });
@@ -158,17 +162,23 @@ class P2PMeetingRescheduleController extends BaseApiController
             return $this->error($result['error'], $result['status'] ?? 422);
         }
 
+        if ($requester) {
+            $this->createMeetingNotification($requester, 'p2p_reschedule_rejected', $meetingRequest, $authUser, $rescheduleRequest, $validated['reason'] ?? null);
+            $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest);
+            $this->sendWorkflowEmail($requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest, $rescheduleRequest, $validated['reason'] ?? null);
+        }
+
         return $this->success([
-            'reschedule_request_id' => (string) $result['reschedule_request']->id,
-            'status' => (string) $result['reschedule_request']->status,
+            'reschedule_request_id' => (string) $rescheduleRequest->id,
+            'status' => (string) $rescheduleRequest->status,
         ], 'P2P meeting reschedule request rejected successfully.');
     }
 
     private function createMeetingNotification(User $toUser, string $type, P2PMeetingRequest $meetingRequest, User $fromUser, ?P2PMeetingRescheduleRequest $rescheduleRequest = null, ?string $responseReason = null): void
     {
-        Notification::query()->create([
+        $notification = Notification::query()->create([
             'user_id' => $toUser->id,
-            'type' => $type,
+            'type' => 'activity_update',
             'payload' => [
                 'notification_type' => $type,
                 'meeting_request_id' => (string) $meetingRequest->id,
@@ -178,12 +188,55 @@ class P2PMeetingRescheduleController extends BaseApiController
                 'new_scheduled_at' => $rescheduleRequest?->new_scheduled_at?->toIso8601String(),
                 'new_place' => $rescheduleRequest?->new_place,
                 'response_reason' => $responseReason,
-                'from_user' => $fromUser->publicProfileArray(),
             ],
             'is_read' => false,
             'created_at' => now(),
             'read_at' => null,
         ]);
+
+        try {
+            $fromName = trim((string) ($fromUser->display_name ?? $fromUser->name ?? 'A member'));
+            $titleMap = [
+                'p2p_reschedule_requested' => 'P2P Reschedule Requested',
+                'p2p_reschedule_approved' => 'P2P Reschedule Approved',
+                'p2p_reschedule_rejected' => 'P2P Reschedule Rejected',
+            ];
+            $title = $titleMap[$type] ?? 'P2P Reschedule Update';
+
+            $bodyMap = [
+                'p2p_reschedule_requested' => $fromName.' requested to reschedule the P2P meeting.',
+                'p2p_reschedule_approved' => $fromName.' approved the reschedule request.',
+                'p2p_reschedule_rejected' => $fromName.' rejected the reschedule request.',
+            ];
+            $body = $bodyMap[$type] ?? 'You have a new P2P reschedule update.';
+
+            AppNotification::create([
+                'user_id' => $toUser->id,
+                'type' => $type,
+                'category' => 'p2p_meeting',
+                'title' => $title,
+                'body' => $body,
+                'message' => $body,
+                'channel' => 'push',
+                'priority' => 'medium',
+                'reference_type' => P2PMeetingRequest::class,
+                'reference_id' => (string) $meetingRequest->id,
+                'screen' => 'p2p_meetings',
+                'data' => [
+                    'notification_id' => (string) $notification->id,
+                    'meeting_request_id' => (string) $meetingRequest->id,
+                    'reschedule_request_id' => $rescheduleRequest ? (string) $rescheduleRequest->id : null,
+                    'type' => $type,
+                ],
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to create AppNotification in P2PMeetingRescheduleController', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function dispatchPushNotification(NotifyUserService $notifyUserService, User $toUser, User $fromUser, string $notificationType, P2PMeetingRequest $meetingRequest): void
@@ -215,8 +268,8 @@ class P2PMeetingRescheduleController extends BaseApiController
         $logData = [
             'user_id' => (string) $recipient->id,
             'to_email' => $email,
-            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '') . ' ' . ($recipient->last_name ?? ''))),
-            'template_key' => 'p2p_meeting_' . $eventType,
+            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '').' '.($recipient->last_name ?? ''))),
+            'template_key' => 'p2p_meeting_'.$eventType,
             'source_module' => 'P2P Meetings',
             'related_type' => P2PMeetingRequest::class,
             'related_id' => (string) $meetingRequest->id,

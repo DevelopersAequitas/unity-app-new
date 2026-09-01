@@ -19,8 +19,7 @@ class ImpactService
         private readonly ImpactUserNotificationService $notificationService,
         private readonly ImpactEmailService $emailService,
         private readonly LifeImpactService $lifeImpactService,
-    ) {
-    }
+    ) {}
 
     public function submitImpact(User $user, array $data): Impact
     {
@@ -31,7 +30,7 @@ class ImpactService
             'impacted_peer_id' => $data['impacted_peer_id'],
             'impact_date' => $data['date'] ?? now()->toDateString(),
             'action' => $data['action'],
-            'story_to_share' => $data['story_to_share'],
+            'story_to_share' => $data['story_to_share'] ?? null,
             'life_impacted' => $impactScore,
             'additional_remarks' => $data['additional_remarks'] ?? null,
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
@@ -179,17 +178,11 @@ class ImpactService
                 'rejected_by' => $actorUserId,
             ]);
 
-            $this->notify((string) $impact->user_id, 'impact_rejected', [
-                'impact_id' => (string) $impact->id,
-                'title' => 'Impact rejected',
-                'body' => 'Your impact was reviewed and rejected.',
-                'review_remarks' => $reviewRemarks,
-            ]);
+            $this->notificationService->sendRejected($impact, $reviewRemarks);
 
             return $impact;
         });
     }
-
 
     private function resolveSubmittedImpactScore(array $data): int
     {
@@ -249,7 +242,7 @@ class ImpactService
     {
         $userId = $userOrId instanceof User ? (string) $userOrId->id : (string) $userOrId;
 
-        $historyTable = (new LifeImpactHistory())->getTable();
+        $historyTable = (new LifeImpactHistory)->getTable();
         $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
             ? 'COALESCE(impact_value, 0)'
             : (Schema::hasColumn($historyTable, 'life_impacted')
@@ -278,8 +271,8 @@ class ImpactService
     {
         Notification::create([
             'user_id' => $userId,
-            'type' => $type,
-            'payload' => $payload,
+            'type' => 'activity_update',
+            'payload' => array_merge($payload, ['notification_type' => $type]),
             'is_read' => false,
             'created_at' => now(),
             'read_at' => null,

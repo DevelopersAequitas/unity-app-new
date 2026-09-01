@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\UserResource;
+use App\Http\Resources\V1\LimitedUserResource;
+use App\Http\Resources\V1\TopIntroducerResource;
 use App\Models\Connection;
 use App\Models\User;
 use App\Models\UserFollow;
@@ -12,9 +14,11 @@ use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
 use App\Services\ProfileMatchService;
 use App\Services\ProfileVisibilityService;
+use App\Services\Recommendation\MemberMatchingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class MemberController extends BaseApiController
@@ -23,6 +27,7 @@ class MemberController extends BaseApiController
     {
         $selectColumns = [
             'id',
+            'peer_id',
             'public_profile_slug',
             'first_name',
             'last_name',
@@ -32,7 +37,6 @@ class MemberController extends BaseApiController
             'phone',
             'membership_status',
             'coins_balance',
-            'life_impacted_count',
             'last_login_at',
             'created_at',
             'updated_at',
@@ -45,6 +49,10 @@ class MemberController extends BaseApiController
 
         if (Schema::hasColumn('users', 'profile_visibility')) {
             $selectColumns[] = 'profile_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'contact_visibility')) {
+            $selectColumns[] = 'contact_visibility';
         }
 
         $profileMatchColumns = [
@@ -94,10 +102,11 @@ class MemberController extends BaseApiController
             }
         }
 
-        $selectColumns = array_values(array_unique($selectColumns));
+        $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
 
         $query = User::query()
             ->select($selectColumns)
+            ->addSelect($this->lifeImpactedCountExpression())
             ->with([
                 'city:id,name',
                 'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
@@ -107,11 +116,17 @@ class MemberController extends BaseApiController
                 'following as following_count',
             ]);
 
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
+
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
-
 
         $authUser = auth('sanctum')->user();
 
@@ -170,7 +185,7 @@ class MemberController extends BaseApiController
             );
         }
 
-        $query->orderByDesc('created_at');
+        $query->orderByDesc('life_impacted_count')->orderByDesc('created_at');
 
         $request->attributes->set('profile_match_enabled', true);
         $request->attributes->set('profile_match_auth_user', $authUser);
@@ -195,20 +210,19 @@ class MemberController extends BaseApiController
         ]);
     }
 
-
     private function applyProfileMatchOrdering(
         Collection $members,
         User $authUser,
         ProfileMatchService $profileMatchService,
         array $selectColumns,
         bool $includeAuthUserWhenMissing = true
-    ): Collection
-    {
+    ): Collection {
         $authUserId = (string) $authUser->id;
 
         if ($includeAuthUserWhenMissing && ! $members->contains(fn (User $member): bool => (string) $member->id === $authUserId)) {
             $self = User::query()
                 ->select($selectColumns)
+                ->addSelect($this->lifeImpactedCountExpression())
                 ->with([
                     'city:id,name',
                     'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
@@ -242,7 +256,18 @@ class MemberController extends BaseApiController
                 $aScore = (int) data_get($a->getAttribute('profile_match'), 'percentage', 0);
                 $bScore = (int) data_get($b->getAttribute('profile_match'), 'percentage', 0);
 
-                return $bScore <=> $aScore;
+                if ($aScore !== $bScore) {
+                    return $bScore <=> $aScore;
+                }
+
+                $aImpact = (int) ($a->life_impacted_count ?? 0);
+                $bImpact = (int) ($b->life_impacted_count ?? 0);
+
+                if ($aImpact !== $bImpact) {
+                    return $bImpact <=> $aImpact;
+                }
+
+                return 0;
             })
             ->values();
     }
@@ -273,37 +298,100 @@ class MemberController extends BaseApiController
         );
     }
 
-    public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    protected function buildLimitedUsersQuery(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
+        $selectColumns = [
+            'id',
+            'first_name',
+            'last_name',
+            'display_name',
+            'company_name',
+            'profile_photo_file_id',
+            'profile_photo_url',
+            'city_id',
+            'city',
+            'city_of_residence',
+            'status',
+            'deleted_at',
+            'business_category_id',
+            'designation',
+            'public_profile_slug',
+            'email',
+            'phone',
+            'membership_status',
+            'coins_balance',
+            'business_type',
+            'created_at',
+            'updated_at',
+        ];
+
+        if (Schema::hasColumn('users', 'profile_visibility')) {
+            $selectColumns[] = 'profile_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'contact_visibility')) {
+            $selectColumns[] = 'contact_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'is_verified')) {
+            $selectColumns[] = 'is_verified';
+        }
+
+        if (Schema::hasColumn('users', 'country')) {
+            $selectColumns[] = 'country';
+        }
+
+        $optionalMatchingColumns = [
+            'main_business_category_id',
+            'business_sub_category',
+            'business_city',
+            'industry_tags',
+            'industries_of_interest',
+            'skills',
+            'interests',
+            'hobbies_interests',
+            'superpower',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'collaboration_goals',
+            'target_regions',
+            'target_business_categories',
+        ];
+
+        foreach ($optionalMatchingColumns as $col) {
+            if (Schema::hasColumn('users', $col)) {
+                $selectColumns[] = $col;
+            }
+        }
+
+        $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
+
         $query = User::query()
-            ->select([
-                'id',
-                'first_name',
-                'last_name',
-                'display_name',
-                'company_name',
-                'profile_photo_file_id',
-                'profile_photo_url',
-                'city_id',
-                'city',
-                'city_of_residence',
-                'life_impacted_count',
-                'status',
-                'deleted_at',
-            ])
-            ->when(Schema::hasColumn('users', 'profile_visibility'), function ($query): void {
-                $query->addSelect('profile_visibility');
-            })
-            ->with(['city:id,name']);
+            ->select($selectColumns)
+            ->addSelect($this->lifeImpactedCountExpression())
+            ->with([
+                'city:id,name,country,country_code',
+                'level4Category:id,name',
+                'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+            ]);
+
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
 
         // Exclude inactive members
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
 
-        // Filter out blocked users if user is authenticated
-        $authUser = auth('sanctum')->user();
+        // Filter out authenticated user and blocked users if user is authenticated
+        $authUser = auth('sanctum')->user() ?: $request->user();
         if ($authUser) {
+            $query->where('users.id', '!=', (string) $authUser->id);
+
             $profileVisibilityService->applyVisibleTo($query, $authUser);
 
             $excludedUserIds = array_values(array_unique(array_filter(array_merge(
@@ -312,16 +400,54 @@ class MemberController extends BaseApiController
             ))));
 
             if (! empty($excludedUserIds)) {
-                $query->whereNotIn('id', $excludedUserIds);
+                $query->whereNotIn('users.id', $excludedUserIds);
             }
         }
 
-        $users = $query->orderByDesc('created_at')->get();
+        return $query;
+    }
 
-        return $this->success(
-            \App\Http\Resources\V1\LimitedUserResource::collection($users),
-            'Limited user data fetched successfully.'
-        );
+    public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    {
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+
+        return UserResource::collection($users)->additional([
+            'success' => true,
+            'message' => 'Members fetched successfully.',
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
+        ]);
+    }
+
+    public function limitedList(
+        Request $request,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService,
+        MemberMatchingService $memberMatchingService
+    ) {
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+
+        $perPage = (int) $request->input('per_page', 15);
+        $perPage = max(1, min($perPage, 100));
+        $page = (int) $request->input('page', 1);
+
+        $authUser = auth('sanctum')->user() ?: $request->user();
+
+        if ($authUser instanceof User) {
+            $users = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
+        } else {
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
+        }
+
+        return LimitedUserResource::collection($users)->additional([
+            'success' => true,
+            'message' => 'Limited user data fetched successfully.',
+            'total_users' => $users->total(),
+            'total_user' => $users->total(),
+            'total' => $users->total(),
+        ]);
     }
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
@@ -336,7 +462,6 @@ class MemberController extends BaseApiController
         if (! $user) {
             return $this->error('Member not found', 404);
         }
-
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
@@ -362,7 +487,6 @@ class MemberController extends BaseApiController
         if (! $user) {
             return $this->error('Public profile not found', 404);
         }
-
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
@@ -440,7 +564,7 @@ class MemberController extends BaseApiController
             'life_impacted_count' => (int) ($follower->life_impacted_count ?? 0),
             'profile_photo_id' => $profilePhotoId,
             'profile_photo_url' => $profilePhotoId
-                ? url('/api/v1/files/' . $profilePhotoId)
+                ? url('/api/v1/files/'.$profilePhotoId)
                 : null,
         ];
     }
@@ -505,15 +629,14 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $target->id)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
 
         $existing = Connection::where(function ($q) use ($authUser, $target) {
-                $q->where('requester_id', $authUser->id)
-                    ->where('addressee_id', $target->id);
-            })
+            $q->where('requester_id', $authUser->id)
+                ->where('addressee_id', $target->id);
+        })
             ->orWhere(function ($q) use ($authUser, $target) {
                 $q->where('requester_id', $target->id)
                     ->where('addressee_id', $authUser->id);
@@ -543,7 +666,7 @@ class MemberController extends BaseApiController
             [
                 'request_id' => (string) $connection->id,
                 'title' => 'New Connection Request',
-                'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' sent you a connection request',
+                'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a connection request',
             ],
             $connection
         );
@@ -587,7 +710,7 @@ class MemberController extends BaseApiController
                     'from_user_id' => (string) $authUser->id,
                     'to_user_id' => (string) $requesterUser->id,
                     'title' => 'Connection Accepted',
-                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' accepted your connection request',
+                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' accepted your connection request',
                 ],
                 $connection
             );
@@ -606,9 +729,9 @@ class MemberController extends BaseApiController
         $authUser = $request->user();
 
         $connection = Connection::where(function ($q) use ($authUser, $id) {
-                $q->where('requester_id', $authUser->id)
-                    ->where('addressee_id', $id);
-            })
+            $q->where('requester_id', $authUser->id)
+                ->where('addressee_id', $id);
+        })
             ->orWhere(function ($q) use ($authUser, $id) {
                 $q->where('requester_id', $id)
                     ->where('addressee_id', $authUser->id);
@@ -631,8 +754,10 @@ class MemberController extends BaseApiController
         $connections = Connection::with([
             'requester',
             'requester.city',
+            'requester.level4Category',
             'addressee',
             'addressee.city',
+            'addressee.level4Category',
         ])
             ->where('is_approved', true)
             ->where(function ($q) use ($authUser) {
@@ -660,8 +785,10 @@ class MemberController extends BaseApiController
         $connections = Connection::with([
             'requester',
             'requester.city',
+            'requester.level4Category',
             'addressee',
             'addressee.city',
+            'addressee.level4Category',
         ])
             ->where('addressee_id', $authUser->id)
             ->where('is_approved', false)
@@ -671,5 +798,126 @@ class MemberController extends BaseApiController
             ->values();
 
         return $this->success(ConnectionResource::collection($connections));
+    }
+
+    public function bookmark(Request $request, string $id): JsonResponse
+    {
+        $target = User::find($id);
+        if (! $target) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        $bookmarks = $authUser->bookmarks ?? [];
+
+        if (! in_array($id, $bookmarks, true)) {
+            $bookmarks[] = $id;
+            $authUser->bookmarks = $bookmarks;
+            $authUser->save();
+        }
+
+        return $this->success(null, 'Member bookmarked successfully.');
+    }
+
+    public function unbookmark(Request $request, string $id): JsonResponse
+    {
+        $target = User::find($id);
+        if (! $target) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        $bookmarks = $authUser->bookmarks ?? [];
+
+        if (in_array($id, $bookmarks, true)) {
+            $bookmarks = array_values(array_diff($bookmarks, [$id]));
+            $authUser->bookmarks = $bookmarks;
+            $authUser->save();
+        }
+
+        return $this->success(null, 'Member unbookmarked successfully.');
+    }
+
+    public function topIntroducers(Request $request): JsonResponse
+    {
+        $topIntroducers = User::query()
+            ->withCount(['introducedMembers'])
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->has('introducedMembers')
+            ->orderByDesc('introduced_members_count')
+            ->orderBy('display_name', 'asc')
+            ->limit(5)
+            ->get();
+
+        $topIntroducers->each(function (User $user, int $index) {
+            $user->rank = $index + 1;
+        });
+
+        return $this->success(
+            TopIntroducerResource::collection($topIntroducers),
+            'Top introduced members fetched successfully'
+        );
+    }
+
+    private function lifeImpactedCountExpression()
+    {
+        if (! Schema::hasTable('life_impact_histories')) {
+            if (Schema::hasTable('impacts')) {
+                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+                $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(impacts.life_impacted, 0), 1)' : '1';
+                $impactsWhere = ['impacts.user_id = users.id'];
+                if ($hasImpactsStatus) {
+                    $impactsWhere[] = "(impacts.status IS NULL OR impacts.status = 'approved')";
+                }
+                $impactsWhereStr = implode(' AND ', $impactsWhere);
+                $impactsSubquery = "(SELECT COALESCE(SUM({$impactsLifeExpr}), 0) FROM impacts WHERE {$impactsWhereStr})";
+
+                return DB::raw(
+                    "COALESCE(NULLIF(users.life_impacted_count, 0), NULLIF({$impactsSubquery}, 0), 0) as life_impacted_count"
+                );
+            }
+
+            return 'life_impacted_count';
+        }
+
+        $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
+        $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+        $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+        $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+
+        $valueExpr = ($hasImpactValue && $hasLifeImpacted)
+            ? 'COALESCE(NULLIF(life_impact_histories.impact_value, 0), NULLIF(life_impact_histories.life_impacted, 0), 0)'
+            : ($hasImpactValue ? 'COALESCE(NULLIF(life_impact_histories.impact_value, 0), 0)' : ($hasLifeImpacted ? 'COALESCE(NULLIF(life_impact_histories.life_impacted, 0), 0)' : '0'));
+
+        $whereConditions = ['life_impact_histories.user_id = users.id'];
+        if ($hasCounted) {
+            $whereConditions[] = '(life_impact_histories.counted_in_total IS NULL OR life_impact_histories.counted_in_total = true)';
+        }
+        if ($hasStatus) {
+            $whereConditions[] = "(life_impact_histories.status IS NULL OR life_impact_histories.status = 'approved')";
+        }
+
+        $whereStr = implode(' AND ', $whereConditions);
+        $historiesSubquery = "(SELECT COALESCE(SUM({$valueExpr}), 0) FROM life_impact_histories WHERE {$whereStr})";
+
+        $impactsSubquery = '0';
+        if (Schema::hasTable('impacts')) {
+            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(impacts.life_impacted, 0), 1)' : '1';
+            $impactsWhere = ['impacts.user_id = users.id'];
+            if ($hasImpactsStatus) {
+                $impactsWhere[] = "(impacts.status IS NULL OR impacts.status = 'approved')";
+            }
+            $impactsWhereStr = implode(' AND ', $impactsWhere);
+            $impactsSubquery = "(SELECT COALESCE(SUM({$impactsLifeExpr}), 0) FROM impacts WHERE {$impactsWhereStr})";
+        }
+
+        return DB::raw(
+            "COALESCE(NULLIF(users.life_impacted_count, 0), NULLIF({$historiesSubquery}, 0), NULLIF({$impactsSubquery}, 0), 0) as life_impacted_count"
+        );
     }
 }

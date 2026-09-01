@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\Notifications\SendNotificationChannelJob;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\NotificationCampaignRun;
@@ -12,20 +11,24 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Notifications\CampaignService;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
 class NotificationAdminController extends Controller
 {
     private const CHANNELS = ['push', 'email', 'push_email', 'in_app_only'];
+
     private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
     public function dashboard(): View
@@ -44,8 +47,8 @@ class NotificationAdminController extends Controller
             'clicked_notifications' => $hasNotifications ? AppNotification::whereNotNull('clicked_at')->count() : 0,
             'active_campaigns' => $hasCampaigns ? NotificationCampaign::where('is_active', true)->count() : 0,
             'inactive_campaigns' => $hasCampaigns ? NotificationCampaign::where('is_active', false)->count() : 0,
-            'total_push_tokens' => $hasPushTokens ? \Illuminate\Support\Facades\DB::table('user_push_tokens')->count() : 0,
-            'active_push_tokens' => ($hasPushTokens && Schema::hasColumn('user_push_tokens', 'is_active')) ? \Illuminate\Support\Facades\DB::table('user_push_tokens')->where('is_active', true)->count() : 0,
+            'total_push_tokens' => $hasPushTokens ? DB::table('user_push_tokens')->count() : 0,
+            'active_push_tokens' => ($hasPushTokens && Schema::hasColumn('user_push_tokens', 'is_active')) ? DB::table('user_push_tokens')->where('is_active', true)->count() : 0,
             'today_sent' => $hasNotifications ? AppNotification::whereDate('sent_at', today())->count() : 0,
             'today_failed' => $hasNotifications ? AppNotification::whereDate('failed_at', today())->count() : 0,
             'today_read' => $hasNotifications ? AppNotification::whereDate('read_at', today())->count() : 0,
@@ -86,7 +89,7 @@ class NotificationAdminController extends Controller
 
         $query
             ->when(filled($validated['search'] ?? null), function (Builder $query) use ($validated): void {
-                $search = '%' . trim((string) $validated['search']) . '%';
+                $search = '%'.trim((string) $validated['search']).'%';
                 $query->where(function (Builder $q) use ($search): void {
                     $q->where('name', 'ilike', $search)
                         ->orWhere('code', 'ilike', $search)
@@ -119,7 +122,6 @@ class NotificationAdminController extends Controller
             'categoryTabs' => $this->campaignCategoryTabs(),
         ]);
     }
-
 
     private function campaignFilterOptions($campaigns): array
     {
@@ -253,7 +255,6 @@ class NotificationAdminController extends Controller
         return back()->with('success', 'Default notification campaigns seeded successfully.');
     }
 
-
     public function sendTestForm(FirebaseFcmService $firebase): View
     {
         $recentNotifications = Schema::hasTable('app_notifications')
@@ -291,10 +292,10 @@ class NotificationAdminController extends Controller
         }
 
         if ($q !== '' && $columns->isNotEmpty()) {
-            $needle = '%' . mb_strtolower($q) . '%';
+            $needle = '%'.mb_strtolower($q).'%';
             $query->where(function (Builder $builder) use ($columns, $needle): void {
                 foreach ($columns as $column) {
-                    $builder->orWhereRaw('LOWER(' . $column . ') LIKE ?', [$needle]);
+                    $builder->orWhereRaw('LOWER('.$column.') LIKE ?', [$needle]);
                 }
             });
         }
@@ -310,9 +311,10 @@ class NotificationAdminController extends Controller
 
         return response()->json([
             'results' => $users->map(function (User $user): array {
-                $displayName = trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')));
+                $displayName = trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? '')));
                 $displayName = $displayName !== '' ? $displayName : (string) ($user->name ?? $user->email ?? $user->phone ?? 'Unknown User');
                 $phone = (string) ($user->phone ?? $user->mobile ?? '');
+
                 return [
                     'id' => (string) $user->id,
                     'text' => $displayName,
@@ -326,7 +328,6 @@ class NotificationAdminController extends Controller
             'pagination' => ['more' => ($page * $perPage) < $total],
         ]);
     }
-
 
     public function pushStatus(string $user): JsonResponse
     {
@@ -372,7 +373,7 @@ class NotificationAdminController extends Controller
     {
         try {
             $data = $this->testNotificationData($request);
-        } catch (\Illuminate\Validation\ValidationException $exception) {
+        } catch (ValidationException $exception) {
             if ($exception->validator->errors()->has('data')) {
                 return back()->withInput()->with('error', 'Data JSON must be valid JSON.');
             }
@@ -405,6 +406,7 @@ class NotificationAdminController extends Controller
         if ($channel === 'in_app_only') {
             $results['in_app_only'] = $this->recordDelivery($notification, 'in_app_only', true, null, 'database');
             $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+
             return redirect()->route('admin.notifications.send-test')->with('success', 'In-app notification created successfully. The user will see it when the app calls the notification list API.');
         }
 
@@ -433,6 +435,7 @@ class NotificationAdminController extends Controller
         }
 
         $error = (string) (($results['push']['error'] ?? null) ?: ($results['email']['error'] ?? 'Unknown error.'));
+
         return redirect()->route('admin.notifications.send-test')->with('warning', $this->deliveryWarningMessage($error));
     }
 
@@ -467,7 +470,9 @@ class NotificationAdminController extends Controller
             'failed' => (clone $base)->where('status', 'failed')->count(),
             'skipped' => (clone $base)->where('status', 'skipped')->count(),
             'pending' => (clone $base)->whereIn('status', ['pending', 'queued', 'running'])->count(),
-            'firebase' => (clone $base)->where(function (Builder $q): void { $q->where('provider', 'firebase')->orWhere('channel', 'push'); })->count(),
+            'firebase' => (clone $base)->where(function (Builder $q): void {
+                $q->where('provider', 'firebase')->orWhere('channel', 'push');
+            })->count(),
             'in_app' => Schema::hasTable('app_notifications') ? AppNotification::count() : 0,
         ];
 
@@ -475,11 +480,13 @@ class NotificationAdminController extends Controller
             ->when(filled($validated['status'] ?? null), fn (Builder $q) => $q->where('status', $validated['status']))
             ->when(filled($validated['channel'] ?? null), fn (Builder $q) => $q->where('channel', $validated['channel']))
             ->when(filled($validated['provider'] ?? null), fn (Builder $q) => $q->where('provider', $validated['provider']))
-            ->when(filled($validated['campaign_id'] ?? null), fn (Builder $q) => $q->where(function (Builder $query) use ($validated): void { $query->where('campaign_id', $validated['campaign_id'])->orWhereHas('notification', fn (Builder $n) => $n->where('campaign_id', $validated['campaign_id'])); }))
+            ->when(filled($validated['campaign_id'] ?? null), fn (Builder $q) => $q->where(function (Builder $query) use ($validated): void {
+                $query->where('campaign_id', $validated['campaign_id'])->orWhereHas('notification', fn (Builder $n) => $n->where('campaign_id', $validated['campaign_id']));
+            }))
             ->when(filled($validated['type'] ?? null), fn (Builder $q) => $q->whereHas('notification', fn (Builder $n) => $n->where('type', $validated['type'])))
-            ->when(filled($validated['error_reason'] ?? null), fn (Builder $q) => $q->where('error_message', 'ilike', '%' . $validated['error_reason'] . '%'))
+            ->when(filled($validated['error_reason'] ?? null), fn (Builder $q) => $q->where('error_message', 'ilike', '%'.$validated['error_reason'].'%'))
             ->when(filled($validated['user_search'] ?? null), function (Builder $q) use ($validated): void {
-                $needle = '%' . trim((string) $validated['user_search']) . '%';
+                $needle = '%'.trim((string) $validated['user_search']).'%';
                 $q->where(function (Builder $query) use ($validated, $needle): void {
                     $query->whereHas('notification.user', fn (Builder $u) => $this->applyUserSearch($u, (string) $validated['user_search']))
                         ->orWhereHas('user', fn (Builder $u) => $this->applyUserSearch($u, (string) $validated['user_search']))
@@ -527,10 +534,10 @@ class NotificationAdminController extends Controller
         $tokens = UserPushToken::with('user')
             ->when(filled($validated['platform'] ?? null) && Schema::hasColumn('user_push_tokens', 'platform'), fn (Builder $q) => $q->where('platform', $validated['platform']))
             ->when(filled($validated['active'] ?? null) && $hasIsActive, fn (Builder $q) => $q->where('is_active', $validated['active'] === '1'))
-            ->when(filled($validated['app_version'] ?? null) && Schema::hasColumn('user_push_tokens', 'app_version'), fn (Builder $q) => $q->where('app_version', 'ilike', '%' . $validated['app_version'] . '%'))
+            ->when(filled($validated['app_version'] ?? null) && Schema::hasColumn('user_push_tokens', 'app_version'), fn (Builder $q) => $q->where('app_version', 'ilike', '%'.$validated['app_version'].'%'))
             ->when(filled($validated['last_used_from'] ?? null) && Schema::hasColumn('user_push_tokens', 'last_used_at'), fn (Builder $q) => $q->whereDate('last_used_at', '>=', $validated['last_used_from']))
             ->when(filled($validated['user_search'] ?? null), function (Builder $q) use ($validated): void {
-                $needle = '%' . trim((string) $validated['user_search']) . '%';
+                $needle = '%'.trim((string) $validated['user_search']).'%';
                 $q->where(fn (Builder $query) => $query->whereHas('user', fn (Builder $u) => $this->applyUserSearch($u, (string) $validated['user_search']))->orWhere('device_id', 'ilike', $needle)->orWhere('token', 'ilike', $needle)->orWhere('app_version', 'ilike', $needle));
             })
             ->latest()
@@ -568,7 +575,7 @@ class NotificationAdminController extends Controller
 
         $notifications = AppNotification::with(['user', 'campaign', 'deliveryLogs'])
             ->when($request->filled('search'), function (Builder $q) use ($request): void {
-                $like = '%' . $request->string('search')->toString() . '%';
+                $like = '%'.$request->string('search')->toString().'%';
                 $q->where(fn (Builder $query) => $query->where('title', 'ilike', $like)->orWhere('body', 'ilike', $like)->orWhere('type', 'ilike', $like)->orWhereHas('user', fn (Builder $u) => $this->applyUserSearch($u, $request->string('search')->toString()))->orWhereHas('campaign', fn (Builder $c) => $c->where('name', 'ilike', $like)->orWhere('code', 'ilike', $like)));
             })
             ->when($request->filled('campaign_id'), fn (Builder $q) => $q->where('campaign_id', $request->campaign_id))
@@ -615,16 +622,15 @@ class NotificationAdminController extends Controller
         return back()->with('success', 'User notifications cleared successfully.');
     }
 
-
     private function sendPushForTest(AppNotification $notification): array
     {
         if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
             return $this->recordDelivery($notification, 'push', false, 'No valid Firebase device token found.', 'firebase');
         }
 
+        $userIdColumn = UserPushToken::getUserIdColumn();
         $tokens = UserPushToken::query()
-            ->where('user_id', $notification->user_id)
-            ->where('is_active', true)
+            ->where($userIdColumn, $notification->user_id)
             ->whereNotNull('token')
             ->get();
 
@@ -709,9 +715,11 @@ class NotificationAdminController extends Controller
     {
         try {
             Mail::raw($notification->body, fn ($message) => $message->to($notification->user?->email)->subject($notification->title));
+
             return $this->recordDelivery($notification, 'email', true, null, 'mail');
         } catch (Throwable $throwable) {
             report($throwable);
+
             return $this->recordDelivery($notification, 'email', false, $throwable->getMessage(), 'mail');
         }
     }
@@ -749,7 +757,7 @@ class NotificationAdminController extends Controller
 
     private function userSelectText(User $user): string
     {
-        $displayName = trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')));
+        $displayName = trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? '')));
         if ($displayName === '') {
             $displayName = (string) ($user->name ?? 'Unknown User');
         }
@@ -770,8 +778,6 @@ class NotificationAdminController extends Controller
         return implode(' — ', array_filter($parts));
     }
 
-
-
     private function updateNotificationStatusFromResults(AppNotification $notification, string $channel, array $results): void
     {
         $pushSuccess = (bool) ($results['push']['success'] ?? false);
@@ -782,23 +788,33 @@ class NotificationAdminController extends Controller
         if ($channel === 'push_email') {
             if ($pushSuccess && $emailSuccess) {
                 $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+
                 return;
             }
 
             if ($pushSuccess || $emailSuccess) {
-                $reason = $pushSuccess ? 'Email failed: ' . ($emailError ?: 'Unknown error.') : 'Push failed: ' . ($pushError ?: 'Unknown error.');
+                $reason = $pushSuccess ? 'Email failed: '.($emailError ?: 'Unknown error.') : 'Push failed: '.($pushError ?: 'Unknown error.');
                 $notification->update(['status' => 'partial', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => $reason]);
+
                 return;
             }
 
-            $combined = trim('Push failed: ' . ($pushError ?: 'Unknown error.') . ' Email failed: ' . ($emailError ?: 'Unknown error.'));
+            $combined = trim('Push failed: '.($pushError ?: 'Unknown error.').' Email failed: '.($emailError ?: 'Unknown error.'));
             $notification->update(['status' => 'failed', 'sent_at' => null, 'failed_at' => now(), 'failure_reason' => $combined]);
+
             return;
         }
 
-        $result = $channel === 'push' ? $results['push'] : $results['email'];
+        if ($channel === 'push') {
+            $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+
+            return;
+        }
+
+        $result = $results['email'];
         if ($result['success'] ?? false) {
             $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+
             return;
         }
 
@@ -813,10 +829,10 @@ class NotificationAdminController extends Controller
     private function partialWarningMessage(array $results): string
     {
         if ($results['email']['success'] ?? false) {
-            return 'Notification partially sent. Email sent, but push failed: ' . ($results['push']['error'] ?? 'Unknown error.');
+            return 'Notification partially sent. Email sent, but push failed: '.($results['push']['error'] ?? 'Unknown error.');
         }
 
-        return 'Notification partially sent. Push sent, but email failed: ' . ($results['email']['error'] ?? 'Unknown error.');
+        return 'Notification partially sent. Push sent, but email failed: '.($results['email']['error'] ?? 'Unknown error.');
     }
 
     private function pushEmailWarningMessage(string $error): string
@@ -829,7 +845,7 @@ class NotificationAdminController extends Controller
             return 'Email sent, but push failed because the Firebase token was invalid and has been deactivated. Ask user to open the app again so Flutter can register a fresh token.';
         }
 
-        return 'Notification saved. Email sent, but push failed: ' . $error;
+        return 'Notification saved. Email sent, but push failed: '.$error;
     }
 
     private function deliveryWarningMessage(string $error): string
@@ -842,7 +858,7 @@ class NotificationAdminController extends Controller
             return 'Notification saved, but push failed. Token was invalid and has been deactivated. Ask user to open the app again so Flutter can register a fresh token.';
         }
 
-        return 'Notification saved, but delivery failed: ' . $error;
+        return 'Notification saved, but delivery failed: '.$error;
     }
 
     private function campaignData(Request $request, ?string $ignoreId = null): array
@@ -903,42 +919,43 @@ class NotificationAdminController extends Controller
             return;
         }
 
-        $like = '%' . mb_strtolower($search) . '%';
+        $like = '%'.mb_strtolower($search).'%';
         $query->where(function (Builder $builder) use ($columns, $like): void {
             foreach ($columns as $column) {
-                $builder->orWhereRaw('LOWER(' . $column . ') LIKE ?', [$like]);
+                $builder->orWhereRaw('LOWER('.$column.') LIKE ?', [$like]);
             }
         });
     }
 
     private function renderPreview(NotificationCampaign $campaign, array $placeholders): array
     {
-        $map = [
-            '<person>' => $placeholders['person'] ?? 'Rajesh Kumar',
-            '<date>' => $placeholders['date'] ?? now()->format('d M Y'),
-            '[Requirement Title]' => $placeholders['requirement_title'] ?? 'Website Development',
-            '[Event Title]' => $placeholders['event_title'] ?? 'Unity Networking Meet',
-            '[Circle Name]' => $placeholders['circle_name'] ?? 'Greenpreneur Circle',
-            '[Status]' => $placeholders['status'] ?? 'Approved',
-            '[Amount]' => $placeholders['amount'] ?? '₹10,000',
-            '[X]' => $placeholders['x'] ?? '3',
-            '[Badge Name]' => $placeholders['badge_name'] ?? 'Connector',
+        $notificationService = app(NotificationService::class);
+        $defaults = [
+            'person' => $placeholders['person'] ?? 'Rajesh Kumar',
+            'name' => $placeholders['person'] ?? 'Rajesh Kumar',
+            'date' => $placeholders['date'] ?? now()->format('d M Y'),
+            'requirement_title' => $placeholders['requirement_title'] ?? 'Website Development',
+            'event_title' => $placeholders['event_title'] ?? 'Unity Networking Meet',
+            'circle_name' => $placeholders['circle_name'] ?? 'Greenpreneur Circle',
+            'status' => $placeholders['status'] ?? 'Approved',
+            'amount' => $placeholders['amount'] ?? '₹10,000',
+            'x' => $placeholders['x'] ?? '3',
+            'badge_name' => $placeholders['badge_name'] ?? 'Connector',
         ];
 
         return [
-            'push_title' => strtr($campaign->title_template, $map),
-            'push_body' => strtr($campaign->body_template, $map),
-            'email_subject' => strtr((string) $campaign->email_subject_template, $map),
-            'email_body' => strtr((string) $campaign->email_body_template, $map),
+            'push_title' => $notificationService->renderTemplate((string) $campaign->title_template, $defaults),
+            'push_body' => $notificationService->renderTemplate((string) $campaign->body_template, $defaults),
+            'email_subject' => $notificationService->renderTemplate((string) $campaign->email_subject_template, $defaults),
+            'email_body' => $notificationService->renderTemplate((string) $campaign->email_body_template, $defaults),
             'tap_screen' => $campaign->tap_screen,
         ];
     }
 
     private function screens(): array
     {
-        return ['home','feed','post_details','member_profile','private_chat','chat_details','circle_chat','event_details','live_meeting','event_feedback','circle_join_requests','circle_details','circular_details','announcement_details','p2p_meetings','p2p_outcome_form','business_deals_history','referrals_history','testimonials','write_testimonial','visitor_history','membership_application','requirement_details','suggested_connections','coins_wallet','leaderboard','performance','subscription_plans','renew_subscription','badges'];
+        return ['home', 'feed', 'post_details', 'member_profile', 'private_chat', 'chat_details', 'circle_chat', 'event_details', 'live_meeting', 'event_feedback', 'circle_join_requests', 'circle_details', 'circular_details', 'announcement_details', 'p2p_meetings', 'p2p_outcome_form', 'business_deals_history', 'referrals_history', 'testimonials', 'write_testimonial', 'visitor_history', 'membership_application', 'requirement_details', 'suggested_connections', 'coins_wallet', 'leaderboard', 'performance', 'subscription_plans', 'renew_subscription', 'badges'];
     }
-
 
     private function emptyPaginator(Request $request): LengthAwarePaginator
     {

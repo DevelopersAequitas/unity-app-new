@@ -2,16 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Console\Commands\SendMembershipExpiryReminders;
-use App\Console\Commands\SendUpcomingMembershipExpiryReminders;
-use App\Console\Commands\SendCircleMembershipExpiryReminders;
+use App\Mail\CircleMembershipExpiryReminderMail;
 use App\Mail\MembershipExpiryReminderMail;
 use App\Mail\UpcomingMembershipExpiryReminderMail;
-use App\Mail\CircleMembershipExpiryReminderMail;
-use App\Models\User;
+use App\Models\CircleMember;
 use App\Models\EmailLog;
 use App\Models\Notification;
-use App\Models\CircleMember;
+use App\Models\User;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -46,6 +45,12 @@ class SendMembershipExpiryRemindersTest extends TestCase
             $table->text('body_html')->nullable();
             $table->text('payload')->nullable();
             $table->text('error_message')->nullable();
+            $table->string('triggered_by')->nullable();
+            $table->uuid('triggered_user_id')->nullable();
+            $table->string('mail_provider')->nullable();
+            $table->string('queue_id')->nullable();
+            $table->string('message_id')->nullable();
+            $table->text('body_text')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->timestamp('created_at')->nullable();
         });
@@ -59,6 +64,33 @@ class SendMembershipExpiryRemindersTest extends TestCase
             $table->boolean('is_read')->default(false);
             $table->timestamp('created_at')->nullable();
             $table->timestamp('read_at')->nullable();
+        });
+
+        Schema::dropIfExists('app_notifications');
+        Schema::create('app_notifications', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('campaign_id')->nullable();
+            $table->string('type');
+            $table->string('category')->nullable();
+            $table->string('title');
+            $table->text('body');
+            $table->text('message')->nullable();
+            $table->string('channel')->default('push');
+            $table->string('priority')->default('medium');
+            $table->string('reference_type')->nullable();
+            $table->string('reference_id')->nullable();
+            $table->string('screen')->nullable();
+            $table->text('data')->nullable();
+            $table->string('dedupe_key')->nullable();
+            $table->string('status')->default('pending');
+            $table->timestamp('sent_at')->nullable();
+            $table->timestamp('read_at')->nullable();
+            $table->timestamp('clicked_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
+            $table->text('failure_reason')->nullable();
+            $table->text('payload')->nullable();
+            $table->timestamps();
         });
 
         Schema::dropIfExists('users');
@@ -551,8 +583,8 @@ class SendMembershipExpiryRemindersTest extends TestCase
 
     public function test_scheduler_contains_all_three_reminder_commands(): void
     {
-        $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
-        $schedule = app(\Illuminate\Console\Scheduling\Schedule::class);
+        $kernel = app(Kernel::class);
+        $schedule = app(Schedule::class);
 
         $reflection = new \ReflectionClass($kernel);
         if ($reflection->hasMethod('schedule')) {
@@ -567,18 +599,18 @@ class SendMembershipExpiryRemindersTest extends TestCase
         $expiryEvent = $events->first(fn ($event) => str_contains((string) $event->command, 'memberships:send-expiry-reminders'));
         $this->assertNotNull($expiryEvent);
         $this->assertSame('25 11 * * *', $expiryEvent->expression);
-        $this->assertSame('Asia/Kolkata', $expiryEvent->timezone);
+        $this->assertSame(config('app.timezone', 'UTC'), $expiryEvent->timezone);
 
-        // Assert memberships:send-upcoming-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in Asia/Kolkata timezone
+        // Assert memberships:send-upcoming-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in configured timezone
         $upcomingEvent = $events->first(fn ($event) => str_contains((string) $event->command, 'memberships:send-upcoming-expiry-reminders'));
         $this->assertNotNull($upcomingEvent);
         $this->assertSame('25 11 * * *', $upcomingEvent->expression);
-        $this->assertSame('Asia/Kolkata', $upcomingEvent->timezone);
+        $this->assertSame(config('app.timezone', 'UTC'), $upcomingEvent->timezone);
 
-        // Assert memberships:send-circle-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in Asia/Kolkata timezone
+        // Assert memberships:send-circle-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in configured timezone
         $circleEvent = $events->first(fn ($event) => str_contains((string) $event->command, 'memberships:send-circle-expiry-reminders'));
         $this->assertNotNull($circleEvent);
         $this->assertSame('25 11 * * *', $circleEvent->expression);
-        $this->assertSame('Asia/Kolkata', $circleEvent->timezone);
+        $this->assertSame(config('app.timezone', 'UTC'), $circleEvent->timezone);
     }
 }

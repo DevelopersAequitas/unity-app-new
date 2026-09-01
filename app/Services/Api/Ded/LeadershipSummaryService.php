@@ -4,7 +4,6 @@ namespace App\Services\Api\Ded;
 
 use App\Models\AdminUser;
 use App\Models\Circle;
-use App\Models\CircleMember;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -55,7 +54,7 @@ class LeadershipSummaryService
             ->whereExists(function ($q) use ($circleSubquery) {
                 $q->selectRaw(1)
                     ->from('circles')
-                    ->whereColumn('circles.founder_user_id', 'users.id')
+                    ->whereColumn('circles.circle_founder_user_id', 'users.id')
                     ->whereIn('circles.id', $circleSubquery);
             })
             ->count();
@@ -65,7 +64,7 @@ class LeadershipSummaryService
             ->whereExists(function ($q) use ($circleSubquery) {
                 $q->selectRaw(1)
                     ->from('circles')
-                    ->whereColumn('circles.founder_user_id', 'users.id')
+                    ->whereColumn('circles.circle_founder_user_id', 'users.id')
                     ->whereIn('circles.id', $circleSubquery);
             })
             ->latest('created_at')
@@ -79,7 +78,7 @@ class LeadershipSummaryService
             ->whereExists(function ($q) use ($circleSubquery) {
                 $q->selectRaw(1)
                     ->from('circles')
-                    ->whereColumn('circles.director_user_id', 'users.id')
+                    ->whereColumn('circles.circle_director_user_id', 'users.id')
                     ->whereIn('circles.id', $circleSubquery);
             })
             ->count();
@@ -89,7 +88,7 @@ class LeadershipSummaryService
             ->whereExists(function ($q) use ($circleSubquery) {
                 $q->selectRaw(1)
                     ->from('circles')
-                    ->whereColumn('circles.director_user_id', 'users.id')
+                    ->whereColumn('circles.circle_director_user_id', 'users.id')
                     ->whereIn('circles.id', $circleSubquery);
             })
             ->latest('created_at')

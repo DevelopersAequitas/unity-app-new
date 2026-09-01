@@ -6,21 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
-use App\Models\CircleMember;
 use App\Models\CircleCategory;
 use App\Models\City;
+use App\Models\Role;
 use App\Models\User;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
-use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\Zoho\ZohoBillingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -29,8 +32,7 @@ class CircleController extends Controller
     public function __construct(
         private readonly ZohoBillingService $zohoBillingService,
         private readonly IndustryScopeService $industryScope,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -41,6 +43,7 @@ class CircleController extends Controller
         $status = trim((string) $request->query('status', ''));
         $circleStage = trim((string) $request->query('circle_stage', ''));
         $rank = trim((string) $request->query('rank', ''));
+        $peers = trim((string) $request->query('peers', ''));
 
         $filters = [
             'circle_name' => trim((string) $request->query('circle_name', '')),
@@ -60,6 +63,7 @@ class CircleController extends Controller
             'status' => $status,
             'circle_stage' => $circleStage,
             'rank' => $rank,
+            'peers' => $peers,
         ];
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
@@ -72,7 +76,7 @@ class CircleController extends Controller
                 'city.name as city_name',
                 'city.country as city_country',
             ])
-            ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile'])
+            ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile', 'circleImageFile'])
             ->withCount('members');
 
         if ($isCircleScoped && is_array($allowedCircleIds)) {
@@ -118,8 +122,12 @@ class CircleController extends Controller
             $query->where('city.name', $filters['city']);
         }
 
-        if ($country !== '' && $country !== 'any' && Schema::hasColumn('circles', 'country')) {
-            $query->where('circles.country', $country);
+        if ($country !== '' && $country !== 'any') {
+            if (Schema::hasColumn('circles', 'country')) {
+                $query->where('circles.country', $country);
+            } else {
+                $query->where('city.country', $country);
+            }
         }
 
         if ($type !== '' && $type !== 'any' && Schema::hasColumn('circles', 'type')) {
@@ -206,23 +214,58 @@ class CircleController extends Controller
             $this->applyUserNameFilter($query, 'ded', $filters['ded']);
         }
 
+        if ($filters['peers'] !== '') {
+            $input = $filters['peers'];
+            if (preg_match('/^([<>]=?|=)\s*(\d+)$/', $input, $matches)) {
+                $operator = $matches[1];
+                $value = (int) $matches[2];
+                $query->has('members', $operator, $value);
+            } elseif (preg_match('/^(\d+)\s*-\s*(\d+)$/', $input, $matches)) {
+                $min = (int) $matches[1];
+                $max = (int) $matches[2];
+                $query->has('members', '>=', $min)->has('members', '<=', $max);
+            } elseif (ctype_digit($input)) {
+                $query->has('members', '>=', (int) $input);
+            }
+        }
+
         $circles = $query
+            ->with([
+                'founder:id,display_name,first_name,last_name',
+                'director:id,display_name,first_name,last_name',
+                'ded:id,display_name,first_name,last_name',
+                'industryDirector:id,display_name,first_name,last_name',
+                'city:id,name',
+            ])
+            ->withCount('members')
             ->orderByDesc('circles.created_at')
             ->paginate(20)
             ->appends($request->query());
 
-        $circleNames = Circle::query()
+        $circleNamesQuery = Circle::query()
             ->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))
             ->whereNotNull('name')
+            ->where('name', '!=', 'Enter the complete name of the circle.');
+
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($circleNamesQuery, $admin);
+        }
+
+        $circleNames = $circleNamesQuery
             ->select('name')
             ->distinct()
             ->orderBy('name')
             ->pluck('name');
 
-        $cities = City::query()
-            ->whereNotNull('name')
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $isDed = AdminAccess::isDed($admin);
+        $dedLocation = $isDed ? AdminAccess::assignedDedLocation($admin) : [];
+        $dedDistrictName = $dedLocation['district_name'] ?? null;
+
+        $citiesQuery = City::query()->whereNotNull('name');
+        if ($isDed && ! empty($dedLocation['district_id']) && Schema::hasColumn('cities', 'district_id')) {
+            $citiesQuery->where('district_id', $dedLocation['district_id']);
+        }
+        $cities = $citiesQuery->orderBy('name')->get(['id', 'name']);
 
         $countryOptions = Schema::hasColumn('circles', 'country')
             ? Circle::query()->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
@@ -243,6 +286,8 @@ class CircleController extends Controller
             'filters' => $filters,
             'circleNames' => $circleNames,
             'cities' => $cities,
+            'isDed' => $isDed,
+            'dedDistrictName' => $dedDistrictName,
             'countryOptions' => $countryOptions,
             'typeOptions' => $typeOptions,
             'meetingModeOptions' => $meetingModeOptions,
@@ -265,7 +310,7 @@ class CircleController extends Controller
             ->get();
 
         return view('admin.circles.create', [
-            'circle' => new Circle(),
+            'circle' => new Circle,
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
             'cities' => $cities,
@@ -314,6 +359,13 @@ class CircleController extends Controller
             'announcement' => $validated['announcement'] ?? null,
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
             'circle_stage' => $validated['circle_stage'] ?? null,
+            'circle_founder_user_id' => $validated['circle_founder_user_id'] ?? null,
+            'circle_director_user_id' => $validated['circle_director_user_id'] ?? null,
+            'industry_director_user_id' => $validated['industry_director_user_id'] ?? null,
+            'ded_user_id' => $validated['ded_user_id'] ?? null,
+            'eed_user_id' => $validated['eed_user_id'] ?? null,
+            'cover_file_id' => $validated['cover_file_id'] ?? null,
+            'circle_image_file_id' => $validated['circle_image_file_id'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -323,7 +375,7 @@ class CircleController extends Controller
         $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
         $payload = $this->pruneEmptyPayload($payload);
 
-        $circle = new Circle();
+        $circle = new Circle;
         $circle->forceFill($this->filterCircleDataByExistingColumns($payload));
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
@@ -368,7 +420,7 @@ class CircleController extends Controller
             'peer_email' => $this->sanitizeFilterInput($validatedFilters['peer_email'] ?? ''),
         ];
 
-        $relations = ['city', 'founder', 'director', 'industryDirector', 'ded'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'coverFile', 'circleImageFile'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -385,7 +437,7 @@ class CircleController extends Controller
 
         $rawMeetingSchedule = data_get($calendar, 'meeting_schedule');
         $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
-        $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
+        $timezone = data_get($calendar, 'timezone', config('app.timezone', 'UTC'));
 
         $meetingRows = array_map(function ($meeting, int $index): array {
             $meeting = is_array($meeting) ? $meeting : [];
@@ -423,16 +475,15 @@ class CircleController extends Controller
             'circle' => $circle,
             'circleStage' => $circleStage,
             'allUsers' => $this->allUsers(),
-            'roles' => CircleMember::roleOptions(),
+            'roles' => Role::query()->orderBy('name')->get(),
             'meetingRows' => $meetingRows,
-            'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'Asia/Kolkata',
+            'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : config('app.timezone', 'UTC'),
             'rankingData' => $circle->getCircleRanking(),
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
             'peerMembers' => $peerMembers,
             'peerFilters' => $peerFilters,
         ]);
     }
-
 
     private function authorizeCircleView(Request $request, Circle $circle): void
     {
@@ -481,7 +532,7 @@ class CircleController extends Controller
 
     public function edit(Request $request, Circle $circle): View
     {
-        $relations = ['city'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'eed'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -489,7 +540,7 @@ class CircleController extends Controller
 
         $circle->load($relations);
 
-        $defaultFounder = $circle->founder ?? $this->defaultFounderUser();
+        $defaultFounder = $circle->circleFounder ?? $circle->founder ?? $this->defaultFounderUser();
         $countries = $this->countriesList();
         $selectedCountry = $request->input('country', $circle->country ?? $circle->city?->country ?? $countries->first() ?? 'India');
 
@@ -536,12 +587,18 @@ class CircleController extends Controller
             'type',
             'status',
             'industry_tags',
-            'founder_user_id',
+            'circle_founder_user_id',
+            'circle_director_user_id',
+            'industry_director_user_id',
+            'ded_user_id',
+            'eed_user_id',
             'city_id',
             'description',
             'purpose',
             'announcement',
             'circle_stage',
+            'cover_file_id',
+            'circle_image_file_id',
         ] as $column) {
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];
@@ -595,9 +652,107 @@ class CircleController extends Controller
             ->with('success', 'Circle updated successfully.');
     }
 
-    public function destroy(Circle $circle): RedirectResponse
+    public function deleteStats(Request $request, Circle $circle): JsonResponse
     {
-        $circle->delete();
+        $this->authorizeCircleView($request, $circle);
+
+        $membersCount = $circle->members()->count();
+        $meetingsCount = DB::table('circle_meetings')->where('circle_id', $circle->id)->count();
+
+        $postsCount = $circle->posts()->count();
+        $chatMessagesCount = $circle->chatMessages()->count();
+        $joinRequestsCount = DB::table('circle_join_requests')->where('circle_id', $circle->id)->count();
+        $activitiesCount = $circle->activities()->count();
+
+        $relatedCount = $postsCount + $chatMessagesCount + $joinRequestsCount + $activitiesCount;
+
+        return response()->json([
+            'success' => true,
+            'name' => $circle->name,
+            'members_count' => $membersCount,
+            'meetings_count' => $meetingsCount,
+            'related_count' => $relatedCount,
+        ]);
+    }
+
+    public function destroy(Request $request, Circle $circle): RedirectResponse
+    {
+        $this->authorizeCircleView($request, $circle);
+
+        DB::transaction(function () use ($circle) {
+            // 1. Soft delete members of the circle and set left_at, delete categories
+            $members = $circle->members()->get();
+            foreach ($members as $member) {
+                $member->forceFill(['left_at' => now()])->save();
+                if (Schema::hasTable('joined_circle_categories')) {
+                    DB::table('joined_circle_categories')->where('circle_member_id', $member->id)->delete();
+                }
+                $member->delete();
+            }
+
+            // 2. Cascade delete mappings / pivot tables & child records
+            $circle->categories()->detach();
+
+            if (Schema::hasTable('event_circles')) {
+                DB::table('event_circles')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_meetings')) {
+                DB::table('circle_meetings')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_join_requests')) {
+                DB::table('circle_join_requests')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_subscriptions')) {
+                DB::table('circle_subscriptions')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('circle_chat_messages')) {
+                $messageIds = DB::table('circle_chat_messages')->where('circle_id', $circle->id)->pluck('id')->toArray();
+                if (! empty($messageIds)) {
+                    if (Schema::hasTable('circle_chat_message_reads')) {
+                        DB::table('circle_chat_message_reads')->whereIn('message_id', $messageIds)->delete();
+                    }
+                    DB::table('circle_chat_messages')->where('circle_id', $circle->id)->delete();
+                }
+            }
+
+            if (Schema::hasTable('activities')) {
+                DB::table('activities')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circulars')) {
+                DB::table('circulars')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('leadership_group_messages')) {
+                DB::table('leadership_group_messages')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('leadership_group_members')) {
+                DB::table('leadership_group_members')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('joined_circle_categories')) {
+                DB::table('joined_circle_categories')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('circle_member_category_selections')) {
+                DB::table('circle_member_category_selections')->where('circle_id', $circle->id)->delete();
+            }
+
+            // 3. Update users who have this circle as their active_circle_id
+            DB::table('users')->where('active_circle_id', $circle->id)->update([
+                'active_circle_id' => null,
+                'active_circle_addon_code' => null,
+                'active_circle_addon_name' => null,
+                'circle_joined_at' => null,
+                'circle_expires_at' => null,
+                'active_circle_subscription_id' => null,
+            ]);
+
+            // 4. Soft delete the circle itself
+            $circle->delete();
+        });
+
+        Cache::forget('admin.circles.index');
+        Cache::forget('admin.circles.filters');
 
         return redirect()
             ->route('admin.circles.index')
@@ -626,6 +781,7 @@ class CircleController extends Controller
 
         if (is_string($tags)) {
             $trimmed = array_filter(array_map('trim', explode(',', $tags)));
+
             return $trimmed ? array_values($trimmed) : null;
         }
 
@@ -693,7 +849,7 @@ class CircleController extends Controller
         }
 
         $payload = [
-            'timezone' => 'Asia/Kolkata',
+            'timezone' => config('app.timezone', 'UTC'),
             'meetings' => array_values($normalized),
         ];
 
@@ -732,13 +888,13 @@ class CircleController extends Controller
         try {
             $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
         } catch (Throwable $throwable) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
             ]);
         }
 
         if (! is_array($addon)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Selected Circle Package is invalid or inactive.',
             ]);
         }
@@ -812,17 +968,45 @@ class CircleController extends Controller
         $meetingFrequency = trim((string) ($validated['meeting_frequency'] ?? ''));
         data_set($calendar, 'settings.meeting_frequency', $meetingFrequency !== '' ? strtolower($meetingFrequency) : null);
 
+        $meetingLink = trim((string) ($validated['meeting_link'] ?? $request->input('meeting_link') ?? ''));
+        data_set($calendar, 'settings.meeting_link', $meetingLink !== '' ? $meetingLink : null);
+
+        $meetingPasscode = trim((string) ($validated['meeting_passcode'] ?? $request->input('meeting_passcode') ?? ''));
+        data_set($calendar, 'settings.meeting_passcode', $meetingPasscode !== '' ? $meetingPasscode : null);
+
+        $meetingVenue = trim((string) ($validated['meeting_venue'] ?? $request->input('meeting_venue') ?? ''));
+        data_set($calendar, 'settings.meeting_venue', $meetingVenue !== '' ? $meetingVenue : null);
+        data_set($calendar, 'settings.meeting_address', $meetingVenue !== '' ? $meetingVenue : null);
+
+        $meetingLandmark = trim((string) ($validated['meeting_landmark'] ?? $request->input('meeting_landmark') ?? ''));
+        data_set($calendar, 'settings.meeting_landmark', $meetingLandmark !== '' ? $meetingLandmark : null);
+
         $launchDate = trim((string) ($validated['launch_date'] ?? ''));
         data_set($calendar, 'settings.launch_date', $launchDate !== '' ? $launchDate : null);
 
         data_set($calendar, 'settings.meeting_repeat', $validated['meeting_repeat'] ?? null);
 
-        data_set($calendar, 'leadership.director_user_id', $validated['director_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id'] ?? null);
+        data_set($calendar, 'leadership.director_user_id', $validated['circle_director_user_id'] ?? null);
         data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
         data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
+        data_set($calendar, 'leadership.eed_user_id', $validated['eed_user_id'] ?? null);
+
+        data_set($calendar, 'leadership.business_growth_committee_chair_user_id', $validated['business_growth_committee_chair_user_id'] ?? null);
+        data_set($calendar, 'leadership.membership_growth_committee_chair_user_id', $validated['membership_growth_committee_chair_user_id'] ?? null);
+        data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['events_impacts_committee_chair_user_id'] ?? null);
+
+        data_set($calendar, 'leadership.power_house_chair_1_user_id', $validated['power_house_chair_1_user_id'] ?? null);
+        data_set($calendar, 'leadership.power_house_chair_2_user_id', $validated['power_house_chair_2_user_id'] ?? null);
+        data_set($calendar, 'leadership.power_house_chair_3_user_id', $validated['power_house_chair_3_user_id'] ?? null);
 
         $coverFileId = trim((string) ($validated['cover_file_id'] ?? ''));
         data_set($calendar, 'cover.file_id', $coverFileId !== '' ? $coverFileId : null);
+
+        $circleImageFileId = trim((string) ($validated['circle_image_file_id'] ?? ''));
+        data_set($calendar, 'circle_image.file_id', $circleImageFileId !== '' ? $circleImageFileId : null);
 
         $freqRows = $request->input('meeting_schedule_frequency', []);
         $timeRows = $request->input('meeting_schedule_default_meet_time', []);
@@ -860,6 +1044,7 @@ class CircleController extends Controller
         foreach ($payload as $key => $value) {
             if ($value === null) {
                 unset($payload[$key]);
+
                 continue;
             }
 

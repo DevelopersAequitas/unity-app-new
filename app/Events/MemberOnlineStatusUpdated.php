@@ -12,15 +12,13 @@ class MemberOnlineStatusUpdated implements ShouldBroadcast
     use Dispatchable;
     use SerializesModels;
 
-    public function __construct(public array $payload)
-    {
-    }
+    public function __construct(public array $payload) {}
 
     public function broadcastOn(): array
     {
         return [
             new PresenceChannel('presence-member-status'),
-            new PresenceChannel('presence-online-members'),
+            new PresenceChannel('online-members'),
         ];
     }
 

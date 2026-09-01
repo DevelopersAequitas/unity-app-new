@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -64,7 +65,7 @@ class LifeImpactController extends Controller
             ->orderByDesc('total_life_impacted_sort')
             ->orderBy('users.display_name');
 
-        $filename = 'life_impact_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'life_impact_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($query, $filters): void {
             $handle = fopen('php://output', 'w');
@@ -478,7 +479,7 @@ class LifeImpactController extends Controller
                     if (mb_strlen($alias) > 2) {
                         $categoryQuery->orWhereRaw(
                             "TRIM(BOTH '_' FROM REGEXP_REPLACE(LOWER(COALESCE({$column}, '')), '[^a-z0-9]+', '_', 'g')) LIKE ?",
-                            ['%' . $alias . '%']
+                            ['%'.$alias.'%']
                         );
                     }
                 }
@@ -490,7 +491,9 @@ class LifeImpactController extends Controller
     {
         $query = Circle::query()->orderBy('name');
 
-        if (app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+        } elseif (app(IndustryScopeService::class)->isIndustryDirector($admin)) {
             $circleIds = app(IndustryScopeService::class)->circleIdsForAdmin($admin);
             $query->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
         }
