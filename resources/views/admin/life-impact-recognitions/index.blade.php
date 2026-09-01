@@ -816,7 +816,7 @@
             // Populate Peer Details
             document.getElementById('studioPeerName').textContent = data.peer.name || 'Peer Member';
             document.getElementById('studioPeerCompany').textContent = data.peer.company || 'Peers Global';
-            document.getElementById('studioPeerCity').textContent = data.peer.city || 'Ahmedabad, IND';
+            document.getElementById('studioPeerCity').textContent = data.peer.city || 'Ahmedabad';
             document.getElementById('studioPeerDesignation').textContent = data.peer.designation || 'Member';
             document.getElementById('studioPeerCountBadge').textContent = `${(data.peer.life_impacted_count || 0).toLocaleString()} Lives`;
             document.getElementById('studioCaptionText').value = data.caption || '';
