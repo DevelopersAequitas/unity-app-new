@@ -1,5 +1,14 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\Rbac\AdminModuleController;
+use App\Http\Controllers\Admin\Rbac\AdminPageController;
+use App\Http\Controllers\Admin\Rbac\PageGroupController;
+use App\Http\Controllers\Admin\Rbac\RoleDataScopeController;
+use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
+use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
+use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
+use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
 use App\Http\Controllers\Api\Activities\P2pMeetingHistoryController;
 use App\Http\Controllers\Api\Activities\ReferralHistoryController;
@@ -8,29 +17,28 @@ use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
-use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
-use App\Http\Controllers\Api\AuthController; 
+use App\Http\Controllers\Api\AdsController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BusinessDealController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
-use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
 use App\Http\Controllers\Api\CircleLeadershipController;
+use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
-use App\Http\Controllers\Api\GeoLocationController;
 use App\Http\Controllers\Api\FileController;
+use App\Http\Controllers\Api\GeoLocationController;
+use App\Http\Controllers\Api\MasterPositionController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
-use App\Http\Controllers\Api\MessageDeletionController;
 use App\Http\Controllers\Api\MemberWithCircleController;
-use App\Http\Controllers\Api\MasterPositionController;
+use App\Http\Controllers\Api\MessageDeletionController;
 use App\Http\Controllers\Api\MyCircleController;
-use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationFeatureController;
 use App\Http\Controllers\Api\OnlineStatusController;
 use App\Http\Controllers\Api\P2pMeetingController;
@@ -41,16 +49,48 @@ use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
+use App\Http\Controllers\Api\V1\AdBookingController;
+use App\Http\Controllers\Api\V1\AdController;
+use App\Http\Controllers\Api\V1\Admin\AdBookingAdminController;
+use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
+use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
+use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
+use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
+use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
+use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
+use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
+use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\EventAdminController;
+use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
+use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
+use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
+use App\Http\Controllers\Api\V1\Admin\LeadershipController;
+use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
+use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
+use App\Http\Controllers\Api\V1\Admin\UserManagementController;
+use App\Http\Controllers\Api\V1\AppChangelogController;
+use App\Http\Controllers\Api\V1\AppConfigController;
+use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\InvoiceController;
+use App\Http\Controllers\Api\V1\Billing\UserSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
+use App\Http\Controllers\Api\V1\BrandPartnerApiController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
+use App\Http\Controllers\Api\V1\CircleCategoryController;
+use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
+use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
+use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
+use App\Http\Controllers\Api\V1\CollaborationTypeController;
+use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
 use App\Http\Controllers\Api\V1\Ded\DedAuthController;
@@ -60,80 +100,184 @@ use App\Http\Controllers\Api\V1\Ded\DedDashboardController;
 use App\Http\Controllers\Api\V1\Ded\DedPeersController;
 use App\Http\Controllers\Api\V1\Ded\DedPendingRequestsController;
 use App\Http\Controllers\Api\V1\Ded\DedReportsController;
-use App\Http\Controllers\Api\V1\CollaborationTypeController;
-use App\Http\Controllers\Api\V1\AdController;
-use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
-use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
-use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
-use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
-use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
-use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
-use App\Http\Controllers\Api\V1\Admin\DashboardController;
-use App\Http\Controllers\Api\V1\Admin\EventAdminController;
-use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
-use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
-use App\Http\Controllers\Api\V1\Admin\LeadershipController;
-use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
-use App\Http\Controllers\Api\V1\Admin\UserManagementController;
-use App\Http\Controllers\Api\V1\AppVersionController;
-use App\Http\Controllers\Api\V1\AppConfigController;
-use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
-use App\Http\Controllers\Api\V1\CircleCategoryController;
-use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\EventApiController;
+use App\Http\Controllers\Api\V1\EventFeedbackController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
-use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
+use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
 use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
-use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\GlobalPeerCertificateController;
 use App\Http\Controllers\Api\V1\ImpactController;
+use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
+use App\Http\Controllers\Api\V1\IntroVideoController;
+use App\Http\Controllers\Api\V1\Leader\LeaderActivitiesController;
+use App\Http\Controllers\Api\V1\Leader\LeaderAuthController;
+use App\Http\Controllers\Api\V1\Leader\LeaderDashboardController;
+use App\Http\Controllers\Api\V1\Leader\LeaderFinanceController;
+use App\Http\Controllers\Api\V1\Leader\LeaderNotificationsController;
+use App\Http\Controllers\Api\V1\Leader\LeaderPeersController;
+use App\Http\Controllers\Api\V1\Leader\LeaderReportsController;
+use App\Http\Controllers\Api\V1\Leader\LeaderRoleManagementController;
+use App\Http\Controllers\Api\V1\Leader\LeaderSystemController;
+use App\Http\Controllers\Api\V1\Leader\LeaderTeamsController;
+use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
-use App\Http\Controllers\Api\V1\LeaderboardController;
+use App\Http\Controllers\Api\V1\MaintenanceController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
+use App\Http\Controllers\Api\V1\NotificationEngineController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PeerAnniversaryController;
+use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
+use App\Http\Controllers\Api\V1\PeerReferralsApiController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
+use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
-use App\Http\Controllers\Api\V1\BrandPartnerApiController;
-use App\Http\Controllers\Api\V1\NotificationEngineController;
-use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
-use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
-use App\Http\Controllers\Api\V1\ScanAppAuthController;
-use App\Http\Controllers\Api\V1\ScanAppEventController;
+use App\Http\Controllers\Api\V1\RbacUserPermissionController;
 use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
 use App\Http\Controllers\Api\V1\RequirementInterestController;
-use App\Http\Controllers\Api\V1\TimelineRequirementController;
-use App\Http\Controllers\Api\V1\UserActivitySummaryController;
+use App\Http\Controllers\Api\V1\ScanAppAuthController;
+use App\Http\Controllers\Api\V1\ScanAppEventController;
+use App\Http\Controllers\Api\V1\SendTestNotificationController;
+use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
+use App\Http\Controllers\Api\V1\SystemAppConfigController;
+use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
+use App\Http\Controllers\Api\V1\TimelineRequirementController;
+use App\Http\Controllers\Api\V1\TutorialController;
+use App\Http\Controllers\Api\V1\UserActivitySummaryController;
+use App\Http\Controllers\Api\V1\UserMobileDetailController;
+use App\Http\Controllers\Api\V1\UserMobileVersionController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
-use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
-use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentWebhookController;
-use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
+use App\Jobs\SendPushNotificationJob;
+use App\Models\User;
+use App\Services\Notifications\FcmService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 
-// Backward-compatible ads endpoint for clients that still call /api/ads.
-Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
+// TEMPORARY LOCAL/QA MOCK WEBHOOK: WhatsApp Webhook Payload Logger
+Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
+    Log::info('Local Mock WhatsApp Webhook Received Payload:', [
+        'headers' => $request->headers->all(),
+        'body' => $request->all(),
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Mock WhatsApp webhook payload captured successfully',
+    ]);
+});
+
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
+Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
+Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+
+// Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
+Route::prefix('auth')->group(function () {
+    Route::post('register', [AuthController::class, 'register']);
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('request-otp', [AuthController::class, 'requestOtp']);
+    Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
+    Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [AuthController::class, 'resetPassword']);
+
+    Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::get('me', [AuthController::class, 'me']);
+    });
+});
+
 Route::prefix('v1')->group(function () {
+    // Dynamic RBAC API Endpoints (All 8 RBAC components + user permissions)
+    Route::prefix('rbac')->group(function () {
+        Route::middleware('auth:sanctum')->get('/my-permissions', [RbacUserPermissionController::class, 'myPermissions']);
+
+        // 1. Role Hierarchy
+        Route::get('/hierarchy', [RoleHierarchyController::class, 'index']);
+        Route::get('/hierarchy/map', [RoleHierarchyController::class, 'fullMap']);
+        Route::post('/roles', [RoleHierarchyController::class, 'storeRole']);
+        Route::post('/roles/update-parent', [RoleHierarchyController::class, 'updateParent']);
+        Route::post('/roles/clone', [RoleHierarchyController::class, 'cloneProfile']);
+        Route::put('/roles/{id}', [RoleHierarchyController::class, 'updateRole'])->whereUuid('id');
+        Route::delete('/roles/{id}', [RoleHierarchyController::class, 'deleteRole'])->whereUuid('id');
+        Route::get('/roles/{id}/assignments', [RoleHierarchyController::class, 'getAssignments'])->whereUuid('id');
+        Route::post('/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->whereUuid('id');
+        Route::delete('/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->whereUuid('id')->whereUuid('userId');
+
+        // 2. Admin Modules
+        Route::get('/modules', [AdminModuleController::class, 'index']);
+        Route::post('/modules', [AdminModuleController::class, 'store']);
+        Route::get('/modules/{id}', [AdminModuleController::class, 'edit'])->whereUuid('id');
+        Route::put('/modules/{id}', [AdminModuleController::class, 'update'])->whereUuid('id');
+        Route::delete('/modules/{id}', [AdminModuleController::class, 'destroy'])->whereUuid('id');
+        Route::post('/modules/order', [AdminModuleController::class, 'updateOrder']);
+
+        // 3. Admin Pages
+        Route::get('/pages', [AdminPageController::class, 'index']);
+        Route::post('/pages', [AdminPageController::class, 'store']);
+        Route::get('/pages/{id}', [AdminPageController::class, 'edit'])->whereUuid('id');
+        Route::put('/pages/{id}', [AdminPageController::class, 'update'])->whereUuid('id');
+        Route::delete('/pages/{id}', [AdminPageController::class, 'destroy'])->whereUuid('id');
+
+        // 4. Permission Matrix
+        Route::get('/permission-matrix', [RolePermissionMatrixController::class, 'index']);
+        Route::post('/permission-matrix', [RolePermissionMatrixController::class, 'update']);
+
+        // 5. Module Access
+        Route::get('/module-access', [RoleModuleAccessController::class, 'index']);
+        Route::post('/module-access', [RoleModuleAccessController::class, 'update']);
+
+        // 6. Page Groups
+        Route::get('/page-groups', [PageGroupController::class, 'index']);
+        Route::post('/page-groups', [PageGroupController::class, 'store']);
+        Route::get('/page-groups/{id}', [PageGroupController::class, 'edit'])->whereUuid('id');
+        Route::put('/page-groups/{id}', [PageGroupController::class, 'update'])->whereUuid('id');
+        Route::delete('/page-groups/{id}', [PageGroupController::class, 'destroy'])->whereUuid('id');
+
+        // 7. Data Scope
+        Route::get('/data-scope', [RoleDataScopeController::class, 'index']);
+        Route::post('/data-scope', [RoleDataScopeController::class, 'store']);
+        Route::delete('/data-scope/{id}', [RoleDataScopeController::class, 'destroy'])->whereUuid('id');
+
+        // 8. Workflow Rules
+        Route::get('/workflow-rules', [WorkflowApprovalRuleController::class, 'index']);
+        Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store']);
+        Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->whereUuid('id');
+        Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->whereUuid('id');
+    });
+
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+    Route::get('/leader/system/app-config', [LeaderSystemController::class, 'appConfig']);
+    Route::get('/tutorials', [TutorialController::class, 'index']);
+    Route::post('/tutorials', [TutorialController::class, 'store']);
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
 
@@ -148,10 +292,13 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('auth')->group(function () {
+        Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
+        Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+        Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
+        Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -159,6 +306,79 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    // ── Leader App Core API Endpoints ──────────────────────────────────────────
+    Route::middleware('auth:sanctum')->group(function () {
+        // Auth & Profile
+        Route::get('/profile', [LeaderAuthController::class, 'profile']);
+        Route::get('/auth/profile', [LeaderAuthController::class, 'profile']);
+        Route::put('/auth/profile', [LeaderAuthController::class, 'updateProfile']);
+        Route::post('/auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
+
+        // Tab 0: Dashboard
+        Route::get('/dashboard/metrics', [LeaderDashboardController::class, 'metrics']);
+        Route::get('/dashboard/top-impacters', [LeaderDashboardController::class, 'topImpacters']);
+
+        // Tab 1: Peers & Celebrations
+        Route::get('/peers', [LeaderPeersController::class, 'index']);
+        Route::get('/peers/celebrations', [LeaderPeersController::class, 'celebrations']);
+        Route::post('/peers/p2p-meetings', [LeaderPeersController::class, 'storeP2pMeeting']);
+        Route::get('/peers/{id}/meetings', [LeaderPeersController::class, 'meetings']);
+        Route::get('/peers/{id}/activities', [LeaderPeersController::class, 'activities']);
+        Route::get('/peers/{id}', [LeaderPeersController::class, 'show']);
+        Route::post('/peers/{id}/send-wish', [LeaderPeersController::class, 'sendWish']);
+
+        // Tab 2: Teams & Circles
+        Route::get('/teams/summary', [LeaderTeamsController::class, 'summary']);
+        Route::get('/teams/industries', [LeaderTeamsController::class, 'industries']);
+        Route::get('/industries', [LeaderTeamsController::class, 'industries']);
+        Route::get('/teams/circles', [LeaderTeamsController::class, 'circles']);
+        Route::get('/teams/circles/{circle_id}/peers', [LeaderTeamsController::class, 'circlePeers'])->whereUuid('circle_id');
+        Route::get('/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
+        Route::get('/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
+        Route::get('/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
+
+        // Tab 3: Finance & Accounts
+        Route::get('/finance/metrics', [LeaderFinanceController::class, 'metrics']);
+        Route::get('/finance/transactions', [LeaderFinanceController::class, 'transactions']);
+        Route::put('/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+        Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+
+        // Tab 4: Reports & Analytics
+        Route::get('/reports', [LeaderReportsController::class, 'index']);
+        Route::post('/reports', [LeaderReportsController::class, 'store']);
+        Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+        Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
+        Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
+
+        // Activities (Referrals, Testimonials, Coins, Impacts, P2P Meetings, Business Deals, Requirements)
+        Route::get('/referrals', [LeaderActivitiesController::class, 'referrals']);
+        Route::post('/referrals', [LeaderActivitiesController::class, 'storeReferral']);
+        Route::get('/testimonials', [LeaderActivitiesController::class, 'testimonials']);
+        Route::get('/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
+        Route::get('/impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::get('/life-impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::get('/p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::get('/peer-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::get('/business-deals', [LeaderActivitiesController::class, 'businessDeals']);
+        Route::get('/requirements', [LeaderActivitiesController::class, 'requirements']);
+
+        // Notifications
+        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
+        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
+        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
+
+        // Tab 5: Role & Permission Management
+        Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+        Route::put('/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+        Route::post('/roles', [LeaderRoleManagementController::class, 'store']);
+        Route::put('/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+        Route::delete('/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
     });
 
     Route::prefix('ded/auth')->group(function () {
@@ -254,10 +474,15 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
+    Route::get('/app/maintenance', [MaintenanceController::class, 'index']);
+    Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
+    Route::post('/app-releases', [AppChangelogController::class, 'store']);
+    Route::post('/notifications/send-test', SendTestNotificationController::class);
     Route::get('/referrals/search', [ReferralController::class, 'search']);
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
 
     Route::get('/business-categories/main', [BusinessCategoryController::class, 'main']);
+    Route::get('/business-categories/{id}', [BusinessCategoryController::class, 'show']);
     Route::get('/business-categories/{parent_id}/children', [BusinessCategoryController::class, 'children']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
@@ -265,14 +490,20 @@ Route::prefix('v1')->group(function () {
     Route::get('/circle-categories', [CircleCategoryController::class, 'index']);
     Route::get('/circle-categories/{idOrSlug}', [CircleCategoryController::class, 'show']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
+    Route::get('/cities', [CityController::class, 'index']);
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
-    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.png');
+    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+    Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
     Route::get('/events/all', [EventApiController::class, 'allEvents']);
+    Route::get('/event-feedbacks/check-pending', [EventFeedbackController::class, 'checkPending']);
+    Route::post('/event-feedbacks', [EventFeedbackController::class, 'store']);
+    Route::get('/event-feedbacks/my', [EventFeedbackController::class, 'myFeedbacks']);
+    Route::get('/event-feedbacks/event/{eventId}', [EventFeedbackController::class, 'eventFeedbacks']);
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
     Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
@@ -303,8 +534,13 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
+        Route::post('/user/mobile-version', [UserMobileVersionController::class, 'store']);
+        Route::post('/user/devices/register', [UserMobileDetailController::class, 'registerDevice']);
+        Route::post('/user/devices/logout', [UserMobileDetailController::class, 'logoutDevice']);
+        Route::get('/user/devices', [UserMobileDetailController::class, 'listDevices']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
+            ->middleware('unity.user')
             ->whereUuid('event')
             ->whereUuid('occurrence');
 
@@ -312,7 +548,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/insights/industry', [NotificationFeatureController::class, 'industryInsight']);
         Route::get('/rewards/store/items', [NotificationFeatureController::class, 'rewardItems']);
         Route::get('/newsletter/latest', [NotificationFeatureController::class, 'latestNewsletter']);
-        Route::get('/circle-categories', [NotificationFeatureController::class, 'circleCategories']);
+
         Route::get('/life-impact/cycles/active', [NotificationFeatureController::class, 'activeLifeImpactCycle']);
     });
 
@@ -333,21 +569,47 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+        // Story Submissions API
+        Route::get('/story/status', [StorySubmissionApiController::class, 'status']);
+        Route::post('/story/submit', [StorySubmissionApiController::class, 'submit']);
+        Route::post('/story-submission', [StorySubmissionApiController::class, 'submitVyapaarStory']);
+        Route::get('/story/my-submissions', [StorySubmissionApiController::class, 'mySubmissions']);
+        Route::get('/story/{id}', [StorySubmissionApiController::class, 'show'])->whereUuid('id');
+
         Route::get('network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
             ->whereUuid('user_uuid');
 
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
+
+        // Global Peer Certificate API
+        Route::get('/my/global-peer-certificate', [GlobalPeerCertificateController::class, 'show']);
+        Route::post('/my/global-peer-certificate/regenerate', [GlobalPeerCertificateController::class, 'regenerate']);
+
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
+        Route::get('/users/{user_id}/business-deals/stats', [BusinessDealController::class, 'userBusinessDealsStats'])->whereUuid('user_id');
+        Route::get('/users/{user_id}/business-deals', [BusinessDealController::class, 'userBusinessDealsList'])->whereUuid('user_id');
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
+
+        // V1 Testimonials API
+        Route::post('/testimonials', [V1TestimonialController::class, 'store']);
+        Route::get('/testimonials/given', [V1TestimonialController::class, 'given']);
+        Route::get('/testimonials/received', [V1TestimonialController::class, 'received']);
+        Route::get('/users/{user}/testimonials', [V1TestimonialController::class, 'userTestimonials'])->whereUuid('user');
 
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
         Route::get('/profile', [ProfileController::class, 'show']);
+        Route::get('/profile/introducer', [ProfileController::class, 'introducer']);
+        Route::get('/profile/introduced-peers', [ProfileController::class, 'introducedPeers']);
+        Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
+        Route::post('/introduction-requests', [IntroductionRequestsApiController::class, 'store']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
+        Route::post('/profile/view', [ProfileController::class, 'recordView']);
+        Route::get('/profile/views', [ProfileController::class, 'getViews']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
-
+        Route::get('/intro-videos', [IntroVideoController::class, 'index']);
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
@@ -358,16 +620,22 @@ Route::prefix('v1')->group(function () {
         Route::post('/peers/{user}/block', [PeerBlockController::class, 'store'])->whereUuid('user');
         Route::delete('/peers/{user}/block', [PeerBlockController::class, 'destroy'])->whereUuid('user');
         Route::get('/peers/{user}/block-status', [PeerBlockController::class, 'status'])->whereUuid('user');
+        Route::get('/peers/birthdays', [PeerBirthdayController::class, 'index']);
+        Route::get('/peers/anniversaries', [PeerAnniversaryController::class, 'index']);
 
         // Members & connections
+        Route::get('/members/top-introducers', [MemberController::class, 'topIntroducers']);
+        Route::get('/members/{member_id}/introduced-peers', [ProfileController::class, 'memberIntroducedPeers'])
+            ->whereUuid('member_id');
         Route::get('members/names', [MemberController::class, 'names']);
-        Route::get('members/limited', [MemberController::class, 'limited']);
+        Route::get('members/limited', [MemberController::class, 'limitedList']);
 
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
 
+        Route::get('members', [MemberController::class, 'limited']);
         Route::apiResource('members', MemberController::class)
-            ->only(['index', 'show']);
+            ->only(['show']);
         Route::get('/members-summary', [MemberController::class, 'summary']);
         Route::post('/members/online-heartbeat', [OnlineStatusController::class, 'heartbeat']);
         Route::post('/members/update-online-status', [OnlineStatusController::class, 'updateStatus']);
@@ -379,6 +647,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
         Route::delete('/members/{id}/connections', [MemberController::class, 'deleteConnection']);
+
+        Route::post('/members/{id}/bookmark', [MemberController::class, 'bookmark'])->whereUuid('id');
+        Route::delete('/members/{id}/bookmark', [MemberController::class, 'unbookmark'])->whereUuid('id');
         Route::get('/connections', [MyConnectionsController::class, 'index']);
         Route::get('/connections/sent', [MyConnectionsController::class, 'sent']);
         Route::delete('/connections/sent/{addresseeId}', [MyConnectionsController::class, 'cancelSent']);
@@ -409,28 +680,36 @@ Route::prefix('v1')->group(function () {
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
+        Route::get('/circles/my', [CircleController::class, 'myCircles']);
         Route::get('/circles/my-leadership-circles', [CircleLeadershipController::class, 'myLeadershipCircles']);
-        Route::get('/circles/{id}', [CircleController::class, 'show']);
+        Route::get('/circles/{id}', [CircleController::class, 'show'])->whereUuid('id');
         Route::post('/circles', [CircleController::class, 'store']);
-        Route::put('/circles/{id}', [CircleController::class, 'update']);
-        Route::patch('/circles/{id}', [CircleController::class, 'update']);
-        Route::post('/circles/{id}/join', [CircleController::class, 'join']);
+        Route::put('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::patch('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::post('/circles/{id}/join', [CircleController::class, 'join'])->whereUuid('id');
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
+        Route::get('/joined-circles', [CircleController::class, 'joinedCircles']);
 
-        Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree']);
-        Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories']);
-        Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories']);
+        Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree'])->whereUuid('circleId');
+        Route::get('/circles/{circleId}/open-categories', [CircleCategoryUsageController::class, 'circleOpenCategories'])->whereUuid('circleId');
+        Route::get('/circles/{circleId}/closed-categories', [CircleCategoryUsageController::class, 'circleClosedCategories'])->whereUuid('circleId');
+        Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories'])->whereUuid('memberId');
+        Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories'])->whereUuid('memberId');
 
         // Circle Join Requests
         Route::post('/circle-join-requests', [CircleJoinRequestController::class, 'store']);
         Route::get('/circle-join-requests/my', [CircleJoinRequestController::class, 'myRequests']);
         Route::get('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'show'])->whereUuid('id');
+        Route::get('/circle-join-requests/{id}/status', [CircleJoinRequestController::class, 'status'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
         Route::prefix('admin')->group(function () {
+            Route::get('/sponsored-members/milestones', [SponsoredMembersMilestonesController::class, 'index']);
+            Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
+
             Route::get('/campaigns', [AdminCampaignController::class, 'index']);
             Route::post('/campaigns', [AdminCampaignController::class, 'store']);
             Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
@@ -439,18 +718,18 @@ Route::prefix('v1')->group(function () {
             Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
             Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
 
-    // Brand Partners Admin APIs
-    Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
-    Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
-    Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
-    Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
-    Route::post('/brand-partner-categories', [BrandPartnerApiController::class, 'storeCategory']);
-    Route::put('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'updateCategory'])->whereUuid('id');
-    Route::delete('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'destroyCategory'])->whereUuid('id');
-    Route::patch('/brand-partners/{id}/status', [BrandPartnerApiController::class, 'toggleStatus'])->whereUuid('id');
-    Route::patch('/brand-partners/{id}/featured', [BrandPartnerApiController::class, 'toggleFeatured'])->whereUuid('id');
-    Route::patch('/brand-partners/{id}/sponsored', [BrandPartnerApiController::class, 'toggleSponsored'])->whereUuid('id');
-    Route::post('/brand-partners/reorder', [BrandPartnerApiController::class, 'reorder']);
+            // Brand Partners Admin APIs
+            Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
+            Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
+            Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
+            Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
+            Route::post('/brand-partner-categories', [BrandPartnerApiController::class, 'storeCategory']);
+            Route::put('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'updateCategory'])->whereUuid('id');
+            Route::delete('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'destroyCategory'])->whereUuid('id');
+            Route::patch('/brand-partners/{id}/status', [BrandPartnerApiController::class, 'toggleStatus'])->whereUuid('id');
+            Route::patch('/brand-partners/{id}/featured', [BrandPartnerApiController::class, 'toggleFeatured'])->whereUuid('id');
+            Route::patch('/brand-partners/{id}/sponsored', [BrandPartnerApiController::class, 'toggleSponsored'])->whereUuid('id');
+            Route::post('/brand-partners/reorder', [BrandPartnerApiController::class, 'reorder']);
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
@@ -615,7 +894,6 @@ Route::prefix('v1')->group(function () {
             Route::patch('/post-reports/{id}/resolve', [AdminOpsController::class, 'postReportResolve'])->whereUuid('id');
             Route::patch('/post-reports/{id}/dismiss', [AdminOpsController::class, 'postReportDismiss'])->whereUuid('id');
 
-
             Route::get('/notification-campaigns', [NotificationCampaignController::class, 'index']);
             Route::post('/notification-campaigns', [NotificationCampaignController::class, 'store']);
             Route::put('/notification-campaigns/{id}', [NotificationCampaignController::class, 'update'])->whereUuid('id');
@@ -660,6 +938,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/events/{event}/send-notifications', [AdminEventSendNotificationsController::class, 'send'])->whereUuid('event');
             // Re-dispatch the notification job (use this when queue worker IS running)
             Route::post('/events/{event}/dispatch-notification-job', [AdminEventSendNotificationsController::class, 'dispatch'])->whereUuid('event');
+
+            // Ad Bookings (admin)
+            Route::get('/ad-bookings', [AdBookingAdminController::class, 'index']);
+            Route::get('/ad-bookings/{id}', [AdBookingAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/ad-bookings/{id}/review', [AdBookingAdminController::class, 'review'])->whereUuid('id');
         });
 
         // Circle Chat
@@ -679,12 +962,23 @@ Route::prefix('v1')->group(function () {
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
         Route::get('/posts/feed', [PostController::class, 'feed']);
-        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
+        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
+        Route::middleware('auth:sanctum')->get('/ads/my', [AdController::class, 'myAds']);
+        Route::middleware('auth:sanctum')->get('/ads/all', [AdController::class, 'allAds']);
         Route::get('/ads/timeline', [AdController::class, 'timeline']);
+        Route::post('/ads/{id}/view', [AdController::class, 'view'])->whereUuid('id');
+        Route::post('/ads/{id}/click', [AdController::class, 'click'])->whereUuid('id');
         Route::get('/ads/{id}', [AdController::class, 'show']);
+
+        // Ad Bookings (user-facing)
+        Route::post('/ad-bookings', [AdBookingController::class, 'store']);
+        Route::get('/ad-bookings', [AdBookingController::class, 'myBookings']);
+        Route::get('/ad-bookings/{id}', [AdBookingController::class, 'show'])->whereUuid('id');
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
         Route::post('/posts', [PostController::class, 'store']);
         Route::get('/posts/{id}', [PostController::class, 'show']);
+        Route::put('/posts/{id}', [PostController::class, 'update']);
+        Route::patch('/posts/{id}', [PostController::class, 'update']);
         Route::delete('/posts/{id}', [PostController::class, 'destroy']);
 
         Route::post('/posts/{id}/like', [PostController::class, 'like']);
@@ -694,20 +988,22 @@ Route::prefix('v1')->group(function () {
         Route::post('/posts/{id}/comments', [PostController::class, 'storeComment']);
         Route::get('/posts/{id}/comments', [PostController::class, 'listComments']);
         Route::get('/profile/posts', [MyPostsController::class, 'index']);
+        Route::get('/profile/last-month-activity', [LastMonthActivityController::class, 'index']);
         Route::get('/posts/{post}/likes', [MyPostsController::class, 'likes']);
 
         // Events
         Route::get('/events', [EventController::class, 'index']);
+        Route::get('/events/past', [EventController::class, 'pastEvents']);
+        Route::get('/circles/{circle_id}/past-events', [EventController::class, 'pastEvents'])->whereUuid('circle_id');
         Route::get('/events/all-with-live-status', [EventController::class, 'allWithLiveStatus']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
-        Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
         Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/invoice', [EventController::class, 'invoice'])->whereUuid('registration_id');
-    Route::get('/events/invoices', [EventController::class, 'invoices']);
-    Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
+        Route::get('/events/invoices', [EventController::class, 'invoices']);
+        Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
         Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register-as-user', [EventController::class, 'visitorRegisterAsUser'])->whereUuid('event_id')->whereUuid('occurrence_id');
@@ -717,6 +1013,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/admin/event-registration-requests', [EventController::class, 'adminRegistrationRequests']);
         Route::post('/admin/event-registration-requests/{request_id}/approve', [EventController::class, 'approveRegistrationRequest'])->whereUuid('request_id');
         Route::post('/admin/event-registration-requests/{request_id}/reject', [EventController::class, 'rejectRegistrationRequest'])->whereUuid('request_id');
+        Route::get('/admin/event-coupons', [EventCouponAdminController::class, 'index']);
+        Route::post('/admin/event-coupons', [EventCouponAdminController::class, 'store']);
+        Route::post('/admin/event-coupons/generate-code', [EventCouponAdminController::class, 'generateCode']);
+        Route::get('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'show'])->whereUuid('id');
+        Route::put('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
+        Route::patch('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
+        Route::delete('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'destroy'])->whereUuid('id');
         Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');
         Route::post('/events', [EventController::class, 'store']);
         Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp'])->whereUuid('id');
@@ -730,10 +1033,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/coins', [CoinsController::class, 'balance']);
         Route::get('/me/coins/ledger', [CoinsController::class, 'ledger']);
         Route::get('/coins/history', [CoinHistoryController::class, 'index']);
+        Route::get('/users/{userId}/milestone/latest', [CoinMilestoneController::class, 'latest']);
+        Route::get('/users/{userId}/milestone/history', [CoinMilestoneController::class, 'history']);
 
         // Impact system
         Route::get('/impacts/actions', [ImpactController::class, 'actions']);
         Route::post('/impacts', [ImpactController::class, 'store']);
+        Route::post('/life-impact', [ImpactController::class, 'store']);
         Route::get('/impacts/my', [ImpactController::class, 'my']);
         Route::get('/impacts/timeline', [ImpactController::class, 'timeline']);
         Route::get('/life-impact/history', [LifeImpactHistoryController::class, 'index']);
@@ -753,6 +1059,8 @@ Route::prefix('v1')->group(function () {
             Route::get('requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
             Route::get('referrals', [ReferralHistoryController::class, 'index']);
+            Route::get('referrals/statuses', [ReferralController::class, 'statuses']);
+            Route::patch('referrals/{id}/status', [ReferralController::class, 'updateStatus'])->whereUuid('id');
             Route::post('referrals', [ReferralController::class, 'store']);
             Route::get('referrals/{id}', [ReferralController::class, 'show']);
 
@@ -764,6 +1072,8 @@ Route::prefix('v1')->group(function () {
             Route::post('testimonials', [TestimonialController::class, 'store']);
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
         });
+
+        Route::get('/p2p-meetings/user/{userId}', [P2pMeetingController::class, 'userMeetings'])->whereUuid('userId');
 
         // P2P Meeting Requests
         Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
@@ -793,6 +1103,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/timeline/requirements', [TimelineRequirementController::class, 'index']);
         Route::post('/requirements', [V1RequirementController::class, 'store']);
         Route::get('/requirements/incompleted', [V1RequirementController::class, 'incompleted']);
+        Route::get('/requirements/summary', [V1RequirementController::class, 'summary']);
+        Route::get('/requirements/summary/{userId}', [V1RequirementController::class, 'summary'])->whereUuid('userId');
         Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
         Route::patch('/requirements/{id}/close', [V1RequirementController::class, 'close']);
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
@@ -820,7 +1132,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/chats/{id}/mark-read', [ChatController::class, 'markRead']);
         Route::post('/chats/{id}/typing', [ChatController::class, 'typing']);
 
-
         // Notification debug checks
         Route::get('/admin/notifications/check', [NotificationEngineController::class, 'check']);
         Route::get('/admin/notifications/check/post/{postId}', [NotificationEngineController::class, 'checkPost'])->whereUuid('postId');
@@ -832,9 +1143,13 @@ Route::prefix('v1')->group(function () {
 
         // Notifications
         Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
-        Route::get('/notifications', [NotificationEngineController::class, 'index']);
-        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
-        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
+        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
+        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
+        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
         Route::post('/notifications/{id}/clicked', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);
@@ -846,14 +1161,14 @@ Route::prefix('v1')->group(function () {
         Route::delete('/push-tokens', [PushTokenController::class, 'destroy']);
 
         if (app()->environment(['local', 'staging'])) {
-            Route::post('/debug/push-test', function (\Illuminate\Http\Request $request) {
+            Route::post('/debug/push-test', function (Request $request) {
                 $user = $request->user();
 
-                \Illuminate\Support\Facades\Log::info('Dispatching test push job', [
+                Log::info('Dispatching test push job', [
                     'user_id' => $user->id,
                 ]);
 
-                \App\Jobs\SendPushNotificationJob::dispatch(
+                SendPushNotificationJob::dispatch(
                     $user,
                     'Test Push',
                     'Hello from Laravel ✅',
@@ -877,11 +1192,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/referrals/generate', [ReferralController::class, 'generate']);
         Route::get('/referrals/members', [ReferralController::class, 'members']);
         Route::get('/referrals/stats', [ReferralController::class, 'stats']);
+        Route::get('/referrals/stats/{userId}', [ReferralController::class, 'statsByUser'])->whereUuid('userId');
         Route::post('/referrals/links', [ReferralController::class, 'storeLink']);
         Route::get('/referrals/links', [ReferralController::class, 'listLinks']);
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);
         Route::patch('/referrals/visitors/{id}', [ReferralController::class, 'updateVisitor']);
-
 
         Route::get('/my/activity-creatives', [ActivityCreativeController::class, 'myCreatives']);
         Route::get('/activity-creatives', [ActivityCreativeController::class, 'index']);
@@ -911,6 +1226,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::post('/feedback', [FeedbackController::class, 'store']);
 
+        // Peer Referrals
+        Route::post('/peer-referrals', [PeerReferralsApiController::class, 'store']);
+        Route::get('/peer-referrals', [PeerReferralsApiController::class, 'index']);
+
         // Website form submissions (read)
         Route::get('/become-a-mentor', [BecomeMentorController::class, 'index']);
         Route::get('/become-a-mentor/{id}', [BecomeMentorController::class, 'show'])->whereUuid('id');
@@ -918,10 +1237,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/become-a-speaker/{id}', [WebsiteFormsController::class, 'showBecomeSpeaker'])->whereUuid('id');
         Route::get('/share-sme-business-story', [WebsiteFormsController::class, 'indexSmeBusinessStory']);
         Route::get('/share-sme-business-story/{id}', [WebsiteFormsController::class, 'showSmeBusinessStory'])->whereUuid('id');
+        Route::get('/my-certifications', [WebsiteFormsController::class, 'myCertifications']);
+        Route::get('/leadership-certification/my', [WebsiteFormsController::class, 'indexLeadershipCertification']);
         Route::get('/leadership-certification', [WebsiteFormsController::class, 'indexLeadershipCertification']);
         Route::get('/leadership-certification/{id}', [WebsiteFormsController::class, 'showLeadershipCertification'])->whereUuid('id');
+        Route::get('/entrepreneur-certification/my', [WebsiteFormsController::class, 'indexEntrepreneurCertification']);
         Route::get('/entrepreneur-certification', [WebsiteFormsController::class, 'indexEntrepreneurCertification']);
         Route::get('/entrepreneur-certification/{id}', [WebsiteFormsController::class, 'showEntrepreneurCertification'])->whereUuid('id');
+        Route::get('/certifications/user/{userId}', [WebsiteFormsController::class, 'userCertifications']);
         Route::get('/partner-with-us', [WebsiteFormsController::class, 'indexPartnerWithUs']);
         Route::get('/partner-with-us/{id}', [WebsiteFormsController::class, 'showPartnerWithUs'])->whereUuid('id');
 
@@ -930,6 +1253,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
+        Route::get('/billing/subscriptions-history', [UserSubscriptionController::class, 'index']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
         Route::get('/billing/invoices/{invoiceId}', [InvoiceController::class, 'show']);
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);
@@ -951,7 +1275,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
     Route::post('/webhooks/zoho/circle-subscription', [ZohoBillingWebhookController::class, 'handleCircleSubscription']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
-    Route::get('/files/{id}', [FileController::class, 'show']);
+    Route::get('/files/{id}', [FileController::class, 'show'])->where('id', '.*');
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);
     Route::get('/event-galleries/{id}', [EventGalleryApiController::class, 'show']);
 
@@ -969,7 +1293,6 @@ Route::prefix('v1')->group(function () {
     // Ads banners (public)
     Route::get('/ads/banners', [AdsController::class, 'index']);
 
-
     Route::get('/circulars', [CircularController::class, 'index']);
     Route::get('/circulars/{id}', [CircularController::class, 'show']);
 
@@ -983,7 +1306,6 @@ Route::prefix('v1')->group(function () {
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
     Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
     Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
-
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
@@ -1000,37 +1322,37 @@ Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(functi
 
 Route::get('/debug-notifications', function () {
     try {
-        $users = \App\Models\User::query()
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('users.deleted_at'))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('users.gdpr_deleted_at'))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.status')->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.membership_status')->orWhere('users.membership_status', '!=', 'suspended')))
+        $users = User::query()
+            ->when(Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('users.deleted_at'))
+            ->when(Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('users.gdpr_deleted_at'))
+            ->when(Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.status')->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
+            ->when(Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.membership_status')->orWhere('users.membership_status', '!=', 'suspended')))
             ->get();
 
         $debugData = [];
         foreach ($users as $user) {
-            $tokens = \Illuminate\Support\Facades\DB::table('user_push_tokens')
+            $tokens = DB::table('user_push_tokens')
                 ->where('user_id', $user->id)
                 ->get();
 
-            $activeQuery = \Illuminate\Support\Facades\DB::table('user_push_tokens')
+            $activeQuery = DB::table('user_push_tokens')
                 ->where('user_id', $user->id)
                 ->whereNotNull('token')
                 ->where('token', '!=', '');
 
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+            if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
                 $activeQuery->whereNull('deleted_at');
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status')) {
+            if (Schema::hasColumn('user_push_tokens', 'status')) {
                 $activeQuery->where('status', 'active');
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status')) {
+            if (Schema::hasColumn('user_push_tokens', 'token_status')) {
                 $activeQuery->where('token_status', 'active');
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active')) {
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
                 $activeQuery->where('is_active', true);
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'platform')) {
+            if (Schema::hasColumn('user_push_tokens', 'platform')) {
                 $activeQuery->where(function ($platformQuery): void {
                     $platformQuery->whereNull('platform')
                         ->orWhere('platform', '')
@@ -1042,15 +1364,15 @@ Route::get('/debug-notifications', function () {
 
             $debugData[] = [
                 'user_id' => $user->id,
-                'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
                 'email' => $user->email,
                 'status' => $user->status,
                 'membership_status' => $user->membership_status,
                 'total_push_tokens_in_db' => $tokens->count(),
                 'active_push_tokens_resolved' => $activeCount,
-                'tokens' => $tokens->map(fn($t) => [
+                'tokens' => $tokens->map(fn ($t) => [
                     'id' => $t->id,
-                    'token_preview' => substr($t->token, 0, 15) . '...',
+                    'token_preview' => substr($t->token, 0, 15).'...',
                     'platform' => $t->platform ?? null,
                     'is_active' => $t->is_active ?? null,
                 ]),
@@ -1062,7 +1384,7 @@ Route::get('/debug-notifications', function () {
             'targeted_users_count' => $users->count(),
             'users' => $debugData,
         ]);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         return response()->json([
             'success' => false,
             'error' => $e->getMessage(),
@@ -1074,32 +1396,62 @@ Route::get('/debug-notifications', function () {
 Route::get('/debug-logs', function () {
     try {
         $logPath = storage_path('logs/laravel.log');
-        if (!file_exists($logPath)) {
+        if (! file_exists($logPath)) {
             return response()->json(['success' => false, 'message' => 'Log file does not exist']);
         }
-        
+
         $lines = [];
         $file = new SplFileObject($logPath, 'r');
         $file->seek(PHP_INT_MAX);
         $totalLines = $file->key();
-        
+
         $start = max(0, $totalLines - 150);
         $file->seek($start);
-        
-        while (!$file->eof()) {
+
+        while (! $file->eof()) {
             $line = trim($file->current());
             if ($line !== '') {
                 $lines[] = $line;
             }
             $file->next();
         }
-        
+
         return response()->json([
             'success' => true,
             'total_lines' => $totalLines,
             'recent_lines' => array_reverse($lines),
         ]);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    }
+});
+
+Route::get('/send-test-push', function (Request $request) {
+    try {
+        $email = $request->get('email', 'chirag@gmail.com');
+        $title = $request->get('title', 'Dev Server Test');
+        $body = $request->get('body', 'FCM notifications are fully working! 🚀');
+
+        $user = User::where('email', $email)->first();
+        if (! $user) {
+            return response()->json(['success' => false, 'error' => "User {$email} not found"]);
+        }
+
+        $fcmService = app(FcmService::class);
+        $result = $fcmService->sendToUser($user, $title, $body, [
+            'type' => 'test',
+            'notification_type' => 'test',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'user' => $user->only(['id', 'email']),
+            'fcm_result' => $result,
+        ]);
+    } catch (Throwable $e) {
         return response()->json([
             'success' => false,
             'error' => $e->getMessage(),

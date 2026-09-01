@@ -5,6 +5,10 @@ namespace App\Services\LifeImpact;
 use App\Models\Impact;
 use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
+use App\Models\Post;
+use App\Models\User;
+use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\MilestoneBadgeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -27,19 +31,25 @@ class LifeImpactService
             ? $activityId
             : null;
 
-        if ($impactValue <= 0) {
+        if ($impactValue === 0) {
             return $this->getCurrentTotal($userId);
         }
 
-        return (int) DB::transaction(function () use ($userId, $impactValue, $activityType, $title, $triggeredByUserId, $activityId, $description, $meta) {
+        $oldTotal = $this->getCurrentTotal($userId);
+
+        $newTotal = (int) DB::transaction(function () use ($userId, $impactValue, $activityType, $title, $triggeredByUserId, $activityId, $description, $meta) {
             $historyTable = $this->lifeImpactHistoriesTable();
 
             DB::table('users')
                 ->where('id', $userId)
                 ->update([
-                    'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + ' . $impactValue),
+                    'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + '.$impactValue),
                     'updated_at' => now(),
                 ]);
+
+            app(MilestoneBadgeService::class)->calculateForUserId($userId);
+
+            $newTotal = $this->getCurrentTotal($userId);
 
             $normalizedMeta = null;
             if (! empty($meta)) {
@@ -53,16 +63,41 @@ class LifeImpactService
             $payload = [
                 'id' => (string) Str::uuid(),
                 'user_id' => $userId,
-                'triggered_by_user_id' => $triggeredByUserId,
-                'activity_type' => $activityType,
-                'activity_id' => $activityId,
-                'impact_value' => $impactValue,
-                'title' => $title,
-                'description' => $description,
-                'meta' => $normalizedMeta,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
+
+            if (Schema::hasColumn($historyTable, 'triggered_by_user_id')) {
+                $payload['triggered_by_user_id'] = $triggeredByUserId;
+            }
+
+            if (Schema::hasColumn($historyTable, 'activity_type')) {
+                $payload['activity_type'] = $activityType;
+            }
+
+            if (Schema::hasColumn($historyTable, 'activity_id')) {
+                $payload['activity_id'] = $activityId;
+            }
+
+            if (Schema::hasColumn($historyTable, 'impact_value')) {
+                $payload['impact_value'] = $impactValue;
+            }
+
+            if (Schema::hasColumn($historyTable, 'title')) {
+                $payload['title'] = $title;
+            }
+
+            if (Schema::hasColumn($historyTable, 'description')) {
+                $payload['description'] = $description;
+            }
+
+            if (Schema::hasColumn($historyTable, 'meta')) {
+                $payload['meta'] = $normalizedMeta;
+            }
+
+            if (Schema::hasColumn($historyTable, 'impact_after')) {
+                $payload['impact_after'] = $newTotal;
+            }
 
             if (Schema::hasColumn($historyTable, 'life_impacted')) {
                 $payload['life_impacted'] = $impactValue;
@@ -97,6 +132,10 @@ class LifeImpactService
 
             return $this->getCurrentTotal($userId);
         });
+
+        $this->checkAndPublishLifeImpactTimelinePosts($userId, $oldTotal, $newTotal);
+
+        return $newTotal;
     }
 
     public function incrementAndLog(
@@ -264,6 +303,10 @@ class LifeImpactService
             $historyId = (string) $payload['id'];
             $total = $this->recomputeTotalFromHistory($userId);
 
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'impact_after')) {
+                DB::table($this->lifeImpactHistoriesTable())->where('id', $historyId)->update(['impact_after' => $total]);
+            }
+
             Log::info('impact.approval.history_created', [
                 'impact_id' => $impactId,
                 'user_id' => $userId,
@@ -309,7 +352,98 @@ class LifeImpactService
                 'updated_at' => now(),
             ]);
 
+        app(MilestoneBadgeService::class)->calculateForUserId($userId);
+
+        $this->checkAndPublishLifeImpactTimelinePosts($userId, 0, $sum);
+
         return $sum;
+    }
+
+    /**
+     * Check and publish Life Impact Recognition creative post to Timeline if user unlocked a new tier.
+     */
+    public function checkAndPublishLifeImpactTimelinePosts(string $userId, int $oldTotal, int $newTotal): void
+    {
+        try {
+            $user = User::find($userId);
+            if (! $user) {
+                return;
+            }
+
+            /** @var LifeImpactCreativeGenerator $generator */
+            $generator = app(LifeImpactCreativeGenerator::class);
+            $levels = $generator->getAllRecognitionLevels();
+
+            $systemUser = User::where('email', 'info@peersglobal.com')->first();
+            $authorUserId = $systemUser ? $systemUser->id : $user->id;
+
+            foreach ($levels as $threshold => $meta) {
+                if ($newTotal >= $threshold) {
+                    $existingPost = Post::query()
+                        ->where('source_type', 'life_impact')
+                        ->where('source_id', $user->id)
+                        ->where('source_event', "level_{$threshold}")
+                        ->first();
+
+                    if (! $existingPost && Schema::hasTable('posts')) {
+                        try {
+                            $fileRecord = $generator->generate($user, (int) $threshold, (int) $threshold);
+                            $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
+                            $media = [
+                                [
+                                    'id' => $fileRecord->id,
+                                    'type' => 'image',
+                                    'url' => $creativeImageUrl,
+                                ],
+                            ];
+                        } catch (\Throwable $creativeEx) {
+                            Log::error("[LifeImpactService] Failed generating creative for threshold {$threshold}: ".$creativeEx->getMessage());
+                            $creativeImageUrl = ! empty($meta['badge_image']) ? asset($meta['badge_image']) : url('/images/life_impact_badges/Impact Creator.png');
+                            $media = [
+                                [
+                                    'id' => (string) Str::uuid(),
+                                    'type' => 'image',
+                                    'url' => $creativeImageUrl,
+                                ],
+                            ];
+                        }
+
+                        $caption = $generator->formatCaption($user, (int) $threshold, $meta);
+                        $userName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+                        if (empty($userName)) {
+                            $userName = $user->name ?: 'Peer Member';
+                        }
+
+                        Post::create([
+                            'user_id' => $authorUserId,
+                            'circle_id' => null,
+                            'content_text' => $caption,
+                            'media' => $media,
+                            'tags' => ['life_impact_recognition', 'life_impact', (string) $user->id, $meta['hashtag'], "level_{$threshold}"],
+                            'visibility' => 'public',
+                            'moderation_status' => 'approved',
+                            'sponsored' => false,
+                            'is_deleted' => false,
+                            'source_type' => 'life_impact',
+                            'source_id' => $user->id,
+                            'source_event' => "level_{$threshold}",
+                            'post_type' => 'life_impact_recognition',
+                            'title' => "🎉 Big Congratulations! {$userName} became a {$meta['title']}",
+                            'description' => $caption,
+                            'image' => $creativeImageUrl,
+                            'status' => 'active',
+                        ]);
+
+                        Log::info("[LifeImpactService] Automatically published Life Impact recognition post for user {$user->id} reaching level {$meta['title']} ({$threshold} lives)");
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('[LifeImpactService] Failed checking and publishing life impact timeline posts: '.$e->getMessage(), [
+                'exception' => $e,
+                'user_id' => $userId,
+            ]);
+        }
     }
 
     private function resolveImpactScore(Impact $impact): int
@@ -356,9 +490,9 @@ class LifeImpactService
 
     private function lifeImpactHistoriesTable(): string
     {
-        $searchPath = (string) config('database.connections.' . config('database.default') . '.search_path', 'public');
+        $searchPath = (string) config('database.connections.'.config('database.default').'.search_path', 'public');
         $schema = trim((string) explode(',', $searchPath)[0], " \t\n\r\0\x0B\"");
 
-        return ($schema !== '' ? $schema . '.' : '') . 'life_impact_histories';
+        return ($schema !== '' ? $schema.'.' : '').'life_impact_histories';
     }
 }
