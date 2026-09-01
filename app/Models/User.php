@@ -6,6 +6,7 @@ use App\Jobs\SendWearTheBadgeWhatsappJob;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
+use App\Services\LifeImpact\LifeImpactService;
 use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
@@ -428,6 +429,18 @@ class User extends Authenticatable
 
             if ($user->wasRecentlyCreated || $user->wasChanged(['coins_balance', 'life_impacted_count', 'members_introduced_count'])) {
                 app(MilestoneBadgeService::class)->calculateForUser($user);
+            }
+
+            if ($user->wasRecentlyCreated || $user->wasChanged('life_impacted_count')) {
+                $oldImpact = (int) ($user->getOriginal('life_impacted_count') ?? 0);
+                $newImpact = (int) ($user->life_impacted_count ?? 0);
+                if ($newImpact > 0) {
+                    try {
+                        app(LifeImpactService::class)->checkAndPublishLifeImpactTimelinePosts((string) $user->id, $oldImpact, $newImpact);
+                    } catch (Throwable $e) {
+                        Log::error('[User::saved] Failed auto publishing life impact timeline post: '.$e->getMessage());
+                    }
+                }
             }
 
             if ($user->shouldSendWearTheBadgeWhatsapp()) {

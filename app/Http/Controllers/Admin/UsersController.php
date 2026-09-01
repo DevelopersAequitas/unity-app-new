@@ -28,8 +28,10 @@ use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\IndustryDirector\IndustryScopeService;
+use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\PublicProfileSlugService;
@@ -1438,6 +1440,18 @@ class UsersController extends Controller
                     $request->input('membership_expiry_date_remark'),
                     $adminName
                 );
+            }
+        }
+
+        if ($lifeImpactedCountChanged && $submittedLifeImpactedCount > 0) {
+            try {
+                app(LifeImpactService::class)->checkAndPublishLifeImpactTimelinePosts((string) $user->id, $originalLifeImpactedCount, $submittedLifeImpactedCount);
+                app(MilestoneBadgeService::class)->calculateForUserId((string) $user->id);
+            } catch (Throwable $e) {
+                Log::error('Failed to trigger Life Impact recognition on manual user update: '.$e->getMessage(), [
+                    'user_id' => (string) $user->id,
+                    'exception' => $e,
+                ]);
             }
         }
 
