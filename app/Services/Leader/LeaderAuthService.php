@@ -169,6 +169,8 @@ class LeaderAuthService
 
         return [
             'access_token' => $token,
+            'auth_token' => $token,
+            'token' => $token,
             'refresh_token' => $refreshToken,
             'token_type' => 'Bearer',
             'expires_in' => 86400,
