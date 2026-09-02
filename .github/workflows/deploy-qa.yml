@@ -40,7 +40,6 @@ jobs:
                 --prefer-dist \
                 --optimize-autoloader \
                 --no-interaction
-            php artisan migrate --force
 
             mkdir -p storage/app/public/ads
             TARGET="$(cd storage/app/public && pwd -P)"
