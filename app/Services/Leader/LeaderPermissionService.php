@@ -580,8 +580,17 @@ class LeaderPermissionService
         $query = Circle::query()->whereNull('deleted_at');
 
         if ($role === 'superAdmin' || $role === 'countryDirector') {
-            // Can see all active circles
-            $circles = $query->take(20)->get();
+            $joinedCircles = $query->where(function ($q) use ($userId): void {
+                $q->where('chair_user_id', $userId)
+                    ->orWhere('vice_chair_user_id', $userId)
+                    ->orWhere('circle_founder_user_id', $userId)
+                    ->orWhere('founder_user_id', $userId)
+                    ->orWhere('circle_director_user_id', $userId)
+                    ->orWhere('director_user_id', $userId)
+                    ->orWhereHas('members', fn ($mq) => $mq->where('user_id', $userId)->whereNull('deleted_at')->where('status', '!=', 'rejected'));
+            })->get();
+
+            $circles = $joinedCircles;
         } elseif ($role === 'districtExecDirector') {
             $admin = AdminUser::query()->where('id', $userId)->orWhere('email', $user->email)->first();
             $circleIds = $admin ? AdminCircleScope::getDedCircleIds($admin) : [];
@@ -611,15 +620,8 @@ class LeaderPermissionService
                 ->orWhere('founder_user_id', $userId)
                 ->orWhere('circle_director_user_id', $userId)
                 ->orWhere('director_user_id', $userId)
-                ->orWhereHas('members', fn ($q) => $q->where('user_id', $userId))
+                ->orWhereHas('members', fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at')->where('status', '!=', 'rejected'))
                 ->get();
-        }
-
-        if ($circles->isEmpty()) {
-            $firstCircle = Circle::query()->whereNull('deleted_at')->first();
-            if ($firstCircle) {
-                $circles = collect([$firstCircle]);
-            }
         }
 
         return $circles->map(function (Circle $c): array {

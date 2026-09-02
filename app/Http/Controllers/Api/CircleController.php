@@ -8,6 +8,7 @@ use App\Http\Resources\CircleMemberResource;
 use App\Http\Resources\CircleResource;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Services\Leader\LeaderPermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -199,19 +200,39 @@ class CircleController extends BaseApiController
 
         $existing = CircleMember::where('circle_id', $circle->id)
             ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
             ->first();
 
         if ($existing) {
-            return $this->success(null, 'You have already requested to join or are already a member');
+            return $this->success($existing, 'You have already requested to join or are already a member');
+        }
+
+        $status = 'pending';
+        $joinedAt = null;
+
+        // Auto-approve join requests for super admins and country directors
+        if ($user) {
+            $permissionService = app(LeaderPermissionService::class);
+            $roleInfo = $permissionService->resolveUserRole($user);
+            if (in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true)) {
+                $status = 'approved';
+                $joinedAt = now();
+            }
         }
 
         $member = CircleMember::create([
             'circle_id' => $circle->id,
             'user_id' => $user->id,
             'role' => 'member',
-            'status' => 'pending',
+            'status' => $status,
+            'joined_at' => $joinedAt,
             'substitute_count' => 0,
         ]);
+
+        if ($status === 'approved' && empty($user->active_circle_id)) {
+            $user->active_circle_id = $circle->id;
+            $user->save();
+        }
 
         return $this->success($member, 'Join request submitted successfully', 201);
     }

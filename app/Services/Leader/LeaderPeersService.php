@@ -34,17 +34,35 @@ class LeaderPeersService
     public function resolveScopedCircleIds(?User $user, ?string $districtId = null): ?array
     {
         if (! $user) {
-            return null;
+            return [];
         }
 
         $roleInfo = $this->permissionService->resolveUserRole($user);
         $role = $roleInfo['role'];
+        $userId = (string) $user->id;
+
+        // Resolve circles the user has directly joined or leads
+        $joinedCircleIds = $this->resolveUserJoinedCircleIds($user);
 
         if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
-            return null; // Global access
-        }
+            // In Leader App: if super admin has joined/associated circles (e.g. 2 circles),
+            // scope strictly to those circles.
+            if (! empty($joinedCircleIds)) {
+                return $joinedCircleIds;
+            }
 
-        $userId = (string) $user->id;
+            // If a specific district is requested, scope to that district
+            if ($districtId && Str::isUuid($districtId)) {
+                $circleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
+                if (! empty($circleIds)) {
+                    return $circleIds;
+                }
+            }
+
+            // If super admin has joined 0 circles and no district is requested,
+            // return empty array so Leader App shows 0 metrics / 0 peers instead of all platform data.
+            return [];
+        }
 
         if ($role === 'districtExecDirector') {
             $adminUser = AdminUser::query()->where('id', $userId)
@@ -94,24 +112,42 @@ class LeaderPeersService
         }
 
         // For circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, or any own-circle leader
+        return $joinedCircleIds;
+    }
+
+    /**
+     * Resolve all circles a user is directly a member or leader of.
+     *
+     * @return array<string>
+     */
+    public function resolveUserJoinedCircleIds(User $user): array
+    {
+        $userId = (string) $user->id;
         $circleIds = [];
 
         // 1. Direct column associations on circles table
         $directCircleIds = Circle::query()
-            ->where('circle_founder_user_id', $userId)
-            ->orWhere('founder_user_id', $userId)
-            ->orWhere('circle_director_user_id', $userId)
-            ->orWhere('director_user_id', $userId)
-            ->orWhere('chair_user_id', $userId)
-            ->orWhere('vice_chair_user_id', $userId)
+            ->whereNull('deleted_at')
+            ->where(function (Builder $q) use ($userId): void {
+                $q->where('circle_founder_user_id', $userId)
+                    ->orWhere('founder_user_id', $userId)
+                    ->orWhere('circle_director_user_id', $userId)
+                    ->orWhere('director_user_id', $userId)
+                    ->orWhere('chair_user_id', $userId)
+                    ->orWhere('vice_chair_user_id', $userId);
+            })
             ->pluck('id')
             ->all();
         $circleIds = array_merge($circleIds, $directCircleIds);
 
-        // 2. circle_members table roles and memberships
+        // 2. circle_members table roles and memberships (approved or active or valid)
         $memberCircleIds = DB::table('circle_members')
             ->where('user_id', $userId)
             ->whereNull('deleted_at')
+            ->where(function ($q): void {
+                $q->whereNull('status')
+                    ->orWhereIn('status', ['approved', 'active', 'pending']);
+            })
             ->pluck('circle_id')
             ->all();
         $circleIds = array_merge($circleIds, $memberCircleIds);
@@ -178,8 +214,11 @@ class LeaderPeersService
         $query->where('email', 'not like', '%devtestpeer%')
             ->where('first_name', 'not like', 'Test Peer%');
 
+        $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
+        $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
+
         if ($circleId && Str::isUuid($circleId)) {
-            if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+            if (! $isAdmin && $scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
                 $query->whereRaw('1 = 0');
             } else {
                 $query->where(function (Builder $q) use ($circleId): void {

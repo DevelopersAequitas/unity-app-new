@@ -102,14 +102,6 @@ class LeaderTeamsService
             $roleInfo = $permissionService->resolveUserRole($user);
             $role = $roleInfo['role'];
 
-            if ($role === 'superAdmin' || $role === 'countryDirector') {
-                if ($districtId && Str::isUuid($districtId)) {
-                    $query->where('district_id', $districtId);
-                }
-
-                return;
-            }
-
             $peersService = app(LeaderPeersService::class);
             $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
 
