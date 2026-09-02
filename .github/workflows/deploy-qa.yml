@@ -85,7 +85,6 @@ jobs:
             chmod -R ug+rwX,o+rX storage/app/public || true
             chmod -R ug+rwX storage/app storage/framework bootstrap/cache || true
 
-            php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
