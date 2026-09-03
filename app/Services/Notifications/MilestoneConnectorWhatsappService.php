@@ -44,8 +44,8 @@ class MilestoneConnectorWhatsappService
                 return;
             }
 
-            // Dispatch job with afterResponse() to ensure execution immediately after response flush
-            SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl)->afterResponse();
+            // Dispatch job to send independently
+            SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl);
 
             Log::info('[MilestoneConnectorWhatsappService] Dispatched SendMilestoneConnectorWhatsappJob.', [
                 'user_id' => $user->id,
