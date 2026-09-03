@@ -7,6 +7,7 @@ namespace App\Services\Creative;
 use App\Models\IntroductionCreative;
 use App\Models\MilestoneBadge;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -79,54 +80,59 @@ class IntroductionCreativeService
             return null;
         }
 
+        $lockKey = "intro_creative_lock_{$introducer->id}_{$introducedCount}";
+        $lock = Cache::lock($lockKey, 15);
+
         try {
-            // 2. Duplicate / Idempotency protection: check if creative was already recorded for this introducer & count or introduction
-            $existingCreative = IntroductionCreative::query()
-                ->where('introducer_id', $introducer->id)
-                ->where(function ($query) use ($introducedUser, $introducedCount, $introductionRequestId): void {
-                    $query->where('requester_id', $introducedUser->id)
-                        ->orWhere('introduced_count', $introducedCount);
+            return $lock->block(10, function () use ($introducer, $introducedUser, $introducedCount, $introductionRequestId): ?IntroductionCreative {
+                // 2. Duplicate / Idempotency protection: check if creative was already recorded for this introducer & count or introduction
+                $existingCreative = IntroductionCreative::query()
+                    ->where('introducer_id', $introducer->id)
+                    ->where(function ($query) use ($introducedUser, $introducedCount, $introductionRequestId): void {
+                        $query->where('requester_id', $introducedUser->id)
+                            ->orWhere('introduced_count', $introducedCount);
 
-                    if ($introductionRequestId !== null) {
-                        $query->orWhere('introduction_request_id', $introductionRequestId);
-                    }
-                })
-                ->first();
+                        if ($introductionRequestId !== null) {
+                            $query->orWhere('introduction_request_id', $introductionRequestId);
+                        }
+                    })
+                    ->first();
 
-            if ($existingCreative && ! empty($existingCreative->image_url)) {
-                Log::info('[IntroductionCreativeService] Reusing existing creative record.', [
-                    'creative_id' => $existingCreative->id,
+                if ($existingCreative && ! empty($existingCreative->image_url)) {
+                    Log::info('[IntroductionCreativeService] Reusing existing creative record.', [
+                        'creative_id' => $existingCreative->id,
+                        'introducer_id' => $introducer->id,
+                        'requester_id' => $introducedUser->id,
+                        'introduced_count' => $introducedCount,
+                        'image_url' => $existingCreative->image_url,
+                    ]);
+
+                    return $existingCreative;
+                }
+
+                // 3. Generate personalized creative image and get its public HTTPS URL
+                $imageUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
+
+                // 4. Save to introduction_creatives
+                $creative = IntroductionCreative::create([
+                    'id' => (string) Str::uuid(),
+                    'introduction_request_id' => $introductionRequestId,
                     'introducer_id' => $introducer->id,
                     'requester_id' => $introducedUser->id,
                     'introduced_count' => $introducedCount,
-                    'image_url' => $existingCreative->image_url,
+                    'image_url' => $imageUrl,
                 ]);
 
-                return $existingCreative;
-            }
+                Log::info('[IntroductionCreativeService] Stored introduction creative successfully.', [
+                    'creative_id' => $creative->id,
+                    'introducer_id' => $introducer->id,
+                    'requester_id' => $introducedUser->id,
+                    'introduced_count' => $introducedCount,
+                    'image_url' => $imageUrl,
+                ]);
 
-            // 3. Generate personalized creative image and get its public HTTPS URL
-            $imageUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
-
-            // 4. Save to introduction_creatives
-            $creative = IntroductionCreative::create([
-                'id' => (string) Str::uuid(),
-                'introduction_request_id' => $introductionRequestId,
-                'introducer_id' => $introducer->id,
-                'requester_id' => $introducedUser->id,
-                'introduced_count' => $introducedCount,
-                'image_url' => $imageUrl,
-            ]);
-
-            Log::info('[IntroductionCreativeService] Stored introduction creative successfully.', [
-                'creative_id' => $creative->id,
-                'introducer_id' => $introducer->id,
-                'requester_id' => $introducedUser->id,
-                'introduced_count' => $introducedCount,
-                'image_url' => $imageUrl,
-            ]);
-
-            return $creative;
+                return $creative;
+            });
         } catch (Throwable $e) {
             Log::error('[IntroductionCreativeService] Failed to generate/store introduction creative: '.$e->getMessage(), [
                 'introducer_id' => $introducer->id,

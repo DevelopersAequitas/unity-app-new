@@ -528,7 +528,10 @@ class IntroducedPeerCreativeGenerator
             // Save High-Quality PNG File & Create FileModel
             $filename = (string) Str::uuid().'.png';
             $finalPath = 'uploads/'.now()->format('Y/m/d').'/'.$filename;
-            $tempPath = tempnam(sys_get_temp_dir(), 'growth_creative');
+            $tempPath = @tempnam(sys_get_temp_dir(), 'gc');
+            if ($tempPath === false) {
+                $tempPath = storage_path('framework/cache/'.(string) Str::uuid().'.tmp');
+            }
 
             imagepng($canvas, $tempPath, 9);
             imagedestroy($canvas);

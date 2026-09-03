@@ -64,20 +64,25 @@ class IntroducedPeerService
             throw new InvalidArgumentException('You cannot introduce yourself.');
         }
 
-        $introducedUser = User::findOrFail($peerId);
-
-        if ($introducedUser->introduced_by === $user->id) {
-            return $introducedUser;
-        }
-
-        if ($introducedUser->introduced_by !== null) {
-            throw new InvalidArgumentException('This peer has already been introduced by another member.');
-        }
-
         $count = 0;
-        DB::transaction(function () use ($user, $introducedUser, &$count) {
-            $introducedUser->introduced_by = $user->id;
-            $introducedUser->save();
+        $alreadyIntroduced = false;
+        DB::transaction(function () use ($user, $peerId, &$introducedUser, &$count, &$alreadyIntroduced): void {
+            /** @var User $lockedPeer */
+            $lockedPeer = User::where('id', $peerId)->lockForUpdate()->firstOrFail();
+            $introducedUser = $lockedPeer;
+
+            if ($lockedPeer->introduced_by === $user->id) {
+                $alreadyIntroduced = true;
+
+                return;
+            }
+
+            if ($lockedPeer->introduced_by !== null) {
+                throw new InvalidArgumentException('This peer has already been introduced by another member.');
+            }
+
+            $lockedPeer->introduced_by = $user->id;
+            $lockedPeer->save();
 
             // Recalculate members_introduced_count for the introducing user
             $count = User::where('introduced_by', $user->id)->count();
@@ -87,6 +92,10 @@ class IntroducedPeerService
             // Sync user milestones
             $this->milestoneSyncService->sync($user);
         });
+
+        if ($alreadyIntroduced) {
+            return $introducedUser;
+        }
 
         // Trigger introduction creative rendering, timeline post and notifications
         $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);

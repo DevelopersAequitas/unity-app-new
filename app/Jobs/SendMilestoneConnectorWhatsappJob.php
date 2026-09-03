@@ -17,6 +17,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -50,50 +51,54 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
         ReferralService $referralService,
         IntroducedPeerCreativeGenerator $creativeGenerator
     ): void {
-        $user = User::find($this->userId);
+        $lockKey = "milestone_connector_job_exec_{$this->userId}";
+        $lock = Cache::lock($lockKey, 30);
 
-        if (! $user) {
-            Log::warning('[SendMilestoneConnectorWhatsappJob] Skipped: User not found.', [
-                'user_id' => $this->userId,
-                'template_key' => self::TEMPLATE_KEY,
-            ]);
+        $lock->get(function () use ($whatsappService, $referralService, $creativeGenerator): void {
+            $user = User::find($this->userId);
 
-            return;
-        }
+            if (! $user) {
+                Log::warning('[SendMilestoneConnectorWhatsappJob] Skipped: User not found.', [
+                    'user_id' => $this->userId,
+                    'template_key' => self::TEMPLATE_KEY,
+                ]);
 
-        $rawPhone = $user->phone ?? $user->secondary_mobile;
+                return;
+            }
 
-        if (blank($rawPhone)) {
-            Log::warning('[SendMilestoneConnectorWhatsappJob] Skipped: Missing phone number.', [
-                'user_id' => $this->userId,
-                'template_key' => self::TEMPLATE_KEY,
-            ]);
+            $rawPhone = $user->phone ?? $user->secondary_mobile;
 
-            return;
-        }
+            if (blank($rawPhone)) {
+                Log::warning('[SendMilestoneConnectorWhatsappJob] Skipped: Missing phone number.', [
+                    'user_id' => $this->userId,
+                    'template_key' => self::TEMPLATE_KEY,
+                ]);
 
-        // 1. Construct canonical data object
-        $introducedCount = (int) ($user->members_introduced_count ?? 1);
-        if ($introducedCount <= 0) {
-            $introducedCount = 1;
-        }
+                return;
+            }
 
-        // Determine specific milestone title and tier key
-        $honourMeta = $creativeGenerator->getHonourMeta($introducedCount);
-        $selectedMilestone = ucwords(strtolower($honourMeta['title'] ?? 'Connector'));
-        $milestoneKey = strtoupper(trim((string) ($honourMeta['title'] ?? 'CONNECTOR')));
+            // 1. Construct canonical data object
+            $introducedCount = (int) ($user->members_introduced_count ?? 1);
+            if ($introducedCount <= 0) {
+                $introducedCount = 1;
+            }
 
-        // Check milestone-specific duplicate/idempotency
-        if ($this->alreadySent($this->userId, $milestoneKey)) {
-            Log::info('[SendMilestoneConnectorWhatsappJob] Skipped: Milestone already sent to user.', [
-                'user_id' => $this->userId,
-                'template_key' => self::TEMPLATE_KEY,
-                'selected_milestone' => $selectedMilestone,
-                'introduced_count' => $introducedCount,
-            ]);
+            // Determine specific milestone title and tier key
+            $honourMeta = $creativeGenerator->getHonourMeta($introducedCount);
+            $selectedMilestone = ucwords(strtolower($honourMeta['title'] ?? 'Connector'));
+            $milestoneKey = strtoupper(trim((string) ($honourMeta['title'] ?? 'CONNECTOR')));
 
-            return;
-        }
+            // Check milestone-specific duplicate/idempotency (sent or completed)
+            if ($this->alreadySent($this->userId, $milestoneKey)) {
+                Log::info('[SendMilestoneConnectorWhatsappJob] Skipped: Milestone already sent to user.', [
+                    'user_id' => $this->userId,
+                    'template_key' => self::TEMPLATE_KEY,
+                    'selected_milestone' => $selectedMilestone,
+                    'introduced_count' => $introducedCount,
+                ]);
+
+                return;
+            }
 
         // Verify template exists in whatsapp_templates
         $template = WhatsappTemplate::query()
@@ -330,6 +335,7 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
 
             $this->logDelivery($this->userId, (string) $rawPhone, 'failed', $exception->getMessage(), $payload);
         }
+        });
     }
 
     private function alreadySent(string $userId, ?string $milestoneKey = null): bool
@@ -384,18 +390,37 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
         }
 
         try {
-            NotificationDeliveryLog::create([
-                'user_id' => $userId,
-                'channel' => 'whatsapp',
-                'provider' => self::TEMPLATE_KEY,
-                'provider_message_id' => $providerMessageId,
-                'status' => $status,
-                'request_payload' => $loggedPayload,
-                'response_payload' => $lastResponse ?? [],
-                'error_message' => $errorMessage,
-                'attempted_at' => now(),
-                'delivered_at' => $status === 'sent' ? now() : null,
-            ]);
+            $existingLog = NotificationDeliveryLog::query()
+                ->where('user_id', $userId)
+                ->where('channel', 'whatsapp')
+                ->where('provider', self::TEMPLATE_KEY)
+                ->whereIn('status', ['queued', 'pending', 'processing'])
+                ->latest()
+                ->first();
+
+            if ($existingLog) {
+                $existingLog->update([
+                    'provider_message_id' => $providerMessageId,
+                    'status' => $status,
+                    'request_payload' => $loggedPayload,
+                    'response_payload' => $lastResponse ?? [],
+                    'error_message' => $errorMessage,
+                    'delivered_at' => $status === 'sent' ? now() : null,
+                ]);
+            } else {
+                NotificationDeliveryLog::create([
+                    'user_id' => $userId,
+                    'channel' => 'whatsapp',
+                    'provider' => self::TEMPLATE_KEY,
+                    'provider_message_id' => $providerMessageId,
+                    'status' => $status,
+                    'request_payload' => $loggedPayload,
+                    'response_payload' => $lastResponse ?? [],
+                    'error_message' => $errorMessage,
+                    'attempted_at' => now(),
+                    'delivered_at' => $status === 'sent' ? now() : null,
+                ]);
+            }
         } catch (Throwable $e) {
             Log::error('[SendMilestoneConnectorWhatsappJob] Failed to write NotificationDeliveryLog: '.$e->getMessage());
         }

@@ -7,6 +7,7 @@ namespace App\Services\Notifications;
 use App\Jobs\SendMilestoneConnectorWhatsappJob;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -35,21 +36,46 @@ class MilestoneConnectorWhatsappService
                 return;
             }
 
-            // Check duplicate/idempotency before dispatching
-            if ($this->alreadySent($user->id)) {
-                Log::info('[MilestoneConnectorWhatsappService] Skipped: Already sent for this member.', [
+            $lockKey = "milestone_connector_dispatch_{$user->id}";
+            $lock = Cache::lock($lockKey, 15);
+
+            $lock->block(10, function () use ($user, $imageUrl, $introducedCount): void {
+                // Check duplicate/idempotency before dispatching
+                if ($this->isMilestoneProcessed((string) $user->id)) {
+                    Log::info('[MilestoneConnectorWhatsappService] Skipped: Milestone already processed or queued for this member.', [
+                        'user_id' => $user->id,
+                    ]);
+
+                    return;
+                }
+
+                // Record pre-dispatch queued entry to guarantee race-condition and database-level idempotency
+                if (Schema::hasTable('notification_delivery_logs')) {
+                    try {
+                        NotificationDeliveryLog::create([
+                            'user_id' => (string) $user->id,
+                            'channel' => 'whatsapp',
+                            'provider' => self::TEMPLATE_KEY,
+                            'status' => 'queued',
+                            'request_payload' => [
+                                'template_key' => self::TEMPLATE_KEY,
+                                'introduced_count' => $introducedCount,
+                                'image_url' => $imageUrl,
+                            ],
+                            'attempted_at' => now(),
+                        ]);
+                    } catch (Throwable $logEx) {
+                        Log::warning('[MilestoneConnectorWhatsappService] Could not write pre-dispatch log: '.$logEx->getMessage());
+                    }
+                }
+
+                // Dispatch job to send independently
+                SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl);
+
+                Log::info('[MilestoneConnectorWhatsappService] Dispatched SendMilestoneConnectorWhatsappJob.', [
                     'user_id' => $user->id,
                 ]);
-
-                return;
-            }
-
-            // Dispatch job to send independently
-            SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl);
-
-            Log::info('[MilestoneConnectorWhatsappService] Dispatched SendMilestoneConnectorWhatsappJob.', [
-                'user_id' => $user->id,
-            ]);
+            });
         } catch (Throwable $e) {
             // Main flow must never fail because of WhatsApp handling
             Log::error('[MilestoneConnectorWhatsappService] Exception in handleFirstIntroduction: '.$e->getMessage(), [
@@ -60,9 +86,9 @@ class MilestoneConnectorWhatsappService
     }
 
     /**
-     * Check whether milestone_connector WhatsApp has already been sent to this user.
+     * Check whether milestone_connector WhatsApp has already been queued, sent, or processed for this user.
      */
-    public function alreadySent(string $userId): bool
+    public function isMilestoneProcessed(string $userId): bool
     {
         if (! Schema::hasTable('notification_delivery_logs')) {
             return false;
@@ -73,10 +99,18 @@ class MilestoneConnectorWhatsappService
                 ->where('user_id', $userId)
                 ->where('channel', 'whatsapp')
                 ->where('provider', self::TEMPLATE_KEY)
-                ->where('status', 'sent')
                 ->exists();
         } catch (Throwable) {
             return false;
         }
     }
+
+    /**
+     * Check whether milestone_connector WhatsApp has already been sent to this user.
+     */
+    public function alreadySent(string $userId): bool
+    {
+        return $this->isMilestoneProcessed($userId);
+    }
 }
+
