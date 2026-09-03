@@ -16,6 +16,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -291,13 +292,23 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
             $loggedPayload[(string) $k] = $v;
         }
 
+        $lastResponse = WhatsappNotificationService::$lastResponse;
+        $providerMessageId = null;
+        if (is_array($lastResponse)) {
+            $providerMessageId = $lastResponse['wamid']
+                ?? $lastResponse['provider_message_id']
+                ?? (isset($lastResponse['log_id']) ? (string) $lastResponse['log_id'] : null);
+        }
+
         try {
             NotificationDeliveryLog::create([
                 'user_id' => $userId,
                 'channel' => 'whatsapp',
                 'provider' => self::TEMPLATE_KEY,
+                'provider_message_id' => $providerMessageId,
                 'status' => $status,
                 'request_payload' => $loggedPayload,
+                'response_payload' => $lastResponse ?? [],
                 'error_message' => $errorMessage,
                 'attempted_at' => now(),
                 'delivered_at' => $status === 'sent' ? now() : null,
@@ -312,6 +323,8 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
      */
     public function resolveBadgeImageUrl(int $introducedCount = 1): string
     {
+        $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
+
         // 1. Look up milestone_badges table for the exact or highest threshold badge
         $badge = MilestoneBadge::query()
             ->where('type', MilestoneBadge::TYPE_MEMBER_INTRODUCTION)
@@ -327,13 +340,17 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
         }
 
         $url = $badge?->badge_image_url;
-
-        // 2. Validate URL: must be HTTPS and must not be a broken 404 URL or local/ngrok URL
-        if ($this->isValidPublicMediaUrl($url)) {
-            return (string) $url;
+        if (! empty($url)) {
+            $url = (string) $url;
+            if (str_contains($baseUrl, 'dev.peersunity.com') && str_contains($url, 'peersunity.com') && ! str_contains($url, 'dev.peersunity.com')) {
+                $url = str_replace('https://peersunity.com', $baseUrl, $url);
+            }
+            if ($this->isValidPublicMediaUrl($url)) {
+                return $url;
+            }
         }
 
-        // 3. Resolve using honour title if available
+        // 2. Resolve using honour title if available
         if (class_exists(IntroducedPeerCreativeGenerator::class)) {
             try {
                 $generator = app(IntroducedPeerCreativeGenerator::class);
@@ -341,7 +358,6 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
                 if (! empty($meta['title'])) {
                     $titleCase = ucwords(strtolower($meta['title']));
                     $encodedTitle = str_replace(' ', '%20', $titleCase);
-                    $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
                     $honourUrl = "{$baseUrl}/images/member_introduce_badges/{$encodedTitle}.png";
                     if ($this->isValidPublicMediaUrl($honourUrl)) {
                         return $honourUrl;
@@ -350,8 +366,6 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
             } catch (Throwable) {
             }
         }
-
-        $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
 
         return "{$baseUrl}/images/member_introduce_badges/Connector.png";
     }
@@ -395,6 +409,19 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
 
             if (! $exists) {
                 return false;
+            }
+
+            // Verify external HTTPS reachability if pointing to a remote host (e.g. dev.peersunity.com)
+            $host = parse_url($trimmed, PHP_URL_HOST);
+            if ($host && ! in_array(strtolower($host), ['localhost', '127.0.0.1'], true)) {
+                try {
+                    $response = Http::timeout(3)->get($trimmed);
+                    if ($response->status() !== 200) {
+                        return false;
+                    }
+                } catch (Throwable) {
+                    return false;
+                }
             }
         }
 
