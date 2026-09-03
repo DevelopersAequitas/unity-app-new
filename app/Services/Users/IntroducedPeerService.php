@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Users;
 
 use App\Models\User;
+use App\Services\Creative\IntroductionCreativeService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -20,14 +21,18 @@ class IntroducedPeerService
 
     protected MilestoneConnectorWhatsappService $connectorWhatsappService;
 
+    protected IntroductionCreativeService $introductionCreativeService;
+
     public function __construct(
         UserMilestoneSyncService $milestoneSyncService,
         PeerIntroductionService $peerIntroductionService,
-        MilestoneConnectorWhatsappService $connectorWhatsappService
+        MilestoneConnectorWhatsappService $connectorWhatsappService,
+        IntroductionCreativeService $introductionCreativeService
     ) {
         $this->milestoneSyncService = $milestoneSyncService;
         $this->peerIntroductionService = $peerIntroductionService;
         $this->connectorWhatsappService = $connectorWhatsappService;
+        $this->introductionCreativeService = $introductionCreativeService;
     }
 
     /**
@@ -48,11 +53,12 @@ class IntroducedPeerService
      *
      * @param  User  $user  The authenticated user who is introducing.
      * @param  string  $peerId  The ID of the peer being introduced.
+     * @param  string|null  $introductionRequestId  Optional introduction request ID.
      * @return User The introduced user.
      *
      * @throws InvalidArgumentException
      */
-    public function introducePeer(User $user, string $peerId): User
+    public function introducePeer(User $user, string $peerId, ?string $introductionRequestId = null): User
     {
         if ($user->id === $peerId) {
             throw new InvalidArgumentException('You cannot introduce yourself.');
@@ -68,7 +74,8 @@ class IntroducedPeerService
             throw new InvalidArgumentException('This peer has already been introduced by another member.');
         }
 
-        DB::transaction(function () use ($user, $introducedUser) {
+        $count = 0;
+        DB::transaction(function () use ($user, $introducedUser, &$count) {
             $introducedUser->introduced_by = $user->id;
             $introducedUser->save();
 
@@ -84,14 +91,33 @@ class IntroducedPeerService
         // Trigger introduction creative rendering, timeline post and notifications
         $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
 
-        // Safely trigger milestone_connector WhatsApp notification for first introduction
+        // Generate and store milestone creative if count matches a configured milestone required_count
+        $creative = null;
         try {
-            $this->connectorWhatsappService->handleFirstIntroduction($user);
-        } catch (Throwable $whatsappEx) {
-            Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
+            $creative = $this->introductionCreativeService->handleIntroductionCreative(
+                $user,
+                $introducedUser,
+                $count,
+                $introductionRequestId
+            );
+        } catch (Throwable $creativeEx) {
+            Log::error('[IntroducedPeerService] Failed storing introduction creative: '.$creativeEx->getMessage(), [
                 'user_id' => $user->id,
-                'exception' => $whatsappEx,
+                'introduced_id' => $introducedUser->id,
+                'exception' => $creativeEx,
             ]);
+        }
+
+        // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
+        if ($count === 1) {
+            try {
+                $this->connectorWhatsappService->handleFirstIntroduction($user, $creative?->image_url);
+            } catch (Throwable $whatsappEx) {
+                Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
+                    'user_id' => $user->id,
+                    'exception' => $whatsappEx,
+                ]);
+            }
         }
 
         return $introducedUser;

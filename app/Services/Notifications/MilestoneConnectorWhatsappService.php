@@ -18,7 +18,7 @@ class MilestoneConnectorWhatsappService
     /**
      * Trigger WhatsApp notification for first member introduction milestone.
      */
-    public function handleFirstIntroduction(User $user): void
+    public function handleFirstIntroduction(User $user, ?string $imageUrl = null): void
     {
         try {
             $user->refresh();
@@ -45,7 +45,7 @@ class MilestoneConnectorWhatsappService
             }
 
             // Dispatch job to send independently
-            SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id);
+            SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl);
 
             Log::info('[MilestoneConnectorWhatsappService] Dispatched SendMilestoneConnectorWhatsappJob.', [
                 'user_id' => $user->id,

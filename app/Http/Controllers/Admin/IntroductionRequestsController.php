@@ -7,7 +7,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\IntroductionRequest;
 use App\Models\User;
+use App\Services\Creative\IntroductionCreativeService;
+use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Users\IntroducedPeerService;
+use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\UserMilestoneSyncService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
@@ -116,6 +119,38 @@ class IntroductionRequestsController extends Controller
                 $introRequest->reviewed_by = $admin->id;
                 $introRequest->reviewed_at = now();
                 $introRequest->save();
+
+                // Trigger introduction creative rendering, timeline post and notifications
+                try {
+                    app(PeerIntroductionService::class)->handlePeerIntroduction($introducer, $requester);
+                } catch (\Throwable $introEx) {
+                    Log::error('Failed to run PeerIntroductionService on approved introduction request: '.$introEx->getMessage());
+                }
+
+                // Generate and store milestone creative if count matches a configured milestone required_count
+                $creative = null;
+                try {
+                    $creative = app(IntroductionCreativeService::class)->handleIntroductionCreative(
+                        $introducer,
+                        $requester,
+                        $count,
+                        $introRequest->id
+                    );
+                } catch (\Throwable $creativeEx) {
+                    Log::error('Failed storing introduction creative on request approval: '.$creativeEx->getMessage());
+                }
+
+                // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
+                if ($count === 1) {
+                    try {
+                        app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction(
+                            $introducer,
+                            $creative?->image_url
+                        );
+                    } catch (\Throwable $whatsappEx) {
+                        Log::error('Failed triggering milestone connector WhatsApp on request approval: '.$whatsappEx->getMessage());
+                    }
+                }
 
                 // Sync milestones for the introducer
                 $this->introducedPeerService->getIntroducedPeers($introducer); // warm relation
