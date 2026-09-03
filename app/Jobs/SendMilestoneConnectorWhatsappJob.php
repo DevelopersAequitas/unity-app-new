@@ -490,16 +490,16 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
                 || file_exists(storage_path('app/public/'.$s3Key))
                 || file_exists(public_path('storage/'.$s3Key));
 
-            if (! $exists) {
-                return false;
+            if ($exists) {
+                return true;
             }
 
-            // Verify external HTTPS reachability if pointing to a remote host (skipped in unit tests)
+            // If not found locally, verify external HTTPS reachability if pointing to a remote host (skipped in unit tests)
             if (! app()->runningUnitTests()) {
                 $host = parse_url($trimmed, PHP_URL_HOST);
                 if ($host && ! in_array(strtolower($host), ['localhost', '127.0.0.1'], true)) {
                     try {
-                        $response = Http::timeout(3)->get($trimmed);
+                        $response = Http::timeout(5)->get($trimmed);
                         if ($response->status() !== 200) {
                             return false;
                         }
