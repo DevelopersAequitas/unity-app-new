@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\FileModel;
+use App\Models\IntroductionCreative;
 use App\Models\User;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -49,11 +51,29 @@ class PublicStorageController extends Controller
             $uuid = pathinfo($filename, PATHINFO_FILENAME);
 
             if (Str::isUuid($uuid)) {
-                $user = User::query()
-                    ->where('id', $uuid)
-                    ->orWhere('welcome_creative_url', 'LIKE', '%'.$uuid.'%')
-                    ->orWhere('profile_card_image_url', 'LIKE', '%'.$uuid.'%')
-                    ->first();
+                $userQuery = User::query()->where('id', $uuid);
+
+                if (Schema::hasColumn('users', 'welcome_creative_url')) {
+                    $userQuery->orWhere('welcome_creative_url', 'LIKE', '%'.$uuid.'%');
+                }
+                if (Schema::hasColumn('users', 'profile_card_image_url')) {
+                    $userQuery->orWhere('profile_card_image_url', 'LIKE', '%'.$uuid.'%');
+                }
+
+                $user = $userQuery->first();
+                $introducedCount = null;
+
+                if (! $user && Schema::hasTable('introduction_creatives')) {
+                    $creative = IntroductionCreative::query()
+                        ->where('image_url', 'LIKE', '%'.$uuid.'%')
+                        ->orWhere('image_url', 'LIKE', '%'.$cleanPath.'%')
+                        ->first();
+
+                    if ($creative) {
+                        $user = $creative->introducer;
+                        $introducedCount = $creative->introduced_count;
+                    }
+                }
 
                 if ($user) {
                     try {
@@ -61,7 +81,7 @@ class PublicStorageController extends Controller
                         $fileModel = new FileModel;
                         $fileModel->id = (string) Str::uuid();
                         $fileModel->s3_key = $cleanPath;
-                        $generator->generate($user, (int) ($user->members_introduced_count ?: 1), $fileModel);
+                        $generator->generate($user, (int) ($introducedCount ?? $user->members_introduced_count ?: 1), $fileModel);
 
                         $candidate = storage_path('app/public/'.$cleanPath);
                         if (is_file($candidate)) {
