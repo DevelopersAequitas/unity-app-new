@@ -87,6 +87,7 @@ use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\ShareController;
 use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
@@ -100,6 +101,10 @@ Route::get('/', function () {
 Route::get('/congratulations', function () {
     return view('congratulations');
 });
+
+Route::get('/storage/{path}', [PublicStorageController::class, 'serve'])
+    ->where('path', '.*')
+    ->name('public.storage.serve');
 
 Route::get('/share', [ShareController::class, 'handle'])->name('share');
 

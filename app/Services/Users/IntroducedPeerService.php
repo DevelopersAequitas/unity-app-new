@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Users;
 
 use App\Models\User;
+use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use Throwable;
 
 class IntroducedPeerService
 {
@@ -15,12 +18,16 @@ class IntroducedPeerService
 
     protected PeerIntroductionService $peerIntroductionService;
 
+    protected MilestoneConnectorWhatsappService $connectorWhatsappService;
+
     public function __construct(
         UserMilestoneSyncService $milestoneSyncService,
-        PeerIntroductionService $peerIntroductionService
+        PeerIntroductionService $peerIntroductionService,
+        MilestoneConnectorWhatsappService $connectorWhatsappService
     ) {
         $this->milestoneSyncService = $milestoneSyncService;
         $this->peerIntroductionService = $peerIntroductionService;
+        $this->connectorWhatsappService = $connectorWhatsappService;
     }
 
     /**
@@ -76,6 +83,16 @@ class IntroducedPeerService
 
         // Trigger introduction creative rendering, timeline post and notifications
         $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
+
+        // Safely trigger milestone_connector WhatsApp notification for first introduction
+        try {
+            $this->connectorWhatsappService->handleFirstIntroduction($user);
+        } catch (Throwable $whatsappEx) {
+            Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
+                'user_id' => $user->id,
+                'exception' => $whatsappEx,
+            ]);
+        }
 
         return $introducedUser;
     }

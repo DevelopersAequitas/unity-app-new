@@ -6,6 +6,8 @@ namespace Database\Seeders;
 
 use App\Models\MilestoneBadge;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Track1GrowthHonoursSeeder extends Seeder
 {
@@ -90,6 +92,21 @@ class Track1GrowthHonoursSeeder extends Seeder
         ];
 
         foreach ($honours as $honour) {
+            $slug = Str::slug($honour['title']);
+            $targetFilename = $slug.'.png';
+            $targetDiskPath = 'milestone-badges/'.$targetFilename;
+            $sourcePath = public_path('images/member_introduce_badges/'.$honour['title'].'.png');
+
+            if (file_exists($sourcePath)) {
+                Storage::disk('public')->put(
+                    $targetDiskPath,
+                    (string) file_get_contents($sourcePath)
+                );
+            }
+
+            $encodedTitle = str_replace(' ', '%20', $honour['title']);
+            $badgeImageUrl = 'https://peersunity.com/images/member_introduce_badges/'.$encodedTitle.'.png';
+
             MilestoneBadge::query()->updateOrCreate(
                 [
                     'type' => MilestoneBadge::TYPE_MEMBER_INTRODUCTION,
@@ -98,6 +115,7 @@ class Track1GrowthHonoursSeeder extends Seeder
                 [
                     'description' => $honour['description'],
                     'required_count' => $honour['required_count'],
+                    'badge_image_url' => $badgeImageUrl,
                     'sort_order' => $honour['sort_order'],
                     'is_active' => true,
                 ]

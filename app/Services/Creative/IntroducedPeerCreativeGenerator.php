@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services\Creative;
 
-use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -36,7 +35,7 @@ class IntroducedPeerCreativeGenerator
             1 => [
                 'title' => 'CONNECTOR',
                 'required_count' => 1,
-                'compliment' => 'Every movement begins with one connection.',
+                'compliment' => 'Success becomes meaningful when it creates success for others.',
                 'caption_template' => 'Congratulations to {name}, {company}, on being recognised as a Peers Global CONNECTOR. Proud to have you contributing to the Peers Global mission of impacting 1 Million Entrepreneurs.',
                 'hashtag' => '#Connector',
                 'badge_image' => 'images/member_introduce_badges/Connector.png',
@@ -181,6 +180,75 @@ class IntroducedPeerCreativeGenerator
     }
 
     /**
+     * Resolve the configured public HTTPS base URL in an environment-aware manner.
+     */
+    public static function getPublicBaseUrl(): string
+    {
+        $rawUrl = (string) (config('app.public_url') ?: config('app.url', ''));
+        $rawUrl = trim($rawUrl);
+
+        if ($rawUrl === '' || preg_match('~https?://(localhost|127\.0\.0\.1|10\.0\.2\.2|0\.0\.0\.0|::1|[^/]*ngrok[^/]*)([:/]|$)~i', $rawUrl)) {
+            // Default fallback if unset, local loopback, or temporary tunnel
+            return 'https://peersunity.com';
+        }
+
+        // Ensure scheme is HTTPS
+        if (str_starts_with(strtolower($rawUrl), 'http://')) {
+            $rawUrl = 'https://'.substr($rawUrl, 7);
+        } elseif (! str_starts_with(strtolower($rawUrl), 'https://')) {
+            $rawUrl = 'https://'.ltrim($rawUrl, '/');
+        }
+
+        return rtrim($rawUrl, '/');
+    }
+
+    /**
+     * Get existing connector creative URL from SQL or generate a new one app-side and store it.
+     */
+    public function generateOrGetUrl(User $user, int $introducedCount = 1, bool $forceRegenerate = false): string
+    {
+        $fileModel = $this->generate($user, $introducedCount);
+
+        // Verify physical file existence on public disk
+        $existsOnPublic = Storage::disk('public')->exists($fileModel->s3_key)
+            || file_exists(storage_path('app/public/'.$fileModel->s3_key))
+            || file_exists(public_path('storage/'.$fileModel->s3_key));
+
+        if (! $existsOnPublic) {
+            throw new \RuntimeException("Physical creative file failed to persist on public disk for user {$user->id} at path {$fileModel->s3_key}");
+        }
+
+        // Construct canonical public storage HTTPS URL from environment-aware configuration
+        $baseUrl = self::getPublicBaseUrl();
+        $imageUrl = $baseUrl.'/storage/'.ltrim($fileModel->s3_key, '/');
+
+        // Persist to user record if columns exist
+        $updateData = [];
+        if (Schema::hasColumn('users', 'connector_creative_url')) {
+            $updateData['connector_creative_url'] = $imageUrl;
+        }
+        if (Schema::hasColumn('users', 'growth_creative_url')) {
+            $updateData['growth_creative_url'] = $imageUrl;
+        }
+        if (! empty($updateData)) {
+            try {
+                $user->forceFill($updateData)->saveQuietly();
+            } catch (\Throwable $e) {
+                Log::warning("IntroducedPeerCreativeGenerator: Could not persist creative URL to DB for user {$user->id}: {$e->getMessage()}");
+            }
+        }
+
+        Log::info("[IntroducedPeerCreativeGenerator] Generated personalized honour creative URL for user {$user->id}", [
+            'file_id' => $fileModel->id,
+            's3_key' => $fileModel->s3_key,
+            'image_url' => $imageUrl,
+            'introduced_count' => $introducedCount,
+        ]);
+
+        return $imageUrl;
+    }
+
+    /**
      * Generate the Growth Honour / Introduced Peer Creative image.
      */
     public function generate(User $user, int $introducedCount = 0, ?FileModel $targetFileRecord = null): FileModel
@@ -198,23 +266,24 @@ class IntroducedPeerCreativeGenerator
 
             $meta = $this->getHonourMeta($introducedCount);
 
-            $templatePath = ! empty($meta['badge_image']) ? public_path($meta['badge_image']) : null;
-            if (! $templatePath || ! file_exists($templatePath)) {
-                $storageTemplate = ! empty($meta['badge_image']) ? storage_path('app/public/'.$meta['badge_image']) : null;
-                if ($storageTemplate && file_exists($storageTemplate)) {
-                    $templatePath = $storageTemplate;
-                }
-            }
-            $isCanvaTemplate = $templatePath && file_exists($templatePath);
-
             // Fonts
             $fontBold = public_path('fonts/Montserrat-Bold.ttf');
             $fontExtraBold = public_path('fonts/Montserrat-ExtraBold.ttf');
             if (! file_exists($fontExtraBold)) {
                 $fontExtraBold = $fontBold;
             }
+            if (! file_exists($fontBold)) {
+                $fontBold = $this->getFontPath('bold');
+                $fontExtraBold = $fontBold;
+            }
             $fontSemiBold = public_path('fonts/Montserrat-SemiBold.ttf');
+            if (! file_exists($fontSemiBold)) {
+                $fontSemiBold = $this->getFontPath('semibold');
+            }
             $fontRegular = public_path('fonts/Montserrat-Regular.ttf');
+            if (! file_exists($fontRegular)) {
+                $fontRegular = $this->getFontPath('regular');
+            }
 
             // Member Info Preparation
             $name = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
@@ -223,336 +292,263 @@ class IntroducedPeerCreativeGenerator
             }
 
             $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
+            if (is_array($company)) {
+                $company = $company['name'] ?? '';
+            }
+            $company = trim((string) $company);
+            if (in_array(strtolower($company), ['null', 'none', 'no company'], true)) {
+                $company = '';
+            }
+
             $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
-            $cityName = $cityModel->name ?? $user->city ?? '';
+            if (! $cityModel && ! empty($user->city_id)) {
+                $cityModel = City::find($user->city_id);
+            }
+            $cityName = $cityModel->name ?? $user->city ?? $user->business_city ?? '';
             if (is_array($cityName)) {
                 $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
             }
+            $cityName = trim((string) $cityName);
 
-            $subInfoParts = array_filter([$company, $cityName]);
+            // Business category resolution
+            $category = $user->business_sub_category ?? $user->category_name ?? $user->business_type ?? '';
+            if (is_array($category)) {
+                $category = $category['name'] ?? $category['label'] ?? '';
+            }
+            $category = trim((string) $category);
+            if (in_array(strtolower($category), ['null', 'none', 'n/a'], true)) {
+                $category = '';
+            }
+
+            $subInfoParts = array_filter([$company, $category, $cityName]);
             $subInfoLine = implode('  •  ', $subInfoParts);
             if (empty($subInfoLine)) {
                 $subInfoLine = 'Peers Global Member';
             }
 
-            if ($isCanvaTemplate) {
-                // Load high-resolution Canva graphic template
-                $canvas = imagecreatefrompng($templatePath);
-                if (function_exists('imagepalettetotruecolor')) {
-                    imagepalettetotruecolor($canvas);
+            // Canvas Dimensions (Vertical 1080x1350)
+            $width = 1080;
+            $height = 1350;
+
+            $canvas = imagecreatetruecolor($width, $height);
+            imagealphablending($canvas, true);
+            imagesavealpha($canvas, true);
+
+            // Dark Navy Background (#070D1A)
+            $bgNavy = imagecolorallocate($canvas, 7, 13, 26);
+            imagefill($canvas, 0, 0, $bgNavy);
+
+            // Colors matching dark Canva design
+            $white = imagecolorallocate($canvas, 255, 255, 255);
+            $gold = imagecolorallocate($canvas, 223, 177, 72); // #DFB148 Vibrant Gold
+            $subTitleSlate = imagecolorallocate($canvas, 226, 232, 240); // #E2E8F0
+            $softSlate = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1
+            $footerGray = imagecolorallocate($canvas, 100, 116, 139); // #64748B
+            $darkCircleBg = imagecolorallocate($canvas, 22, 36, 71); // #162447
+            $boxBg = imagecolorallocate($canvas, 9, 17, 34); // #091122
+
+            // 0. Top Logo (Peers Global Branding)
+            $logoPath = public_path('images/peersglobal-logo.png');
+            if (! file_exists($logoPath)) {
+                $logoPath = public_path('images/logo.png');
+            }
+            if (file_exists($logoPath)) {
+                $logoImg = @imagecreatefrompng($logoPath);
+                if (! $logoImg) {
+                    $logoImg = @imagecreatefromjpeg($logoPath);
                 }
-                $width = imagesx($canvas);
-                $height = imagesy($canvas);
-                imagealphablending($canvas, true);
-
-                // Colors for white Canva template (Exact Specification)
-                $colorGold = imagecolorallocate($canvas, 212, 136, 6);   // #D48806
-                $colorDarkNavy = imagecolorallocate($canvas, 30, 41, 59); // #1E293B
-                $colorGray = imagecolorallocate($canvas, 100, 116, 139); // #64748B
-                $darkCircleBg = imagecolorallocate($canvas, 10, 37, 64); // #0A2540 Dark Blue
-
-                // 1. Profile Avatar: Diameter = 305px, Center X = 538px, Center Y = 513px
-                $targetDiameter = 305;
-                $circleCenterX = 538;
-                $circleCenterY = 513;
-
-                $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg);
-
-                // Helper to draw center-aligned text at precise baseline Y with auto-scaling
-                $drawCenterText = function ($img, int $fontSize, int $y, $color, string $font, string $text, int $maxWidth = 920) use ($width) {
-                    if (empty($text)) {
-                        return;
-                    }
-                    $size = $fontSize;
-                    $bbox = @imagettfbbox($size, 0, $font, $text);
-                    while ($bbox && abs($bbox[4] - $bbox[0]) > $maxWidth && $size > 12) {
-                        $size -= 1;
-                        $bbox = @imagettfbbox($size, 0, $font, $text);
-                    }
-                    if ($bbox) {
-                        $textWidth = abs($bbox[4] - $bbox[0]);
-                        $x = ($width - $textWidth) / 2;
-                        imagettftext($img, $size, 0, (int) $x, $y, $color, $font, $text);
-                    }
-                };
-
-                // 2. Line 1: User Full Name (Uppercase, Gold, Bold, Y = 735)
-                $displayName = strtoupper(trim($name ?: 'PEER MEMBER'));
-                $drawCenterText($canvas, 30, 735, $colorGold, $fontBold, $displayName, 900);
-
-                // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, Y = 766)
-                $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
-                if (is_array($company)) {
-                    $company = $company['name'] ?? '';
+                if ($logoImg) {
+                    $origLogoW = imagesx($logoImg);
+                    $origLogoH = imagesy($logoImg);
+                    $logoW = 200;
+                    $logoH = (int) ($origLogoH * ($logoW / $origLogoW));
+                    $logoX = (int) (($width - $logoW) / 2);
+                    $logoY = 32;
+                    imagecopyresampled($canvas, $logoImg, $logoX, $logoY, 0, 0, $logoW, $logoH, $origLogoW, $origLogoH);
+                    imagedestroy($logoImg);
                 }
-                $company = trim((string) $company);
-                if (in_array(strtolower($company), ['null', 'none', 'no company'], true)) {
-                    $company = '';
-                }
-
-                $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
-                if (! $cityModel && ! empty($user->city_id)) {
-                    $cityModel = City::find($user->city_id);
-                }
-                $cityName = $cityModel->name ?? $user->city ?? $user->business_city ?? '';
-                if (is_array($cityName)) {
-                    $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
-                }
-                $cityName = trim((string) $cityName);
-
-                $country = $cityModel->country_code ?? $cityModel->country ?? $user->country ?? $user->business_country ?? 'IND';
-                if (is_array($country)) {
-                    $country = $country['code'] ?? $country['name'] ?? 'IND';
-                }
-                $country = strtoupper(trim((string) $country));
-                if (in_array(strtolower($country), ['india', 'in', 'ind'], true)) {
-                    $country = 'IND';
-                } elseif (empty($country) || in_array(strtolower($country), ['null', 'none'], true)) {
-                    $country = 'IND';
-                }
-
-                $locationParts = [];
-                if (! empty($cityName)) {
-                    $locationParts[] = $cityName;
-                }
-                if (! empty($country) && strtolower($country) !== strtolower($cityName)) {
-                    $locationParts[] = $country;
-                }
-                $locationStr = implode(', ', $locationParts);
-
-                $line2Parts = [];
-                if (! empty($company)) {
-                    $line2Parts[] = $company;
-                }
-                if (! empty($locationStr)) {
-                    $line2Parts[] = $locationStr;
-                }
-                $line2Text = implode(' • ', $line2Parts);
-
-                if (! empty($line2Text)) {
-                    $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);
-                }
-
-                // 4. Line 3: Level 4 Category / Subcategory (Slate Gray, Medium, Y = 794)
-                $level4Name = '';
-                if ($user->relationLoaded('level4Category')) {
-                    $level4Name = $user->getRelation('level4Category')?->name ?? '';
-                } elseif (! empty($user->business_category_id)) {
-                    $level4Name = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
-                }
-
-                if (empty($level4Name)) {
-                    $level4Name = $user->business_sub_category ?? $user->category_name ?? $user->designation ?? $user->job_title ?? '';
-                }
-                if (empty($level4Name) && isset($user->businessCategory)) {
-                    $level4Name = $user->businessCategory->name ?? '';
-                }
-                if (empty($level4Name) && isset($user->category)) {
-                    $level4Name = $user->category->name ?? '';
-                }
-                if (is_array($level4Name)) {
-                    $level4Name = $level4Name['name'] ?? $level4Name['label'] ?? '';
-                }
-                $level4Name = trim((string) $level4Name);
-                if (empty($level4Name) || in_array(strtolower($level4Name), ['null', 'none'], true)) {
-                    $level4Name = $user->membership_status ?? 'Peers Global Member';
-                }
-
-                if (! empty($level4Name)) {
-                    $drawCenterText($canvas, 17, 794, $colorGray, $fontSemiBold, (string) $level4Name, 920);
-                }
-            } else {
-                // Canvas Dimensions (Vertical 1080x1350 fallback)
-                $width = 1080;
-                $height = 1350;
-
-                $canvas = imagecreatetruecolor($width, $height);
-                imagealphablending($canvas, true);
-
-                // Dark Navy Background (#070D1A)
-                $bgNavy = imagecolorallocate($canvas, 7, 13, 26);
-                imagefill($canvas, 0, 0, $bgNavy);
-
-                // Colors matching dark Canva design
-                $white = imagecolorallocate($canvas, 255, 255, 255);
-                $gold = imagecolorallocate($canvas, 223, 177, 72); // #DFB148 Vibrant Gold
-                $subTitleSlate = imagecolorallocate($canvas, 226, 232, 240); // #E2E8F0
-                $softSlate = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1
-                $footerGray = imagecolorallocate($canvas, 100, 116, 139); // #64748B
-                $darkCircleBg = imagecolorallocate($canvas, 22, 36, 71); // #162447
-                $boxBg = imagecolorallocate($canvas, 9, 17, 34); // #091122
-
-                // 1. Top Header: BIG CONGRATULATIONS
-                $topY = 125;
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    ['BIG CONGRATULATIONS'],
-                    26,
-                    (int) ($width / 2),
-                    $topY,
-                    $gold,
-                    $fontExtraBold
-                );
-
-                // 2. Award Level Title (e.g., CONNECTOR, CATALYST, TRAILBLAZER)
-                $titleY = 215;
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$meta['title']],
-                    52,
-                    (int) ($width / 2),
-                    $titleY,
-                    $white,
-                    $fontExtraBold
-                );
-
-                // Gold Separator Line with Center Diamond
-                $this->drawGoldSeparator($canvas, (int) ($width / 2), 285, $gold);
-
-                // 3. User Avatar / Initial with Gold Border Ring (Center X = 540, Y = 460, Radius = 125)
-                $avatarCenterX = 540;
-                $avatarCenterY = 460;
-                $avatarSize = 250;
-
-                $this->drawAvatarOrInitial($canvas, $user, $avatarCenterX, $avatarCenterY, $avatarSize, $darkCircleBg);
-
-                // 3px Gold Ring around Avatar
-                imagesetthickness($canvas, 3);
-                imageellipse($canvas, $avatarCenterX, $avatarCenterY, $avatarSize + 4, $avatarSize + 4, $gold);
-                imagesetthickness($canvas, 1);
-
-                // 4. Peer Name (e.g. Chirag Mali)
-                $nameY = 665;
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$name],
-                    38,
-                    (int) ($width / 2),
-                    $nameY,
-                    $gold,
-                    $fontExtraBold
-                );
-
-                // 5. Business Name & City Line (e.g. TaskMate AI  •  Ahmedabad)
-                $subInfoY = 735;
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$subInfoLine],
-                    22,
-                    (int) ($width / 2),
-                    $subInfoY,
-                    $subTitleSlate,
-                    $fontSemiBold
-                );
-
-                // 6. One-Line Compliment Text
-                $complimentY = 815;
-                $lines = $this->wrapTextToLines($meta['compliment'], 22, $fontRegular, 900);
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    $lines,
-                    22,
-                    (int) ($width / 2),
-                    $complimentY,
-                    $softSlate,
-                    $fontRegular
-                );
-
-                // 7. Outlined Count Box (Y = 900 to 984, Height = 84px)
-                $countText = "{$introducedCount} ".($introducedCount === 1 ? 'Entrepreneur Introduced' : 'Entrepreneurs Introduced').' to Peers Global';
-                $boxY = 900;
-                $boxHeight = 84;
-                $boxWidth = 760;
-                $boxX = (int) (($width / 2) - ($boxWidth / 2));
-
-                // Fill Box
-                imagefilledrectangle($canvas, $boxX, $boxY, $boxX + $boxWidth, $boxY + $boxHeight, $boxBg);
-
-                // 2px Gold Border Outline
-                imagesetthickness($canvas, 2);
-                imagerectangle($canvas, $boxX, $boxY, $boxX + $boxWidth, $boxY + $boxHeight, $gold);
-                imagesetthickness($canvas, 1);
-
-                // Text inside box
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$countText],
-                    24,
-                    (int) ($width / 2),
-                    $boxY + 28,
-                    $white,
-                    $fontExtraBold
-                );
-
-                // 8. Mission Tagline Section
-                $tagline1 = 'EVERY PEER YOU INTRODUCE, IMPACTS MORE LIVES.';
-                $tagline2 = 'YOU ARE A 1 MILLION MISSION CONTRIBUTOR.';
-                $tagline1Y = 1055;
-                $tagline2Y = 1095;
-
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$tagline1],
-                    17,
-                    (int) ($width / 2),
-                    $tagline1Y,
-                    $gold,
-                    $fontExtraBold
-                );
-
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$tagline2],
-                    17,
-                    (int) ($width / 2),
-                    $tagline2Y,
-                    $white,
-                    $fontExtraBold
-                );
-
-                // 9. Footer Text
-                $footerY = 1250;
-                $footerText = "PEERS GLOBAL  \u{2022}  World's First Community of Collaboration";
-                $this->drawPreWrappedCenteredText(
-                    $canvas,
-                    [$footerText],
-                    16,
-                    (int) ($width / 2),
-                    $footerY,
-                    $footerGray,
-                    $fontSemiBold
-                );
             }
 
-            // Save WebP File & Create FileModel
-            $filename = 'introduced_creative_'.Str::uuid().'.webp';
+            // 1. Top Header: BIG CONGRATULATIONS
+            $topY = 125;
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                ['BIG CONGRATULATIONS'],
+                26,
+                (int) ($width / 2),
+                $topY,
+                $gold,
+                $fontExtraBold
+            );
+
+            // 2. Award Level Title (e.g., CONNECTOR, CATALYST, TRAILBLAZER)
+            $titleY = 215;
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$meta['title']],
+                52,
+                (int) ($width / 2),
+                $titleY,
+                $white,
+                $fontExtraBold
+            );
+
+            // Gold Separator Line with Center Diamond
+            $this->drawGoldSeparator($canvas, (int) ($width / 2), 285, $gold);
+
+            // 3. User Avatar / Initial with Gold Border Ring (Center X = 540, Y = 460, Radius = 125)
+            $avatarCenterX = 540;
+            $avatarCenterY = 460;
+            $avatarSize = 250;
+
+            $this->drawAvatarOrInitial($canvas, $user, $avatarCenterX, $avatarCenterY, $avatarSize, $darkCircleBg);
+
+            // 3px Gold Ring around Avatar
+            imagesetthickness($canvas, 3);
+            imageellipse($canvas, $avatarCenterX, $avatarCenterY, $avatarSize + 4, $avatarSize + 4, $gold);
+            imagesetthickness($canvas, 1);
+
+            // 4. Peer Name (e.g. Nitin Chavda)
+            $nameY = 665;
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$name],
+                38,
+                (int) ($width / 2),
+                $nameY,
+                $gold,
+                $fontExtraBold
+            );
+
+            // 5. Business Name, Category & City Line (e.g. TaskMate AI  •  Ahmedabad)
+            $subInfoY = 735;
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$subInfoLine],
+                22,
+                (int) ($width / 2),
+                $subInfoY,
+                $subTitleSlate,
+                $fontSemiBold
+            );
+
+            // 6. One-Line Compliment Text
+            $complimentY = 815;
+            $lines = $this->wrapTextToLines($meta['compliment'], 22, $fontRegular, 900);
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                $lines,
+                22,
+                (int) ($width / 2),
+                $complimentY,
+                $softSlate,
+                $fontRegular
+            );
+
+            // 7. Outlined Count Box (Y = 900 to 984, Height = 84px) with dynamic singular/plural grammar
+            $countText = "{$introducedCount} ".($introducedCount === 1 ? 'Entrepreneur Introduced' : 'Entrepreneurs Introduced').' to Peers Global';
+            $boxY = 900;
+            $boxHeight = 84;
+            $boxWidth = 760;
+            $boxX = (int) (($width / 2) - ($boxWidth / 2));
+
+            // Fill Box
+            imagefilledrectangle($canvas, $boxX, $boxY, $boxX + $boxWidth, $boxY + $boxHeight, $boxBg);
+
+            // 2px Gold Border Outline
+            imagesetthickness($canvas, 2);
+            imagerectangle($canvas, $boxX, $boxY, $boxX + $boxWidth, $boxY + $boxHeight, $gold);
+            imagesetthickness($canvas, 1);
+
+            // Text inside box
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$countText],
+                24,
+                (int) ($width / 2),
+                $boxY + 28,
+                $white,
+                $fontExtraBold
+            );
+
+            // 8. Mission Tagline Section
+            $tagline1 = 'EVERY PEER YOU INTRODUCE, IMPACTS MORE LIVES.';
+            $tagline2 = 'YOU ARE A 1 MILLION MISSION CONTRIBUTOR.';
+            $tagline1Y = 1055;
+            $tagline2Y = 1095;
+
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$tagline1],
+                17,
+                (int) ($width / 2),
+                $tagline1Y,
+                $gold,
+                $fontExtraBold
+            );
+
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$tagline2],
+                17,
+                (int) ($width / 2),
+                $tagline2Y,
+                $white,
+                $fontExtraBold
+            );
+
+            // 9. Footer Text
+            $footerY = 1250;
+            $footerText = "PEERS GLOBAL  •  World's First Community of Collaboration";
+            $this->drawPreWrappedCenteredText(
+                $canvas,
+                [$footerText],
+                16,
+                (int) ($width / 2),
+                $footerY,
+                $footerGray,
+                $fontSemiBold
+            );
+
+            // Save High-Quality PNG File & Create FileModel
+            $filename = (string) Str::uuid().'.png';
+            $finalPath = 'uploads/'.now()->format('Y/m/d').'/'.$filename;
             $tempPath = tempnam(sys_get_temp_dir(), 'growth_creative');
 
-            imagewebp($canvas, $tempPath, 95);
+            imagepng($canvas, $tempPath, 9);
             imagedestroy($canvas);
-
-            $uploadedFile = new UploadedFile(
-                $tempPath,
-                $filename,
-                'image/webp',
-                null,
-                true
-            );
 
             $disk = config('filesystems.default', 'public');
 
             if ($targetFileRecord) {
-                $finalPath = $targetFileRecord->s3_key;
-                $stream = fopen($tempPath, 'r');
-                Storage::disk($disk)->put($finalPath, $stream);
-                if (is_resource($stream)) {
-                    fclose($stream);
+                if ($targetFileRecord->s3_key) {
+                    $finalPath = preg_replace('/\.(webp|jpg|jpeg)$/i', '.png', $targetFileRecord->s3_key);
                 }
+                $targetFileRecord->s3_key = $finalPath;
                 $fileModel = $targetFileRecord;
             } else {
-                $fileModel = $this->fileUploadService->store($uploadedFile, auth('admin')->user(), $disk);
+                $fileModel = new FileModel;
+                $fileModel->id = (string) Str::uuid();
+                $fileModel->s3_key = $finalPath;
             }
 
+            $stream = fopen($tempPath, 'r');
+            $stored = Storage::disk($disk)->put($finalPath, $stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            if (! $stored) {
+                throw new \RuntimeException("Failed to store growth creative image for user {$user->id} to disk {$disk}");
+            }
+
+            $fileModel->mime_type = 'image/png';
+            $fileModel->size_bytes = filesize($tempPath);
+            $fileModel->width = $width;
+            $fileModel->height = $height;
+            $fileModel->save();
+
+            // Ensure available on public disk for web / WhatsApp rendering
             if ($disk !== 'public') {
                 try {
                     $fileContent = Storage::disk($disk)->get($fileModel->s3_key);
@@ -584,7 +580,7 @@ class IntroducedPeerCreativeGenerator
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
 
         if ($profilePhotoId) {
-            $fileRecord = File::find($profilePhotoId);
+            $fileRecord = FileModel::find($profilePhotoId) ?? File::find($profilePhotoId);
             if ($fileRecord && $fileRecord->s3_key) {
                 $disk = config('filesystems.default', 'public');
                 if (Storage::disk($disk)->exists($fileRecord->s3_key)) {
@@ -595,10 +591,11 @@ class IntroducedPeerCreativeGenerator
             }
         }
 
-        if (! $avatarSource && $user->profile_photo_url) {
-            if (filter_var($user->profile_photo_url, FILTER_VALIDATE_URL)) {
+        $photoUrl = $user->profile_photo_url ?? $user->avatar_url ?? null;
+        if (! $avatarSource && $photoUrl) {
+            if (filter_var($photoUrl, FILTER_VALIDATE_URL)) {
                 try {
-                    $response = Http::timeout(5)->get($user->profile_photo_url);
+                    $response = Http::timeout(5)->get($photoUrl);
                     if ($response->successful()) {
                         $tempFilePath = tempnam(sys_get_temp_dir(), 'avatar_');
                         file_put_contents($tempFilePath, $response->body());
@@ -644,8 +641,9 @@ class IntroducedPeerCreativeGenerator
         }
 
         if (! $drawnSuccessfully) {
-            $displayName = $user->display_name ?: $user->first_name ?: 'User';
-            $initial = strtoupper(substr($displayName, 0, 1));
+            $displayName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+            $first = trim((string) ($user->first_name ?: $displayName));
+            $initial = strtoupper(substr($first !== '' ? $first : 'U', 0, 1));
 
             $avatarImg = imagecreatetruecolor($avatarSize, $avatarSize);
             imagealphablending($avatarImg, false);

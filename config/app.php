@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'public_url' => env('PUBLIC_APP_URL', env('APP_URL', 'https://peersunity.com')),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

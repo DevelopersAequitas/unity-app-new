@@ -120,7 +120,7 @@ class MilestoneBadgeController extends Controller
 
         if ($request->hasFile('badge_image')) {
             $path = $request->file('badge_image')->store('milestone-badges', 'public');
-            $data['badge_image_url'] = 'storage/'.$path;
+            $data['badge_image_url'] = 'https://peersunity.com/api/v1/files/'.$path;
         }
 
         return $data;

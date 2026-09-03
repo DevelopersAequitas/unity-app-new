@@ -41,7 +41,7 @@ jobs:
                 --optimize-autoloader \
                 --no-interaction
 
-            mkdir -p storage/app/public/ads
+            mkdir -p storage/app/public/ads storage/app/public/uploads
             TARGET="$(cd storage/app/public && pwd -P)"
             LINK="public/storage"
 
