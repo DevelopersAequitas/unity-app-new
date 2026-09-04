@@ -113,4 +113,3 @@ class MilestoneConnectorWhatsappService
         return $this->isMilestoneProcessed($userId);
     }
 }
-

@@ -100,241 +100,241 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
                 return;
             }
 
-        // Verify template exists in whatsapp_templates
-        $template = WhatsappTemplate::query()
-            ->where('template_key', self::TEMPLATE_KEY)
-            ->first();
+            // Verify template exists in whatsapp_templates
+            $template = WhatsappTemplate::query()
+                ->where('template_key', self::TEMPLATE_KEY)
+                ->first();
 
-        if (! $template) {
-            Log::warning('[SendMilestoneConnectorWhatsappJob] Skipped: Template not found in database.', [
-                'template_key' => self::TEMPLATE_KEY,
-            ]);
-
-            return;
-        }
-
-        if (! $template->is_active) {
-            Log::info('[SendMilestoneConnectorWhatsappJob] Skipped: Template is inactive.', [
-                'template_key' => self::TEMPLATE_KEY,
-            ]);
-
-            return;
-        }
-
-        $memberName = trim((string) ($user->display_name ?: (($user->first_name ?? '').' '.($user->last_name ?? ''))));
-        if ($memberName === '') {
-            $memberName = 'Valued Member';
-        }
-        $firstName = trim((string) ($user->first_name ?: $memberName));
-
-        // 2. Canonical Referral Link -> Body {{3}}
-        $referralData = $referralService->generateOrGetReferral($user);
-        $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
-        $referralLink = "{$baseUrl}/share?type=referrals";
-
-        // 3. Resolve Personalized Connector Creative Image URL (reuse stored creative if available)
-        $badgeImageUrl = null;
-        if (! empty($this->customImageUrl) && $this->isValidPublicMediaUrl($this->customImageUrl)) {
-            $badgeImageUrl = $this->customImageUrl;
-        }
-
-        if (blank($badgeImageUrl) && Schema::hasTable('introduction_creatives')) {
-            try {
-                $storedCreative = IntroductionCreative::query()
-                    ->where('introducer_id', $this->userId)
-                    ->where('introduced_count', $introducedCount)
-                    ->latest()
-                    ->first();
-
-                if ($storedCreative && ! empty($storedCreative->image_url) && $this->isValidPublicMediaUrl($storedCreative->image_url)) {
-                    $badgeImageUrl = $storedCreative->image_url;
-                }
-            } catch (Throwable $e) {
-                Log::warning('[SendMilestoneConnectorWhatsappJob] Could not check introduction_creatives: '.$e->getMessage());
-            }
-        }
-
-        if (blank($badgeImageUrl)) {
-            if (! empty($user->connector_creative_url) && $this->isValidPublicMediaUrl($user->connector_creative_url)) {
-                $badgeImageUrl = $user->connector_creative_url;
-            } elseif (! empty($user->growth_creative_url) && $this->isValidPublicMediaUrl($user->growth_creative_url)) {
-                $badgeImageUrl = $user->growth_creative_url;
-            }
-        }
-
-        if (blank($badgeImageUrl)) {
-            try {
-                $badgeImageUrl = $creativeGenerator->generateOrGetUrl($user, $introducedCount);
-            } catch (Throwable $e) {
-                Log::error('[SendMilestoneConnectorWhatsappJob] Failed generating personalized connector creative: '.$e->getMessage(), [
-                    'user_id' => $user->id,
-                    'exception' => $e,
+            if (! $template) {
+                Log::warning('[SendMilestoneConnectorWhatsappJob] Skipped: Template not found in database.', [
+                    'template_key' => self::TEMPLATE_KEY,
                 ]);
+
+                return;
             }
-        }
 
-        if (blank($badgeImageUrl) || ! $this->isValidPublicMediaUrl($badgeImageUrl)) {
-            $badgeImageUrl = $this->resolveBadgeImageUrl($introducedCount);
-        }
+            if (! $template->is_active) {
+                Log::info('[SendMilestoneConnectorWhatsappJob] Skipped: Template is inactive.', [
+                    'template_key' => self::TEMPLATE_KEY,
+                ]);
 
-        // Body Parameters for template milestone_connector_v2:
-        // {{1}} = Member / Peer Name
-        // {{2}} = Selected Milestone Recognition (e.g. "Connector", "Ambassador")
-        // {{3}} = Member Referral Link
-        $bodyParam1 = $memberName;
-        $bodyParam2 = $selectedMilestone;
-        $bodyParam3 = $referralLink;
+                return;
+            }
 
-        // Structured pre-dispatch logging
-        Log::info('[SendMilestoneConnectorWhatsappJob] Dispatching milestone WhatsApp notification.', [
-            'introduced_count' => $introducedCount,
-            'selected_milestone' => $selectedMilestone,
-            'template_name' => $template->template_name ?: self::TEMPLATE_KEY,
-            'body_param_1' => $bodyParam1,
-            'body_param_2' => $bodyParam2,
-            'body_param_3' => $bodyParam3,
-            'creative_url' => $badgeImageUrl,
-            'phone' => (string) $rawPhone,
-            'user_id' => $this->userId,
-        ]);
+            $memberName = trim((string) ($user->display_name ?: (($user->first_name ?? '').' '.($user->last_name ?? ''))));
+            if ($memberName === '') {
+                $memberName = 'Valued Member';
+            }
+            $firstName = trim((string) ($user->first_name ?: $memberName));
 
-        $payload = [
-            'name' => $bodyParam1,
-            'member_name' => $bodyParam1,
-            'peer_name' => $bodyParam1,
-            'connector_name' => $bodyParam1,
-            'first_name' => $firstName,
-            'inviter_name' => $bodyParam1,
+            // 2. Canonical Referral Link -> Body {{3}}
+            $referralData = $referralService->generateOrGetReferral($user);
+            $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
+            $referralLink = "{$baseUrl}/share?type=referrals";
 
-            'milestone' => $bodyParam2,
-            'milestone_name' => $bodyParam2,
-            'milestone_title' => $bodyParam2,
-            'honour_title' => $bodyParam2,
-            'award_name' => $bodyParam2,
-            'title' => $bodyParam2,
-            'selected_milestone' => $bodyParam2,
-            'milestone_key' => $milestoneKey,
+            // 3. Resolve Personalized Connector Creative Image URL (reuse stored creative if available)
+            $badgeImageUrl = null;
+            if (! empty($this->customImageUrl) && $this->isValidPublicMediaUrl($this->customImageUrl)) {
+                $badgeImageUrl = $this->customImageUrl;
+            }
 
-            'introduced_count' => $introducedCount,
-            'referral_link' => $bodyParam3,
-            'link' => $bodyParam3,
-            'url' => $bodyParam3,
+            if (blank($badgeImageUrl) && Schema::hasTable('introduction_creatives')) {
+                try {
+                    $storedCreative = IntroductionCreative::query()
+                        ->where('introducer_id', $this->userId)
+                        ->where('introduced_count', $introducedCount)
+                        ->latest()
+                        ->first();
 
-            'badge_image_url' => $badgeImageUrl,
-            'header_media_url' => $badgeImageUrl,
-            'header_image_url' => $badgeImageUrl,
-            'header_url' => $badgeImageUrl,
-            'image' => $badgeImageUrl,
-            'image_url' => $badgeImageUrl,
-            'media_url' => $badgeImageUrl,
+                    if ($storedCreative && ! empty($storedCreative->image_url) && $this->isValidPublicMediaUrl($storedCreative->image_url)) {
+                        $badgeImageUrl = $storedCreative->image_url;
+                    }
+                } catch (Throwable $e) {
+                    Log::warning('[SendMilestoneConnectorWhatsappJob] Could not check introduction_creatives: '.$e->getMessage());
+                }
+            }
 
-            '1' => $bodyParam1,
-            '2' => $bodyParam2,
-            '3' => $bodyParam3,
-            '@1' => $bodyParam1,
-            '@2' => $bodyParam2,
-            '@3' => $bodyParam3,
-            'var_1' => $bodyParam1,
-            'var_2' => $bodyParam2,
-            'var_3' => $bodyParam3,
-            'var1' => $bodyParam1,
-            'var2' => $bodyParam2,
-            'var3' => $bodyParam3,
-            'body_1' => $bodyParam1,
-            'body_2' => $bodyParam2,
-            'body_3' => $bodyParam3,
-            'body_param_1' => $bodyParam1,
-            'body_param_2' => $bodyParam2,
-            'body_param_3' => $bodyParam3,
-            '@body_param_1' => $bodyParam1,
-            '@body_param_2' => $bodyParam2,
-            '@body_param_3' => $bodyParam3,
-            'Peer Name' => $bodyParam1,
-            '@Peer Name' => $bodyParam1,
-            'Peer_Name' => $bodyParam1,
-            '@Peer_Name' => $bodyParam1,
-            '@peer_name' => $bodyParam1,
-            'Connector Name' => $bodyParam2,
-            '@Connector Name' => $bodyParam2,
-            'Connector_Name' => $bodyParam2,
-            '@Connector_Name' => $bodyParam2,
-            '@connector_name' => $bodyParam2,
-            'Referral Link' => $bodyParam3,
-            '@Referral Link' => $bodyParam3,
-            'Referral_Link' => $bodyParam3,
-            '@Referral_Link' => $bodyParam3,
-            '@referral_link' => $bodyParam3,
-            'variables' => [
-                '1' => $bodyParam1,
-                '2' => $bodyParam2,
-                '3' => $bodyParam3,
-                'Peer Name' => $bodyParam1,
-                'Connector Name' => $bodyParam2,
-                'Referral Link' => $bodyParam3,
-                'peer_name' => $bodyParam1,
-                'connector_name' => $bodyParam2,
-                'referral_link' => $bodyParam3,
+            if (blank($badgeImageUrl)) {
+                if (! empty($user->connector_creative_url) && $this->isValidPublicMediaUrl($user->connector_creative_url)) {
+                    $badgeImageUrl = $user->connector_creative_url;
+                } elseif (! empty($user->growth_creative_url) && $this->isValidPublicMediaUrl($user->growth_creative_url)) {
+                    $badgeImageUrl = $user->growth_creative_url;
+                }
+            }
+
+            if (blank($badgeImageUrl)) {
+                try {
+                    $badgeImageUrl = $creativeGenerator->generateOrGetUrl($user, $introducedCount);
+                } catch (Throwable $e) {
+                    Log::error('[SendMilestoneConnectorWhatsappJob] Failed generating personalized connector creative: '.$e->getMessage(), [
+                        'user_id' => $user->id,
+                        'exception' => $e,
+                    ]);
+                }
+            }
+
+            if (blank($badgeImageUrl) || ! $this->isValidPublicMediaUrl($badgeImageUrl)) {
+                $badgeImageUrl = $this->resolveBadgeImageUrl($introducedCount);
+            }
+
+            // Body Parameters for template milestone_connector_v2:
+            // {{1}} = Member / Peer Name
+            // {{2}} = Selected Milestone Recognition (e.g. "Connector", "Ambassador")
+            // {{3}} = Member Referral Link
+            $bodyParam1 = $memberName;
+            $bodyParam2 = $selectedMilestone;
+            $bodyParam3 = $referralLink;
+
+            // Structured pre-dispatch logging
+            Log::info('[SendMilestoneConnectorWhatsappJob] Dispatching milestone WhatsApp notification.', [
+                'introduced_count' => $introducedCount,
+                'selected_milestone' => $selectedMilestone,
+                'template_name' => $template->template_name ?: self::TEMPLATE_KEY,
                 'body_param_1' => $bodyParam1,
                 'body_param_2' => $bodyParam2,
                 'body_param_3' => $bodyParam3,
+                'creative_url' => $badgeImageUrl,
+                'phone' => (string) $rawPhone,
+                'user_id' => $this->userId,
+            ]);
+
+            $payload = [
+                'name' => $bodyParam1,
+                'member_name' => $bodyParam1,
+                'peer_name' => $bodyParam1,
+                'connector_name' => $bodyParam1,
+                'first_name' => $firstName,
+                'inviter_name' => $bodyParam1,
+
+                'milestone' => $bodyParam2,
+                'milestone_name' => $bodyParam2,
+                'milestone_title' => $bodyParam2,
+                'honour_title' => $bodyParam2,
+                'award_name' => $bodyParam2,
+                'title' => $bodyParam2,
                 'selected_milestone' => $bodyParam2,
-            ],
-            'body_parameters' => [
-                $bodyParam1,
-                $bodyParam2,
-                $bodyParam3,
-            ],
-            'body_params' => [
+                'milestone_key' => $milestoneKey,
+
+                'introduced_count' => $introducedCount,
+                'referral_link' => $bodyParam3,
+                'link' => $bodyParam3,
+                'url' => $bodyParam3,
+
+                'badge_image_url' => $badgeImageUrl,
+                'header_media_url' => $badgeImageUrl,
+                'header_image_url' => $badgeImageUrl,
+                'header_url' => $badgeImageUrl,
+                'image' => $badgeImageUrl,
+                'image_url' => $badgeImageUrl,
+                'media_url' => $badgeImageUrl,
+
                 '1' => $bodyParam1,
                 '2' => $bodyParam2,
                 '3' => $bodyParam3,
-            ],
-            'params' => [
-                $bodyParam1,
-                $bodyParam2,
-                $bodyParam3,
-            ],
-            'custom_params' => [
+                '@1' => $bodyParam1,
+                '@2' => $bodyParam2,
+                '@3' => $bodyParam3,
+                'var_1' => $bodyParam1,
+                'var_2' => $bodyParam2,
+                'var_3' => $bodyParam3,
+                'var1' => $bodyParam1,
+                'var2' => $bodyParam2,
+                'var3' => $bodyParam3,
+                'body_1' => $bodyParam1,
+                'body_2' => $bodyParam2,
+                'body_3' => $bodyParam3,
+                'body_param_1' => $bodyParam1,
+                'body_param_2' => $bodyParam2,
+                'body_param_3' => $bodyParam3,
+                '@body_param_1' => $bodyParam1,
+                '@body_param_2' => $bodyParam2,
+                '@body_param_3' => $bodyParam3,
                 'Peer Name' => $bodyParam1,
+                '@Peer Name' => $bodyParam1,
+                'Peer_Name' => $bodyParam1,
+                '@Peer_Name' => $bodyParam1,
+                '@peer_name' => $bodyParam1,
                 'Connector Name' => $bodyParam2,
+                '@Connector Name' => $bodyParam2,
+                'Connector_Name' => $bodyParam2,
+                '@Connector_Name' => $bodyParam2,
+                '@connector_name' => $bodyParam2,
                 'Referral Link' => $bodyParam3,
-            ],
-        ];
+                '@Referral Link' => $bodyParam3,
+                'Referral_Link' => $bodyParam3,
+                '@Referral_Link' => $bodyParam3,
+                '@referral_link' => $bodyParam3,
+                'variables' => [
+                    '1' => $bodyParam1,
+                    '2' => $bodyParam2,
+                    '3' => $bodyParam3,
+                    'Peer Name' => $bodyParam1,
+                    'Connector Name' => $bodyParam2,
+                    'Referral Link' => $bodyParam3,
+                    'peer_name' => $bodyParam1,
+                    'connector_name' => $bodyParam2,
+                    'referral_link' => $bodyParam3,
+                    'body_param_1' => $bodyParam1,
+                    'body_param_2' => $bodyParam2,
+                    'body_param_3' => $bodyParam3,
+                    'selected_milestone' => $bodyParam2,
+                ],
+                'body_parameters' => [
+                    $bodyParam1,
+                    $bodyParam2,
+                    $bodyParam3,
+                ],
+                'body_params' => [
+                    '1' => $bodyParam1,
+                    '2' => $bodyParam2,
+                    '3' => $bodyParam3,
+                ],
+                'params' => [
+                    $bodyParam1,
+                    $bodyParam2,
+                    $bodyParam3,
+                ],
+                'custom_params' => [
+                    'Peer Name' => $bodyParam1,
+                    'Connector Name' => $bodyParam2,
+                    'Referral Link' => $bodyParam3,
+                ],
+            ];
 
-        try {
-            $success = $whatsappService->send(self::TEMPLATE_KEY, (string) $rawPhone, $payload);
+            try {
+                $success = $whatsappService->send(self::TEMPLATE_KEY, (string) $rawPhone, $payload);
 
-            if ($success) {
-                $this->logDelivery($this->userId, (string) $rawPhone, 'sent', null, $payload);
+                if ($success) {
+                    $this->logDelivery($this->userId, (string) $rawPhone, 'sent', null, $payload);
 
-                Log::info('[SendMilestoneConnectorWhatsappJob] Milestone connector WhatsApp delivered successfully.', [
+                    Log::info('[SendMilestoneConnectorWhatsappJob] Milestone connector WhatsApp delivered successfully.', [
+                        'user_id' => $this->userId,
+                        'phone' => (string) $rawPhone,
+                        'template_key' => self::TEMPLATE_KEY,
+                        'badge_image_url' => $badgeImageUrl,
+                        'referral_link' => $referralLink,
+                    ]);
+                } else {
+                    $errorMessage = WhatsappNotificationService::$lastError ?? 'Webhook check failed or template inactive';
+                    $this->logDelivery($this->userId, (string) $rawPhone, 'failed', $errorMessage, $payload);
+
+                    Log::error('[SendMilestoneConnectorWhatsappJob] Milestone connector WhatsApp delivery failed.', [
+                        'template_key' => self::TEMPLATE_KEY,
+                        'user_id' => $this->userId,
+                        'phone' => (string) $rawPhone,
+                        'error' => $errorMessage,
+                    ]);
+                }
+            } catch (Throwable $exception) {
+                Log::error('[SendMilestoneConnectorWhatsappJob] Milestone connector WhatsApp threw exception: '.$exception->getMessage(), [
+                    'template_key' => self::TEMPLATE_KEY,
                     'user_id' => $this->userId,
                     'phone' => (string) $rawPhone,
-                    'template_key' => self::TEMPLATE_KEY,
-                    'badge_image_url' => $badgeImageUrl,
-                    'referral_link' => $referralLink,
+                    'exception' => $exception,
                 ]);
-            } else {
-                $errorMessage = WhatsappNotificationService::$lastError ?? 'Webhook check failed or template inactive';
-                $this->logDelivery($this->userId, (string) $rawPhone, 'failed', $errorMessage, $payload);
 
-                Log::error('[SendMilestoneConnectorWhatsappJob] Milestone connector WhatsApp delivery failed.', [
-                    'template_key' => self::TEMPLATE_KEY,
-                    'user_id' => $this->userId,
-                    'phone' => (string) $rawPhone,
-                    'error' => $errorMessage,
-                ]);
+                $this->logDelivery($this->userId, (string) $rawPhone, 'failed', $exception->getMessage(), $payload);
             }
-        } catch (Throwable $exception) {
-            Log::error('[SendMilestoneConnectorWhatsappJob] Milestone connector WhatsApp threw exception: '.$exception->getMessage(), [
-                'template_key' => self::TEMPLATE_KEY,
-                'user_id' => $this->userId,
-                'phone' => (string) $rawPhone,
-                'exception' => $exception,
-            ]);
-
-            $this->logDelivery($this->userId, (string) $rawPhone, 'failed', $exception->getMessage(), $payload);
-        }
         });
     }
 
