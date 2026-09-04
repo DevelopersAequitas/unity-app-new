@@ -86,7 +86,7 @@ class MilestoneConnectorWhatsappService
     }
 
     /**
-     * Check whether milestone_connector WhatsApp has already been queued, sent, or processed for this user.
+     * Check whether milestone_connector WhatsApp has already been sent to this user.
      */
     public function isMilestoneProcessed(string $userId): bool
     {
@@ -99,6 +99,7 @@ class MilestoneConnectorWhatsappService
                 ->where('user_id', $userId)
                 ->where('channel', 'whatsapp')
                 ->where('provider', self::TEMPLATE_KEY)
+                ->whereIn('status', ['sent', 'queued', 'pending', 'processing'])
                 ->exists();
         } catch (Throwable) {
             return false;

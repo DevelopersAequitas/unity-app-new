@@ -535,6 +535,13 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
             }
         }
 
+        // Must have an image extension or valid storage path
+        $path = (string) parse_url($trimmed, PHP_URL_PATH);
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (! in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'], true) && ! str_contains($path, '/storage/')) {
+            return false;
+        }
+
         return true;
     }
 }
