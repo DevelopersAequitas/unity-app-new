@@ -65,40 +65,41 @@ class IntroducedPeerService
         }
 
         $count = 0;
-        $alreadyIntroduced = false;
-        DB::transaction(function () use ($user, $peerId, &$introducedUser, &$count, &$alreadyIntroduced): void {
+        $isNewIntroduction = false;
+
+        DB::transaction(function () use ($user, $peerId, &$introducedUser, &$count, &$isNewIntroduction): void {
             /** @var User $lockedPeer */
             $lockedPeer = User::where('id', $peerId)->lockForUpdate()->firstOrFail();
             $introducedUser = $lockedPeer;
 
-            if ($lockedPeer->introduced_by === $user->id) {
-                $alreadyIntroduced = true;
-
-                return;
-            }
-
-            if ($lockedPeer->introduced_by !== null) {
+            if ($lockedPeer->introduced_by !== null && $lockedPeer->introduced_by !== $user->id) {
                 throw new InvalidArgumentException('This peer has already been introduced by another member.');
             }
 
-            $lockedPeer->introduced_by = $user->id;
-            $lockedPeer->save();
+            if ($lockedPeer->introduced_by === null) {
+                $lockedPeer->introduced_by = $user->id;
+                $lockedPeer->save();
+                $isNewIntroduction = true;
+            }
 
-            // Recalculate members_introduced_count for the introducing user
+            // Always recalculate members_introduced_count for the introducing user from actual DB count
             $count = User::where('introduced_by', $user->id)->count();
+
+            // Always update introducer's count and persist
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
+            $lockedUser->members_introduced_count = $count;
+            $lockedUser->save();
+
             $user->members_introduced_count = $count;
-            $user->save();
 
             // Sync user milestones
-            $this->milestoneSyncService->sync($user);
+            $this->milestoneSyncService->sync($lockedUser);
         });
 
-        if ($alreadyIntroduced) {
-            return $introducedUser;
+        // Trigger introduction creative rendering, timeline post and notifications if newly introduced
+        if ($isNewIntroduction) {
+            $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
         }
-
-        // Trigger introduction creative rendering, timeline post and notifications
-        $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
 
         // Generate and store milestone creative if count matches a configured milestone required_count
         $creative = null;

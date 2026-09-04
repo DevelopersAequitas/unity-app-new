@@ -46,49 +46,56 @@ class PeerIntroductionService
 
             $description = "Congratulations to {$introducerName} for introducing {$introducedName} to the Peers Global Community of Collaboration. Wishing you both a successful journey filled with meaningful connections, collaboration, and endless opportunities. 🎉🤝";
 
-            // 2. Create the timeline announcement post
-            // Find a system/admin fallback account to own the automated post
-            $systemUser = User::where('email', 'info@peersglobal.com')->first();
-            if (! $systemUser) {
-                $systemUser = User::create([
-                    'id' => (string) Str::uuid(),
-                    'first_name' => 'PeersGlobal',
-                    'last_name' => 'Unity',
-                    'display_name' => 'PeersGlobal Unity',
-                    'email' => 'info@peersglobal.com',
-                    'password_hash' => bcrypt(Str::random(16)),
+            // 2. Create the timeline announcement post (idempotent)
+            $existingPost = Post::where('source_type', 'introduction')
+                ->where('source_id', $introduced->id)
+                ->where('is_deleted', false)
+                ->first();
+
+            if (! $existingPost) {
+                // Find a system/admin fallback account to own the automated post
+                $systemUser = User::where('email', 'info@peersglobal.com')->first();
+                if (! $systemUser) {
+                    $systemUser = User::create([
+                        'id' => (string) Str::uuid(),
+                        'first_name' => 'PeersGlobal',
+                        'last_name' => 'Unity',
+                        'display_name' => 'PeersGlobal Unity',
+                        'email' => 'info@peersglobal.com',
+                        'password_hash' => bcrypt(Str::random(16)),
+                        'status' => 'active',
+                    ]);
+                }
+                $authorUserId = $systemUser ? $systemUser->id : $introducer->id;
+
+                $post = Post::create([
+                    'user_id' => $authorUserId,
+                    'circle_id' => null,
+                    'content_text' => $description,
+                    'media' => [
+                        [
+                            'id' => $fileRecord->id,
+                            'type' => 'image',
+                            'url' => $imageUrl,
+                        ],
+                    ],
+                    'tags' => ['introduction'],
+                    'visibility' => 'public',
+                    'moderation_status' => 'approved',
+                    'sponsored' => false,
+                    'is_deleted' => false,
+                    'source_type' => 'introduction',
+                    'source_id' => $introduced->id,
+                    'source_event' => 'introduction',
+                    'post_type' => 'introduction',
+                    'title' => 'New Peer Introduced! 🎉',
+                    'description' => $description,
+                    'image' => $imageUrl,
                     'status' => 'active',
                 ]);
+
+                Log::info("[PeerIntroductionService] Created timeline post ID {$post->id} owned by {$authorUserId}");
             }
-            $authorUserId = $systemUser ? $systemUser->id : $introducer->id;
-
-            $post = Post::create([
-                'user_id' => $authorUserId,
-                'circle_id' => null,
-                'content_text' => $description,
-                'media' => [
-                    [
-                        'id' => $fileRecord->id,
-                        'type' => 'image',
-                        'url' => $imageUrl,
-                    ],
-                ],
-                'tags' => ['introduction'],
-                'visibility' => 'public',
-                'moderation_status' => 'approved',
-                'sponsored' => false,
-                'is_deleted' => false,
-                'source_type' => 'introduction',
-                'source_id' => $introduced->id,
-                'source_event' => 'introduction',
-                'post_type' => 'introduction',
-                'title' => 'New Peer Introduced! 🎉',
-                'description' => $description,
-                'image' => $imageUrl,
-                'status' => 'active',
-            ]);
-
-            Log::info("[PeerIntroductionService] Created timeline post ID {$post->id} owned by {$authorUserId}");
 
             // 3. Dispatch push notification to the introducer
             $notification = $this->notificationService->sendToUser(
