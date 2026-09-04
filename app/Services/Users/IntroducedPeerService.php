@@ -99,34 +99,34 @@ class IntroducedPeerService
         // Trigger introduction creative rendering, timeline post and notifications if newly introduced
         if ($isNewIntroduction) {
             $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
-        }
 
-        // Generate and store milestone creative if count matches a configured milestone required_count
-        $creative = null;
-        try {
-            $creative = $this->introductionCreativeService->handleIntroductionCreative(
-                $user,
-                $introducedUser,
-                $count,
-                $introductionRequestId
-            );
-        } catch (Throwable $creativeEx) {
-            Log::error('[IntroducedPeerService] Failed storing introduction creative: '.$creativeEx->getMessage(), [
-                'user_id' => $user->id,
-                'introduced_id' => $introducedUser->id,
-                'exception' => $creativeEx,
-            ]);
-        }
-
-        // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
-        if ($count === 1) {
+            // Generate and store milestone creative if count matches a configured milestone required_count
+            $creative = null;
             try {
-                $this->connectorWhatsappService->handleFirstIntroduction($user, $creative?->image_url);
-            } catch (Throwable $whatsappEx) {
-                Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
+                $creative = $this->introductionCreativeService->handleIntroductionCreative(
+                    $user,
+                    $introducedUser,
+                    $count,
+                    $introductionRequestId
+                );
+            } catch (Throwable $creativeEx) {
+                Log::error('[IntroducedPeerService] Failed storing introduction creative: '.$creativeEx->getMessage(), [
                     'user_id' => $user->id,
-                    'exception' => $whatsappEx,
+                    'introduced_id' => $introducedUser->id,
+                    'exception' => $creativeEx,
                 ]);
+            }
+
+            // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
+            if ($count === 1) {
+                try {
+                    $this->connectorWhatsappService->handleFirstIntroduction($user, $creative?->image_url);
+                } catch (Throwable $whatsappEx) {
+                    Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
+                        'user_id' => $user->id,
+                        'exception' => $whatsappEx,
+                    ]);
+                }
             }
         }
 
