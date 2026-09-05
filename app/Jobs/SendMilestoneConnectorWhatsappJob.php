@@ -215,11 +215,11 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
             }
 
             // Body Parameters for template milestone_connector_v2:
-            // {{1}} = Member / Peer Name
-            // {{2}} = Selected Milestone Recognition (e.g. "Connector", "Ambassador")
+            // {{1}} = Member / Peer Name (e.g. Vinit Chavda)
+            // {{2}} = Introducer / Member Name (e.g. Vinit Chavda) for "Join Peers Global through {{2}}'s invitation:"
             // {{3}} = Member Referral Link
             $bodyParam1 = $memberName;
-            $bodyParam2 = $selectedMilestone;
+            $bodyParam2 = $memberName;
             $bodyParam3 = $referralLink;
 
             // Structured pre-dispatch logging
@@ -241,15 +241,15 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
                 'peer_name' => $bodyParam1,
                 'connector_name' => $bodyParam1,
                 'first_name' => $firstName,
-                'inviter_name' => $bodyParam1,
+                'inviter_name' => $bodyParam2,
 
-                'milestone' => $bodyParam2,
-                'milestone_name' => $bodyParam2,
-                'milestone_title' => $bodyParam2,
-                'honour_title' => $bodyParam2,
-                'award_name' => $bodyParam2,
-                'title' => $bodyParam2,
-                'selected_milestone' => $bodyParam2,
+                'milestone' => $selectedMilestone,
+                'milestone_name' => $selectedMilestone,
+                'milestone_title' => $selectedMilestone,
+                'honour_title' => $selectedMilestone,
+                'award_name' => $selectedMilestone,
+                'title' => $selectedMilestone,
+                'selected_milestone' => $selectedMilestone,
                 'milestone_key' => $milestoneKey,
 
                 'introduced_count' => $introducedCount,

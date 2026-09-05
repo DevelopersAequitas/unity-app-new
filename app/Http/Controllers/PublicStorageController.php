@@ -32,9 +32,10 @@ class PublicStorageController extends Controller
         // Check potential file locations on disk
         $candidatePaths = [
             storage_path('app/public/'.$cleanPath),
+            storage_path('app/private/'.$cleanPath),
+            storage_path('app/'.$cleanPath),
             public_path('storage/'.$cleanPath),
             public_path($cleanPath),
-            storage_path('app/'.$cleanPath),
         ];
 
         $foundFile = null;
@@ -50,6 +51,9 @@ class PublicStorageController extends Controller
             $filename = basename($cleanPath);
             $uuid = pathinfo($filename, PATHINFO_FILENAME);
 
+            $user = null;
+            $introducedCount = null;
+
             if (Str::isUuid($uuid)) {
                 $userQuery = User::query()->where('id', $uuid);
 
@@ -59,37 +63,55 @@ class PublicStorageController extends Controller
                 if (Schema::hasColumn('users', 'profile_card_image_url')) {
                     $userQuery->orWhere('profile_card_image_url', 'LIKE', '%'.$uuid.'%');
                 }
-
-                $user = $userQuery->first();
-                $introducedCount = null;
-
-                if (! $user && Schema::hasTable('introduction_creatives')) {
-                    $creative = IntroductionCreative::query()
-                        ->where('image_url', 'LIKE', '%'.$uuid.'%')
-                        ->orWhere('image_url', 'LIKE', '%'.$cleanPath.'%')
-                        ->first();
-
-                    if ($creative) {
-                        $user = $creative->introducer;
-                        $introducedCount = $creative->introduced_count;
-                    }
+                if (Schema::hasColumn('users', 'connector_creative_url')) {
+                    $userQuery->orWhere('connector_creative_url', 'LIKE', '%'.$uuid.'%');
+                }
+                if (Schema::hasColumn('users', 'growth_creative_url')) {
+                    $userQuery->orWhere('growth_creative_url', 'LIKE', '%'.$uuid.'%');
                 }
 
-                if ($user) {
-                    try {
-                        $generator = app(IntroducedPeerCreativeGenerator::class);
-                        $fileModel = new FileModel;
-                        $fileModel->id = (string) Str::uuid();
-                        $fileModel->s3_key = $cleanPath;
-                        $generator->generate($user, (int) ($introducedCount ?? $user->members_introduced_count ?: 1), $fileModel);
+                $user = $userQuery->first();
+            }
 
-                        $candidate = storage_path('app/public/'.$cleanPath);
-                        if (is_file($candidate)) {
+            if (! $user && Schema::hasTable('introduction_creatives')) {
+                $creative = IntroductionCreative::query()
+                    ->where('image_url', 'LIKE', '%'.$uuid.'%')
+                    ->orWhere('image_url', 'LIKE', '%'.$cleanPath.'%')
+                    ->first();
+
+                if ($creative) {
+                    $user = $creative->introducer;
+                    $introducedCount = $creative->introduced_count;
+                }
+            }
+
+            if (! $user && Str::isUuid($uuid) && Schema::hasTable('files')) {
+                $fileRecord = FileModel::where('id', $uuid)
+                    ->orWhere('s3_key', 'LIKE', '%'.$uuid.'%')
+                    ->orWhere('s3_key', $cleanPath)
+                    ->first();
+
+                if ($fileRecord && $fileRecord->uploader_user_id) {
+                    $user = User::find($fileRecord->uploader_user_id);
+                }
+            }
+
+            if ($user) {
+                try {
+                    $generator = app(IntroducedPeerCreativeGenerator::class);
+                    $fileModel = new FileModel;
+                    $fileModel->id = (string) Str::uuid();
+                    $fileModel->s3_key = $cleanPath;
+                    $generator->generate($user, (int) ($introducedCount ?? $user->members_introduced_count ?: 1), $fileModel);
+
+                    foreach ($candidatePaths as $candidate) {
+                        if (is_file($candidate) && is_readable($candidate)) {
                             $foundFile = $candidate;
+                            break;
                         }
-                    } catch (\Throwable $e) {
-                        Log::warning("[PublicStorageController] Self-healing creative generation failed: {$e->getMessage()}");
                     }
+                } catch (\Throwable $e) {
+                    Log::warning("[PublicStorageController] Self-healing creative generation failed: {$e->getMessage()}");
                 }
             }
         }
