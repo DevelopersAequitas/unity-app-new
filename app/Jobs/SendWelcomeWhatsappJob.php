@@ -24,6 +24,12 @@ class SendWelcomeWhatsappJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    /**
+     * The number of times the job may be attempted.
+     * Set to 1 so registration Welcome notification is never automatically re-queued on failure.
+     */
+    public int $tries = 1;
+
     public function __construct(
         public string $userId
     ) {
@@ -67,9 +73,10 @@ class SendWelcomeWhatsappJob implements ShouldQueue
             return;
         }
 
-        // Duplicate protection check
-        if ($this->alreadySent($this->userId)) {
-            Log::info('WhatsApp welcome notification skipped: Already sent to user.', [
+        // Duplicate & retry protection check: Registration-time only notification.
+        // If ANY attempt (sent or failed) already exists, never attempt or send again.
+        if ($this->alreadyAttempted($this->userId)) {
+            Log::info('WhatsApp welcome notification skipped: Already attempted for user.', [
                 'user_id' => $this->userId,
                 'template_key' => 'welcome',
             ]);
@@ -121,7 +128,7 @@ class SendWelcomeWhatsappJob implements ShouldQueue
         }
     }
 
-    private function alreadySent(string $userId): bool
+    private function alreadyAttempted(string $userId): bool
     {
         if (! Schema::hasTable('notification_delivery_logs')) {
             return false;
@@ -132,7 +139,6 @@ class SendWelcomeWhatsappJob implements ShouldQueue
                 ->where('user_id', $userId)
                 ->where('channel', 'whatsapp')
                 ->where('provider', 'welcome')
-                ->where('status', 'sent')
                 ->exists();
         } catch (Throwable) {
             return false;
