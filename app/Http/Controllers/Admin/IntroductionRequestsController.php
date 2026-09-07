@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\IntroductionRequest;
 use App\Models\User;
 use App\Services\Creative\IntroductionCreativeService;
+use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PeerIntroductionService;
@@ -149,6 +150,18 @@ class IntroductionRequestsController extends Controller
                         );
                     } catch (\Throwable $whatsappEx) {
                         Log::error('Failed triggering milestone connector WhatsApp on request approval: '.$whatsappEx->getMessage());
+                    }
+                }
+
+                // Safely and independently evaluate CATALYST milestone notification for threshold (count >= 3)
+                if ($count >= 3) {
+                    try {
+                        app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone(
+                            $introducer,
+                            $count === 3 ? $creative?->image_url : null
+                        );
+                    } catch (\Throwable $whatsappEx) {
+                        Log::error('Failed triggering milestone catalyst WhatsApp on request approval: '.$whatsappEx->getMessage());
                     }
                 }
 
