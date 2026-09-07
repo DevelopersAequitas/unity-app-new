@@ -151,43 +151,51 @@ class FcmService
 
     public function activeTokensForUser(string $userId): Collection
     {
-        $query = UserPushToken::query()
-            ->where(UserPushToken::getUserIdColumn(), $userId)
-            ->whereNotNull('token')
-            ->where('token', '!=', '');
+        $tokens = collect();
 
-        if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
-            $query->whereNull('deleted_at');
+        if (Schema::hasTable('user_push_tokens')) {
+            try {
+                $query = UserPushToken::query()
+                    ->where(UserPushToken::getUserIdColumn(), $userId)
+                    ->whereNotNull('token')
+                    ->where('token', '!=', '');
+
+                if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                    $query->whereNull('deleted_at');
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'status')) {
+                    $query->where('status', 'active');
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                    $query->where('token_status', 'active');
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                    $query->where('is_active', true);
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'platform')) {
+                    $query->where(function ($platformQuery): void {
+                        $platformQuery->whereNull('platform')
+                            ->orWhere('platform', '')
+                            ->orWhereIn(DB::raw('LOWER(platform)'), ['android', 'ios', 'web']);
+                    });
+                }
+
+                $latestColumn = collect(['last_used_at', 'last_used', 'last_seen_at', 'updated_at', 'created_at'])
+                    ->first(fn (string $column): bool => Schema::hasColumn('user_push_tokens', $column));
+
+                if ($latestColumn) {
+                    $query->latest($latestColumn);
+                }
+
+                $tokens = $query->get();
+            } catch (\Throwable) {
+                $tokens = collect();
+            }
         }
-
-        if (Schema::hasColumn('user_push_tokens', 'status')) {
-            $query->where('status', 'active');
-        }
-
-        if (Schema::hasColumn('user_push_tokens', 'token_status')) {
-            $query->where('token_status', 'active');
-        }
-
-        if (Schema::hasColumn('user_push_tokens', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        if (Schema::hasColumn('user_push_tokens', 'platform')) {
-            $query->where(function ($platformQuery): void {
-                $platformQuery->whereNull('platform')
-                    ->orWhere('platform', '')
-                    ->orWhereIn(DB::raw('LOWER(platform)'), ['android', 'ios', 'web']);
-            });
-        }
-
-        $latestColumn = collect(['last_used_at', 'last_used', 'last_seen_at', 'updated_at', 'created_at'])
-            ->first(fn (string $column): bool => Schema::hasColumn('user_push_tokens', $column));
-
-        if ($latestColumn) {
-            $query->latest($latestColumn);
-        }
-
-        $tokens = $query->get();
 
         $user = User::find($userId);
         if ($user) {

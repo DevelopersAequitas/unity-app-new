@@ -690,9 +690,14 @@ class AppNotificationCatalogService
      */
     public function getAll(?string $search = null, ?string $category = null): Collection
     {
-        $dbRecords = Schema::hasTable('notification_templates')
-            ? NotificationTemplate::all()->keyBy('template_key')
-            : collect();
+        $dbRecords = collect();
+        if (Schema::hasTable('notification_templates')) {
+            try {
+                $dbRecords = NotificationTemplate::all()->keyBy('template_key');
+            } catch (\Throwable) {
+                $dbRecords = collect();
+            }
+        }
 
         $knownKeys = [];
 
