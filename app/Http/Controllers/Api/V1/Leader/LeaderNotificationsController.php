@@ -22,8 +22,15 @@ class LeaderNotificationsController extends Controller
         $notifications = [];
 
         if ($user) {
+            $excludedTypes = ['engagement_reminder', 'daily_engagement_reminder', 'daily_reminder', 'engagement'];
+
             $notifications = Notification::query()
                 ->where('user_id', $user->id)
+                ->whereNotIn('type', $excludedTypes)
+                ->where(function ($q) use ($excludedTypes): void {
+                    $q->whereNull('payload->notification_type')
+                        ->orWhereNotIn('payload->notification_type', $excludedTypes);
+                })
                 ->orderByDesc('created_at')
                 ->take(20)
                 ->get()

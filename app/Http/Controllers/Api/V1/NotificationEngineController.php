@@ -97,6 +97,18 @@ class NotificationEngineController extends BaseApiController
             $query->whereNull('deleted_at');
         }
 
+        $excludedTypes = ['engagement_reminder', 'daily_engagement_reminder', 'daily_reminder', 'engagement'];
+
+        $query->whereNotIn('type', $excludedTypes)
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('category')
+                    ->orWhereNotIn('category', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('data->notification_type')
+                    ->orWhereNotIn('data->notification_type', $excludedTypes);
+            });
+
         if ($request->boolean('unread_only')) {
             $query->whereNull('read_at');
         }
@@ -136,6 +148,15 @@ class NotificationEngineController extends BaseApiController
         if (Schema::hasColumn('app_notifications', 'deleted_at')) {
             $unreadQuery->whereNull('deleted_at');
         }
+        $unreadQuery->whereNotIn('type', $excludedTypes)
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('category')
+                    ->orWhereNotIn('category', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('data->notification_type')
+                    ->orWhereNotIn('data->notification_type', $excludedTypes);
+            });
 
         $mappedNotifications = collect($paginator->items())->map(function (AppNotification $notification): array {
             $dataPayload = $notification->dataPayload();

@@ -191,7 +191,7 @@ class FcmService
         $user = User::find($userId);
         if ($user) {
             if (filled($user->android_fcm_token)) {
-                $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->android_fcm_token);
+                $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => (strtolower((string) $t->platform) === 'android' || $t->token === $user->android_fcm_token));
                 if (! $hasAndroidToken) {
                     $tokens->push(new UserPushToken([
                         UserPushToken::getUserIdColumn() => $userId,
@@ -202,7 +202,7 @@ class FcmService
                 }
             }
             if (filled($user->ios_fcm_token)) {
-                $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->ios_fcm_token);
+                $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => (in_array(strtolower((string) $t->platform), ['ios', 'apple', 'iphone'], true) || $t->token === $user->ios_fcm_token));
                 if (! $hasIosToken) {
                     $tokens->push(new UserPushToken([
                         UserPushToken::getUserIdColumn() => $userId,
@@ -214,8 +214,21 @@ class FcmService
             }
         }
 
+        // Deduplicate tokens:
+        // 1. For records with a device_id, keep only the newest token for that device_id.
+        // 2. For records without a device_id, keep only the newest token for that platform.
+        // 3. Ensure distinct token strings so no device receives duplicate FCM pushes.
         return $tokens
-            ->unique(fn (UserPushToken $token) => $token->device_id ?: $token->token)
+            ->unique(function (UserPushToken $token): string {
+                if (filled($token->device_id)) {
+                    return 'dev:'.$token->device_id;
+                }
+
+                $platform = strtolower((string) ($token->platform ?: 'unknown'));
+
+                return 'plat:'.$platform.':'.$token->token;
+            })
+            ->unique(fn (UserPushToken $token): string => (string) $token->token)
             ->values();
     }
 
