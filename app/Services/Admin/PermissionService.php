@@ -18,6 +18,7 @@ use App\Support\ScopeCascadeResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PermissionService
 {
@@ -269,7 +270,7 @@ class PermissionService
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): Collection {
             $roleIds = $this->adminRoleIds($admin);
 
-            if ($roleIds === []) {
+            if ($roleIds === [] || ! Schema::hasTable('role_module_access') || ! Schema::hasTable('admin_modules')) {
                 return collect();
             }
 

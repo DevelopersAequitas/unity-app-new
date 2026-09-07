@@ -8,6 +8,7 @@ use App\Models\Notifications\AppNotification;
 use App\Models\NotificationTemplate;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -947,8 +948,21 @@ class AppNotificationCatalogService
             $email = (string) ($user->email ?? $email);
 
             // Attempt to resolve primary circle name
-            if (Schema::hasTable('circles') && Schema::hasTable('circle_members') && method_exists($user, 'circles') && $user->circles()->exists()) {
-                $circleName = (string) ($user->circles()->first()->name ?? $circleName);
+            if (Schema::hasTable('circles') && Schema::hasTable('circle_members')) {
+                try {
+                    $circleRow = DB::table('circle_members')
+                        ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                        ->where('circle_members.user_id', $user->id)
+                        ->whereNull('circle_members.deleted_at')
+                        ->whereNull('circles.deleted_at')
+                        ->select('circles.name')
+                        ->first();
+                    if ($circleRow && filled($circleRow->name)) {
+                        $circleName = (string) $circleRow->name;
+                    }
+                } catch (\Throwable) {
+                    // fallback to default circleName
+                }
             }
         }
 
