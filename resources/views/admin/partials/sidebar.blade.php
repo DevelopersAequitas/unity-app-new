@@ -824,8 +824,7 @@
                 const submenu = parentItem.querySelector('.collapse');
                 if (!submenu) return;
 
-                const arrow = parentItem.querySelector('.menu-arrow');
-                const toggle = parentItem.querySelector('a');
+                const toggle = parentItem.querySelector(':scope > a');
 
                 // Sync initial state on load
                 if (submenu.classList.contains('show') || parentItem.classList.contains('open')) {
@@ -838,9 +837,10 @@
                     if (toggle) toggle.setAttribute('aria-expanded', 'false');
                 }
 
-                // Toggle submenu when clicking the arrow specifically
-                if (arrow) {
-                    arrow.addEventListener('click', (e) => {
+                // Toggle submenu in-place when clicking anywhere on the parent item link
+                if (toggle) {
+                    toggle.style.cursor = 'pointer';
+                    toggle.addEventListener('click', (e) => {
                         if (document.querySelector('.admin-shell')?.classList.contains('sidebar-collapsed')) {
                             return;
                         }
@@ -855,7 +855,7 @@
                                 otherParent.classList.remove('open');
                                 const otherSub = otherParent.querySelector('.collapse');
                                 if (otherSub) otherSub.classList.remove('show');
-                                const otherTog = otherParent.querySelector('a');
+                                const otherTog = otherParent.querySelector(':scope > a');
                                 if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
                             }
                         });
@@ -863,11 +863,11 @@
                         if (isOpen) {
                             parentItem.classList.remove('open');
                             submenu.classList.remove('show');
-                            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+                            toggle.setAttribute('aria-expanded', 'false');
                         } else {
                             parentItem.classList.add('open');
                             submenu.classList.add('show');
-                            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+                            toggle.setAttribute('aria-expanded', 'true');
                         }
                     });
                 }
