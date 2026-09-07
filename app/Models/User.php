@@ -414,6 +414,10 @@ class User extends Authenticatable
         });
 
         static::created(function (self $user): void {
+            if (app()->runningUnitTests()) {
+                return;
+            }
+
             try {
                 app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
             } catch (Throwable) {
