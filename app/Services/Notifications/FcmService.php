@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -175,7 +176,7 @@ class FcmService
             $query->where(function ($platformQuery): void {
                 $platformQuery->whereNull('platform')
                     ->orWhere('platform', '')
-                    ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios', 'web')");
+                    ->orWhereIn(DB::raw('LOWER(platform)'), ['android', 'ios', 'web']);
             });
         }
 

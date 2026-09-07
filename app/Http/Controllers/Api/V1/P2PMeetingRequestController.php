@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\P2PMeetingRequestResource;
 use App\Mail\P2PMeetingWorkflowMail;
-use App\Models\Notification;
-use App\Models\Notifications\AppNotification;
 use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
