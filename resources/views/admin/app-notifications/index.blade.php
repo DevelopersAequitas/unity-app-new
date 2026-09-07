@@ -168,11 +168,11 @@
     <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4" id="notificationsCardsGrid">
         @forelse($notifications as $tpl)
             <div class="col notification-item-card" 
-                 data-name="{{ strtolower($tpl['name']) }}" 
-                 data-key="{{ strtolower($tpl['key']) }}" 
-                 data-screen="{{ strtolower($tpl['navigation_screen'] ?? '') }}"
-                 data-category="{{ strtolower($tpl['category']) }}"
-                 data-desc="{{ strtolower($tpl['description']) }}">
+                 data-name="{{ strtolower((string) ($tpl['name'] ?? '')) }}" 
+                 data-key="{{ strtolower((string) ($tpl['key'] ?? '')) }}" 
+                 data-screen="{{ strtolower((string) ($tpl['navigation_screen'] ?? '')) }}"
+                 data-category="{{ strtolower((string) ($tpl['category'] ?? '')) }}"
+                 data-desc="{{ strtolower((string) ($tpl['description'] ?? '')) }}">
                 <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden position-relative hover-shadow transition d-flex flex-column bg-white">
                     <!-- Top Gradient Accent -->
                     <div style="height: 4px; background: linear-gradient(90deg, #240e5c, #6366f1);"></div>
@@ -330,13 +330,13 @@
                                              style="cursor: pointer; transition: background 0.15s ease;" 
                                              onclick="selectPeerOptionFromElement('single', this)"
                                              data-peer="{{ base64_encode(json_encode($p)) }}"
-                                             data-name="{{ strtolower($p['name']) }}" 
-                                             data-email="{{ strtolower($p['email']) }}" 
-                                             data-phone="{{ strtolower($p['phone']) }}" 
-                                             data-circle="{{ strtolower($p['circle']) }}">
+                                             data-name="{{ strtolower((string) ($p['name'] ?? '')) }}" 
+                                             data-email="{{ strtolower((string) ($p['email'] ?? '')) }}" 
+                                             data-phone="{{ strtolower((string) ($p['phone'] ?? '')) }}" 
+                                             data-circle="{{ strtolower((string) ($p['circle'] ?? '')) }}">
                                             <div class="d-flex align-items-center gap-2 overflow-hidden me-2 pointer-events-none">
                                                 <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style="width: 34px; height: 34px; font-size: 13px; color: #240e5c; background-color: #f3f0ff !important;">
-                                                    {{ strtoupper(substr($p['name'] ?: 'P', 0, 1)) }}
+                                                    {{ strtoupper(substr((string) ($p['name'] ?: 'P'), 0, 1)) }}
                                                 </div>
                                                 <div class="overflow-hidden">
                                                     <div class="fw-bold text-dark text-truncate" style="font-size: 13px;">{{ $p['name'] }}</div>
@@ -506,13 +506,13 @@
                                              style="cursor: pointer; transition: background 0.15s ease;" 
                                              onclick="selectPeerOptionFromElement('batch', this)"
                                              data-peer="{{ base64_encode(json_encode($p)) }}"
-                                             data-name="{{ strtolower($p['name']) }}" 
-                                             data-email="{{ strtolower($p['email']) }}" 
-                                             data-phone="{{ strtolower($p['phone']) }}" 
-                                             data-circle="{{ strtolower($p['circle']) }}">
+                                             data-name="{{ strtolower((string) ($p['name'] ?? '')) }}" 
+                                             data-email="{{ strtolower((string) ($p['email'] ?? '')) }}" 
+                                             data-phone="{{ strtolower((string) ($p['phone'] ?? '')) }}" 
+                                             data-circle="{{ strtolower((string) ($p['circle'] ?? '')) }}">
                                             <div class="d-flex align-items-center gap-2 overflow-hidden me-2 pointer-events-none">
                                                 <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style="width: 34px; height: 34px; font-size: 13px; color: #240e5c; background-color: #f3f0ff !important;">
-                                                    {{ strtoupper(substr($p['name'] ?: 'P', 0, 1)) }}
+                                                    {{ strtoupper(substr((string) ($p['name'] ?: 'P'), 0, 1)) }}
                                                 </div>
                                                 <div class="overflow-hidden">
                                                     <div class="fw-bold text-dark text-truncate" style="font-size: 13px;">{{ $p['name'] }}</div>
@@ -663,36 +663,36 @@
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
                                             <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center fw-bold" style="width: 32px; height: 32px; font-size: 12px;">
-                                                {{ strtoupper(substr($log->user?->name ?? 'P', 0, 1)) }}
+                                                {{ strtoupper(substr((string) ($log->user?->name ?? 'P'), 0, 1)) }}
                                             </div>
                                             <div>
                                                 <div class="fw-bold text-dark">{{ $log->user?->name ?? 'User' }}</div>
-                                                <div class="text-muted small" style="font-size: 11px;">{{ $log->user?->email }}</div>
+                                                <div class="text-muted small" style="font-size: 11px;">{{ $log->user?->email ?? '' }}</div>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="badge bg-light text-secondary border rounded-pill">{{ strtoupper($log->channel) }}</span>
+                                        <span class="badge bg-light text-secondary border rounded-pill">{{ strtoupper((string) ($log->channel ?? 'PUSH')) }}</span>
                                     </td>
                                     <td>
                                         <span class="badge bg-primary-subtle text-primary font-monospace" style="font-size: 11px;">
-                                            {{ $log->notification?->screen ?? ($log->request_payload['data']['navigation_screen'] ?? '/dashboard') }}
+                                            {{ $log->notification?->screen ?? (is_array($log->request_payload ?? null) ? ($log->request_payload['data']['navigation_screen'] ?? ($log->request_payload['screen'] ?? '/dashboard')) : '/dashboard') }}
                                         </span>
                                     </td>
                                     <td>
                                         @if($log->status === 'sent')
                                             <span class="badge bg-success-subtle text-success rounded-pill px-2 py-1"><i class="bi bi-check-circle me-1"></i> Delivered</span>
                                         @elseif($log->status === 'failed')
-                                            <span class="badge bg-danger-subtle text-danger rounded-pill px-2 py-1" title="{{ $log->error_message }}"><i class="bi bi-x-circle me-1"></i> Failed</span>
+                                            <span class="badge bg-danger-subtle text-danger rounded-pill px-2 py-1" title="{{ $log->error_message ?? '' }}"><i class="bi bi-x-circle me-1"></i> Failed</span>
                                         @else
-                                            <span class="badge bg-warning-subtle text-warning rounded-pill px-2 py-1">{{ $log->status }}</span>
+                                            <span class="badge bg-warning-subtle text-warning rounded-pill px-2 py-1">{{ $log->status ?? 'pending' }}</span>
                                         @endif
                                     </td>
                                     <td class="text-muted small">
                                         {{ $log->attempted_at ? $log->attempted_at->diffForHumans() : '-' }}
                                     </td>
                                     <td class="text-end">
-                                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2" style="font-size: 11px;" onclick="alert(JSON.stringify(@json($log->request_payload), null, 2))">
+                                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2" style="font-size: 11px;" onclick="inspectDeliveryLogPayload(this)" data-payload="{{ base64_encode(json_encode($log->request_payload ?? [])) }}">
                                             Inspect
                                         </button>
                                     </td>
@@ -907,6 +907,16 @@
         if (tpl && tpl.payload) {
             navigator.clipboard.writeText(JSON.stringify(tpl.payload, null, 2));
             alert('Target Action Payload copied to clipboard!');
+        }
+    }
+
+    function inspectDeliveryLogPayload(btn) {
+        try {
+            const raw = atob(btn.getAttribute('data-payload') || '');
+            const json = JSON.parse(raw);
+            alert(JSON.stringify(json, null, 2));
+        } catch (e) {
+            alert('Unable to inspect payload: ' + e.message);
         }
     }
 

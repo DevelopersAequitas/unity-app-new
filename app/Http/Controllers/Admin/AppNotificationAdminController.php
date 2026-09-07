@@ -106,116 +106,163 @@ class AppNotificationAdminController extends Controller
      */
     public function index(Request $request): View
     {
-        $search = $request->string('search')->toString();
-        $category = $request->string('category')->toString();
+        try {
+            $search = $request->string('search')->toString();
+            $category = $request->string('category')->toString();
 
-        $notifications = $this->catalogService->getAll($search ?: null, $category ?: null);
-        $categories = $this->catalogService->getCategories();
-        $navigationScreens = $this->catalogService->getNavigationScreens();
+            $notifications = $this->catalogService->getAll($search ?: null, $category ?: null);
+            $categories = $this->catalogService->getCategories();
+            $navigationScreens = $this->catalogService->getNavigationScreens();
 
-        // Calculate dashboard overview statistics defensively
-        $hasAppNotifications = Schema::hasTable('app_notifications');
-        $hasPushTokens = Schema::hasTable('user_push_tokens');
-        $hasDeliveryLogs = Schema::hasTable('notification_delivery_logs');
+            // Calculate dashboard overview statistics defensively
+            $hasAppNotifications = Schema::hasTable('app_notifications');
+            $hasPushTokens = Schema::hasTable('user_push_tokens');
+            $hasDeliveryLogs = Schema::hasTable('notification_delivery_logs');
 
-        $pushReadyPeersCount = 0;
-        if ($hasPushTokens) {
-            try {
-                $userIdColumn = UserPushToken::getUserIdColumn();
-                $pushQuery = DB::table('user_push_tokens')
-                    ->whereNotNull('token')
-                    ->where('token', '!=', '');
+            $pushReadyPeersCount = 0;
+            if ($hasPushTokens) {
+                try {
+                    $userIdColumn = UserPushToken::getUserIdColumn();
+                    $pushQuery = DB::table('user_push_tokens')
+                        ->whereNotNull('token')
+                        ->where('token', '!=', '');
 
-                if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
-                    $pushQuery->whereNull('deleted_at');
+                    if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                        $pushQuery->whereNull('deleted_at');
+                    }
+                    if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                        $pushQuery->where('is_active', true);
+                    } elseif (Schema::hasColumn('user_push_tokens', 'status')) {
+                        $pushQuery->where('status', 'active');
+                    } elseif (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                        $pushQuery->where('token_status', 'active');
+                    }
+
+                    $pushReadyPeersCount = $pushQuery->distinct($userIdColumn)->count($userIdColumn);
+                } catch (Throwable $e) {
+                    Log::warning('AppNotificationAdminController push count error: '.$e->getMessage());
+                    $pushReadyPeersCount = 0;
                 }
-                if (Schema::hasColumn('user_push_tokens', 'is_active')) {
-                    $pushQuery->where('is_active', true);
-                } elseif (Schema::hasColumn('user_push_tokens', 'status')) {
-                    $pushQuery->where('status', 'active');
-                } elseif (Schema::hasColumn('user_push_tokens', 'token_status')) {
-                    $pushQuery->where('token_status', 'active');
+            }
+
+            $todaySent = 0;
+            if ($hasAppNotifications) {
+                try {
+                    $todaySent = AppNotification::whereDate('created_at', today())->count();
+                } catch (Throwable) {
+                    $todaySent = 0;
                 }
-
-                $pushReadyPeersCount = $pushQuery->distinct($userIdColumn)->count($userIdColumn);
-            } catch (Throwable $e) {
-                Log::warning('AppNotificationAdminController push count error: '.$e->getMessage());
-                $pushReadyPeersCount = 0;
             }
-        }
 
-        $todaySent = 0;
-        if ($hasAppNotifications) {
-            try {
-                $todaySent = AppNotification::whereDate('created_at', today())->count();
-            } catch (Throwable) {
-                $todaySent = 0;
+            $todayDelivered = 0;
+            if ($hasDeliveryLogs) {
+                try {
+                    $todayDelivered = NotificationDeliveryLog::where('channel', 'push')
+                        ->where('status', 'sent')
+                        ->whereDate('created_at', today())
+                        ->count();
+                } catch (Throwable) {
+                    $todayDelivered = 0;
+                }
             }
-        }
 
-        $todayDelivered = 0;
-        if ($hasDeliveryLogs) {
-            try {
-                $todayDelivered = NotificationDeliveryLog::where('channel', 'push')
-                    ->where('status', 'sent')
-                    ->whereDate('created_at', today())
-                    ->count();
-            } catch (Throwable) {
-                $todayDelivered = 0;
+            $stats = [
+                'total_catalog_items' => $notifications->count(),
+                'total_registered_types' => count($this->catalogService->getAll()),
+                'total_navigation_screens' => count($navigationScreens),
+                'push_ready_peers' => $pushReadyPeersCount,
+                'today_sent' => $todaySent,
+                'today_delivered' => $todayDelivered,
+            ];
+
+            // Fetch recent delivery logs defensively
+            $recentLogs = collect();
+            if ($hasDeliveryLogs) {
+                try {
+                    $recentLogs = NotificationDeliveryLog::with(['user', 'notification'])
+                        ->where('channel', 'push')
+                        ->latest()
+                        ->limit(15)
+                        ->get();
+                } catch (Throwable $e) {
+                    Log::warning('AppNotificationAdminController delivery logs error: '.$e->getMessage());
+                    $recentLogs = collect();
+                }
             }
-        }
 
-        $stats = [
-            'total_catalog_items' => $notifications->count(),
-            'total_registered_types' => count($this->catalogService->getAll()),
-            'total_navigation_screens' => count($navigationScreens),
-            'push_ready_peers' => $pushReadyPeersCount,
-            'today_sent' => $todaySent,
-            'today_delivered' => $todayDelivered,
-        ];
-
-        // Fetch recent delivery logs defensively
-        $recentLogs = collect();
-        if ($hasDeliveryLogs) {
+            // Preload initial peers batching queries to prevent N+1 performance bottlenecks
+            $initialUsers = collect();
             try {
-                $recentLogs = NotificationDeliveryLog::with(['user', 'notification'])
-                    ->where('channel', 'push')
+                $initialUsers = User::query()
                     ->latest()
-                    ->limit(15)
+                    ->limit(100)
                     ->get();
             } catch (Throwable $e) {
-                Log::warning('AppNotificationAdminController delivery logs error: '.$e->getMessage());
-                $recentLogs = collect();
+                Log::warning('AppNotificationAdminController initialUsers query error: '.$e->getMessage());
+                try {
+                    $initialUsers = User::query()->limit(100)->get();
+                } catch (Throwable) {
+                    $initialUsers = collect();
+                }
             }
+
+            $userIds = $initialUsers->pluck('id')->filter()->all();
+            $tokensByUser = $this->batchFetchTokensCount($userIds);
+            $circlesByUser = $this->batchFetchCircleNames($userIds);
+
+            $initialPeers = $initialUsers->map(function (User $user) use ($tokensByUser, $circlesByUser) {
+                try {
+                    $tokensCount = $tokensByUser[$user->id] ?? null;
+                    $circle = $circlesByUser[$user->id] ?? null;
+
+                    return $this->formatPeerData($user, $tokensCount, $circle);
+                } catch (Throwable) {
+                    return [
+                        'id' => (string) $user->id,
+                        'name' => (string) ($user->name ?? $user->email ?? 'Peer'),
+                        'email' => (string) ($user->email ?? ''),
+                        'phone' => '',
+                        'avatar' => null,
+                        'circle' => 'General',
+                        'push_ready' => false,
+                        'tokens_count' => 0,
+                    ];
+                }
+            })->values();
+
+            return view('admin.app-notifications.index', compact(
+                'notifications',
+                'categories',
+                'navigationScreens',
+                'stats',
+                'recentLogs',
+                'initialPeers',
+                'search',
+                'category'
+            ));
+        } catch (Throwable $e) {
+            Log::error('AppNotificationAdminController index error: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return view('admin.app-notifications.index', [
+                'notifications' => $this->catalogService->getAll(),
+                'categories' => $this->catalogService->getCategories(),
+                'navigationScreens' => $this->catalogService->getNavigationScreens(),
+                'stats' => [
+                    'total_catalog_items' => 0,
+                    'total_registered_types' => 0,
+                    'total_navigation_screens' => 0,
+                    'push_ready_peers' => 0,
+                    'today_sent' => 0,
+                    'today_delivered' => 0,
+                ],
+                'recentLogs' => collect(),
+                'initialPeers' => collect(),
+                'search' => '',
+                'category' => '',
+            ]);
         }
-
-        // Preload initial peers batching queries to prevent N+1 performance bottlenecks
-        $initialUsers = User::query()
-            ->latest()
-            ->limit(100)
-            ->get();
-
-        $userIds = $initialUsers->pluck('id')->all();
-        $tokensByUser = $this->batchFetchTokensCount($userIds);
-        $circlesByUser = $this->batchFetchCircleNames($userIds);
-
-        $initialPeers = $initialUsers->map(function (User $user) use ($tokensByUser, $circlesByUser) {
-            $tokensCount = $tokensByUser[$user->id] ?? null;
-            $circle = $circlesByUser[$user->id] ?? null;
-
-            return $this->formatPeerData($user, $tokensCount, $circle);
-        })->values();
-
-        return view('admin.app-notifications.index', compact(
-            'notifications',
-            'categories',
-            'navigationScreens',
-            'stats',
-            'recentLogs',
-            'initialPeers',
-            'search',
-            'category'
-        ));
     }
 
     /**

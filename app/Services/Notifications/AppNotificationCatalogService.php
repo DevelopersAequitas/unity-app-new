@@ -782,16 +782,27 @@ class AppNotificationCatalogService
      */
     public function formatDbTemplateToCatalogItem(NotificationTemplate $db): array
     {
-        $payload = (array) ($db->default_payload ?? []);
+        $payload = $db->default_payload;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            $payload = is_array($decoded) ? $decoded : [];
+        } elseif (! is_array($payload)) {
+            $payload = [];
+        }
+
         $navScreen = (string) ($payload['navigation_screen'] ?? ($payload['screen'] ?? $this->inferNavigationScreen((string) $db->template_key)));
 
         if (! isset($payload['navigation_screen'])) {
             $payload['navigation_screen'] = $navScreen;
         }
 
-        $dynamicParams = (array) ($db->dynamic_params ?? [
-            '{name}' => 'Recipient member name',
-        ]);
+        $dynamicParams = $db->dynamic_params;
+        if (is_string($dynamicParams)) {
+            $decodedParams = json_decode($dynamicParams, true);
+            $dynamicParams = is_array($decodedParams) ? $decodedParams : ['{name}' => 'Recipient member name'];
+        } elseif (! is_array($dynamicParams)) {
+            $dynamicParams = ['{name}' => 'Recipient member name'];
+        }
 
         return [
             'key' => (string) $db->template_key,
@@ -823,7 +834,14 @@ class AppNotificationCatalogService
     public function formatAppNotificationToCatalogItem(AppNotification $notif): array
     {
         $type = (string) $notif->type;
-        $payload = (array) ($notif->data ?? []);
+        $payload = $notif->data;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            $payload = is_array($decoded) ? $decoded : [];
+        } elseif (! is_array($payload)) {
+            $payload = [];
+        }
+
         $navScreen = (string) ($notif->screen ?? ($payload['navigation_screen'] ?? $this->inferNavigationScreen($type)));
 
         if (! isset($payload['navigation_screen'])) {
