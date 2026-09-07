@@ -373,7 +373,7 @@
 
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $activityExpanded ? 'active' : '' }}" href="{{ !empty($activityMenu) ? route($activityMenu[0]['route']) : '#' }}" title="Activities">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $activityExpanded ? 'active' : '' }}" href="javascript:void(0)" title="Activities">
                         <i class="bi bi-activity me-2"></i><span class="menu-text me-auto text-start">Activities</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -401,7 +401,7 @@
 
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $postsActive ? 'active' : '' }}" href="{{ !empty($postsMenu) ? route($postsMenu[0]['route']) : '#' }}" title="Posts &amp; Timeline">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $postsActive ? 'active' : '' }}" href="javascript:void(0)" title="Posts &amp; Timeline">
                         <i class="bi bi-chat-dots me-2"></i><span class="menu-text me-auto text-start">Posts &amp; Timeline</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -421,7 +421,7 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests'))
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex align-items-center justify-content-between {{ $pendingRequestsActive ? 'active' : '' }}" href="{{ !empty($pendingRequestsMenu) ? route($pendingRequestsMenu[0]['route']) : '#' }}" title="Pending Requests">
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $pendingRequestsActive ? 'active' : '' }}" href="javascript:void(0)" title="Pending Requests">
                     <i class="bi bi-hourglass-split me-2"></i><span class="menu-text me-auto text-start">Pending Requests</span>
                     <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
@@ -441,7 +441,7 @@
 
             @if ($isDed && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Analytics') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Finance & Analytics')))
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $dedAnalyticsActive ? 'active' : '' }}" href="{{ !empty($dedAnalyticsMenu) ? route($dedAnalyticsMenu[0]['route']) : '#' }}" title="Analytics">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $dedAnalyticsActive ? 'active' : '' }}" href="javascript:void(0)" title="Analytics">
                         <i class="bi bi-graph-up-arrow me-2"></i><span class="menu-text me-auto text-start">Analytics</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -470,7 +470,7 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $eventsManagementActive ? 'active' : '' }}" href="{{ !empty($eventsManagementMenu) ? route($eventsManagementMenu[0]['route']) : '#' }}" title="Events Management">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $eventsManagementActive ? 'active' : '' }}" href="javascript:void(0)" title="Events Management">
                         <i class="bi bi-calendar-check me-2"></i><span class="menu-text me-auto text-start">Events Management</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -488,7 +488,7 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $brandPartnersActive ? 'active' : '' }}" href="{{ !empty($brandPartnersMenu) ? route($brandPartnersMenu[0]['route']) : '#' }}" title="Brand Partners">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $brandPartnersActive ? 'active' : '' }}" href="javascript:void(0)" title="Brand Partners">
                         <i class="bi bi-briefcase me-2"></i><span class="menu-text me-auto text-start">Brand Partners</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -510,7 +510,7 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="{{ !empty($adsMenu) ? route($adsMenu[0]['route']) : '#' }}" title="Ads">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="javascript:void(0)" title="Ads">
                         <i class="bi bi-megaphone me-2"></i><span class="menu-text me-auto text-start">Ads</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -534,7 +534,7 @@
                 @if ($item['label'] === 'Notifications & Email')
                     @if (Route::has($item['route']))
                         <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex align-items-center justify-content-between {{ $campaignsActive ? 'active' : '' }}" href="{{ !empty($campaignsMenu) ? route($campaignsMenu[0]['route']) : '#' }}" title="{{ $item['label'] }}">
+                            <a class="nav-link d-flex align-items-center justify-content-between {{ $campaignsActive ? 'active' : '' }}" href="javascript:void(0)" title="{{ $item['label'] }}">
                                 <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text me-auto text-start">{{ $item['label'] }}</span>
                                 <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                             </a>
@@ -557,7 +557,7 @@
                         $currentType = request('type');
                     @endphp
                     <li class="nav-item menu-parent {{ $badgesActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex align-items-center justify-content-between {{ $badgesActive ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'life_impact']) }}" title="Milestone Badges">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $badgesActive ? 'active' : '' }}" href="javascript:void(0)" title="Milestone Badges">
                             <i class="bi bi-award me-2"></i><span class="menu-text me-auto text-start">Milestone Badges</span>
                             <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
@@ -591,7 +591,7 @@
                         $peersActive = request()->routeIs('admin.users.*');
                     @endphp
                     <li class="nav-item menu-parent {{ $peersActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex align-items-center justify-content-between {{ $peersActive ? 'active' : '' }}" href="{{ route('admin.users.index') }}" title="Peers">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $peersActive ? 'active' : '' }}" href="javascript:void(0)" title="Peers">
                             <i class="bi bi-people me-2"></i><span class="menu-text me-auto text-start">Peers</span>
                             <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
@@ -612,7 +612,7 @@
                         $currentTab = request('tab');
                     @endphp
                     <li class="nav-item menu-parent {{ $introducersActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex align-items-center justify-content-between {{ $introducersActive ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}" title="Member Introducers">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $introducersActive ? 'active' : '' }}" href="javascript:void(0)" title="Member Introducers">
                             <i class="bi {{ $item['icon'] ?? 'bi-person-check' }} me-2"></i><span class="menu-text me-auto text-start">Member Introducers</span>
                             <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
@@ -639,7 +639,7 @@
                         $isOverviewRoute = request()->routeIs('admin.life-impact.index');
                     @endphp
                     <li class="nav-item menu-parent {{ $lifeImpactActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex align-items-center justify-content-between {{ $lifeImpactActive ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index') }}" title="Life Impact">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $lifeImpactActive ? 'active' : '' }}" href="javascript:void(0)" title="Life Impact">
                             <i class="bi {{ $item['icon'] ?? 'bi-heart-pulse' }} me-2"></i><span class="menu-text me-auto text-start">Life Impact</span>
                             <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
@@ -720,7 +720,7 @@
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
                 {{-- Dynamic RBAC & Role Management Menu --}}
                 <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="{{ route('admin.rbac.permission-matrix.index') }}" title="Dynamic RBAC">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="javascript:void(0)" title="Dynamic RBAC">
                         <i class="bi bi-shield-lock me-2"></i><span class="menu-text me-auto text-start">Dynamic RBAC</span>
                         <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
@@ -761,7 +761,7 @@
 
             @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex align-items-center justify-content-between {{ $leadsActive ? 'active' : '' }}" href="{{ !empty($leadsMenu) ? route($leadsMenu[0]['route']) : '#' }}" title="Leads">
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $leadsActive ? 'active' : '' }}" href="javascript:void(0)" title="Leads">
                     <i class="bi bi-person-lines-fill me-2"></i><span class="menu-text me-auto text-start">Leads</span>
                     <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
