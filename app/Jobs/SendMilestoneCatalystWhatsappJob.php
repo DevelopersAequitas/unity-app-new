@@ -74,16 +74,36 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                 return;
             }
 
-            $rawPhone = $user->phone ?? $user->secondary_mobile;
+            $primaryPhone = trim((string) ($user->phone ?? ''));
+            $secondaryPhone = trim((string) ($user->secondary_mobile ?? ''));
 
-            if (blank($rawPhone)) {
-                Log::warning('[SendMilestoneCatalystWhatsappJob] Skipped: Missing phone number.', [
+            $rawPhone = null;
+            $phoneSource = null;
+
+            if ($primaryPhone !== '' && static::isValidPhoneNumber($primaryPhone)) {
+                $rawPhone = $primaryPhone;
+                $phoneSource = 'users.phone';
+            } elseif ($secondaryPhone !== '' && static::isValidPhoneNumber($secondaryPhone)) {
+                $rawPhone = $secondaryPhone;
+                $phoneSource = 'users.secondary_mobile';
+            }
+
+            if ($rawPhone === null || $phoneSource === null) {
+                Log::warning('[SendMilestoneCatalystWhatsappJob] Skipped: No valid phone number found.', [
                     'user_id' => $this->userId,
+                    'phone' => $user->phone,
+                    'secondary_mobile' => $user->secondary_mobile,
                     'template_key' => self::TEMPLATE_KEY,
                 ]);
 
                 return;
             }
+
+            Log::info('[SendMilestoneCatalystWhatsappJob] Resolved recipient phone.', [
+                'user_id' => $this->userId,
+                'phone_source' => $phoneSource,
+                'phone' => (string) $rawPhone,
+            ]);
 
             // 1. Construct canonical data object
             $introducedCount = (int) ($user->members_introduced_count ?? self::MILESTONE_COUNT);
@@ -616,6 +636,36 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
         $path = (string) parse_url($trimmed, PHP_URL_PATH);
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if (! in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'], true) && ! str_contains($path, '/storage/')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Validate that the given value is a plausible phone number (10 to 15 digits).
+     */
+    public static function isValidPhoneNumber(?string $phone): bool
+    {
+        if ($phone === null) {
+            return false;
+        }
+
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        // Check if string contains unexpected non-phone characters (letters, special symbols other than +, -, (, ), space)
+        if (preg_match('/[^\d\+\-\s\(\)]/', $trimmed)) {
+            return false;
+        }
+
+        // Extract digits only
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+
+        // Plausible phone numbers must be between 10 and 15 digits
+        if (strlen($digits) < 10 || strlen($digits) > 15) {
             return false;
         }
 
