@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Models\IntroductionCreative;
 use App\Models\MilestoneBadge;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Models\WhatsappTemplate;
+use App\Services\Creative\CreativePublicUrlResolver;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Notifications\WhatsappNotificationService;
@@ -169,45 +169,16 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
             $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
             $referralLink = "{$baseUrl}/share?type=referrals";
 
-            // 3. Resolve Personalized Connector Creative Image URL (reuse stored creative if available)
+            // 3. Resolve Personalized Connector Creative Image URL using centralized CreativePublicUrlResolver
             $badgeImageUrl = null;
-            if (! empty($this->customImageUrl) && $this->isValidPublicMediaUrl($this->customImageUrl)) {
-                $badgeImageUrl = $this->customImageUrl;
-            }
-
-            if (blank($badgeImageUrl) && Schema::hasTable('introduction_creatives')) {
-                try {
-                    $storedCreative = IntroductionCreative::query()
-                        ->where('introducer_id', $this->userId)
-                        ->where('introduced_count', $introducedCount)
-                        ->latest()
-                        ->first();
-
-                    if ($storedCreative && ! empty($storedCreative->image_url) && $this->isValidPublicMediaUrl($storedCreative->image_url)) {
-                        $badgeImageUrl = $storedCreative->image_url;
-                    }
-                } catch (Throwable $e) {
-                    Log::warning('[SendMilestoneConnectorWhatsappJob] Could not check introduction_creatives: '.$e->getMessage());
-                }
-            }
-
-            if (blank($badgeImageUrl)) {
-                if (! empty($user->connector_creative_url) && $this->isValidPublicMediaUrl($user->connector_creative_url)) {
-                    $badgeImageUrl = $user->connector_creative_url;
-                } elseif (! empty($user->growth_creative_url) && $this->isValidPublicMediaUrl($user->growth_creative_url)) {
-                    $badgeImageUrl = $user->growth_creative_url;
-                }
-            }
-
-            if (blank($badgeImageUrl)) {
-                try {
-                    $badgeImageUrl = $creativeGenerator->generateOrGetUrl($user, $introducedCount);
-                } catch (Throwable $e) {
-                    Log::error('[SendMilestoneConnectorWhatsappJob] Failed generating personalized connector creative: '.$e->getMessage(), [
-                        'user_id' => $user->id,
-                        'exception' => $e,
-                    ]);
-                }
+            try {
+                $resolver = app(CreativePublicUrlResolver::class);
+                $badgeImageUrl = $resolver->resolveForUser($user, $introducedCount, $this->customImageUrl);
+            } catch (Throwable $e) {
+                Log::error('[SendMilestoneConnectorWhatsappJob] CreativePublicUrlResolver failed: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                    'exception' => $e,
+                ]);
             }
 
             if (blank($badgeImageUrl) || ! $this->isValidPublicMediaUrl($badgeImageUrl)) {
@@ -562,20 +533,28 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
                 return true;
             }
 
-            // If not found locally, verify external HTTPS reachability if pointing to a remote host (skipped in unit tests)
-            if (! app()->runningUnitTests()) {
-                $host = parse_url($trimmed, PHP_URL_HOST);
-                if ($host && ! in_array(strtolower($host), ['localhost', '127.0.0.1'], true)) {
-                    try {
-                        $response = Http::timeout(5)->get($trimmed);
-                        if ($response->status() !== 200) {
-                            return false;
-                        }
-                    } catch (Throwable) {
+            $host = parse_url($trimmed, PHP_URL_HOST);
+            $isLocalHost = in_array(strtolower((string) $host), ['localhost', '127.0.0.1', '::1'], true);
+
+            // If pointing to a remote host (e.g. dev.peersunity.com or peersunity.com), verify external HTTPS reachability
+            if (! $isLocalHost && ! app()->runningUnitTests()) {
+                try {
+                    $response = Http::timeout(3)->withoutVerifying()->get($trimmed);
+                    if ($response->status() !== 200) {
                         return false;
                     }
+                    $contentType = (string) $response->header('Content-Type');
+                    if (! str_starts_with($contentType, 'image/')) {
+                        return false;
+                    }
+
+                    return true;
+                } catch (Throwable) {
+                    return false;
                 }
             }
+
+            return false;
         }
 
         // Must have an image extension or valid storage path

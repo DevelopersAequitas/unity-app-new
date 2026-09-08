@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Models\IntroductionCreative;
 use App\Models\MilestoneBadge;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Models\WhatsappTemplate;
+use App\Services\Creative\CreativePublicUrlResolver;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\WhatsappNotificationService;
@@ -62,7 +62,7 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
         $lockKey = "milestone_catalyst_job_exec_{$this->userId}";
         $lock = Cache::lock($lockKey, 30);
 
-        $lock->get(function () use ($whatsappService, $referralService, $creativeGenerator): void {
+        $lock->get(function () use ($whatsappService, $referralService): void {
             $user = User::find($this->userId);
 
             if (! $user) {
@@ -173,37 +173,16 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
             $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
             $referralLink = "{$baseUrl}/share?type=referrals";
 
-            // 3. Resolve Personalized CATALYST Creative Image URL
+            // 3. Resolve Personalized CATALYST Creative Image URL using centralized CreativePublicUrlResolver
             $badgeImageUrl = null;
-            if (! empty($this->customImageUrl) && $this->isValidPublicMediaUrl($this->customImageUrl)) {
-                $badgeImageUrl = $this->customImageUrl;
-            }
-
-            if (blank($badgeImageUrl) && Schema::hasTable('introduction_creatives')) {
-                try {
-                    $storedCreative = IntroductionCreative::query()
-                        ->where('introducer_id', $this->userId)
-                        ->where('introduced_count', self::MILESTONE_COUNT)
-                        ->latest()
-                        ->first();
-
-                    if ($storedCreative && ! empty($storedCreative->image_url) && $this->isValidPublicMediaUrl($storedCreative->image_url)) {
-                        $badgeImageUrl = $storedCreative->image_url;
-                    }
-                } catch (Throwable $e) {
-                    Log::warning('[SendMilestoneCatalystWhatsappJob] Could not check introduction_creatives: '.$e->getMessage());
-                }
-            }
-
-            if (blank($badgeImageUrl)) {
-                try {
-                    $badgeImageUrl = $creativeGenerator->generateOrGetUrl($user, self::MILESTONE_COUNT);
-                } catch (Throwable $e) {
-                    Log::error('[SendMilestoneCatalystWhatsappJob] Failed generating personalized CATALYST creative: '.$e->getMessage(), [
-                        'user_id' => $user->id,
-                        'exception' => $e,
-                    ]);
-                }
+            try {
+                $resolver = app(CreativePublicUrlResolver::class);
+                $badgeImageUrl = $resolver->resolveForUser($user, $introducedCount, $this->customImageUrl);
+            } catch (Throwable $e) {
+                Log::error('[SendMilestoneCatalystWhatsappJob] CreativePublicUrlResolver failed: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                    'exception' => $e,
+                ]);
             }
 
             if (blank($badgeImageUrl) || ! $this->isValidPublicMediaUrl($badgeImageUrl)) {
@@ -270,6 +249,19 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                 '@1' => $bodyParam1,
                 '@2' => $bodyParam2,
                 '@3' => $bodyParam3,
+                '(1)' => $bodyParam1,
+                '(2)' => $bodyParam2,
+                '(3)' => $bodyParam3,
+                '@(1)' => $bodyParam1,
+                '@(2)' => $bodyParam2,
+                '@(3)' => $bodyParam3,
+                '{{1}}' => $bodyParam1,
+                '{{2}}' => $bodyParam2,
+                '{{3}}' => $bodyParam3,
+                '{1}' => $bodyParam1,
+                '{2}' => $bodyParam2,
+                '{3}' => $bodyParam3,
+
                 'var_1' => $bodyParam1,
                 'var_2' => $bodyParam2,
                 'var_3' => $bodyParam3,
@@ -279,12 +271,36 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                 'body_1' => $bodyParam1,
                 'body_2' => $bodyParam2,
                 'body_3' => $bodyParam3,
+
                 'body_param_1' => $bodyParam1,
                 'body_param_2' => $bodyParam2,
                 'body_param_3' => $bodyParam3,
                 '@body_param_1' => $bodyParam1,
                 '@body_param_2' => $bodyParam2,
                 '@body_param_3' => $bodyParam3,
+                '(body_param_1)' => $bodyParam1,
+                '(body_param_2)' => $bodyParam2,
+                '(body_param_3)' => $bodyParam3,
+                '@(body_param_1)' => $bodyParam1,
+                '@(body_param_2)' => $bodyParam2,
+                '@(body_param_3)' => $bodyParam3,
+                '{{body_param_1}}' => $bodyParam1,
+                '{{body_param_2}}' => $bodyParam2,
+                '{{body_param_3}}' => $bodyParam3,
+                '{body_param_1}' => $bodyParam1,
+                '{body_param_2}' => $bodyParam2,
+                '{body_param_3}' => $bodyParam3,
+
+                'body_param1' => $bodyParam1,
+                'body_param2' => $bodyParam2,
+                'body_param3' => $bodyParam3,
+                'param1' => $bodyParam1,
+                'param2' => $bodyParam2,
+                'param3' => $bodyParam3,
+                'param_1' => $bodyParam1,
+                'param_2' => $bodyParam2,
+                'param_3' => $bodyParam3,
+
                 'Peer Name' => $bodyParam1,
                 '@Peer Name' => $bodyParam1,
                 'Peer_Name' => $bodyParam1,
@@ -305,6 +321,7 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                 'Referral_Link' => $bodyParam3,
                 '@Referral_Link' => $bodyParam3,
                 '@referral_link' => $bodyParam3,
+
                 'variables' => [
                     '1' => $bodyParam1,
                     '2' => $bodyParam2,
@@ -571,20 +588,28 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                 return true;
             }
 
-            // If not found locally, verify external HTTPS reachability if pointing to a remote host (skipped in unit tests)
-            if (! app()->runningUnitTests()) {
-                $host = parse_url($trimmed, PHP_URL_HOST);
-                if ($host && ! in_array(strtolower($host), ['localhost', '127.0.0.1'], true)) {
-                    try {
-                        $response = Http::timeout(5)->get($trimmed);
-                        if ($response->status() !== 200) {
-                            return false;
-                        }
-                    } catch (Throwable) {
+            $host = parse_url($trimmed, PHP_URL_HOST);
+            $isLocalHost = in_array(strtolower((string) $host), ['localhost', '127.0.0.1', '::1'], true);
+
+            // If pointing to a remote host (e.g. dev.peersunity.com or peersunity.com), verify external HTTPS reachability
+            if (! $isLocalHost && ! app()->runningUnitTests()) {
+                try {
+                    $response = Http::timeout(3)->withoutVerifying()->get($trimmed);
+                    if ($response->status() !== 200) {
                         return false;
                     }
+                    $contentType = (string) $response->header('Content-Type');
+                    if (! str_starts_with($contentType, 'image/')) {
+                        return false;
+                    }
+
+                    return true;
+                } catch (Throwable) {
+                    return false;
                 }
             }
+
+            return false;
         }
 
         // Must have an image extension or valid storage path
