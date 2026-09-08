@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\P2PMeetingRescheduleRequestResource;
 use App\Mail\P2PMeetingWorkflowMail;
-use App\Models\Notification;
-use App\Models\Notifications\AppNotification;
 use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
@@ -93,8 +91,7 @@ class P2PMeetingRescheduleController extends BaseApiController
         }
 
         if ($requester) {
-            $this->createMeetingNotification($requester, 'p2p_reschedule_approved', $meetingRequest, $authUser, $rescheduleRequest);
-            $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_approved', $meetingRequest);
+            $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_approved', $meetingRequest, $rescheduleRequest);
             $this->sendWorkflowEmail($requester, $authUser, 'p2p_reschedule_approved', $meetingRequest, $rescheduleRequest);
         }
 
@@ -163,8 +160,7 @@ class P2PMeetingRescheduleController extends BaseApiController
         }
 
         if ($requester) {
-            $this->createMeetingNotification($requester, 'p2p_reschedule_rejected', $meetingRequest, $authUser, $rescheduleRequest, $validated['reason'] ?? null);
-            $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest);
+            $this->dispatchPushNotification($notifyUserService, $requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest, $rescheduleRequest, $validated['reason'] ?? null);
             $this->sendWorkflowEmail($requester, $authUser, 'p2p_reschedule_rejected', $meetingRequest, $rescheduleRequest, $validated['reason'] ?? null);
         }
 
@@ -174,13 +170,39 @@ class P2PMeetingRescheduleController extends BaseApiController
         ], 'P2P meeting reschedule request rejected successfully.');
     }
 
-    private function createMeetingNotification(User $toUser, string $type, P2PMeetingRequest $meetingRequest, User $fromUser, ?P2PMeetingRescheduleRequest $rescheduleRequest = null, ?string $responseReason = null): void
-    {
-        $notification = Notification::query()->create([
-            'user_id' => $toUser->id,
-            'type' => 'activity_update',
-            'payload' => [
-                'notification_type' => $type,
+    private function dispatchPushNotification(
+        NotifyUserService $notifyUserService,
+        User $toUser,
+        User $fromUser,
+        string $notificationType,
+        P2PMeetingRequest $meetingRequest,
+        ?P2PMeetingRescheduleRequest $rescheduleRequest = null,
+        ?string $responseReason = null
+    ): void {
+        $fromName = trim((string) ($fromUser->display_name ?? $fromUser->name ?? 'A member'));
+        $titleMap = [
+            'p2p_reschedule_requested' => 'P2P Reschedule Requested',
+            'p2p_reschedule_approved' => 'P2P Reschedule Approved',
+            'p2p_reschedule_rejected' => 'P2P Reschedule Rejected',
+        ];
+        $title = $titleMap[$notificationType] ?? 'P2P Reschedule Update';
+
+        $bodyMap = [
+            'p2p_reschedule_requested' => $fromName.' requested to reschedule the P2P meeting.',
+            'p2p_reschedule_approved' => $fromName.' approved the reschedule request.',
+            'p2p_reschedule_rejected' => $fromName.' rejected the reschedule request.',
+        ];
+        $body = $bodyMap[$notificationType] ?? 'You have a new P2P reschedule update.';
+
+        $notifyUserService->notifyUser(
+            $toUser,
+            $fromUser,
+            $notificationType,
+            [
+                'title' => $title,
+                'body' => $body,
+                'notification_type' => $notificationType,
+                'type' => $notificationType,
                 'meeting_request_id' => (string) $meetingRequest->id,
                 'reschedule_request_id' => $rescheduleRequest ? (string) $rescheduleRequest->id : null,
                 'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
@@ -188,69 +210,8 @@ class P2PMeetingRescheduleController extends BaseApiController
                 'new_scheduled_at' => $rescheduleRequest?->new_scheduled_at?->toIso8601String(),
                 'new_place' => $rescheduleRequest?->new_place,
                 'response_reason' => $responseReason,
-            ],
-            'is_read' => false,
-            'created_at' => now(),
-            'read_at' => null,
-        ]);
-
-        try {
-            $fromName = trim((string) ($fromUser->display_name ?? $fromUser->name ?? 'A member'));
-            $titleMap = [
-                'p2p_reschedule_requested' => 'P2P Reschedule Requested',
-                'p2p_reschedule_approved' => 'P2P Reschedule Approved',
-                'p2p_reschedule_rejected' => 'P2P Reschedule Rejected',
-            ];
-            $title = $titleMap[$type] ?? 'P2P Reschedule Update';
-
-            $bodyMap = [
-                'p2p_reschedule_requested' => $fromName.' requested to reschedule the P2P meeting.',
-                'p2p_reschedule_approved' => $fromName.' approved the reschedule request.',
-                'p2p_reschedule_rejected' => $fromName.' rejected the reschedule request.',
-            ];
-            $body = $bodyMap[$type] ?? 'You have a new P2P reschedule update.';
-
-            AppNotification::create([
-                'user_id' => $toUser->id,
-                'type' => $type,
-                'category' => 'p2p_meeting',
-                'title' => $title,
-                'body' => $body,
-                'message' => $body,
-                'channel' => 'push',
-                'priority' => 'medium',
-                'reference_type' => P2PMeetingRequest::class,
-                'reference_id' => (string) $meetingRequest->id,
-                'screen' => 'p2p_meetings',
-                'data' => [
-                    'notification_id' => (string) $notification->id,
-                    'meeting_request_id' => (string) $meetingRequest->id,
-                    'reschedule_request_id' => $rescheduleRequest ? (string) $rescheduleRequest->id : null,
-                    'type' => $type,
-                ],
-                'status' => 'pending',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Failed to create AppNotification in P2PMeetingRescheduleController', [
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    private function dispatchPushNotification(NotifyUserService $notifyUserService, User $toUser, User $fromUser, string $notificationType, P2PMeetingRequest $meetingRequest): void
-    {
-        $notifyUserService->notifyUser(
-            $toUser,
-            $fromUser,
-            $notificationType,
-            [
-                'title' => 'P2P Meeting Update',
-                'body' => 'You have a new P2P meeting update.',
-                'meeting_request_id' => (string) $meetingRequest->id,
-                'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
-                'place' => $meetingRequest->place,
+                'screen' => '/p2p_meetings',
+                'navigation_screen' => '/p2p_meetings',
             ],
             $meetingRequest
         );

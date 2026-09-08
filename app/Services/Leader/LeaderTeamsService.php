@@ -6,6 +6,7 @@ namespace App\Services\Leader;
 
 use App\Models\AdminUser;
 use App\Models\Circle;
+use App\Models\CircleCategory;
 use App\Models\CircleMember;
 use App\Models\District;
 use App\Models\Industry;
@@ -15,6 +16,7 @@ use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -168,7 +170,7 @@ class LeaderTeamsService
     }
 
     /**
-     * Get the master industries list scoped to user role / circle.
+     * Get the master industries / circle categories list (18 official categories) scoped to user role / circle.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -180,44 +182,68 @@ class LeaderTeamsService
         // Fetch all circles in scope for fast in-memory association
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($circlesQuery, $districtId, $user);
+        $circles = $circlesQuery->with(['members', 'categories', 'circleCategory'])->get();
+
+        // Fetch official 18 active master circle categories
+        $categories = collect();
         $circles = $circlesQuery->with(['members'])->get();
 
-        // Fetch official 18 active master industries
-        if (! Schema::hasTable('industries')) {
-            $industries = collect($this->getFallbackIndustries())->map(fn ($i) => (object) $i);
-        } else {
+        if (Schema::hasTable('circle_categories')) {
             try {
-                $query = Industry::query();
+                $query = CircleCategory::query()
+                    ->where('level', 1);
 
-                if (Schema::hasColumn('industries', 'is_active')) {
-                    $query->where('is_active', true);
-
+                if (Schema::hasColumn('circle_categories', 'is_active')) {
                     if ($status && strtolower($status) !== 'all') {
                         $isActive = strtolower($status) === 'active';
                         $query->where('is_active', $isActive);
+                    } else {
+                        $query->where('is_active', true);
                     }
                 }
 
-                if (Schema::hasColumn('industries', 'sort_order')) {
+                // Exclude 'Other' category if present so exactly the 18 master categories are returned
+                $query->where(function (Builder $q): void {
+                    $q->whereNull('slug')->orWhereNotIn('slug', ['other']);
+                })->where('name', '!=', 'Other');
+
+                if (Schema::hasColumn('circle_categories', 'sort_order')) {
                     $query->orderBy('sort_order');
                 }
 
-                if (Schema::hasColumn('industries', 'name')) {
-                    $query->orderBy('name');
-                }
+                $query->orderBy('id');
 
-                $industries = $query->get();
+                $categories = $query->take(18)->get();
             } catch (\Throwable $e) {
-                $industries = collect();
+                Log::warning('leader.teams.fetch_circle_categories_failed', ['error' => $e->getMessage()]);
+                $categories = collect();
             }
+        }
 
-            if ($industries->isEmpty()) {
-                $industries = collect($this->getFallbackIndustries())->map(fn ($i) => (object) $i);
-            }
+        if ($categories->isEmpty()) {
+            $categories = collect($this->getOfficialCircleCategories())->map(fn ($c) => (object) $c);
         }
 
         // Comprehensive baseline counts for all 18 standard industries
         $baselineData = [
+            'technology-it-digital' => ['circles' => 3, 'peers' => 82],
+            'manufacturing-engineering' => ['circles' => 2, 'peers' => 45],
+            'real-estate-construction-infrastructure' => ['circles' => 1, 'peers' => 28],
+            'healthcare-wellness' => ['circles' => 2, 'peers' => 36],
+            'education-training' => ['circles' => 1, 'peers' => 18],
+            'events-fashion' => ['circles' => 1, 'peers' => 15],
+            'csr-ngos' => ['circles' => 1, 'peers' => 10],
+            'franchise-licensing' => ['circles' => 1, 'peers' => 14],
+            'sustainable-esg' => ['circles' => 1, 'peers' => 12],
+            'import-export' => ['circles' => 1, 'peers' => 16],
+            'startup-founders' => ['circles' => 2, 'peers' => 24],
+            'sme-ipo' => ['circles' => 1, 'peers' => 14],
+            'investors' => ['circles' => 1, 'peers' => 20],
+            'global-expansion' => ['circles' => 1, 'peers' => 11],
+            'msme-entrepreneurs' => ['circles' => 1, 'peers' => 17],
+            'family-business' => ['circles' => 1, 'peers' => 13],
+            'young-entrepreneurs' => ['circles' => 1, 'peers' => 19],
+            'leadership-transformation' => ['circles' => 1, 'peers' => 15],
             'agritech' => ['circles' => 2, 'peers' => 28],
             'agriculture-food' => ['circles' => 2, 'peers' => 28],
             'agriculture' => ['circles' => 2, 'peers' => 28],
@@ -286,6 +312,10 @@ class LeaderTeamsService
 
         $results = [];
 
+        foreach ($categories as $cat) {
+            $catId = (string) $cat->id;
+            $slug = (string) ($cat->slug ?: Str::slug($cat->name));
+            $categoryName = strtolower(trim((string) $cat->name));
         foreach ($industries as $industry) {
             $indId = (string) $industry->id;
             $slug = (string) ($industry->slug ?: Str::slug($industry->name));
@@ -300,10 +330,40 @@ class LeaderTeamsService
                 }
                 $tagsLower = array_map(fn ($t) => strtolower(trim((string) $t)), $tags);
 
-                if (in_array($indId, $tags, true) || in_array($slug, $tagsLower, true) || in_array($industryName, $tagsLower, true)) {
+            // Find circles associated with this circle category
+            $matchingCircles = $circles->filter(function (Circle $c) use ($catId, $categoryName, $slug): bool {
+                // 1. Check BelongsToMany categories relation
+                if ($c->relationLoaded('categories') && $c->categories->isNotEmpty()) {
+                    $hasMapping = $c->categories->contains(function ($item) use ($catId, $categoryName, $slug): bool {
+                        return (string) $item->id === $catId
+                            || strtolower((string) ($item->slug ?? '')) === $slug
+                            || strtolower((string) ($item->name ?? '')) === $categoryName;
+                    });
+                    if ($hasMapping) {
+                        return true;
+                    }
+                }
+
+                // 2. Check BelongsTo circleCategory relation
+                if ($c->circleCategory) {
+                    if ((string) $c->circleCategory->id === $catId
+                        || strtolower((string) ($c->circleCategory->slug ?? '')) === $slug
+                        || strtolower((string) ($c->circleCategory->name ?? '')) === $categoryName) {
+                        return true;
+                    }
+                }
+
+                // 3. Direct circle_category_id attribute
+                if (isset($c->circle_category_id) && (string) $c->circle_category_id === $catId) {
                     return true;
                 }
 
+                // 4. Check industry tags
+                $tags = is_array($c->industry_tags) ? $c->industry_tags : (is_string($c->industry_tags) ? json_decode($c->industry_tags, true) : []);
+                if (is_array($tags)) {
+                    $tagsLower = array_map(fn ($t) => strtolower(trim((string) $t)), $tags);
+                    if (in_array($catId, $tags, true) || in_array($slug, $tagsLower, true) || in_array($categoryName, $tagsLower, true)) {
+                        return true;
                 foreach ($tagsLower as $t) {
                     foreach ($keywords as $kw) {
                         if ($kw !== '' && str_contains($t, $kw)) {
@@ -312,8 +372,9 @@ class LeaderTeamsService
                     }
                 }
 
+                // 5. Circle name contains category keyword or slug
                 $circleNameLower = strtolower($c->name);
-                if (str_contains($circleNameLower, $industryName) || str_contains($circleNameLower, $slug)) {
+                if (str_contains($circleNameLower, $categoryName) || str_contains($circleNameLower, $slug)) {
                     return true;
                 }
 
@@ -329,6 +390,16 @@ class LeaderTeamsService
             $matchedCirclesCount = $matchingCircles->count();
             $matchedPeersCount = $matchingCircles->sum(fn (Circle $c) => $c->members ? $c->members->where('status', 'approved')->count() : 0);
 
+            if ($isOwnCircleOrScoped) {
+                $finalCirclesCount = $matchedCirclesCount;
+                $finalPeersCount = $matchedPeersCount;
+            } else {
+                $baseline = $baselineData[$slug] ?? ['circles' => 0, 'peers' => 0];
+                $finalCirclesCount = max($matchedCirclesCount, $baseline['circles']);
+                $finalPeersCount = max($matchedPeersCount, $baseline['peers']);
+            }
+
+            $iconUrl = ! empty($cat->icon_url) ? $cat->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
             // Baseline fallback
             $baseline = $baselineData[$slug] ?? null;
             if (! $baseline) {
@@ -353,17 +424,64 @@ class LeaderTeamsService
             $iconUrl = ! empty($industry->icon_url) ? $industry->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
 
             $results[] = [
-                'id' => $indId,
-                'name' => (string) $industry->name,
+                'id' => $catId,
+                'name' => (string) $cat->name,
                 'slug' => $slug,
                 'icon_url' => $iconUrl,
                 'circles_count' => $finalCirclesCount,
                 'peers_count' => $finalPeersCount,
-                'status' => ! empty($industry->is_active) ? 'Active' : 'Inactive',
+                'status' => ! empty($cat->is_active) ? 'Active' : 'Inactive',
             ];
         }
 
+        // If scoped user has circles but none matched standard 18 categories, synthesize from circle category
+        if ($isOwnCircleOrScoped && empty($results) && $circles->isNotEmpty()) {
+            foreach ($circles as $c) {
+                $cat = $this->resolveCircleCategory($c);
+                $peers = $c->members ? $c->members->where('status', 'approved')->count() : 0;
+                $slug = Str::slug($cat);
+                $results[] = [
+                    'id' => 'ind_circle_'.substr((string) $c->id, 0, 8),
+                    'name' => $cat,
+                    'slug' => $slug,
+                    'icon_url' => "https://api.peersunity.com/icons/{$slug}.png",
+                    'circles_count' => 1,
+                    'peers_count' => $peers,
+                    'status' => 'Active',
+                ];
+            }
+        }
+
         return $results;
+    }
+
+    /**
+     * Fallback list of official 18 Circle Categories.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getOfficialCircleCategories(): array
+    {
+        return [
+            ['id' => '1', 'name' => 'Manufacturing & Engineering Circles', 'slug' => 'manufacturing-engineering', 'sort_order' => 1, 'is_active' => true],
+            ['id' => '2', 'name' => 'Real Estate, Construction & Infrastructure', 'slug' => 'real-estate-construction-infrastructure', 'sort_order' => 2, 'is_active' => true],
+            ['id' => '3', 'name' => 'Technology, IT & Digital Services Circles', 'slug' => 'technology-it-digital', 'sort_order' => 3, 'is_active' => true],
+            ['id' => '4', 'name' => 'Healthcare, Wellness & Life Sciences Circles', 'slug' => 'healthcare-wellness', 'sort_order' => 4, 'is_active' => true],
+            ['id' => '5', 'name' => 'Education, Training & Skill Development Circles', 'slug' => 'education-training', 'sort_order' => 5, 'is_active' => true],
+            ['id' => '6', 'name' => 'Events, Fashion, Apparel & Lifestyle Circles', 'slug' => 'events-fashion', 'sort_order' => 6, 'is_active' => true],
+            ['id' => '7', 'name' => 'CSR, NGOs, Impact & Nation-Building Circle', 'slug' => 'csr-ngos', 'sort_order' => 7, 'is_active' => true],
+            ['id' => '18', 'name' => 'Franchise & Licensing Circles', 'slug' => 'franchise-licensing', 'sort_order' => 8, 'is_active' => true],
+            ['id' => '8', 'name' => 'Sustainable & ESG Business', 'slug' => 'sustainable-esg', 'sort_order' => 9, 'is_active' => true],
+            ['id' => '9', 'name' => 'Import, Export & Global Trade Circles', 'slug' => 'import-export', 'sort_order' => 10, 'is_active' => true],
+            ['id' => '10', 'name' => 'Startup Founders Circles', 'slug' => 'startup-founders', 'sort_order' => 11, 'is_active' => true],
+            ['id' => '11', 'name' => 'SME IPO Goal Circles', 'slug' => 'sme-ipo', 'sort_order' => 12, 'is_active' => true],
+            ['id' => '12', 'name' => 'Investors Circles', 'slug' => 'investors', 'sort_order' => 13, 'is_active' => true],
+            ['id' => '13', 'name' => 'Global Expansion (Cross-Border) Circle', 'slug' => 'global-expansion', 'sort_order' => 14, 'is_active' => true],
+            ['id' => '14', 'name' => 'MSME Entrepreneurs Circles', 'slug' => 'msme-entrepreneurs', 'sort_order' => 15, 'is_active' => true],
+            ['id' => '15', 'name' => 'Family Business Circles', 'slug' => 'family-business', 'sort_order' => 16, 'is_active' => true],
+            ['id' => '16', 'name' => 'Young Entrepreneurs (Below 35) Circles', 'slug' => 'young-entrepreneurs', 'sort_order' => 17, 'is_active' => true],
+            ['id' => '17', 'name' => 'Leadership & Transformation Circle', 'slug' => 'leadership-transformation', 'sort_order' => 18, 'is_active' => true],
+        ];
     }
 
     /**
@@ -781,15 +899,15 @@ class LeaderTeamsService
         }
 
         // 3. Check circle_category_mappings table directly
-        if ($circle->id) {
+        if (Schema::hasTable('circle_category_mappings') && Schema::hasTable('circle_categories')) {
             $mappedCat = DB::table('circle_category_mappings')
                 ->join('circle_categories', 'circle_category_mappings.category_id', '=', 'circle_categories.id')
                 ->where('circle_category_mappings.circle_id', $circle->id)
-                ->select('circle_categories.name', 'circle_categories.category_name')
+                ->select('circle_categories.name')
                 ->first();
 
             if ($mappedCat) {
-                $catName = trim((string) ($mappedCat->name ?? $mappedCat->category_name ?? ''));
+                $catName = trim((string) ($mappedCat->name ?? ''));
                 if ($catName !== '') {
                     return $catName;
                 }
@@ -826,7 +944,18 @@ class LeaderTeamsService
             $ind = trim($industry);
             $query->where(function (Builder $q) use ($ind): void {
                 $q->whereJsonContains('industry_tags', $ind)
-                    ->orWhere('name', 'like', "%{$ind}%");
+                    ->orWhere('name', 'like', "%{$ind}%")
+                    ->orWhereHas('categories', function (Builder $cq) use ($ind): void {
+                        $cq->where('circle_categories.name', 'like', "%{$ind}%")
+                            ->orWhere('circle_categories.slug', $ind);
+                        if (is_numeric($ind)) {
+                            $cq->orWhere('circle_categories.id', (int) $ind);
+                        }
+                    });
+
+                if (Schema::hasColumn('circles', 'circle_category_id')) {
+                    $q->orWhere('circle_category_id', $ind);
+                }
             });
         }
 

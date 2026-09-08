@@ -18,6 +18,7 @@ use App\Support\ScopeCascadeResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PermissionService
 {
@@ -36,13 +37,21 @@ class PermissionService
             return false;
         }
 
+        if (! Schema::hasTable('roles')) {
+            return false;
+        }
+
         $cacheKey = 'perm:super:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($roleIds): bool {
-            return DB::table('roles')
-                ->whereIn('id', $roleIds)
-                ->whereIn('key', ['global_admin', 'global_founder'])
-                ->exists();
+            try {
+                return DB::table('roles')
+                    ->whereIn('id', $roleIds)
+                    ->whereIn('key', ['global_admin', 'global_founder'])
+                    ->exists();
+            } catch (\Throwable) {
+                return false;
+            }
         });
     }
 
@@ -51,93 +60,97 @@ class PermissionService
      */
     public function canAccessRoute(AdminUser $admin, string $routeName): bool
     {
-        $roleIds = $this->adminRoleIds($admin);
+        try {
+            $roleIds = $this->adminRoleIds($admin);
 
-        if ($roleIds === []) {
-            return false;
-        }
+            if ($roleIds === []) {
+                return false;
+            }
 
-        // Global super roles get access to everything
-        if ($this->isSuperAdmin($admin)) {
+            // Global super roles get access to everything
+            if ($this->isSuperAdmin($admin)) {
+                return true;
+            }
+
+            // Check if dynamic RBAC data exists for these roles
+            if (! $this->hasDynamicRbacData($roleIds)) {
+                return true; // Fallback: no dynamic data means no restrictions yet
+            }
+
+            // Check direct page match first
+            $page = $this->pageByRoute($routeName);
+            if ($page) {
+                return $this->hasPageAccess($admin, $roleIds, $page);
+            }
+
+            // Check CRUD sub-routes mapping to specific page routes or parent section
+            if (str_contains($routeName, '.create') || str_contains($routeName, '.store')) {
+                $createRoute = preg_replace('/\.(create|store)$/', '.create', $routeName);
+                $createPage = $this->pageByRoute($createRoute);
+                if ($createPage) {
+                    return $this->hasPageAccess($admin, $roleIds, $createPage);
+                }
+
+                $parentIndex = preg_replace('/\.(create|store)$/', '.index', $routeName);
+
+                return $this->can($admin, $parentIndex, 'create');
+            }
+
+            if (str_contains($routeName, '.edit') || str_contains($routeName, '.update')) {
+                $editRoute = preg_replace('/\.(edit|update)$/', '.edit', $routeName);
+                $editPage = $this->pageByRoute($editRoute);
+                if ($editPage) {
+                    return $this->hasPageAccess($admin, $roleIds, $editPage);
+                }
+
+                $parentIndex = preg_replace('/\.(edit|update)$/', '.index', $routeName);
+
+                return $this->can($admin, $parentIndex, 'edit');
+            }
+
+            if (str_contains($routeName, '.import')) {
+                $importRoute = preg_replace('/\.import.*$/', '.import', $routeName);
+                $importPage = $this->pageByRoute($importRoute);
+                if ($importPage) {
+                    return $this->hasPageAccess($admin, $roleIds, $importPage);
+                }
+
+                $parentIndex = preg_replace('/\.import.*$/', '.index', $routeName);
+
+                return $this->can($admin, $parentIndex, 'import');
+            }
+
+            if (str_contains($routeName, '.export')) {
+                $exportRoute = preg_replace('/\.export.*$/', '.export.csv', $routeName);
+                $exportPage = $this->pageByRoute($exportRoute) ?? $this->pageByRoute(preg_replace('/\.export.*$/', '.export', $routeName));
+                if ($exportPage) {
+                    return $this->hasPageAccess($admin, $roleIds, $exportPage);
+                }
+
+                $parentIndex = preg_replace('/\.export.*$/', '.index', $routeName);
+
+                return $this->can($admin, $parentIndex, 'export');
+            }
+
+            if (str_contains($routeName, '.show')) {
+                $showRoute = preg_replace('/\.show$/', '.show', $routeName);
+                $showPage = $this->pageByRoute($showRoute);
+                if ($showPage) {
+                    return $this->hasPageAccess($admin, $roleIds, $showPage);
+                }
+
+                $parentIndex = preg_replace('/\.show$/', '.index', $routeName);
+
+                return $this->can($admin, $parentIndex, 'view');
+            }
+
+            if (str_contains($routeName, '.destroy') || str_contains($routeName, '.delete')) {
+                $parentIndex = preg_replace('/\.(destroy|delete)$/', '.index', $routeName);
+
+                return $this->can($admin, $parentIndex, 'delete');
+            }
+        } catch (\Throwable) {
             return true;
-        }
-
-        // Check if dynamic RBAC data exists for these roles
-        if (! $this->hasDynamicRbacData($roleIds)) {
-            return true; // Fallback: no dynamic data means no restrictions yet
-        }
-
-        // Check direct page match first
-        $page = $this->pageByRoute($routeName);
-        if ($page) {
-            return $this->hasPageAccess($admin, $roleIds, $page);
-        }
-
-        // Check CRUD sub-routes mapping to specific page routes or parent section
-        if (str_contains($routeName, '.create') || str_contains($routeName, '.store')) {
-            $createRoute = preg_replace('/\.(create|store)$/', '.create', $routeName);
-            $createPage = $this->pageByRoute($createRoute);
-            if ($createPage) {
-                return $this->hasPageAccess($admin, $roleIds, $createPage);
-            }
-
-            $parentIndex = preg_replace('/\.(create|store)$/', '.index', $routeName);
-
-            return $this->can($admin, $parentIndex, 'create');
-        }
-
-        if (str_contains($routeName, '.edit') || str_contains($routeName, '.update')) {
-            $editRoute = preg_replace('/\.(edit|update)$/', '.edit', $routeName);
-            $editPage = $this->pageByRoute($editRoute);
-            if ($editPage) {
-                return $this->hasPageAccess($admin, $roleIds, $editPage);
-            }
-
-            $parentIndex = preg_replace('/\.(edit|update)$/', '.index', $routeName);
-
-            return $this->can($admin, $parentIndex, 'edit');
-        }
-
-        if (str_contains($routeName, '.import')) {
-            $importRoute = preg_replace('/\.import.*$/', '.import', $routeName);
-            $importPage = $this->pageByRoute($importRoute);
-            if ($importPage) {
-                return $this->hasPageAccess($admin, $roleIds, $importPage);
-            }
-
-            $parentIndex = preg_replace('/\.import.*$/', '.index', $routeName);
-
-            return $this->can($admin, $parentIndex, 'import');
-        }
-
-        if (str_contains($routeName, '.export')) {
-            $exportRoute = preg_replace('/\.export.*$/', '.export.csv', $routeName);
-            $exportPage = $this->pageByRoute($exportRoute) ?? $this->pageByRoute(preg_replace('/\.export.*$/', '.export', $routeName));
-            if ($exportPage) {
-                return $this->hasPageAccess($admin, $roleIds, $exportPage);
-            }
-
-            $parentIndex = preg_replace('/\.export.*$/', '.index', $routeName);
-
-            return $this->can($admin, $parentIndex, 'export');
-        }
-
-        if (str_contains($routeName, '.show')) {
-            $showRoute = preg_replace('/\.show$/', '.show', $routeName);
-            $showPage = $this->pageByRoute($showRoute);
-            if ($showPage) {
-                return $this->hasPageAccess($admin, $roleIds, $showPage);
-            }
-
-            $parentIndex = preg_replace('/\.show$/', '.index', $routeName);
-
-            return $this->can($admin, $parentIndex, 'view');
-        }
-
-        if (str_contains($routeName, '.destroy') || str_contains($routeName, '.delete')) {
-            $parentIndex = preg_replace('/\.(destroy|delete)$/', '.index', $routeName);
-
-            return $this->can($admin, $parentIndex, 'delete');
         }
 
         return true;
@@ -148,40 +161,52 @@ class PermissionService
      */
     public function hasPageAccess(AdminUser $admin, array $roleIds, AdminPage $page): bool
     {
-        // Check via role_page_permissions (direct)
-        $hasDirectAccess = RolePagePermission::query()
-            ->whereIn('role_id', $roleIds)
-            ->where('page_id', $page->id)
-            ->exists();
+        try {
+            // Check via role_page_permissions (direct)
+            if (Schema::hasTable('role_page_permissions')) {
+                $hasDirectAccess = RolePagePermission::query()
+                    ->whereIn('role_id', $roleIds)
+                    ->where('page_id', $page->id)
+                    ->exists();
 
-        if ($hasDirectAccess) {
-            return true;
-        }
+                if ($hasDirectAccess) {
+                    return true;
+                }
+            }
 
-        // Check via role_page_groups (group-based)
-        $accessiblePageIds = $this->accessiblePageIdsViaGroups($roleIds);
+            // Check via role_page_groups (group-based)
+            $accessiblePageIds = $this->accessiblePageIdsViaGroups($roleIds);
 
-        if (in_array($page->id, $accessiblePageIds, true)) {
-            return true;
-        }
-
-        // If parent module is marked visible and has no page-level restriction defined, allow route access
-        $isModuleVisible = RoleModuleAccess::query()
-            ->whereIn('role_id', $roleIds)
-            ->where('module_id', $page->module_id)
-            ->where('is_visible', true)
-            ->exists();
-
-        if ($isModuleVisible) {
-            $hasModulePagePermissions = RolePagePermission::query()
-                ->join('admin_pages', 'admin_pages.id', '=', 'role_page_permissions.page_id')
-                ->whereIn('role_page_permissions.role_id', $roleIds)
-                ->where('admin_pages.module_id', $page->module_id)
-                ->exists();
-
-            if (! $hasModulePagePermissions) {
+            if (in_array($page->id, $accessiblePageIds, true)) {
                 return true;
             }
+
+            // If parent module is marked visible and has no page-level restriction defined, allow route access
+            if (Schema::hasTable('role_module_access')) {
+                $isModuleVisible = RoleModuleAccess::query()
+                    ->whereIn('role_id', $roleIds)
+                    ->where('module_id', $page->module_id)
+                    ->where('is_visible', true)
+                    ->exists();
+
+                if ($isModuleVisible) {
+                    if (Schema::hasTable('role_page_permissions')) {
+                        $hasModulePagePermissions = RolePagePermission::query()
+                            ->join('admin_pages', 'admin_pages.id', '=', 'role_page_permissions.page_id')
+                            ->whereIn('role_page_permissions.role_id', $roleIds)
+                            ->where('admin_pages.module_id', $page->module_id)
+                            ->exists();
+
+                        if (! $hasModulePagePermissions) {
+                            return true;
+                        }
+                    } else {
+                        return true;
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            return true;
         }
 
         return false;
@@ -192,69 +217,77 @@ class PermissionService
      */
     public function can(AdminUser $admin, string $routeName, string $permissionKey): bool
     {
-        $roleIds = $this->adminRoleIds($admin);
+        try {
+            $roleIds = $this->adminRoleIds($admin);
 
-        if ($roleIds === []) {
-            return false;
-        }
+            if ($roleIds === []) {
+                return false;
+            }
 
-        if ($this->isSuperAdmin($admin)) {
-            return true;
-        }
+            if ($this->isSuperAdmin($admin)) {
+                return true;
+            }
 
-        if (! $this->hasDynamicRbacData($roleIds)) {
-            return $this->legacyPermissionCheck($admin, $permissionKey);
-        }
+            if (! $this->hasDynamicRbacData($roleIds)) {
+                return $this->legacyPermissionCheck($admin, $permissionKey);
+            }
 
-        // Action route mapping for index routes
-        $actionRouteMap = [
-            'create' => ['.index' => '.create'],
-            'edit' => ['.index' => '.edit'],
-            'import' => ['.index' => '.import'],
-            'export' => ['.index' => '.export.csv'],
-            'show' => ['.index' => '.show'],
-        ];
+            // Action route mapping for index routes
+            $actionRouteMap = [
+                'create' => ['.index' => '.create'],
+                'edit' => ['.index' => '.edit'],
+                'import' => ['.index' => '.import'],
+                'export' => ['.index' => '.export.csv'],
+                'show' => ['.index' => '.show'],
+            ];
 
-        if (isset($actionRouteMap[$permissionKey])) {
-            foreach ($actionRouteMap[$permissionKey] as $suffix => $targetSuffix) {
-                if (str_ends_with($routeName, $suffix)) {
-                    $targetRoute = preg_replace('/'.preg_quote($suffix, '/').'$/', $targetSuffix, $routeName);
-                    $targetPage = $this->pageByRoute($targetRoute);
-                    if ($targetPage) {
-                        return $this->hasPageAccess($admin, $roleIds, $targetPage);
+            if (isset($actionRouteMap[$permissionKey])) {
+                foreach ($actionRouteMap[$permissionKey] as $suffix => $targetSuffix) {
+                    if (str_ends_with($routeName, $suffix)) {
+                        $targetRoute = preg_replace('/'.preg_quote($suffix, '/').'$/', $targetSuffix, $routeName);
+                        $targetPage = $this->pageByRoute($targetRoute);
+                        if ($targetPage) {
+                            return $this->hasPageAccess($admin, $roleIds, $targetPage);
+                        }
                     }
                 }
             }
-        }
 
-        $page = $this->pageByRoute($routeName);
+            $page = $this->pageByRoute($routeName);
 
-        if (! $page) {
-            $parentIndex = preg_replace('/\.(edit|update|create|store|show|destroy)$/', '.index', $routeName);
-            if ($parentIndex !== $routeName) {
-                $page = $this->pageByRoute($parentIndex);
+            if (! $page) {
+                $parentIndex = preg_replace('/\.(edit|update|create|store|show|destroy)$/', '.index', $routeName);
+                if ($parentIndex !== $routeName) {
+                    $page = $this->pageByRoute($parentIndex);
+                }
             }
-        }
 
-        if (! $page) {
+            if (! $page) {
+                return true;
+            }
+
+            if ($this->hasPageAccess($admin, $roleIds, $page)) {
+                return true;
+            }
+
+            if (! Schema::hasTable('permissions') || ! Schema::hasTable('role_page_permissions')) {
+                return true;
+            }
+
+            $permissionId = Permission::idByKey($permissionKey);
+
+            if (! $permissionId) {
+                return false;
+            }
+
+            return RolePagePermission::query()
+                ->whereIn('role_id', $roleIds)
+                ->where('page_id', $page->id)
+                ->where('permission_id', $permissionId)
+                ->exists();
+        } catch (\Throwable) {
             return true;
         }
-
-        if ($this->hasPageAccess($admin, $roleIds, $page)) {
-            return true;
-        }
-
-        $permissionId = Permission::idByKey($permissionKey);
-
-        if (! $permissionId) {
-            return false;
-        }
-
-        return RolePagePermission::query()
-            ->whereIn('role_id', $roleIds)
-            ->where('page_id', $page->id)
-            ->where('permission_id', $permissionId)
-            ->exists();
     }
 
     // ── Sidebar / Modules ───────────────────────────────────────
@@ -269,7 +302,7 @@ class PermissionService
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): Collection {
             $roleIds = $this->adminRoleIds($admin);
 
-            if ($roleIds === []) {
+            if ($roleIds === [] || ! Schema::hasTable('role_module_access') || ! Schema::hasTable('admin_modules')) {
                 return collect();
             }
 
@@ -498,44 +531,49 @@ class PermissionService
         $cacheKey = 'perm:scope:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): DataScopeResult {
-            $roleIds = $this->adminRoleIds($admin);
+            try {
+                $roleIds = $this->adminRoleIds($admin);
 
-            if ($roleIds === []) {
-                return DataScopeResult::circle([]);
-            }
+                if ($roleIds === []) {
+                    return DataScopeResult::circle([]);
+                }
 
-            if ($this->hasGlobalScope($admin, $roleIds)) {
-                return DataScopeResult::global();
-            }
+                if ($this->hasGlobalScope($admin, $roleIds)) {
+                    return DataScopeResult::global();
+                }
 
-            // Check role_data_scope for user-specific scope first, then role-based
-            $scopes = RoleDataScope::query()
-                ->where(function ($q) use ($admin, $roleIds): void {
-                    $q->where('admin_user_id', $admin->id)
-                        ->orWhereIn('role_id', $roleIds);
-                })
-                ->orderByRaw('CASE WHEN admin_user_id IS NOT NULL THEN 0 ELSE 1 END')
-                ->get();
+                // Check role_data_scope for user-specific scope first, then role-based
+                if (Schema::hasTable('role_data_scope')) {
+                    $scopes = RoleDataScope::query()
+                        ->where(function ($q) use ($admin, $roleIds): void {
+                            $q->where('admin_user_id', $admin->id)
+                                ->orWhereIn('role_id', $roleIds);
+                        })
+                        ->orderByRaw('CASE WHEN admin_user_id IS NOT NULL THEN 0 ELSE 1 END')
+                        ->get();
 
-            if ($scopes->isEmpty()) {
+                    if ($scopes->isNotEmpty()) {
+                        $primaryScope = $scopes->first();
+
+                        return match ($primaryScope->scope_type) {
+                            'global' => DataScopeResult::global(),
+                            'circle' => DataScopeResult::circle(
+                                $scopes->where('scope_type', 'circle')->pluck('scope_id')->filter()->values()->all()
+                            ),
+                            'district' => $this->resolveDistrictScope($scopes),
+                            'industry' => $this->resolveIndustryScope($scopes),
+                            default => DataScopeResult::circle([]),
+                        };
+                    }
+                }
+
                 // Fallback to legacy ScopeCascadeResolver
                 $circleIds = ScopeCascadeResolver::resolveDataWindow($admin->id);
 
                 return DataScopeResult::circle($circleIds);
+            } catch (\Throwable) {
+                return DataScopeResult::circle([]);
             }
-
-            // Use the first matching scope (user-specific takes priority)
-            $primaryScope = $scopes->first();
-
-            return match ($primaryScope->scope_type) {
-                'global' => DataScopeResult::global(),
-                'circle' => DataScopeResult::circle(
-                    $scopes->where('scope_type', 'circle')->pluck('scope_id')->filter()->values()->all()
-                ),
-                'district' => $this->resolveDistrictScope($scopes),
-                'industry' => $this->resolveIndustryScope($scopes),
-                default => DataScopeResult::circle([]),
-            };
         });
     }
 
@@ -583,13 +621,21 @@ class PermissionService
      */
     public function invalidateCacheForRole(string $roleId): void
     {
-        $userIds = DB::table('admin_user_roles')
-            ->where('role_id', $roleId)
-            ->pluck('user_id')
-            ->all();
+        if (! Schema::hasTable('admin_user_roles')) {
+            return;
+        }
 
-        foreach ($userIds as $userId) {
-            $this->invalidateCache($userId);
+        try {
+            $userIds = DB::table('admin_user_roles')
+                ->where('role_id', $roleId)
+                ->pluck('user_id')
+                ->all();
+
+            foreach ($userIds as $userId) {
+                $this->invalidateCache($userId);
+            }
+        } catch (\Throwable) {
+            // ignore
         }
     }
 
@@ -600,10 +646,17 @@ class PermissionService
         $cacheKey = 'perm:roles:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): array {
-            return DB::table('admin_user_roles')
-                ->where('user_id', $admin->id)
-                ->pluck('role_id')
-                ->all();
+            if (! Schema::hasTable('admin_user_roles')) {
+                return [];
+            }
+            try {
+                return DB::table('admin_user_roles')
+                    ->where('user_id', $admin->id)
+                    ->pluck('role_id')
+                    ->all();
+            } catch (\Throwable) {
+                return [];
+            }
         });
     }
 
@@ -612,51 +665,86 @@ class PermissionService
         $cacheKey = 'perm:global:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($roleIds): bool {
-            // Check if any role is a known super role
-            $superKeys = DB::table('roles')
-                ->whereIn('id', $roleIds)
-                ->whereIn('key', ['global_admin', 'global_founder'])
-                ->exists();
+            try {
+                // Check if any role is a known super role
+                $superKeys = false;
+                if (Schema::hasTable('roles')) {
+                    $superKeys = DB::table('roles')
+                        ->whereIn('id', $roleIds)
+                        ->whereIn('key', ['global_admin', 'global_founder'])
+                        ->exists();
+                }
 
-            if ($superKeys) {
-                return true;
+                if ($superKeys) {
+                    return true;
+                }
+
+                // Check role_data_scope for global scope type
+                if (Schema::hasTable('role_data_scope')) {
+                    return RoleDataScope::query()
+                        ->whereIn('role_id', $roleIds)
+                        ->where('scope_type', 'global')
+                        ->exists();
+                }
+            } catch (\Throwable) {
+                return false;
             }
 
-            // Check role_data_scope for global scope type
-            return RoleDataScope::query()
-                ->whereIn('role_id', $roleIds)
-                ->where('scope_type', 'global')
-                ->exists();
+            return false;
         });
     }
 
     private function hasDynamicRbacData(array $roleIds): bool
     {
-        return RoleModuleAccess::query()
-            ->whereIn('role_id', $roleIds)
-            ->exists();
+        if (! Schema::hasTable('role_module_access')) {
+            return false;
+        }
+
+        try {
+            return RoleModuleAccess::query()
+                ->whereIn('role_id', $roleIds)
+                ->exists();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function pageByRoute(string $routeName): ?AdminPage
     {
+        if (! Schema::hasTable('admin_pages')) {
+            return null;
+        }
+
         return Cache::remember('perm:page:'.$routeName, self::CACHE_TTL, function () use ($routeName): ?AdminPage {
-            return AdminPage::query()
-                ->where('route_name', $routeName)
-                ->where('is_active', true)
-                ->first();
+            try {
+                return AdminPage::query()
+                    ->where('route_name', $routeName)
+                    ->where('is_active', true)
+                    ->first();
+            } catch (\Throwable) {
+                return null;
+            }
         });
     }
 
     private function accessiblePageIdsViaGroups(array $roleIds): array
     {
-        return DB::table('role_page_groups')
-            ->join('page_group_items', 'page_group_items.page_group_id', '=', 'role_page_groups.page_group_id')
-            ->join('page_groups', 'page_groups.id', '=', 'role_page_groups.page_group_id')
-            ->whereIn('role_page_groups.role_id', $roleIds)
-            ->where('page_groups.is_active', true)
-            ->pluck('page_group_items.page_id')
-            ->unique()
-            ->all();
+        if (! Schema::hasTable('role_page_groups') || ! Schema::hasTable('page_group_items') || ! Schema::hasTable('page_groups')) {
+            return [];
+        }
+
+        try {
+            return DB::table('role_page_groups')
+                ->join('page_group_items', 'page_group_items.page_group_id', '=', 'role_page_groups.page_group_id')
+                ->join('page_groups', 'page_groups.id', '=', 'role_page_groups.page_group_id')
+                ->whereIn('role_page_groups.role_id', $roleIds)
+                ->where('page_groups.is_active', true)
+                ->pluck('page_group_items.page_id')
+                ->unique()
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     private function resolveDistrictScope(Collection $scopes): DataScopeResult

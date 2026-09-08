@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationDeliveryLog;
+use App\Models\NotificationTemplate;
 use App\Models\Post;
 use App\Models\User;
 use App\Models\UserPushToken;
@@ -105,70 +106,163 @@ class AppNotificationAdminController extends Controller
      */
     public function index(Request $request): View
     {
-        $search = $request->string('search')->toString();
-        $category = $request->string('category')->toString();
+        try {
+            $search = $request->string('search')->toString();
+            $category = $request->string('category')->toString();
 
-        $notifications = $this->catalogService->getAll($search ?: null, $category ?: null);
-        $categories = $this->catalogService->getCategories();
-        $navigationScreens = $this->catalogService->getNavigationScreens();
+            $notifications = $this->catalogService->getAll($search ?: null, $category ?: null);
+            $categories = $this->catalogService->getCategories();
+            $navigationScreens = $this->catalogService->getNavigationScreens();
 
-        // Calculate dashboard overview statistics
-        $hasAppNotifications = Schema::hasTable('app_notifications');
-        $hasPushTokens = Schema::hasTable('user_push_tokens');
-        $hasDeliveryLogs = Schema::hasTable('notification_delivery_logs');
+            // Calculate dashboard overview statistics defensively
+            $hasAppNotifications = Schema::hasTable('app_notifications');
+            $hasPushTokens = Schema::hasTable('user_push_tokens');
+            $hasDeliveryLogs = Schema::hasTable('notification_delivery_logs');
 
-        $userIdColumn = UserPushToken::getUserIdColumn();
-        $pushReadyPeersCount = $hasPushTokens
-            ? DB::table('user_push_tokens')
-                ->where('is_active', true)
-                ->whereNotNull('token')
-                ->distinct($userIdColumn)
-                ->count($userIdColumn)
-            : 0;
+            $pushReadyPeersCount = 0;
+            if ($hasPushTokens) {
+                try {
+                    $userIdColumn = UserPushToken::getUserIdColumn();
+                    $pushQuery = DB::table('user_push_tokens')
+                        ->whereNotNull('token')
+                        ->where('token', '!=', '');
 
-        $stats = [
-            'total_catalog_items' => $notifications->count(),
-            'total_registered_types' => count($this->catalogService->getAll()),
-            'total_navigation_screens' => count($navigationScreens),
-            'push_ready_peers' => $pushReadyPeersCount,
-            'today_sent' => $hasAppNotifications
-                ? AppNotification::whereDate('created_at', today())->count()
-                : 0,
-            'today_delivered' => $hasDeliveryLogs
-                ? NotificationDeliveryLog::where('channel', 'push')
-                    ->where('status', 'sent')
-                    ->whereDate('created_at', today())
-                    ->count()
-                : 0,
-        ];
+                    if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                        $pushQuery->whereNull('deleted_at');
+                    }
+                    if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                        $pushQuery->where('is_active', true);
+                    } elseif (Schema::hasColumn('user_push_tokens', 'status')) {
+                        $pushQuery->where('status', 'active');
+                    } elseif (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                        $pushQuery->where('token_status', 'active');
+                    }
 
-        // Fetch recent delivery logs
-        $recentLogs = $hasDeliveryLogs
-            ? NotificationDeliveryLog::with(['user', 'notification'])
-                ->where('channel', 'push')
-                ->latest()
-                ->limit(15)
-                ->get()
-            : collect();
+                    $pushReadyPeersCount = $pushQuery->distinct($userIdColumn)->count($userIdColumn);
+                } catch (Throwable $e) {
+                    Log::warning('AppNotificationAdminController push count error: '.$e->getMessage());
+                    $pushReadyPeersCount = 0;
+                }
+            }
 
-        // Preload all peers for quick dropdown selection
-        $initialPeers = User::query()
-            ->latest()
-            ->limit(500)
-            ->get()
-            ->map(fn (User $user) => $this->formatPeerData($user))
-            ->values();
+            $todaySent = 0;
+            if ($hasAppNotifications) {
+                try {
+                    $todaySent = AppNotification::whereDate('created_at', today())->count();
+                } catch (Throwable) {
+                    $todaySent = 0;
+                }
+            }
 
-        return view('admin.app-notifications.index', compact(
-            'notifications',
-            'categories',
-            'navigationScreens',
-            'stats',
-            'recentLogs',
-            'initialPeers',
-            'search',
-            'category'
-        ));
+            $todayDelivered = 0;
+            if ($hasDeliveryLogs) {
+                try {
+                    $todayDelivered = NotificationDeliveryLog::where('channel', 'push')
+                        ->where('status', 'sent')
+                        ->whereDate('created_at', today())
+                        ->count();
+                } catch (Throwable) {
+                    $todayDelivered = 0;
+                }
+            }
+
+            $stats = [
+                'total_catalog_items' => $notifications->count(),
+                'total_registered_types' => count($this->catalogService->getAll()),
+                'total_navigation_screens' => count($navigationScreens),
+                'push_ready_peers' => $pushReadyPeersCount,
+                'today_sent' => $todaySent,
+                'today_delivered' => $todayDelivered,
+            ];
+
+            // Fetch recent delivery logs defensively
+            $recentLogs = collect();
+            if ($hasDeliveryLogs) {
+                try {
+                    $recentLogs = NotificationDeliveryLog::with(['user', 'notification'])
+                        ->where('channel', 'push')
+                        ->latest()
+                        ->limit(15)
+                        ->get();
+                } catch (Throwable $e) {
+                    Log::warning('AppNotificationAdminController delivery logs error: '.$e->getMessage());
+                    $recentLogs = collect();
+                }
+            }
+
+            // Preload initial peers batching queries to prevent N+1 performance bottlenecks
+            $initialUsers = collect();
+            try {
+                $initialUsers = User::query()
+                    ->latest()
+                    ->limit(100)
+                    ->get();
+            } catch (Throwable $e) {
+                Log::warning('AppNotificationAdminController initialUsers query error: '.$e->getMessage());
+                try {
+                    $initialUsers = User::query()->limit(100)->get();
+                } catch (Throwable) {
+                    $initialUsers = collect();
+                }
+            }
+
+            $userIds = $initialUsers->pluck('id')->filter()->all();
+            $tokensByUser = $this->batchFetchTokensCount($userIds);
+            $circlesByUser = $this->batchFetchCircleNames($userIds);
+
+            $initialPeers = $initialUsers->map(function (User $user) use ($tokensByUser, $circlesByUser) {
+                try {
+                    $tokensCount = $tokensByUser[$user->id] ?? null;
+                    $circle = $circlesByUser[$user->id] ?? null;
+
+                    return $this->formatPeerData($user, $tokensCount, $circle);
+                } catch (Throwable) {
+                    return [
+                        'id' => (string) $user->id,
+                        'name' => (string) ($user->name ?? $user->email ?? 'Peer'),
+                        'email' => (string) ($user->email ?? ''),
+                        'phone' => '',
+                        'avatar' => null,
+                        'circle' => 'General',
+                        'push_ready' => false,
+                        'tokens_count' => 0,
+                    ];
+                }
+            })->values();
+
+            return view('admin.app-notifications.index', compact(
+                'notifications',
+                'categories',
+                'navigationScreens',
+                'stats',
+                'recentLogs',
+                'initialPeers',
+                'search',
+                'category'
+            ));
+        } catch (Throwable $e) {
+            Log::error('AppNotificationAdminController index error: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return view('admin.app-notifications.index', [
+                'notifications' => $this->catalogService->getAll(),
+                'categories' => $this->catalogService->getCategories(),
+                'navigationScreens' => $this->catalogService->getNavigationScreens(),
+                'stats' => [
+                    'total_catalog_items' => 0,
+                    'total_registered_types' => 0,
+                    'total_navigation_screens' => 0,
+                    'push_ready_peers' => 0,
+                    'today_sent' => 0,
+                    'today_delivered' => 0,
+                ],
+                'recentLogs' => collect(),
+                'initialPeers' => collect(),
+                'search' => '',
+                'category' => '',
+            ]);
+        }
     }
 
     /**
@@ -215,8 +309,22 @@ class AppNotificationAdminController extends Controller
                     $q->orWhere('id', $queryStr);
                 }
 
-                if (Schema::hasTable('circles') && Schema::hasTable('circle_members') && method_exists(User::class, 'circles')) {
-                    $q->orWhereHas('circles', fn (Builder $c) => $c->where('name', $like, $needle));
+                if (Schema::hasTable('circles') && Schema::hasTable('circle_members')) {
+                    try {
+                        $circleUserIds = DB::table('circle_members')
+                            ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                            ->where('circles.name', $like, $needle)
+                            ->whereNull('circle_members.deleted_at')
+                            ->whereNull('circles.deleted_at')
+                            ->pluck('circle_members.user_id')
+                            ->all();
+
+                        if (! empty($circleUserIds)) {
+                            $q->orWhereIn('id', $circleUserIds);
+                        }
+                    } catch (Throwable) {
+                        // ignore
+                    }
                 }
             });
         }
@@ -224,7 +332,16 @@ class AppNotificationAdminController extends Controller
         $total = (clone $query)->count();
         $users = $query->latest()->forPage($page, $perPage)->get();
 
-        $results = $users->map(fn (User $user) => $this->formatPeerData($user))->values();
+        $userIds = $users->pluck('id')->all();
+        $tokensByUser = $this->batchFetchTokensCount($userIds);
+        $circlesByUser = $this->batchFetchCircleNames($userIds);
+
+        $results = $users->map(function (User $user) use ($tokensByUser, $circlesByUser) {
+            $tokensCount = $tokensByUser[$user->id] ?? null;
+            $circle = $circlesByUser[$user->id] ?? null;
+
+            return $this->formatPeerData($user, $tokensCount, $circle);
+        })->values();
 
         return response()->json([
             'results' => $results,
@@ -239,9 +356,7 @@ class AppNotificationAdminController extends Controller
      */
     public function peerDetails(string $id): JsonResponse
     {
-        $user = (Schema::hasTable('circles') && Schema::hasTable('circle_members'))
-            ? User::with('circles')->find($id)
-            : User::find($id);
+        $user = User::find($id);
 
         if (! $user) {
             return response()->json(['success' => false, 'message' => 'Peer not found.'], 404);
@@ -609,25 +724,139 @@ class AppNotificationAdminController extends Controller
     }
 
     /**
+     * Batch fetch active tokens counts for an array of user IDs.
+     *
+     * @param  array<string>  $userIds
+     * @return array<string, int>
+     */
+    private function batchFetchTokensCount(array $userIds): array
+    {
+        if (empty($userIds) || ! Schema::hasTable('user_push_tokens')) {
+            return [];
+        }
+
+        try {
+            $userIdCol = UserPushToken::getUserIdColumn();
+            $tokenQuery = DB::table('user_push_tokens')
+                ->select($userIdCol, DB::raw('count(*) as aggregate'))
+                ->whereIn($userIdCol, $userIds)
+                ->whereNotNull('token')
+                ->where('token', '!=', '');
+
+            if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                $tokenQuery->whereNull('deleted_at');
+            }
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $tokenQuery->where('is_active', true);
+            } elseif (Schema::hasColumn('user_push_tokens', 'status')) {
+                $tokenQuery->where('status', 'active');
+            } elseif (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                $tokenQuery->where('token_status', 'active');
+            }
+
+            return $tokenQuery->groupBy($userIdCol)->pluck('aggregate', $userIdCol)->all();
+        } catch (Throwable $e) {
+            Log::warning('batchFetchTokensCount failed: '.$e->getMessage());
+
+            return [];
+        }
+    }
+
+    /**
+     * Batch fetch primary circle names for an array of user IDs.
+     *
+     * @param  array<string>  $userIds
+     * @return array<string, string>
+     */
+    private function batchFetchCircleNames(array $userIds): array
+    {
+        if (empty($userIds) || ! Schema::hasTable('circles') || ! Schema::hasTable('circle_members')) {
+            return [];
+        }
+
+        try {
+            $rows = DB::table('circle_members')
+                ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                ->whereIn('circle_members.user_id', $userIds)
+                ->whereNull('circle_members.deleted_at')
+                ->whereNull('circles.deleted_at')
+                ->select('circle_members.user_id', 'circles.name')
+                ->get();
+
+            $result = [];
+            foreach ($rows as $row) {
+                if (! isset($result[$row->user_id])) {
+                    $result[$row->user_id] = (string) $row->name;
+                }
+            }
+
+            return $result;
+        } catch (Throwable $e) {
+            Log::warning('batchFetchCircleNames failed: '.$e->getMessage());
+
+            return [];
+        }
+    }
+
+    /**
      * Helper to format peer data consistently.
      *
      * @return array<string, mixed>
      */
-    private function formatPeerData(User $user): array
+    private function formatPeerData(User $user, ?int $knownTokensCount = null, ?string $knownCircle = null): array
     {
         $displayName = $this->getUserDisplayName($user);
         $phone = (string) ($user->phone ?? $user->mobile ?? '');
-        $circle = (Schema::hasTable('circles') && Schema::hasTable('circle_members') && method_exists($user, 'circles'))
-            ? ($user->circles()->first()?->name ?? 'General')
-            : 'General';
 
-        $tokensCount = 0;
-        if (Schema::hasTable('user_push_tokens')) {
-            $userIdCol = UserPushToken::getUserIdColumn();
-            $tokensCount = UserPushToken::where($userIdCol, $user->id)
-                ->where('is_active', true)
-                ->whereNotNull('token')
-                ->count();
+        $circle = $knownCircle;
+        if ($circle === null) {
+            $circle = 'General';
+            if (Schema::hasTable('circles') && Schema::hasTable('circle_members')) {
+                try {
+                    $circleMember = DB::table('circle_members')
+                        ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                        ->where('circle_members.user_id', $user->id)
+                        ->whereNull('circle_members.deleted_at')
+                        ->whereNull('circles.deleted_at')
+                        ->select('circles.name')
+                        ->first();
+
+                    if ($circleMember && filled($circleMember->name)) {
+                        $circle = (string) $circleMember->name;
+                    }
+                } catch (Throwable) {
+                    $circle = 'General';
+                }
+            }
+        }
+
+        $tokensCount = $knownTokensCount;
+        if ($tokensCount === null) {
+            $tokensCount = 0;
+            if (Schema::hasTable('user_push_tokens')) {
+                try {
+                    $userIdCol = UserPushToken::getUserIdColumn();
+                    $tokenQuery = DB::table('user_push_tokens')
+                        ->where($userIdCol, $user->id)
+                        ->whereNotNull('token')
+                        ->where('token', '!=', '');
+
+                    if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                        $tokenQuery->whereNull('deleted_at');
+                    }
+                    if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                        $tokenQuery->where('is_active', true);
+                    } elseif (Schema::hasColumn('user_push_tokens', 'status')) {
+                        $tokenQuery->where('status', 'active');
+                    } elseif (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                        $tokenQuery->where('token_status', 'active');
+                    }
+
+                    $tokensCount = $tokenQuery->count();
+                } catch (Throwable) {
+                    $tokensCount = 0;
+                }
+            }
         }
 
         if ($tokensCount === 0 && (filled($user->android_fcm_token) || filled($user->ios_fcm_token))) {

@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace App\Services\Users;
 
 use App\Models\User;
+use App\Services\Creative\IntroductionCreativeService;
+use App\Services\Notifications\MilestoneCatalystWhatsappService;
+use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use Throwable;
 
 class IntroducedPeerService
 {
@@ -15,12 +20,24 @@ class IntroducedPeerService
 
     protected PeerIntroductionService $peerIntroductionService;
 
+    protected MilestoneConnectorWhatsappService $connectorWhatsappService;
+
+    protected IntroductionCreativeService $introductionCreativeService;
+
+    protected MilestoneCatalystWhatsappService $catalystWhatsappService;
+
     public function __construct(
         UserMilestoneSyncService $milestoneSyncService,
-        PeerIntroductionService $peerIntroductionService
+        PeerIntroductionService $peerIntroductionService,
+        MilestoneConnectorWhatsappService $connectorWhatsappService,
+        IntroductionCreativeService $introductionCreativeService,
+        MilestoneCatalystWhatsappService $catalystWhatsappService
     ) {
         $this->milestoneSyncService = $milestoneSyncService;
         $this->peerIntroductionService = $peerIntroductionService;
+        $this->connectorWhatsappService = $connectorWhatsappService;
+        $this->introductionCreativeService = $introductionCreativeService;
+        $this->catalystWhatsappService = $catalystWhatsappService;
     }
 
     /**
@@ -41,41 +58,94 @@ class IntroducedPeerService
      *
      * @param  User  $user  The authenticated user who is introducing.
      * @param  string  $peerId  The ID of the peer being introduced.
+     * @param  string|null  $introductionRequestId  Optional introduction request ID.
      * @return User The introduced user.
      *
      * @throws InvalidArgumentException
      */
-    public function introducePeer(User $user, string $peerId): User
+    public function introducePeer(User $user, string $peerId, ?string $introductionRequestId = null): User
     {
         if ($user->id === $peerId) {
             throw new InvalidArgumentException('You cannot introduce yourself.');
         }
 
-        $introducedUser = User::findOrFail($peerId);
+        $count = 0;
+        $isNewIntroduction = false;
 
-        if ($introducedUser->introduced_by === $user->id) {
-            return $introducedUser;
-        }
+        DB::transaction(function () use ($user, $peerId, &$introducedUser, &$count, &$isNewIntroduction): void {
+            /** @var User $lockedPeer */
+            $lockedPeer = User::where('id', $peerId)->lockForUpdate()->firstOrFail();
+            $introducedUser = $lockedPeer;
 
-        if ($introducedUser->introduced_by !== null) {
-            throw new InvalidArgumentException('This peer has already been introduced by another member.');
-        }
+            if ($lockedPeer->introduced_by !== null && $lockedPeer->introduced_by !== $user->id) {
+                throw new InvalidArgumentException('This peer has already been introduced by another member.');
+            }
 
-        DB::transaction(function () use ($user, $introducedUser) {
-            $introducedUser->introduced_by = $user->id;
-            $introducedUser->save();
+            if ($lockedPeer->introduced_by === null) {
+                $lockedPeer->introduced_by = $user->id;
+                $lockedPeer->save();
+                $isNewIntroduction = true;
+            }
 
-            // Recalculate members_introduced_count for the introducing user
+            // Always recalculate members_introduced_count for the introducing user from actual DB count
             $count = User::where('introduced_by', $user->id)->count();
+
+            // Always update introducer's count and persist
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
+            $lockedUser->members_introduced_count = $count;
+            $lockedUser->save();
+
             $user->members_introduced_count = $count;
-            $user->save();
 
             // Sync user milestones
-            $this->milestoneSyncService->sync($user);
+            $this->milestoneSyncService->sync($lockedUser);
         });
 
-        // Trigger introduction creative rendering, timeline post and notifications
-        $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
+        // Trigger introduction creative rendering, timeline post and notifications if newly introduced
+        if ($isNewIntroduction) {
+            $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
+
+            // Generate and store milestone creative if count matches a configured milestone required_count
+            $creative = null;
+            try {
+                $creative = $this->introductionCreativeService->handleIntroductionCreative(
+                    $user,
+                    $introducedUser,
+                    $count,
+                    $introductionRequestId
+                );
+            } catch (Throwable $creativeEx) {
+                Log::error('[IntroducedPeerService] Failed storing introduction creative: '.$creativeEx->getMessage(), [
+                    'user_id' => $user->id,
+                    'introduced_id' => $introducedUser->id,
+                    'exception' => $creativeEx,
+                ]);
+            }
+
+            // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
+            if ($count === 1) {
+                try {
+                    $this->connectorWhatsappService->handleFirstIntroduction($user, $creative?->image_url);
+                } catch (Throwable $whatsappEx) {
+                    Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
+                        'user_id' => $user->id,
+                        'exception' => $whatsappEx,
+                    ]);
+                }
+            }
+
+            // Safely and independently evaluate CATALYST milestone notification for threshold (count >= 3)
+            if ($count >= 3) {
+                try {
+                    $this->catalystWhatsappService->handleCatalystMilestone($user, $count === 3 ? $creative?->image_url : null);
+                } catch (Throwable $whatsappEx) {
+                    Log::error('[IntroducedPeerService] Failed triggering milestone catalyst WhatsApp: '.$whatsappEx->getMessage(), [
+                        'user_id' => $user->id,
+                        'exception' => $whatsappEx,
+                    ]);
+                }
+            }
+        }
 
         return $introducedUser;
     }

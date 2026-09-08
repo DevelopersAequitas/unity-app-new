@@ -75,17 +75,26 @@ class WhatsappNotificationService
 
             $atPayload = [];
             foreach ($payload as $key => $value) {
-                if (is_string($key) && ! str_starts_with($key, '@')) {
-                    $atPayload['@'.$key] = $value;
+                $strKey = (string) $key;
+                if (! str_starts_with($strKey, '@')) {
+                    $atPayload['@'.$strKey] = $value;
                 }
             }
 
-            $body = array_merge([
+            $body = [
                 'phone' => $normalizedPhone,
                 '@phone' => $normalizedPhone,
                 'mobile' => $normalizedPhone,
                 '@mobile' => $normalizedPhone,
-            ], $payload, $atPayload);
+            ];
+
+            foreach ($payload as $k => $v) {
+                $body[(string) $k] = $v;
+            }
+
+            foreach ($atPayload as $k => $v) {
+                $body[(string) $k] = $v;
+            }
 
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',

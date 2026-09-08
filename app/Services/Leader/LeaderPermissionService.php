@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\AdminCircleScope;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class LeaderPermissionService
@@ -417,23 +418,35 @@ class LeaderPermissionService
         $defaults = $this->getDefaultRoleCapabilities();
 
         // 1. Check if overrides exist in leader_role_capabilities table
-        $overrides = LeaderRoleCapability::query()
-            ->where('role_key', $roleKey)
-            ->get();
+        if (Schema::hasTable('leader_role_capabilities')) {
+            try {
+                $overrides = LeaderRoleCapability::query()
+                    ->where('role_key', $roleKey)
+                    ->get();
 
-        if ($overrides->isNotEmpty()) {
-            return $overrides->where('is_enabled', true)->pluck('capability_id')->values()->all();
+                if ($overrides->isNotEmpty()) {
+                    return $overrides->where('is_enabled', true)->pluck('capability_id')->values()->all();
+                }
+            } catch (\Throwable) {
+                // Ignore and fall through
+            }
         }
 
         // 2. Check if dynamic RBAC data exists in role_module_access / role_page_permissions
-        $role = Str::isUuid($roleKey)
-            ? Role::query()->where('id', $roleKey)->first()
-            : Role::query()->where('key', $roleKey)->first();
+        if (Schema::hasTable('roles')) {
+            try {
+                $role = Str::isUuid($roleKey)
+                    ? Role::query()->where('id', $roleKey)->first()
+                    : Role::query()->where('key', $roleKey)->first();
 
-        if ($role) {
-            $dynamicCaps = $this->resolveCapabilitiesFromDynamicRbac($role);
-            if (! empty($dynamicCaps)) {
-                return $dynamicCaps;
+                if ($role) {
+                    $dynamicCaps = $this->resolveCapabilitiesFromDynamicRbac($role);
+                    if (! empty($dynamicCaps)) {
+                        return $dynamicCaps;
+                    }
+                }
+            } catch (\Throwable) {
+                // Ignore and fall through
             }
         }
 

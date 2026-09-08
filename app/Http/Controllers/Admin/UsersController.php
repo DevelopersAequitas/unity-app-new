@@ -241,6 +241,7 @@ class UsersController extends Controller
                 'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
                 'joinedRaw' => $u->created_at ? $u->created_at->format('Y-m-d') : null,
                 'membership_starts_at' => $u->membership_starts_at ? $u->membership_starts_at->format('Y-m-d') : '',
+                'zoho_plan_code' => $u->zoho_plan_code ?? '',
                 'membership_ends_at' => $endsAt ? $endsAt->format('d M Y') : '—',
                 'membership_ends_at_raw' => $endsAt ? $endsAt->format('Y-m-d') : '',
                 'membership_expiry_date_remark' => $u->membership_expiry_date_remark ?? '',
@@ -309,6 +310,7 @@ class UsersController extends Controller
             'allUsersJson' => $allUsersJson,
             'membershipStatuses' => $membershipStatuses,
             'membershipStatusLabels' => $membershipStatusLabels,
+            'membershipPlanOptions' => $this->membershipPlanOptions(),
             'circles' => $circles,
             'q' => $q,
             'selectedUser' => $selectedUser,
@@ -1928,19 +1930,78 @@ class UsersController extends Controller
             ->map(function (array $plan): array {
                 $code = (string) ($plan['plan_code'] ?? '');
                 $name = trim((string) ($plan['name'] ?? ''));
+                $interval = (string) ($plan['interval'] ?? '');
+
+                $durationMonths = 1;
+                $lowerName = strtolower($name);
+                $lowerInterval = strtolower($interval);
+
+                if (str_contains($lowerName, '5-year') || str_contains($lowerName, '5 year') || str_contains($lowerName, '5 years')) {
+                    $durationMonths = 60;
+                } elseif (str_contains($lowerName, '3-year') || str_contains($lowerName, '3 year') || str_contains($lowerName, '3 years')) {
+                    $durationMonths = 36;
+                } elseif (str_contains($lowerName, '2-year') || str_contains($lowerName, '2 year') || str_contains($lowerName, '2 years') || $code === '014') {
+                    $durationMonths = 24;
+                } elseif (str_contains($lowerName, '1-year') || str_contains($lowerName, '1 year') || str_contains($lowerName, 'year') || str_contains($lowerName, 'annual') || str_contains($lowerInterval, 'year') || $code === '013' || $code === '015') {
+                    $durationMonths = 12;
+                } elseif (str_contains($lowerName, '6-month') || str_contains($lowerName, '6 month') || str_contains($lowerName, '6 months') || str_contains($lowerName, 'half')) {
+                    $durationMonths = 6;
+                } elseif (str_contains($lowerName, '3-month') || str_contains($lowerName, '3 month') || str_contains($lowerName, '3 months') || str_contains($lowerName, 'quarter')) {
+                    $durationMonths = 3;
+                } elseif (str_contains($lowerName, '1-month') || str_contains($lowerName, '1 month') || str_contains($lowerName, '1 months') || $code === '012') {
+                    $durationMonths = 1;
+                }
 
                 return [
                     'code' => $code,
                     'label' => $name !== '' ? sprintf('%s (%s)', $name, $code) : $code,
+                    'name' => $name,
+                    'interval' => $interval,
+                    'duration_months' => $durationMonths,
                 ];
             })
             ->filter(fn (array $plan) => $plan['code'] !== '')
             ->values();
 
+        if ($options->isEmpty()) {
+            $options = collect([
+                [
+                    'code' => '012',
+                    'label' => '1-Month Subscription – Unity Peer Only (012)',
+                    'name' => '1-Month Subscription – Unity Peer Only',
+                    'interval' => '1 month',
+                    'duration_months' => 1,
+                ],
+                [
+                    'code' => '013',
+                    'label' => '1-Year Subscription – Unity Peer Only (013)',
+                    'name' => '1-Year Subscription – Unity Peer Only',
+                    'interval' => '1 year',
+                    'duration_months' => 12,
+                ],
+                [
+                    'code' => '014',
+                    'label' => '2-Year Subscription – Unity Peer Only (014)',
+                    'name' => '2-Year Subscription – Unity Peer Only',
+                    'interval' => '2 years',
+                    'duration_months' => 24,
+                ],
+            ]);
+        }
+
         if ($selectedCode !== null && trim($selectedCode) !== '' && ! $options->contains(fn (array $plan) => $plan['code'] === $selectedCode)) {
+            $durationMonths = match ($selectedCode) {
+                '012' => 1,
+                '013', '015' => 12,
+                '014' => 24,
+                default => 1,
+            };
             $options->prepend([
                 'code' => $selectedCode,
                 'label' => 'Current Saved Plan ('.$selectedCode.')',
+                'name' => 'Current Saved Plan',
+                'interval' => '',
+                'duration_months' => $durationMonths,
             ]);
         }
 
@@ -2471,7 +2532,7 @@ class UsersController extends Controller
             $circleId = (string) $circleId;
         }
         $membership = $request->input('membership_status');
-        $phone = null;
+        $phone = $request->filled('phone') ? trim((string) $request->input('phone')) : null;
         $joinedFilter = (string) $request->input('joined_filter', '');
         $approveFilter = (string) $request->input('approve_filter', 'all');
         $startDate = (string) $request->input('start_date', '');

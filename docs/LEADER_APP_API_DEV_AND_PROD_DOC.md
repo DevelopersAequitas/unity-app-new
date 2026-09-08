@@ -219,7 +219,7 @@ The backend automatically resolves the user's role and returns the 21 permission
   "success": true,
   "message": "Authentication successful",
   "data": {
-    "auth_token": "1|qwe87f654s89d7f6as5d...",
+    "access_token": "1|qwe87f654s89d7f6as5d...",
     "refresh_token": "def50200873491...",
     "token_type": "Bearer",
     "expires_in": 86400,

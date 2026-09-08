@@ -90,6 +90,7 @@ class UserResource extends JsonResource
             ] : null,
             'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
             'city_of_residence' => $this->city_of_residence,
+            'membership_status' => $membershipStatus,
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
                 'free_peer' => 'Free Peer',
@@ -99,8 +100,8 @@ class UserResource extends JsonResource
                 'charter_investor' => 'Green Investor',
                 default => Str::headline(str_replace('_', ' ', (string) $membershipStatus)),
             },
-            'membership_starts_at' => $this->membership_starts_at,
-            'membership_ends_at' => $this->membership_ends_at,
+            'membership_starts_at' => $this->membership_starts_at ?? $this->membership_start_date,
+            'membership_ends_at' => $this->membership_ends_at ?? $this->membership_expiry ?? $this->membership_end_date,
             'zoho_plan_code' => $this->zoho_plan_code,
             'zoho_last_invoice_id' => $this->zoho_last_invoice_id,
             'active_circle_id' => $resolvedCircle['circle_id'] ?? $this->active_circle_id,

@@ -107,7 +107,7 @@ When a user logs in, the backend computes their role and returns their customize
   "success": true,
   "message": "Authentication successful",
   "data": {
-    "auth_token": "12|U2xS861foFTcTiiZnlXv7R3fWPcUplrURaV3k7CZ0df0e787",
+    "access_token": "12|U2xS861foFTcTiiZnlXv7R3fWPcUplrURaV3k7CZ0df0e787",
     "refresh_token": "X1ysPTdpaMriwwrjumwZahursAAVpGCajuwbm6k9",
     "token_type": "Bearer",
     "expires_in": 86400,

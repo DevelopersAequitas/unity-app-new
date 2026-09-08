@@ -26,8 +26,13 @@ class PermissionViewComposer
             return;
         }
 
-        $modules = $this->permissionService->visibleModules($admin);
-        $hasDynamicRbac = $modules->isNotEmpty();
+        try {
+            $modules = $this->permissionService->visibleModules($admin);
+            $hasDynamicRbac = $modules->isNotEmpty();
+        } catch (\Throwable) {
+            $modules = collect();
+            $hasDynamicRbac = false;
+        }
 
         $view->with('dynamicModules', $modules);
         $view->with('hasDynamicRbac', $hasDynamicRbac);

@@ -16,7 +16,7 @@ class NotificationDeliveryLog extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'notification_id', 'user_id', 'campaign_id', 'channel', 'provider', 'provider_message_id', 'status',
+        'id', 'notification_id', 'user_id', 'campaign_id', 'channel', 'provider', 'provider_message_id', 'status',
         'request_payload', 'response_payload', 'error_message', 'attempted_at', 'delivered_at',
     ];
 

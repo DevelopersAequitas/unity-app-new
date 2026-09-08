@@ -85,19 +85,44 @@ class FileController extends BaseApiController
                         }
                     } else {
                         // Check if referenced by user directly
-                        $user = User::where('welcome_creative_url', 'LIKE', '%'.$id.'%')
-                            ->orWhere('profile_card_image_url', 'LIKE', '%'.$id.'%')
-                            ->first();
+                        $userQuery = User::where('welcome_creative_url', 'LIKE', '%'.$id.'%')
+                            ->orWhere('profile_card_image_url', 'LIKE', '%'.$id.'%');
+
+                        if (Schema::hasColumn('users', 'connector_creative_url')) {
+                            $userQuery->orWhere('connector_creative_url', 'LIKE', '%'.$id.'%');
+                        }
+                        if (Schema::hasColumn('users', 'growth_creative_url')) {
+                            $userQuery->orWhere('growth_creative_url', 'LIKE', '%'.$id.'%');
+                        }
+
+                        $user = $userQuery->first();
+
+                        if (! $user && Str::isUuid($id)) {
+                            $user = User::find($id);
+                        }
 
                         if ($user) {
+                            $isGrowth = (! empty($user->connector_creative_url) && str_contains((string) $user->connector_creative_url, $id))
+                                || (! empty($user->growth_creative_url) && str_contains((string) $user->growth_creative_url, $id))
+                                || ($user->id === $id && ! empty($user->members_introduced_count));
+
                             $fileModel = new FileModel;
                             $fileModel->id = $id;
                             $fileModel->s3_key = 'uploads/'.now()->format('Y/m/d').'/'.(string) Str::uuid().'.png';
                             $fileModel->mime_type = 'image/png';
                             $fileModel->save();
 
-                            $generator = app(WearTheBadgeImageGenerator::class);
-                            $generator->generate($user, $fileModel);
+                            if ($isGrowth) {
+                                $count = (int) ($user->members_introduced_count ?? 1);
+                                if ($count <= 0) {
+                                    $count = 1;
+                                }
+                                $generator = app(IntroducedPeerCreativeGenerator::class);
+                                $generator->generate($user, $count, $fileModel);
+                            } else {
+                                $generator = app(WearTheBadgeImageGenerator::class);
+                                $generator->generate($user, $fileModel);
+                            }
 
                             // Refresh the parent file lookup
                             $file = File::find($id);
@@ -145,6 +170,9 @@ class FileController extends BaseApiController
                         $checkPaths = [
                             public_path($candidate),
                             public_path('storage/'.$candidate),
+                            public_path('images/member_introduce_badges/'.$candidate),
+                            public_path('images/member_introduce_badges/'.ucwords(str_replace(['-', '_'], ' ', $candidate))),
+                            public_path('images/member_introduce_badges/'.ucwords(str_replace(['-', '_'], ' ', $baseName))),
                             storage_path('app/'.$candidate),
                             storage_path('app/public/'.$candidate),
                             storage_path('app/public/milestone-badges/'.$candidate),

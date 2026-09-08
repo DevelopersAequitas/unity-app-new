@@ -87,13 +87,21 @@ class AdminAccess
         $cacheKey = 'admin-access:roles:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
-            return Role::query()
-                ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
-                ->where('admin_user_roles.user_id', $admin->id)
-                ->pluck('roles.key')
-                ->unique()
-                ->values()
-                ->all();
+            if (! Schema::hasTable('roles') || ! Schema::hasTable('admin_user_roles')) {
+                return [];
+            }
+
+            try {
+                return Role::query()
+                    ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
+                    ->where('admin_user_roles.user_id', $admin->id)
+                    ->pluck('roles.key')
+                    ->unique()
+                    ->values()
+                    ->all();
+            } catch (\Throwable) {
+                return [];
+            }
         });
     }
 
@@ -248,20 +256,24 @@ class AdminAccess
 
         $user = self::resolveAppUser($admin);
 
-        if (! $user) {
+        if (! $user || ! Schema::hasTable('circle_members')) {
             return false;
         }
 
-        $allowedRoles = array_keys(self::CIRCLE_ROLE_PRIORITY);
-        $isPgSql = DB::connection()->getDriverName() === 'pgsql';
-        $roleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
+        try {
+            $allowedRoles = array_keys(self::CIRCLE_ROLE_PRIORITY);
+            $isPgSql = DB::connection()->getDriverName() === 'pgsql';
+            $roleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
 
-        return CircleMember::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->whereNull('deleted_at')
-            ->whereIn($roleCol, $allowedRoles)
-            ->exists();
+            return CircleMember::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->whereIn($roleCol, $allowedRoles)
+                ->exists();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     public static function isIndustryScoped(?AdminUser $admin): bool
@@ -306,18 +318,22 @@ class AdminAccess
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $allowedCircleIds = self::allowedCircleIds($admin);
-            if ($allowedCircleIds === []) {
+            if ($allowedCircleIds === [] || ! Schema::hasTable('circle_members')) {
                 return [];
             }
 
-            return CircleMember::query()
-                ->whereIn('circle_id', $allowedCircleIds)
-                ->where('status', 'approved')
-                ->whereNull('deleted_at')
-                ->pluck('user_id')
-                ->unique()
-                ->values()
-                ->all();
+            try {
+                return CircleMember::query()
+                    ->whereIn('circle_id', $allowedCircleIds)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->pluck('user_id')
+                    ->unique()
+                    ->values()
+                    ->all();
+            } catch (\Throwable) {
+                return [];
+            }
         });
     }
 
@@ -331,7 +347,7 @@ class AdminAccess
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $user = self::resolveAppUser($admin);
-            if (! $user) {
+            if (! $user || ! Schema::hasTable('circle_members')) {
                 return null;
             }
 
@@ -340,25 +356,28 @@ class AdminAccess
                 return null;
             }
 
-            $roles = array_keys(self::CIRCLE_ROLE_PRIORITY);
-            $orderCases = collect(self::CIRCLE_ROLE_PRIORITY)
-                ->map(fn ($priority, $role) => "when '{$role}' then {$priority}")
-                ->implode(' ');
+            try {
+                $roles = array_keys(self::CIRCLE_ROLE_PRIORITY);
+                $orderCases = collect(self::CIRCLE_ROLE_PRIORITY)
+                    ->map(fn ($priority, $role) => "when '{$role}' then {$priority}")
+                    ->implode(' ');
 
-            $isPgSql = DB::connection()->getDriverName() === 'pgsql';
-            $roleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
-            $orderRoleCol = $isPgSql ? 'circle_members.role::text' : 'circle_members.role';
-            $valueRoleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
+                $isPgSql = DB::connection()->getDriverName() === 'pgsql';
+                $roleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
+                $orderRoleCol = $isPgSql ? 'circle_members.role::text' : 'circle_members.role';
 
-            return CircleMember::query()
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->whereNull('deleted_at')
-                ->whereIn('circle_id', $allowedCircleIds)
-                ->whereIn($roleCol, $roles)
-                ->orderByRaw("case {$orderRoleCol} {$orderCases} else 999 end")
-                ->limit(1)
-                ->value('role');
+                return CircleMember::query()
+                    ->where('user_id', $user->id)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->whereIn('circle_id', $allowedCircleIds)
+                    ->whereIn($roleCol, $roles)
+                    ->orderByRaw("case {$orderRoleCol} {$orderCases} else 999 end")
+                    ->limit(1)
+                    ->value('role');
+            } catch (\Throwable) {
+                return null;
+            }
         });
     }
 
@@ -371,25 +390,31 @@ class AdminAccess
         $cacheKey = 'admin-access:primary-role-label:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
-            // 1. Try to find the highest priority role assigned via admin_user_roles
-            $query = DB::table('roles')
-                ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
-                ->where('admin_user_roles.user_id', $admin->id);
+            try {
+                // 1. Try to find the highest priority role assigned via admin_user_roles
+                if (Schema::hasTable('roles') && Schema::hasTable('admin_user_roles')) {
+                    $query = DB::table('roles')
+                        ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
+                        ->where('admin_user_roles.user_id', $admin->id);
 
-            if (Schema::hasColumn('roles', 'hierarchy_depth')) {
-                $query->orderBy('roles.hierarchy_depth', 'asc');
-            }
+                    if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+                        $query->orderBy('roles.hierarchy_depth', 'asc');
+                    }
 
-            $role = $query->select('roles.name', 'roles.key')->first();
+                    $role = $query->select('roles.name', 'roles.key')->first();
 
-            if ($role) {
-                return $role->name;
-            }
+                    if ($role && filled($role->name)) {
+                        return $role->name;
+                    }
+                }
 
-            // 2. Fallback to circle_members table
-            $roleKey = self::primaryCircleRoleKey($admin);
-            if ($roleKey) {
-                return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
+                // 2. Fallback to circle_members table
+                $roleKey = self::primaryCircleRoleKey($admin);
+                if ($roleKey) {
+                    return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
+                }
+            } catch (\Throwable) {
+                return 'Circle Leader';
             }
 
             return 'Circle Leader';
@@ -436,17 +461,16 @@ class AdminAccess
             return true;
         }
 
-        $roleIds = DB::table('admin_user_roles')
-            ->where('user_id', $admin->id)
-            ->pluck('role_id')
-            ->filter()
-            ->all();
+        if (! Schema::hasTable('admin_user_roles')) {
+            return true;
+        }
 
-        if (! empty($roleIds) && Schema::hasTable('role_module_access') && Schema::hasTable('admin_modules')) {
-            $hasModuleAccessRules = DB::table('role_module_access')
-                ->whereIn('role_id', $roleIds)
-                ->exists();
-
+        try {
+            $roleIds = DB::table('admin_user_roles')
+                ->where('user_id', $admin->id)
+                ->pluck('role_id')
+                ->filter()
+                ->all();
             if ($hasModuleAccessRules) {
                 $normalizedLabel = strtolower(trim($sectionLabel));
 
@@ -480,53 +504,94 @@ class AdminAccess
                         ->first();
                 }
 
-                if (! $module) {
-                    $module = DB::table('admin_modules')
-                        ->whereRaw('LOWER(name) = ?', [$normalizedLabel])
-                        ->first();
-                }
+            if (! empty($roleIds) && Schema::hasTable('role_module_access') && Schema::hasTable('admin_modules')) {
+                $hasModuleAccessRules = DB::table('role_module_access')
+                    ->whereIn('role_id', $roleIds)
+                    ->exists();
 
-                if ($module) {
-                    $accessRecords = DB::table('role_module_access')
-                        ->whereIn('role_id', $roleIds)
-                        ->where('module_id', $module->id)
-                        ->get();
+                if ($hasModuleAccessRules) {
+                    $normalizedLabel = strtolower(trim($sectionLabel));
 
-                    if ($accessRecords->isNotEmpty()) {
-                        return $accessRecords->contains(function ($row): bool {
-                            return (bool) $row->is_visible;
-                        });
+                    $moduleSlug = match ($normalizedLabel) {
+                        'dashboard' => 'dashboard',
+                        'members', 'peers', 'all members', 'member introducers', 'sponsored member milestone awards', 'login history' => 'members',
+                        'activities', 'activity summary', 'testimonials', 'requirements', 'referrals', 'p2p meetings', 'business deals', 'connections', 'leadership requests', 'recommended peers', 'collaborations', 'registered visitor' => 'activities',
+                        'circles', 'circle categories', 'circle join requests' => 'circles',
+                        'events', 'events management', 'event gallery' => 'events',
+                        'coins', 'coin claims' => 'coins',
+                        'life impact', 'life-impact', 'impact option', 'pending impacts' => 'life-impact',
+                        'notifications & email', 'notifications', 'email logs', 'campaigns', 'daily notifications', 'app notifications', 'all app notifications', 'app-notifications' => 'notifications',
+                        'pending requests', 'pending-requests', 'ad booking requests', 'pending ad requests' => 'pending-requests',
+                        'referral report', 'referral-report' => 'referral-report',
+                        'content & posts', 'posts & timeline', 'posts', 'content', 'circulars', 'post reports' => 'content',
+                        'lead submissions', 'leads' => 'leads',
+                        'industries' => 'industries',
+                        'settings', 'app configuration', 'app updates manager', 'birthday creative', 'anniversary creative', 'tutorials', 'unity contacts', 'support tickets', 'categories' => 'settings',
+                        'role management', 'dynamic rbac', 'role-management' => 'role-management',
+                        'brand partners', 'brand-partners', 'ads', 'ad bookings', 'ad-bookings' => 'brand-partners',
+                        'finance & analytics', 'finance-analytics', 'analytics' => 'finance-analytics',
+                        'circle categories', 'circle-categories' => 'categories',
+                        'impact option', 'impact-option' => 'impacts',
+                        default => null,
+                    };
+
+                    $module = null;
+                    if ($moduleSlug !== null) {
+                        $module = DB::table('admin_modules')
+                            ->where('slug', $moduleSlug)
+                            ->first();
                     }
+
+                    if (! $module) {
+                        $module = DB::table('admin_modules')
+                            ->whereRaw('LOWER(name) = ?', [$normalizedLabel])
+                            ->first();
+                    }
+
+                    if ($module) {
+                        $accessRecords = DB::table('role_module_access')
+                            ->whereIn('role_id', $roleIds)
+                            ->where('module_id', $module->id)
+                            ->get();
+
+                        if ($accessRecords->isNotEmpty()) {
+                            return $accessRecords->contains(function ($row): bool {
+                                return (bool) $row->is_visible;
+                            });
+                        }
+                    }
+
+                    return false;
                 }
-
-                return false;
             }
-        }
 
-        $assignments = DB::table('admin_user_roles')
-            ->where('user_id', $admin->id)
-            ->get();
+            $assignments = DB::table('admin_user_roles')
+                ->where('user_id', $admin->id)
+                ->get();
 
-        if ($assignments->isEmpty()) {
+            if ($assignments->isEmpty()) {
+                return true;
+            }
+
+            $hasAnyRestrictions = false;
+            $allowed = [];
+
+            foreach ($assignments as $assign) {
+                if (! empty($assign->allowed_sections)) {
+                    $hasAnyRestrictions = true;
+                    $sections = json_decode((string) $assign->allowed_sections, true) ?: [];
+                    $allowed = array_merge($allowed, $sections);
+                }
+            }
+
+            if (! $hasAnyRestrictions) {
+                return true;
+            }
+
+            return in_array($sectionLabel, $allowed, true);
+        } catch (\Throwable) {
             return true;
         }
-
-        $hasAnyRestrictions = false;
-        $allowed = [];
-
-        foreach ($assignments as $assign) {
-            if (! empty($assign->allowed_sections)) {
-                $hasAnyRestrictions = true;
-                $sections = json_decode((string) $assign->allowed_sections, true) ?: [];
-                $allowed = array_merge($allowed, $sections);
-            }
-        }
-
-        if (! $hasAnyRestrictions) {
-            return true;
-        }
-
-        return in_array($sectionLabel, $allowed, true);
     }
 
     public static function isEditAllowed(?AdminUser $admin): bool
@@ -539,16 +604,24 @@ class AdminAccess
             return true;
         }
 
-        $assignments = DB::table('admin_user_roles')
-            ->where('user_id', $admin->id)
-            ->pluck('permission_type')
-            ->all();
-
-        if (empty($assignments)) {
+        if (! Schema::hasTable('admin_user_roles')) {
             return true;
         }
 
-        return in_array('edit', $assignments, true);
+        try {
+            $assignments = DB::table('admin_user_roles')
+                ->where('user_id', $admin->id)
+                ->pluck('permission_type')
+                ->all();
+
+            if (empty($assignments)) {
+                return true;
+            }
+
+            return in_array('edit', $assignments, true);
+        } catch (\Throwable) {
+            return true;
+        }
     }
 
     public static function clearAdminUserCache(?string $adminUserId): void

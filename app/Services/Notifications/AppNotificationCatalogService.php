@@ -8,6 +8,7 @@ use App\Models\Notifications\AppNotification;
 use App\Models\NotificationTemplate;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -689,9 +690,14 @@ class AppNotificationCatalogService
      */
     public function getAll(?string $search = null, ?string $category = null): Collection
     {
-        $dbRecords = Schema::hasTable('notification_templates')
-            ? NotificationTemplate::all()->keyBy('template_key')
-            : collect();
+        $dbRecords = collect();
+        if (Schema::hasTable('notification_templates')) {
+            try {
+                $dbRecords = NotificationTemplate::all()->keyBy('template_key');
+            } catch (\Throwable) {
+                $dbRecords = collect();
+            }
+        }
 
         $knownKeys = [];
 
@@ -776,16 +782,27 @@ class AppNotificationCatalogService
      */
     public function formatDbTemplateToCatalogItem(NotificationTemplate $db): array
     {
-        $payload = (array) ($db->default_payload ?? []);
+        $payload = $db->default_payload;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            $payload = is_array($decoded) ? $decoded : [];
+        } elseif (! is_array($payload)) {
+            $payload = [];
+        }
+
         $navScreen = (string) ($payload['navigation_screen'] ?? ($payload['screen'] ?? $this->inferNavigationScreen((string) $db->template_key)));
 
         if (! isset($payload['navigation_screen'])) {
             $payload['navigation_screen'] = $navScreen;
         }
 
-        $dynamicParams = (array) ($db->dynamic_params ?? [
-            '{name}' => 'Recipient member name',
-        ]);
+        $dynamicParams = $db->dynamic_params;
+        if (is_string($dynamicParams)) {
+            $decodedParams = json_decode($dynamicParams, true);
+            $dynamicParams = is_array($decodedParams) ? $decodedParams : ['{name}' => 'Recipient member name'];
+        } elseif (! is_array($dynamicParams)) {
+            $dynamicParams = ['{name}' => 'Recipient member name'];
+        }
 
         return [
             'key' => (string) $db->template_key,
@@ -817,7 +834,14 @@ class AppNotificationCatalogService
     public function formatAppNotificationToCatalogItem(AppNotification $notif): array
     {
         $type = (string) $notif->type;
-        $payload = (array) ($notif->data ?? []);
+        $payload = $notif->data;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            $payload = is_array($decoded) ? $decoded : [];
+        } elseif (! is_array($payload)) {
+            $payload = [];
+        }
+
         $navScreen = (string) ($notif->screen ?? ($payload['navigation_screen'] ?? $this->inferNavigationScreen($type)));
 
         if (! isset($payload['navigation_screen'])) {
@@ -947,8 +971,21 @@ class AppNotificationCatalogService
             $email = (string) ($user->email ?? $email);
 
             // Attempt to resolve primary circle name
-            if (Schema::hasTable('circles') && Schema::hasTable('circle_members') && method_exists($user, 'circles') && $user->circles()->exists()) {
-                $circleName = (string) ($user->circles()->first()->name ?? $circleName);
+            if (Schema::hasTable('circles') && Schema::hasTable('circle_members')) {
+                try {
+                    $circleRow = DB::table('circle_members')
+                        ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                        ->where('circle_members.user_id', $user->id)
+                        ->whereNull('circle_members.deleted_at')
+                        ->whereNull('circles.deleted_at')
+                        ->select('circles.name')
+                        ->first();
+                    if ($circleRow && filled($circleRow->name)) {
+                        $circleName = (string) $circleRow->name;
+                    }
+                } catch (\Throwable) {
+                    // fallback to default circleName
+                }
             }
         }
 
