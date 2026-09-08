@@ -29,7 +29,16 @@ class LeaderAuthController extends Controller
     {
         $data = $this->authService->sendOtp((string) $request->validated('email_or_phone'));
 
-        if (! empty($data['is_registered']) && empty($data['is_leader'])) {
+        if (empty($data['is_registered'])) {
+            return response()->json([
+                'success' => false,
+                'error_code' => 'USER_NOT_FOUND',
+                'message' => 'No account found with the provided email or phone.',
+                'data' => $data,
+            ], 404);
+        }
+
+        if (empty($data['is_leader'])) {
             return response()->json([
                 'success' => false,
                 'error_code' => 'NOT_A_LEADER',
