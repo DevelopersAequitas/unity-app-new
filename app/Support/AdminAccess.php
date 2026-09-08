@@ -471,38 +471,6 @@ class AdminAccess
                 ->pluck('role_id')
                 ->filter()
                 ->all();
-            if ($hasModuleAccessRules) {
-                $normalizedLabel = strtolower(trim($sectionLabel));
-
-                $moduleSlug = match ($normalizedLabel) {
-                    'dashboard' => 'dashboard',
-                    'members', 'peers', 'all members', 'member introducers', 'sponsored member milestone awards', 'login history' => 'members',
-                    'activities', 'activity summary', 'testimonials', 'requirements', 'referrals', 'p2p meetings', 'business deals', 'connections', 'leadership requests', 'recommended peers', 'collaborations', 'registered visitor' => 'activities',
-                    'circles', 'circle categories', 'circle join requests' => 'circles',
-                    'events', 'events management', 'event gallery' => 'events',
-                    'coins', 'coin claims' => 'coins',
-                    'life impact', 'life-impact', 'impact option', 'pending impacts' => 'life-impact',
-                    'notifications & email', 'notifications', 'email logs', 'campaigns', 'daily notifications', 'app notifications', 'all app notifications', 'app-notifications' => 'notifications',
-                    'pending requests', 'pending-requests', 'ad booking requests', 'pending ad requests' => 'pending-requests',
-                    'referral report', 'referral-report' => 'referral-report',
-                    'content & posts', 'posts & timeline', 'posts', 'content', 'circulars', 'post reports' => 'content',
-                    'lead submissions', 'leads' => 'leads',
-                    'industries' => 'industries',
-                    'settings', 'app configuration', 'app updates manager', 'birthday creative', 'anniversary creative', 'tutorials', 'unity contacts', 'support tickets', 'categories', 'commission management', 'commissions' => 'settings',
-                    'role management', 'dynamic rbac', 'role-management' => 'role-management',
-                    'brand partners', 'brand-partners', 'ads', 'ad bookings', 'ad-bookings' => 'brand-partners',
-                    'finance & analytics', 'finance-analytics', 'analytics', 'commissions', 'commission management' => 'finance-analytics',
-                    'circle categories', 'circle-categories' => 'categories',
-                    'impact option', 'impact-option' => 'impacts',
-                    default => null,
-                };
-
-                $module = null;
-                if ($moduleSlug !== null) {
-                    $module = DB::table('admin_modules')
-                        ->where('slug', $moduleSlug)
-                        ->first();
-                }
 
             if (! empty($roleIds) && Schema::hasTable('role_module_access') && Schema::hasTable('admin_modules')) {
                 $hasModuleAccessRules = DB::table('role_module_access')

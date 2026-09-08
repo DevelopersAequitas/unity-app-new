@@ -179,6 +179,18 @@ class LeaderTeamsService
         ?User $user = null,
         ?string $status = null,
     ): array {
+        $isOwnCircleOrScoped = false;
+
+        if ($user) {
+            $permissionService = app(LeaderPermissionService::class);
+            $roleInfo = $permissionService->resolveUserRole($user);
+            $role = $roleInfo['role'];
+
+            if (! in_array($role, ['superAdmin', 'countryDirector'], true)) {
+                $isOwnCircleOrScoped = true;
+            }
+        }
+
         // Fetch all circles in scope for fast in-memory association
         $circlesQuery = Circle::query()->whereNull('deleted_at');
         $this->applyDistrictScopeToCircles($circlesQuery, $districtId, $user);
@@ -186,7 +198,6 @@ class LeaderTeamsService
 
         // Fetch official 18 active master circle categories
         $categories = collect();
-        $circles = $circlesQuery->with(['members'])->get();
 
         if (Schema::hasTable('circle_categories')) {
             try {
@@ -202,7 +213,6 @@ class LeaderTeamsService
                     }
                 }
 
-                // Exclude 'Other' category if present so exactly the 18 master categories are returned
                 $query->where(function (Builder $q): void {
                     $q->whereNull('slug')->orWhereNotIn('slug', ['other']);
                 })->where('name', '!=', 'Other');
@@ -244,70 +254,6 @@ class LeaderTeamsService
             'family-business' => ['circles' => 1, 'peers' => 13],
             'young-entrepreneurs' => ['circles' => 1, 'peers' => 19],
             'leadership-transformation' => ['circles' => 1, 'peers' => 15],
-            'agritech' => ['circles' => 2, 'peers' => 28],
-            'agriculture-food' => ['circles' => 2, 'peers' => 28],
-            'agriculture' => ['circles' => 2, 'peers' => 28],
-            'architect' => ['circles' => 3, 'peers' => 35],
-            'architecture' => ['circles' => 3, 'peers' => 35],
-            'architecture-design' => ['circles' => 3, 'peers' => 35],
-            'chartered-accountancy' => ['circles' => 4, 'peers' => 42],
-            'chartered-accountant' => ['circles' => 4, 'peers' => 42],
-            'accounting' => ['circles' => 4, 'peers' => 42],
-            'technology' => ['circles' => 5, 'peers' => 58],
-            'it-digital' => ['circles' => 5, 'peers' => 58],
-            'software' => ['circles' => 5, 'peers' => 58],
-            'manufacturing' => ['circles' => 4, 'peers' => 48],
-            'manufacturing-engineering' => ['circles' => 4, 'peers' => 48],
-            'real-estate' => ['circles' => 4, 'peers' => 45],
-            'real-estate-construction-infrastructure' => ['circles' => 4, 'peers' => 45],
-            'construction-infra' => ['circles' => 3, 'peers' => 38],
-            'healthcare' => ['circles' => 3, 'peers' => 38],
-            'healthcare-wellness' => ['circles' => 3, 'peers' => 38],
-            'financial-services' => ['circles' => 4, 'peers' => 46],
-            'finance' => ['circles' => 4, 'peers' => 46],
-            'education-skill' => ['circles' => 3, 'peers' => 32],
-            'education-training' => ['circles' => 3, 'peers' => 32],
-            'green-sustainability' => ['circles' => 2, 'peers' => 25],
-            'sustainable-esg' => ['circles' => 2, 'peers' => 25],
-            'media-entertainment' => ['circles' => 2, 'peers' => 24],
-            'tourism-hospitality' => ['circles' => 2, 'peers' => 22],
-            'retail-fmcg' => ['circles' => 3, 'peers' => 36],
-            'logistics-supply-chain' => ['circles' => 3, 'peers' => 34],
-            'legal-professional' => ['circles' => 3, 'peers' => 30],
-            'fashion-lifestyle' => ['circles' => 2, 'peers' => 26],
-            'events-fashion' => ['circles' => 2, 'peers' => 26],
-            'automotive' => ['circles' => 2, 'peers' => 20],
-            'energy-power' => ['circles' => 2, 'peers' => 18],
-            'renewable-energy-cleantech' => ['circles' => 2, 'peers' => 22],
-            'chemicals-materials' => ['circles' => 2, 'peers' => 18],
-            'import-export' => ['circles' => 2, 'peers' => 24],
-            'startup-founders' => ['circles' => 3, 'peers' => 30],
-            'msme-entrepreneurs' => ['circles' => 4, 'peers' => 40],
-            'family-business' => ['circles' => 2, 'peers' => 20],
-        ];
-
-        // Keyword maps for fuzzy matching across circles & users
-        $keywordMap = [
-            'agritech' => ['agri', 'farm', 'crop', 'dairy', 'food', 'horticult', 'fertiliz'],
-            'agriculture-food' => ['agri', 'farm', 'crop', 'dairy', 'food'],
-            'architect' => ['archit', 'interi', 'design', 'structur', 'civil', 'decor'],
-            'chartered-accountancy' => ['charter', 'account', 'ca', 'audit', 'tax', 'gst', 'cfo'],
-            'technology' => ['tech', 'software', 'it', 'digital', 'app', 'web', 'ai', 'cloud', 'saas', 'cyber'],
-            'manufacturing' => ['manufactur', 'engineer', 'metal', 'plastic', 'textile', 'machin', 'factory', 'steel'],
-            'real-estate' => ['real estate', 'construct', 'infra', 'property', 'builder', 'developer'],
-            'healthcare' => ['health', 'doctor', 'hospital', 'pharma', 'clinic', 'wellness', 'medtech'],
-            'financial-services' => ['financ', 'bank', 'invest', 'loan', 'wealth', 'mutual', 'insurance'],
-            'education-skill' => ['educat', 'train', 'skill', 'school', 'college', 'academy', 'coach'],
-            'green-sustainability' => ['green', 'sustainab', 'solar', 'renewab', 'esg', 'wind', 'clean', 'ev', 'waste'],
-            'media-entertainment' => ['media', 'entertain', 'advertis', 'brand', 'film', 'video', 'pr'],
-            'tourism-hospitality' => ['tour', 'hotel', 'hospitality', 'travel', 'resort', 'restaurant'],
-            'retail-fmcg' => ['retail', 'fmcg', 'consumer', 'store', 'grocer', 'supermarket', 'ecommerce'],
-            'logistics-supply-chain' => ['logistic', 'supply', 'transport', 'freight', 'courier', 'warehouse'],
-            'legal-professional' => ['legal', 'law', 'advocate', 'attorney', 'consult', 'advisory'],
-            'fashion-lifestyle' => ['fashion', 'apparel', 'cloth', 'lifestyle', 'garment', 'jewel'],
-            'automotive' => ['auto', 'vehicle', 'car', 'bike', 'motor', 'mobility'],
-            'energy-power' => ['energy', 'power', 'oil', 'gas', 'electric'],
-            'chemicals-materials' => ['chemic', 'material', 'petro', 'polymer'],
         ];
 
         $results = [];
@@ -316,19 +262,6 @@ class LeaderTeamsService
             $catId = (string) $cat->id;
             $slug = (string) ($cat->slug ?: Str::slug($cat->name));
             $categoryName = strtolower(trim((string) $cat->name));
-        foreach ($industries as $industry) {
-            $indId = (string) $industry->id;
-            $slug = (string) ($industry->slug ?: Str::slug($industry->name));
-            $industryName = strtolower(trim((string) $industry->name));
-            $keywords = $keywordMap[$slug] ?? [substr($slug, 0, 4), substr($industryName, 0, 4)];
-
-            // Find circles associated with this industry
-            $matchingCircles = $circles->filter(function (Circle $c) use ($indId, $industryName, $slug, $keywords): bool {
-                $tags = is_array($c->industry_tags) ? $c->industry_tags : (is_string($c->industry_tags) ? json_decode($c->industry_tags, true) : []);
-                if (! is_array($tags)) {
-                    $tags = [];
-                }
-                $tagsLower = array_map(fn ($t) => strtolower(trim((string) $t)), $tags);
 
             // Find circles associated with this circle category
             $matchingCircles = $circles->filter(function (Circle $c) use ($catId, $categoryName, $slug): bool {
@@ -364,11 +297,6 @@ class LeaderTeamsService
                     $tagsLower = array_map(fn ($t) => strtolower(trim((string) $t)), $tags);
                     if (in_array($catId, $tags, true) || in_array($slug, $tagsLower, true) || in_array($categoryName, $tagsLower, true)) {
                         return true;
-                foreach ($tagsLower as $t) {
-                    foreach ($keywords as $kw) {
-                        if ($kw !== '' && str_contains($t, $kw)) {
-                            return true;
-                        }
                     }
                 }
 
@@ -376,12 +304,6 @@ class LeaderTeamsService
                 $circleNameLower = strtolower($c->name);
                 if (str_contains($circleNameLower, $categoryName) || str_contains($circleNameLower, $slug)) {
                     return true;
-                }
-
-                foreach ($keywords as $kw) {
-                    if ($kw !== '' && str_contains($circleNameLower, $kw)) {
-                        return true;
-                    }
                 }
 
                 return false;
@@ -394,34 +316,28 @@ class LeaderTeamsService
                 $finalCirclesCount = $matchedCirclesCount;
                 $finalPeersCount = $matchedPeersCount;
             } else {
-                $baseline = $baselineData[$slug] ?? ['circles' => 0, 'peers' => 0];
-                $finalCirclesCount = max($matchedCirclesCount, $baseline['circles']);
-                $finalPeersCount = max($matchedPeersCount, $baseline['peers']);
+                $baseline = $baselineData[$slug] ?? null;
+                if (! $baseline) {
+                    foreach ($baselineData as $bSlug => $bVal) {
+                        if (str_contains($slug, $bSlug) || str_contains($bSlug, $slug)) {
+                            $baseline = $bVal;
+                            break;
+                        }
+                    }
+                }
+                if (! $baseline) {
+                    $hashVal = abs(crc32($slug));
+                    $baseline = [
+                        'circles' => 2 + ($hashVal % 3),
+                        'peers' => 18 + ($hashVal % 25),
+                    ];
+                }
+
+                $finalCirclesCount = max($matchedCirclesCount, (int) $baseline['circles']);
+                $finalPeersCount = max($matchedPeersCount, (int) $baseline['peers']);
             }
 
             $iconUrl = ! empty($cat->icon_url) ? $cat->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
-            // Baseline fallback
-            $baseline = $baselineData[$slug] ?? null;
-            if (! $baseline) {
-                foreach ($baselineData as $bSlug => $bVal) {
-                    if (str_contains($slug, $bSlug) || str_contains($bSlug, $slug)) {
-                        $baseline = $bVal;
-                        break;
-                    }
-                }
-            }
-            if (! $baseline) {
-                $hashVal = abs(crc32($slug));
-                $baseline = [
-                    'circles' => 2 + ($hashVal % 3),
-                    'peers' => 18 + ($hashVal % 25),
-                ];
-            }
-
-            $finalCirclesCount = max($matchedCirclesCount, (int) $baseline['circles']);
-            $finalPeersCount = max($matchedPeersCount, (int) $baseline['peers']);
-
-            $iconUrl = ! empty($industry->icon_url) ? $industry->icon_url : "https://api.peersunity.com/icons/{$slug}.png";
 
             $results[] = [
                 'id' => $catId,

@@ -55,7 +55,7 @@ class IntroductionCreativeService
     }
 
     /**
-     * Store introduction creative for a successful introduction event if a milestone is reached.
+     * Store introduction creative for a successful introduction event.
      */
     public function handleIntroductionCreative(
         User $introducer,
@@ -69,26 +69,14 @@ class IntroductionCreativeService
             return null;
         }
 
-        // 1. Condition check: ONLY generate if current count matches a configured milestone's required_count
-        if (! $this->isConfiguredMilestone($introducedCount)) {
-            Log::info('[IntroductionCreativeService] Skipped: Count does not match any configured milestone required_count.', [
-                'introducer_id' => $introducer->id,
-                'requester_id' => $introducedUser->id,
-                'introduced_count' => $introducedCount,
-            ]);
-
-            return null;
-        }
-
-        $deterministicId = Uuid::uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', "intro_creative.{$introducer->id}.{$introducedCount}")->toString();
+        $deterministicId = Uuid::uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', "intro_creative.{$introducer->id}.{$introducedUser->id}")->toString();
 
         try {
-            // 2. Duplicate / Idempotency protection: check if creative was already recorded for this introducer & count or introduction
+            // 1. Duplicate / Idempotency protection: check if creative was already recorded for this specific introducer & introduced peer
             $existingCreative = IntroductionCreative::query()
                 ->where('introducer_id', $introducer->id)
-                ->where(function ($query) use ($introducedUser, $introducedCount, $introductionRequestId, $deterministicId): void {
+                ->where(function ($query) use ($introducedUser, $introductionRequestId, $deterministicId): void {
                     $query->where('id', $deterministicId)
-                        ->orWhere('introduced_count', $introducedCount)
                         ->orWhere('requester_id', $introducedUser->id);
 
                     if ($introductionRequestId !== null) {
@@ -98,26 +86,42 @@ class IntroductionCreativeService
                 ->first();
 
             if ($existingCreative && ! empty($existingCreative->image_url)) {
+                // Ensure physical file exists on disk; if missing, regenerate it
+                $s3Key = preg_replace('~^https?://[^/]+/storage/~i', '', (string) $existingCreative->image_url);
+                $fileExists = Storage::disk('public')->exists($s3Key)
+                    || file_exists(storage_path('app/public/'.$s3Key))
+                    || file_exists(public_path('storage/'.$s3Key));
+
+                if (! $fileExists) {
+                    try {
+                        $newUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
+                        $existingCreative->update(['image_url' => $newUrl]);
+                        $existingCreative->image_url = $newUrl;
+                    } catch (Throwable $regenEx) {
+                        Log::warning('[IntroductionCreativeService] Could not regenerate missing physical creative: '.$regenEx->getMessage());
+                    }
+                }
+
                 Log::info('[IntroductionCreativeService] Reusing existing creative record.', [
                     'creative_id' => $existingCreative->id,
                     'introducer_id' => $introducer->id,
                     'requester_id' => $introducedUser->id,
-                    'introduced_count' => $introducedCount,
+                    'introduced_count' => $existingCreative->introduced_count,
                     'image_url' => $existingCreative->image_url,
                 ]);
 
                 return $existingCreative;
             }
 
-            // 3. Generate personalized creative image and get its public HTTPS URL
+            // 2. Generate personalized creative image and get its public HTTPS URL
             $imageUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
 
-            // 4. Atomically create or fetch inside DB transaction
+            // 3. Atomically create or fetch inside DB transaction
             return DB::transaction(function () use ($deterministicId, $introducer, $introducedUser, $introducedCount, $introductionRequestId, $imageUrl): IntroductionCreative {
                 $lockedCreative = IntroductionCreative::where('id', $deterministicId)
-                    ->orWhere(function ($q) use ($introducer, $introducedCount): void {
+                    ->orWhere(function ($q) use ($introducer, $introducedUser): void {
                         $q->where('introducer_id', $introducer->id)
-                            ->where('introduced_count', $introducedCount);
+                            ->where('requester_id', $introducedUser->id);
                     })
                     ->lockForUpdate()
                     ->first();
