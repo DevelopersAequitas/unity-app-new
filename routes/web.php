@@ -153,6 +153,8 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
 Route::get('/account-deletion-request', [AccountDeletionController::class, 'show'])->name('account-deletion.show');
 Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
 
+Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
+
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
     Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp'])->name('login.send-otp');
