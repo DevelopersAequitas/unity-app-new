@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\LeaderRoleCapability;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -292,6 +293,21 @@ class LeaderPermissionService
         };
     }
 
+    public const ROLE_HIERARCHY_RANK = [
+        'superAdmin' => 100,
+        'countryDirector' => 90,
+        'districtExecDirector' => 80,
+        'industryDirector' => 70,
+        'circleDirector' => 60,
+        'circleFounder' => 50,
+        'chairBusinessGrowth' => 40,
+        'chairMembership' => 38,
+        'chairEventsPrograms' => 36,
+        'circleChair' => 34,
+        'viceChair' => 30,
+        'secretary' => 20,
+    ];
+
     /**
      * Detect the user's primary leader role and custom label.
      *
@@ -308,25 +324,40 @@ class LeaderPermissionService
             ->when($userEmail !== '', fn ($q) => $q->orWhereRaw('LOWER(email) = ?', [$userEmail]))
             ->first();
 
+        // Immediate Fast-Path: If admin user is designated Global Admin / Super in AdminAccess
+        if ($adminUser && (AdminAccess::isGlobalAdmin($adminUser) || AdminAccess::isSuper($adminUser))) {
+            return [
+                'role' => 'superAdmin',
+                'custom_role_label' => 'Super Admin',
+                'regional_scope' => 'Global Scope',
+                'is_leader' => true,
+            ];
+        }
+
+        $candidateRoles = [];
         $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
 
         if (! empty($adminUserIds) && Schema::hasTable('admin_user_roles') && Schema::hasTable('roles')) {
-            $roles = DB::table('admin_user_roles')
+            $roleRows = DB::table('admin_user_roles')
                 ->join('roles', 'admin_user_roles.role_id', '=', 'roles.id')
                 ->whereIn('admin_user_roles.user_id', $adminUserIds)
-                ->pluck('roles.key')
-                ->all();
+                ->select(['roles.key', 'roles.name', 'roles.role_code'])
+                ->get();
 
-            foreach ($roles as $r) {
-                if ($this->isLeaderRole((string) $r)) {
-                    $normalized = $this->normalizeRoleKey((string) $r);
-
-                    return [
-                        'role' => $normalized,
-                        'custom_role_label' => $this->getRoleLabel($normalized),
-                        'regional_scope' => $this->resolveRegionalScope($normalized),
-                        'is_leader' => true,
-                    ];
+            foreach ($roleRows as $row) {
+                foreach ([$row->key, $row->name, $row->role_code] as $field) {
+                    if ($field && $this->isLeaderRole((string) $field)) {
+                        $norm = $this->normalizeRoleKey((string) $field);
+                        if ($norm === 'superAdmin') {
+                            return [
+                                'role' => 'superAdmin',
+                                'custom_role_label' => 'Super Admin',
+                                'regional_scope' => 'Global Scope',
+                                'is_leader' => true,
+                            ];
+                        }
+                        $candidateRoles[] = $norm;
+                    }
                 }
             }
         }
@@ -334,48 +365,23 @@ class LeaderPermissionService
         // 2. Check Circle direct assignment columns & calendar JSON
         if (Schema::hasTable('circles')) {
             if (Circle::query()->where('circle_founder_user_id', $userId)->orWhere('founder_user_id', $userId)->exists()) {
-                return [
-                    'role' => 'circleFounder',
-                    'custom_role_label' => 'Circle Founder',
-                    'regional_scope' => 'Own Circle',
-                    'is_leader' => true,
-                ];
+                $candidateRoles[] = 'circleFounder';
             }
 
             if (Circle::query()->where('circle_director_user_id', $userId)->orWhere('director_user_id', $userId)->exists()) {
-                return [
-                    'role' => 'circleDirector',
-                    'custom_role_label' => 'Circle Director',
-                    'regional_scope' => 'Own Circle',
-                    'is_leader' => true,
-                ];
+                $candidateRoles[] = 'circleDirector';
             }
 
             if (Circle::query()->where('industry_director_user_id', $userId)->exists()) {
-                return [
-                    'role' => 'industryDirector',
-                    'custom_role_label' => 'Industry Director',
-                    'regional_scope' => 'Industry Scope',
-                    'is_leader' => true,
-                ];
+                $candidateRoles[] = 'industryDirector';
             }
 
             if (Circle::query()->where('ded_user_id', $userId)->exists()) {
-                return [
-                    'role' => 'districtExecDirector',
-                    'custom_role_label' => 'District Exec Director',
-                    'regional_scope' => 'District Scope',
-                    'is_leader' => true,
-                ];
+                $candidateRoles[] = 'districtExecDirector';
             }
 
             if (Circle::query()->where('eed_user_id', $userId)->exists()) {
-                return [
-                    'role' => 'countryDirector',
-                    'custom_role_label' => 'Country Director',
-                    'regional_scope' => 'Country Scope',
-                    'is_leader' => true,
-                ];
+                $candidateRoles[] = 'countryDirector';
             }
 
             // Check committee chairs in circles (via column, json calendar, or chair_user_id)
@@ -386,12 +392,7 @@ class LeaderPermissionService
                     ?? data_get($circle->calendar, 'business_growth_committee_chair.id')
                     ?? ($circle->business_growth_committee_chair_user_id ?? null);
                 if ($bgId && (string) $bgId === $userId) {
-                    return [
-                        'role' => 'chairBusinessGrowth',
-                        'custom_role_label' => 'Chair - Business Growth Committee',
-                        'regional_scope' => 'Own Circle',
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = 'chairBusinessGrowth';
                 }
 
                 $mgId = data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id')
@@ -399,12 +400,7 @@ class LeaderPermissionService
                     ?? data_get($circle->calendar, 'membership_growth_committee_chair.id')
                     ?? ($circle->membership_growth_committee_chair_user_id ?? null);
                 if ($mgId && (string) $mgId === $userId) {
-                    return [
-                        'role' => 'chairMembership',
-                        'custom_role_label' => 'Chair - Membership Committee',
-                        'regional_scope' => 'Own Circle',
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = 'chairMembership';
                 }
 
                 $eiId = data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id')
@@ -412,43 +408,23 @@ class LeaderPermissionService
                     ?? data_get($circle->calendar, 'events_impacts_committee_chair.id')
                     ?? ($circle->events_impacts_committee_chair_user_id ?? null);
                 if ($eiId && (string) $eiId === $userId) {
-                    return [
-                        'role' => 'chairEventsPrograms',
-                        'custom_role_label' => 'Chair - Events & Programs Committee',
-                        'regional_scope' => 'Own Circle',
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = 'chairEventsPrograms';
                 }
 
                 $vcId = data_get($circle->calendar, 'leadership.vice_chair_user_id')
                     ?? ($circle->vice_chair_user_id ?? null);
                 if ($vcId && (string) $vcId === $userId) {
-                    return [
-                        'role' => 'viceChair',
-                        'custom_role_label' => 'Vice Chair',
-                        'regional_scope' => 'Own Circle',
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = 'viceChair';
                 }
 
                 $secId = data_get($circle->calendar, 'leadership.secretary_user_id')
                     ?? ($circle->secretary_user_id ?? null);
                 if ($secId && (string) $secId === $userId) {
-                    return [
-                        'role' => 'secretary',
-                        'custom_role_label' => 'Secretary',
-                        'regional_scope' => 'Own Circle',
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = 'secretary';
                 }
 
                 if ((string) $circle->chair_user_id === $userId || (string) data_get($circle->calendar, 'leadership.chair_user_id') === $userId) {
-                    return [
-                        'role' => 'chairBusinessGrowth',
-                        'custom_role_label' => 'Chair - Business Growth Committee',
-                        'regional_scope' => 'Own Circle',
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = 'chairBusinessGrowth';
                 }
             }
         }
@@ -469,14 +445,7 @@ class LeaderPermissionService
 
                 $targetRole = $this->isLeaderRole($rawRole) ? $rawRole : $refRoleKey;
                 if ($this->isLeaderRole($targetRole)) {
-                    $normalized = $this->normalizeRoleKey($targetRole);
-
-                    return [
-                        'role' => $normalized,
-                        'custom_role_label' => $this->getRoleLabel($normalized),
-                        'regional_scope' => $this->resolveRegionalScope($normalized),
-                        'is_leader' => true,
-                    ];
+                    $candidateRoles[] = $this->normalizeRoleKey($targetRole);
                 }
             }
         }
@@ -485,19 +454,23 @@ class LeaderPermissionService
         if (Schema::hasTable('admin_ded_districts') && DB::table('admin_ded_districts')->where(function ($q) use ($userId, $adminUserIds) {
             $q->where('user_id', $userId)->orWhereIn('admin_user_id', $adminUserIds);
         })->exists()) {
-            return [
-                'role' => 'districtExecDirector',
-                'custom_role_label' => 'District Exec Director',
-                'regional_scope' => 'District Scope',
-                'is_leader' => true,
-            ];
+            $candidateRoles[] = 'districtExecDirector';
         }
 
         if (Schema::hasTable('industry_director_assignments') && DB::table('industry_director_assignments')->where('is_active', true)->whereIn('admin_user_id', $adminUserIds)->exists()) {
+            $candidateRoles[] = 'industryDirector';
+        }
+
+        // Evaluate highest ranked leadership role
+        if (! empty($candidateRoles)) {
+            $candidateRoles = array_values(array_unique($candidateRoles));
+            usort($candidateRoles, fn ($a, $b) => (self::ROLE_HIERARCHY_RANK[$b] ?? 0) <=> (self::ROLE_HIERARCHY_RANK[$a] ?? 0));
+            $bestRole = $candidateRoles[0];
+
             return [
-                'role' => 'industryDirector',
-                'custom_role_label' => 'Industry Director',
-                'regional_scope' => 'Industry Scope',
+                'role' => $bestRole,
+                'custom_role_label' => $this->getRoleLabel($bestRole),
+                'regional_scope' => $this->resolveRegionalScope($bestRole),
                 'is_leader' => true,
             ];
         }

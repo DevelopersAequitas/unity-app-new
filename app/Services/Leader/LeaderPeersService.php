@@ -193,7 +193,7 @@ class LeaderPeersService
 
         $query = User::query()->whereNull('deleted_at');
 
-        // Only include legitimate in-app peers associated with circles
+        // Include all legitimate in-app peers associated with circles (members, active circle, leaders, categories)
         $query->where(function (Builder $q): void {
             $q->whereHas('circleMembers', function (Builder $cq): void {
                 $cq->whereNull('deleted_at')
@@ -201,7 +201,28 @@ class LeaderPeersService
             })->orWhere(function (Builder $aq): void {
                 $aq->whereNotNull('active_circle_id')
                     ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
+            })->orWhereExists(function ($sq): void {
+                $sq->selectRaw(1)
+                    ->from('circles')
+                    ->whereNull('circles.deleted_at')
+                    ->where(function ($lq): void {
+                        $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
+                            ->orWhereColumn('circles.founder_user_id', 'users.id')
+                            ->orWhereColumn('circles.circle_director_user_id', 'users.id')
+                            ->orWhereColumn('circles.director_user_id', 'users.id')
+                            ->orWhereColumn('circles.chair_user_id', 'users.id')
+                            ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
+                            ->orWhereColumn('circles.secretary_user_id', 'users.id');
+                    });
             });
+
+            if (Schema::hasTable('joined_circle_categories')) {
+                $q->orWhereExists(function ($jq): void {
+                    $jq->selectRaw(1)
+                        ->from('joined_circle_categories')
+                        ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                });
+            }
         });
 
         // Exclude dummy test users
@@ -218,7 +239,31 @@ class LeaderPeersService
                 $query->where(function (Builder $q) use ($circleId): void {
                     $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
                         $cq->where('circle_id', $circleId)->whereNull('deleted_at');
-                    })->orWhere('active_circle_id', $circleId);
+                    })->orWhere('active_circle_id', $circleId)
+                        ->orWhereExists(function ($sq) use ($circleId): void {
+                            $sq->selectRaw(1)
+                                ->from('circles')
+                                ->where('circles.id', $circleId)
+                                ->whereNull('circles.deleted_at')
+                                ->where(function ($lq): void {
+                                    $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
+                                        ->orWhereColumn('circles.founder_user_id', 'users.id')
+                                        ->orWhereColumn('circles.circle_director_user_id', 'users.id')
+                                        ->orWhereColumn('circles.director_user_id', 'users.id')
+                                        ->orWhereColumn('circles.chair_user_id', 'users.id')
+                                        ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
+                                        ->orWhereColumn('circles.secretary_user_id', 'users.id');
+                                });
+                        });
+
+                    if (Schema::hasTable('joined_circle_categories')) {
+                        $q->orWhereExists(function ($jq) use ($circleId): void {
+                            $jq->selectRaw(1)
+                                ->from('joined_circle_categories')
+                                ->where('joined_circle_categories.circle_id', $circleId)
+                                ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                        });
+                    }
                 });
             }
         } elseif ($scopedCircleIds !== null) {
@@ -226,7 +271,7 @@ class LeaderPeersService
                 $query->whereRaw('1 = 0');
             } else {
                 $adminUser = $user ? AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first() : null;
-                if ($adminUser && AdminAccess::isDed($adminUser)) {
+                if (! $isAdmin && $adminUser && AdminAccess::isDed($adminUser)) {
                     AdminCircleScope::applyDedDistrictScope($query, $adminUser);
                 } else {
                     $query->where(function (Builder $q) use ($scopedCircleIds): void {
@@ -304,15 +349,37 @@ class LeaderPeersService
         $circleName = $defaultCircleName ?? '';
         $circleId = $defaultCircleId ?? (string) ($u->active_circle_id ?? '');
 
-        if ($u->circleMembers && $u->circleMembers->isNotEmpty()) {
-            $c = $u->circleMembers->first()?->circle;
-            if ($c) {
-                $circleName = (string) $c->name;
-                $circleId = (string) $c->id;
+        if ($circleName === '' && $u->circleMembers && $u->circleMembers->isNotEmpty()) {
+            foreach ($u->circleMembers as $cm) {
+                if ($cm->circle && ! $cm->circle->deleted_at) {
+                    $circleName = (string) $cm->circle->name;
+                    $circleId = (string) $cm->circle->id;
+                    break;
+                }
             }
-        } elseif ($u->activeCircle) {
+        }
+
+        if ($circleName === '' && $u->activeCircle && ! $u->activeCircle->deleted_at) {
             $circleName = (string) $u->activeCircle->name;
             $circleId = (string) $u->activeCircle->id;
+        }
+
+        if ($circleName === '') {
+            $uid = (string) $u->id;
+            $ledCircle = Circle::query()->whereNull('deleted_at')
+                ->where(function ($q) use ($uid): void {
+                    $q->where('circle_founder_user_id', $uid)
+                        ->orWhere('founder_user_id', $uid)
+                        ->orWhere('circle_director_user_id', $uid)
+                        ->orWhere('director_user_id', $uid)
+                        ->orWhere('chair_user_id', $uid)
+                        ->orWhere('vice_chair_user_id', $uid)
+                        ->orWhere('secretary_user_id', $uid);
+                })->first();
+            if ($ledCircle) {
+                $circleName = (string) $ledCircle->name;
+                $circleId = (string) $ledCircle->id;
+            }
         }
 
         $location = (string) ($u->city ?? $u->city_of_residence ?? 'Ahmedabad');
@@ -639,8 +706,11 @@ class LeaderPeersService
 
         $query = $baseQuery();
 
+        $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
+        $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
+
         if ($circleId && Str::isUuid($circleId)) {
-            if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+            if (! $isAdmin && $scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
                 $query->whereRaw('1 = 0');
             } else {
                 $query->where(function (Builder $q) use ($circleId): void {
