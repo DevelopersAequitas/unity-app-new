@@ -264,6 +264,39 @@ class LeaderPeersService
                         });
                 });
             }
+        } else {
+            // Only show users who have joined a circle (circle members, active circle, circle leaders, joined categories)
+            $query->where(function (Builder $q): void {
+                $q->whereHas('circleMembers', function (Builder $cq): void {
+                    $cq->whereNull('deleted_at');
+                })->orWhere(function (Builder $aq): void {
+                    $aq->whereNotNull('active_circle_id')
+                        ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
+                })->orWhereExists(function ($sq): void {
+                    $sq->selectRaw(1)
+                        ->from('circles')
+                        ->whereNull('circles.deleted_at')
+                        ->where(function ($lq): void {
+                            $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
+                                ->orWhereColumn('circles.founder_user_id', 'users.id')
+                                ->orWhereColumn('circles.circle_director_user_id', 'users.id')
+                                ->orWhereColumn('circles.director_user_id', 'users.id')
+                                ->orWhereColumn('circles.chair_user_id', 'users.id')
+                                ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
+                                ->orWhereColumn('circles.secretary_user_id', 'users.id');
+                        });
+                });
+
+                if (Schema::hasTable('joined_circle_categories')) {
+                    $q->orWhereExists(function ($jq): void {
+                        $jq->selectRaw(1)
+                            ->from('joined_circle_categories')
+                            ->join('circles', 'circles.id', '=', 'joined_circle_categories.circle_id')
+                            ->whereNull('circles.deleted_at')
+                            ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                    });
+                }
+            });
         }
 
         if ($search) {
