@@ -51,6 +51,7 @@ class RoleHierarchyController extends Controller
         }
 
         // Fetch peers and scope entities for the assignment interface
+        $this->syncAppUsersToAdminUsers();
         $peers = DB::table('admin_users')->orderBy('name')->get();
         $peers = $this->enrichPeersWithScopes($peers);
         $districts = DB::table('districts')->orderBy('name')->get();
@@ -465,12 +466,13 @@ class RoleHierarchyController extends Controller
 
                 $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
                 $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
-                $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader', 'business_growth_committee', 'events_impacts_committee', 'membership_growth_committee'], true) ||
                     str_contains($roleKey, 'circle') ||
                     str_contains($roleKey, 'leader') ||
                     str_contains($roleKey, 'founder') ||
                     str_contains($roleKey, 'chair') ||
-                    str_contains($roleKey, 'secretary');
+                    str_contains($roleKey, 'secretary') ||
+                    str_contains($roleKey, 'committee');
 
                 if ($isDed) {
                     $scope = DB::table('admin_ded_districts')
@@ -854,12 +856,13 @@ class RoleHierarchyController extends Controller
 
             $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
             $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
-            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader', 'business_growth_committee', 'events_impacts_committee', 'membership_growth_committee'], true) ||
                 str_contains($roleKey, 'circle') ||
                 str_contains($roleKey, 'leader') ||
                 str_contains($roleKey, 'founder') ||
                 str_contains($roleKey, 'chair') ||
-                str_contains($roleKey, 'secretary');
+                str_contains($roleKey, 'secretary') ||
+                str_contains($roleKey, 'committee');
 
             if ($isDed) {
                 DB::table('admin_ded_districts')->where('admin_user_id', $userId)->delete();
@@ -991,12 +994,13 @@ class RoleHierarchyController extends Controller
 
             $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
             $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
-            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader', 'business_growth_committee', 'events_impacts_committee', 'membership_growth_committee'], true) ||
                 str_contains($roleKey, 'circle') ||
                 str_contains($roleKey, 'leader') ||
                 str_contains($roleKey, 'founder') ||
                 str_contains($roleKey, 'chair') ||
-                str_contains($roleKey, 'secretary');
+                str_contains($roleKey, 'secretary') ||
+                str_contains($roleKey, 'committee');
 
             if ($isDed) {
                 if ($scopeId) {
@@ -1091,12 +1095,21 @@ class RoleHierarchyController extends Controller
                         } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
                             $colName = 'vice_chair_user_id';
                             $dbRole = 'vice_chair';
-                        } elseif (str_contains($roleKey, 'chair')) {
-                            $colName = 'chair_user_id';
-                            $dbRole = 'chair';
                         } elseif (str_contains($roleKey, 'secretary')) {
                             $colName = 'secretary_user_id';
                             $dbRole = 'secretary';
+                        } elseif (str_contains($roleKey, 'business_growth') || str_contains($roleKey, 'business')) {
+                            $colName = 'chair_user_id';
+                            $dbRole = 'business_growth_committee';
+                        } elseif (str_contains($roleKey, 'events') || str_contains($roleKey, 'impacts')) {
+                            $colName = null;
+                            $dbRole = 'events_impacts_committee';
+                        } elseif (str_contains($roleKey, 'membership')) {
+                            $colName = null;
+                            $dbRole = 'membership_growth_committee';
+                        } elseif (str_contains($roleKey, 'chair')) {
+                            $colName = 'chair_user_id';
+                            $dbRole = 'chair';
                         }
 
                         if ($colName) {
@@ -1279,5 +1292,52 @@ class RoleHierarchyController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('admin.login')->with('status', 'Your role has been removed successfully. Your account has been changed to the default User role.');
+    }
+
+    /**
+     * Ensure all active users from users table exist in admin_users so they appear in RBAC dropdowns.
+     */
+    private function syncAppUsersToAdminUsers(): void
+    {
+        if (! Schema::hasTable('admin_users') || ! Schema::hasTable('users')) {
+            return;
+        }
+
+        try {
+            $existingEmails = DB::table('admin_users')
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->map(fn ($e) => strtolower(trim((string) $e)))
+                ->flip()
+                ->all();
+
+            $appUsers = DB::table('users')
+                ->whereNotNull('email')
+                ->where('email', '!=', '')
+                ->select('id', 'first_name', 'last_name', 'display_name', 'email', 'created_at', 'updated_at')
+                ->get();
+
+            $toInsert = [];
+            foreach ($appUsers as $u) {
+                $email = strtolower(trim((string) $u->email));
+                if (! isset($existingEmails[$email])) {
+                    $name = trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: ($u->display_name ?? 'Peer');
+                    $toInsert[] = [
+                        'id' => (string) ($u->id ?? Str::uuid()),
+                        'name' => $name,
+                        'email' => $email,
+                        'created_at' => $u->created_at ?? now(),
+                        'updated_at' => $u->updated_at ?? now(),
+                    ];
+                    $existingEmails[$email] = true;
+                }
+            }
+
+            if (! empty($toInsert)) {
+                DB::table('admin_users')->insert($toInsert);
+            }
+        } catch (\Throwable) {
+            // Ignore if columns differ or conflict
+        }
     }
 }

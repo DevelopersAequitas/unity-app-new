@@ -97,8 +97,11 @@ class LeaderAuthService
             ]);
         }
 
+        $isLeader = $user ? $this->permissionService->isLeader($user) : false;
+
         return [
             'is_registered' => $user !== null,
+            'is_leader' => $isLeader,
             'otp_expiry_seconds' => 300,
         ];
     }
@@ -117,6 +120,11 @@ class LeaderAuthService
 
         if (! $user) {
             throw new RuntimeException('User not found with provided credentials.');
+        }
+
+        // Strict access control: only peers with an assigned leadership role can open/access the Leader App
+        if (! $this->permissionService->isLeader($user)) {
+            throw new RuntimeException('Access denied. Only peers with an assigned leadership role can access the Leader App.');
         }
 
         $isValid = false;

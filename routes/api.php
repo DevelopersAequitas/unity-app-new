@@ -310,7 +310,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // ── Leader App Core API Endpoints ──────────────────────────────────────────
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         // Auth & Profile
         Route::get('/profile', [LeaderAuthController::class, 'profile']);
         Route::get('/auth/profile', [LeaderAuthController::class, 'profile']);

@@ -10,6 +10,7 @@ use App\Http\Middleware\CheckLeaderCapability;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApiAccess;
 use App\Http\Middleware\EnsureIndustryDirector;
+use App\Http\Middleware\EnsureLeaderUser;
 use App\Http\Middleware\EnsureScanAppUser;
 use App\Http\Middleware\EnsureUnityUser;
 use Illuminate\Auth\AuthenticationException;
@@ -48,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'scan.app.user' => EnsureScanAppUser::class,
             'unity.user' => EnsureUnityUser::class,
             'leader.can' => CheckLeaderCapability::class,
+            'leader.user' => EnsureLeaderUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
