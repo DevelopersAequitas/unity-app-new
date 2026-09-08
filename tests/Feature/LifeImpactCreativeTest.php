@@ -8,6 +8,7 @@ use App\Models\AdminUser;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -125,9 +126,21 @@ class LifeImpactCreativeTest extends TestCase
             Schema::create('life_impact_histories', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->uuid('user_id');
+                $table->uuid('triggered_by_user_id')->nullable();
+                $table->string('activity_type', 100)->nullable();
+                $table->uuid('activity_id')->nullable();
                 $table->integer('impact_value')->default(1);
                 $table->integer('life_impacted')->default(1);
+                $table->integer('impact_after')->nullable();
+                $table->string('title', 255)->nullable();
+                $table->text('description')->nullable();
+                $table->text('meta')->nullable();
                 $table->string('action', 255)->nullable();
+                $table->string('action_key', 100)->nullable();
+                $table->string('action_label', 255)->nullable();
+                $table->text('remarks')->nullable();
+                $table->string('status', 50)->default('approved');
+                $table->boolean('counted_in_total')->default(true);
                 $table->timestamps();
             });
         }
@@ -361,6 +374,39 @@ class LifeImpactCreativeTest extends TestCase
             'source_type' => 'life_impact',
             'source_id' => $peer->id,
             'post_type' => 'life_impact_recognition',
+        ]);
+    }
+
+    public function test_add_life_impact_automatically_posts_creative_to_timeline_when_tier_unlocked(): void
+    {
+        $peer = User::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Auto Peer',
+            'display_name' => 'Auto Peer',
+            'email' => 'auto_peer_'.Str::random(4).'@test.com',
+            'life_impacted_count' => 20,
+            'status' => 'active',
+        ]);
+
+        /** @var LifeImpactService $lifeImpactService */
+        $lifeImpactService = app(LifeImpactService::class);
+
+        // Award 5 points to cross the 25 threshold (Impact Creator)
+        $lifeImpactService->addLifeImpact(
+            (string) $peer->id,
+            (string) $peer->id,
+            'business_deal',
+            (string) Str::uuid(),
+            5,
+            'Closed a business deal'
+        );
+
+        $this->assertDatabaseHas('posts', [
+            'source_type' => 'life_impact',
+            'source_id' => $peer->id,
+            'source_event' => 'level_25',
+            'post_type' => 'life_impact_recognition',
+            'moderation_status' => 'approved',
         ]);
     }
 }

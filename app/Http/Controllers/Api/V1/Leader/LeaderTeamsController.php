@@ -109,6 +109,8 @@ class LeaderTeamsController extends Controller
 
         return response()->json([
             'success' => true,
+            'status' => true,
+            'message' => 'Circle sub-industries fetched successfully.',
             'data' => $data,
         ]);
     }

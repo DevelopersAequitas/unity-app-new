@@ -59,6 +59,7 @@ jobs:
                 ln -sfn ${{ secrets.PROD_DEPLOY_PATH }}/storage/app/public /var/www/html/storage || true
             fi
             php artisan migrate --force
+            
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache

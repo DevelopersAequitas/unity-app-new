@@ -123,6 +123,7 @@ use App\Http\Controllers\Api\V1\Leader\LeaderNotificationsController;
 use App\Http\Controllers\Api\V1\Leader\LeaderPeersController;
 use App\Http\Controllers\Api\V1\Leader\LeaderReportsController;
 use App\Http\Controllers\Api\V1\Leader\LeaderRoleManagementController;
+use App\Http\Controllers\Api\V1\Leader\LeaderSystemController;
 use App\Http\Controllers\Api\V1\Leader\LeaderTeamsController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
@@ -154,6 +155,7 @@ use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\SendTestNotificationController;
 use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
+use App\Http\Controllers\Api\V1\SystemAppConfigController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\TutorialController;
@@ -193,6 +195,8 @@ Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
+Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+Route::get('/leader/system/app-config', [LeaderSystemController::class, 'appConfig']);
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {
@@ -271,6 +275,8 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+    Route::get('/leader/system/app-config', [LeaderSystemController::class, 'appConfig']);
     Route::get('/tutorials', [TutorialController::class, 'index']);
     Route::post('/tutorials', [TutorialController::class, 'store']);
     Route::prefix('scan-app')->group(function () {
@@ -347,15 +353,27 @@ Route::prefix('v1')->group(function () {
         Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
         Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
 
+        // Activities (Referrals, Testimonials, Coins, Impacts, P2P Meetings, Business Deals, Requirements)
         // Referrals, Testimonials & Coins
         Route::get('/referrals', [LeaderActivitiesController::class, 'referrals']);
         Route::post('/referrals', [LeaderActivitiesController::class, 'storeReferral']);
         Route::get('/testimonials', [LeaderActivitiesController::class, 'testimonials']);
         Route::get('/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
+        Route::get('/impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::get('/life-impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::get('/p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::get('/peer-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::get('/business-deals', [LeaderActivitiesController::class, 'businessDeals']);
+        Route::get('/requirements', [LeaderActivitiesController::class, 'requirements']);
 
         // Notifications
         Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
         Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
+        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
 
         // Tab 5: Role & Permission Management
         Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
@@ -732,6 +750,8 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
+            Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
+            Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
             Route::post('/app-config/clear-cache', [AppConfigAdminController::class, 'clearCache']);
 
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
@@ -1127,9 +1147,13 @@ Route::prefix('v1')->group(function () {
 
         // Notifications
         Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
-        Route::get('/notifications', [NotificationEngineController::class, 'index']);
-        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
-        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
+        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
+        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
+        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
         Route::post('/notifications/{id}/clicked', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);
