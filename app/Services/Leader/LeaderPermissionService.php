@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\AdminCircleScope;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class LeaderPermissionService
@@ -417,23 +418,35 @@ class LeaderPermissionService
         $defaults = $this->getDefaultRoleCapabilities();
 
         // 1. Check if overrides exist in leader_role_capabilities table
-        $overrides = LeaderRoleCapability::query()
-            ->where('role_key', $roleKey)
-            ->get();
+        if (Schema::hasTable('leader_role_capabilities')) {
+            try {
+                $overrides = LeaderRoleCapability::query()
+                    ->where('role_key', $roleKey)
+                    ->get();
 
-        if ($overrides->isNotEmpty()) {
-            return $overrides->where('is_enabled', true)->pluck('capability_id')->values()->all();
+                if ($overrides->isNotEmpty()) {
+                    return $overrides->where('is_enabled', true)->pluck('capability_id')->values()->all();
+                }
+            } catch (\Throwable) {
+                // Ignore and fall through
+            }
         }
 
         // 2. Check if dynamic RBAC data exists in role_module_access / role_page_permissions
-        $role = Str::isUuid($roleKey)
-            ? Role::query()->where('id', $roleKey)->first()
-            : Role::query()->where('key', $roleKey)->first();
+        if (Schema::hasTable('roles')) {
+            try {
+                $role = Str::isUuid($roleKey)
+                    ? Role::query()->where('id', $roleKey)->first()
+                    : Role::query()->where('key', $roleKey)->first();
 
-        if ($role) {
-            $dynamicCaps = $this->resolveCapabilitiesFromDynamicRbac($role);
-            if (! empty($dynamicCaps)) {
-                return $dynamicCaps;
+                if ($role) {
+                    $dynamicCaps = $this->resolveCapabilitiesFromDynamicRbac($role);
+                    if (! empty($dynamicCaps)) {
+                        return $dynamicCaps;
+                    }
+                }
+            } catch (\Throwable) {
+                // Ignore and fall through
             }
         }
 
@@ -580,8 +593,17 @@ class LeaderPermissionService
         $query = Circle::query()->whereNull('deleted_at');
 
         if ($role === 'superAdmin' || $role === 'countryDirector') {
-            // Can see all active circles
-            $circles = $query->take(20)->get();
+            $joinedCircles = $query->where(function ($q) use ($userId): void {
+                $q->where('chair_user_id', $userId)
+                    ->orWhere('vice_chair_user_id', $userId)
+                    ->orWhere('circle_founder_user_id', $userId)
+                    ->orWhere('founder_user_id', $userId)
+                    ->orWhere('circle_director_user_id', $userId)
+                    ->orWhere('director_user_id', $userId)
+                    ->orWhereHas('members', fn ($mq) => $mq->where('user_id', $userId)->whereNull('deleted_at')->where('status', '!=', 'rejected'));
+            })->get();
+
+            $circles = $joinedCircles;
         } elseif ($role === 'districtExecDirector') {
             $admin = AdminUser::query()->where('id', $userId)->orWhere('email', $user->email)->first();
             $circleIds = $admin ? AdminCircleScope::getDedCircleIds($admin) : [];
@@ -611,15 +633,8 @@ class LeaderPermissionService
                 ->orWhere('founder_user_id', $userId)
                 ->orWhere('circle_director_user_id', $userId)
                 ->orWhere('director_user_id', $userId)
-                ->orWhereHas('members', fn ($q) => $q->where('user_id', $userId))
+                ->orWhereHas('members', fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at')->where('status', '!=', 'rejected'))
                 ->get();
-        }
-
-        if ($circles->isEmpty()) {
-            $firstCircle = Circle::query()->whereNull('deleted_at')->first();
-            if ($firstCircle) {
-                $circles = collect([$firstCircle]);
-            }
         }
 
         return $circles->map(function (Circle $c): array {

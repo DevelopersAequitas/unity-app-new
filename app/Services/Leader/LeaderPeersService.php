@@ -15,6 +15,7 @@ use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class LeaderPeersService
@@ -33,17 +34,35 @@ class LeaderPeersService
     public function resolveScopedCircleIds(?User $user, ?string $districtId = null): ?array
     {
         if (! $user) {
-            return null;
+            return [];
         }
 
         $roleInfo = $this->permissionService->resolveUserRole($user);
         $role = $roleInfo['role'];
+        $userId = (string) $user->id;
+
+        // Resolve circles the user has directly joined or leads
+        $joinedCircleIds = $this->resolveUserJoinedCircleIds($user);
 
         if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
-            return null; // Global access
-        }
+            // In Leader App: if super admin has joined/associated circles (e.g. 2 circles),
+            // scope strictly to those circles.
+            if (! empty($joinedCircleIds)) {
+                return $joinedCircleIds;
+            }
 
-        $userId = (string) $user->id;
+            // If a specific district is requested, scope to that district
+            if ($districtId && Str::isUuid($districtId)) {
+                $circleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
+                if (! empty($circleIds)) {
+                    return $circleIds;
+                }
+            }
+
+            // If super admin has joined 0 circles and no district is requested,
+            // return empty array so Leader App shows 0 metrics / 0 peers instead of all platform data.
+            return [];
+        }
 
         if ($role === 'districtExecDirector') {
             $adminUser = AdminUser::query()->where('id', $userId)
@@ -93,24 +112,42 @@ class LeaderPeersService
         }
 
         // For circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, or any own-circle leader
+        return $joinedCircleIds;
+    }
+
+    /**
+     * Resolve all circles a user is directly a member or leader of.
+     *
+     * @return array<string>
+     */
+    public function resolveUserJoinedCircleIds(User $user): array
+    {
+        $userId = (string) $user->id;
         $circleIds = [];
 
         // 1. Direct column associations on circles table
         $directCircleIds = Circle::query()
-            ->where('circle_founder_user_id', $userId)
-            ->orWhere('founder_user_id', $userId)
-            ->orWhere('circle_director_user_id', $userId)
-            ->orWhere('director_user_id', $userId)
-            ->orWhere('chair_user_id', $userId)
-            ->orWhere('vice_chair_user_id', $userId)
+            ->whereNull('deleted_at')
+            ->where(function (Builder $q) use ($userId): void {
+                $q->where('circle_founder_user_id', $userId)
+                    ->orWhere('founder_user_id', $userId)
+                    ->orWhere('circle_director_user_id', $userId)
+                    ->orWhere('director_user_id', $userId)
+                    ->orWhere('chair_user_id', $userId)
+                    ->orWhere('vice_chair_user_id', $userId);
+            })
             ->pluck('id')
             ->all();
         $circleIds = array_merge($circleIds, $directCircleIds);
 
-        // 2. circle_members table roles and memberships
+        // 2. circle_members table roles and memberships (approved or active or valid)
         $memberCircleIds = DB::table('circle_members')
             ->where('user_id', $userId)
             ->whereNull('deleted_at')
+            ->where(function ($q): void {
+                $q->whereNull('status')
+                    ->orWhereIn('status', ['approved', 'active', 'pending']);
+            })
             ->pluck('circle_id')
             ->all();
         $circleIds = array_merge($circleIds, $memberCircleIds);
@@ -162,8 +199,26 @@ class LeaderPeersService
 
         $query = User::query()->whereNull('deleted_at');
 
+        // Only include legitimate in-app peers associated with circles
+        $query->where(function (Builder $q): void {
+            $q->whereHas('circleMembers', function (Builder $cq): void {
+                $cq->whereNull('deleted_at')
+                    ->whereHas('circle', fn (Builder $c) => $c->whereNull('deleted_at'));
+            })->orWhere(function (Builder $aq): void {
+                $aq->whereNotNull('active_circle_id')
+                    ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
+            });
+        });
+
+        // Exclude dummy test users
+        $query->where('email', 'not like', '%devtestpeer%')
+            ->where('first_name', 'not like', 'Test Peer%');
+
+        $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
+        $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
+
         if ($circleId && Str::isUuid($circleId)) {
-            if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
+            if (! $isAdmin && $scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
                 $query->whereRaw('1 = 0');
             } else {
                 $query->where(function (Builder $q) use ($circleId): void {
@@ -312,27 +367,18 @@ class LeaderPeersService
             'first_name' => (string) ($u->first_name ?? ''),
             'last_name' => (string) ($u->last_name ?? ''),
             'company_name' => $company,
-            'company' => $company,
             'city' => $location,
-            'location' => $location,
             'designation' => $designation,
             'business_category' => $industry,
-            'industry' => $industry,
-            'level_4_category' => $level4,
             'level4_category' => $level4,
             'profile_photo_url' => $avatarUrl,
-            'avatar_url' => $avatarUrl,
-            'life_impact' => $impact,
             'life_impacted_count' => $impact,
-            'impact' => $impact,
-            'impact_count' => $impact,
             'life_impact_recognition' => [
                 'level' => $impact >= 25 ? app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['title'] : 'Aspiring Impact Leader',
                 'required_count' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['required_count'],
                 'badge_image' => asset(app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['badge_image']),
                 'hashtag' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['hashtag'],
             ],
-            'circle' => $circleName,
             'circle_name' => $circleName,
             'circle_id' => $circleId,
             'tags' => $tags,
@@ -464,21 +510,13 @@ class LeaderPeersService
             'first_name' => (string) ($user->first_name ?? ''),
             'last_name' => (string) ($user->last_name ?? ''),
             'company_name' => $company,
-            'company' => $company,
             'city' => $location,
-            'location' => $location,
             'designation' => $designation,
             'business_category' => $industry,
-            'industry' => $industry,
-            'level_4_category' => $level4,
             'level4_category' => $level4,
             'sub_industry' => $subIndustry,
             'profile_photo_url' => $photoUrl,
-            'avatar_url' => $photoUrl,
-            'life_impact' => $impact,
             'life_impacted_count' => $impact,
-            'impact' => $impact,
-            'impact_count' => $impact,
             'life_impact_recognition' => [
                 'level' => $impact >= 25 ? app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['title'] : 'Aspiring Impact Leader',
                 'required_count' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['required_count'],
@@ -486,7 +524,6 @@ class LeaderPeersService
                 'hashtag' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['hashtag'],
                 'quote' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['quote'],
             ],
-            'circle' => $circleName,
             'circle_name' => $circleName,
             'circle_id' => $circleId,
             'status' => $status,
@@ -592,7 +629,21 @@ class LeaderPeersService
     ): array {
         $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
 
-        $query = User::query()->whereNull('deleted_at');
+        $baseQuery = fn () => User::query()
+            ->whereNull('deleted_at')
+            ->where(function (Builder $q): void {
+                $q->whereHas('circleMembers', function (Builder $cq): void {
+                    $cq->whereNull('deleted_at')
+                        ->whereHas('circle', fn (Builder $c) => $c->whereNull('deleted_at'));
+                })->orWhere(function (Builder $aq): void {
+                    $aq->whereNotNull('active_circle_id')
+                        ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
+                });
+            })
+            ->where('email', 'not like', '%devtestpeer%')
+            ->where('first_name', 'not like', 'Test Peer%');
+
+        $query = $baseQuery();
 
         if ($circleId && Str::isUuid($circleId)) {
             if ($scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
@@ -603,61 +654,107 @@ class LeaderPeersService
                         ->orWhere('active_circle_id', $circleId);
                 });
             }
-        } elseif ($scopedCircleIds !== null) {
-            if (empty($scopedCircleIds)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->where(function (Builder $q) use ($scopedCircleIds): void {
-                    $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
-                        ->orWhereIn('active_circle_id', $scopedCircleIds);
-                });
-            }
-        } else {
-            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-            if ($resolvedDistrictId) {
-                $query->whereHas('circleMembers.circle', fn ($c) => $c->where('district_id', $resolvedDistrictId));
-            }
+        } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds)) {
+            $query->where(function (Builder $q) use ($scopedCircleIds): void {
+                $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
+                    ->orWhereIn('active_circle_id', $scopedCircleIds);
+            });
         }
 
-        $users = $query->take(5)->get();
+        $users = $query->with(['circleMembers.circle', 'activeCircle'])->take(10)->get();
+
+        if ($users->isEmpty()) {
+            // Platform fallback to ensure leader always sees active peer celebrations
+            $users = $baseQuery()->with(['circleMembers.circle', 'activeCircle'])->take(10)->get();
+        }
+
+        $wishedPeerIds = [];
+        if ($user && Schema::hasTable('leader_wishes')) {
+            $wishedPeerIds = DB::table('leader_wishes')
+                ->where('sender_user_id', (string) $user->id)
+                ->pluck('receiver_user_id')
+                ->map(fn ($id) => (string) $id)
+                ->all();
+        }
 
         $birthdays = [];
         $anniversaries = [];
+
+        $now = now();
+        $bdayOffsets = [0, 2, 5, 8, 12];
+        $annivOffsets = [1, 4, 7, 11, 15];
 
         foreach ($users as $idx => $u) {
             $uName = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
             if ($uName === '') {
                 $uName = (string) ($u->display_name ?? 'Peer Member');
             }
-            $company = (string) ($u->company_name ?? $u->business_name ?? 'Aequitas Enterprise');
+            $company = (string) ($u->company_name ?? $u->business_name ?? 'Apex Dynamics');
+            $designation = (string) ($u->designation ?? 'Founder & CEO');
 
-            if ($idx === 0) {
+            $c = $u->circleMembers->first()?->circle ?? $u->activeCircle;
+            $circleName = $c ? (string) $c->name : 'Ahmedabad Business Circle';
+            $circleIdVal = $c ? (string) $c->id : (string) ($u->active_circle_id ?? '');
+
+            $avatarUrl = $u->profile_photo_url ?? $u->avatar_url ?? null;
+            $uId = (string) $u->id;
+            $hasWished = in_array($uId, $wishedPeerIds, true);
+
+            if ($idx % 2 === 0 && count($birthdays) < 4) {
+                $offset = $bdayOffsets[count($birthdays)] ?? (count($birthdays) * 3);
+                $bDate = $offset === 0 ? $now : $now->copy()->addDays($offset);
+                $formattedDate = $offset === 0
+                    ? 'Today, '.$bDate->format('d M')
+                    : ($offset === 1 ? 'Tomorrow, '.$bDate->format('d M') : $bDate->format('d M'));
+
                 $birthdays[] = [
-                    'id' => 'cel_b_'.($u->id ?? '1'),
-                    'peer_id' => (string) $u->id,
+                    'id' => 'cel_b_'.$uId,
+                    'peer_id' => $uId,
                     'name' => $uName,
-                    'company' => $company,
-                    'date_formatted' => 'Today, '.now()->format('d M'),
-                    'is_today' => true,
+                    'first_name' => (string) ($u->first_name ?? ''),
+                    'last_name' => (string) ($u->last_name ?? ''),
+                    'company_name' => $company,
+                    'designation' => $designation,
+                    'circle_name' => $circleName,
+                    'circle_id' => $circleIdVal,
+                    'profile_photo_url' => $avatarUrl,
+                    'date_formatted' => $formattedDate,
+                    'day' => $bDate->format('d'),
+                    'month' => $bDate->format('M'),
+                    'is_today' => $offset === 0,
+                    'wished' => $hasWished,
                 ];
-            } elseif ($idx === 1) {
-                $birthdays[] = [
-                    'id' => 'cel_b_'.($u->id ?? '2'),
-                    'peer_id' => (string) $u->id,
-                    'name' => $uName,
-                    'company' => $company,
-                    'date_formatted' => now()->addDays(3)->format('d M'),
-                    'is_today' => false,
-                ];
-            } elseif ($idx === 2) {
+            } else {
+                $offset = $annivOffsets[count($anniversaries)] ?? (count($anniversaries) * 3 + 1);
+                $aDate = $offset === 0 ? $now : $now->copy()->addDays($offset);
+                $formattedDate = $offset === 0
+                    ? 'Today, '.$aDate->format('d M')
+                    : ($offset === 1 ? 'Tomorrow, '.$aDate->format('d M') : $aDate->format('d M'));
+
+                $milestoneYears = (count($anniversaries) % 3) + 1;
+                $milestoneLabel = match ($milestoneYears) {
+                    1 => '1st Year in Circle',
+                    2 => '2nd Year in Circle',
+                    default => '3rd Year in Peer Network',
+                };
+
                 $anniversaries[] = [
-                    'id' => 'cel_a_'.($u->id ?? '3'),
-                    'peer_id' => (string) $u->id,
+                    'id' => 'cel_a_'.$uId,
+                    'peer_id' => $uId,
                     'name' => $uName,
-                    'company' => $company,
-                    'milestone' => '1 Year in Circle',
-                    'date_formatted' => now()->addDays(4)->format('d M'),
-                    'is_today' => false,
+                    'first_name' => (string) ($u->first_name ?? ''),
+                    'last_name' => (string) ($u->last_name ?? ''),
+                    'company_name' => $company,
+                    'designation' => $designation,
+                    'circle_name' => $circleName,
+                    'circle_id' => $circleIdVal,
+                    'milestone' => $milestoneLabel,
+                    'profile_photo_url' => $avatarUrl,
+                    'date_formatted' => $formattedDate,
+                    'day' => $aDate->format('d'),
+                    'month' => $aDate->format('M'),
+                    'is_today' => $offset === 0,
+                    'wished' => $hasWished,
                 ];
             }
         }

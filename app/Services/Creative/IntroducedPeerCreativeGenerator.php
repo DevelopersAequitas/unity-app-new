@@ -422,6 +422,31 @@ class IntroducedPeerCreativeGenerator
                 $drawCenterText($canvas, 30, 735, $colorGold, $fontBold, $displayName, 900);
 
                 // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, Y = 766)
+                $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
+                if (is_array($company)) {
+                    $company = $company['name'] ?? '';
+                }
+                $company = trim((string) $company);
+                if (in_array(strtolower($company), ['null', 'none', 'no company'], true)) {
+                    $company = '';
+                }
+
+                $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
+                if (! $cityModel && ! empty($user->city_id)) {
+                    $cityModel = City::find($user->city_id);
+                }
+                $cityName = $cityModel->name ?? $user->city ?? $user->business_city ?? '';
+                if (is_array($cityName)) {
+                    $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
+                }
+                $cityName = trim((string) $cityName);
+
+                $subInfoParts = array_filter([$company, $cityName]);
+                $line2Text = implode('  •  ', $subInfoParts);
+                if (empty($line2Text)) {
+                    $line2Text = 'Peers Global Member';
+                }
+
                 if (! empty($line2Text)) {
                     $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);
                 }

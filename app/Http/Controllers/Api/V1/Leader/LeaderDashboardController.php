@@ -27,6 +27,8 @@ class LeaderDashboardController extends Controller
 
         return response()->json([
             'success' => true,
+            'status' => true,
+            'message' => 'Dashboard metrics retrieved successfully.',
             'data' => $data,
         ]);
     }
@@ -43,6 +45,8 @@ class LeaderDashboardController extends Controller
 
         return response()->json([
             'success' => true,
+            'status' => true,
+            'message' => 'Top impacters retrieved successfully.',
             'data' => $data,
         ]);
     }

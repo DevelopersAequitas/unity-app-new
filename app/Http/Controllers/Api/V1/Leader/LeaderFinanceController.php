@@ -7,8 +7,11 @@ namespace App\Http\Controllers\Api\V1\Leader;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leader\LeaderRecordOfflinePaymentRequest;
 use App\Http\Requests\Leader\LeaderUpdateCommissionRatesRequest;
+use App\Models\AdminUser;
 use App\Models\User;
 use App\Services\Leader\LeaderFinanceService;
+use App\Services\Leader\LeaderPermissionService;
+use App\Support\AdminAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,7 +22,7 @@ class LeaderFinanceController extends Controller
     ) {}
 
     /**
-     * Get financial metrics and collection summaries (including 10% DED commission).
+     * Get financial metrics and collection summaries (including commission structure).
      */
     public function metrics(Request $request): JsonResponse
     {
@@ -30,7 +33,7 @@ class LeaderFinanceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Finance metrics and trend datasets fetched successfully.',
+            'message' => 'Finance metrics retrieved successfully',
             'data' => $data,
         ]);
     }
@@ -53,15 +56,46 @@ class LeaderFinanceController extends Controller
     }
 
     /**
-     * Update commission rates per role (Super Admin).
+     * Update commission rates per role (Super Admin only).
      */
     public function updateCommissionRates(LeaderUpdateCommissionRatesRequest $request): JsonResponse
     {
-        $this->financeService->updateCommissionRates((array) $request->validated('commission_rates'));
+        /** @var User|null $user */
+        $user = $request->user();
+
+        $permissionService = app(LeaderPermissionService::class);
+        $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'user'];
+        $role = $roleInfo['role'];
+
+        $isSuperAdmin = false;
+        if ($role === 'superAdmin') {
+            $isSuperAdmin = true;
+        } elseif ($user) {
+            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
+            if ($admin && AdminAccess::isSuperAdmin($admin)) {
+                $isSuperAdmin = true;
+            } elseif ($user->hasRole('super_admin') || $user->hasRole('superAdmin') || ! empty($user->is_super_admin)) {
+                $isSuperAdmin = true;
+            }
+        }
+
+        if (! $isSuperAdmin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: Only Super Admin has permission to modify commission structures.',
+                'error_code' => 'FORBIDDEN_ROLE',
+            ], 403);
+        }
+
+        $data = $this->financeService->updateCommissionRates(
+            (array) $request->validated('commission_rates'),
+            $user
+        );
 
         return response()->json([
             'success' => true,
-            'message' => 'Commission rates updated successfully.',
+            'message' => 'Commission rates updated successfully',
+            'data' => $data,
         ]);
     }
 

@@ -236,7 +236,7 @@ class LifeImpactRecognitionsController extends Controller
             : ($realCount >= 25 ? $realCount : 25);
 
         $meta = $generator->getRecognitionMeta($effectiveThreshold);
-        $caption = $generator->formatCaption($peer, $realCount, $meta);
+        $caption = $generator->formatCaption($peer, $effectiveThreshold, $meta);
 
         $peerName = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
         if (empty($peerName)) {
@@ -380,7 +380,7 @@ class LifeImpactRecognitionsController extends Controller
             $imageUrl = url('/api/v1/files/'.$fileRecord->id);
 
             $meta = $generator->getRecognitionMeta($effectiveThreshold);
-            $caption = $generator->formatCaption($peer, $realCount, $meta);
+            $caption = $generator->formatCaption($peer, $effectiveThreshold, $meta);
 
             // Find system user to post automated announcement
             $systemUser = User::where('email', 'info@peersglobal.com')->first();

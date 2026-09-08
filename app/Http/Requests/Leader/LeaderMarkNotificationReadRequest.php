@@ -19,7 +19,10 @@ class LeaderMarkNotificationReadRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'notification_ids' => ['required', 'array'],
+            'notification_ids' => ['nullable'],
+            'notification_id' => ['nullable', 'string'],
+            'id' => ['nullable', 'string'],
+            'ids' => ['nullable', 'array'],
         ];
     }
 }

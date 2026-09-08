@@ -64,6 +64,8 @@ class LeaderPeersController extends Controller
 
         return response()->json([
             'success' => true,
+            'status' => true,
+            'message' => 'Celebrations retrieved successfully.',
             'data' => $data,
         ]);
     }

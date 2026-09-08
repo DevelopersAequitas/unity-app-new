@@ -7,6 +7,7 @@ use App\Http\Requests\StoreAppReleaseRequest;
 use App\Models\AppChangelog;
 use App\Models\AppMaintenance;
 use App\Models\AppVersion;
+use App\Models\LeaderAppConfig;
 use App\Models\User;
 use App\Models\UserMobileVersion;
 use App\Models\UserPushToken;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class AppUpdatesController extends Controller
 {
@@ -121,7 +123,30 @@ class AppUpdatesController extends Controller
             ? AppChangelog::orderBy('created_at', 'desc')->get()
             : collect();
 
-        return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'maintenanceConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases'));
+        $leaderConfig = Schema::hasTable('leader_app_configs')
+            ? LeaderAppConfig::query()->latest('updated_at')->first()
+            : null;
+
+        if (! $leaderConfig) {
+            $leaderConfig = new LeaderAppConfig([
+                'platform' => 'all',
+                'min_required_version' => '1.8.7',
+                'latest_version' => '1.8.8',
+                'store_url_android' => 'https://play.google.com/store/apps/details?id=com.greenpreneur.greenpreneur',
+                'store_url_ios' => 'https://apps.apple.com/app/id1234567890',
+                'force_update_title' => 'App Update Required',
+                'force_update_message' => 'A critical new version of Peers Global Unity is required to continue. Please update the app from the store.',
+                'optional_update_title' => 'New Update Available',
+                'optional_update_message' => 'A new version is available with enhanced features and performance improvements.',
+                'is_maintenance_mode' => false,
+                'maintenance_title' => 'System Under Maintenance',
+                'maintenance_message' => 'We are currently performing essential infrastructure upgrades. Please check back shortly.',
+                'allowed_bypass_roles' => ['superAdmin', 'super_admin'],
+                'is_active' => true,
+            ]);
+        }
+
+        return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'maintenanceConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases', 'leaderConfig'));
     }
 
     /**
@@ -220,6 +245,82 @@ class AppUpdatesController extends Controller
         }
 
         return redirect()->route('admin.app-updates.index')->with('success', 'App Maintenance configuration updated successfully.');
+    }
+
+    /**
+     * Save Leader App configuration settings.
+     */
+    public function saveLeaderConfig(Request $request)
+    {
+        $data = $request->validate([
+            'min_required_version' => 'required|string|max:50',
+            'latest_version' => 'required|string|max:50',
+            'store_url_android' => 'nullable|url',
+            'store_url_ios' => 'nullable|url',
+            'force_update_title' => 'nullable|string|max:255',
+            'force_update_message' => 'nullable|string',
+            'optional_update_title' => 'nullable|string|max:255',
+            'optional_update_message' => 'nullable|string',
+            'is_maintenance_mode' => 'nullable|boolean',
+            'maintenance_title' => 'nullable|string|max:255',
+            'maintenance_message' => 'nullable|string',
+            'allowed_bypass_roles' => 'nullable|string',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (! Schema::hasTable('leader_app_configs')) {
+            return redirect()->route('admin.app-updates.index')->with('error', 'The leader_app_configs table does not exist.');
+        }
+
+        $bypassRoles = [];
+        if (! empty($data['allowed_bypass_roles'])) {
+            $bypassRoles = array_values(array_filter(array_map('trim', explode(',', (string) $data['allowed_bypass_roles']))));
+        }
+        if (empty($bypassRoles)) {
+            $bypassRoles = ['superAdmin', 'super_admin'];
+        }
+
+        $isMaintenance = (bool) $request->boolean('is_maintenance_mode');
+        $isActive = (bool) $request->boolean('is_active', true);
+
+        $existing = LeaderAppConfig::query()->latest('updated_at')->first();
+        if ($existing) {
+            $existing->update([
+                'min_required_version' => $data['min_required_version'],
+                'latest_version' => $data['latest_version'],
+                'store_url_android' => $data['store_url_android'] ?? null,
+                'store_url_ios' => $data['store_url_ios'] ?? null,
+                'force_update_title' => $data['force_update_title'] ?? null,
+                'force_update_message' => $data['force_update_message'] ?? null,
+                'optional_update_title' => $data['optional_update_title'] ?? null,
+                'optional_update_message' => $data['optional_update_message'] ?? null,
+                'is_maintenance_mode' => $isMaintenance,
+                'maintenance_title' => $data['maintenance_title'] ?? null,
+                'maintenance_message' => $data['maintenance_message'] ?? null,
+                'allowed_bypass_roles' => $bypassRoles,
+                'is_active' => $isActive,
+            ]);
+        } else {
+            LeaderAppConfig::query()->create([
+                'id' => (string) Str::uuid(),
+                'platform' => 'all',
+                'min_required_version' => $data['min_required_version'],
+                'latest_version' => $data['latest_version'],
+                'store_url_android' => $data['store_url_android'] ?? null,
+                'store_url_ios' => $data['store_url_ios'] ?? null,
+                'force_update_title' => $data['force_update_title'] ?? null,
+                'force_update_message' => $data['force_update_message'] ?? null,
+                'optional_update_title' => $data['optional_update_title'] ?? null,
+                'optional_update_message' => $data['optional_update_message'] ?? null,
+                'is_maintenance_mode' => $isMaintenance,
+                'maintenance_title' => $data['maintenance_title'] ?? null,
+                'maintenance_message' => $data['maintenance_message'] ?? null,
+                'allowed_bypass_roles' => $bypassRoles,
+                'is_active' => $isActive,
+            ]);
+        }
+
+        return redirect()->route('admin.app-updates.index')->with('success', 'Leader App configuration updated successfully.');
     }
 
     /**
