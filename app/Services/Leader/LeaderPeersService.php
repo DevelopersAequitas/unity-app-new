@@ -45,12 +45,6 @@ class LeaderPeersService
         $joinedCircleIds = $this->resolveUserJoinedCircleIds($user);
 
         if (in_array($role, ['superAdmin', 'countryDirector'], true)) {
-            // In Leader App: if super admin has joined/associated circles (e.g. 2 circles),
-            // scope strictly to those circles.
-            if (! empty($joinedCircleIds)) {
-                return $joinedCircleIds;
-            }
-
             // If a specific district is requested, scope to that district
             if ($districtId && Str::isUuid($districtId)) {
                 $circleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
@@ -59,9 +53,9 @@ class LeaderPeersService
                 }
             }
 
-            // If super admin has joined 0 circles and no district is requested,
-            // return empty array so Leader App shows 0 metrics / 0 peers instead of all platform data.
-            return [];
+            // Global Admin / Country Director has full platform-wide global scope.
+            // Returning null allows viewing ALL circles, ALL members, and platform-wide metrics.
+            return null;
         }
 
         if ($role === 'districtExecDirector') {

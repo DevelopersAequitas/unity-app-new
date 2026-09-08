@@ -85,7 +85,7 @@ class LeaderDashboardService
             if ($resolvedDistrictId) {
                 $targetCircleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
             } else {
-                $targetCircleIds = [];
+                $targetCircleIds = Circle::query()->whereNull('deleted_at')->pluck('id')->all();
             }
             $resolvedCircleId = null;
             $resolvedCircleName = 'All Circles';
