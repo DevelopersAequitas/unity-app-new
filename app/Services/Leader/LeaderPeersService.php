@@ -192,10 +192,6 @@ class LeaderPeersService
 
         $query = User::query()->whereNull('deleted_at');
 
-        // Exclude dummy test users
-        $query->where('email', 'not like', '%devtestpeer%')
-            ->where('first_name', 'not like', 'Test Peer%');
-
         $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
 
@@ -241,6 +237,31 @@ class LeaderPeersService
                 $query->where(function (Builder $q) use ($districtCircleIds): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $districtCircleIds)->whereNull('deleted_at'))
                         ->orWhereIn('active_circle_id', $districtCircleIds);
+                });
+            }
+        } elseif ($user !== null && ! $isAdmin && $scopedCircleIds !== null) {
+            // If the user is a leader scoped to specific circles, restrict to their circles
+            if (empty($scopedCircleIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function (Builder $q) use ($scopedCircleIds): void {
+                    $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
+                        ->orWhereIn('active_circle_id', $scopedCircleIds)
+                        ->orWhereExists(function ($sq) use ($scopedCircleIds): void {
+                            $sq->selectRaw(1)
+                                ->from('circles')
+                                ->whereIn('circles.id', $scopedCircleIds)
+                                ->whereNull('circles.deleted_at')
+                                ->where(function ($lq): void {
+                                    $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
+                                        ->orWhereColumn('circles.founder_user_id', 'users.id')
+                                        ->orWhereColumn('circles.circle_director_user_id', 'users.id')
+                                        ->orWhereColumn('circles.director_user_id', 'users.id')
+                                        ->orWhereColumn('circles.chair_user_id', 'users.id')
+                                        ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
+                                        ->orWhereColumn('circles.secretary_user_id', 'users.id');
+                                });
+                        });
                 });
             }
         }
@@ -313,9 +334,10 @@ class LeaderPeersService
 
         if ($circleName === '' && $u->circleMembers && $u->circleMembers->isNotEmpty()) {
             foreach ($u->circleMembers as $cm) {
-                if ($cm->circle && ! $cm->circle->deleted_at) {
-                    $circleName = (string) $cm->circle->name;
-                    $circleId = (string) $cm->circle->id;
+                $c = $cm->circle ?? Circle::query()->where('id', $cm->circle_id)->whereNull('deleted_at')->first();
+                if ($c && ! $c->deleted_at) {
+                    $circleName = (string) $c->name;
+                    $circleId = (string) $c->id;
                     break;
                 }
             }
@@ -324,6 +346,19 @@ class LeaderPeersService
         if ($circleName === '' && $u->activeCircle && ! $u->activeCircle->deleted_at) {
             $circleName = (string) $u->activeCircle->name;
             $circleId = (string) $u->activeCircle->id;
+        }
+
+        if ($circleName === '' && Schema::hasTable('joined_circle_categories')) {
+            $joinedCat = DB::table('joined_circle_categories')
+                ->join('circles', 'circles.id', '=', 'joined_circle_categories.circle_id')
+                ->where('joined_circle_categories.user_id', (string) $u->id)
+                ->whereNull('circles.deleted_at')
+                ->select('circles.id as circle_id', 'circles.name as circle_name')
+                ->first();
+            if ($joinedCat) {
+                $circleName = (string) $joinedCat->circle_name;
+                $circleId = (string) $joinedCat->circle_id;
+            }
         }
 
         if ($circleName === '') {
@@ -666,9 +701,7 @@ class LeaderPeersService
                     $aq->whereNotNull('active_circle_id')
                         ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
                 });
-            })
-            ->where('email', 'not like', '%devtestpeer%')
-            ->where('first_name', 'not like', 'Test Peer%');
+            });
 
         $query = $baseQuery();
 
