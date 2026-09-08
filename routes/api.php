@@ -354,17 +354,33 @@ Route::prefix('v1')->group(function () {
         Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
 
         // Activities (Referrals, Testimonials, Coins, Impacts, P2P Meetings, Business Deals, Requirements)
-        // Referrals, Testimonials & Coins
         Route::get('/referrals', [LeaderActivitiesController::class, 'referrals']);
+        Route::get('/referral', [LeaderActivitiesController::class, 'referrals']);
         Route::post('/referrals', [LeaderActivitiesController::class, 'storeReferral']);
+
         Route::get('/testimonials', [LeaderActivitiesController::class, 'testimonials']);
+        Route::get('/testimonial', [LeaderActivitiesController::class, 'testimonials']);
+        Route::post('/testimonials', [LeaderActivitiesController::class, 'storeTestimonial']);
+
         Route::get('/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
+        Route::get('/coins', [LeaderActivitiesController::class, 'peersByCoins']);
+
         Route::get('/impacts', [LeaderActivitiesController::class, 'impacts']);
         Route::get('/life-impacts', [LeaderActivitiesController::class, 'impacts']);
+        Route::get('/impact', [LeaderActivitiesController::class, 'impacts']);
+        Route::post('/impacts', [LeaderActivitiesController::class, 'storeImpact']);
+
         Route::get('/p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
         Route::get('/peer-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::get('/p2p-meeting', [LeaderActivitiesController::class, 'p2pMeetings']);
+        Route::post('/p2p-meetings', [LeaderActivitiesController::class, 'storeP2pMeeting']);
+
         Route::get('/business-deals', [LeaderActivitiesController::class, 'businessDeals']);
+        Route::get('/business-deal', [LeaderActivitiesController::class, 'businessDeals']);
+        Route::post('/business-deals', [LeaderActivitiesController::class, 'storeBusinessDeal']);
+
         Route::get('/requirements', [LeaderActivitiesController::class, 'requirements']);
+        Route::get('/requirement', [LeaderActivitiesController::class, 'requirements']);
 
         // Notifications
         Route::get('/notifications', [LeaderNotificationsController::class, 'index']);

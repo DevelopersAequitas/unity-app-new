@@ -979,6 +979,287 @@ The backend automatically resolves the user's role and returns the 21 permission
 
 ---
 
+### Activities & Peer Collaborations (Standard Peer Details Contract)
+
+Every activity endpoint returns standard peer details at both the top level and inside nested peer objects (`from_peer`, `to_peer`, `peer`, `initiator`, `giver_peer`, `receiver_peer`, `author_peer`, `target_peer`, `impacted_peer`):
+
+```json
+{
+  "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+  "name": "Aarav Sharma",
+  "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+  "city": "Ahmedabad",
+  "business_name": "FinTech Innovators Ltd",
+  "company_name": "FinTech Innovators Ltd",
+  "category_level4": "FinTech Software Solutions"
+}
+```
+
+#### 27. Life Impacts API
+- **List Route:** `GET /api/v1/impacts` (Aliases: `/api/v1/life-impacts`, `/api/v1/impact`)
+- **Query Params:** `circle_id`, `status` (`approved`, `pending`, `all`), `search`, `limit`
+- **Log Route:** `POST /api/v1/impacts`
+- **List Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "Impacts retrieved successfully.",
+  "data": [
+    {
+      "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "date": "2026-09-08",
+      "impact_date": "2026-09-08",
+      "action": "Provided Mentorship & Strategic Guidance",
+      "story_to_share": "Helped launch regional distribution.",
+      "life_impacted": 2,
+      "status": "Approved",
+      "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "name": "Aarav Sharma",
+      "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+      "city": "Ahmedabad",
+      "business_name": "FinTech Innovators Ltd",
+      "company_name": "FinTech Innovators Ltd",
+      "category_level4": "FinTech Software Solutions",
+      "from_peer": {
+        "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+        "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+        "name": "Aarav Sharma",
+        "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+        "city": "Ahmedabad",
+        "business_name": "FinTech Innovators Ltd",
+        "company_name": "FinTech Innovators Ltd",
+        "category_level4": "FinTech Software Solutions"
+      },
+      "impacted_peer": {
+        "id": "019488a0-8888-74a9-a931-10c0e1234999",
+        "name": "Diya Mehta",
+        "profile_image": "https://cdn.peersglobal.in/avatars/diya.png",
+        "city": "Surat",
+        "business_name": "Diamond Enterprise",
+        "category_level4": "FinTech Software Solutions"
+      }
+    }
+  ]
+}
+```
+
+#### 28. P2P Meetings API
+- **List Route:** `GET /api/v1/p2p-meetings` (Aliases: `/api/v1/peer-meetings`, `/api/v1/p2p-meeting`)
+- **Query Params:** `circle_id`, `search`, `limit`
+- **Log Route:** `POST /api/v1/p2p-meetings`
+- **List Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "P2P meetings retrieved successfully.",
+  "data": [
+    {
+      "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "meeting_date": "2026-09-08",
+      "date": "2026-09-08",
+      "meeting_place": "Grand Hyatt, Ahmedabad",
+      "location": "Grand Hyatt, Ahmedabad",
+      "remarks": "Product sync & collaboration roadmap",
+      "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "name": "Aarav Sharma",
+      "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+      "city": "Ahmedabad",
+      "business_name": "FinTech Innovators Ltd",
+      "company_name": "FinTech Innovators Ltd",
+      "category_level4": "FinTech Software Solutions",
+      "initiator": {
+        "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+        "name": "Aarav Sharma",
+        "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+        "city": "Ahmedabad",
+        "business_name": "FinTech Innovators Ltd",
+        "category_level4": "FinTech Software Solutions"
+      },
+      "peer": {
+        "id": "019488a0-8888-74a9-a931-10c0e1234999",
+        "name": "Diya Mehta",
+        "profile_image": "https://cdn.peersglobal.in/avatars/diya.png",
+        "city": "Surat",
+        "business_name": "Diamond Enterprise",
+        "category_level4": "FinTech Software Solutions"
+      }
+    }
+  ]
+}
+```
+
+#### 29. Business Deals API
+- **List Route:** `GET /api/v1/business-deals` (Alias: `/api/v1/business-deal`)
+- **Query Params:** `circle_id`, `search`, `limit`
+- **Log Route:** `POST /api/v1/business-deals`
+- **List Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "Business deals retrieved successfully.",
+  "data": [
+    {
+      "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "deal_date": "2026-09-08",
+      "date": "2026-09-08",
+      "deal_amount": 1500000.00,
+      "amount": 1500000.00,
+      "deal_value_formatted": "₹15.0L",
+      "value_formatted": "₹15.0L",
+      "business_type": "New Business",
+      "comment": "Enterprise ERP solution implemented.",
+      "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "name": "Aarav Sharma",
+      "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+      "city": "Ahmedabad",
+      "business_name": "FinTech Innovators Ltd",
+      "company_name": "FinTech Innovators Ltd",
+      "category_level4": "FinTech Software Solutions",
+      "from_peer": {
+        "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+        "name": "Aarav Sharma",
+        "city": "Ahmedabad",
+        "business_name": "FinTech Innovators Ltd",
+        "category_level4": "FinTech Software Solutions"
+      },
+      "to_peer": {
+        "id": "019488a0-8888-74a9-a931-10c0e1234999",
+        "name": "Diya Mehta",
+        "city": "Surat",
+        "business_name": "Diamond Enterprise",
+        "category_level4": "FinTech Software Solutions"
+      }
+    }
+  ]
+}
+```
+
+#### 30. Business Referrals API
+- **List Route:** `GET /api/v1/referrals` (Alias: `/api/v1/referral`)
+- **Query Params:** `circle_id`, `status` (`pending`, `active`, `completed`, `all`), `limit`
+- **Store Route:** `POST /api/v1/referrals`
+- **List Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "Referrals retrieved successfully.",
+  "data": [
+    {
+      "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "rank": 1,
+      "date": "2026-09-08",
+      "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "name": "Aarav Sharma",
+      "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+      "city": "Ahmedabad",
+      "business_name": "FinTech Innovators Ltd",
+      "company_name": "FinTech Innovators Ltd",
+      "category_level4": "FinTech Software Solutions",
+      "deal_value": 500000.00,
+      "value_formatted": "₹5.0L",
+      "status": "Active",
+      "prospect_name": "Apex Logistics Pvt Ltd",
+      "prospect_company": "SG Highway, Ahmedabad",
+      "prospect_phone": "+919876543210",
+      "prospect_email": "connect@apexlogistics.in"
+    }
+  ]
+}
+```
+
+#### 31. Peer Testimonials API
+- **List Route:** `GET /api/v1/testimonials` (Alias: `/api/v1/testimonial`)
+- **Query Params:** `circle_id`, `limit`
+- **Store Route:** `POST /api/v1/testimonials`
+- **List Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "Testimonials retrieved successfully.",
+  "data": [
+    {
+      "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "name": "Aarav Sharma",
+      "author_name": "Aarav Sharma",
+      "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+      "city": "Ahmedabad",
+      "business_name": "FinTech Innovators Ltd",
+      "company_name": "FinTech Innovators Ltd",
+      "category_level4": "FinTech Software Solutions",
+      "target_peer_name": "Diya Mehta",
+      "circle_name": "Ahmedabad Tech Sunrise",
+      "content": "Aarav delivered exceptional consulting results on time and within budget.",
+      "date": "2026-09-08"
+    }
+  ]
+}
+```
+
+#### 32. Peers by Coins Leaderboard API
+- **Route:** `GET /api/v1/peers-by-coins` (Alias: `/api/v1/coins`)
+- **Query Params:** `limit`
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "Peers by coins retrieved successfully.",
+  "data": {
+    "total_platform_coins": 128500,
+    "leaderboard": [
+      {
+        "rank": 1,
+        "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+        "name": "Aarav Sharma",
+        "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+        "city": "Ahmedabad",
+        "business_name": "FinTech Innovators Ltd",
+        "company_name": "FinTech Innovators Ltd",
+        "category_level4": "FinTech Software Solutions",
+        "coins": 2500,
+        "coins_balance": 2500
+      }
+    ]
+  }
+}
+```
+
+#### 33. Peer Requirements API
+- **Route:** `GET /api/v1/requirements` (Alias: `/api/v1/requirement`)
+- **Query Params:** `circle_id`, `status` (`active`, `closed`, `all`), `search`, `limit`
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": true,
+  "message": "Requirements retrieved successfully.",
+  "data": [
+    {
+      "id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "subject": "Looking for Cloud Architect",
+      "description": "Need an AWS / GCP certified specialist for SaaS platform optimization.",
+      "status": "Active",
+      "date": "2026-09-08",
+      "peer_user_id": "019488a0-7b2c-74a9-a931-10c0e1234567",
+      "name": "Aarav Sharma",
+      "profile_image": "https://cdn.peersglobal.in/avatars/aarav.png",
+      "city": "Ahmedabad",
+      "business_name": "FinTech Innovators Ltd",
+      "company_name": "FinTech Innovators Ltd",
+      "category_level4": "FinTech Software Solutions"
+    }
+  ]
+}
+```
+
+---
+
 ## 6. Standard Error Handling Envelope
 
 All error states (HTTP 400, 401, 403, 404, 422, 500) follow this consistent envelope:
