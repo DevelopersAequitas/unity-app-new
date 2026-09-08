@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use App\Jobs\SendWearTheBadgeWhatsappJob;
-use App\Models\Notifications\NotificationDeliveryLog;
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\LifeImpact\LifeImpactService;
 use App\Services\MilestoneBadgeService;
+use App\Services\Notifications\WearTheBadgeWhatsappService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -448,7 +447,7 @@ class User extends Authenticatable
             }
 
             if ($user->shouldSendWearTheBadgeWhatsapp()) {
-                SendWearTheBadgeWhatsappJob::dispatch((string) $user->id);
+                app(WearTheBadgeWhatsappService::class)->handleWearTheBadge($user);
             }
         });
     }
@@ -555,35 +554,12 @@ class User extends Authenticatable
 
     public function shouldSendWearTheBadgeWhatsapp(): bool
     {
-        if ($this->hasSentWearTheBadgeWhatsapp()) {
-            return false;
-        }
-
-        // Check if profile is 100% complete
-        $isProfileComplete = $this->calculateProfileCompletionPercentage() === 100;
-
-        // Check if first-payment condition is satisfied
-        $isPaid = filled($this->last_payment_at) || ! in_array((string) $this->membership_status, ['visitor', 'free_peer', 'free_trial_peer', ''], true);
-
-        return $isProfileComplete || $isPaid;
+        return app(WearTheBadgeWhatsappService::class)->isEligible($this);
     }
 
     public function hasSentWearTheBadgeWhatsapp(): bool
     {
-        if (! Schema::hasTable('notification_delivery_logs')) {
-            return false;
-        }
-
-        try {
-            return NotificationDeliveryLog::query()
-                ->where('user_id', $this->id)
-                ->where('channel', 'whatsapp')
-                ->where('provider', 'wear_the_badge')
-                ->where('status', 'sent')
-                ->exists();
-        } catch (Throwable) {
-            return false;
-        }
+        return app(WearTheBadgeWhatsappService::class)->isProcessed((string) $this->id);
     }
 
     public function membershipDatesMatch(): bool
