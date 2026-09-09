@@ -834,7 +834,7 @@ class PostController extends BaseApiController
 
         $this->dispatchMentionNotifications($mentionNotifications, $post, $authUser, $comment->content, $comment);
 
-        $comment->load('user');
+        $comment->load('user.level4Category');
 
         return $this->success(new PostCommentResource($comment), 'Comment added', 201);
     }
@@ -853,7 +853,7 @@ class PostController extends BaseApiController
         $perPage = (int) $request->input('per_page', 50);
         $perPage = max(1, min($perPage, 100));
 
-        $paginator = PostComment::with('user')
+        $paginator = PostComment::with('user.level4Category')
             ->where('post_id', $post->id)
             ->orderBy('created_at', 'asc')
             ->paginate($perPage);
