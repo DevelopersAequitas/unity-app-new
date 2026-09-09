@@ -55,24 +55,52 @@ class MilestoneConnectorWhatsappService
                         // Check if deterministic log already exists
                         $existingLog = NotificationDeliveryLog::where('id', $deterministicLogId)->lockForUpdate()->first();
                         if ($existingLog) {
-                            Log::info('[MilestoneConnectorWhatsappService] Skipped: Milestone already processed or queued for this member.', [
-                                'user_id' => $user->id,
-                                'log_id' => $deterministicLogId,
-                                'status' => $existingLog->status,
+                            if ($existingLog->status === 'sent') {
+                                Log::info('[MilestoneConnectorWhatsappService] Skipped: Milestone already sent for this member.', [
+                                    'user_id' => $user->id,
+                                    'log_id' => $deterministicLogId,
+                                    'status' => $existingLog->status,
+                                ]);
+
+                                return false;
+                            }
+
+                            if (in_array($existingLog->status, ['queued', 'processing', 'pending'], true)) {
+                                if ($existingLog->attempted_at && $existingLog->attempted_at->gt(now()->subMinutes(5))) {
+                                    Log::info('[MilestoneConnectorWhatsappService] Skipped: Milestone already queued or processing for this member.', [
+                                        'user_id' => $user->id,
+                                        'log_id' => $deterministicLogId,
+                                        'status' => $existingLog->status,
+                                    ]);
+
+                                    return false;
+                                }
+                            }
+
+                            // If failed or stale in-flight, update and allow re-dispatch
+                            $existingLog->update([
+                                'status' => 'queued',
+                                'request_payload' => [
+                                    'template_key' => self::TEMPLATE_KEY,
+                                    'introduced_count' => $introducedCount,
+                                    'image_url' => $imageUrl,
+                                ],
+                                'error_message' => null,
+                                'attempted_at' => now(),
                             ]);
 
-                            return false;
+                            return true;
                         }
 
-                        // Check legacy logs if any exist for this user & template
-                        $legacyExists = NotificationDeliveryLog::query()
+                        // Check legacy logs if any sent record exists for this user & template
+                        $legacySent = NotificationDeliveryLog::query()
                             ->where('user_id', (string) $user->id)
                             ->where('channel', 'whatsapp')
                             ->where('provider', self::TEMPLATE_KEY)
-                            ->whereIn('status', ['sent', 'queued', 'pending', 'processing', 'failed'])
+                            ->where('status', 'sent')
                             ->exists();
 
-                        if ($legacyExists) {
+                        if ($legacySent) {
                             Log::info('[MilestoneConnectorWhatsappService] Skipped: Legacy milestone delivery record exists.', [
                                 'user_id' => $user->id,
                             ]);
@@ -121,6 +149,8 @@ class MilestoneConnectorWhatsappService
                 Log::info('[MilestoneConnectorWhatsappService] Dispatched SendMilestoneConnectorWhatsappJob.', [
                     'user_id' => $user->id,
                     'log_id' => $deterministicLogId,
+                    'introduced_count' => $introducedCount,
+                    'template_key' => self::TEMPLATE_KEY,
                 ]);
             }
         } catch (Throwable $e) {
@@ -133,7 +163,7 @@ class MilestoneConnectorWhatsappService
     }
 
     /**
-     * Check whether milestone_connector WhatsApp has already been sent to this user.
+     * Check whether milestone_connector WhatsApp has already been successfully sent to this user.
      */
     public function isMilestoneProcessed(string $userId): bool
     {
@@ -153,7 +183,7 @@ class MilestoneConnectorWhatsappService
                                 ->where('provider', self::TEMPLATE_KEY);
                         });
                 })
-                ->whereIn('status', ['sent', 'queued', 'pending', 'processing', 'failed'])
+                ->where('status', 'sent')
                 ->exists();
         } catch (Throwable) {
             return false;

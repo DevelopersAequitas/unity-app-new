@@ -47,13 +47,40 @@ class WearTheBadgeWhatsappService
                         // Check if deterministic log already exists
                         $existingLog = NotificationDeliveryLog::where('id', $deterministicLogId)->lockForUpdate()->first();
                         if ($existingLog) {
-                            Log::info('[WearTheBadgeWhatsappService] Skipped: WearTheBadge already processed or queued for user.', [
-                                'user_id' => $user->id,
-                                'log_id' => $deterministicLogId,
-                                'status' => $existingLog->status,
+                            if ($existingLog->status === 'sent') {
+                                Log::info('[WearTheBadgeWhatsappService] Skipped: WearTheBadge already sent for user.', [
+                                    'user_id' => $user->id,
+                                    'log_id' => $deterministicLogId,
+                                    'status' => $existingLog->status,
+                                ]);
+
+                                return false;
+                            }
+
+                            if (in_array($existingLog->status, ['queued', 'processing', 'pending'], true)) {
+                                if ($existingLog->attempted_at && $existingLog->attempted_at->gt(now()->subMinutes(5))) {
+                                    Log::info('[WearTheBadgeWhatsappService] Skipped: WearTheBadge already queued or processing for user.', [
+                                        'user_id' => $user->id,
+                                        'log_id' => $deterministicLogId,
+                                        'status' => $existingLog->status,
+                                    ]);
+
+                                    return false;
+                                }
+                            }
+
+                            // If failed or stale in-flight, update and allow re-dispatch
+                            $existingLog->update([
+                                'status' => 'queued',
+                                'request_payload' => [
+                                    'template_key' => self::TEMPLATE_KEY,
+                                    'trigger' => 'profile_complete_or_first_payment',
+                                ],
+                                'error_message' => null,
+                                'attempted_at' => now(),
                             ]);
 
-                            return false;
+                            return true;
                         }
 
                         // Check legacy logs if any exist for this user & template

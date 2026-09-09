@@ -86,13 +86,14 @@ class IntroductionCreativeService
                 ->first();
 
             if ($existingCreative && ! empty($existingCreative->image_url)) {
-                // Ensure physical file exists on disk; if missing, regenerate it
+                $isRawTemplate = str_contains((string) $existingCreative->image_url, '/images/member_introduce_badges/');
+                // Ensure physical file exists on disk; if missing or if it was an unrendered template, regenerate it
                 $s3Key = preg_replace('~^https?://[^/]+/storage/~i', '', (string) $existingCreative->image_url);
-                $fileExists = Storage::disk('public')->exists($s3Key)
+                $fileExists = ! $isRawTemplate && (Storage::disk('public')->exists($s3Key)
                     || file_exists(storage_path('app/public/'.$s3Key))
-                    || file_exists(public_path('storage/'.$s3Key));
+                    || file_exists(public_path('storage/'.$s3Key)));
 
-                if (! $fileExists) {
+                if (! $fileExists || $isRawTemplate) {
                     try {
                         $newUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
                         $existingCreative->update(['image_url' => $newUrl]);

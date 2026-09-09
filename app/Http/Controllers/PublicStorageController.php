@@ -46,15 +46,45 @@ class PublicStorageController extends Controller
             }
         }
 
-        // Self-healing fallback: If it's a creative file that hasn't been generated yet on this instance
-        if (! $foundFile && (str_contains($cleanPath, 'uploads/') || str_contains($cleanPath, 'growth_creative') || str_contains($cleanPath, 'creative'))) {
+        // Self-healing fallback: If it's a creative/upload/badge file that hasn't been generated yet on this instance
+        if (! $foundFile && (str_contains($cleanPath, 'uploads/') || str_contains($cleanPath, 'growth_creative') || str_contains($cleanPath, 'creative') || str_contains($cleanPath, 'badge') || str_contains($cleanPath, 'milestone'))) {
             $filename = basename($cleanPath);
             $uuid = pathinfo($filename, PATHINFO_FILENAME);
 
             $user = null;
-            $introducedCount = null;
+            $introducedCount = $request->query('c') ? (int) $request->query('c') : ($request->query('count') ? (int) $request->query('count') : null);
 
-            if (Str::isUuid($uuid)) {
+            $hasUsersTable = Schema::hasTable('users');
+
+            // 1. Check explicit uid / user_id in query parameters
+            $queryUserId = $request->query('uid') ?? $request->query('user_id');
+            if ($hasUsersTable && $queryUserId && Str::isUuid((string) $queryUserId)) {
+                $user = User::find($queryUserId);
+            }
+
+            // 2. Check phone parameter in query parameters
+            if ($hasUsersTable && ! $user && $request->filled('phone')) {
+                $phone = preg_replace('/\D+/', '', (string) $request->query('phone'));
+                if ($phone !== '') {
+                    $user = User::where('phone', 'LIKE', '%'.$phone.'%')
+                        ->orWhere('secondary_mobile', 'LIKE', '%'.$phone.'%')
+                        ->first();
+                }
+            }
+
+            // 3. Extract any UUID present in the path
+            if ($hasUsersTable && ! $user && preg_match_all('/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/', $cleanPath, $matches)) {
+                foreach ($matches[1] as $candidateUuid) {
+                    $foundUser = User::find($candidateUuid);
+                    if ($foundUser) {
+                        $user = $foundUser;
+                        break;
+                    }
+                }
+            }
+
+            // 4. Check user creative columns
+            if ($hasUsersTable && ! $user && Str::isUuid($uuid)) {
                 $userQuery = User::query()->where('id', $uuid);
 
                 if (Schema::hasColumn('users', 'welcome_creative_url')) {
@@ -73,6 +103,7 @@ class PublicStorageController extends Controller
                 $user = $userQuery->first();
             }
 
+            // 5. Check introduction_creatives table
             if (! $user && Schema::hasTable('introduction_creatives')) {
                 $creative = IntroductionCreative::query()
                     ->where('image_url', 'LIKE', '%'.$uuid.'%')
@@ -81,10 +112,13 @@ class PublicStorageController extends Controller
 
                 if ($creative) {
                     $user = $creative->introducer;
-                    $introducedCount = $creative->introduced_count;
+                    if ($introducedCount === null) {
+                        $introducedCount = $creative->introduced_count;
+                    }
                 }
             }
 
+            // 6. Check files table
             if (! $user && Str::isUuid($uuid) && Schema::hasTable('files')) {
                 $fileRecord = FileModel::where('id', $uuid)
                     ->orWhere('s3_key', 'LIKE', '%'.$uuid.'%')
@@ -96,13 +130,31 @@ class PublicStorageController extends Controller
                 }
             }
 
+            // 7. If user is still not in DB, create virtual user instance only if explicit user params were provided
+            if (! $user && ($request->filled('uid') || $request->filled('user_id') || $request->filled('phone') || $request->filled('name'))) {
+                $rawName = $request->query('name') ?? $request->query('peer_name') ?? $request->query('member_name') ?? 'Peer Member';
+                $virtualUser = new User;
+                $virtualUser->id = (string) Str::uuid();
+                $virtualUser->first_name = (string) $rawName;
+                $virtualUser->display_name = (string) $rawName;
+                $virtualUser->company_name = (string) $request->query('company', '');
+                $virtualUser->city = (string) $request->query('city', '');
+                $virtualUser->business_sub_category = (string) $request->query('category', '');
+                $virtualUser->members_introduced_count = $introducedCount ?? (str_contains(strtolower($cleanPath), 'catalyst') ? 3 : 1);
+                $user = $virtualUser;
+            }
+
             if ($user) {
+                if ($introducedCount === null) {
+                    $introducedCount = (int) ($user->members_introduced_count ?: (str_contains(strtolower($cleanPath), 'catalyst') ? 3 : 1));
+                }
+
                 try {
                     $generator = app(IntroducedPeerCreativeGenerator::class);
                     $fileModel = new FileModel;
                     $fileModel->id = (string) Str::uuid();
                     $fileModel->s3_key = $cleanPath;
-                    $generator->generate($user, (int) ($introducedCount ?? $user->members_introduced_count ?: 1), $fileModel);
+                    $generator->generate($user, (int) $introducedCount, $fileModel);
 
                     foreach ($candidatePaths as $candidate) {
                         if (is_file($candidate) && is_readable($candidate)) {

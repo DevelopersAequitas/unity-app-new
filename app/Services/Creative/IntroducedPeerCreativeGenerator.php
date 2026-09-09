@@ -551,7 +551,7 @@ class IntroducedPeerCreativeGenerator
             }
 
             // Save High-Quality PNG File & Create FileModel
-            $filename = (string) Str::uuid().'.png';
+            $filename = $user->id.'_'.(string) Str::uuid().'.png';
             $finalPath = 'uploads/'.now()->format('Y/m/d').'/'.$filename;
             $tempPath = @tempnam(sys_get_temp_dir(), 'gc');
             if ($tempPath === false) {
@@ -589,7 +589,9 @@ class IntroducedPeerCreativeGenerator
             $fileModel->size_bytes = filesize($tempPath);
             $fileModel->width = $width;
             $fileModel->height = $height;
-            $fileModel->save();
+            if (Schema::hasTable('files')) {
+                $fileModel->save();
+            }
 
             // Ensure available on public disk for web / WhatsApp rendering
             if ($disk !== 'public') {
