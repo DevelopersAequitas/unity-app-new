@@ -45,8 +45,6 @@ class UserMiniResource extends JsonResource
             'designation' => $user->designation ?? $user->job_title ?? null,
             'category' => $categoryName,
             'business_category' => $categoryName,
-            'subcategory' => $subCategory,
-            'sub_category' => $subCategory,
             'level4_category' => $subCategory,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
         ];

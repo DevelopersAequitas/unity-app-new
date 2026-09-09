@@ -215,14 +215,16 @@ class ProfileViewApiTest extends TestCase
             ->assertJsonCount(2, 'data.views')
             ->assertJsonPath('data.views.0.viewer.id', $viewer2->id) // Ordered by desc
             ->assertJsonPath('data.views.0.viewer.designation', 'Managing Director')
-            ->assertJsonPath('data.views.0.viewer.subcategory', 'EdTech Platform')
-            ->assertJsonPath('data.views.0.viewer.sub_category', 'EdTech Platform')
             ->assertJsonPath('data.views.0.viewer.level4_category', 'EdTech Platform')
+            ->assertJsonMissingPath('data.views.0.viewer.subcategory')
+            ->assertJsonMissingPath('data.views.0.viewer.sub_category')
             ->assertJsonMissingPath('data.views.0.viewer.timezone')
             ->assertJsonMissingPath('data.views.0.viewer.industry')
             ->assertJsonPath('data.views.1.viewer.id', $viewer1->id)
             ->assertJsonPath('data.views.1.viewer.designation', 'Founder & CEO')
-            ->assertJsonPath('data.views.1.viewer.subcategory', 'FinTech SaaS')
+            ->assertJsonPath('data.views.1.viewer.level4_category', 'FinTech SaaS')
+            ->assertJsonMissingPath('data.views.1.viewer.subcategory')
+            ->assertJsonMissingPath('data.views.1.viewer.sub_category')
             ->assertJsonMissingPath('data.views.1.viewer.timezone')
             ->assertJsonMissingPath('data.views.1.viewer.industry');
     }
@@ -285,9 +287,9 @@ class ProfileViewApiTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.views.0.viewer.designation', 'Chief AI Scientist')
-            ->assertJsonPath('data.views.0.viewer.subcategory', 'Artificial Intelligence & ML')
-            ->assertJsonPath('data.views.0.viewer.sub_category', 'Artificial Intelligence & ML')
             ->assertJsonPath('data.views.0.viewer.level4_category', 'Artificial Intelligence & ML')
+            ->assertJsonMissingPath('data.views.0.viewer.subcategory')
+            ->assertJsonMissingPath('data.views.0.viewer.sub_category')
             ->assertJsonMissingPath('data.views.0.viewer.timezone')
             ->assertJsonMissingPath('data.views.0.viewer.industry');
     }
