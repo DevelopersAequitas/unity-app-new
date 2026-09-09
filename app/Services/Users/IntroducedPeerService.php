@@ -6,6 +6,7 @@ namespace App\Services\Users;
 
 use App\Models\User;
 use App\Services\Creative\IntroductionCreativeService;
+use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use Illuminate\Database\Eloquent\Collection;
@@ -99,6 +100,9 @@ class IntroducedPeerService
 
             // Sync user milestones
             $this->milestoneSyncService->sync($lockedUser);
+
+            // Explicitly calculate and award milestone badges in user_milestone_badges
+            app(MilestoneBadgeService::class)->calculateForUser($lockedUser);
         });
 
         // Trigger introduction creative rendering, timeline post and notifications if newly introduced
@@ -106,9 +110,8 @@ class IntroducedPeerService
             $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
 
             // Generate and store milestone creative if count matches a configured milestone required_count
-            $creative = null;
             try {
-                $creative = $this->introductionCreativeService->handleIntroductionCreative(
+                $this->introductionCreativeService->handleIntroductionCreative(
                     $user,
                     $introducedUser,
                     $count,
@@ -120,30 +123,6 @@ class IntroducedPeerService
                     'introduced_id' => $introducedUser->id,
                     'exception' => $creativeEx,
                 ]);
-            }
-
-            // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
-            if ($count === 1) {
-                try {
-                    $this->connectorWhatsappService->handleFirstIntroduction($user, $creative?->image_url);
-                } catch (Throwable $whatsappEx) {
-                    Log::error('[IntroducedPeerService] Failed triggering milestone connector WhatsApp: '.$whatsappEx->getMessage(), [
-                        'user_id' => $user->id,
-                        'exception' => $whatsappEx,
-                    ]);
-                }
-            }
-
-            // Safely and independently evaluate CATALYST milestone notification for threshold (count >= 3)
-            if ($count >= 3) {
-                try {
-                    $this->catalystWhatsappService->handleCatalystMilestone($user, $count === 3 ? $creative?->image_url : null);
-                } catch (Throwable $whatsappEx) {
-                    Log::error('[IntroducedPeerService] Failed triggering milestone catalyst WhatsApp: '.$whatsappEx->getMessage(), [
-                        'user_id' => $user->id,
-                        'exception' => $whatsappEx,
-                    ]);
-                }
             }
         }
 

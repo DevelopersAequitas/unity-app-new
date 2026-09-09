@@ -10,7 +10,10 @@ use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\Notifications\MilestoneCatalystWhatsappService;
+use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Notifications\NotificationService;
+use Database\Seeders\Track1GrowthHonoursSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -48,6 +51,17 @@ class MilestoneBadgeService
             $dbCount = User::query()->where('introduced_by', $user->id)->count();
             if ($dbCount > 0) {
                 $membersIntroducedCount = $dbCount;
+            }
+        }
+
+        if (Schema::hasTable('milestone_badges')) {
+            $hasIntroductionBadges = MilestoneBadge::query()->where('type', MilestoneBadge::TYPE_MEMBER_INTRODUCTION)->exists();
+            if (! $hasIntroductionBadges && class_exists(Track1GrowthHonoursSeeder::class)) {
+                try {
+                    (new Track1GrowthHonoursSeeder)->run();
+                } catch (\Throwable $seederEx) {
+                    Log::warning('[MilestoneBadgeService] Auto-seeding Track1GrowthHonoursSeeder skipped: '.$seederEx->getMessage());
+                }
             }
         }
 
@@ -123,7 +137,7 @@ class MilestoneBadgeService
     }
 
     /**
-     * Post timeline announcements & push notifications for newly earned milestone honours.
+     * Post timeline announcements, push notifications & WhatsApp triggers for newly earned milestone honours.
      *
      * @param  array<int, MilestoneBadge>  $badges
      */
@@ -246,6 +260,32 @@ class MilestoneBadgeService
                             'bypass_daily_limit' => true,
                         ]
                     );
+                }
+
+                // Automatically trigger WhatsApp notifications for newly earned Growth Track milestones
+                if ($badge->type === MilestoneBadge::TYPE_MEMBER_INTRODUCTION || in_array(strtolower((string) $badge->title), ['connector', 'catalyst'], true)) {
+                    $badgeTitle = strtolower((string) $badge->title);
+                    $requiredCount = (int) $badge->required_count;
+
+                    if ($requiredCount === 1 || $badgeTitle === 'connector') {
+                        try {
+                            app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction($user);
+                        } catch (\Throwable $waEx) {
+                            Log::error('[MilestoneBadgeService] Failed triggering Connector WhatsApp: '.$waEx->getMessage(), [
+                                'user_id' => $user->id,
+                                'badge_id' => $badge->id,
+                            ]);
+                        }
+                    } elseif ($requiredCount === 3 || $badgeTitle === 'catalyst') {
+                        try {
+                            app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone($user);
+                        } catch (\Throwable $waEx) {
+                            Log::error('[MilestoneBadgeService] Failed triggering Catalyst WhatsApp: '.$waEx->getMessage(), [
+                                'user_id' => $user->id,
+                                'badge_id' => $badge->id,
+                            ]);
+                        }
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::error('[MilestoneBadgeService] Failed handling newly earned badge: '.$e->getMessage(), [

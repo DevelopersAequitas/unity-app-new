@@ -33,6 +33,14 @@ class WhatsappNotificationService
                 ->first();
 
             if (! $template) {
+                if ($templateKey === 'milestone_badge_whatsapp') {
+                    $template = WhatsappTemplate::query()->where('template_key', 'milestone_connector')->first();
+                } elseif ($templateKey === 'milestone_connector') {
+                    $template = WhatsappTemplate::query()->where('template_key', 'milestone_badge_whatsapp')->first();
+                }
+            }
+
+            if (! $template) {
                 self::$lastError = "Template key not found in database: {$templateKey}";
                 Log::warning('WhatsApp notification skipped: Template key not found in database.', [
                     'template_key' => $templateKey,

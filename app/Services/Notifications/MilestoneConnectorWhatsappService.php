@@ -96,7 +96,7 @@ class MilestoneConnectorWhatsappService
                         $legacySent = NotificationDeliveryLog::query()
                             ->where('user_id', (string) $user->id)
                             ->where('channel', 'whatsapp')
-                            ->where('provider', self::TEMPLATE_KEY)
+                            ->whereIn('provider', [self::TEMPLATE_KEY, 'milestone_badge_whatsapp'])
                             ->where('status', 'sent')
                             ->exists();
 
@@ -180,7 +180,7 @@ class MilestoneConnectorWhatsappService
                         ->orWhere(function ($sub) use ($userId): void {
                             $sub->where('user_id', $userId)
                                 ->where('channel', 'whatsapp')
-                                ->where('provider', self::TEMPLATE_KEY);
+                                ->whereIn('provider', [self::TEMPLATE_KEY, 'milestone_badge_whatsapp']);
                         });
                 })
                 ->where('status', 'sent')

@@ -205,7 +205,7 @@ class SendMilestoneConnectorWhatsappJob implements ShouldQueue
 
         // Verify template exists in whatsapp_templates
         $template = WhatsappTemplate::query()
-            ->where('template_key', self::TEMPLATE_KEY)
+            ->whereIn('template_key', [self::TEMPLATE_KEY, 'milestone_badge_whatsapp'])
             ->first();
 
         if (! $template) {
