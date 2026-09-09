@@ -1198,7 +1198,31 @@ class LeaderTeamsService
             ->where(function (Builder $q) use ($circleId): void {
                 $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
                     $cq->where('circle_id', $circleId)->whereNull('deleted_at');
-                })->orWhere('active_circle_id', $circleId);
+                })->orWhere('active_circle_id', $circleId)
+                    ->orWhereExists(function ($sq) use ($circleId): void {
+                        $sq->selectRaw(1)
+                            ->from('circles')
+                            ->where('circles.id', $circleId)
+                            ->whereNull('circles.deleted_at')
+                            ->where(function ($lq): void {
+                                $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
+                                    ->orWhereColumn('circles.founder_user_id', 'users.id')
+                                    ->orWhereColumn('circles.circle_director_user_id', 'users.id')
+                                    ->orWhereColumn('circles.director_user_id', 'users.id')
+                                    ->orWhereColumn('circles.chair_user_id', 'users.id')
+                                    ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
+                                    ->orWhereColumn('circles.secretary_user_id', 'users.id');
+                            });
+                    });
+
+                if (Schema::hasTable('joined_circle_categories')) {
+                    $q->orWhereExists(function ($jq) use ($circleId): void {
+                        $jq->selectRaw(1)
+                            ->from('joined_circle_categories')
+                            ->where('joined_circle_categories.circle_id', $circleId)
+                            ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                    });
+                }
             });
 
         if ($search) {

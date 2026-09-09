@@ -197,39 +197,34 @@ class LeaderPeersService
 
         // If a specific circle is requested, filter strictly to that circle
         if ($circleId && Str::isUuid($circleId)) {
-            if (! $isAdmin && $scopedCircleIds !== null && ! in_array($circleId, $scopedCircleIds, true)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->where(function (Builder $q) use ($circleId): void {
-                    $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
-                        $cq->where('circle_id', $circleId)->whereNull('deleted_at');
-                    })->orWhere('active_circle_id', $circleId)
-                        ->orWhereExists(function ($sq) use ($circleId): void {
-                            $sq->selectRaw(1)
-                                ->from('circles')
-                                ->where('circles.id', $circleId)
-                                ->whereNull('circles.deleted_at')
-                                ->where(function ($lq): void {
-                                    $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
-                                        ->orWhereColumn('circles.founder_user_id', 'users.id')
-                                        ->orWhereColumn('circles.circle_director_user_id', 'users.id')
-                                        ->orWhereColumn('circles.director_user_id', 'users.id')
-                                        ->orWhereColumn('circles.chair_user_id', 'users.id')
-                                        ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
-                                        ->orWhereColumn('circles.secretary_user_id', 'users.id');
-                                });
-                        });
-
-                    if (Schema::hasTable('joined_circle_categories')) {
-                        $q->orWhereExists(function ($jq) use ($circleId): void {
-                            $jq->selectRaw(1)
-                                ->from('joined_circle_categories')
-                                ->where('joined_circle_categories.circle_id', $circleId)
-                                ->whereColumn('joined_circle_categories.user_id', 'users.id');
-                        });
-                    }
+            $query->where(function (Builder $q) use ($circleId): void {
+                $q->whereHas('circleMembers', function (Builder $cq) use ($circleId): void {
+                    $cq->where('circle_id', $circleId)->whereNull('deleted_at');
                 });
-            }
+
+                if (Schema::hasColumn('users', 'active_circle_id')) {
+                    $q->orWhere('active_circle_id', $circleId);
+                }
+
+                $q->orWhereExists(function ($sq) use ($circleId): void {
+                    $sq->selectRaw(1)
+                        ->from('circles')
+                        ->where('circles.id', $circleId)
+                        ->whereNull('circles.deleted_at')
+                        ->where(function ($lq): void {
+                            $this->applyCircleLeadershipColumnsCondition($lq);
+                        });
+                });
+
+                if (Schema::hasTable('joined_circle_categories')) {
+                    $q->orWhereExists(function ($jq) use ($circleId): void {
+                        $jq->selectRaw(1)
+                            ->from('joined_circle_categories')
+                            ->where('joined_circle_categories.circle_id', $circleId)
+                            ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                    });
+                }
+            });
         } elseif ($districtId && Str::isUuid($districtId)) {
             // If a specific district is requested, scope to that district
             $districtCircleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
@@ -239,51 +234,26 @@ class LeaderPeersService
                         ->orWhereIn('active_circle_id', $districtCircleIds);
                 });
             }
-        } elseif ($user !== null && ! $isAdmin && $scopedCircleIds !== null) {
-            // If the user is a leader scoped to specific circles, restrict to their circles
-            if (empty($scopedCircleIds)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->where(function (Builder $q) use ($scopedCircleIds): void {
-                    $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
-                        ->orWhereIn('active_circle_id', $scopedCircleIds)
-                        ->orWhereExists(function ($sq) use ($scopedCircleIds): void {
-                            $sq->selectRaw(1)
-                                ->from('circles')
-                                ->whereIn('circles.id', $scopedCircleIds)
-                                ->whereNull('circles.deleted_at')
-                                ->where(function ($lq): void {
-                                    $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
-                                        ->orWhereColumn('circles.founder_user_id', 'users.id')
-                                        ->orWhereColumn('circles.circle_director_user_id', 'users.id')
-                                        ->orWhereColumn('circles.director_user_id', 'users.id')
-                                        ->orWhereColumn('circles.chair_user_id', 'users.id')
-                                        ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
-                                        ->orWhereColumn('circles.secretary_user_id', 'users.id');
-                                });
-                        });
-                });
-            }
         } else {
             // Only show users who have joined a circle (circle members, active circle, circle leaders, joined categories)
             $query->where(function (Builder $q): void {
                 $q->whereHas('circleMembers', function (Builder $cq): void {
                     $cq->whereNull('deleted_at');
-                })->orWhere(function (Builder $aq): void {
-                    $aq->whereNotNull('active_circle_id')
-                        ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
-                })->orWhereExists(function ($sq): void {
+                });
+
+                if (Schema::hasColumn('users', 'active_circle_id')) {
+                    $q->orWhere(function (Builder $aq): void {
+                        $aq->whereNotNull('active_circle_id')
+                            ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
+                    });
+                }
+
+                $q->orWhereExists(function ($sq): void {
                     $sq->selectRaw(1)
                         ->from('circles')
                         ->whereNull('circles.deleted_at')
                         ->where(function ($lq): void {
-                            $lq->whereColumn('circles.circle_founder_user_id', 'users.id')
-                                ->orWhereColumn('circles.founder_user_id', 'users.id')
-                                ->orWhereColumn('circles.circle_director_user_id', 'users.id')
-                                ->orWhereColumn('circles.director_user_id', 'users.id')
-                                ->orWhereColumn('circles.chair_user_id', 'users.id')
-                                ->orWhereColumn('circles.vice_chair_user_id', 'users.id')
-                                ->orWhereColumn('circles.secretary_user_id', 'users.id');
+                            $this->applyCircleLeadershipColumnsCondition($lq);
                         });
                 });
 
@@ -441,13 +411,16 @@ class LeaderPeersService
         $coins = (int) ($u->coins_balance ?? 0);
 
         // Dynamically compute deals
-        $dealsSum = (float) DB::table('business_deals')
-            ->where(function ($q) use ($u): void {
-                $q->where('from_user_id', $u->id)
-                    ->orWhere('to_user_id', $u->id);
-            })
-            ->whereNull('deleted_at')
-            ->sum('deal_amount');
+        $dealsSum = 0.0;
+        if (Schema::hasTable('business_deals')) {
+            $dealsSum = (float) DB::table('business_deals')
+                ->where(function ($q) use ($u): void {
+                    $q->where('from_user_id', $u->id)
+                        ->orWhere('to_user_id', $u->id);
+                })
+                ->whereNull('deleted_at')
+                ->sum('deal_amount');
+        }
 
         $dealsFormatted = $dealsSum >= 10000000
             ? '₹'.round($dealsSum / 10000000, 2).'Cr'
@@ -544,32 +517,42 @@ class LeaderPeersService
         $impact = (int) ($user->life_impacted_count ?? $user->impact_count ?? 0);
 
         // Dynamically compute deals
-        $dealsSum = (float) DB::table('business_deals')
-            ->where(function ($q) use ($user): void {
-                $q->where('from_user_id', $user->id)
-                    ->orWhere('to_user_id', $user->id);
-            })
-            ->whereNull('deleted_at')
-            ->sum('deal_amount');
+        $dealsSum = 0.0;
+        if (Schema::hasTable('business_deals')) {
+            $dealsSum = (float) DB::table('business_deals')
+                ->where(function ($q) use ($user): void {
+                    $q->where('from_user_id', $user->id)
+                        ->orWhere('to_user_id', $user->id);
+                })
+                ->whereNull('deleted_at')
+                ->sum('deal_amount');
+        }
 
         $dealsFormatted = $dealsSum >= 10000000
             ? '₹'.round($dealsSum / 10000000, 2).'Cr'
             : ($dealsSum >= 100000 ? '₹'.round($dealsSum / 100000, 1).'L' : '₹'.number_format($dealsSum, 0));
 
-        $p2pMeetingsCount = DB::table('p2p_meetings')
-            ->where(fn ($q) => $q->where('initiator_user_id', $user->id)->orWhere('peer_user_id', $user->id))
-            ->whereNull('deleted_at')
-            ->count();
+        $p2pMeetingsCount = 0;
+        if (Schema::hasTable('p2p_meetings')) {
+            $p2pMeetingsCount = DB::table('p2p_meetings')
+                ->where(fn ($q) => $q->where('initiator_user_id', $user->id)->orWhere('peer_user_id', $user->id))
+                ->whereNull('deleted_at')
+                ->count();
+        }
 
-        $referralsGiven = DB::table('referrals')
-            ->where('from_user_id', $user->id)
-            ->whereNull('deleted_at')
-            ->count();
+        $referralsGiven = 0;
+        $referralsReceived = 0;
+        if (Schema::hasTable('referrals')) {
+            $referralsGiven = DB::table('referrals')
+                ->where('from_user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->count();
 
-        $referralsReceived = DB::table('referrals')
-            ->where('to_user_id', $user->id)
-            ->whereNull('deleted_at')
-            ->count();
+            $referralsReceived = DB::table('referrals')
+                ->where('to_user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->count();
+        }
 
         // Privacy masking
         $hidePhone = (bool) ($user->hide_phone ?? false);
@@ -1071,5 +1054,41 @@ class LeaderPeersService
             'meeting_id' => $id,
             'status' => 'Confirmed',
         ];
+    }
+
+    /**
+     * Apply circle leadership column checks dynamically based on available columns in circles table.
+     */
+    private function applyCircleLeadershipColumnsCondition(Builder|\Illuminate\Database\Query\Builder $query): void
+    {
+        $candidateColumns = [
+            'circle_founder_user_id',
+            'founder_user_id',
+            'circle_director_user_id',
+            'director_user_id',
+            'chair_user_id',
+            'vice_chair_user_id',
+            'secretary_user_id',
+        ];
+
+        $existingColumns = array_filter($candidateColumns, fn ($col) => Schema::hasColumn('circles', $col));
+
+        if (empty($existingColumns)) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($q) use ($existingColumns): void {
+            $first = true;
+            foreach ($existingColumns as $col) {
+                if ($first) {
+                    $q->whereColumn("circles.{$col}", 'users.id');
+                    $first = false;
+                } else {
+                    $q->orWhereColumn("circles.{$col}", 'users.id');
+                }
+            }
+        });
     }
 }
