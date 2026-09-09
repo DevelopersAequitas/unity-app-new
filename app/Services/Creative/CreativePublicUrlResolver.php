@@ -51,7 +51,16 @@ class CreativePublicUrlResolver
                     ->first();
 
                 if ($storedCreative && ! empty($storedCreative->image_url)) {
-                    $storedImageUrl = (string) $storedCreative->image_url;
+                    $candidateUrl = (string) $storedCreative->image_url;
+                    if ($this->isUrlMatchingIntroducedCount($candidateUrl, $introducedCount)) {
+                        $storedImageUrl = $candidateUrl;
+                    } else {
+                        Log::info('[CreativePublicUrlResolver] Discarding mismatched stored image URL in introduction_creatives', [
+                            'user_id' => $user->id,
+                            'introduced_count' => $introducedCount,
+                            'mismatched_url' => $candidateUrl,
+                        ]);
+                    }
                 }
             } catch (Throwable $dbEx) {
                 Log::warning('[CreativePublicUrlResolver] Failed querying introduction_creatives: '.$dbEx->getMessage());
@@ -60,15 +69,15 @@ class CreativePublicUrlResolver
 
         // Check user profile creative columns only if introduction_creatives table is not available
         if (empty($storedImageUrl) && ! Schema::hasTable('introduction_creatives')) {
-            if ($introducedCount === 1 && ! empty($user->connector_creative_url)) {
+            if ($introducedCount === 1 && ! empty($user->connector_creative_url) && $this->isUrlMatchingIntroducedCount((string) $user->connector_creative_url, 1)) {
                 $storedImageUrl = (string) $user->connector_creative_url;
-            } elseif (! empty($user->growth_creative_url)) {
+            } elseif (! empty($user->growth_creative_url) && $this->isUrlMatchingIntroducedCount((string) $user->growth_creative_url, $introducedCount)) {
                 $storedImageUrl = (string) $user->growth_creative_url;
             }
         }
 
-        // 3. Evaluate existing stored URL (must NOT be an unrendered raw badge template)
-        if (! empty($storedImageUrl) && ! $this->isRawBadgeTemplate($storedImageUrl)) {
+        // 3. Evaluate existing stored URL (must NOT be an unrendered raw badge template and must match count)
+        if (! empty($storedImageUrl) && $this->isUrlMatchingIntroducedCount($storedImageUrl, $introducedCount)) {
             $extractedS3Key = $this->extractS3KeyFromUrl($storedImageUrl);
             $localPhysicalExists = $this->physicalFileExistsOnDisk($extractedS3Key);
 
@@ -171,6 +180,40 @@ class CreativePublicUrlResolver
         );
 
         return $newPublicUrl;
+    }
+
+    /**
+     * Verify whether a stored URL matches the requested introduced count and milestone type.
+     */
+    public function isUrlMatchingIntroducedCount(?string $url, int $introducedCount): bool
+    {
+        if (blank($url) || $this->isRawBadgeTemplate($url)) {
+            return false;
+        }
+
+        $lowerUrl = strtolower((string) $url);
+
+        // Check explicit count tag _c{N}_ or _c{N}. in filename
+        if (preg_match('/_c(\d+)[_.]/i', $lowerUrl, $m)) {
+            return (int) $m[1] === $introducedCount;
+        }
+
+        // Check milestone slug conflicts
+        if ($introducedCount === 1) {
+            if (str_contains($lowerUrl, 'catalyst') || str_contains($lowerUrl, 'influencer') || str_contains($lowerUrl, 'ambassador')) {
+                return false;
+            }
+        } elseif ($introducedCount === 3) {
+            if (str_contains($lowerUrl, 'connector') || str_contains($lowerUrl, 'influencer') || str_contains($lowerUrl, 'ambassador')) {
+                return false;
+            }
+        } elseif ($introducedCount === 5) {
+            if (str_contains($lowerUrl, 'connector') || str_contains($lowerUrl, 'catalyst')) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

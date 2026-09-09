@@ -551,7 +551,8 @@ class IntroducedPeerCreativeGenerator
             }
 
             // Save High-Quality PNG File & Create FileModel
-            $filename = $user->id.'_'.(string) Str::uuid().'.png';
+            $milestoneSlug = strtolower(str_replace([' ', '-'], '_', trim((string) ($meta['title'] ?? 'creative'))));
+            $filename = $user->id.'_'.$milestoneSlug.'_c'.$introducedCount.'_'.(string) Str::uuid().'.png';
             $finalPath = 'uploads/'.now()->format('Y/m/d').'/'.$filename;
             $tempPath = @tempnam(sys_get_temp_dir(), 'gc');
             if ($tempPath === false) {

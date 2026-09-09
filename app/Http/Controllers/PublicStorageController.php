@@ -54,6 +54,36 @@ class PublicStorageController extends Controller
             $user = null;
             $introducedCount = $request->query('c') ? (int) $request->query('c') : ($request->query('count') ? (int) $request->query('count') : null);
 
+            if ($introducedCount === null) {
+                if (preg_match('/_c(\d+)[_.]/i', $cleanPath, $cMatches)) {
+                    $introducedCount = (int) $cMatches[1];
+                } elseif (str_contains(strtolower($cleanPath), 'catalyst')) {
+                    $introducedCount = 3;
+                } elseif (str_contains(strtolower($cleanPath), 'influencer')) {
+                    $introducedCount = 5;
+                } elseif (str_contains(strtolower($cleanPath), 'ambassador')) {
+                    $introducedCount = 10;
+                } elseif (str_contains(strtolower($cleanPath), 'rainmaker')) {
+                    $introducedCount = 20;
+                } elseif (str_contains(strtolower($cleanPath), 'trailblazer')) {
+                    $introducedCount = 35;
+                } elseif (str_contains(strtolower($cleanPath), 'vanguard')) {
+                    $introducedCount = 50;
+                } elseif (str_contains(strtolower($cleanPath), 'luminary')) {
+                    $introducedCount = 75;
+                } elseif (str_contains(strtolower($cleanPath), 'movement_maker') || str_contains(strtolower($cleanPath), 'movement maker') || str_contains(strtolower($cleanPath), 'movementmaker')) {
+                    $introducedCount = 100;
+                } elseif (str_contains(strtolower($cleanPath), 'community_titan') || str_contains(strtolower($cleanPath), 'community titan') || str_contains(strtolower($cleanPath), 'communitytitan')) {
+                    $introducedCount = 150;
+                } elseif (str_contains(strtolower($cleanPath), 'network_architect') || str_contains(strtolower($cleanPath), 'network architect') || str_contains(strtolower($cleanPath), 'networkarchitect')) {
+                    $introducedCount = 250;
+                } elseif (str_contains(strtolower($cleanPath), 'global_icon') || str_contains(strtolower($cleanPath), 'global icon') || str_contains(strtolower($cleanPath), 'globalicon')) {
+                    $introducedCount = 500;
+                } elseif (str_contains(strtolower($cleanPath), 'connector')) {
+                    $introducedCount = 1;
+                }
+            }
+
             $hasUsersTable = Schema::hasTable('users');
 
             // 1. Check explicit uid / user_id in query parameters
@@ -131,6 +161,7 @@ class PublicStorageController extends Controller
             }
 
             $isCreativeSignature = (bool) preg_match('/[0-9a-fA-F-]{36}_[0-9a-fA-F-]{36}\.png$/i', $cleanPath)
+                || (bool) preg_match('/_c\d+_/i', $cleanPath)
                 || str_contains($cleanPath, 'growth_creative')
                 || str_contains($cleanPath, 'connector_creative')
                 || str_contains($cleanPath, 'catalyst')
@@ -147,13 +178,13 @@ class PublicStorageController extends Controller
                 $virtualUser->company_name = (string) $request->query('company', '');
                 $virtualUser->city = (string) $request->query('city', '');
                 $virtualUser->business_sub_category = (string) $request->query('category', '');
-                $virtualUser->members_introduced_count = $introducedCount ?? (str_contains(strtolower($cleanPath), 'catalyst') ? 3 : 1);
+                $virtualUser->members_introduced_count = $introducedCount ?? 1;
                 $user = $virtualUser;
             }
 
             if ($user) {
                 if ($introducedCount === null) {
-                    $introducedCount = (int) ($user->members_introduced_count ?: (str_contains(strtolower($cleanPath), 'catalyst') ? 3 : 1));
+                    $introducedCount = (int) ($user->members_introduced_count ?: 1);
                 }
 
                 try {
