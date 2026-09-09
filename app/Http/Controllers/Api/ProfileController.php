@@ -578,7 +578,15 @@ class ProfileController extends BaseApiController
             ->distinct('viewer_id')
             ->count('viewer_id');
 
-        $views = ProfileView::with('viewer')
+        $with = ['viewer'];
+        if (Schema::hasTable('circle_category_level4')) {
+            $with[] = 'viewer.level4Category';
+            if (Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'level_4_category_id')) {
+                $with[] = 'viewer.circleMembers.level4Category';
+            }
+        }
+
+        $views = ProfileView::with($with)
             ->where('viewed_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->get()
