@@ -198,22 +198,20 @@ class CreativePublicUrlResolver
             return (int) $m[1] === $introducedCount;
         }
 
-        // Check milestone slug conflicts
+        // Legacy URLs without _c{N}_ tag: only accept if filename explicitly contains the exact milestone slug
         if ($introducedCount === 1) {
-            if (str_contains($lowerUrl, 'catalyst') || str_contains($lowerUrl, 'influencer') || str_contains($lowerUrl, 'ambassador')) {
-                return false;
-            }
-        } elseif ($introducedCount === 3) {
-            if (str_contains($lowerUrl, 'connector') || str_contains($lowerUrl, 'influencer') || str_contains($lowerUrl, 'ambassador')) {
-                return false;
-            }
-        } elseif ($introducedCount === 5) {
-            if (str_contains($lowerUrl, 'connector') || str_contains($lowerUrl, 'catalyst')) {
-                return false;
-            }
+            return str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'catalyst') && ! str_contains($lowerUrl, 'influencer');
         }
 
-        return true;
+        if ($introducedCount === 3) {
+            return str_contains($lowerUrl, 'catalyst') && ! str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'influencer');
+        }
+
+        if ($introducedCount === 5) {
+            return str_contains($lowerUrl, 'influencer') && ! str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'catalyst');
+        }
+
+        return false;
     }
 
     /**
