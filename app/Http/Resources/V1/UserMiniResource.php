@@ -40,11 +40,8 @@ class UserMiniResource extends JsonResource
             'display_name' => $user->display_name ?? $name,
             'profile_photo_url' => $this->buildProfilePhotoUrl($user),
             'city' => $cityName,
-            'business' => $businessName,
             'company_name' => $businessName,
             'designation' => $user->designation ?? $user->job_title ?? null,
-            'category' => $categoryName,
-            'business_category' => $categoryName,
             'level4_category' => $subCategory,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
         ];
@@ -70,12 +67,18 @@ class UserMiniResource extends JsonResource
             return null;
         }
 
-        if ($user->relationLoaded('city') && $user->city instanceof City) {
-            return $user->city->name ?? null;
+        if ($user->relationLoaded('city')) {
+            $cityRelation = $user->getRelation('city');
+            if ($cityRelation instanceof City) {
+                return $cityRelation->name ?? null;
+            }
         }
 
-        if ($user->relationLoaded('cityRelation') && $user->cityRelation instanceof City) {
-            return $user->cityRelation->name ?? null;
+        if ($user->relationLoaded('cityRelation')) {
+            $cityRelation = $user->getRelation('cityRelation');
+            if ($cityRelation instanceof City) {
+                return $cityRelation->name ?? null;
+            }
         }
 
         $city = $user->getAttribute('city');

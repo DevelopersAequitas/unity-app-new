@@ -129,7 +129,7 @@ class PostCommentDetailsTest extends TestCase
         $storeResponse->assertJsonPath('data.user.designation', 'Managing Director');
         $storeResponse->assertJsonPath('data.user.company_name', 'Sunlight Technologies');
         $storeResponse->assertJsonPath('data.user.level4_category', 'Solar Energy Equipment');
-        $storeResponse->assertJsonPath('data.user.impact_coins', 450);
+        $storeResponse->assertJsonMissingPath('data.user.impact_coins');
         $storeResponse->assertJsonMissingPath('data.user.subcategory_level4');
         $storeResponse->assertJsonMissingPath('data.user.impact_coin');
         $storeResponse->assertJsonMissingPath('data.user.coins_balance');
@@ -143,7 +143,7 @@ class PostCommentDetailsTest extends TestCase
         $listResponse->assertJsonPath('data.items.0.user.designation', 'Managing Director');
         $listResponse->assertJsonPath('data.items.0.user.company_name', 'Sunlight Technologies');
         $listResponse->assertJsonPath('data.items.0.user.level4_category', 'Solar Energy Equipment');
-        $listResponse->assertJsonPath('data.items.0.user.impact_coins', 450);
+        $listResponse->assertJsonMissingPath('data.items.0.user.impact_coins');
         $listResponse->assertJsonMissingPath('data.items.0.user.subcategory_level4');
         $listResponse->assertJsonMissingPath('data.items.0.user.impact_coin');
         $listResponse->assertJsonMissingPath('data.items.0.user.coins_balance');

@@ -42,7 +42,6 @@ class PostCommentResource extends JsonResource
                     'designation' => $designation,
                     'company_name' => $companyName,
                     'level4_category' => $subCategory,
-                    'impact_coins' => $coins,
                 ];
             }),
         ];
@@ -54,12 +53,18 @@ class PostCommentResource extends JsonResource
             return null;
         }
 
-        if ($user->relationLoaded('city') && $user->city instanceof City) {
-            return $user->city->name ?? null;
+        if ($user->relationLoaded('city')) {
+            $cityRelation = $user->getRelation('city');
+            if ($cityRelation instanceof City) {
+                return $cityRelation->name ?? null;
+            }
         }
 
-        if ($user->relationLoaded('cityRelation') && $user->cityRelation instanceof City) {
-            return $user->cityRelation->name ?? null;
+        if ($user->relationLoaded('cityRelation')) {
+            $cityRelation = $user->getRelation('cityRelation');
+            if ($cityRelation instanceof City) {
+                return $cityRelation->name ?? null;
+            }
         }
 
         $city = $user->getAttribute('city');

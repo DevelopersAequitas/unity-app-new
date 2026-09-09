@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\Post;
 use App\Models\PostLike;
@@ -23,10 +24,17 @@ class PostLikesApiDetailsTest extends TestCase
 
         Schema::dropIfExists('post_likes');
         Schema::dropIfExists('posts');
+        Schema::dropIfExists('circle_category_level4');
         Schema::dropIfExists('circle_categories');
         Schema::dropIfExists('cities');
         Schema::dropIfExists('users');
         Schema::dropIfExists('personal_access_tokens');
+
+        Schema::create('circle_category_level4', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -37,6 +45,7 @@ class PostLikesApiDetailsTest extends TestCase
             $table->string('phone', 20)->nullable()->unique();
             $table->string('password_hash')->nullable();
             $table->string('company_name')->nullable();
+            $table->string('designation')->nullable();
             $table->string('city_id')->nullable();
             $table->string('city')->nullable();
             $table->string('business_city')->nullable();
@@ -163,20 +172,19 @@ class PostLikesApiDetailsTest extends TestCase
                         'liked_at',
                         'name',
                         'city',
-                        'business',
-                        'category',
+                        'company_name',
+                        'designation',
+                        'level4_category',
                         'user' => [
                             'id',
                             'name',
                             'display_name',
                             'profile_photo_url',
                             'city',
-                            'business',
                             'company_name',
-                            'category',
-                            'business_category',
+                            'designation',
+                            'level4_category',
                             'life_impacted_count',
-                            'timezone',
                         ],
                     ],
                 ],
@@ -187,12 +195,18 @@ class PostLikesApiDetailsTest extends TestCase
         $this->assertCount(1, $items);
         $this->assertSame('Rahul Sharma', $items[0]['name']);
         $this->assertSame('Ahmedabad', $items[0]['city']);
-        $this->assertSame('Sharma Tech Solutions', $items[0]['business']);
-        $this->assertSame('Information Technology', $items[0]['category']);
+        $this->assertSame('Sharma Tech Solutions', $items[0]['company_name']);
         $this->assertSame('Rahul Sharma', $items[0]['user']['name']);
         $this->assertSame('Ahmedabad', $items[0]['user']['city']);
-        $this->assertSame('Sharma Tech Solutions', $items[0]['user']['business']);
-        $this->assertSame('Information Technology', $items[0]['user']['category']);
+        $this->assertSame('Sharma Tech Solutions', $items[0]['user']['company_name']);
+        $this->assertArrayNotHasKey('business', $items[0]);
+        $this->assertArrayNotHasKey('category', $items[0]);
+        $this->assertArrayNotHasKey('impact_coins', $items[0]);
+        $this->assertArrayNotHasKey('business', $items[0]['user']);
+        $this->assertArrayNotHasKey('category', $items[0]['user']);
+        $this->assertArrayNotHasKey('business_category', $items[0]['user']);
+        $this->assertArrayNotHasKey('timezone', $items[0]['user']);
+        $this->assertArrayNotHasKey('impact_coins', $items[0]['user']);
     }
 
     public function test_get_post_likes_handles_missing_business_and_category(): void
@@ -238,7 +252,76 @@ class PostLikesApiDetailsTest extends TestCase
         $this->assertCount(1, $items);
         $this->assertSame('Priya Patel', $items[0]['name']);
         $this->assertSame('Surat', $items[0]['city']);
-        $this->assertNull($items[0]['business']);
-        $this->assertNull($items[0]['category']);
+        $this->assertNull($items[0]['company_name']);
+        $this->assertArrayNotHasKey('business', $items[0]);
+        $this->assertArrayNotHasKey('category', $items[0]);
+    }
+
+    public function test_get_post_likes_returns_city_designation_company_and_level4(): void
+    {
+        $level4 = CircleCategoryLevel4::create([
+            'name' => 'Solar Energy Equipment',
+        ]);
+
+        $author = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Post',
+            'last_name' => 'Author',
+            'display_name' => 'Post Author',
+            'email' => 'author3@example.com',
+        ]);
+
+        $liker = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Amit',
+            'last_name' => 'Patel',
+            'display_name' => 'Amit Patel',
+            'email' => 'amit@example.com',
+            'city' => 'Ahmedabad',
+            'designation' => 'Managing Director',
+            'company_name' => 'Sunlight Technologies',
+            'business_category_id' => $level4->id,
+            'coins_balance' => 350,
+        ]);
+
+        $post = Post::create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $author->id,
+            'content_text' => 'Post to like',
+            'visibility' => 'public',
+        ]);
+
+        PostLike::create([
+            'post_id' => $post->id,
+            'user_id' => $liker->id,
+            'created_at' => now(),
+        ]);
+
+        Sanctum::actingAs($author);
+
+        $response = $this->getJson("/api/v1/posts/{$post->id}/likes");
+
+        $response->assertOk();
+        $item = $response->json('data.items.0');
+
+        // Check top-level
+        $this->assertSame('Ahmedabad', $item['city']);
+        $this->assertSame('Managing Director', $item['designation']);
+        $this->assertSame('Sunlight Technologies', $item['company_name']);
+        $this->assertSame('Solar Energy Equipment', $item['level4_category']);
+        $this->assertArrayNotHasKey('impact_coins', $item);
+        $this->assertArrayNotHasKey('business', $item);
+        $this->assertArrayNotHasKey('category', $item);
+
+        // Check user object
+        $this->assertSame('Ahmedabad', $item['user']['city']);
+        $this->assertSame('Managing Director', $item['user']['designation']);
+        $this->assertSame('Sunlight Technologies', $item['user']['company_name']);
+        $this->assertSame('Solar Energy Equipment', $item['user']['level4_category']);
+        $this->assertArrayNotHasKey('impact_coins', $item['user']);
+        $this->assertArrayNotHasKey('business', $item['user']);
+        $this->assertArrayNotHasKey('category', $item['user']);
+        $this->assertArrayNotHasKey('business_category', $item['user']);
+        $this->assertArrayNotHasKey('timezone', $item['user']);
     }
 }
