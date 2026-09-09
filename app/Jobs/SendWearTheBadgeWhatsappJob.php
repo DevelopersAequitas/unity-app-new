@@ -9,12 +9,14 @@ use App\Models\FileModel;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Services\Creative\WearTheBadgeImageGenerator;
+use App\Services\Notifications\WearTheBadgeWhatsappService;
 use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +28,12 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
     use SerializesModels;
+
+    /**
+     * The number of times the job may be attempted.
+     * Set to 1 to prevent endless retry loops.
+     */
+    public int $tries = 1;
 
     public function __construct(
         public string $userId
@@ -48,14 +56,61 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
             return;
         }
 
-        // Duplicate protection check
-        if ($this->alreadySent($this->userId)) {
-            Log::info('SendWearTheBadgeWhatsappJob skipped: Already sent to user.', [
+        $deterministicLogId = WearTheBadgeWhatsappService::getDeterministicLogId($this->userId, WearTheBadgeWhatsappService::TEMPLATE_KEY);
+
+        // Atomically acquire execution claim in DB
+        $canProceed = true;
+        if (Schema::hasTable('notification_delivery_logs')) {
+            try {
+                $canProceed = DB::transaction(function () use ($deterministicLogId): bool {
+                    $log = NotificationDeliveryLog::where('id', $deterministicLogId)->lockForUpdate()->first();
+                    if ($log) {
+                        if ($log->status === 'sent' || $log->status === 'processing') {
+                            return false;
+                        }
+                        $log->status = 'processing';
+                        $log->save();
+
+                        return true;
+                    }
+
+                    if ($this->alreadySent($this->userId)) {
+                        return false;
+                    }
+
+                    NotificationDeliveryLog::create([
+                        'id' => $deterministicLogId,
+                        'user_id' => $this->userId,
+                        'channel' => 'whatsapp',
+                        'provider' => WearTheBadgeWhatsappService::TEMPLATE_KEY,
+                        'status' => 'processing',
+                        'attempted_at' => now(),
+                    ]);
+
+                    return true;
+                });
+            } catch (Throwable $lockEx) {
+                Log::warning('[SendWearTheBadgeWhatsappJob] Could not acquire execution lock: '.$lockEx->getMessage());
+                if ($this->alreadySent($this->userId)) {
+                    $canProceed = false;
+                }
+            }
+        } else {
+            if ($this->alreadySent($this->userId)) {
+                $canProceed = false;
+            }
+        }
+
+        if (! $canProceed) {
+            Log::info('SendWearTheBadgeWhatsappJob skipped: Already sent or currently processing.', [
                 'user_id' => $this->userId,
             ]);
 
             return;
         }
+
+        $rawPhone = $user->phone ?? $user->secondary_mobile;
+        $firstName = trim((string) ($user->first_name ?? $user->display_name ?? 'Friend'));
 
         // Generate creative image app-side & save URL in SQL automatically
         $creativeUrl = null;
@@ -103,20 +158,20 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
                 'creative_url' => $creativeUrl,
             ]);
 
+            $this->updateDeliveryLog($deterministicLogId, $this->userId, (string) ($rawPhone ?? ''), $firstName, 'failed', 'Real creative physical file does not exist.', $creativeUrl);
+
             return;
         }
-
-        $rawPhone = $user->phone ?? $user->secondary_mobile;
 
         if (blank($rawPhone)) {
             Log::warning('SendWearTheBadgeWhatsappJob skipped: User phone number is empty.', [
                 'user_id' => $this->userId,
             ]);
 
+            $this->updateDeliveryLog($deterministicLogId, $this->userId, '', $firstName, 'failed', 'User phone number is empty.', $creativeUrl);
+
             return;
         }
-
-        $firstName = trim((string) ($user->first_name ?? $user->display_name ?? 'Friend'));
 
         $payload = array_filter([
             'first_name' => $firstName,
@@ -132,11 +187,11 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
         ]);
 
         try {
-            $success = $whatsappService->send('wear_the_badge', (string) $rawPhone, $payload);
+            $success = $whatsappService->send(WearTheBadgeWhatsappService::TEMPLATE_KEY, (string) $rawPhone, $payload);
             if ($success) {
-                $this->logDelivery($this->userId, (string) $rawPhone, $firstName, 'sent', null);
+                $this->updateDeliveryLog($deterministicLogId, $this->userId, (string) $rawPhone, $firstName, 'sent', null, $creativeUrl);
             } else {
-                $this->logDelivery($this->userId, (string) $rawPhone, $firstName, 'failed', 'Webhook response check failed or template inactive');
+                $this->updateDeliveryLog($deterministicLogId, $this->userId, (string) $rawPhone, $firstName, 'failed', 'Webhook response check failed or template inactive', $creativeUrl);
 
                 // Fallback to welcome template if wear_the_badge template not active
                 $whatsappService->send('welcome', (string) $rawPhone, $payload);
@@ -153,7 +208,7 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
                 'phone' => $rawPhone,
             ]);
 
-            $this->logDelivery($this->userId, (string) $rawPhone, $firstName, 'failed', $exception->getMessage());
+            $this->updateDeliveryLog($deterministicLogId, $this->userId, (string) $rawPhone, $firstName, 'failed', $exception->getMessage(), $creativeUrl);
         }
     }
 
@@ -163,11 +218,18 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
             return false;
         }
 
+        $deterministicLogId = WearTheBadgeWhatsappService::getDeterministicLogId($userId, WearTheBadgeWhatsappService::TEMPLATE_KEY);
+
         try {
             return NotificationDeliveryLog::query()
-                ->where('user_id', $userId)
-                ->where('channel', 'whatsapp')
-                ->where('provider', 'wear_the_badge')
+                ->where(function ($q) use ($userId, $deterministicLogId): void {
+                    $q->where('id', $deterministicLogId)
+                        ->orWhere(function ($sub) use ($userId): void {
+                            $sub->where('user_id', $userId)
+                                ->where('channel', 'whatsapp')
+                                ->where('provider', WearTheBadgeWhatsappService::TEMPLATE_KEY);
+                        });
+                })
                 ->where('status', 'sent')
                 ->exists();
         } catch (Throwable) {
@@ -175,26 +237,37 @@ class SendWearTheBadgeWhatsappJob implements ShouldQueue
         }
     }
 
-    private function logDelivery(string $userId, string $phone, string $firstName, string $status, ?string $errorMessage): void
-    {
+    private function updateDeliveryLog(
+        string $deterministicLogId,
+        string $userId,
+        string $phone,
+        string $firstName,
+        string $status,
+        ?string $errorMessage,
+        ?string $creativeUrl = null
+    ): void {
         if (! Schema::hasTable('notification_delivery_logs')) {
             return;
         }
 
         try {
-            NotificationDeliveryLog::create([
-                'user_id' => $userId,
-                'channel' => 'whatsapp',
-                'provider' => 'wear_the_badge',
-                'status' => $status,
-                'request_payload' => [
-                    'phone' => $phone,
-                    'first_name' => $firstName,
-                ],
-                'error_message' => $errorMessage,
-                'attempted_at' => now(),
-                'delivered_at' => $status === 'sent' ? now() : null,
-            ]);
+            NotificationDeliveryLog::updateOrCreate(
+                ['id' => $deterministicLogId],
+                [
+                    'user_id' => $userId,
+                    'channel' => 'whatsapp',
+                    'provider' => WearTheBadgeWhatsappService::TEMPLATE_KEY,
+                    'status' => $status,
+                    'request_payload' => array_filter([
+                        'phone' => $phone,
+                        'first_name' => $firstName,
+                        'welcome_creative_url' => $creativeUrl,
+                    ]),
+                    'error_message' => $errorMessage,
+                    'attempted_at' => now(),
+                    'delivered_at' => $status === 'sent' ? now() : null,
+                ]
+            );
         } catch (Throwable) {
             // Logging failure should not interrupt job execution
         }

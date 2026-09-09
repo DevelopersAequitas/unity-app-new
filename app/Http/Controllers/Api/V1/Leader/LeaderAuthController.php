@@ -29,6 +29,24 @@ class LeaderAuthController extends Controller
     {
         $data = $this->authService->sendOtp((string) $request->validated('email_or_phone'));
 
+        if (empty($data['is_registered'])) {
+            return response()->json([
+                'success' => false,
+                'error_code' => 'USER_NOT_FOUND',
+                'message' => 'No account found with the provided email or phone.',
+                'data' => $data,
+            ], 404);
+        }
+
+        if (empty($data['is_leader'])) {
+            return response()->json([
+                'success' => false,
+                'error_code' => 'NOT_A_LEADER',
+                'message' => 'Access restricted. Only peers with an assigned leadership role can log into the Leader App.',
+                'data' => $data,
+            ], 403);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'OTP has been sent successfully to your registered email/phone.',
@@ -71,12 +89,15 @@ class LeaderAuthController extends Controller
                 'data' => $data,
             ]);
         } catch (Throwable $e) {
+            $msg = $e->getMessage();
+            $isNotLeader = str_contains(strtolower($msg), 'leadership') || str_contains(strtolower($msg), 'leader');
+
             return response()->json([
                 'success' => false,
-                'error_code' => 'INVALID_CREDENTIALS',
-                'message' => $e->getMessage(),
+                'error_code' => $isNotLeader ? 'NOT_A_LEADER' : 'INVALID_CREDENTIALS',
+                'message' => $msg,
                 'details' => null,
-            ], 422);
+            ], $isNotLeader ? 403 : 422);
         }
     }
 

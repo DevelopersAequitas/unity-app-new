@@ -834,10 +834,11 @@ function onAssignRoleChange() {
 
     const isDed = key === 'ded' || key.includes('ded') || key.includes('district');
     const isId = key === 'id' || key === 'ied' || key.includes('industry');
-    const isCircle = ['cd', 'cf', 'chair', 'vice chair', 'secretary', 'circle leader'].includes(key) || 
+    const isCircle = ['cd', 'cf', 'chair', 'vice chair', 'secretary', 'circle leader', 'business growth committee', 'events impacts committee', 'membership growth committee'].includes(key) || 
                      key.includes('circle') || 
                      key.includes('chair') || 
-                     key.includes('secretary');
+                     key.includes('secretary') ||
+                     key.includes('committee');
 
     if (isDed) {
         container.style.display = 'block';

@@ -62,4 +62,16 @@ class PublicStorageControllerTest extends TestCase
         $response = $this->get('/storage/../../etc/passwd');
         $response->assertStatus(404);
     }
+
+    public function test_self_healing_catalyst_creative_serves_valid_png(): void
+    {
+        $uuid1 = (string) Str::uuid();
+        $uuid2 = (string) Str::uuid();
+        $path = "uploads/2026/09/09/{$uuid1}_catalyst_c3_{$uuid2}.png";
+
+        $response = $this->get('/storage/'.$path.'?name=Vinit+Patel');
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'image/png');
+    }
 }

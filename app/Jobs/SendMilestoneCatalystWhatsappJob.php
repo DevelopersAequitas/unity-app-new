@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Models\MilestoneBadge;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Models\WhatsappTemplate;
@@ -74,16 +73,36 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                 return;
             }
 
-            $rawPhone = $user->phone ?? $user->secondary_mobile;
+            $primaryPhone = trim((string) ($user->phone ?? ''));
+            $secondaryPhone = trim((string) ($user->secondary_mobile ?? ''));
 
-            if (blank($rawPhone)) {
-                Log::warning('[SendMilestoneCatalystWhatsappJob] Skipped: Missing phone number.', [
+            $rawPhone = null;
+            $phoneSource = null;
+
+            if ($primaryPhone !== '' && static::isValidPhoneNumber($primaryPhone)) {
+                $rawPhone = $primaryPhone;
+                $phoneSource = 'users.phone';
+            } elseif ($secondaryPhone !== '' && static::isValidPhoneNumber($secondaryPhone)) {
+                $rawPhone = $secondaryPhone;
+                $phoneSource = 'users.secondary_mobile';
+            }
+
+            if ($rawPhone === null || $phoneSource === null) {
+                Log::warning('[SendMilestoneCatalystWhatsappJob] Skipped: No valid phone number found.', [
                     'user_id' => $this->userId,
+                    'phone' => $user->phone,
+                    'secondary_mobile' => $user->secondary_mobile,
                     'template_key' => self::TEMPLATE_KEY,
                 ]);
 
                 return;
             }
+
+            Log::info('[SendMilestoneCatalystWhatsappJob] Resolved recipient phone.', [
+                'user_id' => $this->userId,
+                'phone_source' => $phoneSource,
+                'phone' => (string) $rawPhone,
+            ]);
 
             // 1. Construct canonical data object
             $introducedCount = (int) ($user->members_introduced_count ?? self::MILESTONE_COUNT);
@@ -183,10 +202,15 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
                     'user_id' => $user->id,
                     'exception' => $e,
                 ]);
+                $this->logDelivery($this->userId, (string) $rawPhone, 'failed', 'Personalized creative resolution failed: '.$e->getMessage(), [], $introducedCount);
+                throw new \RuntimeException('Failed to resolve personalized creative for Catalyst milestone: '.$e->getMessage(), 0, $e);
             }
 
             if (blank($badgeImageUrl) || ! $this->isValidPublicMediaUrl($badgeImageUrl)) {
-                $badgeImageUrl = $this->resolveBadgeImageUrl(self::MILESTONE_COUNT);
+                $errorMsg = 'Personalized creative URL is invalid or inaccessible for Catalyst milestone: '.(string) $badgeImageUrl;
+                Log::error('[SendMilestoneCatalystWhatsappJob] '.$errorMsg, ['user_id' => $user->id]);
+                $this->logDelivery($this->userId, (string) $rawPhone, 'failed', $errorMsg, [], $introducedCount);
+                throw new \RuntimeException($errorMsg);
             }
 
             // Body Parameters for template pgu_catalyst_3:
@@ -498,57 +522,29 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
     }
 
     /**
-     * Resolve a publicly accessible, stable HTTPS badge image URL for CATALYST WhatsApp delivery.
+     * Resolve a publicly accessible, stable HTTPS personalized badge image URL for CATALYST WhatsApp delivery.
      * Note: Never falls back to CONNECTOR or generic milestone images.
      */
-    public function resolveBadgeImageUrl(int $introducedCount = self::MILESTONE_COUNT): ?string
+    public function resolveBadgeImageUrl(?User $user = null, int $introducedCount = self::MILESTONE_COUNT): ?string
     {
-        $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
-
-        // 1. Look up milestone_badges table for the exact CATALYST badge (required_count = 3)
-        $badge = MilestoneBadge::query()
-            ->where('type', MilestoneBadge::TYPE_MEMBER_INTRODUCTION)
-            ->where('required_count', self::MILESTONE_COUNT)
-            ->first();
-
-        $url = $badge?->badge_image_url;
-        if (! empty($url)) {
-            $url = (string) $url;
-            if (str_contains($baseUrl, 'dev.peersunity.com') && str_contains($url, 'peersunity.com') && ! str_contains($url, 'dev.peersunity.com')) {
-                $url = str_replace('https://peersunity.com', $baseUrl, $url);
-            }
-            if ($this->isValidPublicMediaUrl($url)) {
-                return $url;
-            }
-        }
-
-        // 2. Resolve using honour title if available
-        if (class_exists(IntroducedPeerCreativeGenerator::class)) {
+        if ($user) {
             try {
                 $generator = app(IntroducedPeerCreativeGenerator::class);
-                $meta = $generator->getHonourMeta(self::MILESTONE_COUNT);
-                if (! empty($meta['title']) && strtoupper($meta['title']) === self::MILESTONE_KEY) {
-                    $titleCase = ucwords(strtolower($meta['title']));
-                    $encodedTitle = str_replace(' ', '%20', $titleCase);
-                    $honourUrl = "{$baseUrl}/images/member_introduce_badges/{$encodedTitle}.png";
-                    if ($this->isValidPublicMediaUrl($honourUrl)) {
-                        return $honourUrl;
-                    }
-                }
-            } catch (Throwable) {
-            }
-        }
 
-        $fallbackCatalystUrl = "{$baseUrl}/images/member_introduce_badges/Catalyst.png";
-        if ($this->isValidPublicMediaUrl($fallbackCatalystUrl)) {
-            return $fallbackCatalystUrl;
+                return $generator->generateOrGetUrl($user, $introducedCount);
+            } catch (Throwable $e) {
+                Log::error('[SendMilestoneCatalystWhatsappJob] Failed generating personalized badge image in fallback: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                    'exception' => $e,
+                ]);
+            }
         }
 
         return null;
     }
 
     /**
-     * Check if a media URL is a valid, publicly reachable HTTPS image URL (not localhost, not ngrok, not 404 API path).
+     * Check if a media URL is a valid, publicly reachable HTTPS image URL (not localhost, not ngrok, not 404 API path, not blank template).
      */
     public function isValidPublicMediaUrl(?string $url): bool
     {
@@ -577,33 +573,46 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
             return false;
         }
 
-        // For storage uploads, verify physical existence on public disk if running on the host instance
+        // Static unrendered milestone badge templates are not valid personalized member creatives
+        if (str_contains($trimmed, '/images/member_introduce_badges/')) {
+            return false;
+        }
+
+        // For storage uploads, verify physical existence on public disk
         if (preg_match('~/storage/(uploads/[^?#\s]+)~i', $trimmed, $matches)) {
             $s3Key = $matches[1];
-            $exists = Storage::disk('public')->exists($s3Key)
+
+            $localExists = Storage::disk('public')->exists($s3Key)
+                || Storage::disk(config('filesystems.default', 'public'))->exists($s3Key)
                 || file_exists(storage_path('app/public/'.$s3Key))
                 || file_exists(public_path('storage/'.$s3Key));
 
-            if ($exists) {
+            // If verified on local public storage disk, it is valid
+            if ($localExists) {
                 return true;
             }
 
             $host = parse_url($trimmed, PHP_URL_HOST);
             $isLocalHost = in_array(strtolower((string) $host), ['localhost', '127.0.0.1', '::1'], true);
 
-            // If pointing to a remote host (e.g. dev.peersunity.com or peersunity.com), verify external HTTPS reachability
-            if (! $isLocalHost && ! app()->runningUnitTests()) {
+            if ($isLocalHost) {
+                return false;
+            }
+
+            if (app()->runningUnitTests()) {
+                return $localExists;
+            }
+
+            // If pointing to a remote host (e.g. S3 / external CDN), verify external HTTPS reachability
+            if (! empty($host)) {
                 try {
-                    $response = Http::timeout(3)->withoutVerifying()->get($trimmed);
+                    $response = Http::timeout(4)->withoutVerifying()->get($trimmed);
                     if ($response->status() !== 200) {
                         return false;
                     }
                     $contentType = (string) $response->header('Content-Type');
-                    if (! str_starts_with($contentType, 'image/')) {
-                        return false;
-                    }
 
-                    return true;
+                    return str_starts_with($contentType, 'image/');
                 } catch (Throwable) {
                     return false;
                 }
@@ -616,6 +625,36 @@ class SendMilestoneCatalystWhatsappJob implements ShouldQueue
         $path = (string) parse_url($trimmed, PHP_URL_PATH);
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if (! in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'], true) && ! str_contains($path, '/storage/')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Validate that the given value is a plausible phone number (10 to 15 digits).
+     */
+    public static function isValidPhoneNumber(?string $phone): bool
+    {
+        if ($phone === null) {
+            return false;
+        }
+
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        // Check if string contains unexpected non-phone characters (letters, special symbols other than +, -, (, ), space)
+        if (preg_match('/[^\d\+\-\s\(\)]/', $trimmed)) {
+            return false;
+        }
+
+        // Extract digits only
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+
+        // Plausible phone numbers must be between 10 and 15 digits
+        if (strlen($digits) < 10 || strlen($digits) > 15) {
             return false;
         }
 

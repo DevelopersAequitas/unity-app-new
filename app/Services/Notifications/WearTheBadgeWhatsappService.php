@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
-use App\Jobs\SendMilestoneConnectorWhatsappJob;
+use App\Jobs\SendWearTheBadgeWhatsappJob;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -14,49 +14,41 @@ use Illuminate\Support\Facades\Schema;
 use Ramsey\Uuid\Uuid;
 use Throwable;
 
-class MilestoneConnectorWhatsappService
+class WearTheBadgeWhatsappService
 {
-    public const TEMPLATE_KEY = 'milestone_connector';
+    public const TEMPLATE_KEY = 'wear_the_badge';
+
+    public const UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
     /**
-     * Generate deterministic UUID for milestone notification delivery log idempotency.
+     * Generate deterministic UUID for WearTheBadge notification delivery log idempotency.
      */
-    public static function getDeterministicLogId(string $userId, string $templateKey = self::TEMPLATE_KEY, int $milestoneCount = 1): string
+    public static function getDeterministicLogId(string $userId, string $templateKey = self::TEMPLATE_KEY): string
     {
-        return Uuid::uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', "notification_delivery.{$templateKey}.{$userId}.{$milestoneCount}")->toString();
+        return Uuid::uuid5(self::UUID_NAMESPACE, "wear_the_badge:{$userId}")->toString();
     }
 
     /**
-     * Trigger WhatsApp notification for first member introduction milestone.
+     * Trigger WhatsApp notification for WearTheBadge if eligible and not already processed.
      */
-    public function handleFirstIntroduction(User $user, ?string $imageUrl = null): void
+    public function handleWearTheBadge(User $user): bool
     {
         try {
-            $user->refresh();
-
-            $introducedCount = (int) ($user->members_introduced_count ?? 0);
-
-            // Trigger only when count indicates this is the member's first introduction
-            if ($introducedCount !== 1) {
-                Log::info('[MilestoneConnectorWhatsappService] Skipped: Not the first introduction.', [
-                    'user_id' => $user->id,
-                    'members_introduced_count' => $introducedCount,
-                ]);
-
-                return;
+            if (! $this->isEligible($user)) {
+                return false;
             }
 
-            $deterministicLogId = self::getDeterministicLogId((string) $user->id, self::TEMPLATE_KEY, 1);
+            $deterministicLogId = self::getDeterministicLogId((string) $user->id, self::TEMPLATE_KEY);
             $shouldDispatch = false;
 
             if (Schema::hasTable('notification_delivery_logs')) {
                 try {
-                    $shouldDispatch = DB::transaction(function () use ($user, $deterministicLogId, $imageUrl, $introducedCount): bool {
+                    $shouldDispatch = DB::transaction(function () use ($user, $deterministicLogId): bool {
                         // Check if deterministic log already exists
                         $existingLog = NotificationDeliveryLog::where('id', $deterministicLogId)->lockForUpdate()->first();
                         if ($existingLog) {
                             if ($existingLog->status === 'sent') {
-                                Log::info('[MilestoneConnectorWhatsappService] Skipped: Milestone already sent for this member.', [
+                                Log::info('[WearTheBadgeWhatsappService] Skipped: WearTheBadge already sent for user.', [
                                     'user_id' => $user->id,
                                     'log_id' => $deterministicLogId,
                                     'status' => $existingLog->status,
@@ -67,7 +59,7 @@ class MilestoneConnectorWhatsappService
 
                             if (in_array($existingLog->status, ['queued', 'processing', 'pending'], true)) {
                                 if ($existingLog->attempted_at && $existingLog->attempted_at->gt(now()->subMinutes(5))) {
-                                    Log::info('[MilestoneConnectorWhatsappService] Skipped: Milestone already queued or processing for this member.', [
+                                    Log::info('[WearTheBadgeWhatsappService] Skipped: WearTheBadge already queued or processing for user.', [
                                         'user_id' => $user->id,
                                         'log_id' => $deterministicLogId,
                                         'status' => $existingLog->status,
@@ -82,8 +74,7 @@ class MilestoneConnectorWhatsappService
                                 'status' => 'queued',
                                 'request_payload' => [
                                     'template_key' => self::TEMPLATE_KEY,
-                                    'introduced_count' => $introducedCount,
-                                    'image_url' => $imageUrl,
+                                    'trigger' => 'profile_complete_or_first_payment',
                                 ],
                                 'error_message' => null,
                                 'attempted_at' => now(),
@@ -92,16 +83,16 @@ class MilestoneConnectorWhatsappService
                             return true;
                         }
 
-                        // Check legacy logs if any sent record exists for this user & template
-                        $legacySent = NotificationDeliveryLog::query()
+                        // Check legacy logs if any exist for this user & template
+                        $legacyExists = NotificationDeliveryLog::query()
                             ->where('user_id', (string) $user->id)
                             ->where('channel', 'whatsapp')
-                            ->whereIn('provider', [self::TEMPLATE_KEY, 'milestone_badge_whatsapp'])
-                            ->where('status', 'sent')
+                            ->where('provider', self::TEMPLATE_KEY)
+                            ->whereIn('status', ['sent', 'queued', 'pending', 'processing'])
                             ->exists();
 
-                        if ($legacySent) {
-                            Log::info('[MilestoneConnectorWhatsappService] Skipped: Legacy milestone delivery record exists.', [
+                        if ($legacyExists) {
+                            Log::info('[WearTheBadgeWhatsappService] Skipped: Legacy WearTheBadge delivery record exists.', [
                                 'user_id' => $user->id,
                             ]);
 
@@ -117,8 +108,7 @@ class MilestoneConnectorWhatsappService
                             'status' => 'queued',
                             'request_payload' => [
                                 'template_key' => self::TEMPLATE_KEY,
-                                'introduced_count' => $introducedCount,
-                                'image_url' => $imageUrl,
+                                'trigger' => 'profile_complete_or_first_payment',
                             ],
                             'attempted_at' => now(),
                         ]);
@@ -126,13 +116,13 @@ class MilestoneConnectorWhatsappService
                         return true;
                     });
                 } catch (QueryException $qe) {
-                    Log::info('[MilestoneConnectorWhatsappService] Duplicate dispatch race prevented by DB unique primary key.', [
+                    Log::info('[WearTheBadgeWhatsappService] Duplicate dispatch race prevented by DB unique primary key.', [
                         'user_id' => $user->id,
                         'log_id' => $deterministicLogId,
                     ]);
                     $shouldDispatch = false;
                 } catch (Throwable $dbEx) {
-                    Log::error('[MilestoneConnectorWhatsappService] Error during milestone dispatch reservation: '.$dbEx->getMessage(), [
+                    Log::error('[WearTheBadgeWhatsappService] Error during WearTheBadge dispatch reservation: '.$dbEx->getMessage(), [
                         'user_id' => $user->id,
                         'exception' => $dbEx,
                     ]);
@@ -143,35 +133,55 @@ class MilestoneConnectorWhatsappService
             }
 
             if ($shouldDispatch) {
-                // Dispatch job to send independently
-                SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl);
+                SendWearTheBadgeWhatsappJob::dispatch((string) $user->id);
 
-                Log::info('[MilestoneConnectorWhatsappService] Dispatched SendMilestoneConnectorWhatsappJob.', [
+                Log::info('[WearTheBadgeWhatsappService] Dispatched SendWearTheBadgeWhatsappJob.', [
                     'user_id' => $user->id,
                     'log_id' => $deterministicLogId,
-                    'introduced_count' => $introducedCount,
-                    'template_key' => self::TEMPLATE_KEY,
                 ]);
+
+                return true;
             }
+
+            return false;
         } catch (Throwable $e) {
-            // Main flow must never fail because of WhatsApp handling
-            Log::error('[MilestoneConnectorWhatsappService] Exception in handleFirstIntroduction: '.$e->getMessage(), [
+            Log::error('[WearTheBadgeWhatsappService] Exception in handleWearTheBadge: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'exception' => $e,
             ]);
+
+            return false;
         }
     }
 
     /**
-     * Check whether milestone_connector WhatsApp has already been successfully sent to this user.
+     * Check if a user is eligible for WearTheBadge WhatsApp notification.
      */
-    public function isMilestoneProcessed(string $userId): bool
+    public function isEligible(User $user): bool
+    {
+        if ($this->isProcessed((string) $user->id)) {
+            return false;
+        }
+
+        // Profile reaching 100%
+        $isProfileComplete = $user->calculateProfileCompletionPercentage() === 100;
+
+        // First payment condition: last_payment_at filled or paid membership status
+        $isPaid = filled($user->last_payment_at) || ! in_array((string) $user->membership_status, ['visitor', 'free_peer', 'free_trial_peer', ''], true);
+
+        return $isProfileComplete || $isPaid;
+    }
+
+    /**
+     * Check whether WearTheBadge WhatsApp has already been processed or queued for this user.
+     */
+    public function isProcessed(string $userId): bool
     {
         if (! Schema::hasTable('notification_delivery_logs')) {
             return false;
         }
 
-        $deterministicLogId = self::getDeterministicLogId($userId, self::TEMPLATE_KEY, 1);
+        $deterministicLogId = self::getDeterministicLogId($userId, self::TEMPLATE_KEY);
 
         try {
             return NotificationDeliveryLog::query()
@@ -180,10 +190,10 @@ class MilestoneConnectorWhatsappService
                         ->orWhere(function ($sub) use ($userId): void {
                             $sub->where('user_id', $userId)
                                 ->where('channel', 'whatsapp')
-                                ->whereIn('provider', [self::TEMPLATE_KEY, 'milestone_badge_whatsapp']);
+                                ->where('provider', self::TEMPLATE_KEY);
                         });
                 })
-                ->where('status', 'sent')
+                ->whereIn('status', ['sent', 'queued', 'pending', 'processing'])
                 ->exists();
         } catch (Throwable) {
             return false;
@@ -191,10 +201,30 @@ class MilestoneConnectorWhatsappService
     }
 
     /**
-     * Check whether milestone_connector WhatsApp has already been sent to this user.
+     * Check whether WearTheBadge WhatsApp has already been successfully sent to this user.
      */
-    public function alreadySent(string $userId): bool
+    public function isSent(string $userId): bool
     {
-        return $this->isMilestoneProcessed($userId);
+        if (! Schema::hasTable('notification_delivery_logs')) {
+            return false;
+        }
+
+        $deterministicLogId = self::getDeterministicLogId($userId, self::TEMPLATE_KEY);
+
+        try {
+            return NotificationDeliveryLog::query()
+                ->where(function ($q) use ($userId, $deterministicLogId): void {
+                    $q->where('id', $deterministicLogId)
+                        ->orWhere(function ($sub) use ($userId): void {
+                            $sub->where('user_id', $userId)
+                                ->where('channel', 'whatsapp')
+                                ->where('provider', self::TEMPLATE_KEY);
+                        });
+                })
+                ->where('status', 'sent')
+                ->exists();
+        } catch (Throwable) {
+            return false;
+        }
     }
 }

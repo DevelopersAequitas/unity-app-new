@@ -30,8 +30,10 @@ class LeaderPeersController extends Controller
         $sort = $request->query('sort') ? (string) $request->query('sort') : null;
         $search = $request->query('search') ? (string) $request->query('search') : null;
         $districtId = $request->query('district_id') ? (string) $request->query('district_id') : null;
-        $page = (int) $request->query('page', 1);
-        $perPage = (int) $request->query('per_page', 20);
+        $page = max(1, (int) $request->query('page', 1));
+        $perPageRaw = $request->query('per_page');
+        $perPage = ($perPageRaw === 'all') ? 500 : (int) ($perPageRaw ?: 20);
+        $perPage = min(500, max(1, $perPage));
 
         $result = $this->peersService->listPeers(
             circleId: $circleId,

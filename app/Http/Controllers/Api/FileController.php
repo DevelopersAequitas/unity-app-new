@@ -320,7 +320,7 @@ class FileController extends BaseApiController
         if (is_array($filesInput)) {
             $request->validate([
                 'file' => ['required', 'array'],
-                'file.*' => ['file', 'max:51200'],
+                'file.*' => ['file', 'max:204800'],
             ]);
 
             $uploaded = [];
@@ -343,7 +343,7 @@ class FileController extends BaseApiController
         }
 
         $request->validate([
-            'file' => ['required', 'file', 'max:51200'],
+            'file' => ['required', 'file', 'max:204800'],
         ]);
 
         if (! $filesInput instanceof UploadedFile) {

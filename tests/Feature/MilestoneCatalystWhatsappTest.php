@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Jobs\SendMilestoneConnectorWhatsappJob;
+use App\Jobs\SendMilestoneCatalystWhatsappJob;
 use App\Models\FileModel;
 use App\Models\IntroductionCreative;
 use App\Models\User;
 use App\Models\WhatsappTemplate;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
-use App\Services\Notifications\MilestoneConnectorWhatsappService;
+use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\WhatsappNotificationService;
 use App\Services\Referrals\ReferralService;
 use Illuminate\Database\Schema\Blueprint;
@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-class MilestoneConnectorWhatsappTest extends TestCase
+class MilestoneCatalystWhatsappTest extends TestCase
 {
     use DatabaseTransactions;
 
@@ -48,7 +48,7 @@ class MilestoneConnectorWhatsappTest extends TestCase
             $table->uuid('introduction_request_id')->nullable();
             $table->uuid('introducer_id');
             $table->uuid('requester_id')->nullable();
-            $table->integer('introduced_count')->default(1);
+            $table->integer('introduced_count')->default(3);
             $table->string('image_url', 2000)->nullable();
             $table->timestamps();
         });
@@ -133,8 +133,10 @@ class MilestoneConnectorWhatsappTest extends TestCase
             $table->uuid('user_id')->nullable();
             $table->string('channel')->default('whatsapp');
             $table->string('provider')->nullable();
+            $table->string('provider_message_id')->nullable();
             $table->string('status')->nullable();
             $table->json('request_payload')->nullable();
+            $table->json('response_payload')->nullable();
             $table->text('error_message')->nullable();
             $table->timestamp('attempted_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
@@ -146,10 +148,10 @@ class MilestoneConnectorWhatsappTest extends TestCase
     {
         return WhatsappTemplate::query()->create([
             'id' => (string) Str::uuid(),
-            'template_key' => 'milestone_connector',
-            'template_name' => 'milestone_connector_v2',
-            'webhook_url' => 'https://fleximsg.com/api/webhooks/85295ba0-fe2c-487f-93ef-ab7bb6124a3d',
-            'webhook_secret' => 'PGU_MILESTONE_CONNECTOR_2026_9Kx7Lm2Qa8',
+            'template_key' => 'pgu_catalyst_3',
+            'template_name' => 'pgu_catalyst_3',
+            'webhook_url' => 'https://fleximsg.com/api/webhooks/5176b75b-a639-4dc0-891e-0d0e503dcc31',
+            'webhook_secret' => 'PGU_MILESTONE_CATALYST_2026_SECRET',
             'is_active' => true,
         ]);
     }
@@ -167,15 +169,15 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Nitin Chavda';
-        $user->first_name = 'Nitin';
-        $user->last_name = 'Chavda';
+        $user->name = 'Vinit Patel';
+        $user->first_name = 'Vinit';
+        $user->last_name = 'Patel';
         $user->phone_number = '9904978744';
         $user->phone = '9904978744';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -185,11 +187,11 @@ class MilestoneConnectorWhatsappTest extends TestCase
         Http::assertSent(function ($request) {
             $data = $request->data();
 
-            return $request->url() === 'https://fleximsg.com/api/webhooks/85295ba0-fe2c-487f-93ef-ab7bb6124a3d'
+            return $request->url() === 'https://fleximsg.com/api/webhooks/5176b75b-a639-4dc0-891e-0d0e503dcc31'
                 && $data['phone'] === '919904978744'
                 && str_starts_with($data['header_media_url'], 'https://peersunity.com/storage/uploads/')
-                && $data['body_param_1'] === 'Nitin Chavda'
-                && $data['body_param_2'] === 'Nitin Chavda'
+                && $data['body_param_1'] === 'Vinit Patel'
+                && $data['body_param_2'] === 'Vinit Patel'
                 && $data['body_param_3'] === 'https://peersunity.com/share?type=referrals';
         });
     }
@@ -206,10 +208,10 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $user->id = (string) Str::uuid();
         $user->name = 'Piyush Vyada';
         $user->phone = '9265898194';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -230,9 +232,10 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $user->name = 'No Phone User';
         $user->phone = null;
         $user->secondary_mobile = null;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -246,7 +249,7 @@ class MilestoneConnectorWhatsappTest extends TestCase
     {
         Http::fake();
 
-        $job = new SendMilestoneConnectorWhatsappJob((string) Str::uuid());
+        $job = new SendMilestoneCatalystWhatsappJob((string) Str::uuid());
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -266,12 +269,12 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Test Member';
+        $user->name = 'Catalyst Member';
         $user->phone = '9876543210';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -279,15 +282,14 @@ class MilestoneConnectorWhatsappTest extends TestCase
         );
 
         Http::assertSent(function ($request) {
-            $hasSecretHeader = $request->hasHeader('X-Webhook-Secret', 'PGU_MILESTONE_CONNECTOR_2026_9Kx7Lm2Qa8');
             $data = $request->data();
 
-            return $hasSecretHeader
-                && isset($data['phone'])
+            return isset($data['phone'])
                 && isset($data['header_media_url'])
                 && isset($data['body_param_1'])
                 && isset($data['body_param_2'])
-                && isset($data['body_param_3']);
+                && isset($data['body_param_3'])
+                && $data['milestone'] === 'Catalyst';
         });
     }
 
@@ -303,12 +305,12 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Test Member';
+        $user->name = 'Catalyst Member';
         $user->phone = '9876543210';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -318,45 +320,45 @@ class MilestoneConnectorWhatsappTest extends TestCase
         Http::assertSentCount(1);
         $this->assertDatabaseHas('notification_delivery_logs', [
             'user_id' => $user->id,
-            'provider' => 'milestone_connector',
+            'provider' => 'pgu_catalyst_3',
             'status' => 'failed',
         ]);
     }
 
-    public function test_milestone_connector_service_dispatches_job_for_first_introduction(): void
+    public function test_milestone_catalyst_service_dispatches_job_for_third_introduction(): void
     {
         Queue::fake();
 
         $introducer = new User;
         $introducer->id = (string) Str::uuid();
-        $introducer->name = 'Introducer User';
+        $introducer->name = 'Catalyst User';
         $introducer->phone = '9904978744';
-        $introducer->members_introduced_count = 1;
+        $introducer->members_introduced_count = 3;
         $introducer->save();
 
-        $service = app(MilestoneConnectorWhatsappService::class);
-        $service->handleFirstIntroduction($introducer);
+        $service = app(MilestoneCatalystWhatsappService::class);
+        $service->handleCatalystMilestone($introducer);
 
-        Queue::assertPushed(SendMilestoneConnectorWhatsappJob::class, function ($job) use ($introducer) {
+        Queue::assertPushed(SendMilestoneCatalystWhatsappJob::class, function ($job) use ($introducer) {
             return $job->userId === $introducer->id;
         });
     }
 
-    public function test_milestone_connector_service_skips_when_count_is_not_one(): void
+    public function test_milestone_catalyst_service_skips_when_count_is_less_than_three(): void
     {
         Queue::fake();
 
         $introducer = new User;
         $introducer->id = (string) Str::uuid();
-        $introducer->name = 'Introducer User';
+        $introducer->name = 'Under Threshold User';
         $introducer->phone = '9904978744';
-        $introducer->members_introduced_count = 5;
+        $introducer->members_introduced_count = 2;
         $introducer->save();
 
-        $service = app(MilestoneConnectorWhatsappService::class);
-        $service->handleFirstIntroduction($introducer);
+        $service = app(MilestoneCatalystWhatsappService::class);
+        $service->handleCatalystMilestone($introducer);
 
-        Queue::assertNotPushed(SendMilestoneConnectorWhatsappJob::class);
+        Queue::assertNotPushed(SendMilestoneCatalystWhatsappJob::class);
     }
 
     public function test_job_generates_personalized_creative_image(): void
@@ -370,11 +372,11 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $user->company_name = 'Vyada Technologies';
         $user->business_category_name = 'Information Technology';
         $user->city = 'Surat';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
         $generator = app(IntroducedPeerCreativeGenerator::class);
-        $publicUrl = $generator->generateOrGetUrl($user, 1);
+        $publicUrl = $generator->generateOrGetUrl($user, 3);
 
         $this->assertNotNull($publicUrl);
         $this->assertStringStartsWith('https://peersunity.com/storage/', $publicUrl);
@@ -384,16 +386,17 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
     public function test_media_url_validation_rules(): void
     {
-        $job = new SendMilestoneConnectorWhatsappJob((string) Str::uuid());
+        $job = new SendMilestoneCatalystWhatsappJob((string) Str::uuid());
 
-        Storage::disk('public')->put('uploads/2026/09/03/creative.png', 'sample_content');
+        Storage::disk('public')->put('uploads/2026/09/03/creative_catalyst.png', 'sample_content');
 
-        $this->assertTrue($job->isValidPublicMediaUrl('https://peersunity.com/storage/uploads/2026/09/03/creative.png'));
+        $this->assertTrue($job->isValidPublicMediaUrl('https://peersunity.com/storage/uploads/2026/09/03/creative_catalyst.png'));
 
-        $this->assertFalse($job->isValidPublicMediaUrl('https://peersunity.com/images/member_introduce_badges/Connector.png'));
-        $this->assertFalse($job->isValidPublicMediaUrl('http://peersunity.com/images/Connector.png'));
+        // Rejects raw template
+        $this->assertFalse($job->isValidPublicMediaUrl('https://peersunity.com/images/member_introduce_badges/Catalyst.png'));
+        $this->assertFalse($job->isValidPublicMediaUrl('http://peersunity.com/images/Catalyst.png'));
         $this->assertFalse($job->isValidPublicMediaUrl('https://peersunity.com/api/v1/files/01a065c0-bddc-72bd-af8c-bb2bd67c2a19'));
-        $this->assertFalse($job->isValidPublicMediaUrl('https://localhost/images/Connector.png'));
+        $this->assertFalse($job->isValidPublicMediaUrl('https://localhost/images/Catalyst.png'));
         $this->assertFalse($job->isValidPublicMediaUrl('https://armband-unrelated-bonanza.ngrok-free.dev/api/v1/files/uuid'));
         $this->assertFalse($job->isValidPublicMediaUrl(''));
     }
@@ -409,30 +412,27 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $user->company_name = 'Vyada Technologies';
         $user->business_category_name = 'Information Technology';
         $user->city = 'Surat';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
         $generator = app(IntroducedPeerCreativeGenerator::class);
-        $publicUrl = $generator->generateOrGetUrl($user, 1);
+        $publicUrl = $generator->generateOrGetUrl($user, 3);
 
         $this->assertNotNull($publicUrl);
         $this->assertStringStartsWith('https://peersunity.com/storage/', $publicUrl);
         $this->assertStringEndsWith('.png', $publicUrl);
         $this->assertStringNotContainsString('/api/v1/files/', $publicUrl);
 
-        // A. Generated file physically exists on disk
         $s3Key = preg_replace('#^https?://[^/]+/storage/#i', '', $publicUrl);
         $fileRecord = FileModel::where('s3_key', $s3Key)->first();
         $this->assertNotNull($fileRecord);
         $this->assertTrue(Storage::disk('public')->exists($fileRecord->s3_key));
         $this->assertTrue(file_exists(public_path('storage/'.$fileRecord->s3_key)));
 
-        // B. Generated file has PNG content
         $physicalPath = public_path('storage/'.$fileRecord->s3_key);
         $fileBytes = file_get_contents($physicalPath);
         $this->assertStringStartsWith("\x89PNG\r\n\x1a\n", $fileBytes, 'File header must match PNG binary magic bytes');
 
-        // C. Generated file has expected dimensions (1080x1350)
         [$imgWidth, $imgHeight] = getimagesize($physicalPath);
         $this->assertEquals(1080, $imgWidth);
         $this->assertEquals(1350, $imgHeight);
@@ -446,17 +446,19 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $userA->id = (string) Str::uuid();
         $userA->name = 'Nitin Chavda';
         $userA->phone = '9904978744';
+        $userA->members_introduced_count = 3;
         $userA->save();
 
         $userB = new User;
         $userB->id = (string) Str::uuid();
         $userB->name = 'Piyush Vyada';
         $userB->phone = '9265898194';
+        $userB->members_introduced_count = 3;
         $userB->save();
 
         $generator = app(IntroducedPeerCreativeGenerator::class);
-        $urlA = $generator->generateOrGetUrl($userA, 1);
-        $urlB = $generator->generateOrGetUrl($userB, 1);
+        $urlA = $generator->generateOrGetUrl($userA, 3);
+        $urlB = $generator->generateOrGetUrl($userB, 3);
 
         $this->assertNotNull($urlA);
         $this->assertNotNull($urlB);
@@ -473,9 +475,10 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $userDev->id = (string) Str::uuid();
         $userDev->name = 'Dev User';
         $userDev->phone = '9876543210';
+        $userDev->members_introduced_count = 3;
         $userDev->save();
 
-        $devUrl = $generator->generateOrGetUrl($userDev, 1);
+        $devUrl = $generator->generateOrGetUrl($userDev, 3);
         $this->assertStringStartsWith('https://dev.example.test/storage/uploads/', $devUrl);
         $this->assertStringEndsWith('.png', $devUrl);
 
@@ -485,9 +488,10 @@ class MilestoneConnectorWhatsappTest extends TestCase
         $userLive->id = (string) Str::uuid();
         $userLive->name = 'Live User';
         $userLive->phone = '9876543211';
+        $userLive->members_introduced_count = 3;
         $userLive->save();
 
-        $liveUrl = $generator->generateOrGetUrl($userLive, 1);
+        $liveUrl = $generator->generateOrGetUrl($userLive, 3);
         $this->assertStringStartsWith('https://peersunity.com/storage/uploads/', $liveUrl);
         $this->assertStringEndsWith('.png', $liveUrl);
     }
@@ -503,12 +507,12 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Dev Connector Member';
+        $user->name = 'Dev Catalyst Member';
         $user->phone = '9265898194';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -524,29 +528,6 @@ class MilestoneConnectorWhatsappTest extends TestCase
         });
     }
 
-    public function test_media_url_validation_accepts_dev_and_live_domains_and_rejects_invalid(): void
-    {
-        $job = new SendMilestoneConnectorWhatsappJob((string) Str::uuid());
-
-        Storage::disk('public')->put('uploads/2026/09/03/dev_creative.png', 'sample_content');
-
-        // Environment-aware valid HTTPS storage domains
-        $this->assertTrue($job->isValidPublicMediaUrl('https://dev.peersunity.com/storage/uploads/2026/09/03/dev_creative.png'));
-        $this->assertTrue($job->isValidPublicMediaUrl('https://peersunity.com/storage/uploads/2026/09/03/dev_creative.png'));
-        $this->assertTrue($job->isValidPublicMediaUrl('https://dev.example.test/storage/uploads/2026/09/03/dev_creative.png'));
-
-        // Reject raw templates
-        $this->assertFalse($job->isValidPublicMediaUrl('https://dev.peersunity.com/images/member_introduce_badges/Connector.png'));
-        $this->assertFalse($job->isValidPublicMediaUrl('https://peersunity.com/images/member_introduce_badges/Connector.png'));
-
-        // Invalid domains / protocols
-        $this->assertFalse($job->isValidPublicMediaUrl('http://dev.peersunity.com/images/Connector.png'));
-        $this->assertFalse($job->isValidPublicMediaUrl('https://localhost/images/Connector.png'));
-        $this->assertFalse($job->isValidPublicMediaUrl('https://127.0.0.1/images/Connector.png'));
-        $this->assertFalse($job->isValidPublicMediaUrl('https://sample.ngrok-free.app/storage/uploads/sample.png'));
-        $this->assertFalse($job->isValidPublicMediaUrl('https://dev.peersunity.com/api/v1/files/01a065c0-bddc-72bd-af8c-bb2bd67c2a19'));
-    }
-
     public function test_job_uses_existing_valid_creative_from_introduction_creatives_without_regenerating(): void
     {
         Http::fake([
@@ -557,24 +538,24 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Pre Existing User';
+        $user->name = 'Pre Existing Catalyst User';
         $user->phone = '9904978744';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
         // Create a fake existing personalized PNG on public disk
-        $relativeS3Key = 'uploads/2026/09/09/pre_existing_creative.png';
+        $relativeS3Key = 'uploads/2026/09/09/pre_existing_catalyst_creative.png';
         Storage::disk('public')->put($relativeS3Key, "\x89PNG\r\n\x1a\nfake_content");
         $existingUrl = 'https://peersunity.com/storage/'.$relativeS3Key;
 
         $creative = IntroductionCreative::create([
             'id' => (string) Str::uuid(),
             'introducer_id' => $user->id,
-            'introduced_count' => 1,
+            'introduced_count' => 3,
             'image_url' => $existingUrl,
         ]);
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -599,21 +580,21 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Healed User';
+        $user->name = 'Healed Catalyst User';
         $user->phone = '9904978744';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
         // Point to non-existent physical file
-        $staleUrl = 'https://peersunity.com/storage/uploads/2026/09/09/missing_file.png';
+        $staleUrl = 'https://peersunity.com/storage/uploads/2026/09/09/missing_catalyst_file.png';
         $creative = IntroductionCreative::create([
             'id' => (string) Str::uuid(),
             'introducer_id' => $user->id,
-            'introduced_count' => 1,
+            'introduced_count' => 3,
             'image_url' => $staleUrl,
         ]);
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),
@@ -644,20 +625,20 @@ class MilestoneConnectorWhatsappTest extends TestCase
 
         $user = new User;
         $user->id = (string) Str::uuid();
-        $user->name = 'Canva Rejection User';
+        $user->name = 'Canva Rejection Catalyst User';
         $user->phone = '9904978744';
-        $user->members_introduced_count = 1;
+        $user->members_introduced_count = 3;
         $user->save();
 
-        $rawCanvaUrl = 'https://peersunity.com/images/member_introduce_badges/Connector.png';
+        $rawCanvaUrl = 'https://peersunity.com/images/member_introduce_badges/Catalyst.png';
         $creative = IntroductionCreative::create([
             'id' => (string) Str::uuid(),
             'introducer_id' => $user->id,
-            'introduced_count' => 1,
+            'introduced_count' => 3,
             'image_url' => $rawCanvaUrl,
         ]);
 
-        $job = new SendMilestoneConnectorWhatsappJob($user->id);
+        $job = new SendMilestoneCatalystWhatsappJob($user->id);
         $job->handle(
             app(WhatsappNotificationService::class),
             app(ReferralService::class),

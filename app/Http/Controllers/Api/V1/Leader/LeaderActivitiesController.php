@@ -183,4 +183,155 @@ class LeaderActivitiesController extends Controller
             ],
         ], 201);
     }
+
+    /**
+     * Log a life impact activity.
+     */
+    public function storeImpact(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validate([
+            'impacted_peer_id' => 'nullable|string',
+            'to_peer_id' => 'nullable|string',
+            'action' => 'required|string|max:255',
+            'story_to_share' => 'nullable|string',
+            'story' => 'nullable|string',
+            'life_impacted' => 'nullable|integer|min:1',
+            'lives_impacted' => 'nullable|integer|min:1',
+            'impact_date' => 'nullable|date',
+            'additional_remarks' => 'nullable|string',
+        ]);
+
+        $data = $this->activitiesService->createImpact($user, $validated);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Life impact logged successfully.',
+            'data' => $data,
+        ], 201);
+    }
+
+    /**
+     * Log a 1-on-1 P2P meeting.
+     */
+    public function storeP2pMeeting(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validate([
+            'peer_id' => 'nullable|string',
+            'to_peer_id' => 'nullable|string',
+            'peer_user_id' => 'nullable|string',
+            'meeting_date' => 'nullable|date',
+            'meeting_place' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'remarks' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'media' => 'nullable|array',
+        ]);
+
+        $targetPeer = $validated['peer_id'] ?? ($validated['to_peer_id'] ?? ($validated['peer_user_id'] ?? null));
+        if (! $targetPeer) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'The peer ID is required.',
+            ], 422);
+        }
+
+        $data = $this->activitiesService->createP2pMeeting($user, $validated);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'P2P meeting logged successfully.',
+            'data' => $data,
+        ], 201);
+    }
+
+    /**
+     * Log a business deal closed between peers.
+     */
+    public function storeBusinessDeal(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validate([
+            'to_peer_id' => 'nullable|string',
+            'peer_user_id' => 'nullable|string',
+            'peer_id' => 'nullable|string',
+            'amount' => 'nullable|numeric|min:0',
+            'deal_amount' => 'nullable|numeric|min:0',
+            'business_type' => 'nullable|string|max:100',
+            'comment' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'deal_date' => 'nullable|date',
+            'referral_id' => 'nullable|string',
+        ]);
+
+        $targetPeer = $validated['to_peer_id'] ?? ($validated['peer_user_id'] ?? ($validated['peer_id'] ?? null));
+        if (! $targetPeer) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'The target peer ID is required.',
+            ], 422);
+        }
+
+        $amount = $validated['amount'] ?? ($validated['deal_amount'] ?? null);
+        if ($amount === null) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'The deal amount is required.',
+            ], 422);
+        }
+
+        $data = $this->activitiesService->createBusinessDeal($user, $validated);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Business deal logged successfully.',
+            'data' => $data,
+        ], 201);
+    }
+
+    /**
+     * Submit a testimonial for a peer.
+     */
+    public function storeTestimonial(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validate([
+            'to_peer_id' => 'nullable|string',
+            'peer_user_id' => 'nullable|string',
+            'peer_id' => 'nullable|string',
+            'content' => 'required|string',
+            'rating' => 'nullable|integer|min:1|max:5',
+            'media' => 'nullable|array',
+            'referral_id' => 'nullable|string',
+        ]);
+
+        $targetPeer = $validated['to_peer_id'] ?? ($validated['peer_user_id'] ?? ($validated['peer_id'] ?? null));
+        if (! $targetPeer) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'The target peer ID is required.',
+            ], 422);
+        }
+
+        $data = $this->activitiesService->createTestimonial($user, $validated);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Testimonial submitted successfully.',
+            'data' => $data,
+        ], 201);
+    }
 }

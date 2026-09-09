@@ -23,8 +23,8 @@ class CreativePublicUrlResolver
      *
      * Handles:
      * - Case A: Stored/local file exists and public URL is reachable (HTTP 200, image/*).
-     * - Case B: Local physical file exists but remote URL returns 404 / non-image -> resolves valid canonical HTTPS path.
-     * - Case C: Physical file missing on disk -> regenerates the exact personalized PNG from member data, saves to public disk, updates DB.
+     * - Case B: Local physical file exists but remote URL returned 404 / non-image -> resolves valid canonical HTTPS path.
+     * - Case C: Physical file missing on disk or stored URL is an unrendered raw template -> regenerates the exact personalized PNG with member photo/details, saves to public disk, updates DB.
      * - Case D: Stored URL returns HTML/error/non-image content -> treats as invalid and triggers regeneration/republish.
      */
     public function resolveForUser(User $user, int $introducedCount, ?string $customImageUrl = null): string
@@ -32,8 +32,8 @@ class CreativePublicUrlResolver
         $honourMeta = $this->creativeGenerator->getHonourMeta($introducedCount);
         $milestoneTitle = strtoupper(trim((string) ($honourMeta['title'] ?? ($introducedCount === 1 ? 'CONNECTOR' : 'CATALYST'))));
 
-        // 1. If explicit custom image URL is provided and valid, prioritize it
-        if (! empty($customImageUrl) && $this->validatePublicMediaUrl($customImageUrl)) {
+        // 1. If explicit custom image URL is provided and valid (and not an unrendered template), prioritize it
+        if (! empty($customImageUrl) && ! $this->isRawBadgeTemplate($customImageUrl) && $this->validatePublicMediaUrl($customImageUrl)) {
             $this->logResolution($milestoneTitle, $introducedCount, $user->id, null, $customImageUrl, $customImageUrl, true, 200, 'image/png', 'custom_override');
 
             return $customImageUrl;
@@ -51,29 +51,52 @@ class CreativePublicUrlResolver
                     ->first();
 
                 if ($storedCreative && ! empty($storedCreative->image_url)) {
-                    $storedImageUrl = (string) $storedCreative->image_url;
+                    $candidateUrl = (string) $storedCreative->image_url;
+                    if ($this->isUrlMatchingIntroducedCount($candidateUrl, $introducedCount)) {
+                        $storedImageUrl = $candidateUrl;
+                    } else {
+                        Log::info('[CreativePublicUrlResolver] Discarding mismatched stored image URL in introduction_creatives', [
+                            'user_id' => $user->id,
+                            'introduced_count' => $introducedCount,
+                            'mismatched_url' => $candidateUrl,
+                        ]);
+                    }
                 }
             } catch (Throwable $dbEx) {
                 Log::warning('[CreativePublicUrlResolver] Failed querying introduction_creatives: '.$dbEx->getMessage());
             }
         }
 
-        // Check user profile creative columns if available
-        if (empty($storedImageUrl)) {
-            if ($introducedCount === 1 && ! empty($user->connector_creative_url)) {
+        // Check user profile creative columns only if introduction_creatives table is not available
+        if (empty($storedImageUrl) && ! Schema::hasTable('introduction_creatives')) {
+            if ($introducedCount === 1 && ! empty($user->connector_creative_url) && $this->isUrlMatchingIntroducedCount((string) $user->connector_creative_url, 1)) {
                 $storedImageUrl = (string) $user->connector_creative_url;
-            } elseif (! empty($user->growth_creative_url)) {
+            } elseif (! empty($user->growth_creative_url) && $this->isUrlMatchingIntroducedCount((string) $user->growth_creative_url, $introducedCount)) {
                 $storedImageUrl = (string) $user->growth_creative_url;
             }
         }
 
-        // 3. Evaluate existing stored URL
-        if (! empty($storedImageUrl)) {
+        // 3. Evaluate existing stored URL (must NOT be an unrendered raw badge template and must match count)
+        if (! empty($storedImageUrl) && $this->isUrlMatchingIntroducedCount($storedImageUrl, $introducedCount)) {
             $extractedS3Key = $this->extractS3KeyFromUrl($storedImageUrl);
             $localPhysicalExists = $this->physicalFileExistsOnDisk($extractedS3Key);
 
             // Case A: URL is genuinely reachable and valid image
             if ($this->validatePublicMediaUrl($storedImageUrl)) {
+                if (! $storedCreative && Schema::hasTable('introduction_creatives')) {
+                    try {
+                        $requesterId = User::where('introduced_by', $user->id)->latest()->value('id') ?? $user->id;
+                        $storedCreative = IntroductionCreative::create([
+                            'introducer_id' => $user->id,
+                            'requester_id' => $requesterId,
+                            'introduced_count' => $introducedCount,
+                            'image_url' => $storedImageUrl,
+                        ]);
+                    } catch (Throwable $e) {
+                        Log::warning('[CreativePublicUrlResolver] Could not create introduction_creatives record: '.$e->getMessage());
+                    }
+                }
+
                 $this->logResolution(
                     $milestoneTitle,
                     $introducedCount,
@@ -99,7 +122,7 @@ class CreativePublicUrlResolver
                     'milestone' => $milestoneTitle,
                 ]);
 
-                $canonicalUrl = $this->constructCanonicalPublicUrl($extractedS3Key);
+                $canonicalUrl = $this->constructCanonicalPublicUrl($extractedS3Key, $user, $introducedCount);
                 if ($this->validatePublicMediaUrl($canonicalUrl)) {
                     $this->updateCreativeImageUrl($storedCreative, $user, $canonicalUrl, $introducedCount);
                     $this->logResolution(
@@ -120,13 +143,13 @@ class CreativePublicUrlResolver
             }
         }
 
-        // Case C / D: Physical file missing or existing URL permanently invalid -> Regenerate exact personalized PNG
+        // Case C / D: Physical file missing, raw template, or existing URL permanently invalid -> Regenerate exact personalized PNG
         Log::info('[CreativePublicUrlResolver] Milestone creative regenerated', [
             'milestone' => $milestoneTitle,
             'introduced_count' => $introducedCount,
             'user_id' => $user->id,
             'creative_id' => $storedCreative?->id,
-            'reason' => empty($storedImageUrl) ? 'creative_record_missing' : 'physical_file_missing_or_unreachable',
+            'reason' => empty($storedImageUrl) ? 'creative_record_missing' : 'physical_file_missing_or_unrendered_template',
         ]);
 
         $fileModel = $this->creativeGenerator->generate($user, $introducedCount);
@@ -138,7 +161,7 @@ class CreativePublicUrlResolver
 
         $this->verifyPngFileHeader($fileModel->s3_key);
 
-        $newPublicUrl = $this->constructCanonicalPublicUrl($fileModel->s3_key);
+        $newPublicUrl = $this->constructCanonicalPublicUrl($fileModel->s3_key, $user, $introducedCount);
 
         // Update database record with new verified personalized URL
         $this->updateCreativeImageUrl($storedCreative, $user, $newPublicUrl, $introducedCount);
@@ -157,6 +180,52 @@ class CreativePublicUrlResolver
         );
 
         return $newPublicUrl;
+    }
+
+    /**
+     * Verify whether a stored URL matches the requested introduced count and milestone type.
+     */
+    public function isUrlMatchingIntroducedCount(?string $url, int $introducedCount): bool
+    {
+        if (blank($url) || $this->isRawBadgeTemplate($url)) {
+            return false;
+        }
+
+        $lowerUrl = strtolower((string) $url);
+
+        // Check explicit count tag _c{N}_ or _c{N}. in filename
+        if (preg_match('/_c(\d+)[_.]/i', $lowerUrl, $m)) {
+            return (int) $m[1] === $introducedCount;
+        }
+
+        // Legacy URLs without _c{N}_ tag: only accept if filename explicitly contains the exact milestone slug
+        if ($introducedCount === 1) {
+            return str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'catalyst') && ! str_contains($lowerUrl, 'influencer');
+        }
+
+        if ($introducedCount === 3) {
+            return str_contains($lowerUrl, 'catalyst') && ! str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'influencer');
+        }
+
+        if ($introducedCount === 5) {
+            return str_contains($lowerUrl, 'influencer') && ! str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'catalyst');
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine whether the given URL points to a static unrendered milestone badge template.
+     */
+    public function isRawBadgeTemplate(?string $url): bool
+    {
+        if (blank($url)) {
+            return false;
+        }
+
+        $trimmed = trim((string) $url);
+
+        return str_contains($trimmed, '/images/member_introduce_badges/');
     }
 
     /**
@@ -189,30 +258,35 @@ class CreativePublicUrlResolver
             return false;
         }
 
-        // Extract relative storage key if present
-        $s3Key = $this->extractS3KeyFromUrl($trimmed);
-        $localExists = ! empty($s3Key) && $this->physicalFileExistsOnDisk($s3Key);
+        // Reject unrendered raw static templates (which have empty user details)
+        if ($this->isRawBadgeTemplate($trimmed)) {
+            return false;
+        }
 
         $host = parse_url($trimmed, PHP_URL_HOST);
         $isLocalHost = in_array(strtolower((string) $host), ['localhost', '127.0.0.1', '::1'], true);
 
-        // In test environments, local disk existence or static badge path is sufficient
-        if (app()->runningUnitTests()) {
-            if ($localExists) {
-                return true;
-            }
+        // Extract relative storage key if present
+        $s3Key = $this->extractS3KeyFromUrl($trimmed);
+        $localExists = ! empty($s3Key) && $this->physicalFileExistsOnDisk($s3Key);
 
-            if (str_contains($trimmed, '/images/member_introduce_badges/')) {
-                return true;
-            }
+        // If verified on local public storage disk, it is valid
+        if ($localExists) {
+            return true;
+        }
 
+        if ($isLocalHost) {
             return false;
         }
 
-        // For remote live URLs (e.g. dev.peersunity.com or peersunity.com), perform an external HTTP probe
-        if (! $isLocalHost) {
+        if (app()->runningUnitTests()) {
+            return $localExists;
+        }
+
+        // For remote URLs (e.g. S3 / external CDN / existing DB URL without local file), verify HTTP reachability
+        if (! empty($host)) {
             try {
-                $response = Http::timeout(3)->withoutVerifying()->get($trimmed);
+                $response = Http::timeout(4)->withoutVerifying()->get($trimmed);
                 if ($response->status() === 200) {
                     $contentType = (string) $response->header('Content-Type');
                     if (str_starts_with(strtolower($contentType), 'image/')) {
@@ -220,19 +294,13 @@ class CreativePublicUrlResolver
                     }
                 }
 
-                // If remote returned 404 or HTML, return false so Case B / Case C can handle it
                 return false;
             } catch (Throwable) {
-                // If network timeout, fall back to local disk existence check
-                if ($localExists) {
-                    return true;
-                }
-
                 return false;
             }
         }
 
-        return $localExists;
+        return false;
     }
 
     /**
@@ -303,7 +371,7 @@ class CreativePublicUrlResolver
     /**
      * Construct canonical environment-aware public storage HTTPS URL.
      */
-    public function constructCanonicalPublicUrl(string $s3Key): string
+    public function constructCanonicalPublicUrl(string $s3Key, ?User $user = null, int $introducedCount = 1): string
     {
         $baseUrl = IntroducedPeerCreativeGenerator::getPublicBaseUrl();
         $cleanKey = ltrim($s3Key, '/');
@@ -321,6 +389,18 @@ class CreativePublicUrlResolver
                 $creative->update(['image_url' => $newUrl]);
             } catch (Throwable $e) {
                 Log::warning('[CreativePublicUrlResolver] Could not update introduction_creatives.image_url: '.$e->getMessage());
+            }
+        } elseif (Schema::hasTable('introduction_creatives')) {
+            try {
+                $requesterId = User::where('introduced_by', $user->id)->latest()->value('id') ?? $user->id;
+                IntroductionCreative::create([
+                    'introducer_id' => $user->id,
+                    'requester_id' => $requesterId,
+                    'introduced_count' => $introducedCount,
+                    'image_url' => $newUrl,
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('[CreativePublicUrlResolver] Could not create introduction_creatives record: '.$e->getMessage());
             }
         }
 
