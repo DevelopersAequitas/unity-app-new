@@ -130,9 +130,16 @@ class PublicStorageController extends Controller
                 }
             }
 
-            // 7. If user is still not in DB, create virtual user instance only if explicit user params were provided
-            if (! $user && ($request->filled('uid') || $request->filled('user_id') || $request->filled('phone') || $request->filled('name'))) {
-                $rawName = $request->query('name') ?? $request->query('peer_name') ?? $request->query('member_name') ?? 'Peer Member';
+            $isCreativeSignature = (bool) preg_match('/[0-9a-fA-F-]{36}_[0-9a-fA-F-]{36}\.png$/i', $cleanPath)
+                || str_contains($cleanPath, 'growth_creative')
+                || str_contains($cleanPath, 'connector_creative')
+                || str_contains($cleanPath, 'catalyst')
+                || str_contains($cleanPath, 'milestone')
+                || str_contains($cleanPath, 'badge');
+
+            // 7. If user is still not in DB, create virtual user instance for creative paths or explicit user query params
+            if (! $user && ($isCreativeSignature || $request->filled('uid') || $request->filled('user_id') || $request->filled('phone') || $request->filled('name'))) {
+                $rawName = $request->query('name') ?? $request->query('peer_name') ?? $request->query('member_name') ?? 'Valued Member';
                 $virtualUser = new User;
                 $virtualUser->id = (string) Str::uuid();
                 $virtualUser->first_name = (string) $rawName;
