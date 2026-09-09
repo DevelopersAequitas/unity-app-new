@@ -293,4 +293,63 @@ class ProfileViewApiTest extends TestCase
             ->assertJsonMissingPath('data.views.0.viewer.timezone')
             ->assertJsonMissingPath('data.views.0.viewer.industry');
     }
+
+    public function test_get_profile_views_supports_pagination(): void
+    {
+        $me = $this->createUser('Target', 'PaginationUser');
+        $viewer1 = $this->createUser('Viewer', 'First');
+        $viewer2 = $this->createUser('Viewer', 'Second');
+        $viewer3 = $this->createUser('Viewer', 'Third');
+
+        DB::table('profile_views')->insert([
+            'id' => (string) Str::uuid(),
+            'viewed_id' => $me->id,
+            'viewer_id' => $viewer1->id,
+            'created_at' => now()->subMinutes(10),
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        DB::table('profile_views')->insert([
+            'id' => (string) Str::uuid(),
+            'viewed_id' => $me->id,
+            'viewer_id' => $viewer2->id,
+            'created_at' => now()->subMinutes(5),
+            'updated_at' => now()->subMinutes(5),
+        ]);
+
+        DB::table('profile_views')->insert([
+            'id' => (string) Str::uuid(),
+            'viewed_id' => $me->id,
+            'viewer_id' => $viewer3->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($me);
+
+        // Page 1 with per_page = 2
+        $responsePage1 = $this->getJson('/api/v1/profile/views?per_page=2&page=1');
+        $responsePage1->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.total_views', 3)
+            ->assertJsonCount(2, 'data.views')
+            ->assertJsonPath('data.pagination.current_page', 1)
+            ->assertJsonPath('data.pagination.last_page', 2)
+            ->assertJsonPath('data.pagination.per_page', 2)
+            ->assertJsonPath('data.pagination.total', 3)
+            ->assertJsonPath('data.views.0.viewer.id', $viewer3->id)
+            ->assertJsonPath('data.views.1.viewer.id', $viewer2->id);
+
+        // Page 2 with per_page = 2
+        $responsePage2 = $this->getJson('/api/v1/profile/views?per_page=2&page=2');
+        $responsePage2->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.total_views', 3)
+            ->assertJsonCount(1, 'data.views')
+            ->assertJsonPath('data.pagination.current_page', 2)
+            ->assertJsonPath('data.pagination.last_page', 2)
+            ->assertJsonPath('data.pagination.per_page', 2)
+            ->assertJsonPath('data.pagination.total', 3)
+            ->assertJsonPath('data.views.0.viewer.id', $viewer1->id);
+    }
 }
