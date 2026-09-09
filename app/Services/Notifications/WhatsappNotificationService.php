@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
+use App\Models\User;
+use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -21,11 +23,20 @@ class WhatsappNotificationService
      * @param  string  $templateKey  Key identifying the template (e.g. 'otp_verification')
      * @param  string  $phone  Target phone number
      * @param  array<string, mixed>  $payload  Payload parameters to send in webhook body
+     * @param  string|null  $userId  Optional user ID to associate with the delivery log
+     * @param  string|null  $notificationId  Optional notification ID to associate with the delivery log
      */
-    public function send(string $templateKey, string $phone, array $payload = []): bool
-    {
+    public function send(
+        string $templateKey,
+        string $phone,
+        array $payload = [],
+        ?string $userId = null,
+        ?string $notificationId = null
+    ): bool {
         self::$lastError = null;
         self::$lastResponse = null;
+        $deliveryLog = null;
+        $attemptedAt = now();
 
         try {
             $template = WhatsappTemplate::query()
@@ -104,6 +115,65 @@ class WhatsappNotificationService
                 $body[(string) $k] = $v;
             }
 
+            // Extract creative URL if present in payload
+            $creativeUrl = $payload['creative_url']
+                ?? $payload['badge_image_url']
+                ?? $payload['header_media_url']
+                ?? $payload['header_image_url']
+                ?? $payload['image_url']
+                ?? $payload['image']
+                ?? $payload['media_url']
+                ?? $payload['welcome_creative_url']
+                ?? $payload['custom_image_url']
+                ?? null;
+
+            if (! is_string($creativeUrl) || trim($creativeUrl) === '') {
+                $creativeUrl = null;
+            } else {
+                $creativeUrl = trim($creativeUrl);
+            }
+
+            // Resolve user ID if available
+            $resolvedUserId = $userId ?? ($payload['user_id'] ?? $payload['userId'] ?? null);
+            if (! is_string($resolvedUserId) || trim($resolvedUserId) === '') {
+                $resolvedUserId = null;
+            }
+            if ($resolvedUserId === null && $normalizedPhone !== '') {
+                $resolvedUserId = User::query()
+                    ->where('phone', $normalizedPhone)
+                    ->orWhere('secondary_mobile', $normalizedPhone)
+                    ->orWhere('phone', $phone)
+                    ->orWhere('secondary_mobile', $phone)
+                    ->value('id');
+            }
+
+            // Resolve notification ID if available
+            $resolvedNotificationId = $notificationId ?? ($payload['notification_id'] ?? $payload['notificationId'] ?? null);
+            if (! is_string($resolvedNotificationId) || trim($resolvedNotificationId) === '') {
+                $resolvedNotificationId = null;
+            }
+
+            // Immediately before sending, log pending delivery attempt
+            try {
+                $deliveryLog = WhatsappMessageDeliveryLog::create([
+                    'user_id' => $resolvedUserId,
+                    'notification_id' => $resolvedNotificationId,
+                    'template_key' => $templateKey,
+                    'template_name' => $template->template_name ?: $templateKey,
+                    'phone' => $normalizedPhone,
+                    'creative_url' => $creativeUrl,
+                    'provider' => 'fleximsg',
+                    'status' => 'pending',
+                    'request_payload' => $body,
+                    'attempted_at' => $attemptedAt,
+                ]);
+            } catch (Throwable $logEx) {
+                Log::error('Failed to create pending WhatsappMessageDeliveryLog: '.$logEx->getMessage(), [
+                    'template_key' => $templateKey,
+                    'phone' => $normalizedPhone,
+                ]);
+            }
+
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'X-Webhook-Secret' => $webhookSecret,
@@ -125,6 +195,13 @@ class WhatsappNotificationService
                             'response_body' => $response->body(),
                         ]);
 
+                        $deliveryLog?->update([
+                            'status' => 'failed',
+                            'error_message' => self::$lastError,
+                            'response_payload' => $responseData,
+                            'attempted_at' => $attemptedAt,
+                        ]);
+
                         return false;
                     }
 
@@ -143,6 +220,13 @@ class WhatsappNotificationService
                             'response_body' => $response->body(),
                         ]);
 
+                        $deliveryLog?->update([
+                            'status' => 'failed',
+                            'error_message' => self::$lastError,
+                            'response_payload' => $responseData,
+                            'attempted_at' => $attemptedAt,
+                        ]);
+
                         return false;
                     }
 
@@ -158,6 +242,13 @@ class WhatsappNotificationService
                             'response_body' => $response->body(),
                         ]);
 
+                        $deliveryLog?->update([
+                            'status' => 'failed',
+                            'error_message' => self::$lastError,
+                            'response_payload' => $responseData,
+                            'attempted_at' => $attemptedAt,
+                        ]);
+
                         return false;
                     }
 
@@ -168,6 +259,13 @@ class WhatsappNotificationService
                             'webhook_url' => $webhookUrl,
                             'request_body' => $body,
                             'response_body' => $response->body(),
+                        ]);
+
+                        $deliveryLog?->update([
+                            'status' => 'failed',
+                            'error_message' => self::$lastError,
+                            'response_payload' => $responseData,
+                            'attempted_at' => $attemptedAt,
                         ]);
 
                         return false;
@@ -182,6 +280,21 @@ class WhatsappNotificationService
                         ]);
                     }
                 }
+
+                $providerMessageId = null;
+                if (is_array($responseData)) {
+                    $rawId = $responseData['log_id'] ?? $responseData['message_id'] ?? $responseData['provider_message_id'] ?? $responseData['id'] ?? null;
+                    if ($rawId !== null && (is_string($rawId) || is_numeric($rawId))) {
+                        $providerMessageId = (string) $rawId;
+                    }
+                }
+
+                $deliveryLog?->update([
+                    'status' => 'sent',
+                    'provider_message_id' => $providerMessageId,
+                    'response_payload' => is_array($responseData) ? $responseData : ['raw' => $response->body()],
+                    'attempted_at' => $attemptedAt,
+                ]);
 
                 Log::info('WhatsApp notification sent successfully.', [
                     'template_key' => $templateKey,
@@ -218,6 +331,13 @@ class WhatsappNotificationService
                 'response_body' => $response->body(),
             ]);
 
+            $deliveryLog?->update([
+                'status' => 'failed',
+                'error_message' => self::$lastError,
+                'response_payload' => $response->json() ?? ['raw' => $response->body(), 'status' => $response->status()],
+                'attempted_at' => $attemptedAt,
+            ]);
+
             return false;
         } catch (Throwable $exception) {
             self::$lastError = 'Exception: '.$exception->getMessage();
@@ -225,6 +345,12 @@ class WhatsappNotificationService
                 'template_key' => $templateKey,
                 'error' => $exception->getMessage(),
                 'exception_class' => get_class($exception),
+            ]);
+
+            $deliveryLog?->update([
+                'status' => 'failed',
+                'error_message' => 'Exception: '.$exception->getMessage(),
+                'attempted_at' => $attemptedAt,
             ]);
 
             return false;
