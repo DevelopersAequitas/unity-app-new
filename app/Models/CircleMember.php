@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -114,6 +115,10 @@ class CircleMember extends Model
 
         static::saving(function (CircleMember $member): void {
             if (! $member->role && ! $member->role_id) {
+                return;
+            }
+
+            if (! Schema::hasTable('roles')) {
                 return;
             }
 

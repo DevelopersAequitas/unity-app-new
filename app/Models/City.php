@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class City extends Model
 {
@@ -12,11 +13,23 @@ class City extends Model
 
     protected $table = 'cities';
 
+    protected $primaryKey = 'id';
+
     protected $keyType = 'string';
 
     public $incrementing = false;
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $city): void {
+            if (empty($city->id)) {
+                $city->id = (string) Str::uuid();
+            }
+        });
+    }
+
     protected $fillable = [
+        'id',
         'name',
         'state',
         'district',

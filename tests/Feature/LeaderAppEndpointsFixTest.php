@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
+use App\Models\CircleMember;
 use App\Models\OtpCode;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -58,6 +60,7 @@ class LeaderAppEndpointsFixTest extends TestCase
             $table->string('email', 255)->unique();
             $table->string('phone', 50)->nullable();
             $table->string('password_hash')->nullable();
+            $table->uuid('active_circle_id')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -71,7 +74,7 @@ class LeaderAppEndpointsFixTest extends TestCase
         });
 
         Schema::create('circle_members', function (Blueprint $table): void {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('circle_id')->nullable();
             $table->uuid('user_id')->nullable();
             $table->string('role', 50)->nullable();
@@ -128,6 +131,7 @@ class LeaderAppEndpointsFixTest extends TestCase
             $table->string('slug')->nullable();
             $table->uuid('circle_founder_user_id')->nullable();
             $table->string('status', 50)->default('active');
+            $table->text('calendar')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -195,6 +199,13 @@ class LeaderAppEndpointsFixTest extends TestCase
             'phone' => '+919876543209',
         ]);
 
+        Circle::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Leadership Circle',
+            'circle_founder_user_id' => $user->id,
+            'status' => 'active',
+        ]);
+
         OtpCode::create([
             'id' => (string) Str::uuid(),
             'user_id' => $user->id,
@@ -227,5 +238,140 @@ class LeaderAppEndpointsFixTest extends TestCase
         $this->assertArrayHasKey('access_token', $data);
         $this->assertArrayNotHasKey('auth_token', $data);
         $this->assertArrayNotHasKey('token', $data);
+    }
+
+    /**
+     * Test dashboard metrics returns global platform peers when no circle is scoped.
+     */
+    public function test_dashboard_metrics_returns_global_peers_data_when_no_circle_scoped(): void
+    {
+        $globalLeader = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Global',
+            'last_name' => 'Admin',
+            'email' => 'global.admin@peersunity.com',
+            'phone' => '+919999999999',
+        ]);
+
+        AdminUser::create([
+            'id' => $globalLeader->id,
+            'name' => 'Global Admin',
+            'email' => $globalLeader->email,
+            'role' => 'super_admin',
+        ]);
+
+        // Create some platform peers (both global and circle members)
+        for ($i = 1; $i <= 3; $i++) {
+            User::create([
+                'id' => (string) Str::uuid(),
+                'first_name' => 'Peer',
+                'last_name' => 'Number '.$i,
+                'email' => 'peer'.$i.'@example.com',
+                'phone' => '+91988888888'.$i,
+            ]);
+        }
+
+        $response = $this->actingAs($globalLeader, 'sanctum')
+            ->getJson('/api/v1/dashboard/metrics');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Dashboard metrics retrieved successfully.');
+
+        $data = $response->json('data');
+        $this->assertIsArray($data);
+        // Should include all platform users (globalLeader + 3 peers = 4)
+        $this->assertGreaterThanOrEqual(4, $data['total_peers']);
+        $this->assertEquals('All Circles', $data['circle_name']);
+    }
+
+    /**
+     * Test dashboard metrics with explicit circle_id=global parameter.
+     */
+    public function test_dashboard_metrics_with_global_circle_param(): void
+    {
+        $leader = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Circle',
+            'last_name' => 'Leader',
+            'email' => 'circle.leader@example.com',
+            'phone' => '+919777777777',
+        ]);
+
+        Circle::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Local Circle',
+            'circle_founder_user_id' => $leader->id,
+            'status' => 'active',
+        ]);
+
+        $response = $this->actingAs($leader, 'sanctum')
+            ->getJson('/api/v1/dashboard/metrics?circle_id=global');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        $data = $response->json('data');
+        $this->assertIsArray($data);
+        $this->assertEquals('All Circles', $data['circle_name']);
+        $this->assertGreaterThanOrEqual(1, $data['total_peers']);
+    }
+
+    /**
+     * Test GET /api/v1/peers returns all circle peers and all data when no circle_id is provided.
+     */
+    public function test_peers_index_returns_all_circle_peers_and_all_data(): void
+    {
+        $leader = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Circle',
+            'last_name' => 'Leader',
+            'email' => 'circle.founder@example.com',
+            'phone' => '+919777777778',
+        ]);
+
+        $circleA = Circle::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Circle A',
+            'circle_founder_user_id' => $leader->id,
+            'status' => 'active',
+        ]);
+
+        $peerInCircleB = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Peer',
+            'last_name' => 'CircleB',
+            'email' => 'peer.b@example.com',
+            'phone' => '+919777777779',
+        ]);
+
+        $circleB = Circle::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Circle B',
+            'status' => 'active',
+        ]);
+
+        CircleMember::create([
+            'circle_id' => $circleB->id,
+            'user_id' => $peerInCircleB->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        // When leader calls /api/v1/peers without circle_id, it should return all circle peers across both circles
+        $response = $this->actingAs($leader, 'sanctum')
+            ->getJson('/api/v1/peers');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Peers retrieved successfully.');
+
+        $data = $response->json('data');
+        $this->assertIsArray($data);
+        $this->assertGreaterThanOrEqual(2, count($data));
+
+        $ids = collect($data)->pluck('id')->all();
+        $this->assertContains($leader->id, $ids);
+        $this->assertContains($peerInCircleB->id, $ids);
     }
 }

@@ -48,10 +48,14 @@ class LeaderDashboardService
         $role = $roleInfo['role'];
         $isAdminRole = in_array($role, ['superAdmin', 'countryDirector'], true);
 
+        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
+            || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
+
         $circle = null;
         $resolvedCircleId = null;
         $resolvedCircleName = 'All Circles';
         $targetCircleIds = [];
+        $isGlobalScope = false;
 
         // 1. If explicit circle_id is provided in request and valid UUID
         if ($circleId && Str::isUuid($circleId)) {
@@ -59,10 +63,8 @@ class LeaderDashboardService
             if ($isAdminRole || $scopedCircleIds === null || in_array($circleId, $scopedCircleIds, true)) {
                 $circle = Circle::query()->where('id', $circleId)->whereNull('deleted_at')->first();
             }
-        }
-
-        // 2. If user is scoped to a single circle (e.g. circle leader/chair) and no circle was requested
-        if (! $circle && $scopedCircleIds !== null && count($scopedCircleIds) === 1) {
+        } elseif (! empty($circleId) && in_array(strtolower(trim((string) $circleId)), ['mine', 'my_circle', 'own'], true) && $scopedCircleIds !== null && count($scopedCircleIds) >= 1) {
+            // Explicitly requested own circle
             $circle = Circle::query()->where('id', $scopedCircleIds[0])->whereNull('deleted_at')->first();
         }
 
@@ -74,150 +76,241 @@ class LeaderDashboardService
             }
             $resolvedCircleName = $rawCircleName;
             $targetCircleIds = [(string) $circle->id];
-        } elseif ($scopedCircleIds !== null) {
-            // User is scoped to multiple circles (e.g. 2 circles joined or DED across circles)
-            $resolvedCircleId = null;
-            $resolvedCircleName = 'All Circles';
-            $targetCircleIds = $scopedCircleIds;
+            $isGlobalScope = false;
         } else {
-            // User has global access with no specific circle selected
-            $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+            // All Circles / Global view: User requested all circles or browsing global peers
+            $resolvedDistrictId = (! $isGlobalRequested && ! $isAdminRole && $districtId) ? $this->teamsService->resolveDedDistrictId($districtId, $user) : null;
             if ($resolvedDistrictId) {
                 $targetCircleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
+                if (empty($targetCircleIds)) {
+                    $targetCircleIds = Circle::query()->whereNull('deleted_at')->pluck('id')->all();
+                    $isGlobalScope = true;
+                } else {
+                    $isGlobalScope = false;
+                }
             } else {
                 $targetCircleIds = Circle::query()->whereNull('deleted_at')->pluck('id')->all();
+                $isGlobalScope = true;
             }
             $resolvedCircleId = null;
             $resolvedCircleName = 'All Circles';
         }
 
-        // If target circles are empty (user has 0 circles in scope), return zeroed metrics
-        if (empty($targetCircleIds)) {
-            return [
-                'overall_revenue' => '₹0.0',
-                'overall_deals_closed' => '₹0',
-                'impact' => 0,
-                'deals' => '₹0',
-                'p2p_meetings' => 0,
-                'total_peers' => 0,
-                'total_peers_growth' => 0,
-                'referrals' => 0,
-                'testimonials' => 0,
-                'coins' => 0,
-                'pending_peers_count' => 0,
-            ];
+        // 1. Total Peers Count
+        if ($isGlobalScope) {
+            // Global Scope includes all circle peers across circles (members + direct leaders)
+            $circleMemberUserIds = CircleMember::query()
+                ->whereNull('deleted_at')
+                ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                ->pluck('user_id')
+                ->all();
+
+            $directLeaderIds = Circle::query()
+                ->whereNull('deleted_at')
+                ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
+                ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
+                ->unique()
+                ->all();
+
+            $totalCirclePeers = count(array_unique(array_filter(array_merge($circleMemberUserIds, $directLeaderIds))));
+
+            $totalPeers = $totalCirclePeers > 0 ? $totalCirclePeers : User::query()
+                ->whereNull('deleted_at')
+                ->where('email', 'not like', '%devtestpeer%')
+                ->where('first_name', 'not like', 'Test Peer%')
+                ->count();
+        } elseif (! empty($targetCircleIds)) {
+            $totalPeers = CircleMember::query()
+                ->whereNull('deleted_at')
+                ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                ->whereIn('circle_id', $targetCircleIds)
+                ->distinct('user_id')
+                ->count('user_id');
+
+            // Also include direct leaders of these circles if not already in circle_members
+            $directLeaderIds = Circle::query()
+                ->whereIn('id', $targetCircleIds)
+                ->whereNull('deleted_at')
+                ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
+                ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
+                ->unique()
+                ->all();
+
+            if (! empty($directLeaderIds)) {
+                $alreadyCounted = CircleMember::query()
+                    ->whereNull('deleted_at')
+                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                    ->whereIn('circle_id', $targetCircleIds)
+                    ->whereIn('user_id', $directLeaderIds)
+                    ->distinct('user_id')
+                    ->pluck('user_id')
+                    ->all();
+                $totalPeers += count(array_diff($directLeaderIds, $alreadyCounted));
+            }
+        } else {
+            $totalPeers = 0;
         }
 
-        // Peer counts in scoped circles
-        $totalPeers = CircleMember::query()
-            ->whereNull('deleted_at')
-            ->where('status', 'approved')
-            ->whereIn('circle_id', $targetCircleIds)
-            ->distinct('user_id')
-            ->count('user_id');
+        // 2. Pending peers count
+        if ($isGlobalScope) {
+            $pendingPeersCount = CircleMember::query()
+                ->whereNull('deleted_at')
+                ->where('status', 'pending')
+                ->count();
+        } elseif (! empty($targetCircleIds)) {
+            $pendingPeersCount = CircleMember::query()
+                ->whereNull('deleted_at')
+                ->where('status', 'pending')
+                ->whereIn('circle_id', $targetCircleIds)
+                ->count();
+        } else {
+            $pendingPeersCount = 0;
+        }
 
-        // Pending peers count
-        $pendingPeersCount = CircleMember::query()
-            ->whereNull('deleted_at')
-            ->where('status', 'pending')
-            ->whereIn('circle_id', $targetCircleIds)
-            ->count();
+        // 3. User IDs for activity metrics
+        $scopedMemberUserIds = null;
+        if (! $isGlobalScope) {
+            if (! empty($targetCircleIds)) {
+                $scopedMemberUserIds = DB::table('circle_members')
+                    ->whereIn('circle_id', $targetCircleIds)
+                    ->whereNull('deleted_at')
+                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                    ->pluck('user_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
 
-        // Get peer member user IDs in scope for activity queries
-        $scopedMemberUserIds = DB::table('circle_members')
-            ->whereIn('circle_id', $targetCircleIds)
-            ->whereNull('deleted_at')
-            ->where('status', 'approved')
-            ->pluck('user_id')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+                $directLeaderIds = Circle::query()
+                    ->whereIn('id', $targetCircleIds)
+                    ->whereNull('deleted_at')
+                    ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
+                    ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
+                    ->all();
 
-        // Also include direct leaders of these circles if any
-        $directLeaderIds = Circle::query()
-            ->whereIn('id', $targetCircleIds)
-            ->whereNull('deleted_at')
-            ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
-            ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
-            ->all();
-
-        if (! empty($directLeaderIds)) {
-            $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $directLeaderIds)));
+                if (! empty($directLeaderIds)) {
+                    $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $directLeaderIds)));
+                }
+            } else {
+                $scopedMemberUserIds = [];
+            }
         }
 
         // Impacts count
         $impactsCount = 0;
-        if (! empty($scopedMemberUserIds)) {
-            $impactQuery = Impact::query()
-                ->where(function ($q) use ($scopedMemberUserIds): void {
-                    $q->whereIn('user_id', $scopedMemberUserIds);
-                    if (Schema::hasColumn('impacts', 'peer_user_id')) {
-                        $q->orWhereIn('peer_user_id', $scopedMemberUserIds);
-                    }
-                });
-            $impactsCount = (int) $impactQuery->count();
-            if ($impactsCount === 0) {
-                $impactsCount = (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('life_impacted_count');
+        if (Schema::hasTable('impacts')) {
+            if ($scopedMemberUserIds === null) {
+                $impactsCount = (int) Impact::query()->count();
+                if ($impactsCount === 0 && Schema::hasColumn('users', 'life_impacted_count')) {
+                    $impactsCount = (int) User::query()->whereNull('deleted_at')->sum('life_impacted_count');
+                }
+            } elseif (! empty($scopedMemberUserIds)) {
+                $impactQuery = Impact::query()
+                    ->where(function ($q) use ($scopedMemberUserIds): void {
+                        $q->whereIn('user_id', $scopedMemberUserIds);
+                        if (Schema::hasColumn('impacts', 'peer_user_id')) {
+                            $q->orWhereIn('peer_user_id', $scopedMemberUserIds);
+                        }
+                    });
+                $impactsCount = (int) $impactQuery->count();
+                if ($impactsCount === 0 && Schema::hasColumn('users', 'life_impacted_count')) {
+                    $impactsCount = (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('life_impacted_count');
+                }
             }
+        } elseif (Schema::hasColumn('users', 'life_impacted_count')) {
+            $impactsCount = $scopedMemberUserIds === null
+                ? (int) User::query()->whereNull('deleted_at')->sum('life_impacted_count')
+                : (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('life_impacted_count');
         }
 
         // P2P meetings count
         $p2pCount = 0;
-        if (! empty($scopedMemberUserIds)) {
-            $p2pQuery = P2pMeeting::query()
-                ->whereNull('deleted_at')
-                ->when(Schema::hasColumn('p2p_meetings', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
-                ->where(function ($q) use ($scopedMemberUserIds): void {
-                    $q->whereIn('initiator_user_id', $scopedMemberUserIds)
-                        ->orWhereIn('peer_user_id', $scopedMemberUserIds);
-                });
-            $p2pCount = (int) $p2pQuery->count();
+        if (Schema::hasTable('p2p_meetings')) {
+            if ($scopedMemberUserIds === null) {
+                $p2pCount = (int) P2pMeeting::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('p2p_meetings', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $p2pCount = (int) P2pMeeting::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('p2p_meetings', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->where(function ($q) use ($scopedMemberUserIds): void {
+                        $q->whereIn('initiator_user_id', $scopedMemberUserIds)
+                            ->orWhereIn('peer_user_id', $scopedMemberUserIds);
+                    })
+                    ->count();
+            }
         }
 
         // Referrals count
         $referralsCount = 0;
-        if (! empty($scopedMemberUserIds)) {
-            $referralsQuery = Referral::query()
-                ->whereNull('deleted_at')
-                ->when(Schema::hasColumn('referrals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
-                ->where(function ($q) use ($scopedMemberUserIds): void {
-                    $q->whereIn('from_user_id', $scopedMemberUserIds)
-                        ->orWhereIn('to_user_id', $scopedMemberUserIds);
-                });
-            $referralsCount = (int) $referralsQuery->count();
+        if (Schema::hasTable('referrals')) {
+            if ($scopedMemberUserIds === null) {
+                $referralsCount = (int) Referral::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('referrals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $referralsCount = (int) Referral::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('referrals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->where(function ($q) use ($scopedMemberUserIds): void {
+                        $q->whereIn('from_user_id', $scopedMemberUserIds)
+                            ->orWhereIn('to_user_id', $scopedMemberUserIds);
+                    })
+                    ->count();
+            }
         }
 
         // Testimonials count
         $testimonialsCount = 0;
-        if (! empty($scopedMemberUserIds)) {
-            $testimonialsQuery = Testimonial::query()
-                ->whereNull('deleted_at')
-                ->when(Schema::hasColumn('testimonials', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
-                ->where(function ($q) use ($scopedMemberUserIds): void {
-                    $q->whereIn('from_user_id', $scopedMemberUserIds)
-                        ->orWhereIn('to_user_id', $scopedMemberUserIds);
-                });
-            $testimonialsCount = (int) $testimonialsQuery->count();
+        if (Schema::hasTable('testimonials')) {
+            if ($scopedMemberUserIds === null) {
+                $testimonialsCount = (int) Testimonial::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('testimonials', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->count();
+            } elseif (! empty($scopedMemberUserIds)) {
+                $testimonialsCount = (int) Testimonial::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('testimonials', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->where(function ($q) use ($scopedMemberUserIds): void {
+                        $q->whereIn('from_user_id', $scopedMemberUserIds)
+                            ->orWhereIn('to_user_id', $scopedMemberUserIds);
+                    })
+                    ->count();
+            }
         }
 
         // Deals amounts
         $dealsSum = 0.0;
-        if (! empty($scopedMemberUserIds)) {
-            $dealsQuery = BusinessDeal::query()
-                ->whereNull('deleted_at')
-                ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
-                ->where(function ($q) use ($scopedMemberUserIds): void {
-                    $q->whereIn('from_user_id', $scopedMemberUserIds)
-                        ->orWhereIn('to_user_id', $scopedMemberUserIds);
-                });
-            $dealsSum = (float) $dealsQuery->sum('deal_amount');
+        if (Schema::hasTable('business_deals')) {
+            if ($scopedMemberUserIds === null) {
+                $dealsSum = (float) BusinessDeal::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->sum('deal_amount');
+            } elseif (! empty($scopedMemberUserIds)) {
+                $dealsQuery = BusinessDeal::query()
+                    ->whereNull('deleted_at')
+                    ->when(Schema::hasColumn('business_deals', 'is_deleted'), fn ($q) => $q->where('is_deleted', false))
+                    ->where(function ($q) use ($scopedMemberUserIds): void {
+                        $q->whereIn('from_user_id', $scopedMemberUserIds)
+                            ->orWhereIn('to_user_id', $scopedMemberUserIds);
+                    });
+                $dealsSum = (float) $dealsQuery->sum('deal_amount');
+            }
         }
 
         // Coins sum
         $coinsSum = 0;
-        if (! empty($scopedMemberUserIds)) {
-            $coinsSum = (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('coins_balance');
+        if (Schema::hasColumn('users', 'coins_balance')) {
+            if ($scopedMemberUserIds === null) {
+                $coinsSum = (int) User::query()->whereNull('deleted_at')->sum('coins_balance');
+            } elseif (! empty($scopedMemberUserIds)) {
+                $coinsSum = (int) User::query()->whereIn('id', $scopedMemberUserIds)->whereNull('deleted_at')->sum('coins_balance');
+            }
         }
 
         $revSum = $dealsSum * 0.05;
@@ -231,6 +324,8 @@ class LeaderDashboardService
             : ($revSum >= 100000 ? '₹'.round($revSum / 100000, 1).'L' : '₹'.number_format($revSum, 0));
 
         return [
+            'circle_id' => $resolvedCircleId,
+            'circle_name' => $resolvedCircleName,
             'overall_revenue' => $revFormatted,
             'overall_deals_closed' => $dealsFormatted,
             'impact' => $impactsCount,
@@ -281,18 +376,19 @@ class LeaderDashboardService
             $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'guest'];
             $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
 
+            $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
+                || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
+
             if ($circleId && Str::isUuid($circleId)) {
                 $query->where(function (Builder $q) use ($circleId): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->where('circle_id', $circleId)->whereNull('deleted_at'))
                         ->orWhere('active_circle_id', $circleId);
                 });
-            } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds)) {
+            } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds) && ! $isGlobalRequested && ! $isAdmin) {
                 $query->where(function (Builder $q) use ($scopedCircleIds): void {
                     $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
                         ->orWhereIn('active_circle_id', $scopedCircleIds);
                 });
-            } elseif ($scopedCircleIds !== null && empty($scopedCircleIds)) {
-                $query->whereRaw('1 = 0');
             } elseif ($districtId) {
                 $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
                 if ($resolvedDistrictId) {
@@ -309,8 +405,8 @@ class LeaderDashboardService
             ->take(5)
             ->get();
 
-        // If scoped query returned empty and user is not circle-scoped, fallback to platform-wide top impacters
-        if ($users->isEmpty() && ($scopedCircleIds ?? null) === null) {
+        // If scoped query returned empty or user has global scope, fallback to platform-wide top impacters
+        if ($users->isEmpty()) {
             $users = (clone $baseQuery)
                 ->orderByDesc('life_impacted_count')
                 ->orderByDesc('coins_balance')

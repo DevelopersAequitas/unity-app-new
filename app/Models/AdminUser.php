@@ -22,6 +22,7 @@ class AdminUser extends Authenticatable
         'id',
         'name',
         'email',
+        'role',
     ];
 
     public function roles(): BelongsToMany

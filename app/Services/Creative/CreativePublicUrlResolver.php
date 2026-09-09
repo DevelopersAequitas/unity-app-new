@@ -198,20 +198,29 @@ class CreativePublicUrlResolver
             return (int) $m[1] === $introducedCount;
         }
 
-        // Legacy URLs without _c{N}_ tag: only accept if filename explicitly contains the exact milestone slug
-        if ($introducedCount === 1) {
-            return str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'catalyst') && ! str_contains($lowerUrl, 'influencer');
+        // Reject if URL explicitly contains a slug belonging to a different milestone
+        $milestoneSlugs = [
+            1 => 'connector',
+            3 => 'catalyst',
+            5 => 'influencer',
+            10 => 'ambassador',
+            20 => 'rainmaker',
+            35 => 'trailblazer',
+            50 => 'vanguard',
+            75 => 'luminary',
+            100 => 'movement_maker',
+            150 => 'community_titan',
+            250 => 'network_architect',
+            500 => 'global_icon',
+        ];
+
+        foreach ($milestoneSlugs as $count => $slug) {
+            if ($count !== $introducedCount && str_contains($lowerUrl, $slug)) {
+                return false;
+            }
         }
 
-        if ($introducedCount === 3) {
-            return str_contains($lowerUrl, 'catalyst') && ! str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'influencer');
-        }
-
-        if ($introducedCount === 5) {
-            return str_contains($lowerUrl, 'influencer') && ! str_contains($lowerUrl, 'connector') && ! str_contains($lowerUrl, 'catalyst');
-        }
-
-        return false;
+        return true;
     }
 
     /**

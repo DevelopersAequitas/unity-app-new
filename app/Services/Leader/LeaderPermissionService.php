@@ -324,18 +324,37 @@ class LeaderPermissionService
             ->when($userEmail !== '', fn ($q) => $q->orWhereRaw('LOWER(email) = ?', [$userEmail]))
             ->first();
 
-        // Immediate Fast-Path: If admin user is designated Global Admin / Super in AdminAccess
-        if ($adminUser && (AdminAccess::isGlobalAdmin($adminUser) || AdminAccess::isSuper($adminUser))) {
-            return [
-                'role' => 'superAdmin',
-                'custom_role_label' => 'Super Admin',
-                'regional_scope' => 'Global Scope',
-                'is_leader' => true,
-            ];
-        }
-
         $candidateRoles = [];
         $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
+
+        // Immediate Fast-Path: If admin user is designated Global Admin / Super in AdminAccess or via direct role column
+        if ($adminUser) {
+            $directAdminRole = $this->normalizeRoleKey((string) ($adminUser->role ?? ''));
+            if ($directAdminRole === 'superAdmin' || AdminAccess::isGlobalAdmin($adminUser) || AdminAccess::isSuper($adminUser)) {
+                return [
+                    'role' => 'superAdmin',
+                    'custom_role_label' => 'Super Admin',
+                    'regional_scope' => 'Global Scope',
+                    'is_leader' => true,
+                ];
+            }
+            if ($this->isLeaderRole((string) ($adminUser->role ?? ''))) {
+                $candidateRoles[] = $directAdminRole;
+            }
+        }
+
+        if (! empty($user->role) && $this->isLeaderRole((string) $user->role)) {
+            $userDirectRole = $this->normalizeRoleKey((string) $user->role);
+            if ($userDirectRole === 'superAdmin') {
+                return [
+                    'role' => 'superAdmin',
+                    'custom_role_label' => 'Super Admin',
+                    'regional_scope' => 'Global Scope',
+                    'is_leader' => true,
+                ];
+            }
+            $candidateRoles[] = $userDirectRole;
+        }
 
         if (! empty($adminUserIds) && Schema::hasTable('admin_user_roles') && Schema::hasTable('roles')) {
             $roleRows = DB::table('admin_user_roles')
