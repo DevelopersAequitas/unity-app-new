@@ -8,6 +8,7 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\File;
 use App\Models\FileModel;
+use App\Models\IntroductionCreative;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
@@ -210,6 +211,58 @@ class IntroducedPeerCreativeGenerator
      */
     public function generateOrGetUrl(User $user, int $introducedCount = 1, bool $forceRegenerate = false): string
     {
+        if (! $forceRegenerate) {
+            $existingUrl = null;
+
+            if (Schema::hasTable('introduction_creatives')) {
+                try {
+                    $existingRecord = IntroductionCreative::query()
+                        ->where('introducer_id', $user->id)
+                        ->where('introduced_count', $introducedCount)
+                        ->latest()
+                        ->first();
+
+                    if ($existingRecord && ! empty($existingRecord->image_url)) {
+                        $existingUrl = (string) $existingRecord->image_url;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("[IntroducedPeerCreativeGenerator] Querying introduction_creatives failed: {$e->getMessage()}");
+                }
+            }
+
+            if (empty($existingUrl)) {
+                if ($introducedCount === 1 && ! empty($user->connector_creative_url)) {
+                    $existingUrl = (string) $user->connector_creative_url;
+                } elseif (! empty($user->growth_creative_url)) {
+                    $existingUrl = (string) $user->growth_creative_url;
+                }
+            }
+
+            if (! empty($existingUrl) && ! str_contains($existingUrl, '/images/member_introduce_badges/')) {
+                $s3Key = preg_replace('~^https?://[^/]+/storage/~i', '', $existingUrl);
+                $s3Key = ltrim($s3Key, '/');
+
+                $physicalExists = Storage::disk('public')->exists($s3Key)
+                    || Storage::disk(config('filesystems.default', 'public'))->exists($s3Key)
+                    || file_exists(storage_path('app/public/'.$s3Key))
+                    || file_exists(public_path('storage/'.$s3Key));
+
+                if ($physicalExists) {
+                    $baseUrl = self::getPublicBaseUrl();
+                    $verifiedUrl = str_starts_with($existingUrl, 'https://')
+                        ? $existingUrl
+                        : "{$baseUrl}/storage/{$s3Key}";
+
+                    Log::info("[IntroducedPeerCreativeGenerator] Reusing existing creative URL for user {$user->id}", [
+                        'image_url' => $verifiedUrl,
+                        'introduced_count' => $introducedCount,
+                    ]);
+
+                    return $verifiedUrl;
+                }
+            }
+        }
+
         $fileModel = $this->generate($user, $introducedCount);
 
         // Verify physical file existence on public disk
