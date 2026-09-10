@@ -188,23 +188,8 @@ class LimitedUserApiTest extends TestCase
                     'match_percentage',
                 ],
             ],
-            'links' => [
-                'first',
-                'last',
-                'prev',
-                'next',
-            ],
-            'meta' => [
-                'current_page',
-                'from',
-                'last_page',
-                'links',
-                'path',
-                'per_page',
-                'to',
-                'total',
-            ],
         ]);
+        $response->assertJsonMissing(['meta', 'links']);
 
         $data = $response->json('data');
 
@@ -278,7 +263,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertIsBool($nItem['is_verified']);
     }
 
-    public function test_limited_users_endpoint_returns_members_with_pagination_15_per_page(): void
+    public function test_limited_users_endpoint_returns_all_members_without_pagination(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -293,14 +278,11 @@ class LimitedUserApiTest extends TestCase
         $response = $this->getJson('/api/v1/members/limited');
 
         $response->assertOk();
-        $this->assertCount(15, $response->json('data'));
+        $this->assertCount(25, $response->json('data'));
         $this->assertSame(25, $response->json('total_users'));
         $this->assertSame(25, $response->json('total_user'));
-        $this->assertSame(25, $response->json('meta.total'));
-        $this->assertSame(15, $response->json('meta.per_page'));
-        $this->assertSame(1, $response->json('meta.current_page'));
-        $this->assertSame(2, $response->json('meta.last_page'));
-        $this->assertNotNull($response->json('links.next'));
+        $this->assertSame(25, $response->json('total'));
+        $response->assertJsonMissing(['meta', 'links']);
     }
 
     public function test_members_endpoint_returns_all_members_without_pagination_with_all_fields(): void
