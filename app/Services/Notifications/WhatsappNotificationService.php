@@ -51,11 +51,62 @@ class WhatsappNotificationService
                 }
             }
 
+            // Extract creative URL if present in payload
+            $creativeUrl = $payload['creative_url']
+                ?? $payload['badge_image_url']
+                ?? $payload['header_media_url']
+                ?? $payload['header_image_url']
+                ?? $payload['image_url']
+                ?? $payload['image']
+                ?? $payload['media_url']
+                ?? $payload['welcome_creative_url']
+                ?? $payload['custom_image_url']
+                ?? null;
+
+            if (! is_string($creativeUrl) || trim($creativeUrl) === '') {
+                $creativeUrl = null;
+            } else {
+                $creativeUrl = trim($creativeUrl);
+            }
+
+            $normalizedPhone = static::normalizePhone($phone);
+
+            // Resolve user ID if available
+            $resolvedUserId = $userId ?? ($payload['user_id'] ?? $payload['userId'] ?? null);
+            if (! is_string($resolvedUserId) || trim($resolvedUserId) === '') {
+                $resolvedUserId = null;
+            }
+            if ($resolvedUserId === null && $normalizedPhone !== '') {
+                $resolvedUserId = User::query()
+                    ->where('phone', $normalizedPhone)
+                    ->orWhere('secondary_mobile', $normalizedPhone)
+                    ->orWhere('phone', $phone)
+                    ->orWhere('secondary_mobile', $phone)
+                    ->value('id');
+            }
+
+            // Resolve notification ID if available
+            $resolvedNotificationId = $notificationId ?? ($payload['notification_id'] ?? $payload['notificationId'] ?? null);
+            if (! is_string($resolvedNotificationId) || trim($resolvedNotificationId) === '') {
+                $resolvedNotificationId = null;
+            }
+
+            $customLogId = $payload['delivery_log_id'] ?? null;
+            if (is_string($customLogId) && trim($customLogId) !== '') {
+                try {
+                    $deliveryLog = WhatsappMessageDeliveryLog::find(trim($customLogId));
+                } catch (Throwable) {
+                    $deliveryLog = null;
+                }
+            }
+
             if (! $template) {
                 self::$lastError = "Template key not found in database: {$templateKey}";
                 Log::warning('WhatsApp notification skipped: Template key not found in database.', [
                     'template_key' => $templateKey,
                 ]);
+
+                $this->recordEarlyFailure($deliveryLog, $customLogId, $resolvedUserId, $resolvedNotificationId, $templateKey, $templateKey, $normalizedPhone ?: $phone, $creativeUrl, self::$lastError, $payload, $attemptedAt);
 
                 return false;
             }
@@ -65,6 +116,8 @@ class WhatsappNotificationService
                 Log::info('WhatsApp notification skipped: Template is inactive.', [
                     'template_key' => $templateKey,
                 ]);
+
+                $this->recordEarlyFailure($deliveryLog, $customLogId, $resolvedUserId, $resolvedNotificationId, $templateKey, $template->template_name ?: $templateKey, $normalizedPhone ?: $phone, $creativeUrl, self::$lastError, $payload, $attemptedAt);
 
                 return false;
             }
@@ -78,16 +131,19 @@ class WhatsappNotificationService
                     'template_key' => $templateKey,
                 ]);
 
+                $this->recordEarlyFailure($deliveryLog, $customLogId, $resolvedUserId, $resolvedNotificationId, $templateKey, $template->template_name ?: $templateKey, $normalizedPhone ?: $phone, $creativeUrl, self::$lastError, $payload, $attemptedAt);
+
                 return false;
             }
 
-            $normalizedPhone = static::normalizePhone($phone);
             if ($normalizedPhone === '') {
                 self::$lastError = "Invalid phone number format: {$phone}";
                 Log::error('WhatsApp notification failed: Invalid phone number format.', [
                     'template_key' => $templateKey,
                     'phone' => $phone,
                 ]);
+
+                $this->recordEarlyFailure($deliveryLog, $customLogId, $resolvedUserId, $resolvedNotificationId, $templateKey, $template->template_name ?: $templateKey, $phone, $creativeUrl, self::$lastError, $payload, $attemptedAt);
 
                 return false;
             }
@@ -115,58 +171,39 @@ class WhatsappNotificationService
                 $body[(string) $k] = $v;
             }
 
-            // Extract creative URL if present in payload
-            $creativeUrl = $payload['creative_url']
-                ?? $payload['badge_image_url']
-                ?? $payload['header_media_url']
-                ?? $payload['header_image_url']
-                ?? $payload['image_url']
-                ?? $payload['image']
-                ?? $payload['media_url']
-                ?? $payload['welcome_creative_url']
-                ?? $payload['custom_image_url']
-                ?? null;
-
-            if (! is_string($creativeUrl) || trim($creativeUrl) === '') {
-                $creativeUrl = null;
-            } else {
-                $creativeUrl = trim($creativeUrl);
-            }
-
-            // Resolve user ID if available
-            $resolvedUserId = $userId ?? ($payload['user_id'] ?? $payload['userId'] ?? null);
-            if (! is_string($resolvedUserId) || trim($resolvedUserId) === '') {
-                $resolvedUserId = null;
-            }
-            if ($resolvedUserId === null && $normalizedPhone !== '') {
-                $resolvedUserId = User::query()
-                    ->where('phone', $normalizedPhone)
-                    ->orWhere('secondary_mobile', $normalizedPhone)
-                    ->orWhere('phone', $phone)
-                    ->orWhere('secondary_mobile', $phone)
-                    ->value('id');
-            }
-
-            // Resolve notification ID if available
-            $resolvedNotificationId = $notificationId ?? ($payload['notification_id'] ?? $payload['notificationId'] ?? null);
-            if (! is_string($resolvedNotificationId) || trim($resolvedNotificationId) === '') {
-                $resolvedNotificationId = null;
-            }
-
             // Immediately before sending, log pending delivery attempt
             try {
-                $deliveryLog = WhatsappMessageDeliveryLog::create([
-                    'user_id' => $resolvedUserId,
-                    'notification_id' => $resolvedNotificationId,
-                    'template_key' => $templateKey,
-                    'template_name' => $template->template_name ?: $templateKey,
-                    'phone' => $normalizedPhone,
-                    'creative_url' => $creativeUrl,
-                    'provider' => 'fleximsg',
-                    'status' => 'pending',
-                    'request_payload' => $body,
-                    'attempted_at' => $attemptedAt,
-                ]);
+                if ($deliveryLog) {
+                    $deliveryLog->update([
+                        'user_id' => $resolvedUserId,
+                        'notification_id' => $resolvedNotificationId,
+                        'template_key' => $templateKey,
+                        'template_name' => $template->template_name ?: $templateKey,
+                        'phone' => $normalizedPhone,
+                        'creative_url' => $creativeUrl,
+                        'provider' => 'fleximsg',
+                        'status' => 'pending',
+                        'request_payload' => $body,
+                        'attempted_at' => $attemptedAt,
+                    ]);
+                } else {
+                    $createParams = [
+                        'user_id' => $resolvedUserId,
+                        'notification_id' => $resolvedNotificationId,
+                        'template_key' => $templateKey,
+                        'template_name' => $template->template_name ?: $templateKey,
+                        'phone' => $normalizedPhone,
+                        'creative_url' => $creativeUrl,
+                        'provider' => 'fleximsg',
+                        'status' => 'pending',
+                        'request_payload' => $body,
+                        'attempted_at' => $attemptedAt,
+                    ];
+                    if (is_string($customLogId) && trim($customLogId) !== '') {
+                        $createParams['id'] = trim($customLogId);
+                    }
+                    $deliveryLog = WhatsappMessageDeliveryLog::create($createParams);
+                }
             } catch (Throwable $logEx) {
                 Log::error('Failed to create pending WhatsappMessageDeliveryLog: '.$logEx->getMessage(), [
                     'template_key' => $templateKey,
@@ -293,6 +330,7 @@ class WhatsappNotificationService
                     'status' => 'sent',
                     'provider_message_id' => $providerMessageId,
                     'response_payload' => is_array($responseData) ? $responseData : ['raw' => $response->body()],
+                    'delivered_at' => now(),
                     'attempted_at' => $attemptedAt,
                 ]);
 
@@ -354,6 +392,63 @@ class WhatsappNotificationService
             ]);
 
             return false;
+        }
+    }
+
+    /**
+     * Record early failure in whatsapp_message_delivery_logs before webhook call.
+     */
+    private function recordEarlyFailure(
+        ?WhatsappMessageDeliveryLog $deliveryLog,
+        ?string $customLogId,
+        ?string $userId,
+        ?string $notificationId,
+        string $templateKey,
+        string $templateName,
+        string $phone,
+        ?string $creativeUrl,
+        string $errorMessage,
+        array $payload,
+        \DateTimeInterface $attemptedAt
+    ): void {
+        try {
+            if ($deliveryLog) {
+                $deliveryLog->update([
+                    'user_id' => $userId,
+                    'notification_id' => $notificationId,
+                    'template_key' => $templateKey,
+                    'template_name' => $templateName,
+                    'phone' => $phone,
+                    'creative_url' => $creativeUrl,
+                    'provider' => 'fleximsg',
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                    'request_payload' => $payload,
+                    'attempted_at' => $attemptedAt,
+                ]);
+            } else {
+                $createData = [
+                    'user_id' => $userId,
+                    'notification_id' => $notificationId,
+                    'template_key' => $templateKey,
+                    'template_name' => $templateName,
+                    'phone' => $phone,
+                    'creative_url' => $creativeUrl,
+                    'provider' => 'fleximsg',
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                    'request_payload' => $payload,
+                    'attempted_at' => $attemptedAt,
+                ];
+
+                if (is_string($customLogId) && trim($customLogId) !== '') {
+                    $createData['id'] = trim($customLogId);
+                }
+
+                WhatsappMessageDeliveryLog::create($createData);
+            }
+        } catch (Throwable $e) {
+            Log::error('Failed to record early failure in WhatsappMessageDeliveryLog: '.$e->getMessage());
         }
     }
 
