@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Leader\Models\LeaderReport;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\District;
 use App\Models\Industry;
-use App\Models\LeaderReport;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;

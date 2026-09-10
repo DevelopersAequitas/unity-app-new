@@ -8,7 +8,7 @@ use App\Http\Resources\CircleMemberResource;
 use App\Http\Resources\CircleResource;
 use App\Models\Circle;
 use App\Models\CircleMember;
-use App\Services\Leader\LeaderPermissionService;
+use App\Shared\Services\UserRoleResolverService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -212,8 +212,8 @@ class CircleController extends BaseApiController
 
         // Auto-approve join requests for super admins and country directors
         if ($user) {
-            $permissionService = app(LeaderPermissionService::class);
-            $roleInfo = $permissionService->resolveUserRole($user);
+            $roleResolver = app(UserRoleResolverService::class);
+            $roleInfo = $roleResolver->resolveUserRole($user);
             if (in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true)) {
                 $status = 'approved';
                 $joinedAt = now();

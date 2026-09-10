@@ -115,7 +115,6 @@ use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
 use App\Http\Controllers\Api\V1\IntroVideoController;
-use App\Http\Controllers\Api\V1\Leader\LeaderNotificationsController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;

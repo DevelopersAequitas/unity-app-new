@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\V1\Leader\LeaderActivitiesController;
-use App\Http\Controllers\Api\V1\Leader\LeaderAuthController;
-use App\Http\Controllers\Api\V1\Leader\LeaderDashboardController;
-use App\Http\Controllers\Api\V1\Leader\LeaderFinanceController;
-use App\Http\Controllers\Api\V1\Leader\LeaderNotificationsController;
-use App\Http\Controllers\Api\V1\Leader\LeaderPeersController;
-use App\Http\Controllers\Api\V1\Leader\LeaderReportsController;
-use App\Http\Controllers\Api\V1\Leader\LeaderRoleManagementController;
-use App\Http\Controllers\Api\V1\Leader\LeaderSystemController;
-use App\Http\Controllers\Api\V1\Leader\LeaderTeamsController;
+use App\Leader\Controllers\LeaderActivitiesController;
+use App\Leader\Controllers\LeaderAuthController;
+use App\Leader\Controllers\LeaderDashboardController;
+use App\Leader\Controllers\LeaderFinanceController;
+use App\Leader\Controllers\LeaderNotificationsController;
+use App\Leader\Controllers\LeaderPeersController;
+use App\Leader\Controllers\LeaderReportsController;
+use App\Leader\Controllers\LeaderRoleManagementController;
+use App\Leader\Controllers\LeaderSystemController;
+use App\Leader\Controllers\LeaderTeamsController;
 use Illuminate\Support\Facades\Route;
 
 // ── Public System & Auth Endpoints ──────────────────────────────────────────
