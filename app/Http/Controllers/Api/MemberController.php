@@ -429,24 +429,20 @@ class MemberController extends BaseApiController
     ) {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
-        $perPage = (int) $request->input('per_page', 15);
-        $perPage = max(1, min($perPage, 100));
-        $page = (int) $request->input('page', 1);
-
         $authUser = auth('sanctum')->user() ?: $request->user();
 
         if ($authUser instanceof User) {
-            $users = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
+            $users = $memberMatchingService->rank($authUser, $query);
         } else {
-            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
         }
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
-            'total_users' => $users->total(),
-            'total_user' => $users->total(),
-            'total' => $users->total(),
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
         ]);
     }
 

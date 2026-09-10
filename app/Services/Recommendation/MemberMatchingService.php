@@ -35,9 +35,11 @@ class MemberMatchingService
     }
 
     /**
-     * Rank and paginate candidate members for the authenticated user.
+     * Rank candidate members for the authenticated user without pagination.
+     *
+     * @return Collection<int, User>
      */
-    public function rankAndPaginate(User $authUser, Builder $query, int $page = 1, int $perPage = 15): LengthAwarePaginator
+    public function rank(User $authUser, Builder $query): Collection
     {
         $authUserId = (string) $authUser->id;
         $authConnectionIds = $this->mutualConnectionService->getAcceptedConnectionIds($authUserId);
@@ -46,10 +48,7 @@ class MemberMatchingService
         $candidates = $query->get();
 
         if ($candidates->isEmpty()) {
-            return new Paginator([], 0, $perPage, $page, [
-                'path' => Paginator::resolveCurrentPath(),
-                'pageName' => 'page',
-            ]);
+            return collect();
         }
 
         // Bulk load connections for all candidates to optimize graph calculations
@@ -81,7 +80,7 @@ class MemberMatchingService
         });
 
         // Sort by rank score descending, then life_impacted_count descending, then created_at descending
-        $sorted = $scoredCandidates->sort(function (User $a, User $b) {
+        return $scoredCandidates->sort(function (User $a, User $b) {
             $rankA = (float) $a->getAttribute('recommendation_rank_score');
             $rankB = (float) $b->getAttribute('recommendation_rank_score');
 
@@ -98,6 +97,21 @@ class MemberMatchingService
 
             return $b->created_at <=> $a->created_at;
         })->values();
+    }
+
+    /**
+     * Rank and paginate candidate members for the authenticated user.
+     */
+    public function rankAndPaginate(User $authUser, Builder $query, int $page = 1, int $perPage = 15): LengthAwarePaginator
+    {
+        $sorted = $this->rank($authUser, $query);
+
+        if ($sorted->isEmpty()) {
+            return new Paginator([], 0, $perPage, $page, [
+                'path' => Paginator::resolveCurrentPath(),
+                'pageName' => 'page',
+            ]);
+        }
 
         $total = $sorted->count();
         $offset = max(0, ($page - 1) * $perPage);
