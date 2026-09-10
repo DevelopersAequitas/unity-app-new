@@ -9,6 +9,7 @@ use App\Services\Creative\IntroductionCreativeService;
 use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
+use App\Services\Notifications\MilestoneWhatsappNotificationService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -27,18 +28,22 @@ class IntroducedPeerService
 
     protected MilestoneCatalystWhatsappService $catalystWhatsappService;
 
+    protected MilestoneWhatsappNotificationService $milestoneWhatsappService;
+
     public function __construct(
         UserMilestoneSyncService $milestoneSyncService,
         PeerIntroductionService $peerIntroductionService,
         MilestoneConnectorWhatsappService $connectorWhatsappService,
         IntroductionCreativeService $introductionCreativeService,
-        MilestoneCatalystWhatsappService $catalystWhatsappService
+        MilestoneCatalystWhatsappService $catalystWhatsappService,
+        MilestoneWhatsappNotificationService $milestoneWhatsappService
     ) {
         $this->milestoneSyncService = $milestoneSyncService;
         $this->peerIntroductionService = $peerIntroductionService;
         $this->connectorWhatsappService = $connectorWhatsappService;
         $this->introductionCreativeService = $introductionCreativeService;
         $this->catalystWhatsappService = $catalystWhatsappService;
+        $this->milestoneWhatsappService = $milestoneWhatsappService;
     }
 
     /**
@@ -110,8 +115,9 @@ class IntroducedPeerService
             $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
 
             // Generate and store milestone creative if count matches a configured milestone required_count
+            $creative = null;
             try {
-                $this->introductionCreativeService->handleIntroductionCreative(
+                $creative = $this->introductionCreativeService->handleIntroductionCreative(
                     $user,
                     $introducedUser,
                     $count,
@@ -122,6 +128,22 @@ class IntroducedPeerService
                     'user_id' => $user->id,
                     'introduced_id' => $introducedUser->id,
                     'exception' => $creativeEx,
+                ]);
+            }
+
+            // Trigger milestone WhatsApp notification workflow for exact milestone counts
+            try {
+                $this->milestoneWhatsappService->handleMilestoneNotification(
+                    $user,
+                    $count,
+                    $creative?->image_url
+                );
+            } catch (Throwable $milestoneEx) {
+                Log::error('[IntroducedPeerService] Failed triggering milestone WhatsApp notification: '.$milestoneEx->getMessage(), [
+                    'user_id' => $user->id,
+                    'introduced_id' => $introducedUser->id,
+                    'count' => $count,
+                    'exception' => $milestoneEx,
                 ]);
             }
         }
