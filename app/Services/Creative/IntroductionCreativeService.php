@@ -70,6 +70,17 @@ class IntroductionCreativeService
             return null;
         }
 
+        // Strictly milestone-gated: only exact configured milestones may generate/store milestone creatives
+        if (! $this->isConfiguredMilestone($introducedCount)) {
+            Log::info('[IntroductionCreativeService] Skipped: Introduced count is not a configured milestone.', [
+                'introducer_id' => $introducer->id,
+                'requester_id' => $introducedUser->id,
+                'introduced_count' => $introducedCount,
+            ]);
+
+            return null;
+        }
+
         $deterministicId = Uuid::uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', "intro_creative.{$introducer->id}.{$introducedUser->id}")->toString();
 
         try {
