@@ -736,18 +736,27 @@ class AppNotificationCatalogService
         // 3. Automatically discover ANY new notification type logged/sent in app_notifications
         if (Schema::hasTable('app_notifications')) {
             try {
-                $distinctTypes = AppNotification::select('type', 'category', 'screen', 'title', 'body', 'data')
+                $distinctTypeNames = AppNotification::query()
                     ->whereNotNull('type')
+                    ->where('type', '!=', '')
                     ->whereNotIn('type', $knownKeys)
-                    ->latest()
-                    ->get()
-                    ->unique('type');
+                    ->distinct()
+                    ->pluck('type')
+                    ->all();
 
-                foreach ($distinctTypes as $appNotif) {
-                    $typeKey = (string) $appNotif->type;
+                foreach ($distinctTypeNames as $typeKey) {
+                    $typeKey = (string) $typeKey;
                     if (! in_array($typeKey, $knownKeys, true) && filled($typeKey)) {
                         $knownKeys[] = $typeKey;
-                        $items->push($this->formatAppNotificationToCatalogItem($appNotif));
+                        $appNotif = AppNotification::query()
+                            ->where('type', $typeKey)
+                            ->select('type', 'category', 'screen', 'title', 'body', 'data')
+                            ->latest()
+                            ->first();
+
+                        if ($appNotif) {
+                            $items->push($this->formatAppNotificationToCatalogItem($appNotif));
+                        }
                     }
                 }
             } catch (\Throwable) {
