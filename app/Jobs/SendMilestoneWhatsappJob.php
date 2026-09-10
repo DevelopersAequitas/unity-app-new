@@ -159,7 +159,22 @@ class SendMilestoneWhatsappJob implements ShouldQueue
         $bodyParam3 = $referralLink;
 
         // 5. Header Media URL -> exact introduction_creatives.image_url
-        $headerMediaUrl = $this->imageUrl;
+        $headerMediaUrl = trim((string) $this->imageUrl);
+
+        if ($headerMediaUrl === '' || str_contains($headerMediaUrl, '/images/member_introduce_badges/')) {
+            $errorMsg = $headerMediaUrl === ''
+                ? "Milestone creative image_url is missing for count {$this->introducedCount}."
+                : "Milestone creative image_url is an unrendered raw badge template for count {$this->introducedCount}.";
+            Log::error("[SendMilestoneWhatsappJob] Skipped: {$errorMsg}", [
+                'user_id' => $this->userId,
+                'introduced_count' => $this->introducedCount,
+                'template_key' => $templateKey,
+            ]);
+
+            $this->updateDeliveryLog($logId, $this->userId, $templateKey, $templateName, $normalizedPhone, $headerMediaUrl, 'failed', $errorMsg, [], []);
+
+            return;
+        }
 
         // 6. Build variables payload with full mapping aliases
         $payload = [

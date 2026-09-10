@@ -94,11 +94,17 @@ class IntroductionCreativeService
                     || file_exists(storage_path('app/public/'.$s3Key))
                     || file_exists(public_path('storage/'.$s3Key)));
 
-                if (! $fileExists || $isRawTemplate) {
+                $countMismatch = (int) $existingCreative->introduced_count !== $introducedCount;
+
+                if (! $fileExists || $isRawTemplate || $countMismatch) {
                     try {
-                        $newUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
-                        $existingCreative->update(['image_url' => $newUrl]);
+                        $newUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount, true);
+                        $existingCreative->update([
+                            'image_url' => $newUrl,
+                            'introduced_count' => $introducedCount,
+                        ]);
                         $existingCreative->image_url = $newUrl;
+                        $existingCreative->introduced_count = $introducedCount;
                     } catch (Throwable $regenEx) {
                         Log::warning('[IntroductionCreativeService] Could not regenerate missing physical creative: '.$regenEx->getMessage());
                     }
