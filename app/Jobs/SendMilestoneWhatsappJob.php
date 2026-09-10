@@ -181,6 +181,7 @@ class SendMilestoneWhatsappJob implements ShouldQueue
             'name' => $bodyParam1,
             'member_name' => $bodyParam1,
             'peer_name' => $bodyParam1,
+            'referrer_name' => $bodyParam2,
             'referral_link' => $bodyParam3,
             'header_media_url' => $headerMediaUrl,
             'image_url' => $headerMediaUrl,
@@ -208,6 +209,7 @@ class SendMilestoneWhatsappJob implements ShouldQueue
                 '2' => $bodyParam2,
                 '3' => $bodyParam3,
                 'name' => $bodyParam1,
+                'referrer_name' => $bodyParam2,
                 'referral_link' => $bodyParam3,
                 'header_media_url' => $headerMediaUrl,
             ],
@@ -224,6 +226,7 @@ class SendMilestoneWhatsappJob implements ShouldQueue
             'body_param_1' => $bodyParam1,
             'body_param_2' => $bodyParam2,
             'body_param_3' => $bodyParam3,
+            'referrer_name' => $bodyParam2,
             'header_media_url' => $headerMediaUrl,
             'phone' => $normalizedPhone,
             'log_id' => $logId,
@@ -236,11 +239,11 @@ class SendMilestoneWhatsappJob implements ShouldQueue
             $providerMessageId = null;
             if (is_array($lastResponse)) {
                 $rawId = $lastResponse['wamid']
-                    ?? $lastResponse['message_id']
                     ?? $lastResponse['provider_message_id']
+                    ?? $lastResponse['message_id']
                     ?? $lastResponse['log_id']
                     ?? null;
-                if ($rawId !== null) {
+                if ($rawId !== null && (is_string($rawId) || is_numeric($rawId))) {
                     $providerMessageId = (string) $rawId;
                 }
             }
@@ -263,11 +266,14 @@ class SendMilestoneWhatsappJob implements ShouldQueue
 
                 Log::info('[SendMilestoneWhatsappJob] Milestone WhatsApp delivered successfully.', [
                     'user_id' => $this->userId,
+                    'introduced_count' => $this->introducedCount,
                     'template_key' => $templateKey,
+                    'template_name' => $templateName,
                     'phone' => $normalizedPhone,
                     'header_media_url' => $headerMediaUrl,
                     'provider_message_id' => $providerMessageId,
                     'log_id' => $logId,
+                    'status' => 'sent',
                 ]);
             } else {
                 $errorMessage = WhatsappNotificationService::$lastError ?? 'Webhook request failed or returned error.';
@@ -286,15 +292,20 @@ class SendMilestoneWhatsappJob implements ShouldQueue
 
                 Log::error('[SendMilestoneWhatsappJob] Milestone WhatsApp delivery failed.', [
                     'user_id' => $this->userId,
+                    'introduced_count' => $this->introducedCount,
                     'template_key' => $templateKey,
+                    'template_name' => $templateName,
                     'phone' => $normalizedPhone,
+                    'header_media_url' => $headerMediaUrl,
                     'error' => $errorMessage,
                     'log_id' => $logId,
+                    'status' => 'failed',
                 ]);
             }
         } catch (Throwable $e) {
             Log::error('[SendMilestoneWhatsappJob] Milestone WhatsApp threw exception: '.$e->getMessage(), [
                 'user_id' => $this->userId,
+                'introduced_count' => $this->introducedCount,
                 'template_key' => $templateKey,
                 'exception' => $e,
                 'log_id' => $logId,
@@ -390,6 +401,8 @@ class SendMilestoneWhatsappJob implements ShouldQueue
 
             if ($deliveredAt !== null) {
                 $data['delivered_at'] = $deliveredAt;
+            } elseif ($status === 'failed') {
+                $data['delivered_at'] = null;
             }
 
             if ($existing) {
