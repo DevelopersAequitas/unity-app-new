@@ -41,10 +41,15 @@ class ImpactActionService
             ]);
         }
 
+        $select = ['id', 'name', 'impact_score', 'is_active', 'sort_order', 'created_at'];
+        if (Schema::hasColumn('impact_actions', 'impact_coin')) {
+            $select[] = 'impact_coin';
+        }
+
         return ImpactAction::query()
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'impact_score', 'impact_coin', 'is_active', 'sort_order', 'created_at']);
+            ->get($select);
     }
 
     public function createAction(string $name, int $impactScore = 1, ?int $impactCoin = null): ImpactAction
@@ -141,11 +146,16 @@ class ImpactActionService
             return [];
         }
 
+        $select = ['id', 'name', 'impact_score', 'is_active'];
+        if (Schema::hasColumn('impact_actions', 'impact_coin')) {
+            $select[] = 'impact_coin';
+        }
+
         return ImpactAction::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'impact_score', 'impact_coin', 'is_active'])
+            ->get($select)
             ->map(fn (ImpactAction $action) => [
                 'id' => (string) $action->id,
                 'name' => trim((string) $action->name),
