@@ -79,6 +79,9 @@ class AuthController extends BaseApiController
         $profilePhotoFile = $this->storeRegisterProfilePhoto($request, $fileUploadService);
         if ($profilePhotoFile) {
             $data['profile_photo_file_id'] = (string) $profilePhotoFile->id;
+            $data['profile_photo_id'] = (string) $profilePhotoFile->id;
+        } elseif (! empty($data['profile_photo_id']) && empty($data['profile_photo_file_id'])) {
+            $data['profile_photo_file_id'] = (string) $data['profile_photo_id'];
         }
 
         try {
@@ -846,8 +849,10 @@ class AuthController extends BaseApiController
         $user->designation = $data['designation'] ?? null;
         $user->city_id = $data['city_id'] ?? null;
 
-        $this->fillIfUserColumnExists($user, 'profile_photo_file_id', $data['profile_photo_file_id'] ?? null);
-        $this->fillIfUserColumnExists($user, 'profile_photo_id', $data['profile_photo_file_id'] ?? null);
+        $profilePhotoIdToFill = $data['profile_photo_file_id'] ?? $data['profile_photo_id'] ?? null;
+        $this->fillIfUserColumnExists($user, 'profile_photo_file_id', $profilePhotoIdToFill);
+        $this->fillIfUserColumnExists($user, 'profile_photo_id', $profilePhotoIdToFill);
+        $this->fillIfUserColumnExists($user, 'dob', $data['dob'] ?? $data['DOB'] ?? $data['date_of_birth'] ?? null);
         $this->fillIfUserColumnExists($user, 'city', $data['city'] ?? null);
         $this->fillIfUserColumnExists($user, 'state', $data['state'] ?? null);
         $this->fillIfUserColumnExists($user, 'district', $data['district'] ?? null);

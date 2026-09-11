@@ -41,6 +41,8 @@ class RegisterRequest extends FormRequest
         $companyName = $this->nullableInput('company_name', $this->nullableInput('business_name'));
         $designation = $this->nullableInput('designation', $this->nullableInput('position'));
         $referredByUserId = $this->nullableInput('referred_by_user_id', $this->nullableInput('invited_by_user_id'));
+        $dob = $this->nullableInput('dob', $this->nullableInput('DOB', $this->input('date_of_birth')));
+        $profilePhotoId = $this->nullableInput('profile_photo_id', $this->nullableInput('profile_photo_file_id'));
 
         $payload = [
             'level_1_category_id' => $level1,
@@ -61,6 +63,11 @@ class RegisterRequest extends FormRequest
             'designation' => $designation,
             'referred_by_user_id' => $referredByUserId,
             'city_id' => $this->nullableInput('city_id'),
+            'dob' => $dob,
+            'DOB' => $dob,
+            'date_of_birth' => $dob,
+            'profile_photo_id' => $profilePhotoId,
+            'profile_photo_file_id' => $profilePhotoId,
         ];
 
         $payload['referral_code'] = blank($incomingReferralCode)
@@ -145,6 +152,11 @@ class RegisterRequest extends FormRequest
             'custom_category_name' => ['nullable', 'string', 'max:255'],
             'community_directory_listing' => ['sometimes', 'required', 'in:Yes,No'],
             'anniversary_date' => ['nullable', 'date'],
+            'dob' => ['nullable', 'date'],
+            'DOB' => ['nullable', 'date'],
+            'date_of_birth' => ['nullable', 'date'],
+            'profile_photo_id' => ['nullable', 'string', 'max:100'],
+            'profile_photo_file_id' => ['nullable', 'string', 'max:100'],
         ];
     }
 
