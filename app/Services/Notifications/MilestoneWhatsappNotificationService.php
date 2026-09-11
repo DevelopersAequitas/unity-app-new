@@ -8,6 +8,7 @@ use App\Jobs\SendMilestoneWhatsappJob;
 use App\Models\User;
 use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
+use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -25,6 +26,8 @@ class MilestoneWhatsappNotificationService
      * @var array<int, string>
      */
     public const MILESTONE_TEMPLATES = [
+        1 => 'milestone_connector',
+        3 => 'pgu_catalyst_3',
         5 => 'milestone_influencer_5',
         10 => 'milestone_ambassador_10',
         20 => 'milestone_rainmaker_20',
@@ -90,10 +93,29 @@ class MilestoneWhatsappNotificationService
             $template = null;
             if (Schema::hasTable('whatsapp_templates')) {
                 $template = WhatsappTemplate::query()->where('template_key', $templateKey)->first();
+                if (! $template) {
+                    if ($templateKey === 'milestone_connector') {
+                        $template = WhatsappTemplate::query()->where('template_key', 'milestone_badge_whatsapp')->first();
+                    } elseif ($templateKey === 'milestone_badge_whatsapp') {
+                        $template = WhatsappTemplate::query()->where('template_key', 'milestone_connector')->first();
+                    }
+                }
             }
             $templateName = $template?->template_name ?: $templateKey;
 
-            // 3. Critical ordering rule: creative must be complete with available image_url
+            // 3. Resolve creative if missing
+            if (empty($imageUrl)) {
+                try {
+                    $imageUrl = app(IntroducedPeerCreativeGenerator::class)->generateOrGetUrl($user, $introducedCount);
+                } catch (Throwable $e) {
+                    Log::warning('[MilestoneWhatsappNotificationService] Could not auto-generate creative URL: '.$e->getMessage(), [
+                        'user_id' => $user->id,
+                        'introduced_count' => $introducedCount,
+                    ]);
+                }
+            }
+
+            // Critical ordering rule: creative must be complete with available image_url
             if (empty($imageUrl) || ! $this->isValidMediaUrl($imageUrl)) {
                 $errorMsg = empty($imageUrl)
                     ? "Creative generation/storage failed or image_url unavailable for milestone {$introducedCount}."
@@ -152,26 +174,48 @@ class MilestoneWhatsappNotificationService
      */
     public function alreadySent(string $userId, string $templateKey): bool
     {
-        if (! Schema::hasTable('whatsapp_message_delivery_logs')) {
-            return false;
-        }
-
         $deterministicLogId = self::getDeterministicLogId($userId, $templateKey);
 
-        try {
-            return WhatsappMessageDeliveryLog::query()
-                ->where(function ($q) use ($userId, $templateKey, $deterministicLogId): void {
-                    $q->where('id', $deterministicLogId)
-                        ->orWhere(function ($sub) use ($userId, $templateKey): void {
-                            $sub->where('user_id', $userId)
-                                ->where('template_key', $templateKey);
-                        });
-                })
-                ->where('status', 'sent')
-                ->exists();
-        } catch (Throwable) {
-            return false;
+        if (Schema::hasTable('whatsapp_message_delivery_logs')) {
+            try {
+                $alreadySentInWaLogs = WhatsappMessageDeliveryLog::query()
+                    ->where(function ($q) use ($userId, $templateKey, $deterministicLogId): void {
+                        $q->where('id', $deterministicLogId)
+                            ->orWhere(function ($sub) use ($userId, $templateKey): void {
+                                $sub->where('user_id', $userId)
+                                    ->where('template_key', $templateKey);
+                            });
+                    })
+                    ->where('status', 'sent')
+                    ->exists();
+
+                if ($alreadySentInWaLogs) {
+                    return true;
+                }
+            } catch (Throwable) {
+                // Ignore and check legacy
+            }
         }
+
+        if (Schema::hasTable('notification_delivery_logs')) {
+            try {
+                $legacyTemplateKeys = [$templateKey];
+                if ($templateKey === 'milestone_connector') {
+                    $legacyTemplateKeys[] = 'milestone_badge_whatsapp';
+                }
+
+                return DB::table('notification_delivery_logs')
+                    ->where('user_id', $userId)
+                    ->where('channel', 'whatsapp')
+                    ->whereIn('provider', $legacyTemplateKeys)
+                    ->where('status', 'sent')
+                    ->exists();
+            } catch (Throwable) {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -214,6 +258,28 @@ class MilestoneWhatsappNotificationService
         string $imageUrl,
         int $introducedCount
     ): bool {
+        // First check legacy notification_delivery_logs for already sent
+        if (Schema::hasTable('notification_delivery_logs')) {
+            try {
+                $legacyKeys = [$templateKey];
+                if ($templateKey === 'milestone_connector') {
+                    $legacyKeys[] = 'milestone_badge_whatsapp';
+                }
+                $legacySent = DB::table('notification_delivery_logs')
+                    ->where('user_id', $userId)
+                    ->where('channel', 'whatsapp')
+                    ->whereIn('provider', $legacyKeys)
+                    ->where('status', 'sent')
+                    ->exists();
+
+                if ($legacySent) {
+                    return false;
+                }
+            } catch (Throwable) {
+                // Continue
+            }
+        }
+
         if (! Schema::hasTable('whatsapp_message_delivery_logs')) {
             return true;
         }
