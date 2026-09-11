@@ -7,15 +7,27 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class PostComment extends Model
 {
     use HasFactory;
     use SoftDeletes;
 
+    protected $primaryKey = 'id';
+
     protected $keyType = 'string';
 
     public $incrementing = false;
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $comment): void {
+            if (empty($comment->id)) {
+                $comment->id = (string) Str::uuid();
+            }
+        });
+    }
 
     protected $fillable = [
         'post_id',

@@ -7,7 +7,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\IntroductionRequest;
 use App\Models\User;
+use App\Services\Creative\IntroductionCreativeService;
+use App\Services\MilestoneBadgeService;
+use App\Services\Notifications\MilestoneCatalystWhatsappService;
+use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Users\IntroducedPeerService;
+use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\UserMilestoneSyncService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
@@ -109,13 +114,62 @@ class IntroductionRequestsController extends Controller
                 // Recalculate members_introduced_count from actual DB count
                 $count = User::where('introduced_by', $introducer->id)->count();
                 $introducer->members_introduced_count = $count;
-                $introducer->save();
+                $introducer->saveQuietly();
 
                 // Mark request as approved
                 $introRequest->status = 'approved';
                 $introRequest->reviewed_by = $admin->id;
                 $introRequest->reviewed_at = now();
                 $introRequest->save();
+
+                // Trigger introduction creative rendering, timeline post and notifications
+                try {
+                    app(PeerIntroductionService::class)->handlePeerIntroduction($introducer, $requester);
+                } catch (\Throwable $introEx) {
+                    Log::error('Failed to run PeerIntroductionService on approved introduction request: '.$introEx->getMessage());
+                }
+
+                // Generate and store milestone creative ONLY if count matches a configured milestone required_count
+                $creative = null;
+                if (app(IntroductionCreativeService::class)->isConfiguredMilestone($count)) {
+                    try {
+                        $creative = app(IntroductionCreativeService::class)->handleIntroductionCreative(
+                            $introducer,
+                            $requester,
+                            $count,
+                            $introRequest->id
+                        );
+                    } catch (\Throwable $creativeEx) {
+                        Log::error('Failed storing introduction creative on request approval: '.$creativeEx->getMessage());
+                    }
+                }
+
+                // Explicitly award earned milestone badges in user_milestone_badges
+                app(MilestoneBadgeService::class)->calculateForUser($introducer);
+
+                // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
+                if ($count === 1) {
+                    try {
+                        app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction(
+                            $introducer,
+                            $creative?->image_url
+                        );
+                    } catch (\Throwable $whatsappEx) {
+                        Log::error('Failed triggering milestone connector WhatsApp on request approval: '.$whatsappEx->getMessage());
+                    }
+                }
+
+                // Safely and independently evaluate CATALYST milestone notification for threshold (count >= 3)
+                if ($count >= 3) {
+                    try {
+                        app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone(
+                            $introducer,
+                            $count === 3 ? $creative?->image_url : null
+                        );
+                    } catch (\Throwable $whatsappEx) {
+                        Log::error('Failed triggering milestone catalyst WhatsApp on request approval: '.$whatsappEx->getMessage());
+                    }
+                }
 
                 // Sync milestones for the introducer
                 $this->introducedPeerService->getIntroducedPeers($introducer); // warm relation

@@ -60,7 +60,7 @@ class BusinessDealController extends BaseApiController
                 'media' => $mediaForPost,
                 'tags' => ['business_deal'],
                 'visibility' => 'public',
-                'moderation_status' => 'pending',
+                'moderation_status' => 'approved',
                 'sponsored' => false,
                 'is_deleted' => false,
                 'source_type' => 'business_deal',

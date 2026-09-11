@@ -17,10 +17,10 @@
             <div class="row g-2 align-items-center">
         @endif
             <div class="col-md-3">
-                <input id="activityFilterQuery" type="text" name="q" value="{{ $q }}" class="form-control form-control-sm text-xs" placeholder="Name, company, or city" title="{{ $label }}" @if($formId) form="{{ $formId }}" @endif>
+                <input id="activityFilterQuery" type="text" name="q" value="{{ $q }}" class="form-control form-control-sm text-xs" placeholder="Name, company, or city" title="{{ $label }}" onkeydown="if (event.key === 'Enter') this.form.submit()" @if($formId) form="{{ $formId }}" @endif>
             </div>
             <div class="col-md-3">
-                <select id="activityFilterCircle" name="circle_id" class="form-select form-select-sm text-xs js-searchable-select" @if($formId) form="{{ $formId }}" @endif>
+                <select id="activityFilterCircle" name="circle_id" class="form-select form-select-sm text-xs js-searchable-select" onchange="this.form.submit()" @if($formId) form="{{ $formId }}" @endif>
                     <option value="">All Circles</option>
                     @foreach (($circles ?? collect()) as $circle)
                         <option value="{{ $circle->id }}" @selected($circleId !== '' && $circleId === (string) $circle->id)>{{ $circle->name }}</option>
@@ -28,10 +28,10 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <input id="activityFilterFrom" type="date" name="from" value="{{ $from }}" class="form-control form-control-sm text-xs" placeholder="From" title="From Date" @if($formId) form="{{ $formId }}" @endif>
+                <input id="activityFilterFrom" type="date" name="from" value="{{ $from }}" class="form-control form-control-sm text-xs" placeholder="From" title="From Date" onchange="this.form.submit()" @if($formId) form="{{ $formId }}" @endif>
             </div>
             <div class="col-md-2">
-                <input id="activityFilterTo" type="date" name="to" value="{{ $to }}" class="form-control form-control-sm text-xs" placeholder="To" title="To Date" @if($formId) form="{{ $formId }}" @endif>
+                <input id="activityFilterTo" type="date" name="to" value="{{ $to }}" class="form-control form-control-sm text-xs" placeholder="To" title="To Date" onchange="this.form.submit()" @if($formId) form="{{ $formId }}" @endif>
             </div>
             <div class="col-md-2 d-flex gap-1.5 justify-content-end">
                 <a href="{{ $resetUrl }}" class="btn btn-sm btn-outline-secondary px-2.5 py-1 text-xs">Clear</a>

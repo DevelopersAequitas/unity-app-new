@@ -88,7 +88,6 @@ use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
-use App\Http\Controllers\Api\V1\PeerReferralsApiController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
@@ -119,6 +118,7 @@ use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
+use App\Http\Controllers\Api\V1\MaintenanceController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
@@ -130,6 +130,7 @@ use App\Http\Controllers\Api\V1\PeerAnniversaryController;
 use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
+use App\Http\Controllers\Api\V1\PeerReferralsApiController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
@@ -144,6 +145,7 @@ use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\SendTestNotificationController;
 use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
+use App\Http\Controllers\Api\V1\SystemAppConfigController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\TutorialController;
@@ -183,6 +185,7 @@ Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
+Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {
@@ -261,6 +264,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
     Route::get('/tutorials', [TutorialController::class, 'index']);
     Route::post('/tutorials', [TutorialController::class, 'store']);
     Route::prefix('scan-app')->group(function () {
@@ -280,7 +284,6 @@ Route::prefix('v1')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -385,6 +388,7 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
+    Route::get('/app/maintenance', [MaintenanceController::class, 'index']);
     Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
     Route::post('/app-releases', [AppChangelogController::class, 'store']);
     Route::post('/notifications/send-test', SendTestNotificationController::class);
@@ -590,12 +594,13 @@ Route::prefix('v1')->group(function () {
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
+        Route::get('/circles/my', [CircleController::class, 'myCircles']);
         Route::get('/circles/my-leadership-circles', [CircleLeadershipController::class, 'myLeadershipCircles']);
-        Route::get('/circles/{id}', [CircleController::class, 'show']);
+        Route::get('/circles/{id}', [CircleController::class, 'show'])->whereUuid('id');
         Route::post('/circles', [CircleController::class, 'store']);
-        Route::put('/circles/{id}', [CircleController::class, 'update']);
-        Route::patch('/circles/{id}', [CircleController::class, 'update']);
-        Route::post('/circles/{id}/join', [CircleController::class, 'join']);
+        Route::put('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::patch('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
+        Route::post('/circles/{id}/join', [CircleController::class, 'join'])->whereUuid('id');
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
@@ -657,6 +662,8 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
+            Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
+            Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
             Route::post('/app-config/clear-cache', [AppConfigAdminController::class, 'clearCache']);
 
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
@@ -1052,9 +1059,13 @@ Route::prefix('v1')->group(function () {
 
         // Notifications
         Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
-        Route::get('/notifications', [NotificationEngineController::class, 'index']);
-        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
-        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
+        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
+        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
+        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
         Route::post('/notifications/{id}/clicked', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);

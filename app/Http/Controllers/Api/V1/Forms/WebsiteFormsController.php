@@ -170,13 +170,14 @@ class WebsiteFormsController extends BaseApiController
         $mappedItems = collect($items->items())->map(function ($item) {
             $unified = CertificationSubmission::find($item->id);
             $item->status = $unified ? $unified->status : $item->status;
-            
+
             $url = null;
             if ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) {
                 $url = $unified->certificate_download_url;
             }
             $item->certificate_url = $url;
             $item->certificate_download_url = $url;
+
             return $item;
         });
 
@@ -231,13 +232,14 @@ class WebsiteFormsController extends BaseApiController
         $mappedItems = collect($items->items())->map(function ($item) {
             $unified = CertificationSubmission::find($item->id);
             $item->status = $unified ? $unified->status : $item->status;
-            
+
             $url = null;
             if ($unified && $unified->status === CertificationSubmission::STATUS_APPROVED) {
                 $url = $unified->certificate_download_url;
             }
             $item->certificate_url = $url;
             $item->certificate_download_url = $url;
+
             return $item;
         });
 

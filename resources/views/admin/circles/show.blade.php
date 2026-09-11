@@ -254,6 +254,11 @@ use Carbon\Carbon;
         $coverFileId = data_get($calendar, 'cover.file_id');
     }
 
+    $circleImageFileId = data_get($circle, 'circle_image_file_id');
+    if (! $circleImageFileId) {
+        $circleImageFileId = data_get($calendar, 'circle_image.file_id');
+    }
+
     $meetingLink = data_get($circle, 'meeting_link') ?: data_get($calendar, 'settings.meeting_link') ?: data_get($circle, 'zoho_join_url');
     $meetingPasscode = data_get($circle, 'meeting_passcode') ?: data_get($calendar, 'settings.meeting_passcode') ?: data_get($circle, 'zoho_meeting_password');
     $meetingVenue = data_get($circle, 'meeting_venue') ?: data_get($calendar, 'settings.meeting_venue') ?: data_get($calendar, 'settings.meeting_address');
@@ -589,11 +594,22 @@ use Carbon\Carbon;
                 @endif
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
-                <span class="t3 block mb-1 font-medium">Cover</span>
+                <span class="t3 block mb-1 font-medium">Cover Image</span>
                 @if ($coverFileId)
                     <div class="flex flex-col gap-2 mt-1">
                         <img src="{{ url('/api/v1/files/' . $coverFileId) }}" alt="Circle Cover" class="rounded-lg border bs max-h-24 w-auto object-cover">
                         <a href="{{ url('/api/v1/files/' . $coverFileId) }}" target="_blank" class="px-2.5 py-1 rounded border bs text-xs font-semibold text-indigo-600 no-underline self-start">View</a>
+                    </div>
+                @else
+                    <span class="t3">—</span>
+                @endif
+            </div>
+            <div class="p-3 border bs rounded-xl surface-2">
+                <span class="t3 block mb-1 font-medium">Circle Image</span>
+                @if ($circleImageFileId)
+                    <div class="flex flex-col gap-2 mt-1">
+                        <img src="{{ url('/api/v1/files/' . $circleImageFileId) }}" alt="Circle Image" class="rounded-lg border bs max-h-24 w-auto object-cover">
+                        <a href="{{ url('/api/v1/files/' . $circleImageFileId) }}" target="_blank" class="px-2.5 py-1 rounded border bs text-xs font-semibold text-indigo-600 no-underline self-start">View</a>
                     </div>
                 @else
                     <span class="t3">—</span>
@@ -821,8 +837,12 @@ use Carbon\Carbon;
             <div class="md:col-span-3">
                 <label class="block text-[11px] t3 mb-1 font-medium">Role</label>
                 <select name="role" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required>
-                    @foreach (($roles ?? []) as $role)
-                        <option value="{{ $role }}">{{ ucwords(str_replace('_', ' ', $role)) }}</option>
+                    @foreach (($roles ?? []) as $roleOption)
+                        @php
+                            $roleVal = is_object($roleOption) ? ($roleOption->id ?? $roleOption->key) : $roleOption;
+                            $roleLabel = is_object($roleOption) ? ($roleOption->name ?? $roleOption->key) : ucwords(str_replace('_', ' ', (string) $roleOption));
+                        @endphp
+                        <option value="{{ $roleVal }}">{{ $roleLabel }}</option>
                     @endforeach
                 </select>
             </div>
@@ -916,9 +936,20 @@ use Carbon\Carbon;
                                         <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
                                         <select name="role" class="px-2 py-1 rounded border bs surface text-xs t1 outline-none focus-ring" onclick="event.stopPropagation()">
-                                            @foreach (($roles ?? []) as $role)
-                                                <option value="{{ $role }}" @selected(($membership->role ?? null) === $role)>
-                                                    {{ ucwords(str_replace('_', ' ', $role)) }}
+                                            @foreach (($roles ?? []) as $roleOption)
+                                                @php
+                                                    $roleVal = is_object($roleOption) ? ($roleOption->id ?? $roleOption->key) : $roleOption;
+                                                    $roleLabel = is_object($roleOption) ? ($roleOption->name ?? $roleOption->key) : ucwords(str_replace('_', ' ', (string) $roleOption));
+                                                    $isCurrentRole = is_object($roleOption)
+                                                        ? (($membership->role_id ?? null) === $roleOption->id
+                                                            || ($membership->role ?? null) === $roleOption->key
+                                                            || ($membership->role ?? null) === $roleOption->id
+                                                            || strtolower((string) ($membership->role ?? '')) === strtolower((string) ($roleOption->key ?? ''))
+                                                            || strtolower((string) ($membership->role ?? '')) === strtolower((string) ($roleOption->name ?? '')))
+                                                        : (($membership->role ?? null) === $roleOption);
+                                                @endphp
+                                                <option value="{{ $roleVal }}" @selected($isCurrentRole)>
+                                                    {{ $roleLabel }}
                                                 </option>
                                             @endforeach
                                         </select>

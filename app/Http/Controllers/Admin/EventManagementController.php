@@ -192,7 +192,7 @@ class EventManagementController extends Controller
 
     public function joiningRequests(Request $request): View
     {
-        $status = $request->input('status', 'pending');
+        $status = $request->input('status', 'all');
         $admin = Auth::guard('admin')->user();
         $requestTable = (new EventRegistrationRequest)->getTable();
 

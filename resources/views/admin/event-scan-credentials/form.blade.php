@@ -32,7 +32,7 @@
 
     <div class="row g-3">
         <!-- Main Form Column -->
-        <div class="col-lg-8">
+        <div class="{{ $credential->exists ? 'col-lg-8' : 'col-12' }}">
             <form method="POST" action="{{ $credential->exists ? route('admin.event-scan-credentials.update', $credential->id) : route('admin.event-scan-credentials.store') }}" class="card card-body border-0 shadow-sm rounded-3 p-4" autocomplete="off">
                 @csrf
                 @if($credential->exists) @method('PUT') @endif
@@ -62,7 +62,7 @@
                                 @if(!empty($credential->plain_password))
                                     <div class="input-group input-group-sm max-w-sm mt-1">
                                         <input type="password" class="form-control text-xs font-mono bg-white" value="{{ $credential->plain_password }}" id="oldPasswordInput" readonly>
-                                        <button class="btn btn-outline-secondary text-xs px-3" type="button" onclick="const input = document.getElementById('oldPasswordInput'); const icon = this.querySelector('i'); if(input.type==='password'){ input.type='text'; icon.className='bi bi-eye-slash'; } else { input.type='password'; icon.className='bi bi-eye'; }">
+                                        <button class="btn btn-outline-secondary text-xs px-3" type="button" onclick="togglePasswordVisibility('oldPasswordInput', this)" title="Show/Hide Password">
                                             <i class="bi bi-eye"></i> Show
                                         </button>
                                         <button class="btn btn-outline-secondary text-xs px-2.5" type="button" onclick="navigator.clipboard.writeText('{{ $credential->plain_password }}'); alert('Password copied to clipboard!');" title="Copy Password">
@@ -83,7 +83,7 @@
                         </label>
                         <div class="input-group">
                             <input type="password" class="form-control text-xs" name="password" id="inputPassword" value="{{ old('password') }}" {{ $credential->exists ? '' : 'required' }} placeholder="{{ $credential->exists ? '••••••••' : 'Min 8 characters' }}" autocomplete="new-password">
-                            <button class="btn btn-outline-secondary text-xs px-3" type="button" onclick="togglePasswordVisibility('inputPassword', this)" title="Show/Hide Password">
+                            <button class="btn btn-outline-secondary text-xs px-3 cursor-pointer" type="button" onclick="togglePasswordVisibility('inputPassword', this)" title="Show/Hide Password">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
@@ -95,7 +95,7 @@
                         </label>
                         <div class="input-group">
                             <input type="password" class="form-control text-xs" name="password_confirmation" id="inputConfirmPassword" value="{{ old('password_confirmation') }}" {{ $credential->exists ? '' : 'required' }} placeholder="{{ $credential->exists ? '••••••••' : 'Re-enter password' }}" autocomplete="new-password">
-                            <button class="btn btn-outline-secondary text-xs px-3" type="button" onclick="togglePasswordVisibility('inputConfirmPassword', this)" title="Show/Hide Password">
+                            <button class="btn btn-outline-secondary text-xs px-3 cursor-pointer" type="button" onclick="togglePasswordVisibility('inputConfirmPassword', this)" title="Show/Hide Password">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
@@ -136,14 +136,14 @@
                             }
                         @endphp
 
-                        <div class="border rounded-3 p-3 bg-slate-50/50" style="max-height: 260px; overflow-y: auto;">
+                        <div class="border rounded-3 p-3 bg-slate-50/50" style="max-height: 320px; overflow-y: auto;">
                             <div class="row g-2">
                                 @foreach($events as $event)
                                     @php
                                         $isChecked = in_array((string) $event->id, array_map('strval', $selectedEventIds), true);
                                     @endphp
-                                    <div class="col-md-6">
-                                        <div class="event-card-item position-relative rounded-3 transition cursor-pointer"
+                                    <div class="{{ $credential->exists ? 'col-md-6' : 'col-md-4 col-lg-3' }}">
+                                        <div class="event-card-item position-relative rounded-3 transition cursor-pointer h-100"
                                              style="padding: 10px; cursor: pointer; transition: all 0.2s; border: {{ $isChecked ? '2px solid #4f46e5' : '1px solid #e2e8f0' }}; background-color: {{ $isChecked ? '#eef2ff' : '#ffffff' }}; box-shadow: {{ $isChecked ? '0 2px 4px rgba(79, 70, 229, 0.15)' : 'none' }};"
                                              onclick="toggleEventCard(this)">
                                             <input class="assigned-event-cb d-none" type="checkbox" name="event_ids[]" value="{{ $event->id }}" @checked($isChecked)>
@@ -206,7 +206,7 @@
                         <label class="form-label text-xs font-semibold text-slate-700">New Password <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <input type="password" class="form-control text-xs" name="password" id="resetPasswordInput" required placeholder="Min 8 characters">
-                            <button class="btn btn-outline-secondary text-xs px-3" type="button" onclick="togglePasswordVisibility('resetPasswordInput', this)" title="Show/Hide Password">
+                            <button class="btn btn-outline-secondary text-xs px-3 cursor-pointer" type="button" onclick="togglePasswordVisibility('resetPasswordInput', this)" title="Show/Hide Password">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
@@ -215,7 +215,7 @@
                         <label class="form-label text-xs font-semibold text-slate-700">Confirm New Password <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <input type="password" class="form-control text-xs" name="password_confirmation" id="resetConfirmPasswordInput" required placeholder="Re-enter new password">
-                            <button class="btn btn-outline-secondary text-xs px-3" type="button" onclick="togglePasswordVisibility('resetConfirmPasswordInput', this)" title="Show/Hide Password">
+                            <button class="btn btn-outline-secondary text-xs px-3 cursor-pointer" type="button" onclick="togglePasswordVisibility('resetConfirmPasswordInput', this)" title="Show/Hide Password">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
@@ -229,19 +229,22 @@
     </div>
 </div>
 
+@push('scripts')
 <script>
-    window.togglePasswordVisibility = function(inputId, btn) {
+    function togglePasswordVisibility(inputId, btn) {
         const input = document.getElementById(inputId);
         if (!input) return;
-        const icon = btn.querySelector('i');
+        const button = btn.closest('button') || btn;
+        const icon = button.querySelector('i') || button;
         if (input.type === 'password') {
             input.type = 'text';
-            if (icon) icon.className = 'bi bi-eye-slash';
+            icon.className = 'bi bi-eye-slash';
         } else {
             input.type = 'password';
-            if (icon) icon.className = 'bi bi-eye';
+            icon.className = 'bi bi-eye';
         }
-    };
+    }
+    window.togglePasswordVisibility = togglePasswordVisibility;
 
     window.toggleEventCard = function(card) {
         const cb = card.querySelector('.assigned-event-cb');
@@ -277,4 +280,5 @@
         });
     };
 </script>
+@endpush
 @endsection

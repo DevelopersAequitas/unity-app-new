@@ -136,8 +136,8 @@
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-2">
     <div class="d-flex align-items-center gap-3 flex-grow-1">
-        <button class="btn btn-light d-lg-none border-0" id="sidebarToggle" type="button" aria-label="Toggle Sidebar" style="width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;">
-            <i class="bi bi-list fs-4"></i>
+        <button class="btn btn-light border bs shadow-xs" id="sidebarToggle" type="button" aria-label="Toggle Sidebar" title="Collapse / Expand Sidebar" style="width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0;">
+            <i class="bi bi-layout-sidebar-inset fs-5 text-secondary"></i>
         </button>
 
         {{-- Breadcrumb / Page Context --}}

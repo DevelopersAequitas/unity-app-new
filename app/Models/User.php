@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
+use App\Services\LifeImpact\LifeImpactService;
 use App\Services\MilestoneBadgeService;
+use App\Services\Notifications\WearTheBadgeWhatsappService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -412,6 +414,10 @@ class User extends Authenticatable
         });
 
         static::created(function (self $user): void {
+            if (app()->runningUnitTests()) {
+                return;
+            }
+
             try {
                 app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
             } catch (Throwable) {
@@ -426,6 +432,22 @@ class User extends Authenticatable
 
             if ($user->wasRecentlyCreated || $user->wasChanged(['coins_balance', 'life_impacted_count', 'members_introduced_count'])) {
                 app(MilestoneBadgeService::class)->calculateForUser($user);
+            }
+
+            if ($user->wasRecentlyCreated || $user->wasChanged('life_impacted_count')) {
+                $oldImpact = (int) ($user->getOriginal('life_impacted_count') ?? 0);
+                $newImpact = (int) ($user->life_impacted_count ?? 0);
+                if ($newImpact > 0) {
+                    try {
+                        app(LifeImpactService::class)->checkAndPublishLifeImpactTimelinePosts((string) $user->id, $oldImpact, $newImpact);
+                    } catch (Throwable $e) {
+                        Log::error('[User::saved] Failed auto publishing life impact timeline post: '.$e->getMessage());
+                    }
+                }
+            }
+
+            if ($user->shouldSendWearTheBadgeWhatsapp()) {
+                app(WearTheBadgeWhatsappService::class)->handleWearTheBadge($user);
             }
         });
     }
@@ -501,7 +523,24 @@ class User extends Authenticatable
     {
         $existing = $this->getAttribute('welcome_creative_url') ?? $this->getAttribute('profile_card_image_url');
         if (! $forceRegenerate && filled($existing)) {
-            return (string) $existing;
+            $uuid = null;
+            if (preg_match('/\/api\/v1\/files\/([0-9a-fA-F-]{36})/', (string) $existing, $matches)) {
+                $uuid = $matches[1];
+            }
+
+            if ($uuid) {
+                $fileRecord = FileModel::find($uuid) ?? File::find($uuid);
+                if ($fileRecord && $fileRecord->s3_key) {
+                    $disk = config('filesystems.default', 'public');
+                    if (Storage::disk($disk)->exists($fileRecord->s3_key) || Storage::disk('public')->exists($fileRecord->s3_key)) {
+                        return (string) $existing;
+                    }
+                }
+            } else {
+                return (string) $existing;
+            }
+
+            $forceRegenerate = true;
         }
 
         try {
@@ -511,6 +550,16 @@ class User extends Authenticatable
 
             return (string) ($existing ?? '');
         }
+    }
+
+    public function shouldSendWearTheBadgeWhatsapp(): bool
+    {
+        return app(WearTheBadgeWhatsappService::class)->isEligible($this);
+    }
+
+    public function hasSentWearTheBadgeWhatsapp(): bool
+    {
+        return app(WearTheBadgeWhatsappService::class)->isProcessed((string) $this->id);
     }
 
     public function membershipDatesMatch(): bool

@@ -140,6 +140,18 @@ class CircleResource extends JsonResource
             'cover_image_url' => $this->cover_file_id
                 ? url("/api/v1/files/{$this->cover_file_id}")
                 : null,
+            'circle_image_file_id' => $this->circle_image_file_id,
+            'circle_image_url' => $this->circle_image_file_id
+                ? url("/api/v1/files/{$this->circle_image_file_id}")
+                : null,
+            'cover_image' => $this->cover_file_id ? [
+                'id' => (string) $this->cover_file_id,
+                'url' => url("/api/v1/files/{$this->cover_file_id}"),
+            ] : null,
+            'circle_image' => $this->circle_image_file_id ? [
+                'id' => (string) $this->circle_image_file_id,
+                'url' => url("/api/v1/files/{$this->circle_image_file_id}"),
+            ] : null,
             'members_count' => $this->members_count ?? null,
             'peers_count' => $this->peers_count ?? $this->members_count ?? null,
             'is_member' => $currentMember ? true : false,

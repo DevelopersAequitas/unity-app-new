@@ -46,7 +46,14 @@ class UserPushToken extends Model
     {
         static $column = null;
         if ($column === null) {
-            $column = Schema::hasColumn('user_push_tokens', 'usr_id') ? 'usr_id' : 'user_id';
+            try {
+                if (! Schema::hasTable('user_push_tokens')) {
+                    return 'user_id';
+                }
+                $column = Schema::hasColumn('user_push_tokens', 'usr_id') ? 'usr_id' : 'user_id';
+            } catch (\Throwable) {
+                $column = 'user_id';
+            }
         }
 
         return $column;

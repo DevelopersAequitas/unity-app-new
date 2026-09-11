@@ -14,6 +14,7 @@ use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
 use App\Services\ProfileMatchService;
 use App\Services\ProfileVisibilityService;
+use App\Services\Recommendation\MemberMatchingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -336,13 +337,40 @@ class MemberController extends BaseApiController
             $selectColumns[] = 'is_verified';
         }
 
+        if (Schema::hasColumn('users', 'country')) {
+            $selectColumns[] = 'country';
+        }
+
+        $optionalMatchingColumns = [
+            'main_business_category_id',
+            'business_sub_category',
+            'business_city',
+            'industry_tags',
+            'industries_of_interest',
+            'skills',
+            'interests',
+            'hobbies_interests',
+            'superpower',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'collaboration_goals',
+            'target_regions',
+            'target_business_categories',
+        ];
+
+        foreach ($optionalMatchingColumns as $col) {
+            if (Schema::hasColumn('users', $col)) {
+                $selectColumns[] = $col;
+            }
+        }
+
         $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
 
         $query = User::query()
             ->select($selectColumns)
             ->addSelect($this->lifeImpactedCountExpression())
             ->with([
-                'city:id,name',
+                'city:id,name,country,country_code',
                 'level4Category:id,name',
                 'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
             ]);
@@ -359,9 +387,11 @@ class MemberController extends BaseApiController
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
 
-        // Filter out blocked users if user is authenticated
-        $authUser = auth('sanctum')->user();
+        // Filter out authenticated user and blocked users if user is authenticated
+        $authUser = auth('sanctum')->user() ?: $request->user();
         if ($authUser) {
+            $query->where('users.id', '!=', (string) $authUser->id);
+
             $profileVisibilityService->applyVisibleTo($query, $authUser);
 
             $excludedUserIds = array_values(array_unique(array_filter(array_merge(
@@ -370,7 +400,7 @@ class MemberController extends BaseApiController
             ))));
 
             if (! empty($excludedUserIds)) {
-                $query->whereNotIn('id', $excludedUserIds);
+                $query->whereNotIn('users.id', $excludedUserIds);
             }
         }
 
@@ -391,11 +421,21 @@ class MemberController extends BaseApiController
         ]);
     }
 
-    public function limitedList(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
-    {
+    public function limitedList(
+        Request $request,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService,
+        MemberMatchingService $memberMatchingService
+    ) {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
-        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+        $authUser = auth('sanctum')->user() ?: $request->user();
+
+        if ($authUser instanceof User) {
+            $users = $memberMatchingService->rank($authUser, $query);
+        } else {
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+        }
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,

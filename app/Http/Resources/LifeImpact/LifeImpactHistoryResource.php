@@ -21,10 +21,15 @@ class LifeImpactHistoryResource extends JsonResource
                 ->find($affectedUserId)
             : null;
 
+        $impactValue = $this->resolveImpactValue();
+        $changeType = $impactValue > 0 ? 'increased' : ($impactValue < 0 ? 'decreased' : 'unchanged');
+
         return [
             'id' => (string) $this->id,
             'activity_type' => (string) $this->activity_type,
-            'impact_value' => $this->resolveImpactValue(),
+            'impact_value' => $impactValue,
+            'impact_after' => isset($this->impact_after) ? (int) $this->impact_after : null,
+            'change_type' => $changeType,
             'action_key' => $actionKey,
             'action_label' => $actionLabel,
             'title' => (string) $this->title,

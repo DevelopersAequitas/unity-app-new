@@ -31,8 +31,8 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
             ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
         : (($isCircleScoped || $isDed)
@@ -45,9 +45,9 @@
                     ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
                 ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
                 ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
-                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
                 ] : []),
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
@@ -77,8 +77,8 @@
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
@@ -157,7 +157,7 @@
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
             ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
-            ['label' => 'Peer Referrals', 'route' => 'admin.peer-referrals.index'],
+            ['label' => 'Circle Peer Referrals', 'route' => 'admin.peer-referrals.index'],
         ];
 
     if ($isCircleCommittee) {
@@ -195,13 +195,15 @@
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
         ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
         ['label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index', 'active_routes' => ['admin.daily-notifications.*']],
+        ['label' => 'App Notifications', 'route' => 'admin.app-notifications.index', 'active_routes' => ['admin.app-notifications.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
         || request()->routeIs('admin.campaign-pamphlets.*')
         || request()->routeIs('admin.campaign-email-templates.*')
         || request()->routeIs('admin.email-logs.*')
         || request()->routeIs('admin.execution.communications')
-        || request()->routeIs('admin.daily-notifications.*');
+        || request()->routeIs('admin.daily-notifications.*')
+        || request()->routeIs('admin.app-notifications.*');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
         ['label' => 'Campaigns', 'route' => 'admin.notifications.campaigns', 'icon' => 'bi-megaphone', 'active_routes' => ['admin.notifications.campaigns', 'admin.notifications.campaigns.*']],
@@ -340,13 +342,20 @@
 
 <aside class="admin-sidebar d-flex flex-column">
     {{-- Brand Logo --}}
-    <div class="text-center mb-2">
+    <div class="text-center mb-2 brand-container">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
                 src="{{ asset('images/peersglobal-logo.png') }}"
                 alt="PeersGlobal"
                 style="max-height:68px; width:auto;"
-                class="d-block mx-auto my-3"
+                class="logo-full d-block mx-auto my-3"
+                loading="lazy"
+            />
+            <img
+                src="{{ asset('images/peersglobal-icon.png') }}"
+                alt="PeersGlobal"
+                style="max-height:38px; width:auto;"
+                class="logo-icon d-none mx-auto my-2"
                 loading="lazy"
             />
         </a>
@@ -356,17 +365,17 @@
         <ul class="nav flex-column">
             @if ($dashboardItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}">
-                        <i class="bi {{ $dashboardItem['icon'] }} me-2"></i>{{ $dashboardItem['label'] }}
+                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}" title="{{ $dashboardItem['label'] }}">
+                        <i class="bi {{ $dashboardItem['icon'] }} me-2"></i><span class="menu-text">{{ $dashboardItem['label'] }}</span>
                     </a>
                 </li>
             @endif
 
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
-                        <span><i class="bi bi-activity me-2"></i>Activities</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $activityExpanded ? 'active' : '' }}" href="javascript:void(0)" title="Activities">
+                        <i class="bi bi-activity me-2"></i><span class="menu-text me-auto text-start">Activities</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $activityExpanded ? 'show' : '' }}" id="activitiesSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -384,17 +393,17 @@
 
             @if ($referralReportItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}">
-                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i>{{ $referralReportItem['label'] }}
+                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}" title="{{ $referralReportItem['label'] }}">
+                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i><span class="menu-text">{{ $referralReportItem['label'] }}</span>
                     </a>
                 </li>
             @endif
 
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
-                        <span><i class="bi bi-chat-dots me-2"></i>Posts &amp; Timeline</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $postsActive ? 'active' : '' }}" href="javascript:void(0)" title="Posts &amp; Timeline">
+                        <i class="bi bi-chat-dots me-2"></i><span class="menu-text me-auto text-start">Posts &amp; Timeline</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $postsActive ? 'show' : '' }}" id="postsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -412,9 +421,9 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests'))
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
-                    <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
-                    <i class="bi bi-chevron-right menu-arrow"></i>
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $pendingRequestsActive ? 'active' : '' }}" href="javascript:void(0)" title="Pending Requests">
+                    <i class="bi bi-hourglass-split me-2"></i><span class="menu-text me-auto text-start">Pending Requests</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
                 <div class="collapse {{ $pendingRequestsActive ? 'show' : '' }}" id="pendingRequestsSubmenu">
                     <ul class="nav flex-column ms-3">
@@ -432,9 +441,9 @@
 
             @if ($isDed && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Analytics') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Finance & Analytics')))
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
-                        <span><i class="bi bi-graph-up-arrow me-2"></i>Analytics</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $dedAnalyticsActive ? 'active' : '' }}" href="javascript:void(0)" title="Analytics">
+                        <i class="bi bi-graph-up-arrow me-2"></i><span class="menu-text me-auto text-start">Analytics</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $dedAnalyticsActive ? 'show' : '' }}" id="dedAnalyticsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -453,17 +462,17 @@
 
             @foreach ($bottomNavItems as $item)
                 <li class="nav-item">
-                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                        <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}" title="{{ $item['label'] }}">
+                        <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                     </a>
                 </li>
             @endforeach
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
-                        <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $eventsManagementActive ? 'active' : '' }}" href="javascript:void(0)" title="Events Management">
+                        <i class="bi bi-calendar-check me-2"></i><span class="menu-text me-auto text-start">Events Management</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -479,9 +488,9 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
-                        <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $brandPartnersActive ? 'active' : '' }}" href="javascript:void(0)" title="Brand Partners">
+                        <i class="bi bi-briefcase me-2"></i><span class="menu-text me-auto text-start">Brand Partners</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse brand-partners-submenu {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -501,9 +510,9 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $adsActive ? 'active' : '' }}" href="#adsSubmenu" role="button" aria-expanded="{{ $adsActive ? 'true' : 'false' }}" aria-controls="adsSubmenu">
-                        <span><i class="bi bi-megaphone me-2"></i>Ads</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $adsActive ? 'active' : '' }}" href="javascript:void(0)" title="Ads">
+                        <i class="bi bi-megaphone me-2"></i><span class="menu-text me-auto text-start">Ads</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ $adsActive ? 'show' : '' }}" id="adsSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -525,9 +534,9 @@
                 @if ($item['label'] === 'Notifications & Email')
                     @if (Route::has($item['route']))
                         <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
-                                <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
-                                <i class="bi bi-chevron-right menu-arrow"></i>
+                            <a class="nav-link d-flex align-items-center justify-content-between {{ $campaignsActive ? 'active' : '' }}" href="javascript:void(0)" title="{{ $item['label'] }}">
+                                <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text me-auto text-start">{{ $item['label'] }}</span>
+                                <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                             </a>
                             <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
                                 <ul class="nav flex-column ms-3">
@@ -548,9 +557,9 @@
                         $currentType = request('type');
                     @endphp
                     <li class="nav-item menu-parent {{ $badgesActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $badgesActive ? 'active' : '' }}" href="#milestoneBadgesSubmenu" role="button" aria-expanded="{{ $badgesActive ? 'true' : 'false' }}" aria-controls="milestoneBadgesSubmenu">
-                            <span><i class="bi bi-award me-2"></i>Milestone Badges</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $badgesActive ? 'active' : '' }}" href="javascript:void(0)" title="Milestone Badges">
+                            <i class="bi bi-award me-2"></i><span class="menu-text me-auto text-start">Milestone Badges</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
                         <div class="collapse {{ $badgesActive ? 'show' : '' }}" id="milestoneBadgesSubmenu">
                             <ul class="nav flex-column ms-3">
@@ -582,9 +591,9 @@
                         $peersActive = request()->routeIs('admin.users.*');
                     @endphp
                     <li class="nav-item menu-parent {{ $peersActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $peersActive ? 'active' : '' }}" href="#peersSubmenu" role="button" aria-expanded="{{ $peersActive ? 'true' : 'false' }}" aria-controls="peersSubmenu">
-                            <span><i class="bi bi-people me-2"></i>Peers</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $peersActive ? 'active' : '' }}" href="javascript:void(0)" title="Peers">
+                            <i class="bi bi-people me-2"></i><span class="menu-text me-auto text-start">Peers</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                         </a>
                         <div class="collapse {{ $peersActive ? 'show' : '' }}" id="peersSubmenu">
                             <ul class="nav flex-column ms-3">
@@ -597,16 +606,73 @@
                             </ul>
                         </div>
                     </li>
+                @elseif ($item['label'] === 'Member Introducers')
+                    @php
+                        $introducersActive = request()->routeIs('admin.member-introducers.*');
+                        $currentTab = request('tab');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $introducersActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $introducersActive ? 'active' : '' }}" href="javascript:void(0)" title="Member Introducers">
+                            <i class="bi {{ $item['icon'] ?? 'bi-person-check' }} me-2"></i><span class="menu-text me-auto text-start">Member Introducers</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $introducersActive ? 'show' : '' }}" id="memberIntroducersSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($introducersActive && $currentTab !== 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}">
+                                        Introducers List
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($introducersActive && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index', ['tab' => 'creative']) }}">
+                                        Creative
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @elseif ($item['label'] === 'Life Impact')
+                    @php
+                        $lifeImpactActive = request()->routeIs('admin.life-impact.*') || request()->routeIs('admin.life-impact-recognitions.*');
+                        $currentTab = request('tab');
+                        $isRecognitionsRoute = request()->routeIs('admin.life-impact-recognitions.*');
+                        $isOverviewRoute = request()->routeIs('admin.life-impact.index');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $lifeImpactActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $lifeImpactActive ? 'active' : '' }}" href="javascript:void(0)" title="Life Impact">
+                            <i class="bi {{ $item['icon'] ?? 'bi-heart-pulse' }} me-2"></i><span class="menu-text me-auto text-start">Life Impact</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $lifeImpactActive ? 'show' : '' }}" id="lifeImpactSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ $isOverviewRoute ? 'active' : '' }}" href="{{ route('admin.life-impact.index') }}">
+                                        Life Impact Overview
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($isRecognitionsRoute && $currentTab !== 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index') }}">
+                                        Life Impact List
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($isRecognitionsRoute && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index', ['tab' => 'creative']) }}">
+                                        Creative
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
-                            <span class="nav-link disabled">
-                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                            <span class="nav-link disabled" title="{{ $item['label'] }}">
+                                <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                             </span>
                         @else
                             @if (Route::has($item['route']))
-                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                    <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}" title="{{ $item['label'] }}">
+                                    <i class="bi {{ $item['icon'] }} me-2"></i><span class="menu-text">{{ $item['label'] }}</span>
                                 </a>
                             @endif
                         @endif
@@ -618,52 +684,52 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings'))
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
-                    <i class="bi bi-sliders me-2"></i>App Configuration
+                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}" title="App Configuration">
+                    <i class="bi bi-sliders me-2"></i><span class="menu-text">App Configuration</span>
+                </a>
+            </li>
+            @endif
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Commission Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSuper($adminUser))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.commissions.*') ? 'active' : '' }}" href="{{ route('admin.commissions.index') }}" title="Commission Management">
+                    <i class="bi bi-percent me-2"></i><span class="menu-text">Commission Management</span>
                 </a>
             </li>
             @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}">
-                        <i class="bi bi-arrow-up-circle me-2"></i>App Updates Manager
+                    <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}" title="App Updates Manager">
+                        <i class="bi bi-arrow-up-circle me-2"></i><span class="menu-text">App Updates Manager</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Birthday Creative'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}">
-                        <i class="bi bi-gift me-2"></i>Birthday Creative
+                    <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}" title="Birthday Creative">
+                        <i class="bi bi-gift me-2"></i><span class="menu-text">Birthday Creative</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Anniversary Creative'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}">
-                        <i class="bi bi-images me-2"></i>Anniversary Creative
-                    </a>
-                </li>
-                @endif
-                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Member Introducers') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Member Introducers Creative'))
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.member-introducers.*') ? 'active' : '' }}" href="{{ route('admin.member-introducers.index') }}">
-                        <i class="bi bi-person-badge me-2"></i>Member Introducers Creative
+                    <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}" title="Anniversary Creative">
+                        <i class="bi bi-images me-2"></i><span class="menu-text">Anniversary Creative</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
-                        <i class="bi bi-play-btn me-2"></i>Tutorials
+                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}" title="Tutorials">
+                        <i class="bi bi-play-btn me-2"></i><span class="menu-text">Tutorials</span>
                     </a>
                 </li>
                 @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
                 {{-- Dynamic RBAC & Role Management Menu --}}
                 <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="#rbacSubmenu" role="button" aria-expanded="{{ request()->routeIs('admin.rbac.*') ? 'true' : 'false' }}" aria-controls="rbacSubmenu">
-                        <span><i class="bi bi-shield-lock me-2"></i>Dynamic RBAC</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="javascript:void(0)" title="Dynamic RBAC">
+                        <i class="bi bi-shield-lock me-2"></i><span class="menu-text me-auto text-start">Dynamic RBAC</span>
+                        <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                     </a>
                     <div class="collapse {{ request()->routeIs('admin.rbac.*') ? 'show' : '' }}" id="rbacSubmenu">
                         <ul class="nav flex-column ms-3">
@@ -702,9 +768,9 @@
 
             @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
-                    <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
-                    <i class="bi bi-chevron-right menu-arrow"></i>
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $leadsActive ? 'active' : '' }}" href="javascript:void(0)" title="Leads">
+                    <i class="bi bi-person-lines-fill me-2"></i><span class="menu-text me-auto text-start">Leads</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
                 <div class="collapse {{ $leadsActive ? 'show' : '' }}" id="leadsSubmenu">
                     <ul class="nav flex-column ms-3">
@@ -727,8 +793,8 @@
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('admin.logout') }}">
             @csrf
-            <button class="btn btn-outline-secondary w-100">
-                <i class="bi bi-box-arrow-right me-2"></i>Logout
+            <button class="btn btn-outline-secondary w-100" title="Logout">
+                <i class="bi bi-box-arrow-right me-2"></i><span class="menu-text">Logout</span>
             </button>
         </form>
     </div>
@@ -765,49 +831,53 @@
                 const submenu = parentItem.querySelector('.collapse');
                 if (!submenu) return;
 
-                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`) || parentItem.querySelector('a');
-                if (!toggle) return;
+                const toggle = parentItem.querySelector(':scope > a');
 
                 // Sync initial state on load
                 if (submenu.classList.contains('show') || parentItem.classList.contains('open')) {
                     parentItem.classList.add('open');
                     submenu.classList.add('show');
-                    toggle.setAttribute('aria-expanded', 'true');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'true');
                 } else {
                     parentItem.classList.remove('open');
                     submenu.classList.remove('show');
-                    toggle.setAttribute('aria-expanded', 'false');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'false');
                 }
 
-                toggle.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                // Toggle submenu in-place when clicking anywhere on the parent item link
+                if (toggle) {
+                    toggle.style.cursor = 'pointer';
+                    toggle.addEventListener('click', (e) => {
+                        if (document.querySelector('.admin-shell')?.classList.contains('sidebar-collapsed')) {
+                            return;
+                        }
 
-                    const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
+                        e.preventDefault();
+                        e.stopPropagation();
 
-                    // Close other submenus for accordion behavior
-                    menuParents.forEach((otherParent) => {
-                        if (otherParent !== parentItem) {
-                            otherParent.classList.remove('open');
-                            const otherSub = otherParent.querySelector('.collapse');
-                            if (otherSub) {
-                                otherSub.classList.remove('show');
+                        const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
+
+                        menuParents.forEach((otherParent) => {
+                            if (otherParent !== parentItem) {
+                                otherParent.classList.remove('open');
+                                const otherSub = otherParent.querySelector('.collapse');
+                                if (otherSub) otherSub.classList.remove('show');
+                                const otherTog = otherParent.querySelector(':scope > a');
+                                if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
                             }
-                            const otherTog = otherParent.querySelector('a[role="button"]') || otherParent.querySelector('a');
-                            if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
+                        });
+
+                        if (isOpen) {
+                            parentItem.classList.remove('open');
+                            submenu.classList.remove('show');
+                            toggle.setAttribute('aria-expanded', 'false');
+                        } else {
+                            parentItem.classList.add('open');
+                            submenu.classList.add('show');
+                            toggle.setAttribute('aria-expanded', 'true');
                         }
                     });
-
-                    if (isOpen) {
-                        parentItem.classList.remove('open');
-                        submenu.classList.remove('show');
-                        toggle.setAttribute('aria-expanded', 'false');
-                    } else {
-                        parentItem.classList.add('open');
-                        submenu.classList.add('show');
-                        toggle.setAttribute('aria-expanded', 'true');
-                    }
-                });
+                }
             });
         });
     </script>

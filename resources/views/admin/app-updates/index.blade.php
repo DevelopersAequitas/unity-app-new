@@ -35,104 +35,76 @@
         </div>
     @endif
 
-    <!-- App Release / What's New Form Card -->
+
+
+    <!-- App Maintenance Mode Card -->
     <div class="p-4 rounded-xl border bs bg-white shadow-sm space-y-4">
-        <form method="POST" action="{{ route('admin.app-updates.releases.store') }}">
+        <form method="POST" action="{{ route('admin.app-updates.maintenance.save') }}">
             @csrf
             <div class="flex justify-between items-center pb-2 border-b">
                 <div class="flex items-center gap-2">
-                    <span class="text-xl">🚀</span>
-                    <h3 class="font-semibold text-sm t1 m-0">Create App Release / What's New</h3>
+                    <span class="text-xl">🛠️</span>
+                    <h3 class="font-semibold text-sm t1 m-0">App Maintenance Mode</h3>
                 </div>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" name="is_released" value="1" checked class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                    <span class="text-xs font-semibold t2">Is Released</span>
-                </label>
+                <div class="flex items-center gap-2">
+                    @if(($maintenanceConfig->status ?? 'none') === 'active')
+                        <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            🔴 Maintenance Active (App Blocked)
+                        </span>
+                    @elseif(($maintenanceConfig->status ?? 'none') === 'scheduled')
+                        <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            🟡 Maintenance Scheduled
+                        </span>
+                    @else
+                        <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            🟢 Normal Operation
+                        </span>
+                    @endif
+                </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
                 <div>
-                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Version *</label>
-                    <input type="text" name="version" required placeholder="e.g. 2.8.4" value="{{ old('version') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                    @error('version') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Maintenance Status *</label>
+                    <select name="status" required class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                        <option value="none" {{ ($maintenanceConfig->status ?? 'none') === 'none' ? 'selected' : '' }}>Normal Operation (Disabled)</option>
+                        <option value="scheduled" {{ ($maintenanceConfig->status ?? 'none') === 'scheduled' ? 'selected' : '' }}>Scheduled Maintenance (Banner on Home)</option>
+                        <option value="active" {{ ($maintenanceConfig->status ?? 'none') === 'active' ? 'selected' : '' }}>Active Maintenance (Full-Screen Block)</option>
+                        <option value="completed" {{ ($maintenanceConfig->status ?? 'none') === 'completed' ? 'selected' : '' }}>Completed</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Platform *</label>
-                    <div class="flex items-center gap-4 py-1.5">
-                        <label class="flex items-center gap-1.5 cursor-pointer text-xs t1 font-medium">
-                            <input type="checkbox" name="platform[]" value="Android" checked class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            Android
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer text-xs t1 font-medium">
-                            <input type="checkbox" name="platform[]" value="iOS" checked class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            iOS
-                        </label>
-                    </div>
-                    @error('platform') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Start Time (Optional)</label>
+                    <input type="datetime-local" name="start_time" value="{{ $maintenanceConfig->start_time ? $maintenanceConfig->start_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                 </div>
                 <div>
-                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Released At (Optional)</label>
-                    <input type="datetime-local" name="released_at" value="{{ old('released_at') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                    @error('released_at') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Expected End Time (Optional)</label>
+                    <input type="datetime-local" name="end_time" value="{{ $maintenanceConfig->end_time ? $maintenanceConfig->end_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Title</label>
+                    <input type="text" name="title" placeholder="e.g. We’re under maintenance" value="{{ $maintenanceConfig->title ?: 'We’re under maintenance' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Support Email</label>
+                    <input type="email" name="support_email" placeholder="support@peersunity.com" value="{{ $maintenanceConfig->support_email ?: 'support@peersunity.com' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                 </div>
             </div>
 
             <div class="mt-3">
-                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Release Title *</label>
-                <input type="text" name="title" required placeholder="e.g. Performance & Security Update" value="{{ old('title') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                @error('title') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="mt-3">
-                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Description</label>
-                <textarea name="description" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Summary of this release...">{{ old('description') }}</textarea>
-                @error('description') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="mt-3">
-                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Features (One per line)</label>
-                <textarea name="features" rows="3" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Enhanced login security&#10;Faster dashboard loading&#10;Bug fixes...">{{ old('features') }}</textarea>
-                @error('features') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Maintenance Message / Explanation</label>
+                <textarea name="message" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️">{{ $maintenanceConfig->message ?: 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️' }}</textarea>
             </div>
 
             <div class="flex justify-end gap-2 mt-4">
                 <button type="submit" class="px-4 py-2 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring">
-                    Publish Release
+                    Save Maintenance Settings
                 </button>
             </div>
         </form>
-
-        @if(isset($appReleases) && $appReleases->count() > 0)
-            <div class="pt-3 border-t">
-                <h4 class="font-semibold text-[11px] text-indigo-500 uppercase tracking-wider mb-2">Recent Releases</h4>
-                <div class="divide-y divide-gray-100 max-h-48 overflow-y-auto pr-1">
-                    @foreach($appReleases as $release)
-                        <div class="py-2 flex justify-between items-start gap-4">
-                            <div>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-xs t1">v{{ $release->version }}</span>
-                                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 t2">
-                                        {{ is_array($release->platform) ? implode(', ', $release->platform) : $release->platform }}
-                                    </span>
-                                    @if($release->is_released)
-                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Released</span>
-                                    @else
-                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700">Draft</span>
-                                    @endif
-                                </div>
-                                <div class="text-xs font-medium t1 mt-0.5">{{ $release->title }}</div>
-                                @if($release->description)
-                                    <div class="text-[11px] t3 mt-0.5">{{ \Illuminate\Support\Str::limit($release->description, 120) }}</div>
-                                @endif
-                            </div>
-                            <div class="text-right text-[10px] t3 whitespace-nowrap">
-                                {{ $release->released_at ? $release->released_at->format('M d, Y') : ($release->created_at ? $release->created_at->format('M d, Y') : '') }}
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
     </div>
 
     <!-- Config Grid (Android & iOS) -->
@@ -242,13 +214,135 @@
         </div>
     </div>
 
+    <!-- Leader App Updates & Version Control Card (leader_app_configs) -->
+    <div class="p-4 rounded-xl border bs bg-white shadow-sm space-y-4">
+        <form method="POST" action="{{ route('admin.app-updates.leader-config.save') }}">
+            @csrf
+            <div class="flex flex-wrap justify-between items-center pb-2 border-b gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">👑</span>
+                    <div>
+                        <h3 class="font-semibold text-sm t1 m-0">Leader App Updates & Version Control</h3>
+                        <p class="text-[11px] t3 m-0">Controls remote configuration, version enforcement, and maintenance mode for Leader App.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="{{ url('/api/v1/leader/system/app-config') }}" target="_blank" class="px-2.5 py-1 text-[11px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition flex items-center gap-1">
+                        <span>⚡ Test Leader API</span>
+                    </a>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" name="is_active" value="1" {{ ($leaderConfig->is_active ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-xs font-semibold t2">Active</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Version Settings -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Minimum Required Version * (Blocker)</label>
+                    <input type="text" name="min_required_version" required value="{{ old('min_required_version', $leaderConfig->min_required_version ?? '1.8.7') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="e.g. 1.8.7">
+                    <span class="text-[11px] t3">Users on lower versions are blocked with mandatory update popup.</span>
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Latest Available Version * (Recommended)</label>
+                    <input type="text" name="latest_version" required value="{{ old('latest_version', $leaderConfig->latest_version ?? '1.8.8') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="e.g. 1.8.8">
+                    <span class="text-[11px] t3">Users on lower versions will receive a non-blocking update recommendation.</span>
+                </div>
+            </div>
+
+            <!-- Store URLs -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Google Play Store URL</label>
+                    <input type="url" name="store_url_android" value="{{ old('store_url_android', $leaderConfig->store_url_android ?? '') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="https://play.google.com/store/apps/details?id=com.greenpreneur.greenpreneur">
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Apple App Store URL</label>
+                    <input type="url" name="store_url_ios" value="{{ old('store_url_ios', $leaderConfig->store_url_ios ?? '') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="https://apps.apple.com/app/id1234567890">
+                </div>
+            </div>
+
+            <!-- Update Messages (Force & Optional) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div class="p-3 rounded-lg border bs bg-rose-50/40 space-y-2">
+                    <span class="text-xs font-semibold text-rose-800 flex items-center gap-1">🛑 Force Update Dialog (Mandatory)</span>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-semibold text-rose-900 mb-1">Title</label>
+                        <input type="text" name="force_update_title" value="{{ old('force_update_title', $leaderConfig->force_update_title ?? 'App Update Required') }}" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-semibold text-rose-900 mb-1">Message</label>
+                        <textarea name="force_update_message" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">{{ old('force_update_message', $leaderConfig->force_update_message ?? 'A critical new version of Leader App is required to continue. Please update the app from the store.') }}</textarea>
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-lg border bs bg-amber-50/40 space-y-2">
+                    <span class="text-xs font-semibold text-amber-800 flex items-center gap-1">🔔 Optional Update Banner</span>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-semibold text-amber-900 mb-1">Title</label>
+                        <input type="text" name="optional_update_title" value="{{ old('optional_update_title', $leaderConfig->optional_update_title ?? 'New Update Available') }}" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-semibold text-amber-900 mb-1">Message</label>
+                        <textarea name="optional_update_message" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">{{ old('optional_update_message', $leaderConfig->optional_update_message ?? 'A new version is available with enhanced features and performance improvements.') }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Mode & Bypass -->
+            <div class="p-3 rounded-lg border bs bg-gray-50/70 space-y-3 mt-3">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">🚧</span>
+                        <span class="text-xs font-semibold t1">Leader App Maintenance Lockdown</span>
+                    </div>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" name="is_maintenance_mode" value="1" {{ ($leaderConfig->is_maintenance_mode ?? false) ? 'checked' : '' }} class="rounded border-gray-300 text-rose-600 focus:ring-rose-500">
+                        <span class="text-xs font-semibold text-rose-600">Maintenance Active</span>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Maintenance Title</label>
+                        <input type="text" name="maintenance_title" value="{{ old('maintenance_title', $leaderConfig->maintenance_title ?? 'System Under Maintenance') }}" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Allowed Bypass Roles (Comma-separated)</label>
+                        @php
+                            $bypassStr = is_array($leaderConfig->allowed_bypass_roles ?? null) ? implode(', ', $leaderConfig->allowed_bypass_roles) : ($leaderConfig->allowed_bypass_roles ?? 'superAdmin, super_admin');
+                        @endphp
+                        <input type="text" name="allowed_bypass_roles" value="{{ old('allowed_bypass_roles', $bypassStr) }}" placeholder="superAdmin, super_admin" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Maintenance Message</label>
+                    <textarea name="maintenance_message" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs bg-white t1 w-full outline-none focus-ring">{{ old('maintenance_message', $leaderConfig->maintenance_message ?? 'We are currently performing essential infrastructure upgrades. Please check back shortly.') }}</textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="submit" class="px-4 py-2 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">
+                    Save Leader App Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Users Search Filter -->
     <div class="p-3 rounded-lg border bs surface-2 flex flex-wrap justify-between items-center gap-3">
-        <form method="GET" action="{{ route('admin.app-updates.index') }}" class="max-w-md w-full flex gap-2">
-            <input type="text" name="search" value="{{ request('search') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, email, model or version...">
+        <form method="GET" action="{{ route('admin.app-updates.index') }}" data-no-ajax="true" class="max-w-md w-full flex gap-2">
+            <input type="text" id="userSearchInput" name="search" value="{{ request('search') }}" class="no-auto-filter px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, email, model or version...">
             <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring">
                 Search
             </button>
+            @if(request('search'))
+                <a href="{{ route('admin.app-updates.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition focus-ring flex items-center">
+                    Clear
+                </a>
+            @endif
         </form>
         <div>
             <button type="button" id="notifySelectedBtn" class="px-3 py-1.5 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring flex items-center gap-1.5">
@@ -403,6 +497,47 @@ document.addEventListener('DOMContentLoaded', function () {
             notifySelectedBtn.textContent = `🔔 Notify Selected (${document.querySelectorAll('.user-checkbox:checked').length})`;
         });
     });
+
+    // Live instant table search filter as user types
+    const searchInput = document.getElementById('userSearchInput');
+    const userTableBody = document.getElementById('userTableBody');
+
+    if (searchInput && userTableBody) {
+        const initialRows = Array.from(userTableBody.querySelectorAll('tr'));
+
+        searchInput.addEventListener('input', function () {
+            const query = this.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            initialRows.forEach(row => {
+                // If it's the empty placeholder from blade
+                if (row.querySelector('td[colspan]')) return;
+
+                const text = row.textContent.toLowerCase();
+                if (!query || text.includes(query)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // If no matching rows on current page, show a dynamic hint row
+            let noMatchRow = document.getElementById('noLiveMatchRow');
+            if (visibleCount === 0 && query) {
+                if (!noMatchRow) {
+                    noMatchRow = document.createElement('tr');
+                    noMatchRow.id = 'noLiveMatchRow';
+                    noMatchRow.innerHTML = '<td colspan="7" class="px-3 py-6 text-center text-xs t3">No matching records on this page. Click <b>Search</b> or press <b>Enter</b> to search all users across the database.</td>';
+                    userTableBody.appendChild(noMatchRow);
+                } else {
+                    noMatchRow.style.display = '';
+                }
+            } else if (noMatchRow) {
+                noMatchRow.style.display = 'none';
+            }
+        });
+    }
 });
 </script>
 @endpush

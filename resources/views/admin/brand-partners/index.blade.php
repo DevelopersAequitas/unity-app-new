@@ -4,10 +4,26 @@
 
 @include('admin.partials.grid-head')
 
+@push('styles')
+<style>
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; transition: all .2s ease; display: block; width: 100%; text-align: left; text-decoration: none !important; }
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .kpi-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; font-size: 1.1rem; }
+  .kpi-num { font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1.35rem; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .kpi-title { font-size: 11px; font-weight: 600; color: var(--text-2); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+</style>
+@endpush
+
 @section('content')
     @if(session('success'))
-        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
-            {{ session('success') }}
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="bi bi-check-circle-fill text-emerald-600"></i>
+                <span>{{ session('success') }}</span>
+            </div>
+            <button type="button" class="text-emerald-700 hover:text-emerald-900 border-0 bg-transparent cursor-pointer text-sm" onclick="this.parentElement.remove()">&times;</button>
         </div>
     @endif
 
@@ -29,16 +45,79 @@
             </div>
         </div>
 
+        <!-- KPI / Status Summary Cards Section -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <!-- Total Partners -->
+            <a href="{{ route('admin.brand-partners.index') }}" class="kpi-card no-underline {{ empty($status) && empty($featured) && empty($sponsored) && empty($hasOffer) ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-sm' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title">Total Partners</div>
+                    <div class="kpi-icon bg-indigo-50 text-indigo-600"><i class="bi bi-buildings"></i></div>
+                </div>
+                <div class="kpi-num text-indigo-600">{{ number_format($counts['total'] ?? 0) }}</div>
+                <div class="kpi-sub">All Brand Listings</div>
+            </a>
+
+            <!-- Active Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['status' => 'active'])) }}" class="kpi-card no-underline {{ $status === 'active' ? 'border-emerald-500 ring-1 ring-emerald-500 shadow-sm bg-emerald-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-emerald-700">Active Partners</div>
+                    <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="bi bi-check-circle-fill"></i></div>
+                </div>
+                <div class="kpi-num text-emerald-600">{{ number_format($counts['active'] ?? 0) }}</div>
+                <div class="kpi-sub">Live &amp; Visible</div>
+            </a>
+
+            <!-- Inactive Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['status' => 'inactive'])) }}" class="kpi-card no-underline {{ $status === 'inactive' ? 'border-rose-500 ring-1 ring-rose-500 shadow-sm bg-rose-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-rose-700">Inactive Partners</div>
+                    <div class="kpi-icon bg-rose-50 text-rose-600"><i class="bi bi-pause-circle-fill"></i></div>
+                </div>
+                <div class="kpi-num text-rose-600">{{ number_format($counts['inactive'] ?? 0) }}</div>
+                <div class="kpi-sub">Hidden / Inactive</div>
+            </a>
+
+            <!-- Featured Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['featured' => '1'])) }}" class="kpi-card no-underline {{ $featured === '1' ? 'border-amber-500 ring-1 ring-amber-500 shadow-sm bg-amber-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-amber-700">Featured</div>
+                    <div class="kpi-icon bg-amber-50 text-amber-600"><i class="bi bi-star-fill"></i></div>
+                </div>
+                <div class="kpi-num text-amber-600">{{ number_format($counts['featured'] ?? 0) }}</div>
+                <div class="kpi-sub">Highlighted Spots</div>
+            </a>
+
+            <!-- Sponsored Partners -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['sponsored' => '1'])) }}" class="kpi-card no-underline {{ $sponsored === '1' ? 'border-purple-500 ring-1 ring-purple-500 shadow-sm bg-purple-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-purple-700">Sponsored</div>
+                    <div class="kpi-icon bg-purple-50 text-purple-600"><i class="bi bi-award-fill"></i></div>
+                </div>
+                <div class="kpi-num text-purple-600">{{ number_format($counts['sponsored'] ?? 0) }}</div>
+                <div class="kpi-sub">Priority Ads</div>
+            </a>
+
+            <!-- Active Offers -->
+            <a href="{{ route('admin.brand-partners.index', array_merge(request()->query(), ['has_offer' => '1'])) }}" class="kpi-card no-underline {{ $hasOffer === '1' ? 'border-cyan-500 ring-1 ring-cyan-500 shadow-sm bg-cyan-50/20' : '' }}">
+                <div class="kpi-top">
+                    <div class="kpi-title text-cyan-700">Offers</div>
+                    <div class="kpi-icon bg-cyan-50 text-cyan-600"><i class="bi bi-gift-fill"></i></div>
+                </div>
+                <div class="kpi-num text-cyan-600">{{ number_format($counts['has_offer'] ?? 0) }}</div>
+                <div class="kpi-sub">Active Deals</div>
+            </a>
+        </div>
+
         <!-- Filters & Search Card -->
         <div class="p-3 rounded-lg border bs surface-2">
             <form method="GET" action="{{ route('admin.brand-partners.index') }}" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
                 <div class="md:col-span-2">
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
-                    <input type="text" name="q" value="{{ $search }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, slug, or offer...">
+                    <input type="text" name="q" value="{{ $search }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by name, slug, or offer..." onkeydown="if (event.key === 'Enter') this.form.submit()">
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Category</label>
-                    <select name="category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">All Categories</option>
                         @foreach($categories as $category)
                             <option value="{{ $category->id }}" @selected($categoryId == $category->id)>{{ $category->name }}</option>
@@ -47,26 +126,26 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
-                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
-                        <option value="active" @selected($status == 'active')>Active</option>
-                        <option value="inactive" @selected($status == 'inactive')>Inactive</option>
+                        <option value="active" @selected($status === 'active')>Active</option>
+                        <option value="inactive" @selected($status === 'inactive')>Inactive</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Featured</label>
-                    <select name="featured" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="featured" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">Any</option>
-                        <option value="1" @selected($featured == '1')>Yes</option>
-                        <option value="0" @selected($featured == '0')>No</option>
+                        <option value="1" @selected($featured === '1')>Yes</option>
+                        <option value="0" @selected($featured === '0')>No</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Sponsored</label>
-                    <select name="sponsored" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="sponsored" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         <option value="">Any</option>
-                        <option value="1" @selected($sponsored == '1')>Yes</option>
-                        <option value="0" @selected($sponsored == '0')>No</option>
+                        <option value="1" @selected($sponsored === '1')>Yes</option>
+                        <option value="0" @selected($sponsored === '0')>No</option>
                     </select>
                 </div>
                 <div class="flex justify-end">
@@ -154,16 +233,36 @@
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
-                                    @if($partner->is_active)
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                            <span>Active</span>
-                                        </span>
+                                    @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
+                                        <form method="POST" action="{{ route('admin.brand-partners.toggle-status', $partner) }}" class="inline">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="border-0 bg-transparent cursor-pointer p-0 text-left transition hover:scale-105" title="{{ $partner->is_active ? 'Click to deactivate' : 'Click to activate' }}">
+                                                @if($partner->is_active)
+                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition shadow-xs">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                        <span>Active</span>
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition shadow-xs">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                        <span>Inactive</span>
+                                                    </span>
+                                                @endif
+                                            </button>
+                                        </form>
                                     @else
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                            <span>Inactive</span>
-                                        </span>
+                                        @if($partner->is_active)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                <span>Active</span>
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                <span>Inactive</span>
+                                            </span>
+                                        @endif
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ number_format($partner->views_count) }}</td>
@@ -179,6 +278,14 @@
                                                 <i class="bi bi-pencil text-[11px]" aria-hidden="true"></i>
                                                 <span>Edit</span>
                                             </a>
+                                            <form method="POST" action="{{ route('admin.brand-partners.toggle-status', $partner) }}" class="inline">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full border {{ $partner->is_active ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' }} transition shadow-xs cursor-pointer" title="{{ $partner->is_active ? 'Deactivate Brand Partner' : 'Activate Brand Partner' }}">
+                                                    <i class="bi {{ $partner->is_active ? 'bi-pause-circle' : 'bi-play-circle' }} text-[11px]"></i>
+                                                    <span>{{ $partner->is_active ? 'Deactivate' : 'Activate' }}</span>
+                                                </button>
+                                            </form>
                                         @endif
                                     </div>
                                 </td>

@@ -73,6 +73,7 @@ class Circle extends Model
         'meeting_repeat',
         'launch_date',
         'cover_file_id',
+        'circle_image_file_id',
         'referral_score',
         'visitor_count',
         'type',
@@ -95,7 +96,7 @@ class Circle extends Model
         'circle_duration_months' => 'integer',
     ];
 
-    protected $appends = ['cover_image_url', 'city_display'];
+    protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
 
     public function getCircleRanking(): array
     {
@@ -480,6 +481,21 @@ class Circle extends Model
         return $this->belongsTo(City::class, 'city_id');
     }
 
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class, 'district_id');
+    }
+
+    public function chairUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'chair_user_id');
+    }
+
+    public function circleCategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'template_id');
+    }
+
     public function chatMessages(): HasMany
     {
         return $this->hasMany(CircleChatMessage::class, 'circle_id');
@@ -525,6 +541,11 @@ class Circle extends Model
         return $this->belongsTo(File::class, 'cover_file_id');
     }
 
+    public function circleImageFile(): BelongsTo
+    {
+        return $this->belongsTo(File::class, 'circle_image_file_id');
+    }
+
     public function getCoverImageUrlAttribute(): ?string
     {
         if (! $this->cover_file_id) {
@@ -536,6 +557,19 @@ class Circle extends Model
         }
 
         return url('/api/v1/files/'.$this->cover_file_id);
+    }
+
+    public function getCircleImageUrlAttribute(): ?string
+    {
+        if (! $this->circle_image_file_id) {
+            return null;
+        }
+
+        if ($this->relationLoaded('circleImageFile') && $this->circleImageFile && isset($this->circleImageFile->url)) {
+            return $this->circleImageFile->url;
+        }
+
+        return url('/api/v1/files/'.$this->circle_image_file_id);
     }
 
     public static function generateUniqueSlug(string $name, ?string $ignoreId = null): string
@@ -575,5 +609,110 @@ class Circle extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
+    }
+
+    public static function syncLeadershipFromMembers(Circle|string $circle): void
+    {
+        if (! Schema::hasTable('circles')) {
+            return;
+        }
+
+        $circleModel = is_string($circle) ? static::find($circle) : $circle;
+        if (! $circleModel) {
+            return;
+        }
+
+        $members = CircleMember::query()
+            ->where('circle_id', $circleModel->id)
+            ->whereNull('deleted_at')
+            ->whereIn('status', ['approved', 'active'])
+            ->with(['roleRef'])
+            ->get();
+
+        $roleToColumns = [
+            'ded' => ['ded_user_id'],
+            'industry_director' => ['industry_director_user_id'],
+            'id' => ['industry_director_user_id'],
+            'circle_director' => ['circle_director_user_id', 'director_user_id'],
+            'director' => ['circle_director_user_id', 'director_user_id'],
+            'cd' => ['circle_director_user_id', 'director_user_id'],
+            'circle_founder' => ['circle_founder_user_id', 'founder_user_id'],
+            'founder' => ['circle_founder_user_id', 'founder_user_id'],
+            'cf' => ['circle_founder_user_id', 'founder_user_id'],
+            'eed' => ['eed_user_id'],
+            'chair' => ['chair_user_id'],
+            'vice_chair' => ['vice_chair_user_id'],
+            'secretary' => ['secretary_user_id'],
+        ];
+
+        $allLeadershipCols = [
+            'ded_user_id',
+            'industry_director_user_id',
+            'circle_director_user_id',
+            'director_user_id',
+            'circle_founder_user_id',
+            'founder_user_id',
+            'eed_user_id',
+            'chair_user_id',
+            'vice_chair_user_id',
+            'secretary_user_id',
+        ];
+
+        $calendar = is_array($circleModel->calendar) ? $circleModel->calendar : (is_string($circleModel->calendar) ? json_decode($circleModel->calendar, true) : []);
+
+        // Start by PRESERVING existing leadership values from table and calendar rather than resetting to null
+        $newValues = [];
+        foreach ($allLeadershipCols as $col) {
+            $existingVal = $circleModel->getAttribute($col) ?? data_get($calendar, 'leadership.'.$col) ?? null;
+            $newValues[$col] = $existingVal;
+        }
+
+        foreach ($members as $member) {
+            $userId = $member->user_id;
+            if (! $userId) {
+                continue;
+            }
+
+            $roleKeys = [];
+            if (! empty($member->role)) {
+                $roleKeys[] = strtolower(trim((string) $member->role));
+            }
+            if ($member->roleRef && ! empty($member->roleRef->key)) {
+                $roleKeys[] = strtolower(trim((string) $member->roleRef->key));
+            }
+            if ($member->roleRef && ! empty($member->roleRef->name)) {
+                $roleKeys[] = strtolower(trim((string) $member->roleRef->name));
+            }
+            $roleKeys = array_unique($roleKeys);
+
+            foreach ($roleKeys as $rk) {
+                $normalizedRk = str_replace(' ', '_', $rk);
+
+                $targetCols = $roleToColumns[$rk] ?? $roleToColumns[$normalizedRk] ?? null;
+                if ($targetCols) {
+                    foreach ($targetCols as $col) {
+                        if (array_key_exists($col, $newValues)) {
+                            $newValues[$col] = $userId;
+                        }
+                    }
+                }
+            }
+        }
+
+        $updates = [];
+
+        foreach ($newValues as $col => $val) {
+            if (Schema::hasColumn('circles', $col)) {
+                $updates[$col] = $val;
+            }
+            if ($val !== null) {
+                data_set($calendar, 'leadership.'.$col, $val);
+            }
+        }
+        $updates['calendar'] = json_encode($calendar);
+        $updates['updated_at'] = now();
+
+        DB::table('circles')->where('id', $circleModel->id)->update($updates);
+        $circleModel->refresh();
     }
 }

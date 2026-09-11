@@ -2,6 +2,8 @@
 
 @section('title', 'Anniversary Creative Template Manager')
 
+@include('admin.partials.grid-head')
+
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -67,7 +69,7 @@
             <div class="rounded-xl border bs surface p-4 space-y-4 shadow-2xs">
                 <div class="flex justify-between items-center">
                     <h2 class="font-display font-semibold text-xs text-indigo-500 uppercase tracking-wider m-0 flex items-center gap-2">
-                        <i class="bi bi-collection-play text-sm"></i>Configured Templates
+                        <i class="bi bi-collection-play text-sm me-1"></i>Configured Templates
                     </h2>
                 </div>
 
@@ -87,13 +89,14 @@
                                 @forelse($templates as $tpl)
                                     <tr class="hover:surface-2 transition border-b bs">
                                         <td class="px-3 py-3">
-                                            <div class="w-20 h-20 rounded-lg border bs overflow-hidden surface-2 flex-shrink-0 relative shadow-2xs">
+                                            <div class="w-20 h-20 rounded-lg border bs overflow-hidden surface-2 flex-shrink-0 relative shadow-2xs" style="width: 80px; height: 80px; max-width: 80px; max-height: 80px;">
                                                 <img src="{{ Storage::disk(config('filesystems.default', 'public'))->url($tpl->image_path) }}" 
                                                      class="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                     style="width: 100%; height: 100%; object-fit: cover;"
                                                      alt="Anniversary Template"
                                                      onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
                                                      onclick="viewTemplateOriginal('{{ Storage::disk(config('filesystems.default', 'public'))->url($tpl->image_path) }}')" />
-                                                <div class="w-full h-full bg-slate-100 text-slate-400 flex flex-col items-center justify-center text-[10px] text-center p-1" style="display:none;">
+                                                <div class="w-full h-full bg-slate-100 text-slate-400 flex flex-col items-center justify-center text-[10px] text-center p-1" style="display:none; width: 100%; height: 100%;">
                                                     <i class="bi bi-image text-lg mb-0.5 text-slate-400"></i>
                                                     <span class="font-medium text-[9px] leading-tight">No preview</span>
                                                 </div>
@@ -153,7 +156,9 @@
     <!-- Dynamic Overlay Live Preview -->
     <div class="rounded-xl border bs surface p-4 mt-4 space-y-3">
         <div class="flex justify-between items-center">
-            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Live Creative Preview with User Overlay</h2>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 flex items-center gap-2">
+                <i class="bi bi-eye text-sm me-1"></i>Live Creative Preview with User Overlay
+            </h2>
         </div>
         <div class="p-4 text-center">
             <div class="mb-4 max-w-sm mx-auto">
@@ -180,7 +185,9 @@
     <!-- Today's Anniversary Users Panel -->
     <div class="rounded-xl border bs surface p-4 mt-4 space-y-3">
         <div class="flex justify-between items-center">
-            <h2 class="font-display font-semibold text-xs text-rose-500 uppercase tracking-wider m-0">Today's Anniversaries ({{ now()->format('d M') }})</h2>
+            <h2 class="font-display font-semibold text-xs text-rose-500 uppercase tracking-wider m-0 flex items-center gap-2">
+                <i class="bi bi-balloon-heart text-sm me-1"></i>Today's Anniversaries ({{ now()->format('d M') }})
+            </h2>
         </div>
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">

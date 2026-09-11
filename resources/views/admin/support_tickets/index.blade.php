@@ -86,33 +86,34 @@
 
     <!-- Filters and Search -->
     <div class="p-3 rounded-lg border bs surface-2">
-        <form method="GET" action="{{ route('admin.support-tickets.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
-            <div>
+        <form method="GET" action="{{ route('admin.support-tickets.index') }}" class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[200px]">
                 <label for="search" class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
                 <input type="text" name="search" id="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Ticket #, name, email, subject..." value="{{ request('search') }}">
             </div>
-            <div>
+            <div class="w-44">
                 <label for="status" class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
-                <select name="status" id="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
-                    <option value="all" {{ request('status') === 'all' || !request('status') ? 'selected' : '' }}>All Statuses</option>
+                <select name="status" id="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" onchange="this.form.submit()">
+                    <option value="" {{ request('status') === 'all' || !request('status') || request('status') === '' ? 'selected' : '' }}>All Statuses</option>
                     <option value="open" {{ request('status') === 'open' ? 'selected' : '' }}>Open</option>
                     <option value="in_progress" {{ request('status') === 'in_progress' ? 'selected' : '' }}>In Progress</option>
                     <option value="resolved" {{ request('status') === 'resolved' ? 'selected' : '' }}>Resolved</option>
                     <option value="closed" {{ request('status') === 'closed' ? 'selected' : '' }}>Closed</option>
                 </select>
             </div>
-            <div>
+            <div class="w-44">
                 <label for="priority" class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Priority</label>
-                <select name="priority" id="priority" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
-                    <option value="all" {{ request('priority') === 'all' || !request('priority') ? 'selected' : '' }}>All Priorities</option>
+                <select name="priority" id="priority" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring js-no-select2 js-no-searchable-select" onchange="this.form.submit()">
+                    <option value="" {{ request('priority') === 'all' || !request('priority') || request('priority') === '' ? 'selected' : '' }}>All Priorities</option>
                     <option value="low" {{ request('priority') === 'low' ? 'selected' : '' }}>Low</option>
                     <option value="normal" {{ request('priority') === 'normal' ? 'selected' : '' }}>Normal</option>
                     <option value="high" {{ request('priority') === 'high' ? 'selected' : '' }}>High</option>
                     <option value="urgent" {{ request('priority') === 'urgent' ? 'selected' : '' }}>Urgent</option>
                 </select>
             </div>
-            <div class="flex justify-end">
-                <a href="{{ route('admin.support-tickets.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline w-full">Clear</a>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm cursor-pointer">Filter</button>
+                <a href="{{ route('admin.support-tickets.index') }}" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border bs surface t2 hover:t1 hover:surface-3 transition text-center no-underline shadow-sm">Clear</a>
             </div>
         </form>
     </div>

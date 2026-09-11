@@ -14,8 +14,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ filemtime(public_path('css/admin.css')) }}">
-    <link rel="stylesheet" href="{{ asset('css/admin-grid.css') }}?v={{ filemtime(public_path('css/admin-grid.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ @file_exists(public_path('css/admin.css')) ? @filemtime(public_path('css/admin.css')) : '1.0' }}">
+    <link rel="stylesheet" href="{{ asset('css/admin-grid.css') }}?v={{ @file_exists(public_path('css/admin-grid.css')) ? @filemtime(public_path('css/admin-grid.css')) : '1.0' }}">
     @stack('styles')
 </head>
 <body>
@@ -32,8 +32,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="{{ asset('js/admin-filters.js') }}?v={{ filemtime(public_path('js/admin-filters.js')) }}"></script>
-    <script src="{{ asset('js/admin-grid-clamp.js') }}?v={{ filemtime(public_path('js/admin-grid-clamp.js')) }}"></script>
+    <script src="{{ asset('js/admin-filters.js') }}?v={{ @file_exists(public_path('js/admin-filters.js')) ? @filemtime(public_path('js/admin-filters.js')) : '1.0' }}"></script>
+    <script src="{{ asset('js/admin-grid-clamp.js') }}?v={{ @file_exists(public_path('js/admin-grid-clamp.js')) ? @filemtime(public_path('js/admin-grid-clamp.js')) : '1.0' }}"></script>
     @stack('scripts')
 
     <!-- Media Preview Modal -->
@@ -79,14 +79,26 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Sidebar mobile toggle functionality
+            // Sidebar collapse and mobile drawer functionality
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
             const adminShell = document.querySelector('.admin-shell');
 
+            // Restore desktop collapsed state
+            if (adminShell && localStorage.getItem('admin_sidebar_collapsed') === 'true' && window.innerWidth >= 992) {
+                adminShell.classList.add('sidebar-collapsed');
+            }
+
             if (sidebarToggle && adminShell) {
                 sidebarToggle.addEventListener('click', function() {
-                    adminShell.classList.toggle('sidebar-open');
+                    if (window.innerWidth < 992) {
+                        adminShell.classList.toggle('sidebar-open');
+                    } else {
+                        adminShell.classList.toggle('sidebar-collapsed');
+                        localStorage.setItem('admin_sidebar_collapsed', adminShell.classList.contains('sidebar-collapsed'));
+                        // Trigger resize event for synced scrollbars and tables
+                        window.dispatchEvent(new Event('resize'));
+                    }
                 });
             }
 

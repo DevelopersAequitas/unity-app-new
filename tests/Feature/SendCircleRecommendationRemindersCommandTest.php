@@ -44,6 +44,7 @@ class SendCircleRecommendationRemindersCommandTest extends TestCase
             $table->string('name', 150);
             $table->string('slug', 150)->nullable();
             $table->string('status', 50)->default('active');
+            $table->json('calendar')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });

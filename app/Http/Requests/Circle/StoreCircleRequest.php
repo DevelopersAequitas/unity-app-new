@@ -34,6 +34,7 @@ class StoreCircleRequest extends FormRequest
             'industry_director_user_id' => 'nullable|uuid|exists:users,id',
             'ded_user_id' => 'nullable|uuid|exists:users,id',
             'cover_file_id' => 'nullable|uuid',
+            'circle_image_file_id' => 'nullable|uuid',
         ];
     }
 }

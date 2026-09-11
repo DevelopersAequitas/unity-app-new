@@ -282,9 +282,15 @@
                         <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-2.5">
                             <i class="bi bi-quote text-sm"></i> Short Bio
                         </div>
-                        <p class="text-sm t1 leading-relaxed m-0 italic bg-slate-50 border border-slate-200/60 rounded-xl p-4">
-                            {{ $user->short_bio ?: 'No short bio provided.' }}
-                        </p>
+                        @if($user->short_bio)
+                            <p class="text-sm t1 leading-relaxed m-0 italic bg-slate-50 border border-slate-200/60 rounded-xl p-4">
+                                “{{ $user->short_bio }}”
+                            </p>
+                        @else
+                            <div class="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                                <span class="text-xs text-slate-400 italic">No short bio provided</span>
+                            </div>
+                        @endif
                     </div>
 
                     <!-- Long Bio / Experience Summary -->
@@ -301,9 +307,9 @@
                                 {{ $user->experience_summary }}
                             </div>
                         @else
-                            <p class="text-xs t3 m-0 bg-slate-50 border border-slate-200/60 rounded-xl p-4">
-                                No experience summary or detailed bio available.
-                            </p>
+                            <div class="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                                <span class="text-xs text-slate-400 italic">No experience summary or detailed bio available</span>
+                            </div>
                         @endif
                     </div>
                 </div>

@@ -173,22 +173,50 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-12 mt-4">
+                        <div class="col-md-6 mt-4">
                             <label class="form-label fw-semibold">Cover Image</label>
                             <input type="hidden" name="cover_file_id" id="coverFileId" value="{{ old('cover_file_id', $circle->cover_file_id) }}">
                             
                             <div id="coverPreviewBlock" class="mb-3 {{ $circle->cover_file_id ? 'd-flex' : 'd-none' }} align-items-center gap-3 border rounded-3 p-3 bg-light">
                                 <img id="coverPreviewImage" src="{{ $circle->cover_file_id ? url('/api/v1/files/' . $circle->cover_file_id) : '#' }}" alt="Cover preview" class="rounded border shadow-sm" style="max-height: 90px; max-width: 160px; object-fit: cover;">
                                 <div>
-                                    <a id="coverPreviewLink" href="{{ $circle->cover_file_id ? url('/api/v1/files/' . $circle->cover_file_id) : '#' }}" target="_blank" class="btn btn-sm btn-outline-primary mb-1">
-                                        <i class="bi bi-eye me-1"></i>View Full Image
-                                    </a>
+                                    <div class="d-flex gap-2 mb-1">
+                                        <a id="coverPreviewLink" href="{{ $circle->cover_file_id ? url('/api/v1/files/' . $circle->cover_file_id) : '#' }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                        <button type="button" id="coverRemoveBtn" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash me-1"></i>Remove
+                                        </button>
+                                    </div>
                                     <div class="text-muted small">File ID: <span id="coverFileIdLabel">{{ $circle->cover_file_id ?: 'None' }}</span></div>
                                 </div>
                             </div>
 
                             <input type="file" class="form-control" id="coverFileInput" accept="image/*">
-                            <div class="form-text" id="coverUploadStatus">Upload an image file up to 10MB.</div>
+                            <div class="form-text" id="coverUploadStatus">Upload a cover image file up to 10MB.</div>
+                        </div>
+
+                        <div class="col-md-6 mt-4">
+                            <label class="form-label fw-semibold">Circle Image</label>
+                            <input type="hidden" name="circle_image_file_id" id="circleImageFileId" value="{{ old('circle_image_file_id', $circle->circle_image_file_id) }}">
+                            
+                            <div id="circleImagePreviewBlock" class="mb-3 {{ $circle->circle_image_file_id ? 'd-flex' : 'd-none' }} align-items-center gap-3 border rounded-3 p-3 bg-light">
+                                <img id="circleImagePreviewImage" src="{{ $circle->circle_image_file_id ? url('/api/v1/files/' . $circle->circle_image_file_id) : '#' }}" alt="Circle image preview" class="rounded border shadow-sm" style="max-height: 90px; max-width: 160px; object-fit: cover;">
+                                <div>
+                                    <div class="d-flex gap-2 mb-1">
+                                        <a id="circleImagePreviewLink" href="{{ $circle->circle_image_file_id ? url('/api/v1/files/' . $circle->circle_image_file_id) : '#' }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                        <button type="button" id="circleImageRemoveBtn" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash me-1"></i>Remove
+                                        </button>
+                                    </div>
+                                    <div class="text-muted small">File ID: <span id="circleImageFileIdLabel">{{ $circle->circle_image_file_id ?: 'None' }}</span></div>
+                                </div>
+                            </div>
+
+                            <input type="file" class="form-control" id="circleImageFileInput" accept="image/*">
+                            <div class="form-text" id="circleImageUploadStatus">Upload a circle image file up to 10MB.</div>
                         </div>
                     </div>
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
@@ -614,6 +642,7 @@
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const uploadUrl = @json(route('admin.files.upload'));
 
+    // Cover File Upload
     document.getElementById('coverFileInput')?.addEventListener('change', async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -667,6 +696,90 @@
         } catch (error) {
             statusEl.textContent = 'Upload failed. Please try again.';
         }
+    });
+
+    // Cover File Remove
+    document.getElementById('coverRemoveBtn')?.addEventListener('click', () => {
+        document.getElementById('coverFileId').value = '';
+        const previewBlock = document.getElementById('coverPreviewBlock');
+        if (previewBlock) {
+            previewBlock.classList.remove('d-flex');
+            previewBlock.classList.add('d-none');
+        }
+        const fileInput = document.getElementById('coverFileInput');
+        if (fileInput) fileInput.value = '';
+        const statusEl = document.getElementById('coverUploadStatus');
+        if (statusEl) statusEl.textContent = 'Image removed. Save to apply.';
+    });
+
+    // Circle Image File Upload
+    document.getElementById('circleImageFileInput')?.addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const statusEl = document.getElementById('circleImageUploadStatus');
+        statusEl.textContent = 'Uploading...';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+            });
+
+            if (!response.ok) {
+                statusEl.textContent = 'Upload failed. Please try again.';
+                return;
+            }
+
+            const payload = await response.json();
+            const fileId = payload?.data?.id ?? payload?.data?.[0]?.id;
+            if (!fileId) {
+                statusEl.textContent = 'Upload failed. Missing file id.';
+                return;
+            }
+
+            document.getElementById('circleImageFileId').value = fileId;
+            const previewLink = document.getElementById('circleImagePreviewLink');
+            const previewImage = document.getElementById('circleImagePreviewImage');
+            const previewBlock = document.getElementById('circleImagePreviewBlock');
+            const fileIdLabel = document.getElementById('circleImageFileIdLabel');
+            
+            if (previewLink) {
+                previewLink.href = `/api/v1/files/${fileId}`;
+            }
+            if (previewImage) {
+                previewImage.src = `/api/v1/files/${fileId}`;
+            }
+            if (fileIdLabel) {
+                fileIdLabel.textContent = fileId;
+            }
+            if (previewBlock) {
+                previewBlock.classList.remove('d-none');
+                previewBlock.classList.add('d-flex');
+            }
+            statusEl.textContent = 'Upload successful.';
+        } catch (error) {
+            statusEl.textContent = 'Upload failed. Please try again.';
+        }
+    });
+
+    // Circle Image File Remove
+    document.getElementById('circleImageRemoveBtn')?.addEventListener('click', () => {
+        document.getElementById('circleImageFileId').value = '';
+        const previewBlock = document.getElementById('circleImagePreviewBlock');
+        if (previewBlock) {
+            previewBlock.classList.remove('d-flex');
+            previewBlock.classList.add('d-none');
+        }
+        const fileInput = document.getElementById('circleImageFileInput');
+        if (fileInput) fileInput.value = '';
+        const statusEl = document.getElementById('circleImageUploadStatus');
+        if (statusEl) statusEl.textContent = 'Image removed. Save to apply.';
     });
 
     const meetingRows = document.getElementById('meetingRows');

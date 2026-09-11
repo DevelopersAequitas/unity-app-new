@@ -21,6 +21,7 @@ use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -527,27 +528,39 @@ class ProfileController extends BaseApiController
             return $this->error('You cannot record a view of your own profile.', 400);
         }
 
-        $profileView = ProfileView::create([
-            'viewed_id' => $viewedId,
-            'viewer_id' => $viewer->id,
-        ]);
+        $profileView = ProfileView::where('viewed_id', $viewedId)
+            ->where('viewer_id', $viewer->id)
+            ->first();
 
-        $viewedUser = User::find($viewedId);
-        if ($viewedUser) {
-            $notification = new ProfileViewedNotification($viewer);
-            $payload = $notification->toArray($viewedUser);
+        $isNewView = false;
+        if (! $profileView) {
+            $profileView = ProfileView::create([
+                'viewed_id' => $viewedId,
+                'viewer_id' => $viewer->id,
+            ]);
+            $isNewView = true;
+        } else {
+            $profileView->touch();
+        }
 
-            app(PushNotificationService::class)->storeAndSend(
-                $viewedUser,
-                $payload['title'],
-                $payload['body'],
-                $payload,
-                [
-                    'notification_type' => $payload['notification_type'],
-                    'viewer_id' => $viewer->id,
-                    'viewer_name' => $payload['viewer_name'],
-                ]
-            );
+        if ($isNewView) {
+            $viewedUser = User::find($viewedId);
+            if ($viewedUser) {
+                $notification = new ProfileViewedNotification($viewer);
+                $payload = $notification->toArray($viewedUser);
+
+                app(PushNotificationService::class)->storeAndSend(
+                    $viewedUser,
+                    $payload['title'],
+                    $payload['body'],
+                    $payload,
+                    [
+                        'notification_type' => $payload['notification_type'],
+                        'viewer_id' => $viewer->id,
+                        'viewer_name' => $payload['viewer_name'],
+                    ]
+                );
+            }
         }
 
         return $this->success([
@@ -562,23 +575,67 @@ class ProfileController extends BaseApiController
     {
         $user = $request->user();
 
-        $totalViews = ProfileView::where('viewed_id', $user->id)->count();
-
-        $views = ProfileView::with('viewer')
-            ->where('viewed_id', $user->id)
+        $allViews = ProfileView::where('viewed_id', $user->id)
             ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get(['id', 'viewer_id', 'created_at'])
+            ->unique('viewer_id')
+            ->values();
+
+        $totalViews = $allViews->count();
+
+        $perPage = (int) $request->input('per_page', 15);
+        $perPage = max(1, min($perPage, 100));
+        $page = (int) $request->input('page', LengthAwarePaginator::resolveCurrentPage());
+        $page = max(1, $page);
+
+        $slicedViews = $allViews->slice(($page - 1) * $perPage, $perPage)->values();
+
+        $with = ['viewer'];
+        if (Schema::hasTable('circle_category_level4')) {
+            $with[] = 'viewer.level4Category';
+            if (Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'level_4_category_id')) {
+                $with[] = 'viewer.circleMembers.level4Category';
+            }
+        }
+
+        $viewIds = $slicedViews->pluck('id');
+        $fullViews = ProfileView::with($with)
+            ->whereIn('id', $viewIds)
             ->get()
-            ->map(function ($view) {
-                return [
-                    'id' => $view->id,
-                    'viewed_at' => $view->created_at->toIso8601String(),
-                    'viewer' => $view->viewer ? (new UserMiniResource($view->viewer))->resolve() : null,
-                ];
-            });
+            ->keyBy('id');
+
+        $views = $slicedViews->map(function ($lightView) use ($fullViews) {
+            $view = $fullViews->get($lightView->id) ?? $lightView;
+
+            return [
+                'id' => $view->id,
+                'viewed_at' => $view->created_at ? $view->created_at->toIso8601String() : null,
+                'viewer' => $view->viewer ? (new UserMiniResource($view->viewer))->resolve() : null,
+            ];
+        })->values();
+
+        $paginator = new LengthAwarePaginator(
+            $views,
+            $totalViews,
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()]
+        );
 
         return $this->success([
             'total_views' => $totalViews,
             'views' => $views,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
         ], 'Profile views retrieved successfully.');
     }
 }

@@ -133,7 +133,7 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Moderation</label>
-                    <select name="moderation_status" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <select name="moderation_status" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                         @foreach ($moderationOptions as $value => $label)
                             <option value="{{ $value === 'any' ? '' : $value }}" @selected(($filters['moderation_status'] ?? '') === ($value === 'any' ? '' : $value))>{{ $label }}</option>
                         @endforeach
@@ -188,7 +188,7 @@
                                 </select>
                             </th>
                             <th class="px-2 py-1">
-                                <select name="inline_moderation_status" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                <select name="inline_moderation_status" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" onchange="this.form.submit()">
                                     @foreach ($moderationOptions as $value => $label)
                                         <option value="{{ $value }}" @selected(($inlineModerationStatus ?? 'any') === $value)>{{ $label }}</option>
                                     @endforeach

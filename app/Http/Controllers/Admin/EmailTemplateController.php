@@ -435,8 +435,11 @@ class EmailTemplateController extends Controller
     public function index(): View
     {
         $templates = [];
+        $catalog = self::$catalog;
 
-        foreach (self::$catalog as $key => $tpl) {
+        uasort($catalog, static fn (array $first, array $second): int => strcasecmp($first['name'], $second['name']));
+
+        foreach ($catalog as $key => $tpl) {
             $dbTemplate = EmailTemplate::where('template_key', $key)->first();
 
             $filePath = resource_path('views/'.$tpl['file_path']);

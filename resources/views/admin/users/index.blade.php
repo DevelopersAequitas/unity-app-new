@@ -457,16 +457,16 @@
   </div>
 
   <!-- Saved views tab strip -->
-  <div class="flex-none flex items-center gap-1 pb-2 border-b bs surface overflow-x-auto mb-4">
-    <button data-view="all" onclick="setView(this)" class="tab-underline active px-3 py-1.5 text-[12.5px] font-medium t1 whitespace-nowrap">All Members</button>
-    <button data-view="unity" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i>Only Unity Members</button>
-    <button data-view="circles" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-record-circle-fill admin-icon me-1" aria-hidden="true"></i>Circles Peers</button>
-    <button data-view="multiple" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-diagram-3-fill admin-icon me-1" aria-hidden="true"></i>Multiple Circle Peers</button>
-    <button data-view="free" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-person admin-icon me-1" aria-hidden="true"></i>Free Peers</button>
-    <button data-view="vip" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-star-fill admin-icon me-1" aria-hidden="true"></i>VIP Circle</button>
-    <button data-view="pending" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">Awaiting Review</button>
-    <button data-view="expiring" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">Expiring Soon</button>
-    <button data-view="new" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">New This Month</button>
+  <div class="flex-none flex items-center gap-1.5 pb-2.5 border-b bs surface overflow-x-auto overflow-y-hidden mb-4" style="scrollbar-width: thin;">
+    <button type="button" data-view="all" onclick="setView(this)" class="tab-view-btn active px-3 py-1.5 rounded-lg text-[12px] font-semibold transition cursor-pointer whitespace-nowrap bg-indigo-600 text-white shadow-xs">All Members</button>
+    <button type="button" data-view="unity" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i>Only Unity Members</button>
+    <button type="button" data-view="circles" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-record-circle-fill admin-icon me-1" aria-hidden="true"></i>Circles Peers</button>
+    <button type="button" data-view="multiple" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-diagram-3-fill admin-icon me-1" aria-hidden="true"></i>Multiple Circle Peers</button>
+    <button type="button" data-view="free" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-person admin-icon me-1" aria-hidden="true"></i>Free Peers</button>
+    <button type="button" data-view="vip" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2"><i class="bi bi-star-fill admin-icon me-1" aria-hidden="true"></i>VIP Circle</button>
+    <button type="button" data-view="pending" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2">Awaiting Review</button>
+    <button type="button" data-view="expiring" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2">Expiring Soon</button>
+    <button type="button" data-view="new" onclick="setView(this)" class="tab-view-btn px-3 py-1.5 rounded-lg text-[12px] font-medium transition cursor-pointer whitespace-nowrap border bs surface t2 hover:t1 hover:surface-2">New This Month</button>
   </div>
 
   <!-- Management Summary Collapsible Section -->
@@ -749,8 +749,12 @@
     <span class="text-[12.5px] font-semibold accent"><span id="bulk-count">0</span> selected</span>
     <div class="h-4 w-px" style="background:var(--border)"></div>
     <button onclick="bulkApproveTrigger()" class="flex items-center gap-1.5 text-[12.5px] t2 hover:t1 border-none bg-transparent cursor-pointer font-medium"><i class="bi bi-check-circle"></i> Approve</button>
-    <button onclick="bulkExportTrigger()" class="flex items-center gap-1.5 text-[12.5px] t2 hover:t1 border-none bg-transparent cursor-pointer font-medium"><i class="bi bi-download"></i> Export selected</button>
     <button onclick="clearSelection()" class="ml-auto text-[12.5px] t3 hover:t1 border-none bg-transparent cursor-pointer font-medium">Clear selection ✕</button>
+  </div>
+
+  <!-- Top Horizontal Scrollbar (Synchronized) -->
+  <div id="top-scroll-wrapper" class="overflow-x-auto overflow-y-hidden rounded-t-lg border-t border-l border-r bs surface-2" style="height: 12px; margin-bottom: 0px; display: none;">
+    <div id="top-scroll-content" style="height: 1px;"></div>
   </div>
 
   <div class="overflow-x-auto relative pb-20" id="table-scroll">
@@ -1003,12 +1007,6 @@
         <div class="flex items-center gap-1" id="pagination-controls-container">
           <!-- Filled by JS -->
         </div>
-        <div class="hidden xl:flex items-center gap-3 text-[11px] t3">
-          <span><span class="kbd">/</span> search</span>
-          <span><span class="kbd">J</span><span class="kbd">K</span> navigate rows</span>
-          <span><span class="kbd">X</span> select row</span>
-          <span><span class="kbd">Esc</span> close panel</span>
-        </div>
       </div>
     </div>
   </div>
@@ -1145,7 +1143,7 @@
           <div class="border-b bs pb-2.5">
             <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Membership Status & Wallet</h3>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label class="block text-xs t3 mb-1.5 font-medium">Membership Tier</label>
               <select id="edit-membership" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs">
@@ -1161,6 +1159,21 @@
               <select id="edit-status" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs">
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs t3 mb-1.5 font-medium">Membership Plan</label>
+              <select id="edit-zoho-plan-code" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs">
+                <option value="" data-months="0">Select Membership Plan</option>
+                @if(isset($membershipPlanOptions) && count($membershipPlanOptions) > 0)
+                  @foreach ($membershipPlanOptions as $plan)
+                    <option value="{{ $plan['code'] }}" data-months="{{ $plan['duration_months'] ?? 1 }}">{{ $plan['label'] }}</option>
+                  @endforeach
+                @else
+                  <option value="012" data-months="1">1 Month (012)</option>
+                  <option value="013" data-months="12">1 Year (013)</option>
+                  <option value="014" data-months="24">2 Years (014)</option>
+                @endif
               </select>
             </div>
             <div>
@@ -1495,9 +1508,23 @@
       document.getElementById('columns-menu')?.classList.toggle('hidden');
     }
 
+    function scrollToResults() {
+      const tableRoot = document.getElementById('grid-scroll') || document.getElementById('main-table') || document.getElementById('grid-root-container');
+      if (tableRoot) {
+        tableRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+    window.scrollToResults = scrollToResults;
+
     function setView(btn) {
-      document.querySelectorAll('.tab-underline').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      document.querySelectorAll('.tab-view-btn').forEach(b => {
+        b.classList.remove('bg-indigo-600', 'text-white', 'shadow-xs', 'active');
+        b.classList.add('border', 'bs', 'surface', 't2', 'hover:t1', 'hover:surface-2');
+      });
+      btn.classList.remove('border', 'bs', 'surface', 't2', 'hover:t1', 'hover:surface-2');
+      btn.classList.add('bg-indigo-600', 'text-white', 'shadow-xs', 'active');
       currentFilters.view = btn.getAttribute('data-view');
       currentFilters.kpi = '';
       currentFilters.quick = '';
@@ -2023,12 +2050,14 @@
     function changePage(page) {
       currentPage = page;
       applyFilters();
+      scrollToResults();
     }
     
     function changeRowsPerPage(val) {
       rowsPerPage = parseInt(val);
       currentPage = 1;
       applyFilters();
+      scrollToResults();
     }
     
     function toggleInfinite(checkbox) {
@@ -2450,6 +2479,10 @@
       const membershipKey = membershipLabelToKey[m.membership] || 'free_peer';
       document.getElementById('edit-membership').value = membershipKey;
       document.getElementById('edit-status').value = m.status.n.toLowerCase();
+      const planSelect = document.getElementById('edit-zoho-plan-code');
+      if (planSelect) {
+        planSelect.value = m.zoho_plan_code || '';
+      }
       document.getElementById('edit-membership-starts-at').value = m.membership_starts_at || '';
       document.getElementById('edit-membership-ends-at').value = m.membership_ends_at || '';
       document.getElementById('edit-membership-remark').value = m.membership_expiry_date_remark || '';
@@ -2484,6 +2517,39 @@
       }
     }
     
+    function addMonthsToDateStr(startDateStr, months) {
+      if (!startDateStr || !months || months <= 0) return '';
+      const parts = startDateStr.split('-').map(Number);
+      if (parts.length !== 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return '';
+      
+      const [y, m, d] = parts;
+      const date = new Date(y, m - 1, d);
+      date.setMonth(date.getMonth() + Number(months));
+      
+      const resY = date.getFullYear();
+      const resM = String(date.getMonth() + 1).padStart(2, '0');
+      const resD = String(date.getDate()).padStart(2, '0');
+      return `${resY}-${resM}-${resD}`;
+    }
+
+    function autoCalculateQuickEditExpiry() {
+      const planSelect = document.getElementById('edit-zoho-plan-code');
+      const startInput = document.getElementById('edit-membership-starts-at');
+      const endInput = document.getElementById('edit-membership-ends-at');
+      if (!planSelect || !startInput || !endInput) return;
+
+      const selectedOption = planSelect.options[planSelect.selectedIndex];
+      const months = selectedOption ? parseInt(selectedOption.getAttribute('data-months'), 10) : 0;
+      const startDate = startInput.value;
+
+      if (months > 0 && startDate) {
+        endInput.value = addMonthsToDateStr(startDate, months);
+      }
+    }
+
+    document.getElementById('edit-zoho-plan-code')?.addEventListener('change', autoCalculateQuickEditExpiry);
+    document.getElementById('edit-membership-starts-at')?.addEventListener('change', autoCalculateQuickEditExpiry);
+
     function submitEditForm() {
       const m = members.find(x => x.id === currentEditPeerId);
       if (!m) return;
@@ -2503,6 +2569,8 @@
       formData.append('company_name', document.getElementById('edit-company').value || 'Aequitas Infotech');
       formData.append('city', document.getElementById('edit-city').value);
       
+      const planCode = document.getElementById('edit-zoho-plan-code') ? document.getElementById('edit-zoho-plan-code').value : '';
+      formData.append('zoho_plan_code', planCode);
       formData.append('membership_status', document.getElementById('edit-membership').value);
       formData.append('status', document.getElementById('edit-status').value);
       formData.append('membership_starts_at', document.getElementById('edit-membership-starts-at').value);
@@ -2527,6 +2595,7 @@
           m.mobile = document.getElementById('edit-phone').value;
           m.company = document.getElementById('edit-company').value;
           m.city = document.getElementById('edit-city').value;
+          m.zoho_plan_code = planCode;
           m.membership_starts_at = document.getElementById('edit-membership-starts-at').value;
           m.membership_ends_at = document.getElementById('edit-membership-ends-at').value;
           m.membership_expiry_date_remark = document.getElementById('edit-membership-remark').value;
@@ -2755,6 +2824,54 @@
             
             modalInstance?.show();
         });
+
+        // Initialize Top Synchronized Horizontal Scrollbar
+        (function initTopScrollbarSync() {
+            const tableScroll = document.getElementById('table-scroll');
+            const topScrollWrapper = document.getElementById('top-scroll-wrapper');
+            const topScrollContent = document.getElementById('top-scroll-content');
+            const mainTable = document.getElementById('main-table');
+
+            if (!tableScroll || !topScrollWrapper || !topScrollContent || !mainTable) return;
+
+            function syncWidth() {
+                const scrollWidth = mainTable.scrollWidth;
+                const clientWidth = tableScroll.clientWidth;
+                topScrollContent.style.width = scrollWidth + 'px';
+                if (scrollWidth > clientWidth + 10) {
+                    topScrollWrapper.style.display = 'block';
+                } else {
+                    topScrollWrapper.style.display = 'none';
+                }
+            }
+
+            syncWidth();
+            window.addEventListener('resize', syncWidth);
+            if (window.ResizeObserver) {
+                new ResizeObserver(syncWidth).observe(mainTable);
+            }
+
+            let isSyncingTop = false;
+            let isSyncingTable = false;
+
+            topScrollWrapper.addEventListener('scroll', () => {
+                if (isSyncingTop) {
+                    isSyncingTop = false;
+                    return;
+                }
+                isSyncingTable = true;
+                tableScroll.scrollLeft = topScrollWrapper.scrollLeft;
+            });
+
+            tableScroll.addEventListener('scroll', () => {
+                if (isSyncingTable) {
+                    isSyncingTable = false;
+                    return;
+                }
+                isSyncingTop = true;
+                topScrollWrapper.scrollLeft = tableScroll.scrollLeft;
+            });
+        })();
     });
 </script>
 @endpush

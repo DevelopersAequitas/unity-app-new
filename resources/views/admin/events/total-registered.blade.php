@@ -343,8 +343,8 @@
         </table>
       </div>
 
-      @if($registrations->hasPages())
-        <div class="p-3 border-t bs surface-2">
+      @if($registrations->hasPages() || $registrations->total() > 0)
+        <div id="grid-pagination" class="p-3 border-t bs surface-2">
           {{ $registrations->links() }}
         </div>
       @endif

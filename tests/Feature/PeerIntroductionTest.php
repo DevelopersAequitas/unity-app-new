@@ -8,8 +8,11 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\IntroductionImageGenerator;
+use App\Services\MilestoneBadgeService;
 use App\Services\Users\PeerIntroductionService;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -34,10 +37,16 @@ class PeerIntroductionTest extends TestCase
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
             $table->string('password_hash')->nullable();
+            $table->string('company_name')->nullable();
+            $table->unsignedBigInteger('business_category_id')->nullable();
+            $table->unsignedBigInteger('main_business_category_id')->nullable();
+            $table->string('business_sub_category')->nullable();
             $table->uuid('profile_photo_file_id')->nullable();
             $table->string('status')->default('active');
             $table->uuid('introduced_by')->nullable();
             $table->integer('members_introduced_count')->default(0);
+            $table->string('contribution_award_name')->nullable();
+            $table->string('contribution_award_recognition')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -51,6 +60,31 @@ class PeerIntroductionTest extends TestCase
             $table->integer('width')->nullable();
             $table->integer('height')->nullable();
             $table->integer('duration')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('milestone_badges', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('type')->default('member_introduction');
+            $table->string('title');
+            $table->string('track')->default('Growth');
+            $table->integer('required_count')->default(1);
+            $table->text('description')->nullable();
+            $table->string('badge_image_url')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+
+        Schema::create('user_milestone_badges', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('badge_id');
+            $table->string('milestone_type')->nullable();
+            $table->integer('achieved_count')->default(0);
+            $table->string('status')->default('earned');
+            $table->timestamp('earned_at')->nullable();
+            $table->timestamp('revoked_at')->nullable();
             $table->timestamps();
         });
 
@@ -164,6 +198,8 @@ class PeerIntroductionTest extends TestCase
             'first_name' => 'Urvashi',
             'last_name' => 'Chavda',
             'display_name' => 'Urvashi Chavda',
+            'company_name' => 'Chavda Enterprises',
+            'business_sub_category' => 'Interior Design',
             'email' => 'urvashi@example.com',
             'status' => 'active',
         ]);
@@ -173,9 +209,15 @@ class PeerIntroductionTest extends TestCase
             'first_name' => 'Hardik',
             'last_name' => 'Parmar',
             'display_name' => 'Hardik Parmar',
+            'company_name' => 'Parmar Tech Solutions',
+            'business_sub_category' => 'Software Development',
             'email' => 'hardik@example.com',
             'status' => 'active',
+            'introduced_by' => $introducer->id,
         ]);
+
+        $introducer->members_introduced_count = 1;
+        $introducer->save();
 
         // Create notification preferences to ensure notifications are not muted/suppressed
         NotificationPreference::create([
@@ -190,9 +232,24 @@ class PeerIntroductionTest extends TestCase
             'campaign_enabled' => true,
         ]);
 
-        // Run introduction service flow
+        DB::table('milestone_badges')->insert([
+            'id' => (string) Str::uuid(),
+            'type' => 'member_introduction',
+            'title' => 'CONNECTOR',
+            'track' => 'Growth',
+            'required_count' => 1,
+            'description' => 'You are carrying the Peers Global spirit wherever you go.',
+            'is_active' => true,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Run introduction service flow & sync milestone badge
         $service = app(PeerIntroductionService::class);
         $service->handlePeerIntroduction($introducer, $introduced);
+
+        app(MilestoneBadgeService::class)->calculateForUser($introducer);
 
         // Verify image file registration
         $this->assertDatabaseHas('files', [
@@ -209,6 +266,15 @@ class PeerIntroductionTest extends TestCase
         $post = Post::where('source_id', $introduced->id)->firstOrFail();
         $this->assertStringContainsString('Congratulations to Urvashi Chavda for introducing Hardik Parmar', $post->content_text);
 
+        // Verify automatic Growth Honour timeline post created for the threshold (1 introduced member)
+        $this->assertDatabaseHas('posts', [
+            'post_type' => 'growth_honour',
+            'source_type' => 'milestone_badge',
+        ]);
+
+        $ghPost = Post::where('post_type', 'growth_honour')->where('source_type', 'milestone_badge')->firstOrFail();
+        $this->assertStringContainsString('CONNECTOR', $ghPost->content_text);
+
         // Verify push notification registered for the introducer
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $introducer->id,
@@ -218,5 +284,28 @@ class PeerIntroductionTest extends TestCase
 
         $notification = AppNotification::where('user_id', $introducer->id)->firstOrFail();
         $this->assertStringContainsString('Hi, you have introduced Hardik Parmar', $notification->body);
+    }
+
+    public function test_introduction_image_generator_resolves_company_and_category(): void
+    {
+        $generator = app(IntroductionImageGenerator::class);
+
+        $user1 = new User([
+            'first_name' => 'Azhar',
+            'last_name' => 'Pathan',
+            'company_name' => 'Aequitas Tech',
+            'business_sub_category' => 'IT Services',
+        ]);
+
+        $this->assertEquals('Aequitas Tech', $generator->resolveCompanyName($user1));
+        $this->assertEquals('IT Services', $generator->resolveCategoryName($user1));
+
+        $user2 = new User([
+            'first_name' => 'Lalit',
+            'last_name' => 'Munot',
+        ]);
+
+        $this->assertEquals('', $generator->resolveCompanyName($user2));
+        $this->assertEquals('', $generator->resolveCategoryName($user2));
     }
 }

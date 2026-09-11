@@ -196,6 +196,22 @@
 
 <form method="POST" action="{{ route('admin.contacts.user-details.export-selected', $userId) }}" id="selected-export-form">
     @csrf
+    <input type="hidden" name="select_all_matching" id="select_all_matching" value="0">
+    
+    {{-- Select All Across All Pages Notification Banner --}}
+    <div id="select-all-banner" class="alert alert-primary py-2 px-3 mb-2 d-none d-flex justify-content-between align-items-center">
+        <span>All <strong><span id="page-selected-count">{{ $contacts->count() }}</span></strong> contacts on this page are selected.</span>
+        <button type="button" class="btn btn-sm btn-link p-0 text-primary text-decoration-underline fw-bold" id="btn-select-all-records">
+            Select all {{ $contacts->total() }} contacts for this user
+        </button>
+    </div>
+    <div id="all-selected-banner" class="alert alert-success py-2 px-3 mb-2 d-none d-flex justify-content-between align-items-center">
+        <span>All <strong>{{ $contacts->total() }}</strong> contacts for this user are selected.</span>
+        <button type="button" class="btn btn-sm btn-link p-0 text-danger text-decoration-underline fw-bold" id="btn-clear-all-records">
+            Clear selection
+        </button>
+    </div>
+
     <div class="card p-0 overflow-hidden">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -249,8 +265,20 @@
         const selectAll = document.getElementById('select-all-contacts');
         const exportBtn = document.getElementById('export-selected-btn');
         const selectedCount = document.getElementById('selected-count');
+        const selectAllBanner = document.getElementById('select-all-banner');
+        const allSelectedBanner = document.getElementById('all-selected-banner');
+        const selectAllMatchingInput = document.getElementById('select_all_matching');
+        const btnSelectAllRecords = document.getElementById('btn-select-all-records');
+        const btnClearAllRecords = document.getElementById('btn-clear-all-records');
+        const totalContacts = {{ $contacts->total() }};
 
         const updateSelectionState = () => {
+            if (selectAllMatchingInput.value === '1') {
+                if (exportBtn) exportBtn.disabled = false;
+                if (selectedCount) selectedCount.textContent = `Selected: All ${totalContacts}`;
+                return;
+            }
+
             const selected = checkboxes.filter((checkbox) => checkbox.checked).length;
             if (exportBtn) {
                 exportBtn.disabled = selected === 0;
@@ -262,10 +290,18 @@
                 selectAll.checked = checkboxes.length > 0 && selected === checkboxes.length;
                 selectAll.indeterminate = selected > 0 && selected < checkboxes.length;
             }
+
+            if (checkboxes.length > 0 && selected === checkboxes.length && totalContacts > checkboxes.length) {
+                selectAllBanner?.classList.remove('d-none');
+            } else {
+                selectAllBanner?.classList.add('d-none');
+            }
+            allSelectedBanner?.classList.add('d-none');
         };
 
         if (selectAll) {
             selectAll.addEventListener('change', () => {
+                selectAllMatchingInput.value = '0';
                 checkboxes.forEach((checkbox) => {
                     checkbox.checked = selectAll.checked;
                 });
@@ -273,7 +309,29 @@
             });
         }
 
-        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateSelectionState));
+        if (btnSelectAllRecords) {
+            btnSelectAllRecords.addEventListener('click', () => {
+                selectAllMatchingInput.value = '1';
+                selectAllBanner?.classList.add('d-none');
+                allSelectedBanner?.classList.remove('d-none');
+                if (exportBtn) exportBtn.disabled = false;
+                if (selectedCount) selectedCount.textContent = `Selected: All ${totalContacts}`;
+            });
+        }
+
+        if (btnClearAllRecords) {
+            btnClearAllRecords.addEventListener('click', () => {
+                selectAllMatchingInput.value = '0';
+                if (selectAll) selectAll.checked = false;
+                checkboxes.forEach(cb => cb.checked = false);
+                updateSelectionState();
+            });
+        }
+
+        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', () => {
+            selectAllMatchingInput.value = '0';
+            updateSelectionState();
+        }));
         updateSelectionState();
     });
 </script>

@@ -5,30 +5,76 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAppReleaseRequest;
 use App\Models\AppChangelog;
+use App\Models\AppMaintenance;
 use App\Models\AppVersion;
+use App\Models\LeaderAppConfig;
 use App\Models\User;
 use App\Models\UserMobileVersion;
+use App\Models\UserPushToken;
 use App\Services\AppReleaseService;
+use App\Services\MaintenanceService;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class AppUpdatesController extends Controller
 {
     /**
-     * Display the App Updates settings and user mobile devices list.
+     * Display the App Updates settings, Maintenance Mode status, and user mobile devices list.
      */
     public function index(Request $request)
     {
         $androidConfig = AppVersion::where('platform', 'android')->first()
-            ?? new AppVersion(['platform' => 'android', 'latest_version' => '1.0.0', 'min_version' => '1.0.0', 'update_type' => 'optional', 'is_active' => false]);
+            ?? new AppVersion(['platform' => 'android', 'latest_version' => '1.8.0', 'min_version' => '1.2.0', 'update_type' => 'optional', 'is_active' => true]);
 
         $iosConfig = AppVersion::where('platform', 'ios')->first()
-            ?? new AppVersion(['platform' => 'ios', 'latest_version' => '1.0.0', 'min_version' => '1.0.0', 'update_type' => 'optional', 'is_active' => false]);
+            ?? new AppVersion(['platform' => 'ios', 'latest_version' => '1.8.0', 'min_version' => '1.2.0', 'update_type' => 'optional', 'is_active' => true]);
 
-        // Default Play Store and App Store URLs
+        // Default Play Store and App Store URLs for Peers Global Unity
         $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share';
         $appStoreUrl = 'https://apps.apple.com/in/app/peers-global-unity/id6739198477';
+
+        // App Maintenance configuration
+        $maintenanceConfig = Schema::hasTable('app_maintenances')
+            ? AppMaintenance::orderBy('created_at', 'desc')->first()
+            : null;
+
+        if (! $maintenanceConfig) {
+            $maintenanceConfig = new AppMaintenance([
+                'status' => 'none',
+                'title' => 'We’re under maintenance',
+                'message' => 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️',
+                'support_email' => 'support@peersunity.com',
+            ]);
+        }
+
+        // Automatically backfill missing user mobile versions from push tokens so users list always populates cleanly
+        if (Schema::hasTable('user_push_tokens')) {
+            try {
+                $pushTokens = UserPushToken::query()->get();
+                foreach ($pushTokens as $pt) {
+                    $uId = $pt->user_id;
+                    if ($uId) {
+                        UserMobileVersion::firstOrCreate(
+                            [
+                                'user_id' => $uId,
+                                'platform' => strtolower((string) ($pt->platform ?: 'android')),
+                            ],
+                            [
+                                'app_version' => $pt->app_version ?: '1.8.0',
+                                'device_model' => 'Mobile Device',
+                                'os_version' => 'N/A',
+                            ]
+                        );
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Push token backfill check skipped: '.$e->getMessage());
+            }
+        }
 
         // Query user mobile versions with search filter
         $search = $request->input('search');
@@ -73,9 +119,34 @@ class AppUpdatesController extends Controller
             return $record;
         });
 
-        $appReleases = AppChangelog::orderBy('created_at', 'desc')->get();
+        $appReleases = Schema::hasTable('app_changelogs')
+            ? AppChangelog::orderBy('created_at', 'desc')->get()
+            : collect();
 
-        return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases'));
+        $leaderConfig = Schema::hasTable('leader_app_configs')
+            ? LeaderAppConfig::query()->latest('updated_at')->first()
+            : null;
+
+        if (! $leaderConfig) {
+            $leaderConfig = new LeaderAppConfig([
+                'platform' => 'all',
+                'min_required_version' => '1.8.7',
+                'latest_version' => '1.8.8',
+                'store_url_android' => 'https://play.google.com/store/apps/details?id=com.greenpreneur.greenpreneur',
+                'store_url_ios' => 'https://apps.apple.com/app/id1234567890',
+                'force_update_title' => 'App Update Required',
+                'force_update_message' => 'A critical new version of Peers Global Unity is required to continue. Please update the app from the store.',
+                'optional_update_title' => 'New Update Available',
+                'optional_update_message' => 'A new version is available with enhanced features and performance improvements.',
+                'is_maintenance_mode' => false,
+                'maintenance_title' => 'System Under Maintenance',
+                'maintenance_message' => 'We are currently performing essential infrastructure upgrades. Please check back shortly.',
+                'allowed_bypass_roles' => ['superAdmin', 'super_admin'],
+                'is_active' => true,
+            ]);
+        }
+
+        return view('admin.app-updates.index', compact('androidConfig', 'iosConfig', 'maintenanceConfig', 'playStoreUrl', 'appStoreUrl', 'userVersions', 'appReleases', 'leaderConfig'));
     }
 
     /**
@@ -119,6 +190,137 @@ class AppUpdatesController extends Controller
         }
 
         return redirect()->route('admin.app-updates.index')->with('success', ucfirst($platform).' configuration updated successfully.');
+    }
+
+    /**
+     * Save Maintenance Mode configuration settings.
+     */
+    public function saveMaintenance(Request $request)
+    {
+        $request->validate([
+            'status' => 'required|string|in:none,scheduled,active,completed',
+            'title' => 'nullable|string|max:255',
+            'message' => 'nullable|string',
+            'start_time' => 'nullable|string',
+            'end_time' => 'nullable|string',
+            'support_email' => 'nullable|string|max:191',
+        ]);
+
+        if (! Schema::hasTable('app_maintenances')) {
+            return redirect()->route('admin.app-updates.index')->with('error', 'The app_maintenances table is not created in the database yet. Please run the SQL script.');
+        }
+
+        $maintenance = AppMaintenance::orderBy('created_at', 'desc')->first()
+            ?? new AppMaintenance;
+
+        $oldStatus = $maintenance->status;
+        $newStatus = $request->input('status');
+
+        $maintenance->status = $newStatus;
+        $maintenance->title = $request->input('title') ?: 'We’re under maintenance';
+        $maintenance->message = $request->input('message') ?: 'We’re making a few improvements to the platform. The app will be back shortly. Thanks for waiting with us ❤️';
+        $maintenance->support_email = $request->input('support_email') ?: 'support@peersunity.com';
+
+        $startTimeInput = $request->input('start_time');
+        $endTimeInput = $request->input('end_time');
+
+        // Store exact literal time entered in Admin Panel without timezone shifting
+        $maintenance->start_time = $startTimeInput ? Carbon::parse($startTimeInput) : null;
+        $maintenance->end_time = $endTimeInput ? Carbon::parse($endTimeInput) : null;
+
+        if ($maintenance->start_time && $maintenance->end_time) {
+            $maintenance->duration_minutes = (int) $maintenance->start_time->diffInMinutes($maintenance->end_time);
+        } else {
+            $maintenance->duration_minutes = null;
+        }
+
+        $maintenance->save();
+
+        if ($newStatus === 'active' && $oldStatus !== 'active') {
+            try {
+                app(MaintenanceService::class)->sendMaintenanceStartPushNotification($maintenance);
+            } catch (\Throwable $e) {
+                Log::error('Failed sending maintenance FCM push notification: '.$e->getMessage());
+            }
+        }
+
+        return redirect()->route('admin.app-updates.index')->with('success', 'App Maintenance configuration updated successfully.');
+    }
+
+    /**
+     * Save Leader App configuration settings.
+     */
+    public function saveLeaderConfig(Request $request)
+    {
+        $data = $request->validate([
+            'min_required_version' => 'required|string|max:50',
+            'latest_version' => 'required|string|max:50',
+            'store_url_android' => 'nullable|url',
+            'store_url_ios' => 'nullable|url',
+            'force_update_title' => 'nullable|string|max:255',
+            'force_update_message' => 'nullable|string',
+            'optional_update_title' => 'nullable|string|max:255',
+            'optional_update_message' => 'nullable|string',
+            'is_maintenance_mode' => 'nullable|boolean',
+            'maintenance_title' => 'nullable|string|max:255',
+            'maintenance_message' => 'nullable|string',
+            'allowed_bypass_roles' => 'nullable|string',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (! Schema::hasTable('leader_app_configs')) {
+            return redirect()->route('admin.app-updates.index')->with('error', 'The leader_app_configs table does not exist.');
+        }
+
+        $bypassRoles = [];
+        if (! empty($data['allowed_bypass_roles'])) {
+            $bypassRoles = array_values(array_filter(array_map('trim', explode(',', (string) $data['allowed_bypass_roles']))));
+        }
+        if (empty($bypassRoles)) {
+            $bypassRoles = ['superAdmin', 'super_admin'];
+        }
+
+        $isMaintenance = (bool) $request->boolean('is_maintenance_mode');
+        $isActive = (bool) $request->boolean('is_active', true);
+
+        $existing = LeaderAppConfig::query()->latest('updated_at')->first();
+        if ($existing) {
+            $existing->update([
+                'min_required_version' => $data['min_required_version'],
+                'latest_version' => $data['latest_version'],
+                'store_url_android' => $data['store_url_android'] ?? null,
+                'store_url_ios' => $data['store_url_ios'] ?? null,
+                'force_update_title' => $data['force_update_title'] ?? null,
+                'force_update_message' => $data['force_update_message'] ?? null,
+                'optional_update_title' => $data['optional_update_title'] ?? null,
+                'optional_update_message' => $data['optional_update_message'] ?? null,
+                'is_maintenance_mode' => $isMaintenance,
+                'maintenance_title' => $data['maintenance_title'] ?? null,
+                'maintenance_message' => $data['maintenance_message'] ?? null,
+                'allowed_bypass_roles' => $bypassRoles,
+                'is_active' => $isActive,
+            ]);
+        } else {
+            LeaderAppConfig::query()->create([
+                'id' => (string) Str::uuid(),
+                'platform' => 'all',
+                'min_required_version' => $data['min_required_version'],
+                'latest_version' => $data['latest_version'],
+                'store_url_android' => $data['store_url_android'] ?? null,
+                'store_url_ios' => $data['store_url_ios'] ?? null,
+                'force_update_title' => $data['force_update_title'] ?? null,
+                'force_update_message' => $data['force_update_message'] ?? null,
+                'optional_update_title' => $data['optional_update_title'] ?? null,
+                'optional_update_message' => $data['optional_update_message'] ?? null,
+                'is_maintenance_mode' => $isMaintenance,
+                'maintenance_title' => $data['maintenance_title'] ?? null,
+                'maintenance_message' => $data['maintenance_message'] ?? null,
+                'allowed_bypass_roles' => $bypassRoles,
+                'is_active' => $isActive,
+            ]);
+        }
+
+        return redirect()->route('admin.app-updates.index')->with('success', 'Leader App configuration updated successfully.');
     }
 
     /**

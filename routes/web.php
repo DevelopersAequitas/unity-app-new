@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BirthdayCreativeController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
+use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
@@ -53,9 +55,9 @@ use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\IntroductionRequestsController;
-use App\Http\Controllers\Admin\PeerReferralsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\LifeImpactController;
+use App\Http\Controllers\Admin\LifeImpactRecognitionsController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\MemberIntroducersController;
@@ -63,6 +65,7 @@ use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\MilestoneBadgeController;
 use App\Http\Controllers\Admin\NotificationAdminController;
 use App\Http\Controllers\Admin\NotificationTemplateController;
+use App\Http\Controllers\Admin\PeerReferralsController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
@@ -85,6 +88,7 @@ use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\ShareController;
 use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
@@ -98,6 +102,10 @@ Route::get('/', function () {
 Route::get('/congratulations', function () {
     return view('congratulations');
 });
+
+Route::get('/storage/{path}', [PublicStorageController::class, 'serve'])
+    ->where('path', '.*')
+    ->name('public.storage.serve');
 
 Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
@@ -144,6 +152,8 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
 
 Route::get('/account-deletion-request', [AccountDeletionController::class, 'show'])->name('account-deletion.show');
 Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
+
+Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
@@ -241,8 +251,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
 
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
+        Route::get('/commissions', [CommissionManagementController::class, 'index'])->name('commissions.index');
+        Route::put('/commissions', [CommissionManagementController::class, 'updateBulk'])->name('commissions.update-bulk');
+        Route::post('/commissions', [CommissionManagementController::class, 'store'])->name('commissions.store');
+        Route::delete('/commissions/{id}', [CommissionManagementController::class, 'destroy'])->whereUuid('id')->name('commissions.destroy');
         Route::get('/app-updates', [AppUpdatesController::class, 'index'])->name('app-updates.index');
         Route::post('/app-updates/save/{platform}', [AppUpdatesController::class, 'saveSettings'])->name('app-updates.save');
+        Route::post('/app-updates/maintenance', [AppUpdatesController::class, 'saveMaintenance'])->name('app-updates.maintenance.save');
+        Route::post('/app-updates/leader-config', [AppUpdatesController::class, 'saveLeaderConfig'])->name('app-updates.leader-config.save');
         Route::post('/app-updates/notify-selected', [AppUpdatesController::class, 'notifySelected'])->name('app-updates.notify-selected');
         Route::post('/app-updates/releases', [AppUpdatesController::class, 'storeRelease'])->name('app-updates.releases.store');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
@@ -284,6 +300,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/member-introducers/{id}/introduced-peers', [MemberIntroducersController::class, 'introducedPeers'])->whereUuid('id')->name('member-introducers.introduced-peers');
         Route::get('/member-introducers/{id}/creative-preview', [MemberIntroducersController::class, 'creativePreview'])->whereUuid('id')->name('member-introducers.creative-preview');
         Route::post('/member-introducers/{id}/post-creative', [MemberIntroducersController::class, 'postCreativeToTimeline'])->whereUuid('id')->name('member-introducers.post-creative');
+        Route::get('/life-impact-recognitions', [LifeImpactRecognitionsController::class, 'index'])->name('life-impact-recognitions.index');
+        Route::get('/life-impact-recognitions/{id}/creative-preview', [LifeImpactRecognitionsController::class, 'creativePreview'])->whereUuid('id')->name('life-impact-recognitions.creative-preview');
+        Route::post('/life-impact-recognitions/{id}/post-creative', [LifeImpactRecognitionsController::class, 'postCreativeToTimeline'])->whereUuid('id')->name('life-impact-recognitions.post-creative');
         Route::get('/milestone-badges', [MilestoneBadgeController::class, 'index'])->name('milestone-badges.index');
         Route::get('/milestone-badges/create', [MilestoneBadgeController::class, 'create'])->name('milestone-badges.create');
         Route::post('/milestone-badges', [MilestoneBadgeController::class, 'store'])->name('milestone-badges.store');
@@ -651,6 +670,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/notification-templates/{key}/edit', [NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
         Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'update'])->name('notification-templates.update');
         Route::get('/notification-templates/{key}/preview', [NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
+
+        // App Notifications & Mobile Navigation Showcase Module
+        Route::get('/app-notifications', [AppNotificationAdminController::class, 'index'])->name('app-notifications.index');
+        Route::post('/app-notifications', [AppNotificationAdminController::class, 'store'])->name('app-notifications.store');
+        Route::get('/app-notifications/peers-search', [AppNotificationAdminController::class, 'searchPeers'])->name('app-notifications.peers-search');
+        Route::get('/app-notifications/peer-details/{id}', [AppNotificationAdminController::class, 'peerDetails'])->whereUuid('id')->name('app-notifications.peer-details');
+        Route::get('/app-notifications/{key}/preview', [AppNotificationAdminController::class, 'preview'])->name('app-notifications.preview');
+        Route::post('/app-notifications/send', [AppNotificationAdminController::class, 'sendToPeers'])->name('app-notifications.send');
+        Route::post('/app-notifications/send-all-to-peer', [AppNotificationAdminController::class, 'sendAllToPeer'])->name('app-notifications.send-all-to-peer');
+        Route::get('/app-notifications/delivery-logs', [AppNotificationAdminController::class, 'deliveryLogs'])->name('app-notifications.delivery-logs');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

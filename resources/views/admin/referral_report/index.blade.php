@@ -38,21 +38,22 @@
     </div>
 
     <div class="p-3 rounded-lg border bs surface-2">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
-            <div>
+        <div class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[200px]">
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
                 <input type="text" name="q" form="referralReportFilters" value="{{ $filters['q'] ?? '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Name, email, phone, code">
             </div>
-            <div>
+            <div class="w-40">
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From Date</label>
                 <input type="date" name="from" form="referralReportFilters" value="{{ $filters['from'] ?? '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
             </div>
-            <div>
+            <div class="w-40">
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To Date</label>
                 <input type="date" name="to" form="referralReportFilters" value="{{ $filters['to'] ?? '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
             </div>
-            <div class="flex justify-end">
-                <a href="{{ route('admin.referral-report.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline w-full">Clear</a>
+            <div class="flex items-center gap-2">
+                <button type="submit" form="referralReportFilters" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm cursor-pointer">Filter</button>
+                <a href="{{ route('admin.referral-report.index') }}" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg border bs surface t2 hover:t1 hover:surface-3 transition text-center no-underline shadow-sm">Clear</a>
             </div>
         </div>
     </div>
@@ -76,12 +77,22 @@
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
                     @forelse ($records as $record)
+                        @php
+                            $refAvatar = $record->referrer_profile_photo_url ?? ($record->referrer_profile_photo_file_id ? url('/api/v1/files/' . $record->referrer_profile_photo_file_id) : null);
+                        @endphp
                         <tr class="hover:surface-2 transition border-b bs">
                             <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs flex-shrink-0">
-                                        {{ $getInitials($record->referrer_name ?? '') }}
-                                    </div>
+                                    @if($refAvatar)
+                                        <img src="{{ $refAvatar }}" alt="{{ $record->referrer_name }}" class="w-8 h-8 rounded-full object-cover border bs flex-shrink-0" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+                                        <div class="w-8 h-8 rounded-full text-white font-bold items-center justify-center text-xs flex-shrink-0 hidden" style="background-color: {{ $getAvatarBg($record->referrer_name ?? '') }}">
+                                            {{ $getInitials($record->referrer_name ?? '') }}
+                                        </div>
+                                    @else
+                                        <div class="w-8 h-8 rounded-full text-white font-bold flex items-center justify-center text-xs flex-shrink-0" style="background-color: {{ $getAvatarBg($record->referrer_name ?? '') }}">
+                                            {{ $getInitials($record->referrer_name ?? '') }}
+                                        </div>
+                                    @endif
                                     <div class="font-semibold t1">
                                         @if(!empty($record->referrer_user_id))
                                             <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $record->referrer_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">

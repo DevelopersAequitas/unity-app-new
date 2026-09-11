@@ -26,7 +26,7 @@ class StoreManualLifeImpactRequest extends FormRequest
         return [
             'user_id' => ['required', 'uuid', 'exists:users,id'],
             'impact_type' => ['required', 'string', Rule::in(['business_deal', 'qualified_referral', 'testimonial_received', 'manual'])],
-            'impact_value' => ['required', 'integer', 'min:1', 'max:10000'],
+            'impact_value' => ['required', 'integer', 'not_in:0', 'min:-10000', 'max:10000'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
             'reference_date' => ['required', 'date'],

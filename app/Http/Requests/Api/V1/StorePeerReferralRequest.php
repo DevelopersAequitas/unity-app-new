@@ -19,14 +19,14 @@ class StorePeerReferralRequest extends FormRequest
     {
         return [
             'referred_name' => ['required', 'string', 'max:255'],
-            'referred_phone' => ['required', 'string', 'max:50'],
+            'referred_phone' => ['required', 'string', 'regex:/^[0-9+\-\s()]{7,25}$/', 'max:50'],
             'referred_email' => ['nullable', 'email', 'max:255'],
             'referred_company_name' => ['nullable', 'string', 'max:255'],
             'referred_designation' => ['nullable', 'string', 'max:255'],
             'main_circle_id' => ['required', 'uuid', 'exists:circles,id'],
             'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
-            'open_category_id' => ['required', 'uuid'],
-            'message' => ['nullable', 'string'],
+            'open_category_id' => ['required', 'string'],
+            'message' => ['nullable', 'string', 'max:1000'],
         ];
     }
 

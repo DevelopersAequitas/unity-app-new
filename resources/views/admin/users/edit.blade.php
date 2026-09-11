@@ -562,10 +562,15 @@ window.switchTab = function(tabId) {
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Membership Plan</label>
-                            <select name="zoho_plan_code" class="form-select @error('zoho_plan_code') is-invalid @enderror">
-                                <option value="">Select Membership Plan</option>
+                            <select name="zoho_plan_code" id="zohoPlanSelect" class="form-select @error('zoho_plan_code') is-invalid @enderror js-no-searchable-select">
+                                <option value="" data-months="0">Select Membership Plan</option>
                                 @foreach ($membershipPlanOptions as $plan)
-                                    <option value="{{ $plan['code'] }}" @selected(old('zoho_plan_code', $user->zoho_plan_code) === $plan['code'])>{{ $plan['label'] }}</option>
+                                    <option value="{{ $plan['code'] }}" 
+                                        data-months="{{ $plan['duration_months'] ?? 1 }}" 
+                                        data-name="{{ $plan['name'] ?? $plan['label'] }}" 
+                                        @selected(old('zoho_plan_code', $user->zoho_plan_code) === $plan['code'])>
+                                        {{ $plan['label'] }}
+                                    </option>
                                 @endforeach
                             </select>
                             @error('zoho_plan_code')
@@ -574,16 +579,16 @@ window.switchTab = function(tabId) {
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Membership Start Date</label>
-                            <input type="date" name="membership_starts_at" class="form-control" value="{{ old('membership_starts_at', optional($user->membership_starts_at)->format('Y-m-d')) }}">
+                            <input type="date" name="membership_starts_at" id="membershipStartsAtInput" class="form-control" value="{{ old('membership_starts_at', optional($user->membership_starts_at)->format('Y-m-d')) }}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Membership Expiry Date</label>
-                            <input type="date" name="membership_ends_at" class="form-control" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}">
+                            <input type="date" name="membership_ends_at" id="membershipEndsAtInput" class="form-control" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}">
                         </div>
                         @if(old('membership_status', $user->membership_status) === 'free_trial_peer')
-                            <div class="col-md-4">
+                            <div class="col-md-4" id="trialExpiryContainer">
                                 <label class="form-label fw-semibold">Trial Expiry Date</label>
-                                <input type="text" class="form-control bg-light" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}" readonly>
+                                <input type="text" id="trialExpiryDisplayInput" class="form-control bg-light" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}" readonly>
                             </div>
                         @endif
                         <div class="col-md-8">
@@ -673,7 +678,7 @@ window.switchTab = function(tabId) {
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label fw-semibold">Coins Balance</label>
-                            <input type="number" name="coins_balance" class="form-control" min="0" value="{{ old('coins_balance', $user->coins_balance) }}">
+                            <input type="number" name="coins_balance" class="form-control" value="{{ old('coins_balance', $user->coins_balance) }}">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Coins Remark</label>
@@ -703,7 +708,6 @@ window.switchTab = function(tabId) {
                                 type="number"
                                 name="life_impacted_count"
                                 class="form-control @error('life_impacted_count') is-invalid @enderror"
-                                min="0"
                                 value="{{ old('life_impacted_count', $user->life_impacted_count ?? 0) }}"
                             >
                             @error('life_impacted_count')
@@ -1732,6 +1736,7 @@ document.addEventListener('DOMContentLoaded', function () {
             dropdownParent: jQuery('#addIntroducedMemberModal'),
             placeholder: 'Search and select user...',
             allowClear: true,
+            minimumInputLength: 0,
             width: '100%',
             ajax: {
                 url: "{{ route('admin.users.search') }}",
@@ -2321,6 +2326,7 @@ document.addEventListener('DOMContentLoaded', function () {
             jQuery('#sponsor_select').select2({
                 placeholder: 'Search by name, email, company, or phone...',
                 allowClear: true,
+                minimumInputLength: 0,
                 width: '100%',
                 containerCssClass: 'sponsor-select-custom',
                 dropdownCssClass: 'admin-filter-dropdown-menu sponsor-dropdown-custom',
@@ -2376,6 +2382,115 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (sponsorInfoBox) sponsorInfoBox.style.display = 'none';
         });
+
+        // -------------------------------------------------------------
+        // Membership Plan & Expiry Date Auto-Calculation
+        // -------------------------------------------------------------
+        const planSelect = document.getElementById('zohoPlanSelect');
+        const startsAtInput = document.getElementById('membershipStartsAtInput');
+        const endsAtInput = document.getElementById('membershipEndsAtInput');
+        const trialDisplayInput = document.getElementById('trialExpiryDisplayInput');
+
+        function addMonthsToDateStr(dateStr, monthsToAdd) {
+            if (!dateStr || !monthsToAdd) return '';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return '';
+            
+            let year = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10); // 1-12
+            let day = parseInt(parts[2], 10);
+            
+            let totalMonths = (month - 1) + monthsToAdd;
+            let newYear = year + Math.floor(totalMonths / 12);
+            let newMonth = (totalMonths % 12) + 1; // 1-12
+            
+            let daysInNewMonth = new Date(newYear, newMonth, 0).getDate();
+            let newDay = Math.min(day, daysInNewMonth);
+            
+            let yyyy = String(newYear).padStart(4, '0');
+            let mm = String(newMonth).padStart(2, '0');
+            let dd = String(newDay).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function resolvePlanDurationMonths() {
+            if (!planSelect || !planSelect.value) return 0;
+            const selectedOption = planSelect.options[planSelect.selectedIndex];
+            if (!selectedOption) return 0;
+            
+            if (selectedOption.hasAttribute('data-months')) {
+                const m = parseInt(selectedOption.getAttribute('data-months'), 10);
+                if (!isNaN(m) && m > 0) return m;
+            }
+            
+            const text = (selectedOption.textContent || '').toLowerCase();
+            const val = (planSelect.value || '').toLowerCase();
+            
+            if (text.includes('5-year') || text.includes('5 year') || text.includes('5 years')) return 60;
+            if (text.includes('3-year') || text.includes('3 year') || text.includes('3 years')) return 36;
+            if (text.includes('2-year') || text.includes('2 year') || text.includes('2 years') || val === '014') return 24;
+            if (text.includes('1-year') || text.includes('1 year') || text.includes('1 years') || text.includes('year') || text.includes('annual') || text.includes('12-month') || val === '013' || val === '015') return 12;
+            if (text.includes('6-month') || text.includes('6 month') || text.includes('6 months') || text.includes('half')) return 6;
+            if (text.includes('3-month') || text.includes('3 month') || text.includes('3 months') || text.includes('quarter')) return 3;
+            if (text.includes('1-month') || text.includes('1 month') || text.includes('1 months') || val === '012') return 1;
+            
+            return 1;
+        }
+
+        function handleMembershipDateAutoCalc(forceRecalc = false) {
+            if (!planSelect || !startsAtInput || !endsAtInput) return;
+            
+            const months = resolvePlanDurationMonths();
+            if (months <= 0) return;
+            
+            if (!startsAtInput.value) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                startsAtInput.value = `${yyyy}-${mm}-${dd}`;
+            }
+            
+            const startDate = startsAtInput.value;
+            const calculatedExpiry = addMonthsToDateStr(startDate, months);
+            if (calculatedExpiry) {
+                endsAtInput.value = calculatedExpiry;
+                endsAtInput.min = startDate;
+                if (trialDisplayInput) {
+                    trialDisplayInput.value = calculatedExpiry;
+                }
+            }
+        }
+
+        if (planSelect) {
+            planSelect.addEventListener('change', function() {
+                handleMembershipDateAutoCalc(true);
+            });
+            if (window.jQuery) {
+                jQuery(planSelect).on('change', function() {
+                    handleMembershipDateAutoCalc(true);
+                });
+            }
+        }
+
+        if (startsAtInput) {
+            startsAtInput.addEventListener('change', function() {
+                if (endsAtInput) {
+                    endsAtInput.min = startsAtInput.value;
+                }
+                if (planSelect && planSelect.value) {
+                    handleMembershipDateAutoCalc(true);
+                }
+            });
+            startsAtInput.addEventListener('input', function() {
+                if (endsAtInput) {
+                    endsAtInput.min = startsAtInput.value;
+                }
+                if (planSelect && planSelect.value && startsAtInput.value.length === 10) {
+                    handleMembershipDateAutoCalc(true);
+                }
+            });
+        }
     });
 </script>
 

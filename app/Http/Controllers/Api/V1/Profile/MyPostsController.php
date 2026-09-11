@@ -8,6 +8,7 @@ use App\Http\Resources\V1\PostResource;
 use App\Models\Post;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MyPostsController extends BaseApiController
 {
@@ -60,8 +61,18 @@ class MyPostsController extends BaseApiController
             return $this->error('Forbidden', 403);
         }
 
+        $with = [
+            'user.city',
+            'user.businessCategory',
+            'user.mainBusinessCategory',
+        ];
+
+        if (Schema::hasTable('circle_category_level4')) {
+            $with[] = 'user.level4Category';
+        }
+
         $likes = $post->likes()
-            ->with('user:id,display_name,profile_photo_file_id')
+            ->with($with)
             ->orderByDesc('created_at')
             ->get();
 

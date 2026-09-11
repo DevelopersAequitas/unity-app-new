@@ -56,17 +56,26 @@ class PostModerationController extends Controller
         $industryScope = app(IndustryScopeService::class);
 
         $circleId = $request->query('circle_id', 'all');
+        $allowedModerationStatuses = ['any', 'pending', 'approved'];
+        $moderationStatus = $request->input('moderation_status', '');
+        $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
+
+        if (! in_array($moderationStatus ?: 'any', $allowedModerationStatuses, true)) {
+            $moderationStatus = '';
+        }
+        if (! in_array($inlineModerationStatus, $allowedModerationStatuses, true)) {
+            $inlineModerationStatus = 'any';
+        }
 
         $filters = [
-            'active' => $request->input('active', 'active'),
+            'active' => $request->input('active', 'all'),
             'visibility' => $request->input('visibility'),
-            'moderation_status' => $request->input('moderation_status'),
+            'moderation_status' => $moderationStatus,
             'search' => $request->input('search'),
         ];
 
         $peer = $request->query('peer');
         $inlineVisibility = $request->query('inline_visibility', 'any');
-        $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
         $inlineActive = $request->query('inline_active', 'any');
         $media = $request->query('media', 'any');
         $query = Post::withTrashed()
@@ -139,7 +148,7 @@ class PostModerationController extends Controller
             });
         }
 
-        $activeFilter = $this->resolveActiveFilter($filters['active'] ?? 'active', $inlineActive);
+        $activeFilter = $this->resolveActiveFilter($filters['active'] ?? 'all', $inlineActive);
 
         if ($activeFilter === 'inactive') {
             $query->where(function ($subQuery) {
@@ -266,9 +275,7 @@ class PostModerationController extends Controller
         $moderationOptions = [
             'any' => 'Any',
             'pending' => 'Pending',
-            'complaint' => 'Complaint',
-            'open' => 'Open',
-            'rejected' => 'Rejected',
+            'approved' => 'Approved',
         ];
 
         $circleOptionsQuery = Circle::query()->orderBy('name');

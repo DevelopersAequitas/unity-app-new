@@ -264,20 +264,27 @@ class ContactController extends Controller
 
     public function exportSelected(Request $request, string $userId): StreamedResponse
     {
-        $validated = $request->validate([
-            'selected_ids' => ['required', 'array', 'min:1'],
-            'selected_ids.*' => ['required', 'string'],
-        ]);
+        if ($request->boolean('select_all_matching')) {
+            $contacts = ContactPost::query()
+                ->where('user_id', $userId)
+                ->latest('created_at')
+                ->get();
+        } else {
+            $validated = $request->validate([
+                'selected_ids' => ['required', 'array', 'min:1'],
+                'selected_ids.*' => ['required', 'string'],
+            ]);
 
-        $selectedIds = array_values(array_unique($validated['selected_ids']));
-        $contacts = ContactPost::query()
-            ->where('user_id', $userId)
-            ->whereIn('id', $selectedIds)
-            ->latest('created_at')
-            ->get();
+            $selectedIds = array_values(array_unique($validated['selected_ids']));
+            $contacts = ContactPost::query()
+                ->where('user_id', $userId)
+                ->whereIn('id', $selectedIds)
+                ->latest('created_at')
+                ->get();
 
-        if ($contacts->count() !== count($selectedIds)) {
-            abort(422, 'Selected contacts must exist and belong to the selected user.');
+            if ($contacts->count() !== count($selectedIds)) {
+                abort(422, 'Selected contacts must exist and belong to the selected user.');
+            }
         }
 
         $columns = [

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Creative;
 
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\User;
@@ -54,7 +56,6 @@ class IntroductionImageGenerator
             $rightCenterX = 583;
             $centerY = 396;
             $avatarSize = 252;
-            $nameStartY = 565;
             $textStartY = 675;
 
             // 1. Draw Referrer Avatar or Initial (Left Circle)
@@ -63,10 +64,16 @@ class IntroductionImageGenerator
             // 2. Draw New Member Avatar or Initial (Right Circle)
             $this->drawAvatarOrInitial($canvas, $newMember, $rightCenterX, $centerY, $avatarSize, $redColor);
 
-            // 3. Draw Referrer and New Member Names in Gold
+            // 3. Draw Referrer and New Member Info (Name, Business Name, Category)
             $fontBold = $this->getFontPath('bold');
+            $fontSemiBold = $this->getFontPath('semibold');
             $fontRegular = $this->getFontPath('regular');
+            $lightGray = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1 Slate 300
 
+            $this->drawUserDetails($canvas, $referrer, $leftCenterX, $gold, $white, $lightGray, $fontBold, $fontSemiBold, $fontRegular);
+            $this->drawUserDetails($canvas, $newMember, $rightCenterX, $gold, $white, $lightGray, $fontBold, $fontSemiBold, $fontRegular);
+
+            // 4. Draw Congratulations Paragraph Text in White (Y = 675)
             $referrerName = $referrer->display_name ?: trim(($referrer->first_name ?? '').' '.($referrer->last_name ?? ''));
             if (empty($referrerName)) {
                 $referrerName = 'Peer Member';
@@ -77,18 +84,6 @@ class IntroductionImageGenerator
                 $newMemberName = 'New Member';
             }
 
-            // Draw Referrer Name
-            $nameFontSize = 18;
-            $bboxLeft = imagettfbbox($nameFontSize, 0, $fontBold, $referrerName);
-            $wLeft = abs($bboxLeft[4] - $bboxLeft[0]);
-            imagettftext($canvas, $nameFontSize, 0, (int) ($leftCenterX - ($wLeft / 2)), $nameStartY, $gold, $fontBold, $referrerName);
-
-            // Draw New Member Name
-            $bboxRight = imagettfbbox($nameFontSize, 0, $fontBold, $newMemberName);
-            $wRight = abs($bboxRight[4] - $bboxRight[0]);
-            imagettftext($canvas, $nameFontSize, 0, (int) ($rightCenterX - ($wRight / 2)), $nameStartY, $gold, $fontBold, $newMemberName);
-
-            // 4. Draw Congratulations Paragraph Text in White (Y = 675)
             $paragraph = "Congratulations to {$referrerName} for introducing {$newMemberName} to the Peers Global Community of Collaboration. Wishing you both a successful journey filled with meaningful connections, collaboration, and endless opportunities.";
 
             $lines = $this->wrapTextToLines($paragraph, 15, $fontRegular, 680); // 680 width for clean margins
@@ -140,6 +135,171 @@ class IntroductionImageGenerator
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Draw user details (Name, Business Name, Category) under their avatar circle.
+     */
+    private function drawUserDetails(
+        $canvas,
+        User $user,
+        int $centerX,
+        int $nameColor,
+        int $companyColor,
+        int $categoryColor,
+        string $fontBold,
+        string $fontSemiBold,
+        string $fontRegular
+    ): void {
+        $name = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if (empty($name)) {
+            $name = 'Peer Member';
+        }
+
+        $company = $this->resolveCompanyName($user);
+        $category = $this->resolveCategoryName($user);
+
+        $hasCompany = ! empty($company);
+        $hasCategory = ! empty($category);
+
+        if ($hasCompany && $hasCategory) {
+            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 558, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $company, 13, $centerX, 582, $companyColor, $fontSemiBold, 330);
+            $this->drawCenteredFittedText($canvas, $category, 12, $centerX, 604, $categoryColor, $fontRegular, 330);
+        } elseif ($hasCompany) {
+            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 562, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $company, 13, $centerX, 586, $companyColor, $fontSemiBold, 330);
+        } elseif ($hasCategory) {
+            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 562, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $category, 12, $centerX, 586, $categoryColor, $fontRegular, 330);
+        } else {
+            $this->drawCenteredFittedText($canvas, $name, 18, $centerX, 565, $nameColor, $fontBold, 330);
+        }
+    }
+
+    /**
+     * Resolve the business/company name of a user.
+     */
+    public function resolveCompanyName(User $user): string
+    {
+        $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
+
+        return trim((string) $company);
+    }
+
+    /**
+     * Resolve the business category name of a user from DB relations/attributes.
+     */
+    public function resolveCategoryName(User $user): string
+    {
+        $category = '';
+
+        // 1. Level 4 Subcategory
+        if ($user->relationLoaded('level4Category')) {
+            $category = $user->getRelation('level4Category')?->name ?? '';
+        } elseif (! empty($user->business_category_id)) {
+            $category = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
+        }
+
+        // 2. Business Sub-category attribute
+        if (empty($category) && ! empty($user->business_sub_category)) {
+            $category = $user->business_sub_category;
+        }
+
+        // 3. Business Category (Level 1 / primary)
+        if (empty($category)) {
+            if ($user->relationLoaded('businessCategory')) {
+                $category = $user->getRelation('businessCategory')?->name ?? '';
+            } elseif (! empty($user->business_category_id)) {
+                $category = CircleCategory::find($user->business_category_id)?->name ?? '';
+            }
+        }
+
+        // 4. Main Business Category
+        if (empty($category)) {
+            if ($user->relationLoaded('mainBusinessCategory')) {
+                $category = $user->getRelation('mainBusinessCategory')?->name ?? '';
+            } elseif (! empty($user->main_business_category_id)) {
+                $category = CircleCategory::find($user->main_business_category_id)?->name ?? '';
+            }
+        }
+
+        // 5. Fallbacks
+        if (empty($category)) {
+            $category = $user->category_name ?? $user->industry ?? $user->business_type ?? '';
+        }
+
+        if (is_array($category)) {
+            $category = $category['name'] ?? $category['label'] ?? '';
+        }
+
+        $category = trim((string) $category);
+
+        if (in_array(strtolower($category), ['null', 'none', 'n/a'], true)) {
+            $category = '';
+        }
+
+        return $category;
+    }
+
+    /**
+     * Draw text centered at X, fitted within maxWidth by shrinking or truncating with ellipsis.
+     */
+    private function drawCenteredFittedText(
+        $canvas,
+        string $text,
+        int $fontSize,
+        int $centerX,
+        int $y,
+        int $color,
+        string $fontPath,
+        int $maxWidth = 330
+    ): void {
+        $text = trim($text);
+        if ($text === '') {
+            return;
+        }
+
+        $bbox = @imagettfbbox($fontSize, 0, $fontPath, $text);
+        if ($bbox) {
+            $w = abs($bbox[4] - $bbox[0]);
+            if ($w <= $maxWidth) {
+                $x = $centerX - ($w / 2);
+                imagettftext($canvas, $fontSize, 0, (int) $x, (int) $y, $color, $fontPath, $text);
+
+                return;
+            }
+
+            // Try slightly smaller font
+            $reducedSize = max(10, $fontSize - 2);
+            $bboxReduced = @imagettfbbox($reducedSize, 0, $fontPath, $text);
+            if ($bboxReduced) {
+                $wReduced = abs($bboxReduced[4] - $bboxReduced[0]);
+                if ($wReduced <= $maxWidth) {
+                    $x = $centerX - ($wReduced / 2);
+                    imagettftext($canvas, $reducedSize, 0, (int) $x, (int) $y, $color, $fontPath, $text);
+
+                    return;
+                }
+            }
+
+            // Truncate with ellipsis if still too long
+            $truncated = $text;
+            while (mb_strlen($truncated) > 3) {
+                $truncated = mb_substr($truncated, 0, -1);
+                $testStr = trim($truncated).'…';
+                $bboxTrunc = @imagettfbbox($reducedSize, 0, $fontPath, $testStr);
+                if ($bboxTrunc && abs($bboxTrunc[4] - $bboxTrunc[0]) <= $maxWidth) {
+                    $x = $centerX - (abs($bboxTrunc[4] - $bboxTrunc[0]) / 2);
+                    imagettftext($canvas, $reducedSize, 0, (int) $x, (int) $y, $color, $fontPath, $testStr);
+
+                    return;
+                }
+            }
+        }
+
+        // Fallback if TTF failed
+        imagestring($canvas, 4, (int) ($centerX - 50), (int) ($y - 10), $text, $color);
     }
 
     /**

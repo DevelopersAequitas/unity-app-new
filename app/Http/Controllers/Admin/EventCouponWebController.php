@@ -35,11 +35,15 @@ class EventCouponWebController extends Controller
             $query->where('discount_type', $type);
         }
 
-        if ($request->has('is_active') && $request->input('is_active') !== '') {
-            $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
+        $activeFilter = $request->input('is_active');
+        if ($activeFilter === 'true' || $activeFilter === 'false') {
+            $query->where('is_active', $activeFilter === 'true');
         }
 
-        if ($eventId = $request->input('event_id')) {
+        $eventId = $request->input('event_id');
+        if ($eventId === 'all_events') {
+            $query->whereNull('event_id');
+        } elseif (filled($eventId)) {
             $query->where('event_id', $eventId);
         }
 

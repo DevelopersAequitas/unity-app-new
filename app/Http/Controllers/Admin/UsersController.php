@@ -28,8 +28,11 @@ use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\IndustryDirector\IndustryScopeService;
+use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\MilestoneBadgeService;
+use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Services\Users\UserMilestoneSyncService;
@@ -238,7 +241,9 @@ class UsersController extends Controller
                 'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
                 'joinedRaw' => $u->created_at ? $u->created_at->format('Y-m-d') : null,
                 'membership_starts_at' => $u->membership_starts_at ? $u->membership_starts_at->format('Y-m-d') : '',
-                'membership_ends_at' => $u->membership_ends_at ? $u->membership_ends_at->format('Y-m-d') : '',
+                'zoho_plan_code' => $u->zoho_plan_code ?? '',
+                'membership_ends_at' => $endsAt ? $endsAt->format('d M Y') : '—',
+                'membership_ends_at_raw' => $endsAt ? $endsAt->format('Y-m-d') : '',
                 'membership_expiry_date_remark' => $u->membership_expiry_date_remark ?? '',
                 'is_sponsored_member' => $isSponsored,
                 'expiryDays' => $expiryDays,
@@ -305,6 +310,7 @@ class UsersController extends Controller
             'allUsersJson' => $allUsersJson,
             'membershipStatuses' => $membershipStatuses,
             'membershipStatusLabels' => $membershipStatusLabels,
+            'membershipPlanOptions' => $this->membershipPlanOptions(),
             'circles' => $circles,
             'q' => $q,
             'selectedUser' => $selectedUser,
@@ -496,6 +502,15 @@ class UsersController extends Controller
                 ->delay($registrationTime->copy()->addHours(24));
             SendProfileCompletionWhatsappJob::dispatch((string) $user->id)
                 ->delay($registrationTime->copy()->addHours(48));
+
+            try {
+                app(DailyHabitLoopService::class)->startJourney($user, $registrationTime);
+            } catch (Throwable $e) {
+                Log::error('Failed starting Daily Habit Loop on admin user creation.', [
+                    'user_id' => (string) $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return redirect()
@@ -889,8 +904,8 @@ class UsersController extends Controller
             'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
             'circle_joined_at' => ['nullable', 'date'],
             'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
-            'coins_balance' => ['required', 'integer', 'min:0'],
-            'life_impacted_count' => ['required', 'integer', 'min:0'],
+            'coins_balance' => ['required', 'integer'],
+            'life_impacted_count' => ['required', 'integer'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
@@ -1126,7 +1141,7 @@ class UsersController extends Controller
                     if ($difference !== 0) {
                         $admin = Auth::guard('admin')->user();
 
-                        DB::table('life_impact_histories')->insert([
+                        $historyPayload = [
                             'id' => (string) Str::uuid(),
                             'user_id' => $user->id,
                             'triggered_by_user_id' => null,
@@ -1145,13 +1160,19 @@ class UsersController extends Controller
                             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                             'created_at' => now(),
                             'updated_at' => now(),
-                            'life_impacted' => $newLifeImpactedCount,
+                            'life_impacted' => $difference,
                             'counted_in_total' => true,
                             'impact_category' => 'admin_adjustment',
                             'action_key' => 'admin_adjustment',
                             'action_label' => 'Admin Adjustment',
                             'remarks' => $lifeImpactRemark,
-                        ]);
+                        ];
+
+                        if (Schema::hasColumn('life_impact_histories', 'impact_after')) {
+                            $historyPayload['impact_after'] = $newLifeImpactedCount;
+                        }
+
+                        DB::table('life_impact_histories')->insert($historyPayload);
                     }
                 }
 
@@ -1421,6 +1442,18 @@ class UsersController extends Controller
                     $request->input('membership_expiry_date_remark'),
                     $adminName
                 );
+            }
+        }
+
+        if ($lifeImpactedCountChanged && $submittedLifeImpactedCount > 0) {
+            try {
+                app(LifeImpactService::class)->checkAndPublishLifeImpactTimelinePosts((string) $user->id, $originalLifeImpactedCount, $submittedLifeImpactedCount);
+                app(MilestoneBadgeService::class)->calculateForUserId((string) $user->id);
+            } catch (Throwable $e) {
+                Log::error('Failed to trigger Life Impact recognition on manual user update: '.$e->getMessage(), [
+                    'user_id' => (string) $user->id,
+                    'exception' => $e,
+                ]);
             }
         }
 
@@ -1785,6 +1818,15 @@ class UsersController extends Controller
                         ->delay($registrationTime->copy()->addHours(24));
                     SendProfileCompletionWhatsappJob::dispatch((string) $createdUser->id)
                         ->delay($registrationTime->copy()->addHours(48));
+
+                    try {
+                        app(DailyHabitLoopService::class)->startJourney($createdUser, $registrationTime);
+                    } catch (Throwable $e) {
+                        Log::error('Failed starting Daily Habit Loop on admin user import.', [
+                            'user_id' => (string) $createdUser->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                     $results['created']++;
                 }
             } catch (Throwable $e) {
@@ -1888,19 +1930,78 @@ class UsersController extends Controller
             ->map(function (array $plan): array {
                 $code = (string) ($plan['plan_code'] ?? '');
                 $name = trim((string) ($plan['name'] ?? ''));
+                $interval = (string) ($plan['interval'] ?? '');
+
+                $durationMonths = 1;
+                $lowerName = strtolower($name);
+                $lowerInterval = strtolower($interval);
+
+                if (str_contains($lowerName, '5-year') || str_contains($lowerName, '5 year') || str_contains($lowerName, '5 years')) {
+                    $durationMonths = 60;
+                } elseif (str_contains($lowerName, '3-year') || str_contains($lowerName, '3 year') || str_contains($lowerName, '3 years')) {
+                    $durationMonths = 36;
+                } elseif (str_contains($lowerName, '2-year') || str_contains($lowerName, '2 year') || str_contains($lowerName, '2 years') || $code === '014') {
+                    $durationMonths = 24;
+                } elseif (str_contains($lowerName, '1-year') || str_contains($lowerName, '1 year') || str_contains($lowerName, 'year') || str_contains($lowerName, 'annual') || str_contains($lowerInterval, 'year') || $code === '013' || $code === '015') {
+                    $durationMonths = 12;
+                } elseif (str_contains($lowerName, '6-month') || str_contains($lowerName, '6 month') || str_contains($lowerName, '6 months') || str_contains($lowerName, 'half')) {
+                    $durationMonths = 6;
+                } elseif (str_contains($lowerName, '3-month') || str_contains($lowerName, '3 month') || str_contains($lowerName, '3 months') || str_contains($lowerName, 'quarter')) {
+                    $durationMonths = 3;
+                } elseif (str_contains($lowerName, '1-month') || str_contains($lowerName, '1 month') || str_contains($lowerName, '1 months') || $code === '012') {
+                    $durationMonths = 1;
+                }
 
                 return [
                     'code' => $code,
                     'label' => $name !== '' ? sprintf('%s (%s)', $name, $code) : $code,
+                    'name' => $name,
+                    'interval' => $interval,
+                    'duration_months' => $durationMonths,
                 ];
             })
             ->filter(fn (array $plan) => $plan['code'] !== '')
             ->values();
 
+        if ($options->isEmpty()) {
+            $options = collect([
+                [
+                    'code' => '012',
+                    'label' => '1-Month Subscription – Unity Peer Only (012)',
+                    'name' => '1-Month Subscription – Unity Peer Only',
+                    'interval' => '1 month',
+                    'duration_months' => 1,
+                ],
+                [
+                    'code' => '013',
+                    'label' => '1-Year Subscription – Unity Peer Only (013)',
+                    'name' => '1-Year Subscription – Unity Peer Only',
+                    'interval' => '1 year',
+                    'duration_months' => 12,
+                ],
+                [
+                    'code' => '014',
+                    'label' => '2-Year Subscription – Unity Peer Only (014)',
+                    'name' => '2-Year Subscription – Unity Peer Only',
+                    'interval' => '2 years',
+                    'duration_months' => 24,
+                ],
+            ]);
+        }
+
         if ($selectedCode !== null && trim($selectedCode) !== '' && ! $options->contains(fn (array $plan) => $plan['code'] === $selectedCode)) {
+            $durationMonths = match ($selectedCode) {
+                '012' => 1,
+                '013', '015' => 12,
+                '014' => 24,
+                default => 1,
+            };
             $options->prepend([
                 'code' => $selectedCode,
                 'label' => 'Current Saved Plan ('.$selectedCode.')',
+                'name' => 'Current Saved Plan',
+                'interval' => '',
+                'duration_months' => $durationMonths,
             ]);
         }
 
@@ -2431,7 +2532,7 @@ class UsersController extends Controller
             $circleId = (string) $circleId;
         }
         $membership = $request->input('membership_status');
-        $phone = null;
+        $phone = $request->filled('phone') ? trim((string) $request->input('phone')) : null;
         $joinedFilter = (string) $request->input('joined_filter', '');
         $approveFilter = (string) $request->input('approve_filter', 'all');
         $startDate = (string) $request->input('start_date', '');

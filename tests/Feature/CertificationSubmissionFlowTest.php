@@ -268,7 +268,7 @@ class CertificationSubmissionFlowTest extends TestCase
             'user_id' => $user->id,
         ]);
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('posts')) {
+        if (Schema::hasTable('posts')) {
             $this->assertDatabaseHas('posts', [
                 'user_id' => $user->id,
                 'post_type' => 'global_peer_certificate',
@@ -340,7 +340,7 @@ class CertificationSubmissionFlowTest extends TestCase
             return $mail->hasTo('entrepreneur@example.com') && $mail->submission->id === $submission->id;
         });
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('posts')) {
+        if (Schema::hasTable('posts')) {
             $this->assertDatabaseHas('posts', [
                 'user_id' => $user->id,
                 'post_type' => 'global_peer_certificate',

@@ -28,6 +28,7 @@ use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
+use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
 use App\Services\Users\PublicProfileSlugService;
@@ -168,6 +169,15 @@ class AuthController extends BaseApiController
             ->delay($registrationTime->copy()->addHours(24));
         SendProfileCompletionWhatsappJob::dispatch((string) $persistedUser->id)
             ->delay($registrationTime->copy()->addHours(48));
+
+        try {
+            app(DailyHabitLoopService::class)->startJourney($persistedUser, $registrationTime);
+        } catch (\Throwable $e) {
+            Log::error('Failed starting Daily Habit Loop on registration.', [
+                'user_id' => (string) $persistedUser->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
 

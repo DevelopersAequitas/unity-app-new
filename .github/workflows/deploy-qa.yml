@@ -40,9 +40,8 @@ jobs:
                 --prefer-dist \
                 --optimize-autoloader \
                 --no-interaction
-            php artisan migrate --force
 
-            mkdir -p storage/app/public/ads
+            mkdir -p storage/app/public/ads storage/app/public/uploads
             TARGET="$(cd storage/app/public && pwd -P)"
             LINK="public/storage"
 
@@ -86,6 +85,7 @@ jobs:
             chmod -R ug+rwX,o+rX storage/app/public || true
             chmod -R ug+rwX storage/app storage/framework bootstrap/cache || true
 
+            php artisan migrate --force || true
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
@@ -93,14 +93,16 @@ jobs:
             php artisan queue:restart || true
             php artisan reverb:restart > /dev/null 2>&1 || true
             if [ -d "../public_html" ] && [ -w "../public_html" ]; then
-                mkdir -p ../public_html/images ../public_html/fonts ../public_html/css
+                mkdir -p ../public_html/images ../public_html/fonts ../public_html/css ../public_html/js
                 cp -rf public/css/admin.css public/css/admin-grid.css ../public_html/css/ 2>/dev/null || true
+                cp -rf public/js/* ../public_html/js/ 2>/dev/null || true
                 cp -rf public/images/* ../public_html/images/ 2>/dev/null || true
                 cp -rf public/fonts/* ../public_html/fonts/ 2>/dev/null || true
             fi
             if [ -d "/var/www/html" ] && [ -w "/var/www/html" ]; then
-                mkdir -p /var/www/html/images /var/www/html/fonts /var/www/html/css
+                mkdir -p /var/www/html/images /var/www/html/fonts /var/www/html/css /var/www/html/js
                 cp -rf public/css/admin.css public/css/admin-grid.css /var/www/html/css/ 2>/dev/null || true
+                cp -rf public/js/* /var/www/html/js/ 2>/dev/null || true
                 cp -rf public/images/* /var/www/html/images/ 2>/dev/null || true
                 cp -rf public/fonts/* /var/www/html/fonts/ 2>/dev/null || true
             fi

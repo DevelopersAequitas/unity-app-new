@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -150,48 +151,56 @@ class FcmService
 
     public function activeTokensForUser(string $userId): Collection
     {
-        $query = UserPushToken::query()
-            ->where(UserPushToken::getUserIdColumn(), $userId)
-            ->whereNotNull('token')
-            ->where('token', '!=', '');
+        $tokens = collect();
 
-        if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
-            $query->whereNull('deleted_at');
+        if (Schema::hasTable('user_push_tokens')) {
+            try {
+                $query = UserPushToken::query()
+                    ->where(UserPushToken::getUserIdColumn(), $userId)
+                    ->whereNotNull('token')
+                    ->where('token', '!=', '');
+
+                if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                    $query->whereNull('deleted_at');
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'status')) {
+                    $query->where('status', 'active');
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                    $query->where('token_status', 'active');
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                    $query->where('is_active', true);
+                }
+
+                if (Schema::hasColumn('user_push_tokens', 'platform')) {
+                    $query->where(function ($platformQuery): void {
+                        $platformQuery->whereNull('platform')
+                            ->orWhere('platform', '')
+                            ->orWhereIn(DB::raw('LOWER(platform)'), ['android', 'ios', 'web']);
+                    });
+                }
+
+                $latestColumn = collect(['last_used_at', 'last_used', 'last_seen_at', 'updated_at', 'created_at'])
+                    ->first(fn (string $column): bool => Schema::hasColumn('user_push_tokens', $column));
+
+                if ($latestColumn) {
+                    $query->latest($latestColumn);
+                }
+
+                $tokens = $query->get();
+            } catch (\Throwable) {
+                $tokens = collect();
+            }
         }
-
-        if (Schema::hasColumn('user_push_tokens', 'status')) {
-            $query->where('status', 'active');
-        }
-
-        if (Schema::hasColumn('user_push_tokens', 'token_status')) {
-            $query->where('token_status', 'active');
-        }
-
-        if (Schema::hasColumn('user_push_tokens', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        if (Schema::hasColumn('user_push_tokens', 'platform')) {
-            $query->where(function ($platformQuery): void {
-                $platformQuery->whereNull('platform')
-                    ->orWhere('platform', '')
-                    ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios', 'web')");
-            });
-        }
-
-        $latestColumn = collect(['last_used_at', 'last_used', 'last_seen_at', 'updated_at', 'created_at'])
-            ->first(fn (string $column): bool => Schema::hasColumn('user_push_tokens', $column));
-
-        if ($latestColumn) {
-            $query->latest($latestColumn);
-        }
-
-        $tokens = $query->get();
 
         $user = User::find($userId);
         if ($user) {
             if (filled($user->android_fcm_token)) {
-                $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->android_fcm_token);
+                $hasAndroidToken = $tokens->contains(fn (UserPushToken $t): bool => (strtolower((string) $t->platform) === 'android' || $t->token === $user->android_fcm_token));
                 if (! $hasAndroidToken) {
                     $tokens->push(new UserPushToken([
                         UserPushToken::getUserIdColumn() => $userId,
@@ -202,7 +211,7 @@ class FcmService
                 }
             }
             if (filled($user->ios_fcm_token)) {
-                $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => $t->token === $user->ios_fcm_token);
+                $hasIosToken = $tokens->contains(fn (UserPushToken $t): bool => (in_array(strtolower((string) $t->platform), ['ios', 'apple', 'iphone'], true) || $t->token === $user->ios_fcm_token));
                 if (! $hasIosToken) {
                     $tokens->push(new UserPushToken([
                         UserPushToken::getUserIdColumn() => $userId,
@@ -214,8 +223,21 @@ class FcmService
             }
         }
 
+        // Deduplicate tokens:
+        // 1. For records with a device_id, keep only the newest token for that device_id.
+        // 2. For records without a device_id, keep only the newest token for that platform.
+        // 3. Ensure distinct token strings so no device receives duplicate FCM pushes.
         return $tokens
-            ->unique(fn (UserPushToken $token) => $token->device_id ?: $token->token)
+            ->unique(function (UserPushToken $token): string {
+                if (filled($token->device_id)) {
+                    return 'dev:'.$token->device_id;
+                }
+
+                $platform = strtolower((string) ($token->platform ?: 'unknown'));
+
+                return 'plat:'.$platform.':'.$token->token;
+            })
+            ->unique(fn (UserPushToken $token): string => (string) $token->token)
             ->values();
     }
 

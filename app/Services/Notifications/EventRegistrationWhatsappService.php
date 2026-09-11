@@ -83,6 +83,9 @@ class EventRegistrationWhatsappService
 
             $messageText = 'Your event QR code is attached. Please show this QR code at the event check-in.';
 
+            $eventId = (string) ($registration->event_id ?? $event?->id ?? '');
+            $entryPassUrl = 'https://peersunity.com/share?type=event_qr&id='.$eventId;
+
             $payload = [
                 'participant_name' => $recipientName,
                 'registration_id' => (string) $registration->id,
@@ -95,7 +98,7 @@ class EventRegistrationWhatsappService
                 'caption' => $messageText,
                 'digital_entry_pass_url' => $qrCodeUrl,
                 'digital_entry_pass_message' => 'You can access your digital entry pass here: '.$qrCodeUrl,
-                'entry_pass_url' => 'https://peersglobal.com/',
+                'entry_pass_url' => $entryPassUrl,
                 'entry_pass_message' => 'You can access your digital entry pass here: '.$qrCodeUrl,
                 'pass_url' => $qrCodeUrl,
                 'image' => $qrCodeUrl,

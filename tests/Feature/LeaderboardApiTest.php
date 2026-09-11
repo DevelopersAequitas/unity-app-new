@@ -62,7 +62,7 @@ class LeaderboardApiTest extends TestCase
         // Create 25 users
         $users = [];
         for ($i = 1; $i <= 25; $i++) {
-            $users[] = $this->createUser("User " . $i, 1000 - ($i * 10), 0);
+            $users[] = $this->createUser('User '.$i, 1000 - ($i * 10), 0);
         }
 
         // Log in as User 5 (which will rank 5th, in Top 20)
@@ -82,7 +82,7 @@ class LeaderboardApiTest extends TestCase
         // Create 25 users
         $users = [];
         for ($i = 1; $i <= 25; $i++) {
-            $users[] = $this->createUser("User " . $i, 1000 - ($i * 10), 0);
+            $users[] = $this->createUser('User '.$i, 1000 - ($i * 10), 0);
         }
 
         // Log in as User 25 (which will rank 25th, outside Top 20)
@@ -104,7 +104,7 @@ class LeaderboardApiTest extends TestCase
         // Create 25 users
         $users = [];
         for ($i = 1; $i <= 25; $i++) {
-            $users[] = $this->createUser("User " . $i, 0, 100 - $i);
+            $users[] = $this->createUser('User '.$i, 0, 100 - $i);
         }
 
         // Log in as User 10 (which will rank 10th, in Top 20)
@@ -124,7 +124,7 @@ class LeaderboardApiTest extends TestCase
         // Create 25 users
         $users = [];
         for ($i = 1; $i <= 25; $i++) {
-            $users[] = $this->createUser("User " . $i, 0, 100 - $i);
+            $users[] = $this->createUser('User '.$i, 0, 100 - $i);
         }
 
         // Log in as User 23 (which will rank 23rd, outside Top 20)

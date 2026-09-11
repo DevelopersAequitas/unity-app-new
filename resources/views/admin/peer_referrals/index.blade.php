@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Peer Referrals')
+@section('title', 'Circle Peer Referrals')
 
 @include('admin.partials.grid-head')
 
@@ -53,8 +53,8 @@
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
-                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Peer Referrals</h2>
-                <p class="text-xs t3 m-0 mt-0.5">Manage and track peer referrals for open categories.</p>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Circle Peer Referrals</h2>
+                <p class="text-xs t3 m-0 mt-0.5">Manage and track circle peer referrals for open categories.</p>
             </div>
             <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
                 Total: {{ number_format($peerReferrals->total()) }}
@@ -117,13 +117,20 @@
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($refUser)
-                                        <div class="flex items-center gap-2">
-                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($refUserName) }}">
+                                        <div class="flex items-start gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5" style="background-color: {{ $getAvatarBg($refUserName) }}">
                                                 {{ $getInitials($refUserName) }}
                                             </div>
-                                            <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $refUser->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline">
-                                                {{ $refUserName }}
-                                            </a>
+                                            <div>
+                                                <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $refUser->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline block">
+                                                    {{ $refUserName }}
+                                                </a>
+                                                <div class="text-[10px] t3 mt-1 space-y-0.5">
+                                                    <div>Email: <span class="t1">{{ $refUser->email }}</span></div>
+                                                    <div>Circle: <span class="font-semibold text-indigo-600">{{ $refUser->activeCircle?->name ?? '—' }}</span></div>
+                                                    <div>City: <span class="font-semibold text-slate-700">{{ $refUser->cityRelation?->name ?? $refUser->city ?? '—' }}</span></div>
+                                                </div>
+                                            </div>
                                         </div>
                                     @else
                                         <span class="t3">—</span>

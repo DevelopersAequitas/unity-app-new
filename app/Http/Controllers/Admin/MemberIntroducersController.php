@@ -177,12 +177,18 @@ class MemberIntroducersController extends Controller
         $growthHonours = $creativeGenerator->getAllHonours();
 
         $allIntroducersQuery = User::query()
-            ->has('introducedMembers')
             ->withCount('introducedMembers')
             ->with('city')
+            ->orderByDesc('introduced_members_count')
             ->orderBy('display_name', 'asc');
         $this->applyScopes($allIntroducersQuery, $adminUser);
         $allIntroducers = $allIntroducersQuery->get();
+
+        $activeTab = $request->input('tab', 'list') === 'creative' ? 'creative' : 'list';
+        $selectedPeerId = $request->input('peer_id');
+        if (! $selectedPeerId && $activeTab === 'creative' && $allIntroducers->isNotEmpty()) {
+            $selectedPeerId = $allIntroducers->first()->id;
+        }
 
         return view('admin.member-introducers.index', [
             'topIntroducers' => $topIntroducers,
@@ -193,6 +199,8 @@ class MemberIntroducersController extends Controller
             'membershipStatusLabels' => $membershipStatusLabels,
             'filters' => $filters,
             'growthHonours' => $growthHonours,
+            'activeTab' => $activeTab,
+            'selectedPeerId' => $selectedPeerId,
         ]);
     }
 
@@ -291,9 +299,15 @@ class MemberIntroducersController extends Controller
     {
         $introducer = User::with('city')->findOrFail($id);
 
-        $count = $request->has('count') && (int) $request->input('count') > 0 ? (int) $request->input('count') : (int) ($introducer->members_introduced_count ?? 0);
+        $realCount = User::query()->where('introduced_by', $introducer->id)->count();
+        if ($realCount > 0 && Schema::hasColumn('users', 'members_introduced_count') && (int) ($introducer->members_introduced_count ?? 0) !== $realCount) {
+            $introducer->members_introduced_count = $realCount;
+            $introducer->save();
+        }
+
+        $count = $request->has('count') && (int) $request->input('count') > 0 ? (int) $request->input('count') : 0;
         if ($count === 0) {
-            $count = User::query()->where('introduced_by', $introducer->id)->count();
+            $count = $realCount > 0 ? $realCount : (int) ($introducer->members_introduced_count ?? 0);
         }
         if ($count === 0) {
             $count = 1;
@@ -328,6 +342,53 @@ class MemberIntroducersController extends Controller
             'introduced_count' => $count,
         ];
 
+        $timelinePosts = Post::query()
+            ->where('source_type', 'member_introduction')
+            ->where('source_id', $introducer->id)
+            ->where('post_type', 'growth_honour')
+            ->latest('created_at')
+            ->get();
+
+        $allHonours = $generator->getAllHonours();
+        $peerHonoursList = [];
+        $actualIntroducedCount = $realCount > 0 ? $realCount : (int) ($introducer->members_introduced_count ?? 0);
+
+        foreach ($allHonours as $threshold => $hMeta) {
+            $isUnlocked = $actualIntroducedCount >= $threshold;
+            $isCurrent = ($meta['title'] === $hMeta['title']);
+
+            $matchingPost = $timelinePosts->first(function ($p) use ($hMeta) {
+                return str_contains(strtolower((string) $p->title), strtolower($hMeta['title']))
+                    || str_contains(strtolower((string) $p->content_text), strtolower($hMeta['title']));
+            });
+
+            $peerHonoursList[] = [
+                'threshold' => $threshold,
+                'title' => $hMeta['title'],
+                'compliment' => $hMeta['compliment'],
+                'is_unlocked' => $isUnlocked,
+                'is_current' => $isCurrent,
+                'badge_image' => asset($hMeta['badge_image']),
+                'posted_to_timeline' => ! empty($matchingPost),
+                'post_id' => $matchingPost?->id,
+                'post_view_url' => $matchingPost ? route('admin.posts.show', $matchingPost->id) : null,
+                'posted_at' => $matchingPost?->created_at ? $matchingPost->created_at->format('d M Y, h:i A') : null,
+            ];
+        }
+
+        $currentMatchingPost = $timelinePosts->first(function ($p) use ($meta) {
+            return str_contains(strtolower((string) $p->title), strtolower($meta['title']))
+                || str_contains(strtolower((string) $p->content_text), strtolower($meta['title']));
+        });
+
+        $timelineStatus = [
+            'is_posted' => ! empty($currentMatchingPost),
+            'post_id' => $currentMatchingPost?->id,
+            'post_view_url' => $currentMatchingPost ? route('admin.posts.show', $currentMatchingPost->id) : null,
+            'posted_at' => $currentMatchingPost?->created_at ? $currentMatchingPost->created_at->format('d M Y, h:i A') : null,
+            'total_timeline_posts' => $timelinePosts->count(),
+        ];
+
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -335,6 +396,8 @@ class MemberIntroducersController extends Controller
                 'caption' => $caption,
                 'preview_url' => route('admin.member-introducers.creative-preview', ['id' => $introducer->id, 'image' => 1, 'count' => $count]),
                 'peer' => $peerDetails,
+                'peer_honours' => $peerHonoursList,
+                'timeline_status' => $timelineStatus,
             ]);
         }
 
@@ -358,6 +421,8 @@ class MemberIntroducersController extends Controller
             'caption' => $caption,
             'preview_url' => route('admin.member-introducers.creative-preview', ['id' => $introducer->id, 'image' => 1, 'count' => $count]),
             'peer' => $peerDetails,
+            'peer_honours' => $peerHonoursList,
+            'timeline_status' => $timelineStatus,
         ]);
     }
 
@@ -439,6 +504,8 @@ class MemberIntroducersController extends Controller
                 'success' => true,
                 'message' => 'Creative posted to Timeline successfully! 🎉',
                 'post_id' => $post->id,
+                'view_url' => route('admin.posts.show', $post->id),
+                'timeline_url' => route('admin.posts.index'),
                 'image_url' => $imageUrl,
             ]);
         } catch (\Throwable $e) {

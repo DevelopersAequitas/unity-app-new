@@ -111,12 +111,15 @@ class SendCircleMembershipExpiryReminders extends Command
                         'message' => (string) $notifPayload['body'],
                         'channel' => 'push',
                         'priority' => 'high',
-                        'screen' => 'circle_detail',
+                        'screen' => '/profile',
                         'data' => array_merge($notifPayload, [
                             'circle_id' => (string) $circleMember->circle_id,
                             'circle_member_id' => (string) $circleMember->id,
-                            'screen' => 'circle_detail',
-                            'tap_destination' => 'circle_detail',
+                            'navigation_screen' => '/profile',
+                            'screen' => 'profile',
+                            'tap_destination' => '/profile',
+                            'type' => 'circle_membership_expiry_reminder',
+                            'activity_type' => 'membership_expiry',
                         ]),
                         'status' => 'sent',
                         'sent_at' => now(),
@@ -152,6 +155,10 @@ class SendCircleMembershipExpiryReminders extends Command
                     [
                         'notification_type' => 'circle_membership_expiry_reminder',
                         'notification_id' => (string) ($appNotificationId ?: $dbNotification->id),
+                        'navigation_screen' => '/profile',
+                        'screen' => 'profile',
+                        'tap_destination' => '/profile',
+                        'type' => 'circle_membership_expiry_reminder',
                     ]
                 );
 

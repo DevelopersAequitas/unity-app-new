@@ -8,7 +8,12 @@ use App\Models\MilestoneBadge;
 use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
+use App\Services\Creative\IntroducedPeerCreativeGenerator;
+use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\Notifications\MilestoneCatalystWhatsappService;
+use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Notifications\NotificationService;
+use Database\Seeders\Track1GrowthHonoursSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -46,6 +51,17 @@ class MilestoneBadgeService
             $dbCount = User::query()->where('introduced_by', $user->id)->count();
             if ($dbCount > 0) {
                 $membersIntroducedCount = $dbCount;
+            }
+        }
+
+        if (Schema::hasTable('milestone_badges')) {
+            $hasIntroductionBadges = MilestoneBadge::query()->where('type', MilestoneBadge::TYPE_MEMBER_INTRODUCTION)->exists();
+            if (! $hasIntroductionBadges && class_exists(Track1GrowthHonoursSeeder::class)) {
+                try {
+                    (new Track1GrowthHonoursSeeder)->run();
+                } catch (\Throwable $seederEx) {
+                    Log::warning('[MilestoneBadgeService] Auto-seeding Track1GrowthHonoursSeeder skipped: '.$seederEx->getMessage());
+                }
             }
         }
 
@@ -121,7 +137,7 @@ class MilestoneBadgeService
     }
 
     /**
-     * Post timeline announcements & push notifications for newly earned milestone honours.
+     * Post timeline announcements, push notifications & WhatsApp triggers for newly earned milestone honours.
      *
      * @param  array<int, MilestoneBadge>  $badges
      */
@@ -144,24 +160,71 @@ class MilestoneBadgeService
                     ->first();
 
                 if (! $existingPost && Schema::hasTable('posts')) {
-                    $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
+                    if ($badge->type === MilestoneBadge::TYPE_LIFE_IMPACT) {
+                        $lifeImpactGenerator = app(LifeImpactCreativeGenerator::class);
+                        $meta = $lifeImpactGenerator->getRecognitionMeta((int) $badge->required_count);
+                        $description = $lifeImpactGenerator->formatCaption($user, (int) $badge->required_count, $meta);
+                        $postTitle = "🎉 Big Congratulations! {$userName} became a {$meta['title']}";
+                        $postType = 'life_impact_recognition';
+                        $tags = ['milestone_honour', 'life_impact', 'life_impact_recognition', (string) $user->id, $meta['hashtag']];
 
-                    $creativeImageUrl = $badge->badge_image_url ?: url('/images/introduction-template.png');
+                        try {
+                            $fileRecord = $lifeImpactGenerator->generate($user, (int) $badge->required_count, (int) $badge->required_count);
+                            $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
+                            $media = [
+                                [
+                                    'id' => $fileRecord->id,
+                                    'type' => 'image',
+                                    'url' => $creativeImageUrl,
+                                ],
+                            ];
+                        } catch (\Throwable $creativeEx) {
+                            Log::error("[MilestoneBadgeService] Failed generating life impact creative for badge {$badge->title}: ".$creativeEx->getMessage());
+                            $creativeImageUrl = ! empty($meta['badge_image']) ? asset($meta['badge_image']) : url('/images/life_impact_badges/Impact Creator.png');
+                            $media = [
+                                [
+                                    'id' => (string) Str::uuid(),
+                                    'type' => 'image',
+                                    'url' => $creativeImageUrl,
+                                ],
+                            ];
+                        }
+                    } else {
+                        $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
+                        $postTitle = "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉";
+                        $postType = 'growth_honour';
+                        $tags = ['milestone_honour', 'growth_track', 'growth_honour', (string) $user->id];
 
-                    $media = [
-                        [
-                            'id' => (string) Str::uuid(),
-                            'type' => 'image',
-                            'url' => $creativeImageUrl,
-                        ],
-                    ];
+                        try {
+                            $generator = app(IntroducedPeerCreativeGenerator::class);
+                            $fileRecord = $generator->generate($user, (int) $badge->required_count);
+                            $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
+                            $media = [
+                                [
+                                    'id' => $fileRecord->id,
+                                    'type' => 'image',
+                                    'url' => $creativeImageUrl,
+                                ],
+                            ];
+                        } catch (\Throwable $creativeEx) {
+                            Log::error("[MilestoneBadgeService] Failed generating composite creative for badge {$badge->title}: ".$creativeEx->getMessage());
+                            $creativeImageUrl = $badge->badge_image_url ?: url('/images/introduction-template.png');
+                            $media = [
+                                [
+                                    'id' => (string) Str::uuid(),
+                                    'type' => 'image',
+                                    'url' => $creativeImageUrl,
+                                ],
+                            ];
+                        }
+                    }
 
                     Post::create([
                         'user_id' => $authorUserId,
                         'circle_id' => null,
                         'content_text' => $description,
                         'media' => $media,
-                        'tags' => ['milestone_honour', 'growth_track', (string) $user->id],
+                        'tags' => $tags,
                         'visibility' => 'public',
                         'moderation_status' => 'approved',
                         'sponsored' => false,
@@ -169,8 +232,8 @@ class MilestoneBadgeService
                         'source_type' => 'milestone_badge',
                         'source_id' => $badge->id,
                         'source_event' => 'badge_unlocked',
-                        'post_type' => 'milestone_honour',
-                        'title' => "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉",
+                        'post_type' => $postType,
+                        'title' => $postTitle,
                         'description' => $description,
                         'image' => $creativeImageUrl,
                         'status' => 'active',
@@ -197,6 +260,32 @@ class MilestoneBadgeService
                             'bypass_daily_limit' => true,
                         ]
                     );
+                }
+
+                // Automatically trigger WhatsApp notifications for newly earned Growth Track milestones
+                if ($badge->type === MilestoneBadge::TYPE_MEMBER_INTRODUCTION || in_array(strtolower((string) $badge->title), ['connector', 'catalyst'], true)) {
+                    $badgeTitle = strtolower((string) $badge->title);
+                    $requiredCount = (int) $badge->required_count;
+
+                    if ($requiredCount === 1 || $badgeTitle === 'connector') {
+                        try {
+                            app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction($user);
+                        } catch (\Throwable $waEx) {
+                            Log::error('[MilestoneBadgeService] Failed triggering Connector WhatsApp: '.$waEx->getMessage(), [
+                                'user_id' => $user->id,
+                                'badge_id' => $badge->id,
+                            ]);
+                        }
+                    } elseif ($requiredCount === 3 || $badgeTitle === 'catalyst') {
+                        try {
+                            app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone($user);
+                        } catch (\Throwable $waEx) {
+                            Log::error('[MilestoneBadgeService] Failed triggering Catalyst WhatsApp: '.$waEx->getMessage(), [
+                                'user_id' => $user->id,
+                                'badge_id' => $badge->id,
+                            ]);
+                        }
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::error('[MilestoneBadgeService] Failed handling newly earned badge: '.$e->getMessage(), [
