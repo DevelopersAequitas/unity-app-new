@@ -287,9 +287,14 @@ class ImpactService
         $coinAmount = 0;
 
         if (Schema::hasTable('impact_actions') && $actionName !== '') {
+            $select = ['impact_score'];
+            if (Schema::hasColumn('impact_actions', 'impact_coin')) {
+                $select[] = 'impact_coin';
+            }
+
             $impactAction = ImpactAction::query()
                 ->whereRaw('LOWER(name) = ?', [strtolower($actionName)])
-                ->first(['impact_score', 'impact_coin']);
+                ->first($select);
 
             if ($impactAction) {
                 $score = max(1, (int) ($impactAction->impact_score ?? 1));
