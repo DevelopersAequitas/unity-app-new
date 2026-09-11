@@ -76,15 +76,19 @@
             <div class="p-4 space-y-4">
                 <form method="POST" action="{{ route('admin.impacts.actions.store') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                     @csrf
-                    <div class="md:col-span-6">
+                    <div class="md:col-span-5">
                         <label class="block text-[11px] t3 mb-1 font-medium">Action Name <span class="text-rose-500">*</span></label>
                         <input type="text" name="name" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ old('name') }}" required maxlength="255" placeholder="Enter action name">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="block text-[11px] t3 mb-1 font-medium">Impact Score <span class="text-rose-500">*</span></label>
-                        <input type="number" name="impact_score" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" min="1" value="{{ old('impact_score', 1) }}" required>
+                        <input type="number" name="impact_score" id="createActionImpactScore" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" min="1" value="{{ old('impact_score', 1) }}" required>
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2.5">
+                        <label class="block text-[11px] t3 mb-1 font-medium">Impact Coin <span class="text-rose-500">*</span></label>
+                        <input type="number" name="impact_coin" id="createActionImpactCoin" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" min="1" value="{{ old('impact_coin', 2500) }}" required readonly title="Calculated automatically from Impact Score (1 Score = 2,500 Coins)">
+                    </div>
+                    <div class="md:col-span-2.5">
                         <button type="submit" class="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring">Add Action</button>
                     </div>
                 </form>
@@ -95,15 +99,21 @@
                             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Action Name</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Impact Score</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Impact Coin</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200/50">
                         @forelse($impactActionItems as $actionItem)
+                            @php
+                                $scoreVal = max(1, (int) ($actionItem->impact_score ?? 1));
+                                $coinVal = max(1, (int) ($actionItem->impact_coin ?? ($scoreVal * 2500)));
+                            @endphp
                             <tr class="hover:surface-2 transition border-b bs impact-action-row" data-action-index="{{ $loop->index }}" data-action-id="{{ $actionItem->id }}">
                                 <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $actionItem->name }}</td>
-                                <td class="px-3 py-2.5 font-semibold text-indigo-600 text-xs">{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}</td>
+                                <td class="px-3 py-2.5 font-semibold text-indigo-600 text-xs">{{ $scoreVal }}</td>
+                                <td class="px-3 py-2.5 font-semibold text-rose-600 text-xs whitespace-nowrap">{{ number_format($coinVal) }}</td>
                                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                     @if($actionItem->is_active)
                                         <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -136,17 +146,21 @@
                             </tr>
                             @if(!empty($actionItem->id))
                                 <tr class="hidden edit-impact-action-row" id="editImpactAction{{ $actionItem->id }}">
-                                    <td colspan="4" class="p-3 surface-2 border-b bs">
+                                    <td colspan="5" class="p-3 surface-2 border-b bs">
                                         <form method="POST" action="{{ route('admin.impacts.actions.update', $actionItem->id) }}" class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
                                             @csrf
                                             @method('PUT')
-                                            <div class="md:col-span-5">
+                                            <div class="md:col-span-4">
                                                 <label class="block text-[11px] t3 mb-1 font-medium">Action Name</label>
                                                 <input type="text" name="name" class="w-full px-2.5 py-1 rounded-md border bs surface text-xs t1 outline-none focus-ring" value="{{ $actionItem->name }}" required maxlength="255">
                                             </div>
                                             <div class="md:col-span-2">
                                                 <label class="block text-[11px] t3 mb-1 font-medium">Impact Score</label>
-                                                <input type="number" name="impact_score" min="1" class="w-full px-2.5 py-1 rounded-md border bs surface text-xs t1 outline-none focus-ring" value="{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}" required>
+                                                <input type="number" name="impact_score" min="1" class="w-full px-2.5 py-1 rounded-md border bs surface text-xs t1 outline-none focus-ring edit-impact-score-input" value="{{ $scoreVal }}" required>
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <label class="block text-[11px] t3 mb-1 font-medium">Impact Coin</label>
+                                                <input type="number" name="impact_coin" min="1" class="w-full px-2.5 py-1 rounded-md border bs surface text-xs t1 outline-none focus-ring edit-impact-coin-input" value="{{ $coinVal }}" required readonly title="Calculated automatically from Impact Score">
                                             </div>
                                             <div class="md:col-span-2">
                                                 <label class="block text-[11px] t3 mb-1 font-medium">Status</label>
@@ -155,9 +169,9 @@
                                                     <option value="0" @selected(! $actionItem->is_active)>Inactive</option>
                                                 </select>
                                             </div>
-                                            <div class="md:col-span-3 flex items-center gap-2">
-                                                <button type="submit" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring">Save</button>
-                                                <button type="button" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 surface-2 transition edit-impact-action-cancel-btn" data-target="editImpactAction{{ $actionItem->id }}">Cancel</button>
+                                            <div class="md:col-span-2 flex items-center gap-1.5">
+                                                <button type="submit" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring">Save</button>
+                                                <button type="button" class="px-2.5 py-1 rounded-lg border bs text-xs font-semibold t2 hover:t1 surface-2 transition edit-impact-action-cancel-btn" data-target="editImpactAction{{ $actionItem->id }}">Cancel</button>
                                             </div>
                                         </form>
                                     </td>
@@ -165,7 +179,7 @@
                             @endif
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center py-8 text-xs t3">No actions found.</td>
+                                <td colspan="5" class="text-center py-8 text-xs t3">No actions found.</td>
                             </tr>
                         @endforelse
                         </tbody>
@@ -179,6 +193,8 @@
                         </button>
                     </div>
                 @endif
+
+
             </div>
         </div>
 
@@ -383,6 +399,35 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Auto-calculate Impact Coin based on Impact Score (1 Score = 2,500 Coins)
+            const IMPACT_COIN_MULTIPLIER = 2500;
+
+            const createScoreInput = document.getElementById('createActionImpactScore');
+            const createCoinInput = document.getElementById('createActionImpactCoin');
+
+            if (createScoreInput && createCoinInput) {
+                const updateCreateCoin = () => {
+                    const score = Math.max(1, parseInt(createScoreInput.value, 10) || 1);
+                    createCoinInput.value = score * IMPACT_COIN_MULTIPLIER;
+                };
+                createScoreInput.addEventListener('input', updateCreateCoin);
+                createScoreInput.addEventListener('change', updateCreateCoin);
+                updateCreateCoin();
+            }
+
+            document.querySelectorAll('.edit-impact-action-row').forEach(row => {
+                const scoreInput = row.querySelector('.edit-impact-score-input');
+                const coinInput = row.querySelector('.edit-impact-coin-input');
+                if (scoreInput && coinInput) {
+                    const updateEditCoin = () => {
+                        const score = Math.max(1, parseInt(scoreInput.value, 10) || 1);
+                        coinInput.value = score * IMPACT_COIN_MULTIPLIER;
+                    };
+                    scoreInput.addEventListener('input', updateEditCoin);
+                    scoreInput.addEventListener('change', updateEditCoin);
+                }
+            });
+
             // Handle Edit / Cancel button toggle
             document.querySelectorAll('.edit-impact-action-btn, .edit-impact-action-cancel-btn').forEach(btn => {
                 btn.addEventListener('click', function (e) {
