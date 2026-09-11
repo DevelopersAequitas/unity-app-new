@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -13,6 +15,8 @@ class ImpactAction extends Model
 
     protected $table = 'impact_actions';
 
+    protected $primaryKey = 'id';
+
     protected $keyType = 'string';
 
     public $incrementing = false;
@@ -22,11 +26,13 @@ class ImpactAction extends Model
         'is_active',
         'sort_order',
         'impact_score',
+        'impact_coin',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'sort_order' => 'integer',
         'impact_score' => 'integer',
+        'impact_coin' => 'integer',
     ];
 }

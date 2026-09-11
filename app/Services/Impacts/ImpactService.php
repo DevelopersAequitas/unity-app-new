@@ -8,6 +8,7 @@ use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\Coins\CoinsService;
 use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -97,6 +98,7 @@ class ImpactService
             try {
                 $historyResult = $this->lifeImpactService->recordApprovedImpactHistory($impact, $actorUserId);
                 $recalculatedTotal = (int) ($historyResult['total_life_impacted'] ?? 0);
+                $this->rewardImpactCoins($impact, $actorUserId);
             } catch (\Throwable $exception) {
                 Log::error('impact.approval.failed', [
                     'impact_id' => (string) $impact->id,
@@ -277,5 +279,50 @@ class ImpactService
             'created_at' => now(),
             'read_at' => null,
         ]);
+    }
+
+    private function rewardImpactCoins(Impact $impact, ?string $actorUserId = null): void
+    {
+        $actionName = trim((string) ($impact->action ?? ''));
+        $coinAmount = 0;
+
+        if (Schema::hasTable('impact_actions') && $actionName !== '') {
+            $select = ['impact_score'];
+            if (Schema::hasColumn('impact_actions', 'impact_coin')) {
+                $select[] = 'impact_coin';
+            }
+
+            $impactAction = ImpactAction::query()
+                ->whereRaw('LOWER(name) = ?', [strtolower($actionName)])
+                ->first($select);
+
+            if ($impactAction) {
+                $score = max(1, (int) ($impactAction->impact_score ?? 1));
+                $coinAmount = max(1, (int) ($impactAction->impact_coin ?? ($score * 2500)));
+            }
+        }
+
+        if ($coinAmount <= 0) {
+            $legacyScore = max(1, (int) ($impact->life_impacted ?? 1));
+            $coinAmount = $legacyScore * 2500;
+        }
+
+        $user = $impact->user ?: User::query()->find($impact->user_id);
+
+        if ($user) {
+            app(CoinsService::class)->reward(
+                $user,
+                $coinAmount,
+                "Impact Approved: {$actionName}",
+                ['impact_id' => (string) $impact->id, 'action' => $actionName],
+                $actorUserId
+            );
+
+            Log::info('impact.coins_rewarded', [
+                'impact_id' => (string) $impact->id,
+                'user_id' => (string) $user->id,
+                'coin_amount' => $coinAmount,
+            ]);
+        }
     }
 }

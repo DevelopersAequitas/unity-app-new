@@ -4,13 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
-use App\Jobs\SendMilestoneCatalystWhatsappJob;
-use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
-use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Ramsey\Uuid\Uuid;
 use Throwable;
 
@@ -40,8 +35,8 @@ class MilestoneCatalystWhatsappService
 
             $introducedCount = (int) ($user->members_introduced_count ?? 0);
 
-            // Trigger only when user has reached or exceeded the CATALYST milestone threshold of 3
-            if ($introducedCount < self::MILESTONE_COUNT) {
+            // Trigger only when count indicates this is the member's 3rd introduction (exact milestone)
+            if ($introducedCount !== self::MILESTONE_COUNT) {
                 Log::info('[MilestoneCatalystWhatsappService] Skipped: Referral count threshold not reached.', [
                     'user_id' => $user->id,
                     'members_introduced_count' => $introducedCount,
@@ -51,88 +46,8 @@ class MilestoneCatalystWhatsappService
                 return;
             }
 
-            $deterministicLogId = self::getDeterministicLogId((string) $user->id, self::TEMPLATE_KEY, self::MILESTONE_COUNT);
-            $shouldDispatch = false;
-
-            if (Schema::hasTable('notification_delivery_logs')) {
-                try {
-                    $shouldDispatch = DB::transaction(function () use ($user, $deterministicLogId, $imageUrl, $introducedCount): bool {
-                        // Check if deterministic log already exists
-                        $existingLog = NotificationDeliveryLog::where('id', $deterministicLogId)->lockForUpdate()->first();
-                        if ($existingLog) {
-                            Log::info('[MilestoneCatalystWhatsappService] Skipped: CATALYST milestone already processed or queued for this member.', [
-                                'user_id' => $user->id,
-                                'log_id' => $deterministicLogId,
-                                'status' => $existingLog->status,
-                            ]);
-
-                            return false;
-                        }
-
-                        // Check existing logs if any exist for this user & template
-                        $alreadyExists = NotificationDeliveryLog::query()
-                            ->where('user_id', (string) $user->id)
-                            ->where('channel', 'whatsapp')
-                            ->where('provider', self::TEMPLATE_KEY)
-                            ->whereIn('status', ['sent', 'queued', 'pending', 'processing'])
-                            ->exists();
-
-                        if ($alreadyExists) {
-                            Log::info('[MilestoneCatalystWhatsappService] Skipped: CATALYST milestone delivery record exists.', [
-                                'user_id' => $user->id,
-                            ]);
-
-                            return false;
-                        }
-
-                        // Atomically insert the pre-dispatch queued entry with the deterministic primary key
-                        NotificationDeliveryLog::create([
-                            'id' => $deterministicLogId,
-                            'user_id' => (string) $user->id,
-                            'channel' => 'whatsapp',
-                            'provider' => self::TEMPLATE_KEY,
-                            'status' => 'queued',
-                            'request_payload' => [
-                                'template_key' => self::TEMPLATE_KEY,
-                                'milestone' => self::MILESTONE_KEY,
-                                'milestone_count' => self::MILESTONE_COUNT,
-                                'introduced_count' => $introducedCount,
-                                'image_url' => $imageUrl,
-                            ],
-                            'attempted_at' => now(),
-                        ]);
-
-                        return true;
-                    });
-                } catch (QueryException $qe) {
-                    Log::info('[MilestoneCatalystWhatsappService] Duplicate dispatch race prevented by DB unique primary key.', [
-                        'user_id' => $user->id,
-                        'log_id' => $deterministicLogId,
-                    ]);
-                    $shouldDispatch = false;
-                } catch (Throwable $dbEx) {
-                    Log::error('[MilestoneCatalystWhatsappService] Error during CATALYST milestone dispatch reservation: '.$dbEx->getMessage(), [
-                        'user_id' => $user->id,
-                        'exception' => $dbEx,
-                    ]);
-                    $shouldDispatch = false;
-                }
-            } else {
-                $shouldDispatch = true;
-            }
-
-            if ($shouldDispatch) {
-                // Dispatch job to send independently
-                SendMilestoneCatalystWhatsappJob::dispatch((string) $user->id, $imageUrl);
-
-                Log::info('[MilestoneCatalystWhatsappService] Dispatched SendMilestoneCatalystWhatsappJob.', [
-                    'user_id' => $user->id,
-                    'log_id' => $deterministicLogId,
-                    'milestone' => self::MILESTONE_KEY,
-                ]);
-            }
+            app(MilestoneWhatsappNotificationService::class)->handleMilestoneNotification($user, self::MILESTONE_COUNT, $imageUrl);
         } catch (Throwable $e) {
-            // Main flow must never fail because of WhatsApp handling
             Log::error('[MilestoneCatalystWhatsappService] Exception in handleCatalystMilestone: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'exception' => $e,
@@ -145,27 +60,7 @@ class MilestoneCatalystWhatsappService
      */
     public function isMilestoneProcessed(string $userId): bool
     {
-        if (! Schema::hasTable('notification_delivery_logs')) {
-            return false;
-        }
-
-        $deterministicLogId = self::getDeterministicLogId($userId, self::TEMPLATE_KEY, self::MILESTONE_COUNT);
-
-        try {
-            return NotificationDeliveryLog::query()
-                ->where(function ($q) use ($userId, $deterministicLogId): void {
-                    $q->where('id', $deterministicLogId)
-                        ->orWhere(function ($sub) use ($userId): void {
-                            $sub->where('user_id', $userId)
-                                ->where('channel', 'whatsapp')
-                                ->where('provider', self::TEMPLATE_KEY);
-                        });
-                })
-                ->whereIn('status', ['sent', 'queued', 'pending', 'processing'])
-                ->exists();
-        } catch (Throwable) {
-            return false;
-        }
+        return app(MilestoneWhatsappNotificationService::class)->alreadySent($userId, self::TEMPLATE_KEY);
     }
 
     /**
