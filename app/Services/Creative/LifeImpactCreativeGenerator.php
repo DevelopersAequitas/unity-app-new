@@ -8,12 +8,15 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\File;
 use App\Models\FileModel;
+use App\Models\LifeImpactCreative;
+use App\Models\LifeImpactRecognitionCreative;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -145,13 +148,42 @@ class LifeImpactCreativeGenerator
     }
 
     /**
-     * Get Life Impact recognition metadata based on impacted lives count.
+     * Get Life Impact recognition metadata based on impacted lives count or explicit DB record.
      *
      * @return array{title: string, required_count: int, compliment: string, caption_template: string, hashtag: string, badge_image: string, quote: string}
      */
-    public function getRecognitionMeta(int $lifeImpactedCount): array
+    public function getRecognitionMeta(int $lifeImpactedCount, ?LifeImpactRecognitionCreative $recognition = null): array
     {
+        if ($recognition === null && Schema::hasTable('life_impact_recognition_creatives')) {
+            try {
+                $recognition = LifeImpactRecognitionCreative::query()
+                    ->where('is_active', true)
+                    ->where('threshold', '<=', $lifeImpactedCount)
+                    ->orderBy('threshold', 'desc')
+                    ->first();
+            } catch (\Throwable $e) {
+                Log::warning('[LifeImpactCreativeGenerator] Failed querying DB recognition: '.$e->getMessage());
+            }
+        }
+
         $levels = $this->getAllRecognitionLevels();
+
+        if ($recognition) {
+            $threshold = (int) $recognition->threshold;
+            $meta = $levels[$threshold] ?? [
+                'title' => $recognition->recognition_name,
+                'required_count' => $threshold,
+                'compliment' => 'A Visionary Leader, A Force of Impact. A Legacy in the Making.',
+                'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a {$recognition->recognition_name} for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #".Str::studly($recognition->recognition_name).' #ImpactLife #1MillionEntrepreneurs',
+                'hashtag' => Str::studly($recognition->recognition_name),
+                'badge_image' => "images/life_impact_badges/{$recognition->recognition_name}.png",
+                'quote' => 'Every action creates ripples. You create impact.',
+            ];
+            $meta['title'] = $recognition->recognition_name;
+            $meta['required_count'] = $threshold;
+
+            return $meta;
+        }
 
         $selected = $levels[25];
         foreach ($levels as $threshold => $meta) {
@@ -184,10 +216,149 @@ class LifeImpactCreativeGenerator
     }
 
     /**
+     * Resolve the configured public HTTPS base URL in an environment-aware manner.
+     */
+    public static function getPublicBaseUrl(): string
+    {
+        $rawUrl = (string) (config('app.public_url') ?: config('app.url', ''));
+        $rawUrl = trim($rawUrl);
+
+        $isProduction = app()->environment('production') || config('app.env') === 'production';
+
+        if ($rawUrl === '' || preg_match('~https?://(localhost|127\.0\.0\.1|10\.0\.2\.2|0\.0\.0\.0|::1|[^/]*ngrok[^/]*)([:/]|$)~i', $rawUrl)) {
+            return $isProduction ? 'https://peersunity.com' : 'https://dev.peersunity.com';
+        }
+
+        if (str_starts_with(strtolower($rawUrl), 'http://')) {
+            $rawUrl = 'https://'.substr($rawUrl, 7);
+        } elseif (! str_starts_with(strtolower($rawUrl), 'https://')) {
+            $rawUrl = 'https://'.ltrim($rawUrl, '/');
+        }
+
+        return rtrim($rawUrl, '/');
+    }
+
+    /**
+     * Get existing life impact creative URL from SQL or generate a new one app-side and store it.
+     */
+    public function generateOrGetUrl(
+        User $user,
+        int $lifeImpactedCount = 0,
+        ?int $overrideThreshold = null,
+        bool $forceRegenerate = false
+    ): string {
+        if ($lifeImpactedCount <= 0) {
+            $lifeImpactedCount = (int) ($user->life_impacted_count ?? 0);
+        }
+
+        $effectiveThreshold = $overrideThreshold && $overrideThreshold > 0
+            ? $overrideThreshold
+            : ($lifeImpactedCount >= 25 ? $lifeImpactedCount : 25);
+
+        $recognition = null;
+        if (Schema::hasTable('life_impact_recognition_creatives')) {
+            try {
+                $recognition = LifeImpactRecognitionCreative::query()
+                    ->where('is_active', true)
+                    ->where('threshold', '<=', $effectiveThreshold)
+                    ->orderBy('threshold', 'desc')
+                    ->first();
+            } catch (\Throwable $e) {
+                Log::warning('[LifeImpactCreativeGenerator] Failed querying recognition: '.$e->getMessage());
+            }
+        }
+
+        $threshold = $recognition ? (int) $recognition->threshold : $effectiveThreshold;
+        if ($threshold <= 0) {
+            $threshold = 25;
+        }
+
+        if (! $forceRegenerate && Schema::hasTable('life_impact_creatives')) {
+            try {
+                $existingRecord = LifeImpactCreative::query()
+                    ->where('user_id', $user->id)
+                    ->where('threshold', $threshold)
+                    ->latest()
+                    ->first();
+
+                if ($existingRecord && ! empty($existingRecord->image_url) && ! str_contains((string) $existingRecord->image_url, '/images/life_impact_badges/')) {
+                    $s3Key = preg_replace('~^https?://[^/]+/storage/~i', '', (string) $existingRecord->image_url);
+                    $s3Key = ltrim($s3Key, '/');
+
+                    $physicalExists = Storage::disk('public')->exists($s3Key)
+                        || Storage::disk(config('filesystems.default', 'public'))->exists($s3Key)
+                        || file_exists(storage_path('app/public/'.$s3Key))
+                        || file_exists(public_path('storage/'.$s3Key));
+
+                    if ($physicalExists) {
+                        $baseUrl = self::getPublicBaseUrl();
+                        $verifiedUrl = str_starts_with((string) $existingRecord->image_url, 'https://')
+                            ? (string) $existingRecord->image_url
+                            : "{$baseUrl}/storage/{$s3Key}";
+
+                        Log::info("[LifeImpactCreativeGenerator] Reusing existing creative URL for user {$user->id}", [
+                            'image_url' => $verifiedUrl,
+                            'threshold' => $threshold,
+                        ]);
+
+                        return $verifiedUrl;
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("[LifeImpactCreativeGenerator] Querying life_impact_creatives failed: {$e->getMessage()}");
+            }
+        }
+
+        $fileModel = $this->generate($user, $lifeImpactedCount, $threshold, null, $recognition);
+
+        $existsOnPublic = Storage::disk('public')->exists($fileModel->s3_key)
+            || file_exists(storage_path('app/public/'.$fileModel->s3_key))
+            || file_exists(public_path('storage/'.$fileModel->s3_key));
+
+        if (! $existsOnPublic) {
+            throw new \RuntimeException("Physical life impact creative file failed to persist on public disk for user {$user->id} at path {$fileModel->s3_key}");
+        }
+
+        $baseUrl = self::getPublicBaseUrl();
+        $imageUrl = $baseUrl.'/storage/'.ltrim($fileModel->s3_key, '/');
+
+        if (Schema::hasTable('life_impact_creatives')) {
+            try {
+                LifeImpactCreative::updateOrCreate(
+                    [
+                        'user_id' => $user->id,
+                        'threshold' => $threshold,
+                    ],
+                    [
+                        'recognition_id' => $recognition?->id,
+                        'image_url' => $imageUrl,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning("[LifeImpactCreativeGenerator] Could not persist creative record to DB for user {$user->id}: {$e->getMessage()}");
+            }
+        }
+
+        Log::info("[LifeImpactCreativeGenerator] Generated personalized life impact creative URL for user {$user->id}", [
+            'file_id' => $fileModel->id,
+            's3_key' => $fileModel->s3_key,
+            'image_url' => $imageUrl,
+            'threshold' => $threshold,
+        ]);
+
+        return $imageUrl;
+    }
+
+    /**
      * Generate the Life Impact Recognition Creative image.
      */
-    public function generate(User $user, int $lifeImpactedCount = 0, ?int $overrideThreshold = null, ?FileModel $targetFileRecord = null): FileModel
-    {
+    public function generate(
+        User $user,
+        int $lifeImpactedCount = 0,
+        ?int $overrideThreshold = null,
+        ?FileModel $targetFileRecord = null,
+        ?LifeImpactRecognitionCreative $recognition = null
+    ): FileModel {
         try {
             if ($lifeImpactedCount <= 0) {
                 $lifeImpactedCount = (int) ($user->life_impacted_count ?? 0);
@@ -197,13 +368,43 @@ class LifeImpactCreativeGenerator
                 ? $overrideThreshold
                 : ($lifeImpactedCount >= 25 ? $lifeImpactedCount : 25);
 
-            $meta = $this->getRecognitionMeta($effectiveThreshold);
+            if ($recognition === null && Schema::hasTable('life_impact_recognition_creatives')) {
+                try {
+                    $recognition = LifeImpactRecognitionCreative::query()
+                        ->where('is_active', true)
+                        ->where('threshold', '<=', $effectiveThreshold)
+                        ->orderBy('threshold', 'desc')
+                        ->first();
+                } catch (\Throwable $e) {
+                    Log::warning('[LifeImpactCreativeGenerator] Recognition lookup failed: '.$e->getMessage());
+                }
+            }
 
-            $templatePath = ! empty($meta['badge_image']) ? public_path($meta['badge_image']) : null;
+            $meta = $this->getRecognitionMeta($effectiveThreshold, $recognition);
+
+            // Base Image Lookup: 1. DB recognition file_id, 2. Fallback static badge image
+            $templatePath = null;
+            if ($recognition && ! empty($recognition->file_id)) {
+                $fileRecord = File::find($recognition->file_id);
+                if ($fileRecord && $fileRecord->s3_key) {
+                    $disk = config('filesystems.default', 'public');
+                    if (Storage::disk($disk)->exists($fileRecord->s3_key)) {
+                        $templatePath = Storage::disk($disk)->path($fileRecord->s3_key);
+                    } elseif (Storage::disk('public')->exists($fileRecord->s3_key)) {
+                        $templatePath = Storage::disk('public')->path($fileRecord->s3_key);
+                    } elseif (file_exists(storage_path('app/public/'.$fileRecord->s3_key))) {
+                        $templatePath = storage_path('app/public/'.$fileRecord->s3_key);
+                    } elseif (file_exists(public_path('storage/'.$fileRecord->s3_key))) {
+                        $templatePath = public_path('storage/'.$fileRecord->s3_key);
+                    }
+                }
+            }
+
             if (! $templatePath || ! file_exists($templatePath)) {
-                $storageTemplate = ! empty($meta['badge_image']) ? storage_path('app/public/'.$meta['badge_image']) : null;
-                if ($storageTemplate && file_exists($storageTemplate)) {
-                    $templatePath = $storageTemplate;
+                if (! empty($meta['badge_image']) && file_exists(public_path($meta['badge_image']))) {
+                    $templatePath = public_path($meta['badge_image']);
+                } elseif (! empty($meta['badge_image']) && file_exists(storage_path('app/public/'.$meta['badge_image']))) {
+                    $templatePath = storage_path('app/public/'.$meta['badge_image']);
                 }
             }
 
@@ -215,10 +416,20 @@ class LifeImpactCreativeGenerator
             if (! file_exists($fontExtraBold)) {
                 $fontExtraBold = $fontBold;
             }
+            if (! file_exists($fontBold)) {
+                $fontBold = $this->getFontPath('bold');
+                $fontExtraBold = $fontBold;
+            }
             $fontSemiBold = public_path('fonts/Montserrat-SemiBold.ttf');
+            if (! file_exists($fontSemiBold)) {
+                $fontSemiBold = $this->getFontPath('semibold');
+            }
             $fontRegular = public_path('fonts/Montserrat-Regular.ttf');
+            if (! file_exists($fontRegular)) {
+                $fontRegular = $this->getFontPath('regular');
+            }
 
-            // Member Info Preparation
+            // Strictly User's Own Information
             $name = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
             if (empty($name)) {
                 $name = $user->name ?: 'Peer Member';
@@ -290,7 +501,7 @@ class LifeImpactCreativeGenerator
                 $colorSlate = imagecolorallocate($canvas, 71, 85, 105);
                 $darkCircleBg = imagecolorallocate($canvas, 10, 37, 64);
 
-                // 1. Profile Avatar: Center X = 540, Center Y = 662, Diameter = 225
+                // 1. Profile Avatar: Center X = 534, Center Y = 660, Diameter = 242
                 $targetDiameter = 242;
                 $circleCenterX = 534;
                 $circleCenterY = 660;

@@ -8,6 +8,7 @@ use App\Models\LifeImpactHistory;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\Creative\LifeImpactCreativeService;
 use App\Services\MilestoneBadgeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -387,11 +388,12 @@ class LifeImpactService
 
                     if (! $existingPost && Schema::hasTable('posts')) {
                         try {
-                            $fileRecord = $generator->generate($user, (int) $threshold, (int) $threshold);
-                            $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
+                            $creativeService = app(LifeImpactCreativeService::class);
+                            $creativeRecord = $creativeService->handleLifeImpactCreative($user, (int) $threshold, (int) $threshold);
+                            $creativeImageUrl = $creativeRecord?->image_url ?: $generator->generateOrGetUrl($user, (int) $threshold, (int) $threshold);
                             $media = [
                                 [
-                                    'id' => $fileRecord->id,
+                                    'id' => $creativeRecord?->id ?? (string) Str::uuid(),
                                     'type' => 'image',
                                     'url' => $creativeImageUrl,
                                 ],

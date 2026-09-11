@@ -10,6 +10,7 @@ use App\Models\Post;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\Creative\LifeImpactCreativeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -376,8 +377,9 @@ class LifeImpactRecognitionsController extends Controller
             : ($realCount >= 25 ? $realCount : 25);
 
         try {
-            $fileRecord = $generator->generate($peer, $realCount, $effectiveThreshold);
-            $imageUrl = url('/api/v1/files/'.$fileRecord->id);
+            $creativeService = app(LifeImpactCreativeService::class);
+            $creativeRecord = $creativeService->handleLifeImpactCreative($peer, $realCount, $effectiveThreshold);
+            $imageUrl = $creativeRecord?->image_url ?: $generator->generateOrGetUrl($peer, $realCount, $effectiveThreshold);
 
             $meta = $generator->getRecognitionMeta($effectiveThreshold);
             $caption = $generator->formatCaption($peer, $effectiveThreshold, $meta);
@@ -408,7 +410,7 @@ class LifeImpactRecognitionsController extends Controller
                 'content_text' => $caption,
                 'media' => [
                     [
-                        'id' => $fileRecord->id,
+                        'id' => $creativeRecord?->id ?? (string) Str::uuid(),
                         'type' => 'image',
                         'url' => $imageUrl,
                     ],
