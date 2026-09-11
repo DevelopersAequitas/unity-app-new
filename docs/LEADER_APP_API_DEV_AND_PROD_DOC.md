@@ -54,13 +54,13 @@ The Leader App is deeply integrated with the platform's **Dynamic RBAC Web Syste
 ### 2.1 OTP Authentication Flow
 
 ```
-[Flutter Frontend] ──── 1. POST /api/v1/auth/send-otp ───► [Backend OTP Gateway]
-                                                                  │
-                                                        Sends 6-digit OTP
-                                                                  │
-[Flutter Frontend] ◄─── Returns { success: true } ────────────────┘
+[Flutter Frontend] ──── 1. POST /api/v1/leader/auth/send-otp ───► [Backend OTP Gateway]
+                                                                          │
+                                                                Sends 6-digit OTP
+                                                                          │
+[Flutter Frontend] ◄─── Returns { success: true } ────────────────────────┘
 
-[Flutter Frontend] ──── 2. POST /api/v1/auth/verify-otp ──► [Backend Auth Service]
+[Flutter Frontend] ──── 2. POST /api/v1/leader/auth/verify-otp ──► [Backend Auth Service]
                                                                   │
                                                       • Validates OTP
                                                       • Generates Bearer Token
@@ -183,7 +183,7 @@ The backend automatically resolves the user's role and returns the 21 permission
 ### 5.1 Authentication Endpoints
 
 #### 1. Request Login OTP
-- **Route:** `POST /api/v1/auth/send-otp`
+- **Route:** `POST /api/v1/leader/auth/send-otp` (or alias: `POST /api/v1/leader/send-otp`)
 - **Auth Required:** No
 - **Request Payload:**
 ```json
@@ -204,7 +204,7 @@ The backend automatically resolves the user's role and returns the 21 permission
 ```
 
 #### 2. Verify Login OTP
-- **Route:** `POST /api/v1/auth/verify-otp`
+- **Route:** `POST /api/v1/leader/auth/verify-otp` (or alias: `POST /api/v1/leader/verify-otp`)
 - **Auth Required:** No
 - **Request Payload:**
 ```json

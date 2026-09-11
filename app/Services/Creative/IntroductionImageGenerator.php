@@ -54,8 +54,8 @@ class IntroductionImageGenerator
             // Calibrated Coordinates (for 819x1024 template)
             $leftCenterX = 228;
             $rightCenterX = 583;
-            $centerY = 396;
-            $avatarSize = 252;
+            $centerY = 405; // Positioned ~2.27% lower (from 396 to 405) to fully cover gold ring border
+            $avatarSize = 256; // 256px circle to ensure complete coverage without border leakage
             $textStartY = 675;
 
             // 1. Draw Referrer Avatar or Initial (Left Circle)
@@ -163,17 +163,17 @@ class IntroductionImageGenerator
         $hasCategory = ! empty($category);
 
         if ($hasCompany && $hasCategory) {
-            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 558, $nameColor, $fontBold, 330);
-            $this->drawCenteredFittedText($canvas, $company, 13, $centerX, 582, $companyColor, $fontSemiBold, 330);
-            $this->drawCenteredFittedText($canvas, $category, 12, $centerX, 604, $categoryColor, $fontRegular, 330);
+            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 567, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $company, 13, $centerX, 591, $companyColor, $fontSemiBold, 330);
+            $this->drawCenteredFittedText($canvas, $category, 12, $centerX, 613, $categoryColor, $fontRegular, 330);
         } elseif ($hasCompany) {
-            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 562, $nameColor, $fontBold, 330);
-            $this->drawCenteredFittedText($canvas, $company, 13, $centerX, 586, $companyColor, $fontSemiBold, 330);
+            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 571, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $company, 13, $centerX, 595, $companyColor, $fontSemiBold, 330);
         } elseif ($hasCategory) {
-            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 562, $nameColor, $fontBold, 330);
-            $this->drawCenteredFittedText($canvas, $category, 12, $centerX, 586, $categoryColor, $fontRegular, 330);
+            $this->drawCenteredFittedText($canvas, $name, 17, $centerX, 571, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $category, 12, $centerX, 595, $categoryColor, $fontRegular, 330);
         } else {
-            $this->drawCenteredFittedText($canvas, $name, 18, $centerX, 565, $nameColor, $fontBold, 330);
+            $this->drawCenteredFittedText($canvas, $name, 18, $centerX, 574, $nameColor, $fontBold, 330);
         }
     }
 

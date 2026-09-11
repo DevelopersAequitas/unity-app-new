@@ -17,7 +17,12 @@ use Illuminate\Support\Facades\Route;
 // ── Public System & Auth Endpoints ──────────────────────────────────────────
 Route::get('/leader/system/app-config', [LeaderSystemController::class, 'appConfig']);
 
-Route::prefix('auth')->group(function () {
+Route::prefix('leader/auth')->group(function () {
+    Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
+    Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
+});
+
+Route::prefix('leader')->group(function () {
     Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
     Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
 });
