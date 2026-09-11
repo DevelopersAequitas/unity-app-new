@@ -1748,8 +1748,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 },
                 processResults: function (data) {
+                    const currentUserId = "{{ $user->id }}";
+                    const members = (data || []).filter(function (item) {
+                        return (!item.type || item.type === 'member') && item.id !== currentUserId;
+                    });
                     return {
-                        results: data.map(function (item) {
+                        results: members.map(function (item) {
                             return {
                                 id: item.id,
                                 text: item.label_inline || item.label || item.name
@@ -1758,8 +1762,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 },
                 cache: true
-            },
-            minimumInputLength: 1
+            }
         });
     }
     const roleCheckboxes = Array.from(document.querySelectorAll('input[name="role_ids[]"]'));
@@ -2360,8 +2363,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         };
                     },
                     cache: true
-                },
-                minimumInputLength: 1
+                }
             }).on('select2:select', function (e) {
                 const data = e.params.data;
                 const name = data.name || data.text || '';
