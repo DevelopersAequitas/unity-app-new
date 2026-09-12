@@ -1,84 +1,123 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
+use App\Http\Requests\Post\StorePostSaveRequest;
 use App\Http\Resources\PostResource;
-use App\Models\Post;
-use App\Models\PostSave;
+use App\Models\User;
+use App\Services\Post\PostSaveService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class PostSaveController extends BaseApiController
 {
-    public function toggle(Request $request, string $postId): JsonResponse
+    public function __construct(
+        protected readonly PostSaveService $postSaveService
+    ) {}
+
+    /**
+     * Store a saved post for the peer.
+     * Can be invoked as POST /posts/save with { "post_id": "uuid" } or POST /posts/{id}/save.
+     */
+    public function store(StorePostSaveRequest $request, ?string $id = null): JsonResponse
     {
+        /** @var User $user */
         $user = $request->user();
+        $postId = $id ?? (string) $request->validated('post_id');
 
-        $post = Post::query()
-            ->where('is_deleted', false)
-            ->whereNull('deleted_at')
-            ->findOrFail($postId);
+        $action = $request->validated('action');
 
-        $existingSave = PostSave::query()
-            ->where('user_id', $user->id)
-            ->where('post_id', $post->id)
-            ->first();
+        $result = match ($action) {
+            'unsave' => $this->postSaveService->unsave($user, $postId),
+            'toggle' => $this->postSaveService->toggle($user, $postId),
+            default => $this->postSaveService->save($user, $postId),
+        };
 
-        if ($existingSave) {
-            $existingSave->delete();
-            $isSaved = false;
-            $message = 'Post unsaved';
-        } else {
-            PostSave::create([
-                'user_id' => $user->id,
-                'post_id' => $post->id,
-            ]);
+        $message = $result['is_saved'] ? 'Post saved successfully' : 'Post unsaved successfully';
 
-            $isSaved = true;
-            $message = 'Post saved';
-        }
-
-        $savesCount = PostSave::query()
-            ->where('post_id', $post->id)
-            ->count();
-
-        return $this->success([
-            'post_id' => $post->id,
-            'is_saved' => $isSaved,
-            'saves_count' => $savesCount,
-        ], $message);
+        return $this->success($result, $message);
     }
 
-    public function index(Request $request): JsonResponse
+    /**
+     * Save a post for the peer.
+     */
+    public function save(Request $request, string $id): JsonResponse
     {
+        /** @var User $user */
         $user = $request->user();
 
-        $posts = Post::query()
-            ->select('posts.*')
-            ->join('post_saves', 'post_saves.post_id', '=', 'posts.id')
-            ->where('post_saves.user_id', $user->id)
-            ->where('posts.is_deleted', false)
-            ->whereNull('posts.deleted_at')
-            ->with([
-                'author:id,display_name,first_name,last_name,profile_photo_file_id',
-                'circle:id,name',
-            ])
-            ->withCount(['likes', 'comments', 'saves'])
-            ->withExists([
-                'likes as is_liked_by_me' => fn ($query) => $query->where('user_id', $user->id),
-                'saves as is_saved_by_me' => fn ($query) => $query->where('user_id', $user->id),
-            ])
-            ->orderByDesc('post_saves.created_at')
-            ->get();
+        $result = $this->postSaveService->save($user, $id);
+
+        return $this->success($result, 'Post saved successfully');
+    }
+
+    /**
+     * Unsave / remove a saved post for the peer.
+     */
+    public function unsave(Request $request, string $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $result = $this->postSaveService->unsave($user, $id);
+
+        return $this->success($result, 'Post unsaved successfully');
+    }
+
+    /**
+     * Remove a saved post for the peer (REST DELETE alias for unsave).
+     */
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        return $this->unsave($request, $id);
+    }
+
+    /**
+     * Toggle saving a post for the peer.
+     */
+    public function toggle(Request $request, string $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $result = $this->postSaveService->toggle($user, $id);
+
+        $message = $result['is_saved'] ? 'Post saved' : 'Post unsaved';
+
+        return $this->success($result, $message);
+    }
+
+    /**
+     * Get the peer's saved posts.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $perPage = $request->has('per_page')
+            ? max(1, min((int) $request->integer('per_page', 20), 100))
+            : null;
+
+        $posts = $this->postSaveService->getSavedPosts($user, $perPage);
+
+        if ($posts instanceof LengthAwarePaginator) {
+            return $this->success([
+                'items' => PostResource::collection($posts->items()),
+                'pagination' => [
+                    'current_page' => $posts->currentPage(),
+                    'last_page' => $posts->lastPage(),
+                    'per_page' => $posts->perPage(),
+                    'total' => $posts->total(),
+                ],
+            ], 'Saved posts fetched successfully');
+        }
 
         return $this->success([
             'items' => PostResource::collection($posts),
         ], 'Saved posts fetched successfully');
     }
 }
-
-/*
-Quick Postman steps:
-- POST /api/v1/posts/{postId}/save (auth:sanctum) to toggle save/unsave.
-- GET  /api/v1/posts/saved (auth:sanctum) to fetch saved posts ordered by latest save.
-*/

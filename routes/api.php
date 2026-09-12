@@ -902,7 +902,10 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/posts/{id}/like', [PostController::class, 'like']);
         Route::delete('/posts/{id}/like', [PostController::class, 'unlike']);
-        Route::post('/posts/{post}/save', [PostSaveController::class, 'toggle']);
+        Route::post('/posts/save', [PostSaveController::class, 'store']);
+        Route::post('/posts/{id}/save', [PostSaveController::class, 'store'])->whereUuid('id');
+        Route::delete('/posts/{id}/save', [PostSaveController::class, 'destroy'])->whereUuid('id');
+        Route::post('/posts/{id}/save/toggle', [PostSaveController::class, 'toggle'])->whereUuid('id');
 
         Route::post('/posts/{id}/comments', [PostController::class, 'storeComment']);
         Route::get('/posts/{id}/comments', [PostController::class, 'listComments']);
