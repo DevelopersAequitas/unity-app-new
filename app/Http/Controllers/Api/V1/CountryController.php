@@ -12,13 +12,24 @@ use Illuminate\Http\Request;
 class CountryController extends BaseApiController
 {
     /**
-     * Get worldwide countries with ISO-2 codes, calling dial codes, and flag emojis.
+     * Get worldwide countries with ISO-2 codes, calling dial codes, flag emojis, and pagination.
      */
     public function index(Request $request, CountryService $countryService): JsonResponse
     {
         $search = $request->input('search');
-        $countries = $countryService->getCountries(is_string($search) ? $search : null);
+        $searchQuery = is_string($search) ? $search : null;
 
-        return $this->success($countries, 'Countries fetched successfully.');
+        if ($request->input('paginate') === 'false' || $request->input('paginate') === '0' || $request->boolean('all') || $request->input('per_page') === 'all') {
+            $countries = $countryService->getCountries($searchQuery);
+
+            return $this->success($countries, 'Countries fetched successfully.');
+        }
+
+        $page = (int) $request->input('page', 1);
+        $perPage = (int) $request->input('per_page', 20);
+
+        $paginated = $countryService->getPaginatedCountries($searchQuery, $page, $perPage);
+
+        return $this->success($paginated, 'Countries fetched successfully.');
     }
 }

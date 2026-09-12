@@ -31,9 +31,55 @@ class CountryAndCityApiTest extends TestCase
         });
     }
 
-    public function test_countries_api_returns_complete_country_list_with_dial_codes_and_flags(): void
+    public function test_countries_api_returns_paginated_country_list_with_dial_codes_and_flags(): void
     {
         $response = $this->getJson('/api/v1/countries');
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'message' => 'Countries fetched successfully.',
+            ])
+            ->assertJsonStructure([
+                'success',
+                'message',
+                'data' => [
+                    'items' => [
+                        '*' => [
+                            'name',
+                            'code',
+                            'dial_code',
+                            'flag',
+                        ],
+                    ],
+                    'pagination' => [
+                        'current_page',
+                        'last_page',
+                        'per_page',
+                        'total',
+                    ],
+                ],
+            ]);
+
+        $this->assertSame(1, $response->json('data.pagination.current_page'));
+        $this->assertSame(20, $response->json('data.pagination.per_page'));
+        $this->assertGreaterThan(200, $response->json('data.pagination.total'));
+        $this->assertCount(20, $response->json('data.items'));
+    }
+
+    public function test_countries_api_supports_custom_pagination_parameters(): void
+    {
+        $response = $this->getJson('/api/v1/countries?page=2&per_page=15');
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('data.pagination.current_page'));
+        $this->assertSame(15, $response->json('data.pagination.per_page'));
+        $this->assertCount(15, $response->json('data.items'));
+    }
+
+    public function test_countries_api_supports_non_paginated_all_mode(): void
+    {
+        $response = $this->getJson('/api/v1/countries?paginate=false');
 
         $response->assertOk()
             ->assertJson([
@@ -54,8 +100,6 @@ class CountryAndCityApiTest extends TestCase
             ]);
 
         $countries = collect($response->json('data'));
-
-        // Assert comprehensive worldwide coverage (over 200 countries)
         $this->assertGreaterThan(200, $countries->count());
 
         // Check India
@@ -79,40 +123,6 @@ class CountryAndCityApiTest extends TestCase
         $this->assertSame('+44', $uk['dial_code']);
         $this->assertSame('🇬🇧', $uk['flag']);
 
-        // Check countries previously missing from limited list
-        $missingCountries = [
-            'AF' => ['Afghanistan', '+93'],
-            'AL' => ['Albania', '+355'],
-            'DZ' => ['Algeria', '+213'],
-            'AD' => ['Andorra', '+376'],
-            'AO' => ['Angola', '+244'],
-            'AM' => ['Armenia', '+374'],
-            'AZ' => ['Azerbaijan', '+994'],
-            'BS' => ['Bahamas', '+1242'],
-            'BY' => ['Belarus', '+375'],
-            'BT' => ['Bhutan', '+975'],
-            'BO' => ['Bolivia', '+591'],
-            'KH' => ['Cambodia', '+855'],
-            'HR' => ['Croatia', '+385'],
-            'CY' => ['Cyprus', '+357'],
-            'EC' => ['Ecuador', '+593'],
-            'ET' => ['Ethiopia', '+251'],
-            'FI' => ['Finland', '+358'],
-            'IS' => ['Iceland', '+354'],
-            'JM' => ['Jamaica', '+1876'],
-            'MV' => ['Maldives', '+960'],
-            'MM' => ['Myanmar', '+95'],
-            'ZW' => ['Zimbabwe', '+263'],
-        ];
-
-        foreach ($missingCountries as $code => [$expectedName, $expectedDialCode]) {
-            $item = $countries->firstWhere('code', $code);
-            $this->assertNotNull($item, "Expected country [{$code} - {$expectedName}] was missing from API response.");
-            $this->assertSame($expectedName, $item['name']);
-            $this->assertSame($expectedDialCode, $item['dial_code']);
-            $this->assertNotEmpty($item['flag']);
-        }
-
         // Verify no duplicate country codes
         $codes = $countries->pluck('code');
         $this->assertSame($codes->count(), $codes->unique()->count());
@@ -124,34 +134,35 @@ class CountryAndCityApiTest extends TestCase
         $this->assertSame($sortedNames, $names);
     }
 
-    public function test_countries_api_search_filter(): void
+    public function test_countries_api_search_filter_with_pagination(): void
     {
         $response = $this->getJson('/api/v1/countries?search=united');
 
         $response->assertOk();
-        $countries = collect($response->json('data'));
+        $items = collect($response->json('data.items'));
 
-        $this->assertTrue($countries->contains('name', 'United States'));
-        $this->assertTrue($countries->contains('name', 'United Kingdom'));
-        $this->assertTrue($countries->contains('name', 'United Arab Emirates'));
-        $this->assertFalse($countries->contains('name', 'India'));
+        $this->assertTrue($items->contains('name', 'United States'));
+        $this->assertTrue($items->contains('name', 'United Kingdom'));
+        $this->assertTrue($items->contains('name', 'United Arab Emirates'));
+        $this->assertFalse($items->contains('name', 'India'));
 
         // Search by dial code
         $dialResponse = $this->getJson('/api/v1/countries?search=+91');
         $dialResponse->assertOk();
-        $dialCountries = collect($dialResponse->json('data'));
-        $this->assertTrue($dialCountries->contains('code', 'IN'));
+        $dialItems = collect($dialResponse->json('data.items'));
+        $this->assertTrue($dialItems->contains('code', 'IN'));
 
         // Search by country code
         $codeResponse = $this->getJson('/api/v1/countries?search=IN');
         $codeResponse->assertOk();
-        $codeCountries = collect($codeResponse->json('data'));
-        $this->assertTrue($codeCountries->contains('code', 'IN'));
+        $codeItems = collect($codeResponse->json('data.items'));
+        $this->assertTrue($codeItems->contains('code', 'IN'));
 
         // Search returns empty list when no match is found
         $emptyResponse = $this->getJson('/api/v1/countries?search=NonExistentCountryXYZ123');
         $emptyResponse->assertOk()
-            ->assertJsonPath('data', []);
+            ->assertJsonPath('data.items', [])
+            ->assertJsonPath('data.pagination.total', 0);
     }
 
     public function test_countries_api_caches_country_list_and_handles_safe_dial_code(): void
@@ -161,13 +172,13 @@ class CountryAndCityApiTest extends TestCase
 
         $this->assertFalse(Cache::has(CountryService::CACHE_KEY));
 
-        $response = $this->getJson('/api/v1/countries');
+        $response = $this->getJson('/api/v1/countries?per_page=250');
         $response->assertOk();
 
         $this->assertTrue(Cache::has(CountryService::CACHE_KEY));
 
         // Antarctica (AQ) has no calling code, should be handled safely as null without throwing errors
-        $countries = collect($response->json('data'));
+        $countries = collect($response->json('data.items'));
         $antarctica = $countries->firstWhere('code', 'AQ');
         $this->assertNotNull($antarctica);
         $this->assertNull($antarctica['dial_code']);

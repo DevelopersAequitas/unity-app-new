@@ -55,6 +55,41 @@ class CountryService
     }
 
     /**
+     * Get paginated worldwide countries, optionally filtered by search query.
+     *
+     * @return array{
+     *     items: array<int, array{name: string, code: string, dial_code: ?string, flag: ?string}>,
+     *     pagination: array{
+     *         current_page: int,
+     *         last_page: int,
+     *         per_page: int,
+     *         total: int
+     *     }
+     * }
+     */
+    public function getPaginatedCountries(?string $search = null, int $page = 1, int $perPage = 20): array
+    {
+        $countries = $this->getCountries($search);
+        $total = count($countries);
+        $perPage = max(1, min($perPage, 250));
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = max(1, $page);
+
+        $offset = ($page - 1) * $perPage;
+        $items = array_slice($countries, $offset, $perPage);
+
+        return [
+            'items' => array_values($items),
+            'pagination' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ];
+    }
+
+    /**
      * Retrieve all cached worldwide countries or load them from the package.
      *
      * @return array<int, array{name: string, code: string, dial_code: ?string, flag: ?string}>
