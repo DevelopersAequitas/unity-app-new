@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
+use App\Jobs\SendMilestoneCatalystWhatsappJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
@@ -46,7 +47,7 @@ class MilestoneCatalystWhatsappService
                 return;
             }
 
-            app(MilestoneWhatsappNotificationService::class)->handleMilestoneNotification($user, self::MILESTONE_COUNT, $imageUrl);
+            SendMilestoneCatalystWhatsappJob::dispatch((string) $user->id, $imageUrl);
         } catch (Throwable $e) {
             Log::error('[MilestoneCatalystWhatsappService] Exception in handleCatalystMilestone: '.$e->getMessage(), [
                 'user_id' => $user->id,

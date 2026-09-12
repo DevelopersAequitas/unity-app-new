@@ -153,6 +153,7 @@ use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
+use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
@@ -169,18 +170,10 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
-// TEMPORARY LOCAL/QA MOCK WEBHOOK: WhatsApp Webhook Payload Logger
-Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
-    Log::info('Local Mock WhatsApp Webhook Received Payload:', [
-        'headers' => $request->headers->all(),
-        'body' => $request->all(),
-    ]);
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Mock WhatsApp webhook payload captured successfully',
-    ]);
-});
+// Inbound WhatsApp Webhook endpoints for delivery status & message notifications
+Route::get('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle']);
+Route::post('/v1/mock-whatsapp-webhook', [WhatsAppWebhookController::class, 'handle']);
 
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
