@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeGenerator;
+use App\Services\Notifications\ImpactMilestoneWhatsappNotificationService;
 use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
 use App\Services\Notifications\NotificationService;
@@ -285,6 +286,22 @@ class MilestoneBadgeService
                                 'badge_id' => $badge->id,
                             ]);
                         }
+                    }
+                }
+
+                // Automatically trigger WhatsApp notifications for newly earned Life Impact milestones
+                if ($badge->type === MilestoneBadge::TYPE_LIFE_IMPACT) {
+                    try {
+                        app(ImpactMilestoneWhatsappNotificationService::class)->handleMilestoneNotification(
+                            $user,
+                            (int) $badge->required_count,
+                            $creativeImageUrl ?? null
+                        );
+                    } catch (\Throwable $waEx) {
+                        Log::error('[MilestoneBadgeService] Failed triggering Life Impact WhatsApp: '.$waEx->getMessage(), [
+                            'user_id' => $user->id,
+                            'badge_id' => $badge->id,
+                        ]);
                     }
                 }
             } catch (\Throwable $e) {
