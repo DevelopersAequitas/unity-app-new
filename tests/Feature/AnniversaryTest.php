@@ -27,37 +27,11 @@ class AnniversaryTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('users');
-        Schema::create('users', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('first_name', 100);
-            $table->string('last_name', 100)->nullable();
-            $table->string('display_name', 150)->nullable();
-            $table->string('email', 255)->unique();
-            $table->string('phone', 20)->nullable()->unique();
-            $table->string('password_hash');
-            $table->string('company_name', 150)->nullable();
-            $table->string('designation', 100)->nullable();
-            $table->uuid('city_id')->nullable();
-            $table->string('status', 50)->default('inactive');
-            $table->string('registration_source', 100)->nullable();
-            $table->string('membership_status', 50)->default('visitor');
-            $table->timestamp('membership_expiry')->nullable();
-            $table->timestamp('membership_starts_at')->nullable();
-            $table->timestamp('membership_ends_at')->nullable();
-            $table->bigInteger('coins_balance')->default(0);
-            $table->string('public_profile_slug', 80)->nullable()->unique();
-            $table->string('website', 255)->nullable();
-            $table->text('sustainability_contribution')->nullable();
-            $table->json('sustainability_areas')->nullable();
-            $table->json('greenpreneur_goals')->nullable();
-            $table->json('interests')->nullable();
-            $table->string('community_directory_listing', 10)->nullable();
-            $table->date('anniversary_date')->nullable();
-            $table->rememberToken();
-            $table->timestamps();
-            $table->softDeletes();
-        });
+        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'anniversary_date')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->date('anniversary_date')->nullable();
+            });
+        }
 
         // Create anniversary_templates table if not exists for testing
         if (! Schema::hasTable('anniversary_templates')) {
@@ -71,26 +45,28 @@ class AnniversaryTest extends TestCase
         }
 
         // Add anniversary columns to posts table if not exists for testing
-        Schema::table('posts', function (Blueprint $table) {
-            if (! Schema::hasColumn('posts', 'post_type')) {
-                $table->string('post_type', 50)->nullable()->default('standard');
-            }
-            if (! Schema::hasColumn('posts', 'template_id')) {
-                $table->uuid('template_id')->nullable();
-            }
-            if (! Schema::hasColumn('posts', 'title')) {
-                $table->string('title', 255)->nullable();
-            }
-            if (! Schema::hasColumn('posts', 'description')) {
-                $table->text('description')->nullable();
-            }
-            if (! Schema::hasColumn('posts', 'image')) {
-                $table->text('image')->nullable();
-            }
-            if (! Schema::hasColumn('posts', 'status')) {
-                $table->string('status', 50)->nullable()->default('active');
-            }
-        });
+        if (Schema::hasTable('posts')) {
+            Schema::table('posts', function (Blueprint $table) {
+                if (! Schema::hasColumn('posts', 'post_type')) {
+                    $table->string('post_type', 50)->nullable()->default('standard');
+                }
+                if (! Schema::hasColumn('posts', 'template_id')) {
+                    $table->uuid('template_id')->nullable();
+                }
+                if (! Schema::hasColumn('posts', 'title')) {
+                    $table->string('title', 255)->nullable();
+                }
+                if (! Schema::hasColumn('posts', 'description')) {
+                    $table->text('description')->nullable();
+                }
+                if (! Schema::hasColumn('posts', 'image')) {
+                    $table->text('image')->nullable();
+                }
+                if (! Schema::hasColumn('posts', 'status')) {
+                    $table->string('status', 50)->nullable()->default('active');
+                }
+            });
+        }
     }
 
     /**

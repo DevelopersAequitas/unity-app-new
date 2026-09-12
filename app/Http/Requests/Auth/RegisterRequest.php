@@ -18,25 +18,32 @@ class RegisterRequest extends FormRequest
 
         $rawLevel4 = $this->input('level_4_category_id', $this->input('level4_category_id', $this->input('category_id')));
         $rawBusinessSub = $this->input('business_category_id', $this->input('business_category_sub_id'));
+        if (is_array($this->input('business_category'))) {
+            $rawBusinessSub = $this->input('business_category.id', $rawBusinessSub);
+        }
 
         $isOtherCategory = $this->boolean('is_other_category')
             || strtolower((string) $rawLevel4) === 'other'
-            || strtolower((string) $rawBusinessSub) === 'other';
+            || strtolower((string) $rawBusinessSub) === 'other'
+            || (! empty($this->input('other_category_name')) && empty($rawBusinessSub) && empty($rawLevel4));
 
         $level1 = $this->nullableInput('level_1_category_id', $this->input('level1_category_id'));
         $level2 = (is_numeric($this->input('level_2_category_id')) || is_numeric($this->input('level2_category_id'))) ? $this->nullableInput('level_2_category_id', $this->input('level2_category_id')) : null;
         $level3 = (is_numeric($this->input('level_3_category_id')) || is_numeric($this->input('level3_category_id'))) ? $this->nullableInput('level_3_category_id', $this->input('level3_category_id')) : null;
-        $level4 = (is_numeric($rawLevel4) && (int) $rawLevel4 > 0) ? (int) $rawLevel4 : null;
+        $level4 = (! $isOtherCategory && is_numeric($rawLevel4) && (int) $rawLevel4 > 0) ? (int) $rawLevel4 : null;
 
         $mainBusinessCategoryId = $this->nullableInput(
             'main_business_category_id',
             $this->nullableInput('business_category_main_id', $level1)
         );
-        $businessCategoryId = (is_numeric($rawBusinessSub) && (int) $rawBusinessSub > 0)
+        $businessCategoryId = (! $isOtherCategory && is_numeric($rawBusinessSub) && (int) $rawBusinessSub > 0)
             ? (int) $rawBusinessSub
             : $level4;
 
-        $otherCategoryName = $this->nullableInput('other_category_name', $this->nullableInput('custom_category_name'));
+        $otherCategoryName = $this->nullableInput(
+            'other_category_name',
+            $this->nullableInput('custom_category_name', $this->input('business_sub_category'))
+        );
 
         $companyName = $this->nullableInput('company_name', $this->nullableInput('business_name'));
         $designation = $this->nullableInput('designation', $this->nullableInput('position'));
@@ -56,9 +63,10 @@ class RegisterRequest extends FormRequest
             'level4_category_id' => $level4,
             'main_business_category_id' => $mainBusinessCategoryId,
             'business_category_id' => $businessCategoryId,
+            'business_sub_category' => $isOtherCategory ? $otherCategoryName : $this->nullableInput('business_sub_category'),
             'is_other_category' => $isOtherCategory,
-            'other_category_name' => $otherCategoryName,
-            'custom_category_name' => $otherCategoryName,
+            'other_category_name' => $isOtherCategory ? $otherCategoryName : null,
+            'custom_category_name' => $isOtherCategory ? $otherCategoryName : null,
             'company_name' => $companyName,
             'designation' => $designation,
             'referred_by_user_id' => $referredByUserId,
@@ -121,7 +129,9 @@ class RegisterRequest extends FormRequest
             'business_category_main_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
             'business_category_sub_id' => ['nullable', 'integer', Rule::exists($this->level4CategoriesTable(), 'id')],
             'main_business_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'business_category' => ['nullable'],
             'business_category_id' => ['nullable', 'integer', Rule::exists($this->level4CategoriesTable(), 'id')],
+            'business_sub_category' => ['nullable', 'string', 'max:255'],
             'business_website' => ['nullable', 'url', 'max:500'],
             'business_description' => ['nullable', 'string', 'max:5000'],
             'company_address' => ['nullable', 'string', 'max:1000'],

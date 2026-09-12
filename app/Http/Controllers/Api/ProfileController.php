@@ -11,6 +11,7 @@ use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserMiniResource;
 use App\Http\Resources\UserProfileResource;
 use App\Http\Resources\V1\LimitedUserResource;
+use App\Models\CustomCategoryRequest;
 use App\Models\ProfileView;
 use App\Models\User;
 use App\Notifications\ProfileViewedNotification;
@@ -43,7 +44,7 @@ class ProfileController extends BaseApiController
 
         if ($user->timezone !== $timezone) {
             $user->timezone = $timezone;
-            $user->saveOrFail();
+            $user->save();
         }
 
         return $this->success([
@@ -114,6 +115,65 @@ class ProfileController extends BaseApiController
             unset($data['intro_video_id']);
         }
 
+        if (array_key_exists('business_category', $validated)) {
+            $catId = is_array($validated['business_category'])
+                ? data_get($validated['business_category'], 'id')
+                : $validated['business_category'];
+
+            if ($catId && strtolower((string) $catId) !== 'other') {
+                $data['business_category_id'] = is_numeric($catId) ? (int) $catId : (string) $catId;
+            } elseif (blank($catId)) {
+                $data['business_category_id'] = null;
+            }
+        }
+
+        $hasOtherCategoryInput = array_key_exists('is_other_category', $validated)
+            || array_key_exists('other_category_name', $validated)
+            || array_key_exists('custom_category_name', $validated)
+            || (array_key_exists('business_category_id', $validated) && strtolower((string) $validated['business_category_id']) === 'other')
+            || (array_key_exists('business_category', $validated) && strtolower((string) data_get($validated['business_category'], 'id')) === 'other');
+
+        if ($hasOtherCategoryInput) {
+            $isOther = filter_var($validated['is_other_category'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                || ! empty($validated['other_category_name'])
+                || ! empty($validated['custom_category_name'])
+                || (isset($validated['business_category_id']) && strtolower((string) $validated['business_category_id']) === 'other')
+                || (isset($validated['business_category']) && strtolower((string) data_get($validated['business_category'], 'id')) === 'other');
+
+            if ($isOther) {
+                $otherCategoryName = trim((string) ($validated['other_category_name'] ?? $validated['custom_category_name'] ?? $validated['business_sub_category'] ?? $data['business_sub_category'] ?? ''));
+                $data['business_category_id'] = null;
+                $data['business_sub_category'] = $otherCategoryName !== '' ? $otherCategoryName : ($data['business_sub_category'] ?? null);
+
+                $level1Id = (int) ($validated['main_business_category_id'] ?? $data['main_business_category_id'] ?? $user->main_business_category_id ?? 0);
+                if ($otherCategoryName !== '' && Schema::hasTable('custom_category_requests')) {
+                    CustomCategoryRequest::query()->updateOrCreate(
+                        [
+                            'user_id' => (string) $user->id,
+                            'level1_category_id' => $level1Id > 0 ? $level1Id : 1,
+                        ],
+                        [
+                            'category_name' => $otherCategoryName,
+                            'status' => 'pending',
+                        ]
+                    );
+                }
+            } else {
+                if (Schema::hasTable('custom_category_requests')) {
+                    CustomCategoryRequest::query()
+                        ->where('user_id', (string) $user->id)
+                        ->delete();
+                }
+            }
+        }
+
+        unset(
+            $data['is_other_category'],
+            $data['other_category_name'],
+            $data['custom_category_name'],
+            $data['business_category']
+        );
+
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
             $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
@@ -148,6 +208,7 @@ class ProfileController extends BaseApiController
             'activeCircle.cityRef',
             'mainBusinessCategory',
             'businessCategory',
+            'level4Category',
             'profilePhotoFile',
             'coverPhotoFile',
             'userLinks',
@@ -273,7 +334,12 @@ class ProfileController extends BaseApiController
             'intro_video_id',
             'profile_video_id',
             'business_logo_id',
+            'is_other_category',
+            'other_category_name',
+            'custom_category_name',
+            'business_category',
             'business_category_id',
+            'main_business_category_id',
             'business_sub_category',
             'company_type',
             'year_of_establishment',

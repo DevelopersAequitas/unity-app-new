@@ -17,9 +17,10 @@ class MemberDetailResource extends UserResource
         $data['contribution_award_name'] = $this->contribution_award_name;
         $data['contribution_recognition'] = $this->contribution_award_recognition;
         $data['main_business_category_id'] = $this->main_business_category_id;
-        $data['business_category_id'] = $this->business_category_id;
+        $data['business_category_id'] = ($data['is_other_category'] ?? false) ? null : $this->business_category_id;
         $data['main_business_category'] = $this->formatCategory($this->mainBusinessCategory);
-        $data['business_category'] = $this->formatCategory($this->businessCategory);
+        $resolvedBusinessCat = $this->businessCategory ?? $this->level4Category ?? null;
+        $data['business_category'] = ($data['is_other_category'] ?? false) ? null : $this->formatCategory($resolvedBusinessCat);
 
         $data = array_merge($data, $this->extendedProfileFields());
 
@@ -75,7 +76,8 @@ class MemberDetailResource extends UserResource
     private function appendRegisteredBusinessCategory(array $categories): array
     {
         $mainCategory = $this->formatCategory($this->mainBusinessCategory);
-        $businessCategory = $this->formatCategory($this->businessCategory);
+        $resolvedBusinessCat = $this->businessCategory ?? $this->level4Category ?? null;
+        $businessCategory = $this->formatCategory($resolvedBusinessCat);
 
         if (! $mainCategory && ! $businessCategory) {
             return $categories;

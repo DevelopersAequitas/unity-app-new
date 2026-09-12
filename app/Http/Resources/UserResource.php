@@ -51,14 +51,15 @@ class UserResource extends JsonResource
         }
 
         $otherCategoryReq = null;
-        if (blank($this->business_category_id) && $this->id && $this->main_business_category_id && Schema::hasTable('custom_category_requests')) {
-            $otherCategoryReq = CustomCategoryRequest::query()
-                ->where('user_id', (string) $this->id)
-                ->where('level1_category_id', (int) $this->main_business_category_id)
-                ->latest()
-                ->first();
+        if (blank($this->business_category_id) && $this->id && Schema::hasTable('custom_category_requests')) {
+            $query = CustomCategoryRequest::query()->where('user_id', (string) $this->id);
+            if ($this->main_business_category_id) {
+                $query->where('level1_category_id', (int) $this->main_business_category_id);
+            }
+            $otherCategoryReq = $query->latest()->first();
         }
-        $otherCategoryName = $otherCategoryReq?->category_name ?? $this->business_sub_category ?? null;
+        $otherCategoryName = $otherCategoryReq?->category_name ?? (blank($this->business_category_id) ? $this->business_sub_category : null) ?? null;
+        $isOtherCategory = blank($this->business_category_id) && ($otherCategoryName !== null && $otherCategoryName !== '');
 
         $welcomeCreativeUrl = $this->resolveWelcomeCreativeUrl();
 
@@ -144,7 +145,9 @@ class UserResource extends JsonResource
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'badges_count' => $this->resolveBadgesCount(),
+            'my_badges_count' => $this->resolveBadgesCount(),
             'p2p_meetings_count' => $this->resolveP2pMeetingsCount(),
+            'p2p_count' => $this->resolveP2pMeetingsCount(),
             'referrals_count' => $this->resolveReferralsCount(),
             'given_referrals_count' => $this->resolveGivenReferralsCount(),
             'received_referrals_count' => $this->resolveReceivedReferralsCount(),
@@ -190,12 +193,15 @@ class UserResource extends JsonResource
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
             'is_bookmark' => $isBookmark,
-            'is_other_category' => (bool) ($otherCategoryName !== null && $otherCategoryName !== ''),
-            'other_category_name' => $otherCategoryName,
-            'business_sub_category' => $otherCategoryName ?? $this->business_sub_category,
-            'business_category' => ($otherCategoryName !== null && $otherCategoryName !== '' && blank($this->businessCategory))
-                ? ['id' => 'other', 'name' => $otherCategoryName, 'is_other' => true]
-                : ($this->relationLoaded('businessCategory') && $this->businessCategory ? ['id' => $this->businessCategory->id, 'name' => $this->businessCategory->name] : null),
+            'is_other_category' => (bool) $isOtherCategory,
+            'other_category_name' => $isOtherCategory ? $otherCategoryName : null,
+            'business_sub_category' => $isOtherCategory ? $otherCategoryName : $this->business_sub_category,
+            'business_category' => (! $isOtherCategory && (($this->relationLoaded('businessCategory') && $this->businessCategory) || ($this->relationLoaded('level4Category') && $this->level4Category)))
+                ? [
+                    'id' => ($this->relationLoaded('businessCategory') && $this->businessCategory ? $this->businessCategory->id : $this->level4Category->id),
+                    'name' => ($this->relationLoaded('businessCategory') && $this->businessCategory ? $this->businessCategory->name : $this->level4Category->name),
+                ]
+                : null,
             'story_link' => rescue(
                 fn () => SmeBusinessStorySubmission::where('user_id', $this->id)
                     ->whereRaw('LOWER(status) = ?', ['approved'])

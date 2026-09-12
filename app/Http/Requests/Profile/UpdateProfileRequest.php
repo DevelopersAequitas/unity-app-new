@@ -17,6 +17,36 @@ class UpdateProfileRequest extends FormRequest
                 'contact_visibility' => ContactVisibility::normalize($this->input('contact_visibility')),
             ]);
         }
+
+        $rawBusinessCategory = $this->input('business_category');
+        $rawBusinessCategoryId = $this->input('business_category_id');
+
+        $isOther = $this->has('is_other_category')
+            ? $this->boolean('is_other_category')
+            : (
+                strtolower((string) $rawBusinessCategoryId) === 'other'
+                || (is_array($rawBusinessCategory) && strtolower((string) data_get($rawBusinessCategory, 'id')) === 'other')
+                || (! empty($this->input('other_category_name')) && empty($rawBusinessCategoryId) && empty($rawBusinessCategory))
+            );
+
+        if ($isOther) {
+            $otherName = $this->input('other_category_name', $this->input('custom_category_name', $this->input('business_sub_category')));
+            $this->merge([
+                'is_other_category' => true,
+                'other_category_name' => $otherName,
+                'custom_category_name' => $otherName,
+                'business_sub_category' => $otherName,
+                'business_category_id' => null,
+                'business_category' => null,
+            ]);
+        } elseif ($this->has('business_category') && is_array($rawBusinessCategory)) {
+            $catId = data_get($rawBusinessCategory, 'id');
+            if ($catId && strtolower((string) $catId) !== 'other') {
+                $this->merge([
+                    'business_category_id' => $catId,
+                ]);
+            }
+        }
     }
 
     public function authorize(): bool
@@ -67,7 +97,12 @@ class UpdateProfileRequest extends FormRequest
             'timezone' => ['sometimes', 'nullable', 'string', 'max:100'],
             'preferred_language' => ['sometimes', 'nullable', 'string', 'max:50'],
             'business_logo_id' => ['sometimes', 'nullable'],
+            'is_other_category' => ['sometimes', 'nullable', 'boolean'],
+            'other_category_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'custom_category_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'business_category' => ['sometimes', 'nullable'],
             'business_category_id' => ['sometimes', 'nullable'],
+            'main_business_category_id' => ['sometimes', 'nullable'],
             'business_sub_category' => ['sometimes', 'nullable', 'string', 'max:255'],
             'company_type' => ['sometimes', 'nullable', 'string', 'max:100'],
             'year_of_establishment' => ['sometimes', 'nullable', 'integer', 'between:1800,'.$currentYear],

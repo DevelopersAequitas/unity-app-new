@@ -684,36 +684,36 @@ class AuthController extends BaseApiController
             : null;
 
         $otherCategoryReq = null;
-        if ($user->id && $user->main_business_category_id && Schema::hasTable('custom_category_requests')) {
-            $otherCategoryReq = CustomCategoryRequest::query()
-                ->where('user_id', (string) $user->id)
-                ->where('level1_category_id', (int) $user->main_business_category_id)
-                ->latest()
-                ->first();
+        if (blank($businessCategory) && $user->id && Schema::hasTable('custom_category_requests')) {
+            $query = CustomCategoryRequest::query()->where('user_id', (string) $user->id);
+            if ($user->main_business_category_id) {
+                $query->where('level1_category_id', (int) $user->main_business_category_id);
+            }
+            $otherCategoryReq = $query->latest()->first();
         }
 
-        $otherName = $otherCategoryReq?->category_name ?? $user->business_sub_category ?? null;
+        $otherName = $otherCategoryReq?->category_name ?? (blank($businessCategory) ? $user->business_sub_category : null) ?? null;
+        $isOther = (bool) (blank($businessCategory) && $otherName !== null && $otherName !== '');
 
-        if (blank($businessCategory) && $otherName !== null && $otherName !== '') {
+        if ($isOther) {
             $payload['is_other_category'] = true;
             $payload['other_category_name'] = $otherName;
             $payload['custom_category_name'] = $otherName;
             $payload['business_sub_category'] = $otherName;
-            $payload['business_category'] = [
-                'id' => 'other',
-                'name' => $otherName,
-                'is_other' => true,
-            ];
+            $payload['business_category'] = null;
+            $payload['business_category_id'] = null;
         } else {
-            $payload['is_other_category'] = (bool) ($otherName !== null && $otherName !== '');
-            $payload['other_category_name'] = $otherName;
-            $payload['custom_category_name'] = $otherName;
+            $payload['is_other_category'] = false;
+            $payload['other_category_name'] = null;
+            $payload['custom_category_name'] = null;
+            $payload['business_sub_category'] = $user->business_sub_category;
             $payload['business_category'] = $businessCategory
                 ? [
                     'id' => (int) $businessCategory->id,
                     'name' => (string) $businessCategory->name,
                 ]
                 : null;
+            $payload['business_category_id'] = $businessCategory ? (int) $businessCategory->id : null;
         }
 
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
