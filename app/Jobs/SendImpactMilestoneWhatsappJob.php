@@ -177,59 +177,112 @@ class SendImpactMilestoneWhatsappJob implements ShouldQueue
         }
 
         // 7. Build variables payload with full mapping aliases
-        $payload = [
-            'name' => $memberName,
-            'member_name' => $memberName,
-            'peer_name' => $memberName,
-            'first_name' => $firstName,
-            'referrer_name' => $referrerName,
-            'inviter_name' => $referrerName,
-            'referral_link' => $referralLink,
-            'link' => $referralLink,
-            'url' => $referralLink,
-            'header_media_url' => $headerMediaUrl,
-            'badge_image_url' => $headerMediaUrl,
-            'header_image_url' => $headerMediaUrl,
-            'image_url' => $headerMediaUrl,
-            'creative_url' => $headerMediaUrl,
-            'media_url' => $headerMediaUrl,
-            'phone' => $normalizedPhone,
+        if ($templateKey === 'impact_builder_250') {
+            // Confirmed Meta/FlexiMSG 2-parameter contract for impact_builder_250:
+            // {{1}} = member_name
+            // {{2}} = referral_link
+            $payload = [
+                'name' => $memberName,
+                'member_name' => $memberName,
+                'peer_name' => $memberName,
+                'first_name' => $firstName,
+                'referral_link' => $referralLink,
+                'link' => $referralLink,
+                'url' => $referralLink,
+                'header_media_url' => $headerMediaUrl,
+                'badge_image_url' => $headerMediaUrl,
+                'header_image_url' => $headerMediaUrl,
+                'image_url' => $headerMediaUrl,
+                'creative_url' => $headerMediaUrl,
+                'media_url' => $headerMediaUrl,
+                'phone' => $normalizedPhone,
 
-            // Indexed variables
-            '1' => $memberName,
-            '2' => $referrerName,
-            '3' => $referralLink,
-            '@1' => $memberName,
-            '@2' => $referrerName,
-            '@3' => $referralLink,
-            'var_1' => $memberName,
-            'var_2' => $referrerName,
-            'var_3' => $referralLink,
-            'var1' => $memberName,
-            'var2' => $referrerName,
-            'var3' => $referralLink,
-            'body_param_1' => $memberName,
-            'body_param_2' => $referrerName,
-            'body_param_3' => $referralLink,
-            'body_parameters' => [
-                $memberName,
-                $referrerName,
-                $referralLink,
-            ],
-            'variables' => [
+                // Indexed variables for 2-parameter contract
+                '1' => $memberName,
+                '2' => $referralLink,
+                '@1' => $memberName,
+                '@2' => $referralLink,
+                'var_1' => $memberName,
+                'var_2' => $referralLink,
+                'var1' => $memberName,
+                'var2' => $referralLink,
+                'body_param_1' => $memberName,
+                'body_param_2' => $referralLink,
+                'body_parameters' => [
+                    $memberName,
+                    $referralLink,
+                ],
+                'variables' => [
+                    '1' => $memberName,
+                    '2' => $referralLink,
+                    'name' => $memberName,
+                    'referral_link' => $referralLink,
+                    'header_media_url' => $headerMediaUrl,
+                ],
+
+                'threshold' => $this->threshold,
+                'delivery_log_id' => $logId,
+                'milestone_type' => 'life_impact',
+            ];
+        } else {
+            // Standard 3-parameter contract for other Life Impact milestone templates:
+            // {{1}} = member_name
+            // {{2}} = referrer_name (same member name for Track 2 Life Impact)
+            // {{3}} = referral_link
+            $payload = [
+                'name' => $memberName,
+                'member_name' => $memberName,
+                'peer_name' => $memberName,
+                'first_name' => $firstName,
+                'referrer_name' => $referrerName,
+                'inviter_name' => $referrerName,
+                'referral_link' => $referralLink,
+                'link' => $referralLink,
+                'url' => $referralLink,
+                'header_media_url' => $headerMediaUrl,
+                'badge_image_url' => $headerMediaUrl,
+                'header_image_url' => $headerMediaUrl,
+                'image_url' => $headerMediaUrl,
+                'creative_url' => $headerMediaUrl,
+                'media_url' => $headerMediaUrl,
+                'phone' => $normalizedPhone,
+
+                // Indexed variables
                 '1' => $memberName,
                 '2' => $referrerName,
                 '3' => $referralLink,
-                'name' => $memberName,
-                'referrer_name' => $referrerName,
-                'referral_link' => $referralLink,
-                'header_media_url' => $headerMediaUrl,
-            ],
+                '@1' => $memberName,
+                '@2' => $referrerName,
+                '@3' => $referralLink,
+                'var_1' => $memberName,
+                'var_2' => $referrerName,
+                'var_3' => $referralLink,
+                'var1' => $memberName,
+                'var2' => $referrerName,
+                'var3' => $referralLink,
+                'body_param_1' => $memberName,
+                'body_param_2' => $referrerName,
+                'body_param_3' => $referralLink,
+                'body_parameters' => [
+                    $memberName,
+                    $referrerName,
+                    $referralLink,
+                ],
+                'variables' => [
+                    '1' => $memberName,
+                    '2' => $referrerName,
+                    '3' => $referralLink,
+                    'name' => $memberName,
+                    'referrer_name' => $referrerName,
+                    'referral_link' => $referralLink,
+                    'header_media_url' => $headerMediaUrl,
+                ],
 
-            'threshold' => $this->threshold,
-            'delivery_log_id' => $logId,
-            'milestone_type' => 'life_impact',
-        ];
+                'threshold' => $this->threshold,
+                'delivery_log_id' => $logId,
+                'milestone_type' => 'life_impact',
+            ];
+        }
 
         Log::info('[SendImpactMilestoneWhatsappJob] Dispatching webhook request for Impact milestone.', [
             'user_id' => $this->userId,
@@ -237,7 +290,7 @@ class SendImpactMilestoneWhatsappJob implements ShouldQueue
             'template_key' => $templateKey,
             'template_name' => $templateName,
             'name' => $memberName,
-            'referrer_name' => $referrerName,
+            'referrer_name' => $templateKey === 'impact_builder_250' ? null : $referrerName,
             'referral_link' => $referralLink,
             'header_media_url' => $headerMediaUrl,
             'phone' => $normalizedPhone,
