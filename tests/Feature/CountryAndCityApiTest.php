@@ -24,6 +24,7 @@ class CountryAndCityApiTest extends TestCase
             $table->uuid('id')->primary();
             $table->string('name');
             $table->string('state')->nullable();
+            $table->string('state_code')->nullable();
             $table->string('district')->nullable();
             $table->string('country')->nullable();
             $table->string('country_code')->nullable();
@@ -231,5 +232,167 @@ class CountryAndCityApiTest extends TestCase
         $this->assertEquals('GJ', $firstItem['state_code']);
         $this->assertEquals('IN', $firstItem['country_code']);
         $this->assertEquals('Surat, GJ, IN', $firstItem['formatted_location']);
+    }
+
+    public function test_cities_api_filters_by_country_code(): void
+    {
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Ahmedabad',
+            'state' => 'Gujarat',
+            'state_code' => 'GJ',
+            'country' => 'India',
+            'country_code' => 'IN',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'New York',
+            'state' => 'New York',
+            'state_code' => 'NY',
+            'country' => 'United States',
+            'country_code' => 'US',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'London',
+            'state' => 'England',
+            'state_code' => 'ENG',
+            'country' => 'United Kingdom',
+            'country_code' => 'GB',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Dubai',
+            'state' => 'Dubai',
+            'state_code' => 'DU',
+            'country' => 'United Arab Emirates',
+            'country_code' => 'AE',
+        ]);
+
+        // Filter US
+        $usResponse = $this->getJson('/api/v1/cities?country_code=US');
+        $usResponse->assertOk();
+        $this->assertSame(1, $usResponse->json('data.pagination.total'));
+        $this->assertSame('New York', $usResponse->json('data.items.0.name'));
+        $this->assertSame('US', $usResponse->json('data.items.0.country_code'));
+
+        // Filter AE
+        $aeResponse = $this->getJson('/api/v1/cities?country_code=AE');
+        $aeResponse->assertOk();
+        $this->assertSame('Dubai', $aeResponse->json('data.items.0.name'));
+        $this->assertSame('AE', $aeResponse->json('data.items.0.country_code'));
+
+        // Filter GB
+        $gbResponse = $this->getJson('/api/v1/cities?country_code=GB');
+        $gbResponse->assertOk();
+        $this->assertSame('London', $gbResponse->json('data.items.0.name'));
+        $this->assertSame('GB', $gbResponse->json('data.items.0.country_code'));
+    }
+
+    public function test_cities_api_filters_by_state_code_and_handles_city_uniqueness(): void
+    {
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Los Angeles',
+            'state' => 'California',
+            'state_code' => 'CA',
+            'country' => 'United States',
+            'country_code' => 'US',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'San Francisco',
+            'state' => 'California',
+            'state_code' => 'CA',
+            'country' => 'United States',
+            'country_code' => 'US',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'London',
+            'state' => 'England',
+            'state_code' => 'ENG',
+            'country' => 'United Kingdom',
+            'country_code' => 'GB',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'London',
+            'state' => 'Ontario',
+            'state_code' => 'ON',
+            'country' => 'Canada',
+            'country_code' => 'CA',
+        ]);
+
+        // State filter: US + CA
+        $caResponse = $this->getJson('/api/v1/cities?country_code=US&state_code=CA');
+        $caResponse->assertOk();
+        $this->assertSame(2, $caResponse->json('data.pagination.total'));
+
+        // London in UK vs London in Canada
+        $londonUkResponse = $this->getJson('/api/v1/cities?search=London&country_code=GB');
+        $londonUkResponse->assertOk();
+        $this->assertSame(1, $londonUkResponse->json('data.pagination.total'));
+        $this->assertSame('GB', $londonUkResponse->json('data.items.0.country_code'));
+
+        $londonCaResponse = $this->getJson('/api/v1/cities?search=London&country_code=CA');
+        $londonCaResponse->assertOk();
+        $this->assertSame(1, $londonCaResponse->json('data.pagination.total'));
+        $this->assertSame('CA', $londonCaResponse->json('data.items.0.country_code'));
+    }
+
+    public function test_cities_api_case_insensitive_search_and_pagination(): void
+    {
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Ahmedabad',
+            'state' => 'Gujarat',
+            'state_code' => 'GJ',
+            'country' => 'India',
+            'country_code' => 'IN',
+        ]);
+
+        City::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Ahmednagar',
+            'state' => 'Maharashtra',
+            'state_code' => 'MH',
+            'country' => 'India',
+            'country_code' => 'IN',
+        ]);
+
+        // Lowercase search
+        $lowerResponse = $this->getJson('/api/v1/cities?search=ahmed');
+        $lowerResponse->assertOk();
+        $this->assertSame(2, $lowerResponse->json('data.pagination.total'));
+
+        // Uppercase search
+        $upperResponse = $this->getJson('/api/v1/cities?search=AHMEDABAD');
+        $upperResponse->assertOk();
+        $this->assertSame(1, $upperResponse->json('data.pagination.total'));
+        $this->assertSame('Ahmedabad', $upperResponse->json('data.items.0.name'));
+
+        // Pagination page 1 and page 2
+        $page1 = $this->getJson('/api/v1/cities?search=ahmed&per_page=1&page=1');
+        $page1->assertOk();
+        $this->assertSame(1, $page1->json('data.pagination.current_page'));
+        $this->assertCount(1, $page1->json('data.items'));
+
+        $page2 = $this->getJson('/api/v1/cities?search=ahmed&per_page=1&page=2');
+        $page2->assertOk();
+        $this->assertSame(2, $page2->json('data.pagination.current_page'));
+        $this->assertCount(1, $page2->json('data.items'));
+
+        // Empty search returns valid empty array
+        $emptyResponse = $this->getJson('/api/v1/cities?search=NonExistentCityXYZ999');
+        $emptyResponse->assertOk()
+            ->assertJsonPath('data.items', [])
+            ->assertJsonPath('data.pagination.total', 0);
     }
 }

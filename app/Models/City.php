@@ -32,6 +32,7 @@ class City extends Model
         'id',
         'name',
         'state',
+        'state_code',
         'district',
         'country',
         'country_code',
@@ -114,6 +115,11 @@ class City extends Model
         'puducherry' => 'PY',
     ];
 
+    public function getStateCodeAttribute(): ?string
+    {
+        return $this->attributes['state_code'] ?? null;
+    }
+
     public function getFormattedLocationAttribute(): string
     {
         $cityName = trim((string) ($this->name ?? $this->city_name ?? ''));
@@ -124,8 +130,8 @@ class City extends Model
             $countryCode = strtoupper(substr(trim((string) $this->country), 0, 2));
         }
 
-        $stateCode = null;
-        if ($stateName !== '') {
+        $stateCode = $this->state_code ? strtoupper(trim((string) $this->state_code)) : null;
+        if (empty($stateCode) && $stateName !== '') {
             $stateKey = strtolower($stateName);
             if (isset(self::$stateCodes[$stateKey])) {
                 $stateCode = self::$stateCodes[$stateKey];

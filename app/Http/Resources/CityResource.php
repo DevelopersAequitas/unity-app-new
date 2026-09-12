@@ -34,19 +34,19 @@ class CityResource extends JsonResource
 
         $cityName = trim((string) ($this->name ?? $this->city_name ?? ''));
         $stateName = $this->state ? trim((string) $this->state) : null;
-        $stateCode = null;
+        $stateCode = $this->state_code ? strtoupper(trim((string) $this->state_code)) : null;
 
-        if ($stateName !== null && $stateName !== '') {
+        if ($stateCode === null && $stateName !== null && $stateName !== '') {
             $stateKey = strtolower($stateName);
             if (isset(City::$stateCodes[$stateKey])) {
                 $stateCode = City::$stateCodes[$stateKey];
-            } elseif (strlen($stateName) <= 3) {
+            } elseif (strlen($stateName) <= 3 && ctype_alpha($stateName)) {
                 $stateCode = strtoupper($stateName);
             }
         }
 
         $countryCode = $this->country_code ? strtoupper(trim((string) $this->country_code)) : null;
-        $countryName = (string) ($this->country ?? 'India');
+        $countryName = $this->country ? (string) $this->country : ($countryCode === 'IN' ? 'India' : null);
 
         $formattedLocation = $this->formatted_location;
         if (empty($formattedLocation)) {
