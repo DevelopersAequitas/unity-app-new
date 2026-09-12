@@ -2,7 +2,10 @@
 
 namespace App\Http\Resources;
 
+use App\Models\CircleCategoryLevel4;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class GeoNearbyPeerResource extends JsonResource
 {
@@ -16,6 +19,7 @@ class GeoNearbyPeerResource extends JsonResource
             'company_name' => $this->company_name,
             'designation' => $this->designation,
             'business_type' => $this->business_type,
+            'level4_category' => $this->resolveLevel4Category(),
             'profile_photo_url' => $this->resolveProfilePhotoUrl(),
             'city' => $this->resolveCity(),
             'location' => $this->resolveLocation(),
@@ -25,6 +29,80 @@ class GeoNearbyPeerResource extends JsonResource
             'connection_status' => $this->connection_status,
             'can_send_connection_request' => (bool) ($this->can_send_connection_request ?? true),
         ];
+    }
+
+    /**
+     * Resolve Level 4 Category Name with multi-layer fallbacks.
+     */
+    private function resolveLevel4Category(): ?string
+    {
+        if ($this->relationLoaded('level4Category') && $this->level4Category) {
+            return $this->level4Category->name ?? null;
+        }
+
+        if (filled($this->business_sub_category)) {
+            return trim((string) $this->business_sub_category);
+        }
+
+        if (! empty($this->business_category_id) && class_exists(CircleCategoryLevel4::class) && Schema::hasTable('circle_category_level4')) {
+            $cat = CircleCategoryLevel4::find($this->business_category_id);
+            if ($cat && filled($cat->name)) {
+                return trim((string) $cat->name);
+            }
+        }
+
+        if ($this->relationLoaded('circleMembers')) {
+            $membership = $this->circleMembers->first();
+            if ($membership) {
+                if ($membership->relationLoaded('level4Category') && $membership->level4Category) {
+                    return $membership->level4Category->name ?? null;
+                }
+                if (! empty($membership->level_4_category_id) && class_exists(CircleCategoryLevel4::class) && Schema::hasTable('circle_category_level4')) {
+                    $cat = CircleCategoryLevel4::find($membership->level_4_category_id);
+                    if ($cat && filled($cat->name)) {
+                        return trim((string) $cat->name);
+                    }
+                }
+            }
+        }
+
+        if (Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'level_4_category_id') && class_exists(CircleCategoryLevel4::class) && Schema::hasTable('circle_category_level4')) {
+            try {
+                $level4Id = DB::table('circle_members')
+                    ->where('user_id', (string) $this->id)
+                    ->whereNotNull('level_4_category_id')
+                    ->where('level_4_category_id', '>', 0)
+                    ->value('level_4_category_id');
+
+                if ($level4Id) {
+                    $name = DB::table('circle_category_level4')->where('id', $level4Id)->value('name');
+                    if (filled($name)) {
+                        return trim((string) $name);
+                    }
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        if (Schema::hasTable('joined_circle_categories') && Schema::hasColumn('joined_circle_categories', 'level_4_category_id') && class_exists(CircleCategoryLevel4::class) && Schema::hasTable('circle_category_level4')) {
+            try {
+                $level4Id = DB::table('joined_circle_categories')
+                    ->where('user_id', (string) $this->id)
+                    ->whereNotNull('level_4_category_id')
+                    ->where('level_4_category_id', '>', 0)
+                    ->value('level_4_category_id');
+
+                if ($level4Id) {
+                    $name = DB::table('circle_category_level4')->where('id', $level4Id)->value('name');
+                    if (filled($name)) {
+                        return trim((string) $name);
+                    }
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return null;
     }
 
     private function resolveProfilePhotoUrl(): ?string

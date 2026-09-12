@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\UserGeoLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class GeoLocationController extends BaseApiController
 {
@@ -76,6 +78,11 @@ class GeoLocationController extends BaseApiController
         $validated = $request->validate([
             'radius_km' => ['nullable', 'numeric', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:5000'],
+            'level4_category_id' => ['nullable'],
+            'level_4_category_id' => ['nullable'],
+            'category_id' => ['nullable'],
+            'level4_category' => ['nullable', 'string'],
+            'level_4_category' => ['nullable', 'string'],
         ]);
 
         $radiusKm = array_key_exists('radius_km', $validated) && $validated['radius_km'] !== null && $validated['radius_km'] !== ''
@@ -84,6 +91,14 @@ class GeoLocationController extends BaseApiController
         $limit = array_key_exists('limit', $validated) && $validated['limit'] !== null && $validated['limit'] !== ''
             ? (int) $validated['limit']
             : null;
+
+        $filterCategoryId = $request->input('level4_category_id')
+            ?? $request->input('level_4_category_id')
+            ?? $request->input('category_id');
+
+        $filterCategoryName = $request->input('level4_category')
+            ?? $request->input('level_4_category');
+
         $authUser = $request->user();
 
         $myLocation = UserGeoLocation::query()
@@ -106,7 +121,7 @@ class GeoLocationController extends BaseApiController
         ];
 
         $peers = User::query()
-            ->with('cityRelation:id,name')
+            ->with(['cityRelation:id,name', 'level4Category:id,name'])
             ->join('user_geo_locations', 'user_geo_locations.user_id', '=', 'users.id')
             ->where('user_geo_locations.is_visible', true)
             ->where('users.id', '!=', (string) $authUser->id)
@@ -118,6 +133,8 @@ class GeoLocationController extends BaseApiController
                 'users.company_name',
                 'users.designation',
                 'users.business_type',
+                'users.business_category_id',
+                'users.business_sub_category',
                 'users.profile_photo_file_id',
                 'users.profile_photo_url',
                 'users.city_id',
@@ -129,6 +146,28 @@ class GeoLocationController extends BaseApiController
             ->selectRaw($distanceExpression.' as distance_km', $distanceBindings)
             ->when($radiusKm !== null, function ($query) use ($distanceExpression, $distanceBindings, $radiusKm) {
                 $query->whereRaw($distanceExpression.' <= ?', [...$distanceBindings, $radiusKm]);
+            })
+            ->when($filterCategoryId, function ($query, $catId) {
+                $query->where(function ($q) use ($catId) {
+                    $q->where('users.business_category_id', $catId);
+                    if (Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'level_4_category_id')) {
+                        $q->orWhereExists(function ($sub) use ($catId) {
+                            $sub->select(DB::raw(1))
+                                ->from('circle_members')
+                                ->whereColumn('circle_members.user_id', 'users.id')
+                                ->where('circle_members.level_4_category_id', $catId);
+                        });
+                    }
+                });
+            })
+            ->when($filterCategoryName, function ($query, $catName) {
+                $catNameLower = strtolower(trim((string) $catName));
+                $query->where(function ($q) use ($catNameLower) {
+                    $q->whereRaw('LOWER(users.business_sub_category) LIKE ?', ["%{$catNameLower}%"])
+                        ->orWhereHas('level4Category', function ($sub) use ($catNameLower) {
+                            $sub->whereRaw('LOWER(name) LIKE ?', ["%{$catNameLower}%"]);
+                        });
+                });
             })
             ->orderBy('distance_km', 'asc')
             ->when($limit !== null, fn ($query) => $query->limit($limit))
@@ -179,6 +218,10 @@ class GeoLocationController extends BaseApiController
 
     private function distanceExpression(): string
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return '(? * 0 + ? * 0 + ? * 0)';
+        }
+
         return '6371 * acos(LEAST(1, GREATEST(-1, '
             .'cos(radians(?)) * cos(radians(user_geo_locations.latitude)) * '
             .'cos(radians(user_geo_locations.longitude) - radians(?)) + '
