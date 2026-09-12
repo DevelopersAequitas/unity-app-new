@@ -93,7 +93,7 @@ class UserResource extends JsonResource
                 $isFollowing = UserFollow::query()
                     ->where('follower_id', $authUserId)
                     ->where('following_id', $targetId)
-                    ->where('status', 'accepted')
+                    ->whereIn('status', ['accepted', 'pending'])
                     ->exists();
             }
         }
