@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\ProfileMatchService;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -142,6 +143,15 @@ class UserResource extends JsonResource
             'posts_count' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
+            'badges_count' => $this->resolveBadgesCount(),
+            'p2p_meetings_count' => $this->resolveP2pMeetingsCount(),
+            'referrals_count' => $this->resolveReferralsCount(),
+            'given_referrals_count' => $this->resolveGivenReferralsCount(),
+            'received_referrals_count' => $this->resolveReceivedReferralsCount(),
+            'business_deals_count' => $this->resolveBusinessDealsCount(),
+            'deals_count' => $this->resolveBusinessDealsCount(),
+            'given_business_deals_count' => $this->resolveGivenBusinessDealsCount(),
+            'received_business_deals_count' => $this->resolveReceivedBusinessDealsCount(),
             'business_type' => $this->business_type,
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
@@ -528,5 +538,206 @@ class UserResource extends JsonResource
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);
             })->count());
+    }
+
+    protected function resolveBadgesCount(): int
+    {
+        if (isset($this->badges_count)) {
+            return (int) $this->badges_count;
+        }
+
+        if (isset($this->my_badges_count)) {
+            return (int) $this->my_badges_count;
+        }
+
+        if (! Schema::hasTable('user_milestone_badges')) {
+            return 0;
+        }
+
+        return (int) DB::table('user_milestone_badges')
+            ->where('user_id', $this->id)
+            ->where('status', 'earned')
+            ->count();
+    }
+
+    protected function resolveP2pMeetingsCount(): int
+    {
+        if (isset($this->p2p_meetings_count)) {
+            return (int) $this->p2p_meetings_count;
+        }
+
+        if (isset($this->p2p_count)) {
+            return (int) $this->p2p_count;
+        }
+
+        if (! Schema::hasTable('p2p_meetings')) {
+            return 0;
+        }
+
+        $query = DB::table('p2p_meetings')
+            ->where(function ($q) {
+                $q->where('initiator_user_id', $this->id)
+                    ->orWhere('peer_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('p2p_meetings', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('p2p_meetings', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReferralsCount(): int
+    {
+        if (isset($this->referrals_count)) {
+            return (int) $this->referrals_count;
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            return 0;
+        }
+
+        $query = DB::table('referrals')
+            ->where(function ($q) {
+                $q->where('from_user_id', $this->id)
+                    ->orWhere('to_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveGivenReferralsCount(): int
+    {
+        if (isset($this->given_referrals_count)) {
+            return (int) $this->given_referrals_count;
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            return 0;
+        }
+
+        $query = DB::table('referrals')->where('from_user_id', $this->id);
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReceivedReferralsCount(): int
+    {
+        if (isset($this->received_referrals_count)) {
+            return (int) $this->received_referrals_count;
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            return 0;
+        }
+
+        $query = DB::table('referrals')->where('to_user_id', $this->id);
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveBusinessDealsCount(): int
+    {
+        if (isset($this->business_deals_count)) {
+            return (int) $this->business_deals_count;
+        }
+
+        if (isset($this->deals_count)) {
+            return (int) $this->deals_count;
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            return 0;
+        }
+
+        $query = DB::table('business_deals')
+            ->where(function ($q) {
+                $q->where('from_user_id', $this->id)
+                    ->orWhere('to_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveGivenBusinessDealsCount(): int
+    {
+        if (isset($this->given_business_deals_count)) {
+            return (int) $this->given_business_deals_count;
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            return 0;
+        }
+
+        $query = DB::table('business_deals')->where('from_user_id', $this->id);
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReceivedBusinessDealsCount(): int
+    {
+        if (isset($this->received_business_deals_count)) {
+            return (int) $this->received_business_deals_count;
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            return 0;
+        }
+
+        $query = DB::table('business_deals')->where('to_user_id', $this->id);
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
     }
 }
