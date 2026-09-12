@@ -18,6 +18,13 @@ class UpdateProfileRequest extends FormRequest
             ]);
         }
 
+        if ($this->has('latitude') && ! $this->has('google_maps_latitude')) {
+            $this->merge(['google_maps_latitude' => $this->input('latitude')]);
+        }
+        if ($this->has('longitude') && ! $this->has('google_maps_longitude')) {
+            $this->merge(['google_maps_longitude' => $this->input('longitude')]);
+        }
+
         $rawBusinessCategory = $this->input('business_category');
         $rawBusinessCategoryId = $this->input('business_category_id');
 
@@ -78,7 +85,7 @@ class UpdateProfileRequest extends FormRequest
             'skills.*' => ['string', 'max:100'],
             'interests' => ['sometimes', 'nullable', 'array'],
             'interests.*' => ['string', 'max:100'],
-            'media' => ['sometimes', 'array'],
+            'media' => ['sometimes', 'nullable', 'array'],
             'media.*.id' => ['required', 'string', 'max:255'],
             'media.*.type' => ['required', Rule::in(['video', 'image'])],
             'media.*.url' => ['sometimes', 'nullable', 'url', 'max:1000'],
@@ -134,6 +141,8 @@ class UpdateProfileRequest extends FormRequest
             'business_country' => ['sometimes', 'nullable', 'string', 'max:100'],
             'google_maps_latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
             'google_maps_longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'industries_of_interest' => ['sometimes', 'nullable', 'array'],
             'industries_of_interest.*' => ['string', 'max:150'],
             'collaboration_goals' => ['sometimes', 'nullable', 'array'],
@@ -142,6 +151,21 @@ class UpdateProfileRequest extends FormRequest
             'willing_to_mentor' => ['sometimes', 'nullable', 'boolean'],
             'open_to_cross_city_collaboration' => ['sometimes', 'nullable', 'boolean'],
             'open_to_speaking_at_events' => ['sometimes', 'nullable', 'boolean'],
+
+            // Professional Journey & Leadership
+            'leadership_roles' => ['sometimes', 'nullable', 'array'],
+            'leadership_roles.*' => ['string', 'max:150'],
+            'special_recognitions' => ['sometimes', 'nullable', 'array'],
+            'special_recognitions.*' => ['string', 'max:250'],
+
+            // Sustainability & Goals
+            'sustainability_areas' => ['sometimes', 'nullable', 'array'],
+            'sustainability_areas.*' => ['string', 'max:150'],
+            'sustainability_contribution' => ['sometimes', 'nullable', 'string'],
+            'greenpreneur_goals' => ['sometimes', 'nullable', 'array'],
+            'greenpreneur_goals.*' => ['string', 'max:150'],
+            'community_directory_listing' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'story_link' => ['sometimes', 'nullable', 'url', 'max:500'],
         ];
     }
 }

@@ -167,11 +167,20 @@ class ProfileController extends BaseApiController
             }
         }
 
+        if (array_key_exists('latitude', $validated) && ! empty($validated['latitude'])) {
+            $data['google_maps_latitude'] = $validated['latitude'];
+        }
+        if (array_key_exists('longitude', $validated) && ! empty($validated['longitude'])) {
+            $data['google_maps_longitude'] = $validated['longitude'];
+        }
+
         unset(
             $data['is_other_category'],
             $data['other_category_name'],
             $data['custom_category_name'],
-            $data['business_category']
+            $data['business_category'],
+            $data['latitude'],
+            $data['longitude']
         );
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
@@ -368,12 +377,21 @@ class ProfileController extends BaseApiController
             'business_country',
             'google_maps_latitude',
             'google_maps_longitude',
+            'latitude',
+            'longitude',
             'industries_of_interest',
             'collaboration_goals',
             'preferred_meeting_format',
             'willing_to_mentor',
             'open_to_cross_city_collaboration',
             'open_to_speaking_at_events',
+            'leadership_roles',
+            'special_recognitions',
+            'sustainability_areas',
+            'sustainability_contribution',
+            'greenpreneur_goals',
+            'community_directory_listing',
+            'story_link',
         ];
 
         if (! Schema::hasColumn('users', 'profile_visibility')) {
@@ -397,6 +415,10 @@ class ProfileController extends BaseApiController
             'business_keywords',
             'industries_of_interest',
             'collaboration_goals',
+            'leadership_roles',
+            'special_recognitions',
+            'sustainability_areas',
+            'greenpreneur_goals',
         ];
     }
 
