@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
+use App\Jobs\SendMilestoneConnectorWhatsappJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
@@ -41,7 +42,7 @@ class MilestoneConnectorWhatsappService
                 return;
             }
 
-            app(MilestoneWhatsappNotificationService::class)->handleMilestoneNotification($user, 1, $imageUrl);
+            SendMilestoneConnectorWhatsappJob::dispatch((string) $user->id, $imageUrl);
         } catch (Throwable $e) {
             Log::error('[MilestoneConnectorWhatsappService] Exception in handleFirstIntroduction: '.$e->getMessage(), [
                 'user_id' => $user->id,

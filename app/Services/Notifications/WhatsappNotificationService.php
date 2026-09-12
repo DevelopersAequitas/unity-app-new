@@ -9,6 +9,7 @@ use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class WhatsappNotificationService
@@ -79,12 +80,21 @@ class WhatsappNotificationService
                 $resolvedUserId = null;
             }
             if ($resolvedUserId === null && $normalizedPhone !== '') {
-                $resolvedUserId = User::query()
-                    ->where('phone', $normalizedPhone)
-                    ->orWhere('secondary_mobile', $normalizedPhone)
-                    ->orWhere('phone', $phone)
-                    ->orWhere('secondary_mobile', $phone)
-                    ->value('id');
+                try {
+                    if (Schema::hasTable('users')) {
+                        $userQuery = User::query()->where('phone', $normalizedPhone);
+                        if (Schema::hasColumn('users', 'secondary_mobile')) {
+                            $userQuery->orWhere('secondary_mobile', $normalizedPhone);
+                        }
+                        $userQuery->orWhere('phone', $phone);
+                        if (Schema::hasColumn('users', 'secondary_mobile')) {
+                            $userQuery->orWhere('secondary_mobile', $phone);
+                        }
+                        $resolvedUserId = $userQuery->value('id');
+                    }
+                } catch (Throwable) {
+                    $resolvedUserId = null;
+                }
             }
 
             // Resolve notification ID if available
@@ -597,5 +607,31 @@ class WhatsappNotificationService
         $path = $parsed['path'] ?? '';
 
         return "{$scheme}{$host}{$port}{$path}";
+    }
+
+    /**
+     * Check if a URL belongs to a Meta / WhatsApp CDN domain.
+     */
+    public static function isMetaCdnUrl(?string $url): bool
+    {
+        if ($url === null || trim($url) === '') {
+            return false;
+        }
+
+        $host = parse_url(trim($url), PHP_URL_HOST);
+        if ($host === null || $host === false) {
+            return false;
+        }
+
+        $host = strtolower($host);
+        $metaDomains = ['scontent.whatsapp.net', 'fbcdn.net', 'lookaside.fbsbx.com', 'whatsapp.com'];
+
+        foreach ($metaDomains as $domain) {
+            if ($host === $domain || str_ends_with($host, '.'.$domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
