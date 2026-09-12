@@ -185,6 +185,10 @@ class LimitedUserApiTest extends TestCase
                     'level4_category',
                     'is_bookmark',
                     'is_verified',
+                    'is_connected',
+                    'connection_status',
+                    'is_requested',
+                    'can_send_connection_request',
                     'match_percentage',
                 ],
             ],
@@ -477,5 +481,107 @@ class LimitedUserApiTest extends TestCase
         // High match should be ranked first
         $this->assertSame($userHighMatch->id, $data[0]['id']);
         $this->assertGreaterThan($data[1]['match_percentage'], $data[0]['match_percentage']);
+    }
+
+    public function test_limited_users_endpoint_returns_connection_status_flags_and_supports_filtering(): void
+    {
+        $authUser = User::factory()->create(['status' => 'active']);
+
+        $connectedPeer = User::factory()->create([
+            'status' => 'active',
+            'first_name' => 'Connected',
+            'last_name' => 'Peer',
+        ]);
+
+        $pendingSentPeer = User::factory()->create([
+            'status' => 'active',
+            'first_name' => 'Sent',
+            'last_name' => 'Peer',
+        ]);
+
+        $pendingReceivedPeer = User::factory()->create([
+            'status' => 'active',
+            'first_name' => 'Received',
+            'last_name' => 'Peer',
+        ]);
+
+        $unconnectedPeer = User::factory()->create([
+            'status' => 'active',
+            'first_name' => 'Unconnected',
+            'last_name' => 'Peer',
+        ]);
+
+        // 1. Approved connection
+        Connection::create([
+            'requester_id' => $authUser->id,
+            'addressee_id' => $connectedPeer->id,
+            'is_approved' => true,
+            'approved_at' => now(),
+        ]);
+
+        // 2. Pending sent request (Auth sent to PendingSentPeer)
+        Connection::create([
+            'requester_id' => $authUser->id,
+            'addressee_id' => $pendingSentPeer->id,
+            'is_approved' => false,
+        ]);
+
+        // 3. Pending received request (PendingReceivedPeer sent to Auth)
+        Connection::create([
+            'requester_id' => $pendingReceivedPeer->id,
+            'addressee_id' => $authUser->id,
+            'is_approved' => false,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson('/api/v1/members/limited?per_page=50');
+        $response->assertOk();
+
+        $data = collect($response->json('data'));
+
+        $connItem = $data->firstWhere('id', $connectedPeer->id);
+        $sentItem = $data->firstWhere('id', $pendingSentPeer->id);
+        $recItem = $data->firstWhere('id', $pendingReceivedPeer->id);
+        $unconnItem = $data->firstWhere('id', $unconnectedPeer->id);
+
+        $this->assertNotNull($connItem);
+        $this->assertNotNull($sentItem);
+        $this->assertNotNull($recItem);
+        $this->assertNotNull($unconnItem);
+
+        // Assert flags for Connected peer
+        $this->assertTrue($connItem['is_connected']);
+        $this->assertSame('connected', $connItem['connection_status']);
+        $this->assertFalse($connItem['is_requested']);
+        $this->assertFalse($connItem['can_send_connection_request']);
+
+        // Assert flags for Pending Sent peer
+        $this->assertFalse($sentItem['is_connected']);
+        $this->assertSame('pending_sent', $sentItem['connection_status']);
+        $this->assertTrue($sentItem['is_requested']);
+        $this->assertFalse($sentItem['can_send_connection_request']);
+
+        // Assert flags for Pending Received peer
+        $this->assertFalse($recItem['is_connected']);
+        $this->assertSame('pending_received', $recItem['connection_status']);
+        $this->assertFalse($recItem['is_requested']);
+        $this->assertFalse($recItem['can_send_connection_request']);
+
+        // Assert flags for Unconnected peer
+        $this->assertFalse($unconnItem['is_connected']);
+        $this->assertNull($unconnItem['connection_status']);
+        $this->assertFalse($unconnItem['is_requested']);
+        $this->assertTrue($unconnItem['can_send_connection_request']);
+
+        // Test optional query filter: ?is_connected=false / ?exclude_connected=1
+        $filteredResponse = $this->getJson('/api/v1/members/limited?is_connected=false&per_page=50');
+        $filteredResponse->assertOk();
+        $filteredData = collect($filteredResponse->json('data'));
+
+        $this->assertNull($filteredData->firstWhere('id', $connectedPeer->id));
+        $this->assertNotNull($filteredData->firstWhere('id', $pendingSentPeer->id));
+        $this->assertNotNull($filteredData->firstWhere('id', $pendingReceivedPeer->id));
+        $this->assertNotNull($filteredData->firstWhere('id', $unconnectedPeer->id));
     }
 }

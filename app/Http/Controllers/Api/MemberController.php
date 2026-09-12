@@ -403,6 +403,29 @@ class MemberController extends BaseApiController
             if (! empty($excludedUserIds)) {
                 $query->whereNotIn('users.id', $excludedUserIds);
             }
+
+            if (Schema::hasTable('connections')) {
+                $excludeConnected = $request->boolean('exclude_connected')
+                    || $request->input('is_connected') === 'false'
+                    || $request->input('is_connected') === '0'
+                    || $request->input('connection_filter') === 'not_connected';
+
+                if ($excludeConnected) {
+                    $connectedUserIds = Connection::query()
+                        ->where('is_approved', true)
+                        ->where(function ($q) use ($authUser): void {
+                            $q->where('requester_id', $authUser->id)
+                                ->orWhere('addressee_id', $authUser->id);
+                        })
+                        ->get()
+                        ->map(fn (Connection $c): string => (string) ((string) $c->requester_id === (string) $authUser->id ? $c->addressee_id : $c->requester_id))
+                        ->all();
+
+                    if (! empty($connectedUserIds)) {
+                        $query->whereNotIn('users.id', $connectedUserIds);
+                    }
+                }
+            }
         }
 
         return $query;
@@ -439,6 +462,8 @@ class MemberController extends BaseApiController
                 $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
             }
 
+            $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
+
             return LimitedUserResource::collection($users)->additional([
                 'success' => true,
                 'message' => 'Limited user data fetched successfully.',
@@ -457,6 +482,8 @@ class MemberController extends BaseApiController
             $paginated = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
         }
 
+        $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $paginated->getCollection());
+
         return LimitedUserResource::collection($paginated)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
@@ -470,6 +497,70 @@ class MemberController extends BaseApiController
                 'total' => $paginated->total(),
             ],
         ]);
+    }
+
+    /**
+     * Batch attach connection statuses with auth user onto candidate members.
+     *
+     * @param  Collection<int, User>|array<int, User>  $users
+     */
+    private function attachConnectionStatuses(?User $authUser, mixed $users): void
+    {
+        $userCollection = $users instanceof Collection ? $users : collect($users);
+
+        if (! $authUser || $userCollection->isEmpty() || ! Schema::hasTable('connections')) {
+            $userCollection->each(function (User $user): void {
+                $user->setAttribute('is_connected', false);
+                $user->setAttribute('connection_status', null);
+                $user->setAttribute('is_requested', false);
+                $user->setAttribute('can_send_connection_request', true);
+            });
+
+            return;
+        }
+
+        $authUserId = (string) $authUser->id;
+        $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
+
+        $connections = Connection::query()
+            ->where(function ($q) use ($authUserId, $userIds): void {
+                $q->where('requester_id', $authUserId)
+                    ->whereIn('addressee_id', $userIds);
+            })
+            ->orWhere(function ($q) use ($authUserId, $userIds): void {
+                $q->where('addressee_id', $authUserId)
+                    ->whereIn('requester_id', $userIds);
+            })
+            ->get()
+            ->keyBy(function (Connection $connection) use ($authUserId): string {
+                return (string) ((string) $connection->requester_id === $authUserId
+                    ? $connection->addressee_id
+                    : $connection->requester_id);
+            });
+
+        $userCollection->each(function (User $user) use ($connections, $authUserId): void {
+            $connection = $connections->get((string) $user->id);
+
+            if (! $connection) {
+                $user->setAttribute('is_connected', false);
+                $user->setAttribute('connection_status', null);
+                $user->setAttribute('is_requested', false);
+                $user->setAttribute('can_send_connection_request', true);
+
+                return;
+            }
+
+            $isConnected = (bool) $connection->is_approved;
+            $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+            $status = $isConnected
+                ? 'connected'
+                : ($isRequested ? 'pending_sent' : 'pending_received');
+
+            $user->setAttribute('is_connected', $isConnected);
+            $user->setAttribute('connection_status', $status);
+            $user->setAttribute('is_requested', $isRequested);
+            $user->setAttribute('can_send_connection_request', false);
+        });
     }
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)

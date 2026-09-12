@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Resources\V1;
 
 use App\Models\City;
+use App\Models\Connection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 
 class LimitedUserResource extends JsonResource
 {
@@ -47,7 +49,7 @@ class LimitedUserResource extends JsonResource
             }
         }
 
-        $authUser = auth('sanctum')->user();
+        $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
         $isBookmark = false;
         if ($authUser) {
             $bookmarks = $authUser->bookmarks ?? [];
@@ -63,6 +65,41 @@ class LimitedUserResource extends JsonResource
             $isVerified = false;
         }
 
+        $isConnected = false;
+        $connectionStatus = null;
+        $isRequested = false;
+        $canSendConnectionRequest = true;
+
+        if ($user->getAttribute('is_connected') !== null) {
+            $isConnected = (bool) $user->getAttribute('is_connected');
+            $connectionStatus = $user->getAttribute('connection_status');
+            $isRequested = (bool) $user->getAttribute('is_requested');
+            $canSendConnectionRequest = (bool) $user->getAttribute('can_send_connection_request');
+        } elseif ($authUser && Schema::hasTable('connections')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $user->id;
+
+            if ($authUserId !== $targetId) {
+                $connection = Connection::query()
+                    ->where(function ($q) use ($authUserId, $targetId) {
+                        $q->where('requester_id', $authUserId)->where('addressee_id', $targetId);
+                    })
+                    ->orWhere(function ($q) use ($authUserId, $targetId) {
+                        $q->where('addressee_id', $authUserId)->where('requester_id', $targetId);
+                    })
+                    ->first();
+
+                if ($connection) {
+                    $isConnected = (bool) $connection->is_approved;
+                    $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+                    $connectionStatus = $isConnected
+                        ? 'connected'
+                        : ($isRequested ? 'pending_sent' : 'pending_received');
+                    $canSendConnectionRequest = false;
+                }
+            }
+        }
+
         return [
             'id' => $user->id,
             'name' => $name !== '' ? trim((string) $name) : null,
@@ -76,6 +113,10 @@ class LimitedUserResource extends JsonResource
             'level4_category' => $user->level4Category ? $user->level4Category->name : null,
             'is_bookmark' => $isBookmark,
             'is_verified' => $isVerified,
+            'is_connected' => $isConnected,
+            'connection_status' => $connectionStatus,
+            'is_requested' => $isRequested,
+            'can_send_connection_request' => $canSendConnectionRequest,
             'match_percentage' => (int) ($user->match_percentage ?? 0),
         ];
     }
