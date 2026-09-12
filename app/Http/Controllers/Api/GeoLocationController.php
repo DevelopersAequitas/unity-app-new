@@ -78,6 +78,8 @@ class GeoLocationController extends BaseApiController
         $validated = $request->validate([
             'radius_km' => ['nullable', 'numeric', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:5000'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:5000'],
             'level4_category_id' => ['nullable'],
             'level_4_category_id' => ['nullable'],
             'category_id' => ['nullable'],
@@ -88,9 +90,12 @@ class GeoLocationController extends BaseApiController
         $radiusKm = array_key_exists('radius_km', $validated) && $validated['radius_km'] !== null && $validated['radius_km'] !== ''
             ? (float) $validated['radius_km']
             : null;
-        $limit = array_key_exists('limit', $validated) && $validated['limit'] !== null && $validated['limit'] !== ''
-            ? (int) $validated['limit']
-            : null;
+
+        $perPageInput = $request->input('per_page') ?? $request->input('limit');
+        $perPage = $perPageInput !== null && $perPageInput !== ''
+            ? max(1, min((int) $perPageInput, 5000))
+            : 20;
+        $page = max(1, (int) $request->input('page', 1));
 
         $filterCategoryId = $request->input('level4_category_id')
             ?? $request->input('level_4_category_id')
@@ -120,7 +125,7 @@ class GeoLocationController extends BaseApiController
             $myLocation->latitude,
         ];
 
-        $peers = User::query()
+        $peersQuery = User::query()
             ->with(['cityRelation:id,name', 'level4Category:id,name'])
             ->join('user_geo_locations', 'user_geo_locations.user_id', '=', 'users.id')
             ->where('user_geo_locations.is_visible', true)
@@ -169,16 +174,27 @@ class GeoLocationController extends BaseApiController
                         });
                 });
             })
-            ->orderBy('distance_km', 'asc')
-            ->when($limit !== null, fn ($query) => $query->limit($limit))
-            ->get();
+            ->orderBy('distance_km', 'asc');
 
-        $this->attachConnectionState($peers, (string) $authUser->id);
+        $paginated = $peersQuery->paginate($perPage, ['*'], 'page', $page);
+
+        $this->attachConnectionState($paginated->getCollection(), (string) $authUser->id);
 
         return $this->success([
             'radius_km' => $radiusKm,
-            'total' => $peers->count(),
-            'items' => GeoNearbyPeerResource::collection($peers),
+            'total' => $paginated->total(),
+            'current_page' => $paginated->currentPage(),
+            'per_page' => $paginated->perPage(),
+            'last_page' => $paginated->lastPage(),
+            'has_more_pages' => $paginated->hasMorePages(),
+            'pagination' => [
+                'current_page' => $paginated->currentPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'last_page' => $paginated->lastPage(),
+                'has_more' => $paginated->hasMorePages(),
+            ],
+            'items' => GeoNearbyPeerResource::collection($paginated->getCollection()),
         ], 'Nearby peers fetched successfully.');
     }
 
