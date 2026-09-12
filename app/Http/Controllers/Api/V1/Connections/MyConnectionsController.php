@@ -6,7 +6,9 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\Connection\ConnectionUserResource;
 use App\Http\Resources\Connection\SentConnectionResource;
 use App\Models\Connection;
+use App\Models\UserFollow;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MyConnectionsController extends BaseApiController
 {
@@ -31,14 +33,34 @@ class MyConnectionsController extends BaseApiController
             ->orderByDesc('created_at')
             ->get();
 
-        $items = $connections->map(function (Connection $connection) use ($authUser) {
-            $otherUser = $connection->requester_id === $authUser->id
+        $otherUsers = $connections->map(function (Connection $connection) use ($authUser) {
+            return (string) $connection->requester_id === (string) $authUser->id
+                ? $connection->addressee
+                : $connection->requester;
+        })->filter()->values();
+
+        $otherUserIds = $otherUsers->pluck('id')->filter()->map(fn ($id) => (string) $id)->all();
+        $followedUserIds = [];
+        if (! empty($otherUserIds) && Schema::hasTable('user_follows')) {
+            $followedUserIds = UserFollow::query()
+                ->where('follower_id', $authUser->id)
+                ->whereIn('following_id', $otherUserIds)
+                ->where('status', 'accepted')
+                ->pluck('following_id')
+                ->map(fn ($id) => (string) $id)
+                ->all();
+        }
+
+        $items = $connections->map(function (Connection $connection) use ($authUser, $followedUserIds) {
+            $otherUser = (string) $connection->requester_id === (string) $authUser->id
                 ? $connection->addressee
                 : $connection->requester;
 
-            if (! $otherUser || $otherUser->id === $authUser->id) {
+            if (! $otherUser || (string) $otherUser->id === (string) $authUser->id) {
                 return null;
             }
+
+            $otherUser->setAttribute('is_following', in_array((string) $otherUser->id, $followedUserIds, true));
 
             return [
                 'connected_at' => $connection->created_at,
