@@ -17,6 +17,7 @@ use App\Services\ProfileVisibilityService;
 use App\Services\Recommendation\MemberMatchingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -426,23 +427,48 @@ class MemberController extends BaseApiController
         PeerBlockService $peerBlockService,
         ProfileVisibilityService $profileVisibilityService,
         MemberMatchingService $memberMatchingService
-    ) {
+    ): AnonymousResourceCollection {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
-        if ($authUser instanceof User) {
-            $users = $memberMatchingService->rank($authUser, $query);
-        } else {
-            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+        if ($request->input('paginate') === 'false' || $request->input('paginate') === '0' || $request->input('per_page') === 'all') {
+            if ($authUser instanceof User) {
+                $users = $memberMatchingService->rank($authUser, $query);
+            } else {
+                $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+            }
+
+            return LimitedUserResource::collection($users)->additional([
+                'success' => true,
+                'message' => 'Limited user data fetched successfully.',
+                'total_users' => $users->count(),
+                'total_user' => $users->count(),
+                'total' => $users->count(),
+            ]);
         }
 
-        return LimitedUserResource::collection($users)->additional([
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = max(1, (int) $request->input('per_page', 20));
+
+        if ($authUser instanceof User) {
+            $paginated = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
+        } else {
+            $paginated = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
+        }
+
+        return LimitedUserResource::collection($paginated)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
-            'total_users' => $users->count(),
-            'total_user' => $users->count(),
-            'total' => $users->count(),
+            'total_users' => $paginated->total(),
+            'total_user' => $paginated->total(),
+            'total' => $paginated->total(),
+            'pagination' => [
+                'current_page' => $paginated->currentPage(),
+                'per_page' => $paginated->perPage(),
+                'last_page' => $paginated->lastPage(),
+                'total' => $paginated->total(),
+            ],
         ]);
     }
 

@@ -188,8 +188,15 @@ class LimitedUserApiTest extends TestCase
                     'match_percentage',
                 ],
             ],
+            'meta',
+            'links',
+            'pagination' => [
+                'current_page',
+                'per_page',
+                'last_page',
+                'total',
+            ],
         ]);
-        $response->assertJsonMissing(['meta', 'links']);
 
         $data = $response->json('data');
 
@@ -263,7 +270,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertIsBool($nItem['is_verified']);
     }
 
-    public function test_limited_users_endpoint_returns_all_members_without_pagination(): void
+    public function test_limited_users_endpoint_supports_pagination(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -275,7 +282,46 @@ class LimitedUserApiTest extends TestCase
 
         Sanctum::actingAs($activeUser);
 
-        $response = $this->getJson('/api/v1/members/limited');
+        // Page 1 with per_page = 20
+        $response = $this->getJson('/api/v1/members/limited?page=1&per_page=20');
+
+        $response->assertOk();
+        $this->assertCount(20, $response->json('data'));
+        $this->assertSame(25, $response->json('total_users'));
+        $this->assertSame(25, $response->json('total_user'));
+        $this->assertSame(25, $response->json('total'));
+        $this->assertSame(1, $response->json('pagination.current_page'));
+        $this->assertSame(20, $response->json('pagination.per_page'));
+        $this->assertSame(2, $response->json('pagination.last_page'));
+        $this->assertSame(25, $response->json('pagination.total'));
+        $this->assertSame(1, $response->json('meta.current_page'));
+        $this->assertSame(20, $response->json('meta.per_page'));
+        $this->assertSame(25, $response->json('meta.total'));
+        $response->assertJsonStructure(['meta', 'links', 'pagination']);
+
+        // Page 2 with per_page = 20
+        $responsePage2 = $this->getJson('/api/v1/members/limited?page=2&per_page=20');
+
+        $responsePage2->assertOk();
+        $this->assertCount(5, $responsePage2->json('data'));
+        $this->assertSame(2, $responsePage2->json('pagination.current_page'));
+        $this->assertSame(20, $responsePage2->json('pagination.per_page'));
+        $this->assertSame(25, $responsePage2->json('pagination.total'));
+    }
+
+    public function test_limited_users_endpoint_supports_paginate_false(): void
+    {
+        $activeUser = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        User::factory()->count(25)->create([
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($activeUser);
+
+        $response = $this->getJson('/api/v1/members/limited?paginate=false');
 
         $response->assertOk();
         $this->assertCount(25, $response->json('data'));
