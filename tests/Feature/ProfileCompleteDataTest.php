@@ -161,13 +161,80 @@ class ProfileCompleteDataTest extends TestCase
             $table->softDeletes();
         });
 
-        Schema::create('circle_subscriptions', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('circle_id')->nullable();
-            $table->uuid('user_id')->nullable();
-            $table->string('status')->nullable();
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('circle_subscriptions')) {
+            Schema::create('circle_subscriptions', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('circle_id')->nullable();
+                $table->uuid('user_id')->nullable();
+                $table->string('status')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('user_milestone_badges')) {
+            Schema::create('user_milestone_badges', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->uuid('badge_id')->nullable();
+                $table->string('milestone_type')->nullable();
+                $table->integer('achieved_count')->default(0);
+                $table->string('status')->default('earned');
+                $table->timestamp('earned_at')->nullable();
+                $table->timestamp('revoked_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('p2p_meetings')) {
+            Schema::create('p2p_meetings', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('initiator_user_id');
+                $table->uuid('peer_user_id');
+                $table->date('meeting_date')->nullable();
+                $table->string('meeting_place')->nullable();
+                $table->text('remarks')->nullable();
+                $table->json('media')->nullable();
+                $table->boolean('is_deleted')->default(false);
+                $table->softDeletes();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            Schema::create('referrals', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->string('referral_type')->nullable();
+                $table->date('referral_date')->nullable();
+                $table->string('referral_of')->nullable();
+                $table->string('phone')->nullable();
+                $table->string('email')->nullable();
+                $table->text('address')->nullable();
+                $table->string('hot_value')->nullable();
+                $table->text('remarks')->nullable();
+                $table->uuid('status_id')->nullable();
+                $table->boolean('is_deleted')->default(false);
+                $table->softDeletes();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            Schema::create('business_deals', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->date('deal_date')->nullable();
+                $table->decimal('deal_amount', 12, 2)->default(0);
+                $table->string('business_type')->nullable();
+                $table->text('comment')->nullable();
+                $table->uuid('referral_id')->nullable();
+                $table->boolean('is_deleted')->default(false);
+                $table->softDeletes();
+                $table->timestamps();
+            });
+        }
     }
 
     public function test_get_profile_returns_complete_member_and_profile_data(): void
@@ -261,6 +328,17 @@ class ProfileCompleteDataTest extends TestCase
             'posts_count',
             'coins_balance',
             'life_impacted_count',
+            'badges_count',
+            'my_badges_count',
+            'p2p_meetings_count',
+            'p2p_count',
+            'referrals_count',
+            'given_referrals_count',
+            'received_referrals_count',
+            'business_deals_count',
+            'deals_count',
+            'given_business_deals_count',
+            'received_business_deals_count',
             'business_type',
             'turnover_range',
             'gender',
@@ -353,5 +431,196 @@ class ProfileCompleteDataTest extends TestCase
         foreach ($duplicateKeys as $key) {
             $this->assertArrayNotHasKey($key, $data, "Duplicate key [{$key}] should have been removed from profile API response data.");
         }
+    }
+
+    public function test_get_profile_returns_correct_activity_and_badge_counts(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe@example.com',
+        ]);
+
+        /** @var User $peer */
+        $peer = User::factory()->create([
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'email' => 'jane.smith@example.com',
+        ]);
+
+        // Insert badges
+        \Illuminate\Support\Facades\DB::table('user_milestone_badges')->insert([
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'user_id' => $user->id,
+                'badge_id' => (string) \Illuminate\Support\Str::uuid(),
+                'milestone_type' => 'CONNECTOR',
+                'achieved_count' => 1,
+                'status' => 'earned',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'user_id' => $user->id,
+                'badge_id' => (string) \Illuminate\Support\Str::uuid(),
+                'milestone_type' => 'CATALYST',
+                'achieved_count' => 3,
+                'status' => 'earned',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'user_id' => $user->id,
+                'badge_id' => (string) \Illuminate\Support\Str::uuid(),
+                'milestone_type' => 'REVOKED_TEST',
+                'achieved_count' => 1,
+                'status' => 'revoked',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        // Insert P2P meetings (1 as initiator, 1 as peer, 1 soft-deleted)
+        \Illuminate\Support\Facades\DB::table('p2p_meetings')->insert([
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'initiator_user_id' => $user->id,
+                'peer_user_id' => $peer->id,
+                'meeting_date' => now()->toDateString(),
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'initiator_user_id' => $peer->id,
+                'peer_user_id' => $user->id,
+                'meeting_date' => now()->toDateString(),
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'initiator_user_id' => $user->id,
+                'peer_user_id' => $peer->id,
+                'meeting_date' => now()->toDateString(),
+                'is_deleted' => true,
+                'deleted_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        // Insert referrals (2 given, 1 received, 1 deleted)
+        \Illuminate\Support\Facades\DB::table('referrals')->insert([
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $user->id,
+                'to_user_id' => $peer->id,
+                'referral_type' => 'given',
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $user->id,
+                'to_user_id' => $peer->id,
+                'referral_type' => 'given',
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $peer->id,
+                'to_user_id' => $user->id,
+                'referral_type' => 'received',
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $user->id,
+                'to_user_id' => $peer->id,
+                'referral_type' => 'given',
+                'is_deleted' => true,
+                'deleted_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        // Insert business deals (1 given, 2 received, 1 deleted)
+        \Illuminate\Support\Facades\DB::table('business_deals')->insert([
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $user->id,
+                'to_user_id' => $peer->id,
+                'deal_amount' => 50000,
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $peer->id,
+                'to_user_id' => $user->id,
+                'deal_amount' => 150000,
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $peer->id,
+                'to_user_id' => $user->id,
+                'deal_amount' => 25000,
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'from_user_id' => $user->id,
+                'to_user_id' => $peer->id,
+                'deal_amount' => 10000,
+                'is_deleted' => true,
+                'deleted_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/profile');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.badges_count', 2)
+            ->assertJsonPath('data.my_badges_count', 2)
+            ->assertJsonPath('data.p2p_meetings_count', 2)
+            ->assertJsonPath('data.p2p_count', 2)
+            ->assertJsonPath('data.referrals_count', 3)
+            ->assertJsonPath('data.given_referrals_count', 2)
+            ->assertJsonPath('data.received_referrals_count', 1)
+            ->assertJsonPath('data.business_deals_count', 3)
+            ->assertJsonPath('data.deals_count', 3)
+            ->assertJsonPath('data.given_business_deals_count', 1)
+            ->assertJsonPath('data.received_business_deals_count', 2);
     }
 }
