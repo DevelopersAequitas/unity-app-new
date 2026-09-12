@@ -13,7 +13,6 @@ use App\Models\LifeImpactRecognitionCreative;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -673,33 +672,47 @@ class LifeImpactCreativeGenerator
                 $this->drawPreWrappedCenteredText($canvas, [$footerText], 16, (int) ($width / 2), 1250, $footerGray, $fontSemiBold);
             }
 
-            // Save WebP File & Create FileModel
-            $filename = 'life_impact_creative_'.Str::uuid().'.webp';
-            $tempPath = tempnam(sys_get_temp_dir(), 'impact_creative');
+            // Save PNG File & Create FileModel
+            $filename = 'life_impact_creative_'.Str::uuid().'.png';
+            $finalPath = 'uploads/'.now()->format('Y/m/d').'/'.$filename;
+            $tempPath = @tempnam(sys_get_temp_dir(), 'impact_creative');
+            if ($tempPath === false) {
+                $tempPath = storage_path('framework/cache/'.(string) Str::uuid().'.tmp');
+            }
 
-            imagewebp($canvas, $tempPath, 95);
+            imagepng($canvas, $tempPath, 9);
             imagedestroy($canvas);
-
-            $uploadedFile = new UploadedFile(
-                $tempPath,
-                $filename,
-                'image/webp',
-                null,
-                true
-            );
 
             $disk = config('filesystems.default', 'public');
 
             if ($targetFileRecord) {
-                $finalPath = $targetFileRecord->s3_key;
-                $stream = fopen($tempPath, 'r');
-                Storage::disk($disk)->put($finalPath, $stream);
-                if (is_resource($stream)) {
-                    fclose($stream);
+                if ($targetFileRecord->s3_key) {
+                    $finalPath = preg_replace('/\.(webp|jpg|jpeg)$/i', '.png', $targetFileRecord->s3_key);
                 }
+                $targetFileRecord->s3_key = $finalPath;
                 $fileModel = $targetFileRecord;
             } else {
-                $fileModel = $this->fileUploadService->store($uploadedFile, auth('admin')->user(), $disk);
+                $fileModel = new FileModel;
+                $fileModel->id = (string) Str::uuid();
+                $fileModel->s3_key = $finalPath;
+            }
+
+            $stream = fopen($tempPath, 'r');
+            $stored = Storage::disk($disk)->put($finalPath, $stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            if (! $stored) {
+                throw new \RuntimeException("Failed to store life impact creative image for user {$user->id} to disk {$disk}");
+            }
+
+            $fileModel->mime_type = 'image/png';
+            $fileModel->size_bytes = filesize($tempPath);
+            $fileModel->width = $width;
+            $fileModel->height = $height;
+            if (Schema::hasTable('files')) {
+                $fileModel->save();
             }
 
             if ($disk !== 'public') {

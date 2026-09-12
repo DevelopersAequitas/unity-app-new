@@ -332,7 +332,7 @@ class LifeImpactRecognitionsController extends Controller
                 $path = Storage::disk($disk)->path($fileModel->s3_key);
 
                 return response()->file($path, [
-                    'Content-Type' => 'image/webp',
+                    'Content-Type' => 'image/png',
                     'Cache-Control' => 'no-cache, must-revalidate',
                 ])->deleteFileAfterSend(true);
             }
