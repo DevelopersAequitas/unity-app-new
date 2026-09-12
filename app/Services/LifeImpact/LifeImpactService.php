@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Creative\LifeImpactCreativeService;
 use App\Services\MilestoneBadgeService;
+use App\Services\Notifications\ImpactMilestoneWhatsappNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -378,67 +379,80 @@ class LifeImpactService
             $systemUser = User::where('email', 'info@peersglobal.com')->first();
             $authorUserId = $systemUser ? $systemUser->id : $user->id;
 
-            foreach ($levels as $threshold => $meta) {
-                if ($newTotal >= $threshold) {
-                    $existingPost = Post::query()
-                        ->where('source_type', 'life_impact')
-                        ->where('source_id', $user->id)
-                        ->where('source_event', "level_{$threshold}")
-                        ->first();
+            if (Schema::hasTable('posts')) {
+                foreach ($levels as $threshold => $meta) {
+                    if ($newTotal >= $threshold) {
+                        $existingPost = Post::query()
+                            ->where('source_type', 'life_impact')
+                            ->where('source_id', $user->id)
+                            ->where('source_event', "level_{$threshold}")
+                            ->first();
 
-                    if (! $existingPost && Schema::hasTable('posts')) {
-                        try {
-                            $creativeService = app(LifeImpactCreativeService::class);
-                            $creativeRecord = $creativeService->handleLifeImpactCreative($user, (int) $threshold, (int) $threshold);
-                            $creativeImageUrl = $creativeRecord?->image_url ?: $generator->generateOrGetUrl($user, (int) $threshold, (int) $threshold);
-                            $media = [
-                                [
-                                    'id' => $creativeRecord?->id ?? (string) Str::uuid(),
-                                    'type' => 'image',
-                                    'url' => $creativeImageUrl,
-                                ],
-                            ];
-                        } catch (\Throwable $creativeEx) {
-                            Log::error("[LifeImpactService] Failed generating creative for threshold {$threshold}: ".$creativeEx->getMessage());
-                            $creativeImageUrl = ! empty($meta['badge_image']) ? asset($meta['badge_image']) : url('/images/life_impact_badges/Impact Creator.png');
-                            $media = [
-                                [
-                                    'id' => (string) Str::uuid(),
-                                    'type' => 'image',
-                                    'url' => $creativeImageUrl,
-                                ],
-                            ];
+                        if (! $existingPost) {
+                            try {
+                                $creativeService = app(LifeImpactCreativeService::class);
+                                $creativeRecord = $creativeService->handleLifeImpactCreative($user, (int) $threshold, (int) $threshold);
+                                $creativeImageUrl = $creativeRecord?->image_url ?: $generator->generateOrGetUrl($user, (int) $threshold, (int) $threshold);
+                                $media = [
+                                    [
+                                        'id' => $creativeRecord?->id ?? (string) Str::uuid(),
+                                        'type' => 'image',
+                                        'url' => $creativeImageUrl,
+                                    ],
+                                ];
+                            } catch (\Throwable $creativeEx) {
+                                Log::error("[LifeImpactService] Failed generating creative for threshold {$threshold}: ".$creativeEx->getMessage());
+                                $creativeImageUrl = ! empty($meta['badge_image']) ? asset($meta['badge_image']) : url('/images/life_impact_badges/Impact Creator.png');
+                                $media = [
+                                    [
+                                        'id' => (string) Str::uuid(),
+                                        'type' => 'image',
+                                        'url' => $creativeImageUrl,
+                                    ],
+                                ];
+                            }
+
+                            $caption = $generator->formatCaption($user, (int) $threshold, $meta);
+                            $userName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+                            if (empty($userName)) {
+                                $userName = $user->name ?: 'Peer Member';
+                            }
+
+                            Post::create([
+                                'user_id' => $authorUserId,
+                                'circle_id' => null,
+                                'content_text' => $caption,
+                                'media' => $media,
+                                'tags' => ['life_impact_recognition', 'life_impact', (string) $user->id, $meta['hashtag'], "level_{$threshold}"],
+                                'visibility' => 'public',
+                                'moderation_status' => 'approved',
+                                'sponsored' => false,
+                                'is_deleted' => false,
+                                'source_type' => 'life_impact',
+                                'source_id' => $user->id,
+                                'source_event' => "level_{$threshold}",
+                                'post_type' => 'life_impact_recognition',
+                                'title' => "🎉 Big Congratulations! {$userName} became a {$meta['title']}",
+                                'description' => $caption,
+                                'image' => $creativeImageUrl,
+                                'status' => 'active',
+                            ]);
+
+                            Log::info("[LifeImpactService] Automatically published Life Impact recognition post for user {$user->id} reaching level {$meta['title']} ({$threshold} lives)");
                         }
-
-                        $caption = $generator->formatCaption($user, (int) $threshold, $meta);
-                        $userName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
-                        if (empty($userName)) {
-                            $userName = $user->name ?: 'Peer Member';
-                        }
-
-                        Post::create([
-                            'user_id' => $authorUserId,
-                            'circle_id' => null,
-                            'content_text' => $caption,
-                            'media' => $media,
-                            'tags' => ['life_impact_recognition', 'life_impact', (string) $user->id, $meta['hashtag'], "level_{$threshold}"],
-                            'visibility' => 'public',
-                            'moderation_status' => 'approved',
-                            'sponsored' => false,
-                            'is_deleted' => false,
-                            'source_type' => 'life_impact',
-                            'source_id' => $user->id,
-                            'source_event' => "level_{$threshold}",
-                            'post_type' => 'life_impact_recognition',
-                            'title' => "🎉 Big Congratulations! {$userName} became a {$meta['title']}",
-                            'description' => $caption,
-                            'image' => $creativeImageUrl,
-                            'status' => 'active',
-                        ]);
-
-                        Log::info("[LifeImpactService] Automatically published Life Impact recognition post for user {$user->id} reaching level {$meta['title']} ({$threshold} lives)");
                     }
                 }
+            }
+
+            // Automatically trigger Track 2 — Impact Recognition WhatsApp workflow for newly crossed thresholds
+            try {
+                app(ImpactMilestoneWhatsappNotificationService::class)->processMilestonesForUser($user, $newTotal, $oldTotal);
+            } catch (\Throwable $waEx) {
+                Log::error('[LifeImpactService] Failed processing Impact WhatsApp milestones: '.$waEx->getMessage(), [
+                    'user_id' => $userId,
+                    'old_total' => $oldTotal,
+                    'new_total' => $newTotal,
+                ]);
             }
         } catch (\Throwable $e) {
             Log::error('[LifeImpactService] Failed checking and publishing life impact timeline posts: '.$e->getMessage(), [
