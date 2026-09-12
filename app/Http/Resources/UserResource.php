@@ -11,7 +11,9 @@ use App\Models\Connection;
 use App\Models\CustomCategoryRequest;
 use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
+use App\Models\UserFollow;
 use App\Services\ProfileMatchService;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -38,11 +40,62 @@ class UserResource extends JsonResource
         $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
 
         $resolvedCity = null;
-        $authUser = auth('sanctum')->user();
+        $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
         $isBookmark = false;
         if ($authUser) {
             $bookmarks = $authUser->bookmarks ?? [];
             $isBookmark = in_array((string) $this->id, $bookmarks, true);
+        }
+
+        $isConnected = false;
+        $connectionStatus = 'none';
+        $isRequested = false;
+
+        if ($this->getAttribute('is_connected') !== null) {
+            $isConnected = (bool) $this->getAttribute('is_connected');
+            $connectionStatus = $this->getAttribute('connection_status') ?? ($isConnected ? 'connected' : 'none');
+            $isRequested = (bool) $this->getAttribute('is_requested');
+        } elseif ($authUser && Schema::hasTable('connections')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $this->id;
+
+            if ($authUserId === $targetId) {
+                $isConnected = false;
+                $connectionStatus = 'self';
+            } else {
+                $connection = Connection::query()
+                    ->where(function ($q) use ($authUserId, $targetId) {
+                        $q->where('requester_id', $authUserId)->where('addressee_id', $targetId);
+                    })
+                    ->orWhere(function ($q) use ($authUserId, $targetId) {
+                        $q->where('addressee_id', $authUserId)->where('requester_id', $targetId);
+                    })
+                    ->first();
+
+                if ($connection) {
+                    $isConnected = (bool) $connection->is_approved;
+                    $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+                    $connectionStatus = $isConnected
+                        ? 'connected'
+                        : ($isRequested ? 'pending_sent' : 'pending_received');
+                }
+            }
+        }
+
+        $isFollowing = false;
+        if ($this->getAttribute('is_following') !== null) {
+            $isFollowing = (bool) $this->getAttribute('is_following');
+        } elseif ($authUser && Schema::hasTable('user_follows')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $this->id;
+
+            if ($authUserId !== $targetId) {
+                $isFollowing = UserFollow::query()
+                    ->where('follower_id', $authUserId)
+                    ->where('following_id', $targetId)
+                    ->where('status', 'accepted')
+                    ->exists();
+            }
         }
         if ($this->relationLoaded('city') && $this->city) {
             $resolvedCity = $this->city;
@@ -193,6 +246,10 @@ class UserResource extends JsonResource
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
             'is_bookmark' => $isBookmark,
+                'is_connected' => (bool) $isConnected,
+                'is_following' => (bool) $isFollowing,
+                'connection_status' => $connectionStatus,
+                'is_requested' => (bool) $isRequested,
             'is_other_category' => (bool) $isOtherCategory,
             'other_category_name' => $isOtherCategory ? $otherCategoryName : null,
             'business_sub_category' => $isOtherCategory ? $otherCategoryName : $this->business_sub_category,
