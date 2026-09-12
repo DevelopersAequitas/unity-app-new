@@ -73,8 +73,6 @@ class UserResource extends JsonResource
                 'url' => $profileVideoUrl,
             ] : null,
             'profile_video_url' => $profileVideoUrl,
-            'intro_video_id' => $profileVideoId,
-            'intro_video_url' => $profileVideoUrl,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'display_name' => $this->display_name,
@@ -89,7 +87,6 @@ class UserResource extends JsonResource
                 'profile_photo_url' => $this->introducedBy->profile_photo_url,
             ] : null,
             'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
-            'city_of_residence' => $this->city_of_residence,
             'membership_status' => $membershipStatus,
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
@@ -142,7 +139,6 @@ class UserResource extends JsonResource
             'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
-            'posts' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
             'posts_count' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
@@ -168,7 +164,6 @@ class UserResource extends JsonResource
             'profile_photo_url' => $profilePhotoUrl,
             'cover_photo_url' => $coverPhotoUrl,
             'welcome_creative_url' => $welcomeCreativeUrl,
-            'profile_card_image_url' => $welcomeCreativeUrl,
             'address' => $this->address ?? null,
             'state' => $this->state ?? null,
             'country' => $this->country ?? null,
@@ -187,7 +182,6 @@ class UserResource extends JsonResource
             'is_bookmark' => $isBookmark,
             'is_other_category' => (bool) ($otherCategoryName !== null && $otherCategoryName !== ''),
             'other_category_name' => $otherCategoryName,
-            'custom_category_name' => $otherCategoryName,
             'business_sub_category' => $otherCategoryName ?? $this->business_sub_category,
             'business_category' => ($otherCategoryName !== null && $otherCategoryName !== '' && blank($this->businessCategory))
                 ? ['id' => 'other', 'name' => $otherCategoryName, 'is_other' => true]
@@ -488,9 +482,23 @@ class UserResource extends JsonResource
             $storedLinks = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
         }
 
+        $columnMap = [
+            'linkedin' => 'linkedin_profile',
+            'facebook' => 'facebook_profile',
+            'instagram' => 'instagram_handle',
+            'twitter' => 'twitter_handle',
+            'youtube' => 'youtube_channel',
+            'website' => 'other_website',
+        ];
+
         $links = [];
         foreach ($platforms as $platform) {
             $value = is_array($storedLinks) ? ($storedLinks[$platform] ?? null) : null;
+
+            if (blank($value)) {
+                $column = $columnMap[$platform] ?? null;
+                $value = $column ? $this->getAttribute($column) : null;
+            }
 
             if (blank($value)) {
                 $columnValue = $this->getAttribute($platform);

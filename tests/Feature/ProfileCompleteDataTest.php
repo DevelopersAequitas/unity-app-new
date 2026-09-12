@@ -211,7 +211,7 @@ class ProfileCompleteDataTest extends TestCase
             ->assertJsonPath('data.membership_status', 'unity_peer')
             ->assertJsonPath('data.membership_status_label', 'Green Member')
             ->assertJsonPath('data.coins_balance', 500)
-            ->assertJsonPath('data.about', 'Short bio test')
+            ->assertJsonPath('data.bio', 'Short bio test')
             ->assertJsonPath('data.superpower', 'Networking')
             ->assertJsonPath('data.i_can_help_with', ['Mentorship', 'Growth'])
             ->assertJsonPath('data.i_am_looking_for', ['Investors', 'Partners'])
@@ -231,8 +231,6 @@ class ProfileCompleteDataTest extends TestCase
             'profile_video_id',
             'profile_video',
             'profile_video_url',
-            'intro_video_id',
-            'intro_video_url',
             'first_name',
             'last_name',
             'display_name',
@@ -243,9 +241,7 @@ class ProfileCompleteDataTest extends TestCase
             'introduced_by',
             'introduced_by_user',
             'city',
-            'city_of_residence',
             'membership_status',
-            'membership_expiry',
             'membership_status_label',
             'membership_starts_at',
             'membership_ends_at',
@@ -262,7 +258,6 @@ class ProfileCompleteDataTest extends TestCase
             'connection_count',
             'followers_count',
             'following_count',
-            'posts',
             'posts_count',
             'coins_balance',
             'life_impacted_count',
@@ -287,6 +282,7 @@ class ProfileCompleteDataTest extends TestCase
             'media',
             'profile_photo_url',
             'cover_photo_url',
+            'welcome_creative_url',
             'address',
             'state',
             'country',
@@ -312,7 +308,6 @@ class ProfileCompleteDataTest extends TestCase
             'number_of_employees',
             'gst_number',
             'business_website',
-            'about',
             'superpower',
             'i_can_help_with',
             'i_am_looking_for',
@@ -343,6 +338,20 @@ class ProfileCompleteDataTest extends TestCase
 
         foreach ($requiredKeys as $key) {
             $this->assertArrayHasKey($key, $data, "Expected key [{$key}] was missing from profile API response data.");
+        }
+
+        $duplicateKeys = [
+            'intro_video_id',
+            'intro_video_url',
+            'city_of_residence',
+            'posts',
+            'profile_card_image_url',
+            'custom_category_name',
+            'about',
+        ];
+
+        foreach ($duplicateKeys as $key) {
+            $this->assertArrayNotHasKey($key, $data, "Duplicate key [{$key}] should have been removed from profile API response data.");
         }
     }
 }
