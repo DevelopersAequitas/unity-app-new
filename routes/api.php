@@ -1059,15 +1059,15 @@ Route::prefix('v1')->group(function () {
         Route::get('/admin/notifications/posts/{post}/summary', [NotificationEngineController::class, 'postSummary'])->whereUuid('post');
         Route::post('/admin/notifications/posts/{post}/send-test', [NotificationEngineController::class, 'sendPostTest'])->whereUuid('post');
 
-        // Notifications
+        // Notifications (Peers App)
         Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
-        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
-        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
-        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
-        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
-        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
-        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
-        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications', [NotificationEngineController::class, 'index']);
+        Route::post('/notifications/mark-read', [NotificationEngineController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [NotificationEngineController::class, 'readAll']);
+        Route::post('/notifications/mark-read-all', [NotificationEngineController::class, 'readAll']);
+        Route::get('/notifications/unread-count', [NotificationEngineController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
+        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
         Route::post('/notifications/{id}/clicked', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);

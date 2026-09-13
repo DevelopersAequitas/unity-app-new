@@ -96,12 +96,6 @@ class PostResource extends JsonResource
                     function () {
                         $author = $this->user ?? $this->author;
 
-                        $category = $author?->level4Category?->name
-                            ?? $author?->business_sub_category
-                            ?? $author?->businessCategory?->name
-                            ?? $author?->mainBusinessCategory?->name
-                            ?? null;
-
                         $subCategory = $author?->level4Category?->name
                             ?? $author?->business_sub_category
                             ?? null;
