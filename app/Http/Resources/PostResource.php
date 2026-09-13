@@ -85,6 +85,9 @@ class PostResource extends JsonResource
                     'display_name' => 'PeersGlobal Unity',
                     'first_name' => 'PeersGlobal',
                     'last_name' => 'Unity',
+                    'company_name' => 'PeersGlobal',
+                    'designation' => 'Unity Admin',
+                    'level4_category' => null,
                     'profile_photo_url' => null,
                 ]
                 : $this->when(
@@ -93,11 +96,31 @@ class PostResource extends JsonResource
                     function () {
                         $author = $this->user ?? $this->author;
 
+                        $category = ($author?->is_other_category ? $author?->other_category_name : null)
+                            ?? $author?->other_category_name
+                            ?? $author?->level4Category?->name
+                            ?? $author?->business_sub_category
+                            ?? $author?->businessCategory?->name
+                            ?? $author?->mainBusinessCategory?->name
+                            ?? null;
+
+                        $subCategory = ($author?->is_other_category ? $author?->other_category_name : null)
+                            ?? $author?->other_category_name
+                            ?? $author?->level4Category?->name
+                            ?? $author?->business_sub_category
+                            ?? null;
+
                         return [
                             'id' => $author?->id,
                             'display_name' => $author?->display_name,
                             'first_name' => $author?->first_name,
                             'last_name' => $author?->last_name,
+                            'company_name' => $author?->company_name ?: ($author?->business_name ?? null),
+                            'designation' => $author?->designation ?? $author?->job_title ?? null,
+                            'category' => $category,
+                            'business_sub_category' => $subCategory,
+                            'level4_category' => $author?->level4Category?->name ?? null,
+                            'category4_level' => $author?->level4Category?->name ?? null,
                             'profile_photo_url' => $author?->profile_photo_url,
                         ];
                     }
