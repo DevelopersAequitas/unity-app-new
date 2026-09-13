@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -146,30 +148,33 @@ class FollowController extends Controller
         $follow = UserFollow::query()
             ->where('follower_id', $authUser->id)
             ->where('following_id', $user->id)
-            ->where('status', 'accepted')
             ->first();
 
         if (! $follow) {
-            return $this->successResponse('Not following', [
-                'unfollowed' => false,
+            return $this->successResponse('Unfollowed successfully.', [
+                'unfollowed' => true,
             ]);
         }
 
+        $wasAccepted = $follow->status === 'accepted';
+
         $follow->delete();
 
-        $notification = new UnfollowedNotification($authUser);
-        $payload = $notification->toArray($user);
+        if ($wasAccepted) {
+            $notification = new UnfollowedNotification($authUser);
+            $payload = $notification->toArray($user);
 
-        $this->pushNotificationService->storeAndSend(
-            $user,
-            $payload['title'],
-            $payload['body'],
-            $payload,
-            [
-                'notification_type' => $payload['notification_type'],
-                'from_user_id' => $authUser->id,
-            ]
-        );
+            $this->pushNotificationService->storeAndSend(
+                $user,
+                $payload['title'],
+                $payload['body'],
+                $payload,
+                [
+                    'notification_type' => $payload['notification_type'],
+                    'from_user_id' => $authUser->id,
+                ]
+            );
+        }
 
         return $this->successResponse('Unfollowed successfully.', [
             'unfollowed' => true,

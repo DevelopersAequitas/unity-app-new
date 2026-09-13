@@ -570,8 +570,11 @@ Route::prefix('v1')->group(function () {
         // Follow system
         Route::get('users/{user}/followers/count', [MemberController::class, 'followersCount'])->whereUuid('user');
         Route::post('users/{user}/follow', [FollowController::class, 'requestFollow'])->whereUuid('user');
-        Route::delete('users/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
+        Route::post('members/{user}/follow', [FollowController::class, 'requestFollow'])->whereUuid('user');
+        Route::match(['delete', 'post'], 'users/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
+        Route::match(['delete', 'post'], 'members/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
         Route::get('users/{user}/follow-status', [FollowController::class, 'status'])->whereUuid('user');
+        Route::get('members/{user}/follow-status', [FollowController::class, 'status'])->whereUuid('user');
 
         Route::get('me/follow-requests', [FollowController::class, 'incomingRequests']);
         Route::get('me/following', [FollowController::class, 'myFollowing']);
