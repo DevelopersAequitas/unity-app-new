@@ -152,13 +152,10 @@ class PostController extends BaseApiController
                 'last_name',
                 'company_name',
                 'designation',
-                'job_title',
                 'profile_photo_file_id',
                 'business_category_id',
                 'main_business_category_id',
                 'business_sub_category',
-                'is_other_category',
-                'other_category_name',
             ])
             ->keyBy(fn(User $author) => (string) $author->id);
 
@@ -278,11 +275,16 @@ class PostController extends BaseApiController
                     'display_name' => $author->display_name,
                     'first_name' => $author->first_name,
                     'last_name' => $author->last_name,
-                    'company_name' => $author->company_name ?: ($author->business_name ?? null),
-                    'designation' => $author->designation ?? $author->job_title ?? null,
-
-                    'level4_category' => $author->level4Category?->name ?? null,
-
+                    'company_name' => $author->company_name ?: null,
+                    'designation' => $author->designation ?? null,
+                    'level4_category' => $author->level4Category?->name
+                        ?? $author->business_sub_category
+                        ?? $author->businessCategory?->name
+                        ?? $author->mainBusinessCategory?->name
+                        ?? null,
+                    'business_sub_category' => $author->level4Category?->name
+                        ?? $author->business_sub_category
+                        ?? null,
                     'profile_photo_url' => $author->profile_photo_file_id
                         ? url('/api/v1/files/' . $author->profile_photo_file_id)
                         : null,
@@ -745,22 +747,16 @@ class PostController extends BaseApiController
                 'display_name' => $post->user->display_name,
                 'first_name' => $post->user->first_name,
                 'last_name' => $post->user->last_name,
-                'company_name' => $post->user->company_name ?: ($post->user->business_name ?? null),
-                'designation' => $post->user->designation ?? $post->user->job_title ?? null,
-                'category' => ($post->user->is_other_category ? $post->user->other_category_name : null)
-                    ?? $post->user->other_category_name
-                    ?? $post->user->level4Category?->name
+                'company_name' => $post->user->company_name ?: null,
+                'designation' => $post->user->designation ?? null,
+                'level4_category' => $post->user->level4Category?->name
                     ?? $post->user->business_sub_category
                     ?? $post->user->businessCategory?->name
                     ?? $post->user->mainBusinessCategory?->name
                     ?? null,
-                'business_sub_category' => ($post->user->is_other_category ? $post->user->other_category_name : null)
-                    ?? $post->user->other_category_name
-                    ?? $post->user->level4Category?->name
+                'business_sub_category' => $post->user->level4Category?->name
                     ?? $post->user->business_sub_category
                     ?? null,
-                'level4_category' => $post->user->level4Category?->name ?? null,
-                'category4_level' => $post->user->level4Category?->name ?? null,
                 'profile_photo_url' => $post->user->profile_photo_url,
             ] : null,
             'circle' => $post->relationLoaded('circle') && $post->circle ? [
