@@ -62,6 +62,7 @@
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ] : []),
                 ...($isGlobalAdmin ? [
+                    ['icon' => 'bi-tags', 'label' => 'User Tags', 'route' => 'admin.user-tags.index', 'active_routes' => ['admin.user-tags.*']],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
@@ -91,6 +92,7 @@
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ] : []),
                 ...($isGlobalAdmin ? [
+                    ['icon' => 'bi-tags', 'label' => 'User Tags', 'route' => 'admin.user-tags.index', 'active_routes' => ['admin.user-tags.*']],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),

@@ -85,6 +85,7 @@ use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -345,6 +346,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->whereUuid('user')
             ->whereUuid('introducedMember')
             ->name('users.introduced-members.destroy');
+
+        // User Tags & Team Member Management
+        Route::get('/user-tags', [UserTagController::class, 'index'])->name('user-tags.index');
+        Route::get('/user-tags/create', [UserTagController::class, 'create'])->name('user-tags.create');
+        Route::post('/user-tags', [UserTagController::class, 'store'])->name('user-tags.store');
+        Route::get('/user-tags/{userTag}', [UserTagController::class, 'show'])->name('user-tags.show');
+        Route::get('/user-tags/{userTag}/edit', [UserTagController::class, 'edit'])->name('user-tags.edit');
+        Route::put('/user-tags/{userTag}', [UserTagController::class, 'update'])->name('user-tags.update');
+        Route::delete('/user-tags/{userTag}', [UserTagController::class, 'destroy'])->name('user-tags.destroy');
+        Route::post('/user-tags/{userTag}/users', [UserTagController::class, 'assignUser'])->name('user-tags.users.assign');
+        Route::delete('/user-tags/{userTag}/users/{userId}', [UserTagController::class, 'removeUser'])->name('user-tags.users.remove');
+        Route::get('/user-tags/{userTag}/users-search', [UserTagController::class, 'searchUsers'])->name('user-tags.users.search');
 
         // Story Submissions Admin
         Route::get('/stories', [StorySubmissionsController::class, 'index'])->name('stories.index');
