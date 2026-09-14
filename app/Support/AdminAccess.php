@@ -482,7 +482,7 @@ class AdminAccess
 
                     $moduleSlug = match ($normalizedLabel) {
                         'dashboard' => 'dashboard',
-                        'members', 'peers', 'all members', 'member introducers', 'sponsored member milestone awards', 'login history' => 'members',
+                        'members', 'peers', 'all members', 'member introducers', 'sponsored member milestone awards', 'login history', 'user tags', 'user-tags' => 'members',
                         'activities', 'activity summary', 'testimonials', 'requirements', 'referrals', 'p2p meetings', 'business deals', 'connections', 'leadership requests', 'recommended peers', 'collaborations', 'registered visitor' => 'activities',
                         'circles', 'circle categories', 'circle join requests' => 'circles',
                         'events', 'events management', 'event gallery' => 'events',

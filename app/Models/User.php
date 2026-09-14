@@ -1270,4 +1270,41 @@ class User extends Authenticatable
 
         return min(100, max(0, $totalPercentage));
     }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            UserTag::class,
+            'user_tag_assignments',
+            'user_id',
+            'tag_id'
+        )->withTimestamps();
+    }
+
+    public function tagAssignments(): HasMany
+    {
+        return $this->hasMany(UserTagAssignment::class, 'user_id');
+    }
+
+    public function hasTag(string $slug): bool
+    {
+        return $this->tags()->where('user_tags.slug', $slug)->exists();
+    }
+
+    public function assignTag(string|UserTag $tag): void
+    {
+        $tagModel = is_string($tag) ? UserTag::where('slug', $tag)->first() : $tag;
+        if ($tagModel && ! $this->tags()->where('user_tags.id', $tagModel->id)->exists()) {
+            $this->tags()->attach($tagModel->id);
+        }
+    }
+
+    public function removeTag(string|UserTag $tag): void
+    {
+        $tagModel = is_string($tag) ? UserTag::where('slug', $tag)->first() : $tag;
+        if ($tagModel) {
+            $this->tags()->detach($tagModel->id);
+        }
+    }
 }
+
