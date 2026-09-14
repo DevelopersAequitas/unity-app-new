@@ -97,6 +97,18 @@ class UserResource extends JsonResource
                     ->exists();
             }
         }
+
+        $isPro = false;
+        if ($this->getAttribute('is_pro') !== null) {
+            $isPro = (bool) $this->getAttribute('is_pro');
+        } elseif (isset($this->is_verified) && $this->is_verified !== null && (bool) $this->is_verified) {
+            $isPro = true;
+        } elseif (method_exists($this->resource, 'isPaidMember')) {
+            $isPro = (bool) $this->resource->isPaidMember();
+        } else {
+            $status = strtolower(trim((string) ($membershipStatus ?? '')));
+            $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+        }
         if ($this->relationLoaded('city') && $this->city) {
             $resolvedCity = $this->city;
         } elseif (filled($this->getAttribute('city'))) {
@@ -248,6 +260,7 @@ class UserResource extends JsonResource
             'is_bookmark' => $isBookmark,
             'is_connected' => (bool) $isConnected,
             'is_following' => (bool) $isFollowing,
+            'is_pro' => (bool) $isPro,
             'connection_status' => $connectionStatus,
             'is_requested' => (bool) $isRequested,
             'is_other_category' => (bool) $isOtherCategory,

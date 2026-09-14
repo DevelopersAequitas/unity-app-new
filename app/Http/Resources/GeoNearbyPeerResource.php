@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\CircleCategoryLevel4;
+use App\Models\UserFollow;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -11,6 +12,39 @@ class GeoNearbyPeerResource extends JsonResource
 {
     public function toArray($request): array
     {
+        $authUser = auth('sanctum')->user() ?: ($request ? $request->user() : null);
+
+        $isFollowing = false;
+        if ($this->getAttribute('is_following') !== null) {
+            $isFollowing = (bool) $this->getAttribute('is_following');
+        } elseif ($authUser && Schema::hasTable('user_follows')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $this->id;
+            if ($authUserId !== $targetId) {
+                $isFollowing = UserFollow::query()
+                    ->where('follower_id', $authUserId)
+                    ->where('following_id', $targetId)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->exists();
+            }
+        }
+
+        $isPro = false;
+        $rawVerified = $this->is_verified ?? null;
+        if ($this->getAttribute('is_pro') !== null) {
+            $isPro = (bool) $this->getAttribute('is_pro');
+        } elseif ($rawVerified !== null && (bool) $rawVerified) {
+            $isPro = true;
+        } elseif (method_exists($this->resource, 'isPaidMember')) {
+            $isPro = (bool) $this->resource->isPaidMember();
+        } else {
+            $status = strtolower(trim((string) ($this->effective_membership_status ?? $this->membership_status ?? '')));
+            $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+        }
+
+        $isConnected = $this->connection_status === 'connected';
+        $isRequested = $this->connection_status === 'pending_sent';
+
         return [
             'id' => $this->id,
             'display_name' => $this->display_name,
@@ -26,6 +60,10 @@ class GeoNearbyPeerResource extends JsonResource
             'distance_km' => round((float) $this->distance_km, 2),
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'last_seen_at' => $this->geo_last_seen_at,
+            'is_following' => $isFollowing,
+            'is_pro' => $isPro,
+            'is_connected' => $isConnected,
+            'is_requested' => $isRequested,
             'connection_status' => $this->connection_status,
             'can_send_connection_request' => (bool) ($this->can_send_connection_request ?? true),
         ];

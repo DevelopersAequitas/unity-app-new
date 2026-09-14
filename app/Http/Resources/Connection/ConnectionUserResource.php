@@ -34,9 +34,22 @@ class ConnectionUserResource extends JsonResource
                 $isFollowing = UserFollow::query()
                     ->where('follower_id', $authUserId)
                     ->where('following_id', $targetId)
-                    ->where('status', 'accepted')
+                    ->whereIn('status', ['accepted', 'pending'])
                     ->exists();
             }
+        }
+
+        $isPro = false;
+        $rawVerified = $this->is_verified ?? null;
+        if ($this->getAttribute('is_pro') !== null) {
+            $isPro = (bool) $this->getAttribute('is_pro');
+        } elseif ($rawVerified !== null && (bool) $rawVerified) {
+            $isPro = true;
+        } elseif (method_exists($this->resource, 'isPaidMember')) {
+            $isPro = (bool) $this->resource->isPaidMember();
+        } else {
+            $status = strtolower(trim((string) ($this->effective_membership_status ?? $this->membership_status ?? '')));
+            $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
         }
 
         return [
@@ -54,8 +67,8 @@ class ConnectionUserResource extends JsonResource
             'designation' => $this->designation ?? null,
             'is_bookmark' => $isBookmark,
             'is_following' => $isFollowing,
+            'is_pro' => $isPro,
             'is_connected' => true,
         ];
     }
 }
-

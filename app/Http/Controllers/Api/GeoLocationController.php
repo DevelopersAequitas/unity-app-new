@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Resources\GeoNearbyPeerResource;
 use App\Models\Connection;
 use App\Models\User;
+use App\Models\UserFollow;
 use App\Models\UserGeoLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -253,23 +254,50 @@ class GeoLocationController extends BaseApiController
 
         $peerIds = $peers->pluck('id')->map(fn ($id) => (string) $id)->all();
 
-        $connections = Connection::query()
-            ->where(function ($query) use ($authUserId, $peerIds) {
-                $query->where('requester_id', $authUserId)
-                    ->whereIn('addressee_id', $peerIds);
-            })
-            ->orWhere(function ($query) use ($authUserId, $peerIds) {
-                $query->whereIn('requester_id', $peerIds)
-                    ->where('addressee_id', $authUserId);
-            })
-            ->get()
-            ->keyBy(function (Connection $connection) use ($authUserId) {
-                return (string) ($connection->requester_id === $authUserId
-                    ? $connection->addressee_id
-                    : $connection->requester_id);
-            });
+        $connections = collect();
+        if (Schema::hasTable('connections')) {
+            $connections = Connection::query()
+                ->where(function ($query) use ($authUserId, $peerIds) {
+                    $query->where('requester_id', $authUserId)
+                        ->whereIn('addressee_id', $peerIds);
+                })
+                ->orWhere(function ($query) use ($authUserId, $peerIds) {
+                    $query->whereIn('requester_id', $peerIds)
+                        ->where('addressee_id', $authUserId);
+                })
+                ->get()
+                ->keyBy(function (Connection $connection) use ($authUserId) {
+                    return (string) ($connection->requester_id === $authUserId
+                        ? $connection->addressee_id
+                        : $connection->requester_id);
+                });
+        }
 
-        $peers->each(function (User $peer) use ($connections, $authUserId): void {
+        $followedUserIds = [];
+        if (Schema::hasTable('user_follows')) {
+            $followedUserIds = UserFollow::query()
+                ->where('follower_id', $authUserId)
+                ->whereIn('following_id', $peerIds)
+                ->whereIn('status', ['accepted', 'pending'])
+                ->pluck('following_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
+        $peers->each(function (User $peer) use ($connections, $authUserId, $followedUserIds): void {
+            $peer->setAttribute('is_following', in_array((string) $peer->id, $followedUserIds, true));
+
+            $rawVerified = $peer->is_verified ?? null;
+            if ($rawVerified !== null && (bool) $rawVerified) {
+                $isPro = true;
+            } elseif (method_exists($peer, 'isPaidMember')) {
+                $isPro = (bool) $peer->isPaidMember();
+            } else {
+                $status = strtolower(trim((string) ($peer->effective_membership_status ?? $peer->membership_status ?? '')));
+                $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+            $peer->setAttribute('is_pro', $isPro);
+
             $connection = $connections->get((string) $peer->id);
 
             $peer->setAttribute('connection_status', null);

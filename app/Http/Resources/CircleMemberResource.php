@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\City;
+use App\Models\Connection;
 use App\Models\JoinedCircleCategory;
+use App\Models\UserFollow;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
 
@@ -23,7 +25,7 @@ class CircleMemberResource extends JsonResource
             'substitute_count' => $this->substitute_count,
             'role_id' => $this->role_id,
 
-            'user' => $this->whenLoaded('user', function () {
+            'user' => $this->whenLoaded('user', function () use ($request) {
                 $user = $this->user;
                 $cityName = $this->resolveCityName($user);
                 $categories = $this->resolveJoinedCircleCategories($user);
@@ -49,6 +51,81 @@ class CircleMemberResource extends JsonResource
                     ?? trim(($user?->first_name ?? '').' '.($user?->last_name ?? ''))
                     ?: $user?->email;
 
+                $authUser = auth('sanctum')->user() ?: ($request ? $request->user() : null);
+
+                $isFollowing = false;
+                if ($user?->getAttribute('is_following') !== null) {
+                    $isFollowing = (bool) $user->getAttribute('is_following');
+                } elseif ($authUser && $user && Schema::hasTable('user_follows')) {
+                    $authUserId = (string) $authUser->id;
+                    $targetId = (string) $user->id;
+                    if ($authUserId !== $targetId) {
+                        $isFollowing = UserFollow::query()
+                            ->where('follower_id', $authUserId)
+                            ->where('following_id', $targetId)
+                            ->whereIn('status', ['accepted', 'pending'])
+                            ->exists();
+                    }
+                }
+
+                $isPro = false;
+                if ($user) {
+                    $rawVerified = $user->is_verified ?? null;
+                    if ($rawVerified !== null && (bool) $rawVerified) {
+                        $isPro = true;
+                    } elseif (method_exists($user, 'isPaidMember')) {
+                        $isPro = (bool) $user->isPaidMember();
+                    } else {
+                        $status = strtolower(trim((string) ($user->effective_membership_status ?? $user->membership_status ?? '')));
+                        $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+                    }
+                }
+
+                $isConnected = false;
+                $connectionStatus = 'none';
+                $isRequested = false;
+                $canSendConnectionRequest = true;
+
+                if ($user?->getAttribute('is_connected') !== null) {
+                    $isConnected = (bool) $user->getAttribute('is_connected');
+                    $connectionStatus = $user->getAttribute('connection_status') ?? ($isConnected ? 'connected' : 'none');
+                    $isRequested = (bool) $user->getAttribute('is_requested');
+                    $canSendConnectionRequest = (bool) ($user->getAttribute('can_send_connection_request') ?? (! $isConnected && ! $isRequested));
+                } elseif ($authUser && $user && Schema::hasTable('connections')) {
+                    $authUserId = (string) $authUser->id;
+                    $targetId = (string) $user->id;
+                    if ($authUserId === $targetId) {
+                        $connectionStatus = 'self';
+                        $canSendConnectionRequest = false;
+                    } else {
+                        $connection = Connection::query()
+                            ->where(function ($q) use ($authUserId, $targetId) {
+                                $q->where('requester_id', $authUserId)->where('addressee_id', $targetId);
+                            })
+                            ->orWhere(function ($q) use ($authUserId, $targetId) {
+                                $q->where('addressee_id', $authUserId)->where('requester_id', $targetId);
+                            })
+                            ->first();
+
+                        if ($connection) {
+                            $isConnected = (bool) $connection->is_approved;
+                            $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+                            $connectionStatus = $isConnected
+                                ? 'connected'
+                                : ($isRequested ? 'pending_sent' : 'pending_received');
+                            $canSendConnectionRequest = false;
+                        }
+                    }
+                }
+
+                $isBookmark = false;
+                if ($authUser && $user) {
+                    $bookmarks = $authUser->bookmarks ?? [];
+                    if (is_array($bookmarks)) {
+                        $isBookmark = in_array((string) $user->id, $bookmarks, true);
+                    }
+                }
+
                 return [
                     'id' => $user?->id,
                     'name' => $name,
@@ -66,6 +143,13 @@ class CircleMemberResource extends JsonResource
                     'membership_status' => $user?->membership_status ?? null,
                     'life_impacted_count' => (int) ($user?->life_impacted_count ?? 0),
                     'is_active' => $user?->is_active ?? null,
+                    'is_following' => $isFollowing,
+                    'is_pro' => $isPro,
+                    'is_connected' => $isConnected,
+                    'is_bookmark' => $isBookmark,
+                    'connection_status' => $connectionStatus,
+                    'is_requested' => $isRequested,
+                    'can_send_connection_request' => $canSendConnectionRequest,
                     'profile_photo_file_id' => $photoFileId,
                     'profile_photo_url' => $photoUrl,
                     'designation' => $user?->designation ?? null,

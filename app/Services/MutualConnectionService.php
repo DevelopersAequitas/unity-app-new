@@ -53,24 +53,32 @@ class MutualConnectionService
             ]);
         }
 
+        $columns = [
+            'users.id',
+            'users.first_name',
+            'users.last_name',
+            'users.display_name',
+            'users.company_name',
+            'users.designation',
+            'users.profile_photo_file_id',
+            'users.profile_photo_url',
+            'users.city_id',
+            'users.city',
+            'users.status',
+            'users.membership_status',
+            'users.deleted_at',
+        ];
+
+        foreach (['business_type', 'company_type', 'business_category_id', 'business_sub_category', 'life_impacted_count', 'coins_balance', 'is_verified'] as $optionalCol) {
+            if (Schema::hasColumn('users', $optionalCol)) {
+                $columns[] = 'users.'.$optionalCol;
+            }
+        }
+
         $query = User::query()
-            ->select([
-                'users.id',
-                'users.first_name',
-                'users.last_name',
-                'users.display_name',
-                'users.company_name',
-                'users.designation',
-                'users.profile_photo_file_id',
-                'users.profile_photo_url',
-                'users.city_id',
-                'users.city',
-                'users.status',
-                'users.membership_status',
-                'users.deleted_at',
-            ])
+            ->select($columns)
             ->selectRaw("COALESCE(NULLIF(users.display_name, ''), TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, ''))) AS sort_name")
-            ->with('city:id,name')
+            ->with(['city:id,name', 'level4Category:id,name'])
             ->whereIn('users.id', $finalMutualIds)
             ->whereNull('users.deleted_at')
             ->when(Schema::hasColumn('users', 'gdpr_deleted_at'), function (Builder $query): void {

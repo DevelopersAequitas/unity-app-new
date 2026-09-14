@@ -508,12 +508,13 @@ class MemberController extends BaseApiController
     {
         $userCollection = $users instanceof Collection ? $users : collect($users);
 
-        if (! $authUser || $userCollection->isEmpty() || ! Schema::hasTable('connections')) {
+        if (! $authUser || $userCollection->isEmpty()) {
             $userCollection->each(function (User $user): void {
                 $user->setAttribute('is_connected', false);
                 $user->setAttribute('connection_status', null);
                 $user->setAttribute('is_requested', false);
                 $user->setAttribute('can_send_connection_request', true);
+                $user->setAttribute('is_following', false);
             });
 
             return;
@@ -522,23 +523,50 @@ class MemberController extends BaseApiController
         $authUserId = (string) $authUser->id;
         $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
 
-        $connections = Connection::query()
-            ->where(function ($q) use ($authUserId, $userIds): void {
-                $q->where('requester_id', $authUserId)
-                    ->whereIn('addressee_id', $userIds);
-            })
-            ->orWhere(function ($q) use ($authUserId, $userIds): void {
-                $q->where('addressee_id', $authUserId)
-                    ->whereIn('requester_id', $userIds);
-            })
-            ->get()
-            ->keyBy(function (Connection $connection) use ($authUserId): string {
-                return (string) ((string) $connection->requester_id === $authUserId
-                    ? $connection->addressee_id
-                    : $connection->requester_id);
-            });
+        $connections = collect();
+        if (Schema::hasTable('connections')) {
+            $connections = Connection::query()
+                ->where(function ($q) use ($authUserId, $userIds): void {
+                    $q->where('requester_id', $authUserId)
+                        ->whereIn('addressee_id', $userIds);
+                })
+                ->orWhere(function ($q) use ($authUserId, $userIds): void {
+                    $q->where('addressee_id', $authUserId)
+                        ->whereIn('requester_id', $userIds);
+                })
+                ->get()
+                ->keyBy(function (Connection $connection) use ($authUserId): string {
+                    return (string) ((string) $connection->requester_id === $authUserId
+                        ? $connection->addressee_id
+                        : $connection->requester_id);
+                });
+        }
 
-        $userCollection->each(function (User $user) use ($connections, $authUserId): void {
+        $followedUserIds = [];
+        if (Schema::hasTable('user_follows')) {
+            $followedUserIds = UserFollow::query()
+                ->where('follower_id', $authUserId)
+                ->whereIn('following_id', $userIds)
+                ->whereIn('status', ['accepted', 'pending'])
+                ->pluck('following_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
+        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds): void {
+            $user->setAttribute('is_following', in_array((string) $user->id, $followedUserIds, true));
+
+            $rawVerified = $user->is_verified ?? null;
+            if ($rawVerified !== null && (bool) $rawVerified) {
+                $isPro = true;
+            } elseif (method_exists($user, 'isPaidMember')) {
+                $isPro = (bool) $user->isPaidMember();
+            } else {
+                $status = strtolower(trim((string) ($user->effective_membership_status ?? $user->membership_status ?? '')));
+                $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+            $user->setAttribute('is_pro', $isPro);
+
             $connection = $connections->get((string) $user->id);
 
             if (! $connection) {

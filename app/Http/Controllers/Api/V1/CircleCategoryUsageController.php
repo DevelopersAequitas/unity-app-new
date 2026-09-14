@@ -13,6 +13,7 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\Connection;
 use App\Models\JoinedCircleCategory;
 use App\Models\User;
+use App\Models\UserFollow;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -695,27 +696,41 @@ class CircleCategoryUsageController extends Controller
         $connectedUserIds = [];
         $pendingSentUserIds = [];
         $pendingReceivedUserIds = [];
+        $followedUserIds = [];
 
-        if ($authUser && $allUserIds !== [] && Schema::hasTable('connections')) {
+        if ($authUser && $allUserIds !== []) {
             $authUserId = (string) $authUser->id;
-            $connections = Connection::query()
-                ->where(function ($q) use ($authUserId, $allUserIds) {
-                    $q->where('requester_id', $authUserId)->whereIn('addressee_id', $allUserIds);
-                })
-                ->orWhere(function ($q) use ($authUserId, $allUserIds) {
-                    $q->where('addressee_id', $authUserId)->whereIn('requester_id', $allUserIds);
-                })
-                ->get();
 
-            foreach ($connections as $conn) {
-                $otherId = (string) ((string) $conn->requester_id === $authUserId ? $conn->addressee_id : $conn->requester_id);
-                if ($conn->is_approved) {
-                    $connectedUserIds[$otherId] = true;
-                } elseif ((string) $conn->requester_id === $authUserId) {
-                    $pendingSentUserIds[$otherId] = true;
-                } else {
-                    $pendingReceivedUserIds[$otherId] = true;
+            if (Schema::hasTable('connections')) {
+                $connections = Connection::query()
+                    ->where(function ($q) use ($authUserId, $allUserIds) {
+                        $q->where('requester_id', $authUserId)->whereIn('addressee_id', $allUserIds);
+                    })
+                    ->orWhere(function ($q) use ($authUserId, $allUserIds) {
+                        $q->where('addressee_id', $authUserId)->whereIn('requester_id', $allUserIds);
+                    })
+                    ->get();
+
+                foreach ($connections as $conn) {
+                    $otherId = (string) ((string) $conn->requester_id === $authUserId ? $conn->addressee_id : $conn->requester_id);
+                    if ($conn->is_approved) {
+                        $connectedUserIds[$otherId] = true;
+                    } elseif ((string) $conn->requester_id === $authUserId) {
+                        $pendingSentUserIds[$otherId] = true;
+                    } else {
+                        $pendingReceivedUserIds[$otherId] = true;
+                    }
                 }
+            }
+
+            if (Schema::hasTable('user_follows')) {
+                $followedUserIds = UserFollow::query()
+                    ->where('follower_id', $authUserId)
+                    ->whereIn('following_id', $allUserIds)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->pluck('following_id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->all();
             }
         }
 
@@ -743,6 +758,20 @@ class CircleCategoryUsageController extends Controller
             $isBookmarked = $userId ? in_array($userId, $bookmarks, true) : false;
             $isConnected = $userId ? isset($connectedUserIds[$userId]) : false;
             $isRequested = $userId ? isset($pendingSentUserIds[$userId]) : false;
+            $isFollowing = $userId ? in_array($userId, $followedUserIds, true) : false;
+
+            $isPro = false;
+            if ($u) {
+                $rawVerified = $u->is_verified ?? null;
+                if ($rawVerified !== null && (bool) $rawVerified) {
+                    $isPro = true;
+                } elseif (method_exists($u, 'isPaidMember')) {
+                    $isPro = (bool) $u->isPaidMember();
+                } else {
+                    $status = strtolower(trim((string) ($u->effective_membership_status ?? $u->membership_status ?? '')));
+                    $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+                }
+            }
 
             $connectionStatus = 'none';
             if ($authUser && $userId === (string) $authUser->id) {
@@ -767,14 +796,15 @@ class CircleCategoryUsageController extends Controller
                 'avatar_url' => $profilePhotoUrl,
                 'designation' => $u?->designation ?? null,
                 'company_name' => $u?->company_name ?? null,
-                'level4_category' => $l4CategoryName,
-                'business_sub_category' => $l4CategoryName,
-                'city' => $cityName,
+                'level4_category' => $l4CategoryName, 'city' => $cityName,
                 'impact_count' => (int) ($u?->life_impacted_count ?? 0),
                 'is_connected' => $isConnected,
                 'is_bookmarked' => $isBookmarked,
+                'is_following' => $isFollowing,
+                'is_pro' => $isPro,
                 'is_requested' => $isRequested,
                 'connection_status' => $connectionStatus,
+                'can_send_connection_request' => ! $isConnected && ! $isRequested && ($connectionStatus !== 'self'),
                 'occupied_at' => $occupiedAt,
             ];
 
