@@ -327,8 +327,9 @@ class CircleCategoryUsageController extends Controller
         $closedCategories = $closedLevel4Records->map(function (CircleCategoryLevel4 $row) use ($closedMap): array {
             $peers = $closedMap[$row->id] ?? [];
             $formattedPeers = array_map(function (array $peer) use ($row): array {
-                $peer['category'] = $row->name;
                 $peer['level4_category'] = $row->name;
+                $peer['business_sub_category'] = $row->name;
+                $peer['category'] = $row->name;
                 $peer['category_name'] = $row->name;
 
                 return $peer;
@@ -666,6 +667,7 @@ class CircleCategoryUsageController extends Controller
                     'display_name',
                     'company_name',
                     'designation',
+                    'business_sub_category',
                     'profile_photo_url',
                     'profile_photo_file_id',
                     'city',
@@ -673,6 +675,15 @@ class CircleCategoryUsageController extends Controller
                     'life_impacted_count',
                 ])
                 ->keyBy(fn ($u) => (string) $u->id);
+        }
+
+        $allL4Ids = array_values(array_unique(array_filter(array_column($rawOccupancies, 'l4_id'))));
+        $l4CategoryNames = [];
+        if ($allL4Ids !== []) {
+            $l4CategoryNames = CircleCategoryLevel4::query()
+                ->whereIn('id', $allL4Ids)
+                ->pluck('name', 'id')
+                ->all();
         }
 
         $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
@@ -744,6 +755,8 @@ class CircleCategoryUsageController extends Controller
                 $connectionStatus = 'pending_received';
             }
 
+            $l4CategoryName = $l4CategoryNames[$l4Id] ?? ($u?->business_sub_category ?? null);
+
             $peerData = [
                 'user_id' => $userId,
                 'user_name' => $userName !== '' ? $userName : null,
@@ -754,6 +767,8 @@ class CircleCategoryUsageController extends Controller
                 'avatar_url' => $profilePhotoUrl,
                 'designation' => $u?->designation ?? null,
                 'company_name' => $u?->company_name ?? null,
+                'level4_category' => $l4CategoryName,
+                'business_sub_category' => $l4CategoryName,
                 'city' => $cityName,
                 'impact_count' => (int) ($u?->life_impacted_count ?? 0),
                 'is_connected' => $isConnected,
