@@ -84,7 +84,7 @@
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Company</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">City</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[160px]">Circle</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[200px]">Category</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[180px]">Reason for Joining</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
@@ -100,8 +100,12 @@
                             $peerName = $peer ? ($peer->display_name ?: trim(($peer->first_name ?? '') . ' ' . ($peer->last_name ?? ''))) : '—';
                             $peerCompany = $peer->company_name ?? $peer->company ?? $peer->business_name ?? '—';
                             $peerCity = $peer->city ?? '—';
-                            $peerCircles = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
-                            $peerCircle = $peerCircles !== '' ? $peerCircles : '—';
+                            
+                            $allPeerCirclesList = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->values() : collect();
+                            $peerCircleCount = $allPeerCirclesList->count();
+                            $peerCircleFirst = $peerCircleCount > 0 ? $allPeerCirclesList->first() : '—';
+                            $peerCircleFull = $peerCircleCount > 0 ? $allPeerCirclesList->implode(', ') : '—';
+
                             $categoryName = $row->circleCategory ? $row->circleCategory->name : '—';
                             $categoryId = $row->circleCategory ? $row->circleCategory->id : '';
                             $st = strtolower((string)$row->status);
@@ -117,7 +121,7 @@
                                 'peerId' => $peer?->id,
                                 'peerCompany' => $peerCompany,
                                 'peerCity' => $peerCity,
-                                'peerCircle' => $peerCircle,
+                                'peerCircle' => $peerCircleFull,
                                 'category' => $categoryName,
                                 'categoryId' => $categoryId,
                                 'reason' => $reasonText !== '' ? $reasonText : '—',
@@ -155,7 +159,22 @@
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
-                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCircle }}</td>
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[220px]">
+                                @if ($peerCircleCount > 0)
+                                    <div class="flex items-center gap-1.5 flex-wrap max-w-[220px]">
+                                        <span class="inline-block font-medium text-slate-700 max-w-[170px] truncate" title="{{ $peerCircleFull }}">
+                                            {{ $peerCircleFirst }}
+                                        </span>
+                                        @if ($peerCircleCount > 1)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0 cursor-help" title="{{ $peerCircleFull }}">
+                                                +{{ $peerCircleCount - 1 }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="t3">—</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2.5 text-xs t2 min-w-[200px] whitespace-normal">
                                 @if($row->circleCategory)
                                     <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] leading-tight" title="{{ $row->circleCategory->name }}">
