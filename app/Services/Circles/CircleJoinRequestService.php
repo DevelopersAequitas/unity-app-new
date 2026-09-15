@@ -40,17 +40,11 @@ class CircleJoinRequestService
                 ]);
             }
 
-            $duplicateRequest = CircleJoinRequest::query()
+            $existingRequest = CircleJoinRequest::query()
                 ->where('user_id', $user->id)
                 ->where('circle_id', $circle->id)
                 ->whereIn('status', CircleJoinRequest::ACTIVE_STATUSES)
-                ->exists();
-
-            if ($duplicateRequest) {
-                throw ValidationException::withMessages([
-                    'circle_id' => ['You already have an active join request for this circle.'],
-                ]);
-            }
+                ->first();
 
             $payload = [
                 'user_id' => $user->id,
@@ -88,6 +82,13 @@ class CircleJoinRequestService
                 $payload['notes'] = array_filter([
                     'category_selection' => array_filter($selection, fn ($value) => $value !== null),
                 ]);
+            }
+
+            if ($existingRequest) {
+                $existingRequest->fill($payload);
+                $existingRequest->save();
+
+                return $existingRequest;
             }
 
             return CircleJoinRequest::query()->create($payload);
