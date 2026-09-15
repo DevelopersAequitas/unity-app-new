@@ -212,17 +212,20 @@ class CircleJoinRequestPaymentSyncService
     {
         try {
             $currentStatus = (string) ($user->membership_status ?? '');
+            $normalizedStatus = strtolower(trim(str_replace(' ', '_', $currentStatus)));
 
             // Keep Unity/other non-circle statuses untouched.
             $allowedToOverride = [
                 '',
-                User::STATUS_FREE,
-                User::STATUS_FREE_TRIAL,
-                'Circle Peer',
-                'Multi Circle Peer',
+                'free_peer',
+                'free_trial_peer',
+                'circle_peer',
+                'multi_circle_peer',
+                'only_unity_peer',
+                'global_peer',
             ];
 
-            if (! in_array($currentStatus, $allowedToOverride, true)) {
+            if (! in_array($normalizedStatus, $allowedToOverride, true)) {
                 return;
             }
 
@@ -234,15 +237,23 @@ class CircleJoinRequestPaymentSyncService
                 ->whereNull('left_at')
                 ->where(function ($query): void {
                     $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+
+                    if (Schema::hasColumn('circle_members', 'expires_at')) {
+                        $query->orWhere('expires_at', '>=', now());
+                    }
                 })
                 ->count();
 
             if ($activeCircleCount <= 0) {
+                if (in_array($normalizedStatus, ['circle_peer', 'multi_circle_peer'], true)) {
+                    $user->forceFill(['membership_status' => User::STATUS_FREE])->save();
+                }
+
                 return;
             }
 
-            $nextStatus = $activeCircleCount > 1 ? 'Multi Circle Peer' : 'Circle Peer';
-            if ($currentStatus !== $nextStatus) {
+            $nextStatus = $activeCircleCount > 1 ? 'multi_circle_peer' : 'circle_peer';
+            if ($normalizedStatus !== $nextStatus) {
                 $user->forceFill(['membership_status' => $nextStatus])->save();
             }
         } catch (Throwable $exception) {

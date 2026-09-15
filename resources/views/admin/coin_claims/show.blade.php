@@ -79,9 +79,54 @@
             @endif
         </div>
 
-        <!-- Attached Files -->
+        <!-- Attached Files & Media -->
         <div class="p-5 rounded-xl border bs surface space-y-3 shadow-sm">
-            <h3 class="font-display font-semibold text-xs text-indigo-500 uppercase tracking-wider m-0">Files</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-500 uppercase tracking-wider m-0">Files & Media</h3>
+            @php
+                $feedbackVideoRef = data_get($claim->payload, 'feedback_video')
+                    ?? ($files['feedback_video'] ?? ($fields['feedback_video'] ?? ($fields['feedback_video_url'] ?? null)));
+                $isVideoUrl = $feedbackVideoRef && filter_var($feedbackVideoRef, FILTER_VALIDATE_URL);
+                $isVideoUuid = $feedbackVideoRef && \Illuminate\Support\Str::isUuid($feedbackVideoRef);
+            @endphp
+
+            @if($feedbackVideoRef)
+                <div class="p-4 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                            <span>🎥</span> Feedback Video
+                        </span>
+                        @if($isVideoUrl)
+                            <a href="{{ $feedbackVideoRef }}" target="_blank" class="px-3 py-1 text-xs font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition no-underline inline-flex items-center gap-1">
+                                Open Video Link ↗
+                            </a>
+                        @elseif($isVideoUuid)
+                            <a href="{{ url('/api/v1/files/' . $feedbackVideoRef) }}" target="_blank" class="px-3 py-1 text-xs font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition no-underline inline-flex items-center gap-1">
+                                View / Download Video ↗
+                            </a>
+                        @else
+                            <a href="{{ url($feedbackVideoRef) }}" target="_blank" class="px-3 py-1 text-xs font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition no-underline inline-flex items-center gap-1">
+                                View Video Reference ↗
+                            </a>
+                        @endif
+                    </div>
+                    @if($isVideoUuid)
+                        <div class="pt-2">
+                            <video controls class="max-h-64 rounded-lg border bs bg-black w-full max-w-lg">
+                                <source src="{{ url('/api/v1/files/' . $feedbackVideoRef) }}">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                    @elseif($isVideoUrl && preg_match('/\.(mp4|webm|ogg|mov)$/i', $feedbackVideoRef))
+                        <div class="pt-2">
+                            <video controls class="max-h-64 rounded-lg border bs bg-black w-full max-w-lg">
+                                <source src="{{ $feedbackVideoRef }}">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             @if(count($files) > 0)
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     @foreach ($files as $key => $fileId)
@@ -93,7 +138,7 @@
                         </div>
                     @endforeach
                 </div>
-            @else
+            @elseif(! $feedbackVideoRef)
                 <div class="text-xs t3 py-2">—</div>
             @endif
         </div>
