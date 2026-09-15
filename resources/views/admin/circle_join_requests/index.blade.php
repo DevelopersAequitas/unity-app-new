@@ -76,21 +76,21 @@
         </form>
     </div>
 
-    <div class="rounded-xl border bs surface overflow-hidden shadow-sm">
+    <div class="rounded-xl border bs surface overflow-hidden">
         <div class="overflow-x-auto relative">
-            <table class="min-w-[1200px] w-full border-collapse text-[13px] align-middle">
+            <table class="w-full border-collapse text-[13px] align-middle">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:140px;">Company</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:110px;">City</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:150px;">Circle</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:180px;">Category</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:180px;">Reason for Joining</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:150px;">Status</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:140px;">DED Approval</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:110px;">Payment</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-center whitespace-nowrap" style="min-width:160px;">Actions</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">City</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[160px]">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[200px]">Category</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[180px]">Reason for Joining</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">DED Approval</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Payment</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -100,8 +100,12 @@
                             $peerName = $peer ? ($peer->display_name ?: trim(($peer->first_name ?? '') . ' ' . ($peer->last_name ?? ''))) : '—';
                             $peerCompany = $peer->company_name ?? $peer->company ?? $peer->business_name ?? '—';
                             $peerCity = $peer->city ?? '—';
-                            $peerCircles = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
-                            $peerCircle = $peerCircles !== '' ? $peerCircles : '—';
+                            
+                            $allPeerCirclesList = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->values() : collect();
+                            $peerCircleCount = $allPeerCirclesList->count();
+                            $peerCircleFirst = $peerCircleCount > 0 ? $allPeerCirclesList->first() : '—';
+                            $peerCircleFull = $peerCircleCount > 0 ? $allPeerCirclesList->implode(', ') : '—';
+
                             $categoryName = $row->circleCategory ? $row->circleCategory->name : '—';
                             $categoryId = $row->circleCategory ? $row->circleCategory->id : '';
                             $st = strtolower((string)$row->status);
@@ -117,7 +121,7 @@
                                 'peerId' => $peer?->id,
                                 'peerCompany' => $peerCompany,
                                 'peerCity' => $peerCity,
-                                'peerCircle' => $peerCircle,
+                                'peerCircle' => $peerCircleFull,
                                 'category' => $categoryName,
                                 'categoryId' => $categoryId,
                                 'reason' => $reasonText !== '' ? $reasonText : '—',
@@ -139,10 +143,10 @@
                             ];
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openRequestRowModal({{ json_encode($rowData) }})" title="Click row to view full request details">
-                            <td class="px-4 py-3 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                            <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 @if ($peer)
-                                    <div class="flex items-center gap-2.5 whitespace-nowrap">
-                                        <div class="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 shadow-sm" style="background-color: {{ $getAvatarBg($peerName) }}">
+                                    <div class="flex items-center gap-2 whitespace-nowrap">
+                                        <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
                                             {{ $getInitials($peerName) }}
                                         </div>
                                         <span class="text-indigo-600 font-semibold hover:underline no-underline whitespace-nowrap">
@@ -153,39 +157,54 @@
                                     <span class="t3 whitespace-nowrap">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
-                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
-                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCircle }}</td>
-                            <td class="px-4 py-3 text-xs t2">
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[220px]">
+                                @if ($peerCircleCount > 0)
+                                    <div class="flex items-center gap-1.5 flex-wrap max-w-[220px]">
+                                        <span class="inline-block font-medium text-slate-700 max-w-[170px] truncate" title="{{ $peerCircleFull }}">
+                                            {{ $peerCircleFirst }}
+                                        </span>
+                                        @if ($peerCircleCount > 1)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0 cursor-help" title="{{ $peerCircleFull }}">
+                                                +{{ $peerCircleCount - 1 }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="t3">—</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 min-w-[200px] whitespace-normal">
                                 @if($row->circleCategory)
-                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] whitespace-normal" title="{{ $row->circleCategory->name }}">
+                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] leading-tight" title="{{ $row->circleCategory->name }}">
                                         Category: {{ $row->circleCategory->name }}
                                     </div>
-                                    <div class="t3 text-[10px] mt-0.5 font-mono">ID: {{ $row->circleCategory->id }}</div>
+                                    <div class="t3 text-[10px] mt-0.5">ID: {{ $row->circleCategory->id }}</div>
                                 @else
                                     <div class="t3">—</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs t2">
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[220px]">
                                 @if(!empty($row->reason_for_joining))
-                                    <span class="font-medium text-slate-700" title="{{ $row->reason_for_joining }}">
-                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 40) }}
+                                    <span class="font-medium text-slate-700 block truncate" title="{{ $row->reason_for_joining }}">
+                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 35) }}
                                     </span>
                                 @else
                                     <span class="t3">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                 @if(str_contains($st, 'approved') || $st === 'circle_member')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ $statusLabel }}
                                     </span>
                                 @elseif(str_contains($st, 'rejected'))
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ $statusLabel }}
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ $statusLabel }}
                                     </span>
                                 @endif
@@ -202,60 +221,60 @@
                                     <div class="t3 text-[10px] text-emerald-600 mt-0.5">Payment completed</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                 @if($dedApprovalStatus === 'approved')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
                                     </span>
                                     <div class="t3 text-[10px] text-emerald-600 mt-0.5">Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : ' by DED' }}</div>
                                 @elseif($dedApprovalStatus === 'rejected')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Rejected
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Pending
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                 @if($paymentStatus === 'Paid')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Paid
                                     </span>
                                 @elseif($paymentStatus === 'Unpaid')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Unpaid
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ $paymentStatus }}
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs text-center whitespace-nowrap" onclick="event.stopPropagation()">
+                            <td class="px-3 py-2.5 text-xs text-center whitespace-nowrap" onclick="event.stopPropagation()">
                                 <div class="flex justify-center gap-1.5 items-center whitespace-nowrap">
                                     <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
                                     @if($row->can_approve_cd)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
 
                                     @if($row->can_approve_id)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
 
                                     @if($row->can_approve_ded)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="text-center py-8 text-xs t3 whitespace-nowrap">No requests found.</td></tr>
+                        <tr><td colspan="11" class="text-center py-8 text-xs t3 whitespace-nowrap">No requests found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -330,7 +349,7 @@
                 </form>
 
                 <!-- Dynamic Reject Form -->
-                <form id="modalRejectForm" method="POST" action="" class="inline" onsubmit="const r = prompt('Enter rejection reason:'); if (!r || !r.trim()) { return false; } document.getElementById('modalRejectReasonInput').value = r.trim(); return true;">
+                <form id="modalRejectForm" method="POST" action="" class="inline" onsubmit="const input = document.getElementById('modalRejectReasonInput'); const label = input.name === 'remarks' ? 'Enter rejection remarks (required):' : 'Enter rejection reason (required):'; const r = prompt(label); if (!r || !r.trim()) { return false; } input.value = r.trim(); return true;">
                     @csrf
                     <input type="hidden" name="reason" id="modalRejectReasonInput">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition shadow-sm cursor-pointer flex items-center gap-1.5">
@@ -388,15 +407,15 @@
             payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200';
         }
 
-        // Action Forms (Approve / Reject in popup modal)
+        // Action Forms (Approve / Reject URLs dynamically set if user can act)
         const approveForm = document.getElementById('modalApproveForm');
         const rejectForm = document.getElementById('modalRejectForm');
         const rejectInput = document.getElementById('modalRejectReasonInput');
 
-        let canAct = false;
         let approveUrl = '';
         let rejectUrl = '';
         let rejectField = 'reason';
+        let canAct = false;
 
         if (data.canApproveDed) {
             approveUrl = data.approveDedUrl;
@@ -415,13 +434,15 @@
             canAct = true;
         }
 
-        if (canAct && approveUrl) {
+        if (canAct && approveUrl && rejectUrl) {
             approveForm.action = approveUrl;
             rejectForm.action = rejectUrl;
             rejectInput.name = rejectField;
             approveForm.classList.remove('hidden');
             rejectForm.classList.remove('hidden');
         } else {
+            approveForm.action = '';
+            rejectForm.action = '';
             approveForm.classList.add('hidden');
             rejectForm.classList.add('hidden');
         }
