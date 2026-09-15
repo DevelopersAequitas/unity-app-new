@@ -164,6 +164,9 @@
                     <div>
                         <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Circle Name</span>
                         <h3 class="font-bold text-base t1 m-0">{{ $record->circle?->name ?? '—' }}</h3>
+                        @if($record->circle?->id)
+                            <span class="block text-[11px] font-mono t3 mt-0.5">{{ $record->circle->id }}</span>
+                        @endif
                         @if($record->circle?->template)
                             <span class="inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded bg-gray-100 text-gray-600 border border-gray-200">
                                 Template: {{ $record->circle->template->name }} ({{ $record->circle->template->slug }})
