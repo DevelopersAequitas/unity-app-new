@@ -993,8 +993,41 @@ class AuthController extends BaseApiController
         }
     }
 
-    public function login(Request $request)
+    public function login(Request $request, ?OtpService $otpService = null)
     {
+        $hasPassword = $request->filled('password');
+        $hasOtp = $request->filled('otp');
+
+        // If email provided without password and without otp, trigger OTP send (seamless OTP login flow)
+        if (! $hasPassword && ! $hasOtp && $request->filled('email')) {
+            $otpService = $otpService ?? app(OtpService::class);
+            $result = $otpService->requestOtp(
+                (string) $request->input('email'),
+                (string) ($request->input('channel') ?? 'email'),
+                $request->ip()
+            );
+
+            $response = [
+                'success' => $result['success'],
+                'message' => $result['message'],
+            ];
+
+            if (isset($result['error_code'])) {
+                $response['error_code'] = $result['error_code'];
+            }
+
+            if (array_key_exists('data', $result)) {
+                $response['data'] = $result['data'];
+            }
+
+            return response()->json($response, $result['status']);
+        }
+
+        // If otp is provided, verify OTP and log in
+        if ($hasOtp) {
+            return $this->verifyOtp($request);
+        }
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],

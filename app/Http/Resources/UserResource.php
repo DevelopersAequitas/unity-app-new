@@ -37,13 +37,20 @@ class UserResource extends JsonResource
         $profileVideoUrl = $this->resolveProfileVideoUrl();
 
         $circleMemberships = $this->resolveCircleMemberships();
-        $isMultiCircle = count($circleMemberships) > 1;
+        $circleCount = count($circleMemberships);
+        $isMultiCircle = $circleCount > 1;
 
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
         $normalizedStatus = strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)));
 
-        if ($isMultiCircle && in_array($normalizedStatus, ['free_peer', 'free_trial_peer', 'circle_peer', 'multi_circle_peer', ''], true)) {
-            $membershipStatus = 'multi_circle_peer';
+        if (in_array($normalizedStatus, ['free_peer', 'free_trial_peer', 'circle_peer', 'multi_circle_peer', 'only_unity_peer', 'global_peer', ''], true)) {
+            if ($circleCount > 1) {
+                $membershipStatus = 'multi_circle_peer';
+            } elseif ($circleCount === 1) {
+                $membershipStatus = 'circle_peer';
+            } elseif (in_array($normalizedStatus, ['circle_peer', 'multi_circle_peer'], true)) {
+                $membershipStatus = 'free_peer';
+            }
         }
 
         $resolvedCircle = $this->resolvePrimaryCircleContext();

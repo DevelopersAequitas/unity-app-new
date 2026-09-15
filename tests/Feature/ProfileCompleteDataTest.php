@@ -762,7 +762,9 @@ class ProfileCompleteDataTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.membership_status', 'free_peer')
+            ->assertJsonPath('data.membership_status', 'circle_peer')
+            ->assertJsonPath('data.membership_status_label', 'Circle Peer')
+            ->assertJsonPath('data.is_multi_circle_peer', false)
             ->assertJsonPath('data.circle_memberships.0.circle_id', $circleId)
             ->assertJsonPath('data.circle_memberships.0.circle_name', 'Ahmedabad tech')
             ->assertJsonPath('data.circle_memberships.0.selected_category_path.level1.id', $cat1Id)
@@ -841,5 +843,83 @@ class ProfileCompleteDataTest extends TestCase
             ->assertJsonPath('data.is_multi_circle_peer', true);
 
         $this->assertCount(2, $response->json('data.circle_memberships'));
+    }
+
+    public function test_global_peer_transitions_to_circle_peer_when_joined_to_circle(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'membership_status' => 'Only Unity Peer',
+        ]);
+
+        $circleId = (string) Str::uuid();
+        DB::table('circles')->insert([
+            'id' => $circleId,
+            'name' => 'Ahmedabad Investors Circle',
+            'slug' => 'ahmedabad-investors-circle',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circleId,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'joined_at' => now(),
+            'paid_starts_at' => now(),
+            'paid_ends_at' => now()->addYear(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/profile');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.membership_status', 'circle_peer')
+            ->assertJsonPath('data.membership_status_label', 'Circle Peer')
+            ->assertJsonPath('data.is_multi_circle_peer', false);
+    }
+
+    public function test_chartered_peer_preserves_status_when_joined_to_circle(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'membership_status' => 'chartered_peer',
+        ]);
+
+        $circleId = (string) Str::uuid();
+        DB::table('circles')->insert([
+            'id' => $circleId,
+            'name' => 'Ahmedabad Investors Circle',
+            'slug' => 'ahmedabad-investors-circle',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circleId,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'joined_at' => now(),
+            'paid_starts_at' => now(),
+            'paid_ends_at' => now()->addYear(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/profile');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.membership_status', 'chartered_peer')
+            ->assertJsonPath('data.membership_status_label', 'Premium Green Member')
+            ->assertJsonPath('data.is_multi_circle_peer', false);
     }
 }
