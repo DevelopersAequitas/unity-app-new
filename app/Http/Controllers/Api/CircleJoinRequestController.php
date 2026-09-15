@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
@@ -42,15 +43,43 @@ class CircleJoinRequestController extends BaseApiController
                 ->value('circle_id');
         }
 
+        if (! $circleId && $categoryId && Schema::hasTable('circle_categories')) {
+            $category = DB::table('circle_categories')->where('id', $categoryId)->first();
+            if ($category) {
+                $cleanName = trim(preg_replace('/\s+Circles?\b/i', '', (string) $category->name));
+                $matchedCircle = Circle::query()
+                    ->where(function ($q) use ($category, $cleanName) {
+                        $q->where('slug', $category->slug)
+                            ->orWhere('name', $category->name)
+                            ->orWhere('name', 'like', '%' . $cleanName . '%');
+                    })
+                    ->first();
+
+                if (! $matchedCircle) {
+                    $matchedCircle = new Circle();
+                    $matchedCircle->id = (string) Str::uuid();
+                    $matchedCircle->name = (string) $category->name;
+                    $matchedCircle->slug = (string) ($category->slug ?: Str::slug($category->name));
+                    $matchedCircle->status = 'active';
+                    $matchedCircle->type = 'public';
+                    $matchedCircle->save();
+                }
+
+                $circleId = $matchedCircle->id;
+                if (Schema::hasTable('circle_category_mappings')) {
+                    DB::table('circle_category_mappings')->insertOrIgnore([
+                        'category_id' => $categoryId,
+                        'circle_id' => $circleId,
+                    ]);
+                }
+            }
+        }
+
         if (! $circleId) {
-            return $this->error('Could not find active Circle for the given category.', 422);
+            return $this->error('Could not find or create Circle for the given category.', 422);
         }
 
         $circle = Circle::query()->where('id', $circleId)->firstOrFail();
-
-        if ($circle->status !== 'active') {
-            return $this->error('Circle is not active.', 422);
-        }
 
         try {
             $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
