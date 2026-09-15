@@ -1025,7 +1025,7 @@ class DedApiService
                 throw ValidationException::withMessages(['status' => ['DED approval is only available while pending CD approval.']]);
             }
             $record->ded_approval_status = 'approved';
-            $record->ded_approved_by = $actor->id;
+            $record->ded_approved_by = $admin->id ?? $actor->id;
             $record->ded_approved_at = now();
             $record->status = CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE;
             if (Schema::hasColumn('circle_join_requests', 'fee_marked_at')) {

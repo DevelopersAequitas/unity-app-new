@@ -78,19 +78,18 @@
 
     <div class="rounded-xl border bs surface overflow-hidden shadow-sm">
         <div class="overflow-x-auto relative">
-            <table class="min-w-[1200px] w-full border-collapse text-[13px] align-middle">
+            <table class="w-full border-collapse text-[12.5px] align-middle">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:140px;">Company</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:110px;">City</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:150px;">Circle</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:180px;">Category</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:180px;">Reason for Joining</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:150px;">Status</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:140px;">DED Approval</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:110px;">Payment</th>
-                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-center whitespace-nowrap" style="min-width:160px;">Actions</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:210px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">Peer & Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:100px;">City</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:130px;">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:170px;">Category</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:150px;">Reason for Joining</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:130px;">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:120px;">DED Approval</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-left whitespace-nowrap" style="min-width:90px;">Payment</th>
+                        <th class="th-cell surface-2 border-b bs px-3.5 py-2.5 text-center whitespace-nowrap" style="min-width:150px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -139,43 +138,47 @@
                             ];
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openRequestRowModal({{ json_encode($rowData) }})" title="Click row to view full request details">
-                            <td class="px-4 py-3 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                            <td class="px-3.5 py-2.5 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);">
                                 @if ($peer)
                                     <div class="flex items-center gap-2.5 whitespace-nowrap">
                                         <div class="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 shadow-sm" style="background-color: {{ $getAvatarBg($peerName) }}">
                                             {{ $getInitials($peerName) }}
                                         </div>
-                                        <span class="text-indigo-600 font-semibold hover:underline no-underline whitespace-nowrap">
-                                            {{ $peerName }}
-                                        </span>
+                                        <div class="flex flex-col min-w-0">
+                                            <span class="text-indigo-600 font-semibold hover:underline no-underline whitespace-nowrap text-[12.5px]">
+                                                {{ $peerName }}
+                                            </span>
+                                            @if($peerCompany && $peerCompany !== '—')
+                                                <span class="t3 text-[10.5px] truncate max-w-[170px]" title="{{ $peerCompany }}">{{ $peerCompany }}</span>
+                                            @endif
+                                        </div>
                                     </div>
                                 @else
                                     <span class="t3 whitespace-nowrap">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
-                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
-                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCircle }}</td>
-                            <td class="px-4 py-3 text-xs t2">
+                            <td class="px-3.5 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
+                            <td class="px-3.5 py-2.5 text-xs t2 whitespace-nowrap font-medium">{{ $peerCircle }}</td>
+                            <td class="px-3.5 py-2.5 text-xs t2">
                                 @if($row->circleCategory)
-                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] whitespace-normal" title="{{ $row->circleCategory->name }}">
-                                        Category: {{ $row->circleCategory->name }}
+                                    <div class="font-medium text-slate-800 text-[12px] leading-tight" title="{{ $row->circleCategory->name }}">
+                                        {{ $row->circleCategory->name }}
                                     </div>
                                     <div class="t3 text-[10px] mt-0.5 font-mono">ID: {{ $row->circleCategory->id }}</div>
                                 @else
                                     <div class="t3">—</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs t2">
+                            <td class="px-3.5 py-2.5 text-xs t2">
                                 @if(!empty($row->reason_for_joining))
-                                    <span class="font-medium text-slate-700" title="{{ $row->reason_for_joining }}">
-                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 40) }}
+                                    <span class="font-normal text-slate-600" title="{{ $row->reason_for_joining }}">
+                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 35) }}
                                     </span>
                                 @else
                                     <span class="t3">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                            <td class="px-3.5 py-2.5 text-xs whitespace-nowrap">
                                 @if(str_contains($st, 'approved') || $st === 'circle_member')
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ $statusLabel }}
@@ -202,7 +205,7 @@
                                     <div class="t3 text-[10px] text-emerald-600 mt-0.5">Payment completed</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                            <td class="px-3.5 py-2.5 text-xs whitespace-nowrap">
                                 @if($dedApprovalStatus === 'approved')
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
@@ -218,7 +221,7 @@
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                            <td class="px-3.5 py-2.5 text-xs whitespace-nowrap">
                                 @if($paymentStatus === 'Paid')
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Paid
@@ -233,7 +236,7 @@
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-xs text-center whitespace-nowrap" onclick="event.stopPropagation()">
+                            <td class="px-3.5 py-2.5 text-xs text-center whitespace-nowrap" onclick="event.stopPropagation()">
                                 <div class="flex justify-center gap-1.5 items-center whitespace-nowrap">
                                     <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
@@ -255,7 +258,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="text-center py-8 text-xs t3 whitespace-nowrap">No requests found.</td></tr>
+                        <tr><td colspan="9" class="text-center py-8 text-xs t3 whitespace-nowrap">No requests found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
