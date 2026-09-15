@@ -114,6 +114,7 @@ use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\GlobalPeerCertificateController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroducedPeerController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
 use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
@@ -513,6 +514,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/profile/introducer', [ProfileController::class, 'introducer']);
         Route::get('/profile/introduced-peers', [ProfileController::class, 'introducedPeers']);
         Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
+        Route::get('/introduced-peers', [IntroducedPeerController::class, 'index']);
         Route::post('/introduction-requests', [IntroductionRequestsApiController::class, 'store']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::post('/profile/view', [ProfileController::class, 'recordView']);
@@ -520,6 +522,9 @@ Route::prefix('v1')->group(function () {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
         Route::get('/intro-videos', [IntroVideoController::class, 'index']);
+        Route::post('/intro-videos', [IntroVideoController::class, 'store']);
+        Route::get('/intro-videos/me', [IntroVideoController::class, 'show']);
+        Route::delete('/intro-videos', [IntroVideoController::class, 'destroy']);
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
