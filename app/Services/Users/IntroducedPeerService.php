@@ -60,6 +60,33 @@ class IntroducedPeerService
     }
 
     /**
+     * Get paginated peers introduced by the given user, sorted by introduced_count DESC.
+     */
+    public function getIntroducedPeersWithCount(User $user, int $perPage = 20, int $page = 1)
+    {
+        return User::query()
+            ->where('introduced_by', $user->id)
+            ->whereNull('deleted_at')
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->withCount(['introducedPeers as introduced_count' => function ($q) {
+                $q->whereNull('deleted_at');
+            }])
+            ->with([
+                'city:id,name,country,country_code',
+                'profilePhotoFile',
+                'coverPhotoFile',
+                'introducedBy',
+                'level4Category:id,name',
+                'businessCategory:id,name',
+            ])
+            ->orderByDesc('introduced_count')
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    /**
      * Introduce a peer.
      *
      * @param  User  $user  The authenticated user who is introducing.

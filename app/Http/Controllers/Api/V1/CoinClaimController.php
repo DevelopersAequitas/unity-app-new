@@ -46,9 +46,17 @@ class CoinClaimController extends BaseApiController
         try {
             $activityCode = (string) $request->input('activity_code');
             $fieldMap = $this->registry->fieldMap($activityCode);
-            $fields = (array) $request->input('fields', []);
+            $payloadInput = (array) $request->input('payload', []);
+            $fields = array_merge($payloadInput, (array) $request->input('fields', []));
             $uploaded = $request->file('files', []);
-            $coinsAwarded = $this->resolveCoinsAwarded($activityCode);
+
+            if (empty($uploaded)) {
+                foreach (['feedback_video', 'file', 'payment_proof_file', 'event_confirmation_file', 'membership_confirmation_file'] as $fileKey) {
+                    if ($request->hasFile($fileKey)) {
+                        $uploaded[$fileKey] = $request->file($fileKey);
+                    }
+                }
+            }
 
             $normalizedFields = $fields;
             $fileIds = [];
@@ -64,15 +72,30 @@ class CoinClaimController extends BaseApiController
                 }
             }
 
+            // Also check if feedback_video file was uploaded directly under uploaded array
+            if ($activityCode === 'peers_global_feedback_video' && ! isset($fileIds['feedback_video'])) {
+                $videoFile = $uploaded['feedback_video'] ?? ($uploaded['file'] ?? null);
+                if ($videoFile instanceof UploadedFile) {
+                    $fileIds['feedback_video'] = $this->storeClaimFile($videoFile, (string) $user?->id);
+                }
+            }
+
+            $claimPayload = [
+                'fields' => $normalizedFields,
+                'files' => $fileIds,
+            ];
+
+            if ($activityCode === 'peers_global_feedback_video') {
+                $claimPayload['feedback_video'] = $fileIds['feedback_video']
+                    ?? ($normalizedFields['feedback_video'] ?? ($normalizedFields['feedback_video_url'] ?? ($payloadInput['feedback_video'] ?? null)));
+            }
+
             $claim = CoinClaimRequest::create([
                 'user_id' => $user->id,
                 'activity_code' => $activityCode,
-                'payload' => [
-                    'fields' => $normalizedFields,
-                    'files' => $fileIds,
-                ],
+                'payload' => $claimPayload,
                 'status' => 'pending',
-                'coins_awarded' => $coinsAwarded,
+                'coins_awarded' => null,
             ]);
 
             $claim->load('user:id,display_name,first_name,last_name,email,phone');

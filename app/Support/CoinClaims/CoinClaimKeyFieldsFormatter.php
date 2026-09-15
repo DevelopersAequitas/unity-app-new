@@ -18,6 +18,8 @@ class CoinClaimKeyFieldsFormatter
         'new_member_name' => 'New Member Name',
         'new_member_email' => 'New Member Email',
         'new_member_mobile' => 'New Member Mobile',
+        'feedback_video' => 'Feedback Video',
+        'feedback_video_url' => 'Feedback Video URL',
         'peer_name' => 'Peer Name',
         'company_name' => 'Company Name',
         'city_name' => 'City',

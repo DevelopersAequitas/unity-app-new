@@ -28,10 +28,23 @@ class IntroVideoController extends Controller
         $user->saveOrFail();
         $user->refresh();
 
+        // Award 1,000 coins for first-time intro video upload (idempotent duplicate protection)
+        $coinsService = app(\App\Services\Coins\CoinsService::class);
+        $coinsLedger = $coinsService->rewardForIntroVideo($user);
+        if ($coinsLedger) {
+            $user->refresh();
+        }
+
+        $responseData = $this->formatResponse($user);
+        if ($coinsLedger) {
+            $responseData['coins_earned'] = (int) $coinsLedger->amount;
+            $responseData['coins_balance'] = (int) $user->coins_balance;
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Intro video updated successfully',
-            'data' => $this->formatResponse($user),
+            'data' => $responseData,
         ]);
     }
 
