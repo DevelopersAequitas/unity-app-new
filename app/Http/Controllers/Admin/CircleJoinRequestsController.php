@@ -259,18 +259,19 @@ class CircleJoinRequestsController extends Controller
         DB::transaction(function () use ($record, $admin, $actor): void {
             $request = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
             $oldStatus = (string) $request->status;
-            $approverId = $admin?->id ?? $actor?->id;
+            $actorUserId = $actor?->id ?? $admin?->id;
+            $adminUserId = $admin?->id ?? $actor?->id;
 
             if ($oldStatus === CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
                 $request->status = CircleJoinRequest::STATUS_PENDING_ID_APPROVAL;
-                $request->cd_approved_by = $approverId;
+                $request->cd_approved_by = $actorUserId;
                 $request->cd_approved_at = now();
                 $request->cd_rejected_by = null;
                 $request->cd_rejected_at = null;
                 $request->cd_rejection_reason = null;
             } elseif ($oldStatus === CircleJoinRequest::STATUS_PENDING_ID_APPROVAL) {
                 $request->status = CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE;
-                $request->id_approved_by = $approverId;
+                $request->id_approved_by = $actorUserId;
                 $request->id_approved_at = now();
                 $request->id_rejected_by = null;
                 $request->id_rejected_at = null;
@@ -278,7 +279,7 @@ class CircleJoinRequestsController extends Controller
 
                 if ($this->hasDedApprovalColumns() && (string) ($request->ded_approval_status ?? 'pending') === 'pending') {
                     $request->ded_approval_status = 'approved';
-                    $request->ded_approved_by = $approverId;
+                    $request->ded_approved_by = $adminUserId;
                     $request->ded_approved_at = now();
                 }
             } else {
