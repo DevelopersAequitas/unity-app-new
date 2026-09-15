@@ -38,10 +38,7 @@ class CircleJoinRequestController extends BaseApiController
         $circleId = null;
         if ($categoryId && Schema::hasTable('circle_category_mappings')) {
             $circleId = DB::table('circle_category_mappings')
-                ->where(function ($q) use ($categoryId) {
-                    $q->where('category_id', $categoryId)
-                        ->orWhere('circle_category_id', $categoryId);
-                })
+                ->where('category_id', $categoryId)
                 ->value('circle_id');
         }
 
