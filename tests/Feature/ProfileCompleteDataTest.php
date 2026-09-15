@@ -237,6 +237,66 @@ class ProfileCompleteDataTest extends TestCase
                 $table->timestamps();
             });
         }
+
+        if (! Schema::hasTable('circles')) {
+            Schema::create('circles', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->string('slug')->nullable();
+                $table->uuid('city_id')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
+
+        if (! Schema::hasTable('circle_categories')) {
+            Schema::create('circle_categories', function (Blueprint $table): void {
+                $table->increments('id');
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('circle_category_level2')) {
+            Schema::create('circle_category_level2', function (Blueprint $table): void {
+                $table->increments('id');
+                $table->unsignedInteger('circle_category_id')->nullable();
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('circle_category_level3')) {
+            Schema::create('circle_category_level3', function (Blueprint $table): void {
+                $table->increments('id');
+                $table->unsignedInteger('level2_id')->nullable();
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('circle_category_level4')) {
+            Schema::create('circle_category_level4', function (Blueprint $table): void {
+                $table->increments('id');
+                $table->unsignedInteger('level3_id')->nullable();
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('joined_circle_categories')) {
+            Schema::create('joined_circle_categories', function (Blueprint $table): void {
+                $table->id();
+                $table->uuid('user_id');
+                $table->uuid('circle_id')->nullable();
+                $table->uuid('circle_member_id')->nullable();
+                $table->unsignedInteger('level1_category_id')->nullable();
+                $table->unsignedInteger('level2_category_id')->nullable();
+                $table->unsignedInteger('level3_category_id')->nullable();
+                $table->unsignedInteger('level4_category_id')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function test_get_profile_returns_complete_member_and_profile_data(): void
@@ -310,6 +370,7 @@ class ProfileCompleteDataTest extends TestCase
             'city',
             'membership_status',
             'membership_status_label',
+            'is_multi_circle_peer',
             'membership_starts_at',
             'membership_ends_at',
             'zoho_plan_code',
@@ -430,6 +491,7 @@ class ProfileCompleteDataTest extends TestCase
             'business_category_id',
             'business_sub_category',
             'other_website',
+            'categories',
         ];
 
         foreach ($duplicateKeys as $key) {
@@ -623,5 +685,161 @@ class ProfileCompleteDataTest extends TestCase
             ->assertJsonPath('data.business_deals_count', 3)
             ->assertJsonPath('data.given_business_deals_count', 1)
             ->assertJsonPath('data.received_business_deals_count', 2);
+    }
+
+    public function test_circle_membership_contains_selected_category_path_from_joined_circle_categories(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'membership_status' => 'free_peer',
+        ]);
+
+        $circleId = (string) Str::uuid();
+        $memberId = (string) Str::uuid();
+
+        DB::table('circles')->insert([
+            'id' => $circleId,
+            'name' => 'Ahmedabad tech',
+            'slug' => 'ahmedabad-tech',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('circle_members')->insert([
+            'id' => $memberId,
+            'circle_id' => $circleId,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'joined_at' => now(),
+            'paid_starts_at' => now(),
+            'paid_ends_at' => now()->addYear(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cat1Id = DB::table('circle_categories')->insertGetId([
+            'name' => 'Manufacturing & Engineering Circles',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cat2Id = DB::table('circle_category_level2')->insertGetId([
+            'circle_category_id' => $cat1Id,
+            'name' => 'CORE MANUFACTURING INDUSTRIES',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cat3Id = DB::table('circle_category_level3')->insertGetId([
+            'level2_id' => $cat2Id,
+            'name' => 'Heavy & Industrial Manufacturing',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cat4Id = DB::table('circle_category_level4')->insertGetId([
+            'level3_id' => $cat3Id,
+            'name' => 'Iron & Metal Processing',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('joined_circle_categories')->insert([
+            'user_id' => $user->id,
+            'circle_id' => $circleId,
+            'circle_member_id' => $memberId,
+            'level1_category_id' => $cat1Id,
+            'level2_category_id' => $cat2Id,
+            'level3_category_id' => $cat3Id,
+            'level4_category_id' => $cat4Id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/profile');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.membership_status', 'free_peer')
+            ->assertJsonPath('data.circle_memberships.0.circle_id', $circleId)
+            ->assertJsonPath('data.circle_memberships.0.circle_name', 'Ahmedabad tech')
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level1.id', $cat1Id)
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level1.name', 'Manufacturing & Engineering Circles')
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level2.id', $cat2Id)
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level2.name', 'CORE MANUFACTURING INDUSTRIES')
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level3.id', $cat3Id)
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level3.name', 'Heavy & Industrial Manufacturing')
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level4.id', $cat4Id)
+            ->assertJsonPath('data.circle_memberships.0.selected_category_path.level4.name', 'Iron & Metal Processing');
+
+        $data = $response->json('data');
+        $this->assertArrayNotHasKey('categories', $data, 'categories array should be removed from profile API response');
+    }
+
+    public function test_peer_with_multiple_circles_shows_multi_circle_peer(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'membership_status' => 'free_peer',
+        ]);
+
+        $circleId1 = (string) Str::uuid();
+        $circleId2 = (string) Str::uuid();
+
+        DB::table('circles')->insert([
+            [
+                'id' => $circleId1,
+                'name' => 'Ahmedabad tech',
+                'slug' => 'ahmedabad-tech',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => $circleId2,
+                'name' => 'Satellite Business Circle',
+                'slug' => 'satellite-business-circle',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('circle_members')->insert([
+            [
+                'id' => (string) Str::uuid(),
+                'circle_id' => $circleId1,
+                'user_id' => $user->id,
+                'status' => 'approved',
+                'joined_at' => now(),
+                'paid_starts_at' => now(),
+                'paid_ends_at' => now()->addYear(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) Str::uuid(),
+                'circle_id' => $circleId2,
+                'user_id' => $user->id,
+                'status' => 'approved',
+                'joined_at' => now(),
+                'paid_starts_at' => now(),
+                'paid_ends_at' => now()->addYear(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/profile');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.membership_status', 'multi_circle_peer')
+            ->assertJsonPath('data.membership_status_label', 'Multi Circle Peer')
+            ->assertJsonPath('data.is_multi_circle_peer', true);
+
+        $this->assertCount(2, $response->json('data.circle_memberships'));
     }
 }

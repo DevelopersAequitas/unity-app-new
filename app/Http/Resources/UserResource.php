@@ -9,6 +9,7 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\Connection;
 use App\Models\CustomCategoryRequest;
+use App\Models\JoinedCircleCategory;
 use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
 use App\Models\UserFollow;
@@ -35,7 +36,16 @@ class UserResource extends JsonResource
         $profileVideoId = $this->profile_video_id;
         $profileVideoUrl = $this->resolveProfileVideoUrl();
 
+        $circleMemberships = $this->resolveCircleMemberships();
+        $isMultiCircle = count($circleMemberships) > 1;
+
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
+        $normalizedStatus = strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)));
+
+        if ($isMultiCircle && in_array($normalizedStatus, ['free_peer', 'free_trial_peer', 'circle_peer', 'multi_circle_peer', ''], true)) {
+            $membershipStatus = 'multi_circle_peer';
+        }
+
         $resolvedCircle = $this->resolvePrimaryCircleContext();
         $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
 
@@ -162,8 +172,11 @@ class UserResource extends JsonResource
                 'unity_peer' => 'Green Member',
                 'chartered_peer' => 'Premium Green Member',
                 'charter_investor' => 'Green Investor',
+                'circle_peer' => 'Circle Peer',
+                'multi_circle_peer' => 'Multi Circle Peer',
                 default => Str::headline(str_replace('_', ' ', (string) $membershipStatus)),
             },
+            'is_multi_circle_peer' => $isMultiCircle,
             'membership_starts_at' => $this->membership_starts_at ?? $this->membership_start_date,
             'membership_ends_at' => $this->membership_ends_at ?? $this->membership_expiry ?? $this->membership_end_date,
             'zoho_plan_code' => $this->zoho_plan_code,
@@ -201,7 +214,7 @@ class UserResource extends JsonResource
                         ] : null,
                     ];
                 }),
-            'circle_memberships' => $this->resolveCircleMemberships(),
+            'circle_memberships' => $circleMemberships,
             'contact_visibility' => $this->contact_visibility ?? 'public',
             'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
@@ -414,6 +427,37 @@ class UserResource extends JsonResource
             ->groupBy('circle_id')
             ->map(fn ($items) => $items->first());
 
+        $joinedCategoriesByMemberId = collect();
+        $joinedCategoriesByCircleId = collect();
+
+        if (Schema::hasTable('joined_circle_categories')) {
+            $joinedRows = JoinedCircleCategory::query()
+                ->where(function ($query) use ($memberships) {
+                    $query->whereIn('circle_member_id', $memberships->pluck('id')->filter()->values())
+                        ->orWhere(function ($q) use ($memberships) {
+                            $q->where('user_id', (string) $this->id)
+                                ->whereIn('circle_id', $memberships->pluck('circle_id')->filter()->values());
+                        });
+                })
+                ->with([
+                    'level1Category:id,name',
+                    'level2Category:id,name',
+                    'level3Category:id,name',
+                    'level4Category:id,name',
+                ])
+                ->orderByDesc('updated_at')
+                ->get();
+
+            foreach ($joinedRows as $row) {
+                if ($row->circle_member_id && ! $joinedCategoriesByMemberId->has((string) $row->circle_member_id)) {
+                    $joinedCategoriesByMemberId->put((string) $row->circle_member_id, $row);
+                }
+                if ($row->circle_id && ! $joinedCategoriesByCircleId->has((string) $row->circle_id)) {
+                    $joinedCategoriesByCircleId->put((string) $row->circle_id, $row);
+                }
+            }
+        }
+
         $selectionByCircleMemberId = collect();
         if (Schema::hasTable('circle_member_category_selections')) {
             $selectionByCircleMemberId = CircleMemberCategorySelection::query()
@@ -448,6 +492,8 @@ class UserResource extends JsonResource
 
         return $memberships->map(function ($membership) use (
             $subscriptionMap,
+            $joinedCategoriesByMemberId,
+            $joinedCategoriesByCircleId,
             $selectionByCircleMemberId,
             $level1ById,
             $level2ById,
@@ -456,10 +502,17 @@ class UserResource extends JsonResource
         ): array {
             $subscription = $subscriptionMap->get((string) $membership->circle_id);
             $selection = $selectionByCircleMemberId->get((string) $membership->id);
-            $level1 = $selection ? $level1ById->get($selection->level1_category_id) : null;
-            $level2 = $selection ? $level2ById->get($selection->level2_category_id) : null;
-            $level3 = $selection ? $level3ById->get($selection->level3_category_id) : null;
-            $level4 = $selection ? $level4ById->get($selection->level4_category_id) : null;
+            $joinedSelection = $joinedCategoriesByMemberId->get((string) $membership->id)
+                ?? $joinedCategoriesByCircleId->get((string) $membership->circle_id);
+
+            $level1 = $joinedSelection?->level1Category
+                ?? ($selection ? $level1ById->get($selection->level1_category_id) : null);
+            $level2 = $joinedSelection?->level2Category
+                ?? ($selection ? $level2ById->get($selection->level2_category_id) : null);
+            $level3 = $joinedSelection?->level3Category
+                ?? ($selection ? $level3ById->get($selection->level3_category_id) : null);
+            $level4 = $joinedSelection?->level4Category
+                ?? ($selection ? $level4ById->get($selection->level4_category_id) : null);
 
             return [
                 'circle_member_id' => $membership->id,
