@@ -63,15 +63,11 @@ class UserProfileResource extends MemberDetailResource
             $data['other_website'],
 
             // Social links object (duplicates flat fields linkedin_profile, instagram_handle, etc.)
-            $data['social_links']
-        );
+            $data['social_links'],
 
-        // Remove duplicate registered business category from categories array
-        if (isset($data['categories']) && is_array($data['categories'])) {
-            $data['categories'] = array_values(array_filter($data['categories'], function (array $category): bool {
-                return ! (isset($category['main_category']) && isset($category['business_category']));
-            }));
-        }
+            // Categories field (category path is now properly inside circle_memberships)
+            $data['categories']
+        );
 
         return $data;
     }
