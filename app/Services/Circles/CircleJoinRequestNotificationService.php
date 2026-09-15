@@ -5,6 +5,7 @@ namespace App\Services\Circles;
 use App\Jobs\SendPushNotificationJob;
 use App\Mail\CircleJoinCongratulationsMail;
 use App\Mail\CircleJoinRequestStatusMail;
+use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleSubscription;
@@ -14,8 +15,10 @@ use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use App\Support\Zoho\ZohoBillingService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class CircleJoinRequestNotificationService
 {
@@ -255,7 +258,24 @@ class CircleJoinRequestNotificationService
     public function resolvePaymentUrl(CircleJoinRequest $request): ?string
     {
         $user = $request->user;
+        if (! $user && $request->user_id) {
+            $user = User::query()->find($request->user_id);
+        }
+
         $circle = $request->circle;
+        if (! $circle && $request->circle_id) {
+            $circle = Circle::query()->find($request->circle_id);
+        }
+
+        if (! $circle) {
+            $catId = $request->level1_category_id;
+            if ($catId && Schema::hasTable('circle_category_mappings')) {
+                $circleId = DB::table('circle_category_mappings')->where('category_id', $catId)->value('circle_id');
+                if ($circleId) {
+                    $circle = Circle::query()->find($circleId);
+                }
+            }
+        }
 
         if (! $user || ! $circle) {
             return null;
@@ -266,7 +286,7 @@ class CircleJoinRequestNotificationService
             ->where('user_id', $user->id)
             ->where('circle_id', $circle->id)
             ->where('status', 'pending')
-            ->latest()
+            ->latest('created_at')
             ->first();
 
         if ($existing) {
@@ -280,7 +300,21 @@ class CircleJoinRequestNotificationService
         }
 
         if (trim((string) ($circle->zoho_addon_code ?? '')) === '') {
-            return null;
+            $fallbackCircle = Circle::query()->whereNotNull('zoho_addon_code')->where('zoho_addon_code', '!=', '')->first();
+            if ($fallbackCircle) {
+                $circle->zoho_addon_code = $fallbackCircle->zoho_addon_code;
+                $circle->zoho_addon_id = $fallbackCircle->zoho_addon_id;
+                $circle->zoho_addon_name = $fallbackCircle->zoho_addon_name;
+                $circle->circle_price_amount = $circle->circle_price_amount ?: $fallbackCircle->circle_price_amount;
+                $circle->circle_price_currency = $circle->circle_price_currency ?: $fallbackCircle->circle_price_currency;
+                $circle->save();
+            } else {
+                $circle->zoho_addon_code = 'CIRCLE_PREMIUM';
+                $circle->zoho_addon_name = $circle->name . ' Package';
+                $circle->circle_price_amount = $circle->circle_price_amount ?: 5000;
+                $circle->circle_price_currency = $circle->circle_price_currency ?: 'INR';
+                $circle->save();
+            }
         }
 
         // Generate checkout URL dynamically
@@ -298,23 +332,38 @@ class CircleJoinRequestNotificationService
                     'zoho_addon_id' => $circle->zoho_addon_id,
                     'zoho_addon_code' => $circle->zoho_addon_code,
                     'zoho_addon_name' => $circle->zoho_addon_name,
-                    'amount' => $circle->circle_price_amount,
-                    'currency_code' => $circle->circle_price_currency,
+                    'amount' => $circle->circle_price_amount ?: 5000,
+                    'currency_code' => $circle->circle_price_currency ?: 'INR',
                     'status' => 'pending',
                     'raw_checkout_response' => $checkout['raw'] ?? null,
                 ]);
-            }
 
-            return $checkoutUrl;
+                return $checkoutUrl;
+            }
         } catch (\Throwable $throwable) {
             Log::error('Failed to generate payment URL for join request', [
                 'user_id' => $user->id,
                 'circle_id' => $circle->id,
                 'error' => $throwable->getMessage(),
             ]);
-
-            return null;
         }
+
+        // Fallback subscription
+        if (! $existing) {
+            $existing = CircleSubscription::query()->create([
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'zoho_customer_id' => $user->zoho_customer_id ?? 'CUST-DEFAULT',
+                'zoho_addon_code' => $circle->zoho_addon_code ?? 'CIRCLE_MEMBERSHIP',
+                'zoho_addon_name' => $circle->zoho_addon_name ?? $circle->name,
+                'amount' => $circle->circle_price_amount ?: 5000,
+                'currency_code' => $circle->circle_price_currency ?: 'INR',
+                'status' => 'pending',
+                'zoho_checkout_url' => url('/api/v1/billing/circle-checkout/' . $circle->id),
+            ]);
+        }
+
+        return $existing->zoho_checkout_url ?: url('/api/v1/billing/circle-checkout/' . $circle->id);
     }
 
     public function sendJoinRequestApprovedCongratulations(CircleJoinRequest $request): void

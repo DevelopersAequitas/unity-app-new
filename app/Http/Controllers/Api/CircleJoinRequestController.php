@@ -146,6 +146,8 @@ class CircleJoinRequestController extends BaseApiController
             ->where('user_id', $request->user()->id)
             ->when($status, fn ($q) => $q->where('status', $status))
             ->with([
+                'circle',
+                'user',
                 'cdApprovedBy',
                 'idApprovedBy',
                 'dedApprovedBy',
@@ -169,6 +171,7 @@ class CircleJoinRequestController extends BaseApiController
     public function show(Request $request, string $id): JsonResponse
     {
         $record = CircleJoinRequest::query()->with([
+            'circle',
             'user',
             'cdApprovedBy',
             'cdRejectedBy',
@@ -264,13 +267,40 @@ class CircleJoinRequestController extends BaseApiController
             ];
         };
 
+        // Payment Info
+        $paymentStatus = $isPaid ? 'paid' : 'unpaid';
+        $paymentUrl = null;
+        $canPay = false;
+
+        if ($status === CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
+            $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($request);
+            $canPay = $paymentUrl !== null;
+        }
+
+        $paidAt = null;
+        if ($isPaid) {
+            $paidAtTimestamp = $request->fee_paid_at ?: $request->fee_marked_at ?: $request->updated_at;
+            $paidAt = $paidAtTimestamp ? $paidAtTimestamp->toIso8601String() : null;
+        }
+
         return [
             'id' => (string) $request->id,
             'user_id' => (string) $request->user_id,
             'status' => $status,
             'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
-            'payment_status' => $isPaid ? 'paid' : 'unpaid',
+            'payment_status' => $paymentStatus,
+            'payment_url' => $paymentUrl,
+            'can_pay' => $canPay,
+            'payment' => [
+                'required' => true,
+                'status' => $paymentStatus,
+                'amount' => (int) ($request->circle?->circle_price_amount ?: 5000),
+                'currency' => $request->circle?->circle_price_currency ?: 'INR',
+                'payment_url' => $paymentUrl,
+                'button_label' => 'Pay Now',
+                'paid_at' => $paidAt,
+            ],
             'reason' => (string) ($request->reason_for_joining ?? ''),
             'reason_for_joining' => (string) ($request->reason_for_joining ?? ''),
             'level1_category' => $level1Category,
