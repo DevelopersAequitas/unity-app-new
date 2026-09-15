@@ -92,6 +92,7 @@ use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\ContactPostController;
+use App\Http\Controllers\Api\V1\CountryController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
 use App\Http\Controllers\Api\V1\Ded\DedAuthController;
 use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
@@ -113,6 +114,7 @@ use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\GlobalPeerCertificateController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroducedPeerController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
 use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
@@ -152,6 +154,7 @@ use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
+use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
@@ -168,18 +171,10 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
-// TEMPORARY LOCAL/QA MOCK WEBHOOK: WhatsApp Webhook Payload Logger
-Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
-    Log::info('Local Mock WhatsApp Webhook Received Payload:', [
-        'headers' => $request->headers->all(),
-        'body' => $request->all(),
-    ]);
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Mock WhatsApp webhook payload captured successfully',
-    ]);
-});
+// Inbound WhatsApp Webhook endpoints for delivery status & message notifications
+Route::get('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle']);
+Route::post('/v1/mock-whatsapp-webhook', [WhatsAppWebhookController::class, 'handle']);
 
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
@@ -284,6 +279,7 @@ Route::prefix('v1')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
+        Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -405,6 +401,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/circle-categories/{idOrSlug}', [CircleCategoryController::class, 'show']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
     Route::get('/cities', [CityController::class, 'index']);
+    Route::get('/countries', [CountryController::class, 'index']);
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
@@ -517,6 +514,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/profile/introducer', [ProfileController::class, 'introducer']);
         Route::get('/profile/introduced-peers', [ProfileController::class, 'introducedPeers']);
         Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
+        Route::get('/introduced-peers', [IntroducedPeerController::class, 'index']);
         Route::post('/introduction-requests', [IntroductionRequestsApiController::class, 'store']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::post('/profile/view', [ProfileController::class, 'recordView']);
@@ -524,6 +522,9 @@ Route::prefix('v1')->group(function () {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
         Route::get('/intro-videos', [IntroVideoController::class, 'index']);
+        Route::post('/intro-videos', [IntroVideoController::class, 'store']);
+        Route::get('/intro-videos/me', [IntroVideoController::class, 'show']);
+        Route::delete('/intro-videos', [IntroVideoController::class, 'destroy']);
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
@@ -574,8 +575,11 @@ Route::prefix('v1')->group(function () {
         // Follow system
         Route::get('users/{user}/followers/count', [MemberController::class, 'followersCount'])->whereUuid('user');
         Route::post('users/{user}/follow', [FollowController::class, 'requestFollow'])->whereUuid('user');
-        Route::delete('users/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
+        Route::post('members/{user}/follow', [FollowController::class, 'requestFollow'])->whereUuid('user');
+        Route::match(['delete', 'post'], 'users/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
+        Route::match(['delete', 'post'], 'members/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
         Route::get('users/{user}/follow-status', [FollowController::class, 'status'])->whereUuid('user');
+        Route::get('members/{user}/follow-status', [FollowController::class, 'status'])->whereUuid('user');
 
         Route::get('me/follow-requests', [FollowController::class, 'incomingRequests']);
         Route::get('me/following', [FollowController::class, 'myFollowing']);
@@ -899,7 +903,10 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/posts/{id}/like', [PostController::class, 'like']);
         Route::delete('/posts/{id}/like', [PostController::class, 'unlike']);
-        Route::post('/posts/{post}/save', [PostSaveController::class, 'toggle']);
+        Route::post('/posts/save', [PostSaveController::class, 'store']);
+        Route::post('/posts/{id}/save', [PostSaveController::class, 'store'])->whereUuid('id');
+        Route::delete('/posts/{id}/save', [PostSaveController::class, 'destroy'])->whereUuid('id');
+        Route::post('/posts/{id}/save/toggle', [PostSaveController::class, 'toggle'])->whereUuid('id');
 
         Route::post('/posts/{id}/comments', [PostController::class, 'storeComment']);
         Route::get('/posts/{id}/comments', [PostController::class, 'listComments']);
@@ -1057,15 +1064,15 @@ Route::prefix('v1')->group(function () {
         Route::get('/admin/notifications/posts/{post}/summary', [NotificationEngineController::class, 'postSummary'])->whereUuid('post');
         Route::post('/admin/notifications/posts/{post}/send-test', [NotificationEngineController::class, 'sendPostTest'])->whereUuid('post');
 
-        // Notifications
+        // Notifications (Peers App)
         Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
-        Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
-        Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
-        Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
-        Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
-        Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
-        Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
-        Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
+        Route::get('/notifications', [NotificationEngineController::class, 'index']);
+        Route::post('/notifications/mark-read', [NotificationEngineController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [NotificationEngineController::class, 'readAll']);
+        Route::post('/notifications/mark-read-all', [NotificationEngineController::class, 'readAll']);
+        Route::get('/notifications/unread-count', [NotificationEngineController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
+        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
         Route::post('/notifications/{id}/clicked', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
         Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);

@@ -123,6 +123,13 @@ class LeaderboardController extends Controller
             $query->where('status', 'active');
         }
 
+        if (Schema::hasTable('user_tag_assignments') && Schema::hasTable('user_tags')) {
+            $query->whereDoesntHave('tags', function (Builder $tagQuery): void {
+                $tagQuery->where('user_tags.slug', 'team_member')
+                    ->where('user_tags.is_active', true);
+            });
+        }
+
         return $query;
     }
 

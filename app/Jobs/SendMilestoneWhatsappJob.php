@@ -88,6 +88,13 @@ class SendMilestoneWhatsappJob implements ShouldQueue
 
         // 1. Resolve active template
         $template = WhatsappTemplate::query()->where('template_key', $templateKey)->first();
+        if (! $template) {
+            if ($templateKey === 'milestone_connector') {
+                $template = WhatsappTemplate::query()->where('template_key', 'milestone_badge_whatsapp')->first();
+            } elseif ($templateKey === 'milestone_badge_whatsapp') {
+                $template = WhatsappTemplate::query()->where('template_key', 'milestone_connector')->first();
+            }
+        }
 
         if (! $template) {
             $errorMsg = "Template key not found in database: {$templateKey}";
@@ -148,6 +155,7 @@ class SendMilestoneWhatsappJob implements ShouldQueue
         if ($memberName === '') {
             $memberName = trim((string) ($user->name ?? 'Valued Member'));
         }
+        $firstName = trim((string) ($user->first_name ?: (explode(' ', $memberName)[0] ?? $memberName)));
 
         $bodyParam1 = $memberName;
         $bodyParam2 = $memberName;
@@ -181,9 +189,17 @@ class SendMilestoneWhatsappJob implements ShouldQueue
             'name' => $bodyParam1,
             'member_name' => $bodyParam1,
             'peer_name' => $bodyParam1,
+            'connector_name' => $bodyParam1,
+            'catalyst_name' => $bodyParam1,
+            'first_name' => $firstName,
             'referrer_name' => $bodyParam2,
+            'inviter_name' => $bodyParam2,
             'referral_link' => $bodyParam3,
+            'link' => $bodyParam3,
+            'url' => $bodyParam3,
             'header_media_url' => $headerMediaUrl,
+            'badge_image_url' => $headerMediaUrl,
+            'header_image_url' => $headerMediaUrl,
             'image_url' => $headerMediaUrl,
             'creative_url' => $headerMediaUrl,
             'media_url' => $headerMediaUrl,
@@ -193,9 +209,15 @@ class SendMilestoneWhatsappJob implements ShouldQueue
             '1' => $bodyParam1,
             '2' => $bodyParam2,
             '3' => $bodyParam3,
+            '@1' => $bodyParam1,
+            '@2' => $bodyParam2,
+            '@3' => $bodyParam3,
             'var_1' => $bodyParam1,
             'var_2' => $bodyParam2,
             'var_3' => $bodyParam3,
+            'var1' => $bodyParam1,
+            'var2' => $bodyParam2,
+            'var3' => $bodyParam3,
             'body_param_1' => $bodyParam1,
             'body_param_2' => $bodyParam2,
             'body_param_3' => $bodyParam3,

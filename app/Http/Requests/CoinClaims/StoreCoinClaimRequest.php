@@ -19,9 +19,10 @@ class StoreCoinClaimRequest extends FormRequest
     {
         return [
             'activity_code' => ['required', 'string'],
+            'payload' => ['nullable', 'array'],
             'fields' => ['nullable', 'array'],
             'files' => ['nullable', 'array'],
-            'files.*' => ['nullable', 'file', 'max:51200'],
+            'files.*' => ['nullable', 'file', 'max:102400'],
         ];
     }
 
@@ -38,8 +39,21 @@ class StoreCoinClaimRequest extends FormRequest
             }
 
             $fieldMap = $registry->fieldMap($activityCode);
-            $fields = (array) $this->input('fields', []);
+            $payload = (array) $this->input('payload', []);
+            $fields = array_merge($payload, (array) $this->input('fields', []));
             $files = $this->file('files', []);
+
+            // Special handling for peers_global_feedback_video: allow either file upload or URL/storage-reference string
+            if ($activityCode === 'peers_global_feedback_video') {
+                $hasVideoFile = isset($files['feedback_video']) || $this->hasFile('feedback_video') || $this->hasFile('file');
+                $hasVideoField = ! empty($fields['feedback_video']) || ! empty($fields['feedback_video_url']) || ! empty($payload['feedback_video']);
+
+                if (! $hasVideoFile && ! $hasVideoField) {
+                    $validator->errors()->add('fields.feedback_video', 'Feedback video is required.');
+                }
+
+                return;
+            }
 
             $fieldKeys = array_keys($fieldMap);
             $providedFieldKeys = array_keys($fields);

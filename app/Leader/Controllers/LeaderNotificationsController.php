@@ -27,28 +27,15 @@ class LeaderNotificationsController extends Controller
         $notifications = [];
 
         if ($user) {
-            $excludedTypes = ['engagement_reminder', 'daily_engagement_reminder', 'daily_reminder', 'engagement'];
-
-            $notifications = Notification::query()
-                ->where('user_id', $user->id)
-                ->whereNotIn('type', $excludedTypes)
-                ->where(function ($q) use ($excludedTypes): void {
-                    $q->whereNull('payload->notification_type')
-                        ->orWhereNotIn('payload->notification_type', $excludedTypes);
-                })
-                ->orderByDesc('created_at')
-                ->take(20)
-                ->get()
-                ->map(fn (Notification $n) => [
-                    'id' => (string) $n->id,
-                    'title' => (string) ($n->title ?? 'New Notification'),
-                    'message' => (string) ($n->body ?? $n->message ?? 'You have a new update.'),
-                    'category' => (string) ($n->type ?? 'general'),
-                    'is_unread' => ! (bool) ($n->is_read ?? false),
-                    'created_at' => $n->created_at ? $n->created_at->toIso8601String() : now()->toIso8601String(),
-                ])
-                ->values()
-                ->all();
+            $excludedTypes = [
+                'engagement_reminder',
+                'daily_engagement_reminder',
+                'daily_reminder',
+                'engagement',
+                'engagement_founder',
+                'streak_reminder',
+                'streak',
+            ];
             $userId = (string) $user->id;
 
             // 1. Fetch AppNotification items
@@ -57,13 +44,31 @@ class LeaderNotificationsController extends Controller
                 if (Schema::hasColumn('app_notifications', 'deleted_at')) {
                     $appNotifsQuery->whereNull('deleted_at');
                 }
-                $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(30)->get();
+                $appNotifsQuery->whereNotIn('type', $excludedTypes)
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('category')
+                            ->orWhereNotIn('category', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('data->notification_type')
+                            ->orWhereNotIn('data->notification_type', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('data->type')
+                            ->orWhereNotIn('data->type', $excludedTypes);
+                    });
+
+                $appNotifs = $appNotifsQuery->orderByDesc('created_at')->take(50)->get();
 
                 foreach ($appNotifs as $an) {
                     $dataPayload = is_array($an->data) ? $an->data : [];
                     $type = (string) ($an->type ?: ($dataPayload['type'] ?? $dataPayload['notification_type'] ?? 'general'));
                     $category = (string) ($an->category ?: ($dataPayload['category'] ?? $type));
                     $isRead = $an->read_at !== null;
+
+                    if (in_array(strtolower($type), $excludedTypes, true) || in_array(strtolower($category), $excludedTypes, true)) {
+                        continue;
+                    }
 
                     $notifications[] = [
                         'id' => (string) $an->id,
@@ -85,8 +90,17 @@ class LeaderNotificationsController extends Controller
             if (Schema::hasTable('notifications')) {
                 $notifs = Notification::query()
                     ->where('user_id', $userId)
+                    ->whereNotIn('type', $excludedTypes)
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('payload->notification_type')
+                            ->orWhereNotIn('payload->notification_type', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('payload->type')
+                            ->orWhereNotIn('payload->type', $excludedTypes);
+                    })
                     ->orderByDesc('created_at')
-                    ->take(30)
+                    ->take(50)
                     ->get();
 
                 foreach ($notifs as $n) {
@@ -94,6 +108,10 @@ class LeaderNotificationsController extends Controller
                     $type = (string) ($n->type ?: ($payload['notification_type'] ?? ($payload['type'] ?? 'general')));
                     $category = (string) ($payload['category'] ?? ($payload['notification_type'] ?? $type));
                     $isRead = (bool) ($n->is_read ?? false) || $n->read_at !== null;
+
+                    if (in_array(strtolower($type), $excludedTypes, true) || in_array(strtolower($category), $excludedTypes, true)) {
+                        continue;
+                    }
 
                     $title = (string) ($payload['title'] ?? ($payload['data']['title'] ?? 'Leader Notification'));
                     $msg = (string) ($payload['body'] ?? ($payload['message'] ?? ($payload['data']['body'] ?? ($payload['data']['message'] ?? 'You have a new update.'))));
@@ -380,10 +398,28 @@ class LeaderNotificationsController extends Controller
 
         if ($user) {
             $userId = (string) $user->id;
+            $excludedTypes = [
+                'engagement_reminder',
+                'daily_engagement_reminder',
+                'daily_reminder',
+                'engagement',
+                'engagement_founder',
+                'streak_reminder',
+                'streak',
+            ];
 
             if (Schema::hasTable('notifications')) {
                 $count += Notification::query()
                     ->where('user_id', $userId)
+                    ->whereNotIn('type', $excludedTypes)
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('payload->notification_type')
+                            ->orWhereNotIn('payload->notification_type', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('payload->type')
+                            ->orWhereNotIn('payload->type', $excludedTypes);
+                    })
                     ->where(function ($q) {
                         $q->where('is_read', false)->orWhereNull('is_read');
                     })
@@ -392,13 +428,27 @@ class LeaderNotificationsController extends Controller
             }
 
             if (Schema::hasTable('app_notifications')) {
-                $appCount = AppNotification::query()
+                $appQuery = AppNotification::query()
                     ->where('user_id', $userId)
-                    ->whereNull('read_at');
+                    ->whereNull('read_at')
+                    ->whereNotIn('type', $excludedTypes)
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('category')
+                            ->orWhereNotIn('category', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('data->notification_type')
+                            ->orWhereNotIn('data->notification_type', $excludedTypes);
+                    })
+                    ->where(function ($q) use ($excludedTypes): void {
+                        $q->whereNull('data->type')
+                            ->orWhereNotIn('data->type', $excludedTypes);
+                    });
+
                 if (Schema::hasColumn('app_notifications', 'deleted_at')) {
-                    $appCount->whereNull('deleted_at');
+                    $appQuery->whereNull('deleted_at');
                 }
-                $count += $appCount->count();
+                $count += $appQuery->count();
             }
         }
 

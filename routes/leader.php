@@ -17,7 +17,12 @@ use Illuminate\Support\Facades\Route;
 // ── Public System & Auth Endpoints ──────────────────────────────────────────
 Route::get('/leader/system/app-config', [LeaderSystemController::class, 'appConfig']);
 
-Route::prefix('auth')->group(function () {
+Route::prefix('leader/auth')->group(function () {
+    Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
+    Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
+});
+
+Route::prefix('leader')->group(function () {
     Route::post('send-otp', [LeaderAuthController::class, 'sendOtp']);
     Route::post('verify-otp', [LeaderAuthController::class, 'verifyOtp']);
 });
@@ -95,14 +100,14 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/requirements', [LeaderActivitiesController::class, 'requirements']);
     Route::get('/requirement', [LeaderActivitiesController::class, 'requirements']);
 
-    // Notifications
-    Route::get('/notifications', [LeaderNotificationsController::class, 'index']);
-    Route::post('/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
-    Route::post('/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
-    Route::post('/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
-    Route::get('/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
-    Route::post('/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
-    Route::post('/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
+    // Notifications (Leader App)
+    Route::get('/leader/notifications', [LeaderNotificationsController::class, 'index']);
+    Route::post('/leader/notifications/mark-read', [LeaderNotificationsController::class, 'markRead']);
+    Route::post('/leader/notifications/mark-all-read', [LeaderNotificationsController::class, 'markAllRead']);
+    Route::post('/leader/notifications/mark-read-all', [LeaderNotificationsController::class, 'markAllRead']);
+    Route::get('/leader/notifications/unread-count', [LeaderNotificationsController::class, 'unreadCount']);
+    Route::post('/leader/notifications/{id}/read', [LeaderNotificationsController::class, 'markReadSingle'])->whereUuid('id');
+    Route::post('/leader/notifications/read-all', [LeaderNotificationsController::class, 'markAllRead']);
 
     // Tab 5: Role & Permission Management
     Route::get('/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);

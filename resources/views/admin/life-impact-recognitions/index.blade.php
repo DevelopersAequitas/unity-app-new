@@ -613,7 +613,7 @@
                                         <i class="bi bi-image"></i>Live Rendered Graphic
                                     </span>
                                     <div class="flex items-center gap-2">
-                                        <a id="studioDownloadBtn" href="#" download="life_impact_recognition.webp" class="text-slate-400 hover:text-amber-300 transition no-underline text-xs inline-flex items-center gap-1" title="Download High-Res WebP">
+                                        <a id="studioDownloadBtn" href="#" download="life_impact_recognition.png" class="text-slate-400 hover:text-amber-300 transition no-underline text-xs inline-flex items-center gap-1" title="Download High-Res PNG">
                                             <i class="bi bi-download"></i>Download
                                         </a>
                                         <a id="studioOpenFullBtn" href="#" target="_blank" class="text-slate-400 hover:text-amber-300 transition no-underline text-xs inline-flex items-center gap-1" title="Open Full Size">

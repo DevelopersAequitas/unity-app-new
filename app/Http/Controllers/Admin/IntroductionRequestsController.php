@@ -9,8 +9,7 @@ use App\Models\IntroductionRequest;
 use App\Models\User;
 use App\Services\Creative\IntroductionCreativeService;
 use App\Services\MilestoneBadgeService;
-use App\Services\Notifications\MilestoneCatalystWhatsappService;
-use App\Services\Notifications\MilestoneConnectorWhatsappService;
+use App\Services\Notifications\MilestoneWhatsappNotificationService;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\UserMilestoneSyncService;
@@ -147,28 +146,19 @@ class IntroductionRequestsController extends Controller
                 // Explicitly award earned milestone badges in user_milestone_badges
                 app(MilestoneBadgeService::class)->calculateForUser($introducer);
 
-                // Safely trigger milestone_connector WhatsApp notification for first introduction ONLY
-                if ($count === 1) {
-                    try {
-                        app(MilestoneConnectorWhatsappService::class)->handleFirstIntroduction(
-                            $introducer,
-                            $creative?->image_url
-                        );
-                    } catch (\Throwable $whatsappEx) {
-                        Log::error('Failed triggering milestone connector WhatsApp on request approval: '.$whatsappEx->getMessage());
-                    }
-                }
-
-                // Safely and independently evaluate CATALYST milestone notification for threshold (count >= 3)
-                if ($count >= 3) {
-                    try {
-                        app(MilestoneCatalystWhatsappService::class)->handleCatalystMilestone(
-                            $introducer,
-                            $count === 3 ? $creative?->image_url : null
-                        );
-                    } catch (\Throwable $whatsappEx) {
-                        Log::error('Failed triggering milestone catalyst WhatsApp on request approval: '.$whatsappEx->getMessage());
-                    }
+                // Trigger milestone WhatsApp notification workflow for exact milestone counts (1..500)
+                try {
+                    app(MilestoneWhatsappNotificationService::class)->handleMilestoneNotification(
+                        $introducer,
+                        $count,
+                        $creative?->image_url
+                    );
+                } catch (\Throwable $whatsappEx) {
+                    Log::error('Failed triggering milestone WhatsApp notification on request approval: '.$whatsappEx->getMessage(), [
+                        'introducer_id' => $introducer->id,
+                        'count' => $count,
+                        'exception' => $whatsappEx,
+                    ]);
                 }
 
                 // Sync milestones for the introducer

@@ -97,7 +97,15 @@ class NotificationEngineController extends BaseApiController
             $query->whereNull('deleted_at');
         }
 
-        $excludedTypes = ['engagement_reminder', 'daily_engagement_reminder', 'daily_reminder', 'engagement'];
+        $excludedTypes = [
+            'engagement_reminder',
+            'daily_engagement_reminder',
+            'daily_reminder',
+            'engagement',
+            'engagement_founder',
+            'streak_reminder',
+            'streak',
+        ];
 
         $query->whereNotIn('type', $excludedTypes)
             ->where(function ($q) use ($excludedTypes): void {
@@ -107,6 +115,10 @@ class NotificationEngineController extends BaseApiController
             ->where(function ($q) use ($excludedTypes): void {
                 $q->whereNull('data->notification_type')
                     ->orWhereNotIn('data->notification_type', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('data->type')
+                    ->orWhereNotIn('data->type', $excludedTypes);
             });
 
         if ($request->boolean('unread_only')) {
@@ -156,6 +168,10 @@ class NotificationEngineController extends BaseApiController
             ->where(function ($q) use ($excludedTypes): void {
                 $q->whereNull('data->notification_type')
                     ->orWhereNotIn('data->notification_type', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('data->type')
+                    ->orWhereNotIn('data->type', $excludedTypes);
             });
 
         $mappedNotifications = collect($paginator->items())->map(function (AppNotification $notification): array {
@@ -204,6 +220,82 @@ class NotificationEngineController extends BaseApiController
             ],
             'unread_count' => $unreadQuery->count(),
         ], 'Notifications fetched successfully.');
+    }
+
+    public function unreadCount(Request $request)
+    {
+        $excludedTypes = [
+            'engagement_reminder',
+            'daily_engagement_reminder',
+            'daily_reminder',
+            'engagement',
+            'engagement_founder',
+            'streak_reminder',
+            'streak',
+        ];
+
+        $unreadQuery = AppNotification::where('user_id', $request->user()->id)->whereNull('read_at');
+        if (Schema::hasColumn('app_notifications', 'deleted_at')) {
+            $unreadQuery->whereNull('deleted_at');
+        }
+        $unreadQuery->whereNotIn('type', $excludedTypes)
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('category')
+                    ->orWhereNotIn('category', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('data->notification_type')
+                    ->orWhereNotIn('data->notification_type', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('data->type')
+                    ->orWhereNotIn('data->type', $excludedTypes);
+            });
+
+        return $this->success([
+            'unread_count' => $unreadQuery->count(),
+        ], 'Unread notifications count fetched successfully.');
+    }
+
+    public function markRead(Request $request, NotificationService $service)
+    {
+        $rawIds = $request->input('notification_ids')
+            ?? $request->input('notification_id')
+            ?? $request->input('ids')
+            ?? $request->input('id');
+
+        if ($rawIds === 'all') {
+            return $this->readAll($request, $service);
+        }
+
+        $idsToMark = [];
+        if (is_string($rawIds) && filled($rawIds)) {
+            $idsToMark[] = $rawIds;
+        } elseif (is_array($rawIds)) {
+            $idsToMark = array_filter($rawIds, 'is_string');
+        }
+
+        if (in_array('all', array_map('strtolower', $idsToMark), true)) {
+            return $this->readAll($request, $service);
+        }
+
+        $user = $request->user();
+        $updatedCount = 0;
+
+        if (! empty($idsToMark)) {
+            $updatedCount = AppNotification::query()
+                ->where('user_id', $user->id)
+                ->whereIn('id', $idsToMark)
+                ->whereNull('read_at')
+                ->update([
+                    'read_at' => now(),
+                    'status' => 'read',
+                ]);
+        }
+
+        return $this->success([
+            'updated_count' => $updatedCount,
+        ], 'Notifications marked as read successfully.');
     }
 
     public function read(Request $request, string $id, NotificationService $service)

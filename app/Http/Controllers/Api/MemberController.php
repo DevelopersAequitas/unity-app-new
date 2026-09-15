@@ -17,6 +17,7 @@ use App\Services\ProfileVisibilityService;
 use App\Services\Recommendation\MemberMatchingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -402,6 +403,29 @@ class MemberController extends BaseApiController
             if (! empty($excludedUserIds)) {
                 $query->whereNotIn('users.id', $excludedUserIds);
             }
+
+            if (Schema::hasTable('connections')) {
+                $excludeConnected = $request->boolean('exclude_connected')
+                    || $request->input('is_connected') === 'false'
+                    || $request->input('is_connected') === '0'
+                    || $request->input('connection_filter') === 'not_connected';
+
+                if ($excludeConnected) {
+                    $connectedUserIds = Connection::query()
+                        ->where('is_approved', true)
+                        ->where(function ($q) use ($authUser): void {
+                            $q->where('requester_id', $authUser->id)
+                                ->orWhere('addressee_id', $authUser->id);
+                        })
+                        ->get()
+                        ->map(fn (Connection $c): string => (string) ((string) $c->requester_id === (string) $authUser->id ? $c->addressee_id : $c->requester_id))
+                        ->all();
+
+                    if (! empty($connectedUserIds)) {
+                        $query->whereNotIn('users.id', $connectedUserIds);
+                    }
+                }
+            }
         }
 
         return $query;
@@ -426,24 +450,145 @@ class MemberController extends BaseApiController
         PeerBlockService $peerBlockService,
         ProfileVisibilityService $profileVisibilityService,
         MemberMatchingService $memberMatchingService
-    ) {
+    ): AnonymousResourceCollection {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
-        if ($authUser instanceof User) {
-            $users = $memberMatchingService->rank($authUser, $query);
-        } else {
-            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+        if ($request->input('paginate') === 'false' || $request->input('paginate') === '0' || $request->input('per_page') === 'all') {
+            if ($authUser instanceof User) {
+                $users = $memberMatchingService->rank($authUser, $query);
+            } else {
+                $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+            }
+
+            $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
+
+            return LimitedUserResource::collection($users)->additional([
+                'success' => true,
+                'message' => 'Limited user data fetched successfully.',
+                'total_users' => $users->count(),
+                'total_user' => $users->count(),
+                'total' => $users->count(),
+            ]);
         }
 
-        return LimitedUserResource::collection($users)->additional([
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = max(1, (int) $request->input('per_page', 20));
+
+        if ($authUser instanceof User) {
+            $paginated = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
+        } else {
+            $paginated = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
+        }
+
+        $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $paginated->getCollection());
+
+        return LimitedUserResource::collection($paginated)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
-            'total_users' => $users->count(),
-            'total_user' => $users->count(),
-            'total' => $users->count(),
+            'total_users' => $paginated->total(),
+            'total_user' => $paginated->total(),
+            'total' => $paginated->total(),
+            'pagination' => [
+                'current_page' => $paginated->currentPage(),
+                'per_page' => $paginated->perPage(),
+                'last_page' => $paginated->lastPage(),
+                'total' => $paginated->total(),
+            ],
         ]);
+    }
+
+    /**
+     * Batch attach connection statuses with auth user onto candidate members.
+     *
+     * @param  Collection<int, User>|array<int, User>  $users
+     */
+    private function attachConnectionStatuses(?User $authUser, mixed $users): void
+    {
+        $userCollection = $users instanceof Collection ? $users : collect($users);
+
+        if (! $authUser || $userCollection->isEmpty()) {
+            $userCollection->each(function (User $user): void {
+                $user->setAttribute('is_connected', false);
+                $user->setAttribute('connection_status', null);
+                $user->setAttribute('is_requested', false);
+                $user->setAttribute('can_send_connection_request', true);
+                $user->setAttribute('is_following', false);
+            });
+
+            return;
+        }
+
+        $authUserId = (string) $authUser->id;
+        $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
+
+        $connections = collect();
+        if (Schema::hasTable('connections')) {
+            $connections = Connection::query()
+                ->where(function ($q) use ($authUserId, $userIds): void {
+                    $q->where('requester_id', $authUserId)
+                        ->whereIn('addressee_id', $userIds);
+                })
+                ->orWhere(function ($q) use ($authUserId, $userIds): void {
+                    $q->where('addressee_id', $authUserId)
+                        ->whereIn('requester_id', $userIds);
+                })
+                ->get()
+                ->keyBy(function (Connection $connection) use ($authUserId): string {
+                    return (string) ((string) $connection->requester_id === $authUserId
+                        ? $connection->addressee_id
+                        : $connection->requester_id);
+                });
+        }
+
+        $followedUserIds = [];
+        if (Schema::hasTable('user_follows')) {
+            $followedUserIds = UserFollow::query()
+                ->where('follower_id', $authUserId)
+                ->whereIn('following_id', $userIds)
+                ->whereIn('status', ['accepted', 'pending'])
+                ->pluck('following_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
+        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds): void {
+            $user->setAttribute('is_following', in_array((string) $user->id, $followedUserIds, true));
+
+            $rawVerified = $user->is_verified ?? null;
+            if ($rawVerified !== null && (bool) $rawVerified) {
+                $isPro = true;
+            } elseif (method_exists($user, 'isPaidMember')) {
+                $isPro = (bool) $user->isPaidMember();
+            } else {
+                $status = strtolower(trim((string) ($user->effective_membership_status ?? $user->membership_status ?? '')));
+                $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+            $user->setAttribute('is_pro', $isPro);
+
+            $connection = $connections->get((string) $user->id);
+
+            if (! $connection) {
+                $user->setAttribute('is_connected', false);
+                $user->setAttribute('connection_status', null);
+                $user->setAttribute('is_requested', false);
+                $user->setAttribute('can_send_connection_request', true);
+
+                return;
+            }
+
+            $isConnected = (bool) $connection->is_approved;
+            $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+            $status = $isConnected
+                ? 'connected'
+                : ($isRequested ? 'pending_sent' : 'pending_received');
+
+            $user->setAttribute('is_connected', $isConnected);
+            $user->setAttribute('connection_status', $status);
+            $user->setAttribute('is_requested', $isRequested);
+            $user->setAttribute('can_send_connection_request', false);
+        });
     }
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)

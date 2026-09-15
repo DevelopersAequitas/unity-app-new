@@ -85,6 +85,9 @@ class PostResource extends JsonResource
                     'display_name' => 'PeersGlobal Unity',
                     'first_name' => 'PeersGlobal',
                     'last_name' => 'Unity',
+                    'company_name' => 'PeersGlobal',
+                    'designation' => 'Unity Admin',
+                    'level4_category' => null,
                     'profile_photo_url' => null,
                 ]
                 : $this->when(
@@ -93,11 +96,23 @@ class PostResource extends JsonResource
                     function () {
                         $author = $this->user ?? $this->author;
 
+                        $subCategory = $author?->level4Category?->name
+                            ?? $author?->business_sub_category
+                            ?? null;
+
                         return [
                             'id' => $author?->id,
                             'display_name' => $author?->display_name,
                             'first_name' => $author?->first_name,
                             'last_name' => $author?->last_name,
+                            'company_name' => $author?->company_name ?: null,
+                            'designation' => $author?->designation ?? null,
+                            'level4_category' => $author?->level4Category?->name
+                                ?? $author?->business_sub_category
+                                ?? $author?->businessCategory?->name
+                                ?? $author?->mainBusinessCategory?->name
+                                ?? null,
+                            'business_sub_category' => $subCategory,
                             'profile_photo_url' => $author?->profile_photo_url,
                         ];
                     }
