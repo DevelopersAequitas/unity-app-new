@@ -219,7 +219,7 @@ class CircleJoinRequestsController extends Controller
 
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($request): void {
             abort_unless($this->canApproveId($admin, $actor, $record), 403);
-            $this->rejectRequest($record, $actor, (string) $request->input('reason'));
+            $this->rejectRequest($record, $admin, $actor, (string) $request->input('reason'));
         });
     }
 
