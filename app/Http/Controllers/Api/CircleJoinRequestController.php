@@ -10,6 +10,7 @@ use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
 use App\Models\CustomCategoryRequest;
+use App\Models\User;
 use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
@@ -283,9 +284,30 @@ class CircleJoinRequestController extends BaseApiController
             $paidAt = $paidAtTimestamp ? $paidAtTimestamp->toIso8601String() : null;
         }
 
+        // User & Pro status
+        $user = $request->user;
+        if (! $user && $request->user_id) {
+            $user = User::query()->find($request->user_id);
+        }
+
+        $isPro = false;
+        if ($user) {
+            if ($user->getAttribute('is_pro') !== null) {
+                $isPro = (bool) $user->getAttribute('is_pro');
+            } elseif (isset($user->is_verified) && $user->is_verified !== null && (bool) $user->is_verified) {
+                $isPro = true;
+            } elseif (method_exists($user, 'isPaidMember')) {
+                $isPro = (bool) $user->isPaidMember();
+            } else {
+                $membership = strtolower(trim((string) ($user->membership_status ?? $user->effective_membership_status ?? '')));
+                $isPro = $membership !== '' && ! in_array($membership, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+        }
+
         return [
             'id' => (string) $request->id,
             'user_id' => (string) $request->user_id,
+            'is_pro' => $isPro,
             'circle_id' => (string) $request->circle_id,
             'circle' => $request->circle ? [
                 'id' => (string) $request->circle->id,
@@ -516,9 +538,30 @@ class CircleJoinRequestController extends BaseApiController
             $paidAt = $paidAtTimestamp ? $paidAtTimestamp->toIso8601String() : null;
         }
 
+        $user = $record->user;
+        if (! $user && $record->user_id) {
+            $user = User::query()->find($record->user_id);
+        }
+
+        $isPro = false;
+        if ($user) {
+            if ($user->getAttribute('is_pro') !== null) {
+                $isPro = (bool) $user->getAttribute('is_pro');
+            } elseif (isset($user->is_verified) && $user->is_verified !== null && (bool) $user->is_verified) {
+                $isPro = true;
+            } elseif (method_exists($user, 'isPaidMember')) {
+                $isPro = (bool) $user->isPaidMember();
+            } else {
+                $membership = strtolower(trim((string) ($user->membership_status ?? $user->effective_membership_status ?? '')));
+                $isPro = $membership !== '' && ! in_array($membership, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+        }
+
         $data = [
             'id' => (string) $record->id,
             'user_id' => (string) $record->user_id,
+            'is_pro' => $isPro,
+            'circle_id' => (string) $record->circle_id,
             'status' => (string) $record->status,
             'status_label' => $this->statusLabel($record->status),
             'display_status' => $this->statusLabel($record->status),
