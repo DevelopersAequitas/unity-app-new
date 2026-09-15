@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Requests\Api\CircleJoinRequests\ListMyCircleJoinRequests;
 use App\Http\Requests\Api\CircleJoinRequests\StoreCircleJoinRequest;
 use App\Models\Circle;
+use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
 use App\Models\CustomCategoryRequest;
 use App\Services\Circles\CircleJoinRequestNotificationService;
