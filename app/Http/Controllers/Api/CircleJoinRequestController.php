@@ -52,12 +52,12 @@ class CircleJoinRequestController extends BaseApiController
                     ->where(function ($q) use ($category, $cleanName) {
                         $q->where('slug', $category->slug)
                             ->orWhere('name', $category->name)
-                            ->orWhere('name', 'like', '%' . $cleanName . '%');
+                            ->orWhere('name', 'like', '%'.$cleanName.'%');
                     })
                     ->first();
 
                 if (! $matchedCircle) {
-                    $matchedCircle = new Circle();
+                    $matchedCircle = new Circle;
                     $matchedCircle->id = (string) Str::uuid();
                     $matchedCircle->name = (string) $category->name;
                     $matchedCircle->slug = (string) ($category->slug ?: Str::slug($category->name));
@@ -146,6 +146,7 @@ class CircleJoinRequestController extends BaseApiController
             ->where('user_id', $request->user()->id)
             ->when($status, fn ($q) => $q->where('status', $status))
             ->with([
+                'circle',
                 'cdApprovedBy',
                 'idApprovedBy',
                 'dedApprovedBy',
@@ -267,6 +268,18 @@ class CircleJoinRequestController extends BaseApiController
         return [
             'id' => (string) $request->id,
             'user_id' => (string) $request->user_id,
+            'circle_id' => (string) $request->circle_id,
+            'circle' => $request->circle ? [
+                'id' => (string) $request->circle->id,
+                'name' => (string) $request->circle->name,
+                'slug' => (string) $request->circle->slug,
+                'categories' => $level1Category ? [$level1Category] : [],
+            ] : null,
+            'circle_categories' => $level1Category ? [$level1Category] : [],
+            'circle_category_id' => $level1Category ? $level1Category['id'] : null,
+            'circle_category_name' => $level1Category ? $level1Category['name'] : null,
+            'category_id' => $level1Category ? $level1Category['id'] : null,
+            'category_name' => $level1Category ? $level1Category['name'] : null,
             'status' => $status,
             'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
