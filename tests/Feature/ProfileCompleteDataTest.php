@@ -7,7 +7,9 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -296,7 +298,6 @@ class ProfileCompleteDataTest extends TestCase
             'profile_photo_id',
             'cover_photo_id',
             'profile_video_id',
-            'profile_video',
             'profile_video_url',
             'first_name',
             'last_name',
@@ -305,7 +306,6 @@ class ProfileCompleteDataTest extends TestCase
             'designation',
             'email',
             'phone',
-            'introduced_by',
             'introduced_by_user',
             'city',
             'membership_status',
@@ -314,12 +314,7 @@ class ProfileCompleteDataTest extends TestCase
             'membership_ends_at',
             'zoho_plan_code',
             'zoho_last_invoice_id',
-            'active_circle_id',
-            'active_circle_addon_code',
-            'active_circle_addon_name',
-            'circle_joined_at',
-            'circle_expires_at',
-            'active_circle_subscription_id',
+            'active_circle',
             'circle_memberships',
             'contact_visibility',
             'connection_count',
@@ -329,14 +324,11 @@ class ProfileCompleteDataTest extends TestCase
             'coins_balance',
             'life_impacted_count',
             'badges_count',
-            'my_badges_count',
             'p2p_meetings_count',
-            'p2p_count',
             'referrals_count',
             'given_referrals_count',
             'received_referrals_count',
             'business_deals_count',
-            'deals_count',
             'given_business_deals_count',
             'received_business_deals_count',
             'business_type',
@@ -356,7 +348,6 @@ class ProfileCompleteDataTest extends TestCase
             'hobbies_interests',
             'leadership_roles',
             'special_recognitions',
-            'social_links',
             'media',
             'profile_photo_url',
             'cover_photo_url',
@@ -371,15 +362,13 @@ class ProfileCompleteDataTest extends TestCase
             'last_login_at',
             'created_at',
             'updated_at',
-            'website',
             'sustainability_contribution',
             'sustainability_areas',
             'greenpreneur_goals',
             'community_directory_listing',
             'is_bookmark',
             'business_logo_id',
-            'business_category_id',
-            'business_sub_category',
+            'business_category',
             'company_type',
             'year_of_establishment',
             'annual_revenue_range',
@@ -398,7 +387,6 @@ class ProfileCompleteDataTest extends TestCase
             'twitter_handle',
             'facebook_profile',
             'youtube_channel',
-            'other_website',
             'business_address',
             'business_city',
             'business_state',
@@ -426,6 +414,22 @@ class ProfileCompleteDataTest extends TestCase
             'profile_card_image_url',
             'custom_category_name',
             'about',
+            'profile_video',
+            'introduced_by',
+            'active_circle_id',
+            'active_circle_addon_code',
+            'active_circle_addon_name',
+            'circle_joined_at',
+            'circle_expires_at',
+            'active_circle_subscription_id',
+            'my_badges_count',
+            'p2p_count',
+            'deals_count',
+            'social_links',
+            'website',
+            'business_category_id',
+            'business_sub_category',
+            'other_website',
         ];
 
         foreach ($duplicateKeys as $key) {
@@ -450,11 +454,11 @@ class ProfileCompleteDataTest extends TestCase
         ]);
 
         // Insert badges
-        \Illuminate\Support\Facades\DB::table('user_milestone_badges')->insert([
+        DB::table('user_milestone_badges')->insert([
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
-                'badge_id' => (string) \Illuminate\Support\Str::uuid(),
+                'badge_id' => (string) Str::uuid(),
                 'milestone_type' => 'CONNECTOR',
                 'achieved_count' => 1,
                 'status' => 'earned',
@@ -462,9 +466,9 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
-                'badge_id' => (string) \Illuminate\Support\Str::uuid(),
+                'badge_id' => (string) Str::uuid(),
                 'milestone_type' => 'CATALYST',
                 'achieved_count' => 3,
                 'status' => 'earned',
@@ -472,9 +476,9 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
-                'badge_id' => (string) \Illuminate\Support\Str::uuid(),
+                'badge_id' => (string) Str::uuid(),
                 'milestone_type' => 'REVOKED_TEST',
                 'achieved_count' => 1,
                 'status' => 'revoked',
@@ -484,9 +488,9 @@ class ProfileCompleteDataTest extends TestCase
         ]);
 
         // Insert P2P meetings (1 as initiator, 1 as peer, 1 soft-deleted)
-        \Illuminate\Support\Facades\DB::table('p2p_meetings')->insert([
+        DB::table('p2p_meetings')->insert([
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'initiator_user_id' => $user->id,
                 'peer_user_id' => $peer->id,
                 'meeting_date' => now()->toDateString(),
@@ -496,7 +500,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'initiator_user_id' => $peer->id,
                 'peer_user_id' => $user->id,
                 'meeting_date' => now()->toDateString(),
@@ -506,7 +510,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'initiator_user_id' => $user->id,
                 'peer_user_id' => $peer->id,
                 'meeting_date' => now()->toDateString(),
@@ -518,9 +522,9 @@ class ProfileCompleteDataTest extends TestCase
         ]);
 
         // Insert referrals (2 given, 1 received, 1 deleted)
-        \Illuminate\Support\Facades\DB::table('referrals')->insert([
+        DB::table('referrals')->insert([
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $user->id,
                 'to_user_id' => $peer->id,
                 'referral_type' => 'given',
@@ -530,7 +534,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $user->id,
                 'to_user_id' => $peer->id,
                 'referral_type' => 'given',
@@ -540,7 +544,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $peer->id,
                 'to_user_id' => $user->id,
                 'referral_type' => 'received',
@@ -550,7 +554,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $user->id,
                 'to_user_id' => $peer->id,
                 'referral_type' => 'given',
@@ -562,9 +566,9 @@ class ProfileCompleteDataTest extends TestCase
         ]);
 
         // Insert business deals (1 given, 2 received, 1 deleted)
-        \Illuminate\Support\Facades\DB::table('business_deals')->insert([
+        DB::table('business_deals')->insert([
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $user->id,
                 'to_user_id' => $peer->id,
                 'deal_amount' => 50000,
@@ -574,7 +578,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $peer->id,
                 'to_user_id' => $user->id,
                 'deal_amount' => 150000,
@@ -584,7 +588,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $peer->id,
                 'to_user_id' => $user->id,
                 'deal_amount' => 25000,
@@ -594,7 +598,7 @@ class ProfileCompleteDataTest extends TestCase
                 'updated_at' => now(),
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'from_user_id' => $user->id,
                 'to_user_id' => $peer->id,
                 'deal_amount' => 10000,
@@ -612,14 +616,11 @@ class ProfileCompleteDataTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.badges_count', 2)
-            ->assertJsonPath('data.my_badges_count', 2)
             ->assertJsonPath('data.p2p_meetings_count', 2)
-            ->assertJsonPath('data.p2p_count', 2)
             ->assertJsonPath('data.referrals_count', 3)
             ->assertJsonPath('data.given_referrals_count', 2)
             ->assertJsonPath('data.received_referrals_count', 1)
             ->assertJsonPath('data.business_deals_count', 3)
-            ->assertJsonPath('data.deals_count', 3)
             ->assertJsonPath('data.given_business_deals_count', 1)
             ->assertJsonPath('data.received_business_deals_count', 2);
     }
