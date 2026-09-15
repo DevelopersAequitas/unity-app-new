@@ -76,21 +76,21 @@
         </form>
     </div>
 
-    <div class="rounded-xl border bs surface overflow-hidden">
+    <div class="rounded-xl border bs surface overflow-hidden shadow-sm">
         <div class="overflow-x-auto relative">
-            <table class="min-w-[1100px] w-full border-collapse text-[13px] align-middle">
+            <table class="min-w-[1200px] w-full border-collapse text-[13px] align-middle">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Company</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">City</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Circle</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Category</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Reason for Joining</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Status</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">DED Approval</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Payment</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-center whitespace-nowrap">Actions</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:140px;">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:110px;">City</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:150px;">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:180px;">Category</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:180px;">Reason for Joining</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:150px;">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:140px;">DED Approval</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-left whitespace-nowrap" style="min-width:110px;">Payment</th>
+                        <th class="th-cell surface-2 border-b bs px-4 py-3 text-center whitespace-nowrap" style="min-width:160px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -139,10 +139,10 @@
                             ];
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openRequestRowModal({{ json_encode($rowData) }})" title="Click row to view full request details">
-                            <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                            <td class="px-4 py-3 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 @if ($peer)
-                                    <div class="flex items-center gap-2 whitespace-nowrap">
-                                        <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
+                                    <div class="flex items-center gap-2.5 whitespace-nowrap">
+                                        <div class="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 shadow-sm" style="background-color: {{ $getAvatarBg($peerName) }}">
                                             {{ $getInitials($peerName) }}
                                         </div>
                                         <span class="text-indigo-600 font-semibold hover:underline no-underline whitespace-nowrap">
@@ -153,39 +153,39 @@
                                     <span class="t3 whitespace-nowrap">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
-                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
-                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCircle }}</td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[180px]">
+                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
+                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
+                            <td class="px-4 py-3 text-xs t2 whitespace-nowrap">{{ $peerCircle }}</td>
+                            <td class="px-4 py-3 text-xs t2">
                                 @if($row->circleCategory)
-                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] truncate" title="{{ $row->circleCategory->name }}">
+                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] whitespace-normal" title="{{ $row->circleCategory->name }}">
                                         Category: {{ $row->circleCategory->name }}
                                     </div>
-                                    <div class="t3 text-[10px] mt-0.5">ID: {{ $row->circleCategory->id }}</div>
+                                    <div class="t3 text-[10px] mt-0.5 font-mono">ID: {{ $row->circleCategory->id }}</div>
                                 @else
                                     <div class="t3">—</div>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[200px] truncate">
+                            <td class="px-4 py-3 text-xs t2">
                                 @if(!empty($row->reason_for_joining))
                                     <span class="font-medium text-slate-700" title="{{ $row->reason_for_joining }}">
-                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 30) }}
+                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 40) }}
                                     </span>
                                 @else
                                     <span class="t3">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                            <td class="px-4 py-3 text-xs whitespace-nowrap">
                                 @if(str_contains($st, 'approved') || $st === 'circle_member')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ $statusLabel }}
                                     </span>
                                 @elseif(str_contains($st, 'rejected'))
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ $statusLabel }}
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ $statusLabel }}
                                     </span>
                                 @endif
@@ -202,38 +202,38 @@
                                     <div class="t3 text-[10px] text-emerald-600 mt-0.5">Payment completed</div>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                            <td class="px-4 py-3 text-xs whitespace-nowrap">
                                 @if($dedApprovalStatus === 'approved')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
                                     </span>
                                     <div class="t3 text-[10px] text-emerald-600 mt-0.5">Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : ' by DED' }}</div>
                                 @elseif($dedApprovalStatus === 'rejected')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Rejected
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Pending
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                            <td class="px-4 py-3 text-xs whitespace-nowrap">
                                 @if($paymentStatus === 'Paid')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Paid
                                     </span>
                                 @elseif($paymentStatus === 'Unpaid')
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Unpaid
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ $paymentStatus }}
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs text-center whitespace-nowrap" onclick="event.stopPropagation()">
+                            <td class="px-4 py-3 text-xs text-center whitespace-nowrap" onclick="event.stopPropagation()">
                                 <div class="flex justify-center gap-1.5 items-center whitespace-nowrap">
                                     <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
@@ -255,7 +255,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="11" class="text-center py-8 text-xs t3 whitespace-nowrap">No requests found.</td></tr>
+                        <tr><td colspan="10" class="text-center py-8 text-xs t3 whitespace-nowrap">No requests found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -315,117 +315,127 @@
             </div>
         </div>
 
-            <div class="pt-3 border-t bs flex justify-between items-center gap-2 flex-wrap">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <a id="modalRowReviewBtn" href="#" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition no-underline shadow-sm flex items-center gap-1.5">
-                        Open Full Page
-                    </a>
+        <div class="pt-3 border-t bs flex justify-between items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+                <a id="modalRowReviewBtn" href="#" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition no-underline shadow-sm flex items-center gap-1.5">
+                    Open Full Page
+                </a>
 
-                    <!-- Dynamic Approve Form -->
-                    <form id="modalApproveForm" method="POST" action="" class="inline">
-                        @csrf
-                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5">
-                            Approve
-                        </button>
-                    </form>
+                <!-- Dynamic Approve Form -->
+                <form id="modalApproveForm" method="POST" action="" class="inline">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                        Approve
+                    </button>
+                </form>
 
-                    <!-- Dynamic Reject Form -->
-                    <form id="modalRejectForm" method="POST" action="" class="inline" onsubmit="const r = prompt('Enter rejection reason:'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason_field]').value = r.trim(); return true;">
-                        @csrf
-                        <input type="hidden" name="reason_field" id="modalRejectReasonInput">
-                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition shadow-sm cursor-pointer flex items-center gap-1.5">
-                            Reject
-                        </button>
-                    </form>
-                </div>
-
-                <button type="button" onclick="closeRequestRowModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition cursor-pointer">
-                    Close
-                </button>
+                <!-- Dynamic Reject Form -->
+                <form id="modalRejectForm" method="POST" action="" class="inline" onsubmit="const r = prompt('Enter rejection reason:'); if (!r || !r.trim()) { return false; } document.getElementById('modalRejectReasonInput').value = r.trim(); return true;">
+                    @csrf
+                    <input type="hidden" name="reason" id="modalRejectReasonInput">
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                        Reject
+                    </button>
+                </form>
             </div>
+
+            <button type="button" onclick="closeRequestRowModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition cursor-pointer">
+                Close
+            </button>
         </div>
     </div>
+</div>
 
-    <script>
-        function openRequestRowModal(data) {
-            document.getElementById('modalRowPeerName').textContent = data.peerName || 'Circle Joining Request';
-            document.getElementById('modalRowCompany').textContent = data.peerCompany || '—';
-            document.getElementById('modalRowCity').textContent = data.peerCity || '—';
-            document.getElementById('modalRowCircle').textContent = data.peerCircle || '—';
-            document.getElementById('modalRowCategory').textContent = data.category + (data.categoryId ? ' (ID: ' + data.categoryId + ')' : '');
-            document.getElementById('modalRowReason').textContent = data.reason || '—';
-            
-            // Status Badge
-            const statusEl = document.getElementById('modalRowStatus');
-            statusEl.textContent = data.status || 'Pending';
-            if ((data.statusRaw || '').includes('approved') || data.statusRaw === 'circle_member') {
-                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
-            } else if ((data.statusRaw || '').includes('rejected')) {
-                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
-            } else {
-                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
-            }
+<script>
+    function openRequestRowModal(data) {
+        document.getElementById('modalRowPeerName').textContent = data.peerName || 'Circle Joining Request';
+        document.getElementById('modalRowCompany').textContent = data.peerCompany || '—';
+        document.getElementById('modalRowCity').textContent = data.peerCity || '—';
+        document.getElementById('modalRowCircle').textContent = data.peerCircle || '—';
+        document.getElementById('modalRowCategory').textContent = data.category + (data.categoryId ? ' (ID: ' + data.categoryId + ')' : '');
+        document.getElementById('modalRowReason').textContent = data.reason || '—';
+        
+        // Status Badge
+        const statusEl = document.getElementById('modalRowStatus');
+        statusEl.textContent = data.status || 'Pending';
+        if ((data.statusRaw || '').includes('approved') || data.statusRaw === 'circle_member') {
+            statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if ((data.statusRaw || '').includes('rejected')) {
+            statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
+        } else {
+            statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+        }
 
-            // DED Approval
-            const dedEl = document.getElementById('modalRowDed');
-            dedEl.textContent = data.dedApproval === 'approved' ? 'Approved' : (data.dedApproval === 'rejected' ? 'Rejected' : 'Pending');
-            if (data.dedApproval === 'approved') {
-                dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
-            } else if (data.dedApproval === 'rejected') {
-                dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
-            } else {
-                dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
-            }
+        // DED Approval
+        const dedEl = document.getElementById('modalRowDed');
+        dedEl.textContent = data.dedApproval === 'approved' ? 'Approved' : (data.dedApproval === 'rejected' ? 'Rejected' : 'Pending');
+        if (data.dedApproval === 'approved') {
+            dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if (data.dedApproval === 'rejected') {
+            dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
+        } else {
+            dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+        }
 
+        // Payment
+        const payEl = document.getElementById('modalRowPayment');
+        payEl.textContent = data.payment || 'Unpaid';
+        if (data.payment === 'Paid') {
+            payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if (data.payment === 'Unpaid') {
+            payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+        } else {
+            payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200';
+        }
 
+        // Action Forms (Approve / Reject in popup modal)
+        const approveForm = document.getElementById('modalApproveForm');
+        const rejectForm = document.getElementById('modalRejectForm');
+        const rejectInput = document.getElementById('modalRejectReasonInput');
 
-            
-            // Payment
-            const payEl = document.getElementById('modalRowPayment');
-            payEl.textContent = data.payment || 'Unpaid';
-            if (data.payment === 'Paid') {
-                payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
-            } else if (data.payment === 'Unpaid') {
-                payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
-            } else {
-                payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200';
-            }
+        let canAct = false;
+        let approveUrl = '';
+        let rejectUrl = '';
+        let rejectField = 'reason';
 
-            // Action Forms (Approve / Reject always displayed next to Open Full Page)
-            const approveForm = document.getElementById('modalApproveForm');
-            const rejectForm = document.getElementById('modalRejectForm');
-            const rejectInput = document.getElementById('modalRejectReasonInput');
+        if (data.canApproveDed) {
+            approveUrl = data.approveDedUrl;
+            rejectUrl = data.rejectDedUrl;
+            rejectField = 'remarks';
+            canAct = true;
+        } else if (data.canApproveId) {
+            approveUrl = data.approveIdUrl;
+            rejectUrl = data.rejectIdUrl;
+            rejectField = 'reason';
+            canAct = true;
+        } else if (data.canApproveCd) {
+            approveUrl = data.approveCdUrl;
+            rejectUrl = data.rejectCdUrl;
+            rejectField = 'reason';
+            canAct = true;
+        }
 
-            let approveUrl = data.approveCdUrl;
-            let rejectUrl = data.rejectCdUrl;
-            let rejectField = 'reason';
-
-            if (data.canApproveDed || (data.statusRaw || '').includes('ded')) {
-                approveUrl = data.approveDedUrl;
-                rejectUrl = data.rejectDedUrl;
-                rejectField = 'remarks';
-            } else if (data.canApproveId || (data.statusRaw || '').includes('id')) {
-                approveUrl = data.approveIdUrl;
-                rejectUrl = data.rejectIdUrl;
-                rejectField = 'reason';
-            }
-
-            approveForm.action = approveUrl || data.approveCdUrl;
-            rejectForm.action = rejectUrl || data.rejectCdUrl;
+        if (canAct && approveUrl) {
+            approveForm.action = approveUrl;
+            rejectForm.action = rejectUrl;
             rejectInput.name = rejectField;
             approveForm.classList.remove('hidden');
             rejectForm.classList.remove('hidden');
-
-            // Full Review Link
-            document.getElementById('modalRowReviewBtn').href = data.showUrl || '#';
-
-            document.getElementById('requestRowDetailModal').classList.remove('hidden');
+        } else {
+            approveForm.classList.add('hidden');
+            rejectForm.classList.add('hidden');
         }
 
-        function closeRequestRowModal() {
-            document.getElementById('requestRowDetailModal').classList.add('hidden');
-        }
-    </script>
+        // Full Review Link
+        document.getElementById('modalRowReviewBtn').href = data.showUrl || '#';
 
-    @include('admin.circle_join_requests.partials.ded_approval_modal')
+        document.getElementById('requestRowDetailModal').classList.remove('hidden');
+    }
+
+    function closeRequestRowModal() {
+        document.getElementById('requestRowDetailModal').classList.add('hidden');
+    }
+</script>
+
+@include('admin.circle_join_requests.partials.ded_approval_modal')
 @endsection

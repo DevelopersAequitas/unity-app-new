@@ -163,6 +163,7 @@ class ImpactsController extends Controller
             ]);
         }
 
+        
         $submittedBy = User::query()->find($adminId);
 
         if (! $submittedBy) {
