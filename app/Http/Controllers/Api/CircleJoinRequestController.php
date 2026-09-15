@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Api\CircleJoinRequests\ListMyCircleJoinRequests;
@@ -21,26 +23,30 @@ class CircleJoinRequestController extends BaseApiController
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
-        $circleId = $request->validated('circle_id');
+        $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
 
-        if (! $circleId) {
-            $categoryId = $request->validated('category_id');
-
-            if (! $categoryId && $request->validated('level4_category_id')) {
-                $categoryId = DB::table('circle_category_level4')
-                    ->where('id', $request->validated('level4_category_id'))
+        if (! $categoryId && $request->validated('level4_category_id')) {
+            $level4Id = $request->validated('level4_category_id');
+            $level4Table = Schema::hasTable('level4_categories') ? 'level4_categories' : 'circle_category_level4';
+            if (Schema::hasTable($level4Table)) {
+                $categoryId = DB::table($level4Table)
+                    ->where('id', $level4Id)
                     ->value('circle_category_id');
-            }
-
-            if ($categoryId) {
-                $circleId = DB::table('circle_category_mappings')
-                    ->where('category_id', $categoryId)
-                    ->value('circle_id');
             }
         }
 
+        $circleId = null;
+        if ($categoryId && Schema::hasTable('circle_category_mappings')) {
+            $circleId = DB::table('circle_category_mappings')
+                ->where(function ($q) use ($categoryId) {
+                    $q->where('category_id', $categoryId)
+                        ->orWhere('circle_category_id', $categoryId);
+                })
+                ->value('circle_id');
+        }
+
         if (! $circleId) {
-            return $this->error('Could not resolve Circle ID for the given category.', 422);
+            return $this->error('Could not find active Circle for the given category.', 422);
         }
 
         $circle = Circle::query()->where('id', $circleId)->firstOrFail();
