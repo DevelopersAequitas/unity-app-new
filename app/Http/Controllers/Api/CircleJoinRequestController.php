@@ -145,11 +145,11 @@ class CircleJoinRequestController extends BaseApiController
             ->where('user_id', $request->user()->id)
             ->when($status, fn ($q) => $q->where('status', $status))
             ->with([
-                'circle.categories',
-                'level1Category:id,name',
-                'level2Category:id,name',
-                'level3Category:id,name',
-                'level4Category:id,name',
+                'cdApprovedBy',
+                'idApprovedBy',
+                'dedApprovedBy',
+                'cdRejectedBy',
+                'idRejectedBy',
             ])
             ->latest('created_at')
             ->paginate(20);
@@ -168,16 +168,12 @@ class CircleJoinRequestController extends BaseApiController
     public function show(Request $request, string $id): JsonResponse
     {
         $record = CircleJoinRequest::query()->with([
-            'circle.categories',
             'user',
             'cdApprovedBy',
             'cdRejectedBy',
             'idApprovedBy',
             'idRejectedBy',
-            'level1Category:id,name',
-            'level2Category:id,name',
-            'level3Category:id,name',
-            'level4Category:id,name',
+            'dedApprovedBy',
         ])->findOrFail($id);
 
         if ((string) $record->user_id !== (string) $request->user()->id) {
@@ -205,92 +201,107 @@ class CircleJoinRequestController extends BaseApiController
         $status = (string) $request->status;
         $isPaid = in_array($status, [CircleJoinRequest::STATUS_PAID, CircleJoinRequest::STATUS_CIRCLE_MEMBER], true) || $request->fee_paid_at !== null;
 
-        $payload = array_merge($request->toArray(), [
-            'level1_category_id' => $this->resolveCategoryIdFromJoinRequest($request, 'level1_category_id'),
-            'level2_category_id' => $this->resolveCategoryIdFromJoinRequest($request, 'level2_category_id'),
-            'level3_category_id' => $this->resolveCategoryIdFromJoinRequest($request, 'level3_category_id'),
-            'level4_category_id' => $this->resolveCategoryIdFromJoinRequest($request, 'level4_category_id'),
-            'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
-            'payment_status' => $isPaid ? 'paid' : 'unpaid',
-            'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
-            'reason' => $request->reason_for_joining,
-        ]);
+        $level1Id = $this->resolveCategoryIdFromJoinRequest($request, 'level1_category_id');
+        $level4Id = $this->resolveCategoryIdFromJoinRequest($request, 'level4_category_id');
 
-        $circleCategory = $request->circleCategory;
-        $level1Id = $circleCategory?->id;
-        $payload['circle_category_id'] = $level1Id;
-        $payload['category_id'] = $level1Id;
-        $payload['circle_category_name'] = $circleCategory?->name;
-        $payload['category_name'] = $circleCategory?->name;
-
-        if ($circleCategory) {
-            $payload['level1_category'] = ['id' => $circleCategory->id, 'name' => $circleCategory->name];
-        }
-
-        if ($request->relationLoaded('level2Category') && $request->level2Category) {
-            $payload['level2_category'] = ['id' => $request->level2Category->id, 'name' => $request->level2Category->name];
-        }
-
-        if ($request->relationLoaded('level3Category') && $request->level3Category) {
-            $payload['level3_category'] = ['id' => $request->level3Category->id, 'name' => $request->level3Category->name];
-        }
-
-        if ($request->relationLoaded('level4Category') && $request->level4Category) {
-            $payload['level4_category'] = ['id' => $request->level4Category->id, 'name' => $request->level4Category->name];
-        }
-
-        $userId = $request->user_id ?? ($payload['user_id'] ?? null);
-        $level1CatId = $payload['level1_category_id'] ?? ($request->level1_category_id ?? null);
+        $userId = $request->user_id;
         $otherCategoryReq = null;
 
-        if (blank($payload['level4_category_id']) && $userId && $level1CatId && Schema::hasTable('custom_category_requests')) {
+        if (blank($level4Id) && $userId && $level1Id && Schema::hasTable('custom_category_requests')) {
             $otherCategoryReq = CustomCategoryRequest::query()
                 ->where('user_id', (string) $userId)
-                ->where('level1_category_id', (int) $level1CatId)
+                ->where('level1_category_id', (int) $level1Id)
                 ->latest()
                 ->first();
         }
 
         $otherName = $otherCategoryReq?->category_name ?? null;
 
+        // Resolve Level 1 Category
+        $level1Category = null;
+        if ($level1Id) {
+            $cat = CircleCategory::find($level1Id);
+            if ($cat) {
+                $level1Category = [
+                    'id' => (int) $cat->id,
+                    'name' => (string) $cat->name,
+                    'slug' => $cat->slug,
+                    'circle_key' => $cat->circle_key,
+                ];
+            }
+        }
+
+        // Resolve Level 4 Category / Specialization
+        $level4Category = null;
         if ($otherName !== null && $otherName !== '') {
-            $payload['is_other_category'] = true;
-            $payload['other_category_name'] = $otherName;
-            $payload['custom_category_name'] = $otherName;
-            $payload['level4_category'] = [
+            $level4Category = [
                 'id' => 'other',
                 'name' => $otherName,
                 'is_other' => true,
             ];
-        } else {
-            $payload['is_other_category'] = false;
-            $payload['other_category_name'] = null;
-            $payload['custom_category_name'] = null;
-        }
-
-        if ($request->relationLoaded('circle') && $request->circle) {
-            $circleArray = [
-                'id' => $request->circle->id,
-                'name' => $request->circle->name,
-            ];
-            if ($request->circle->relationLoaded('categories')) {
-                $circleArray['categories'] = $request->circle->categories->map(fn ($cat) => [
-                    'id' => $cat->id,
-                    'name' => $cat->name,
-                ])->toArray();
-
-                $payload['circle_categories'] = $circleArray['categories'];
+        } elseif ($level4Id) {
+            $l4Table = Schema::hasTable('level4_categories') ? 'level4_categories' : 'circle_category_level4';
+            if (Schema::hasTable($l4Table)) {
+                $l4 = DB::table($l4Table)->where('id', $level4Id)->first();
+                if ($l4) {
+                    $level4Category = [
+                        'id' => (int) $l4->id,
+                        'name' => (string) $l4->name,
+                    ];
+                }
             }
-            $payload['circle'] = $circleArray;
         }
 
-        return $payload;
+        $formatApprover = function ($user): ?array {
+            if (! $user) {
+                return null;
+            }
+
+            return [
+                'id' => (string) $user->id,
+                'name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: 'Admin'),
+            ];
+        };
+
+        return [
+            'id' => (string) $request->id,
+            'user_id' => (string) $request->user_id,
+            'status' => $status,
+            'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
+            'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
+            'payment_status' => $isPaid ? 'paid' : 'unpaid',
+            'reason' => (string) ($request->reason_for_joining ?? ''),
+            'reason_for_joining' => (string) ($request->reason_for_joining ?? ''),
+            'level1_category' => $level1Category,
+            'level4_category' => $level4Category,
+            'is_other_category' => $otherName !== null && $otherName !== '',
+            'other_category_name' => $otherName,
+            'cd_approved_by' => $formatApprover($request->cdApprovedBy),
+            'cd_approved_at' => $request->cd_approved_at ? $request->cd_approved_at->toIso8601String() : null,
+            'cd_rejected_by' => $formatApprover($request->cdRejectedBy),
+            'cd_rejected_at' => $request->cd_rejected_at ? $request->cd_rejected_at->toIso8601String() : null,
+            'cd_rejection_reason' => $request->cd_rejection_reason,
+            'id_approved_by' => $formatApprover($request->idApprovedBy),
+            'id_approved_at' => $request->id_approved_at ? $request->id_approved_at->toIso8601String() : null,
+            'id_rejected_by' => $formatApprover($request->idRejectedBy),
+            'id_rejected_at' => $request->id_rejected_at ? $request->id_rejected_at->toIso8601String() : null,
+            'id_rejection_reason' => $request->id_rejection_reason,
+            'ded_approved_by' => $formatApprover($request->dedApprovedBy),
+            'ded_approved_at' => $request->ded_approved_at ? $request->ded_approved_at->toIso8601String() : null,
+            'ded_approval_status' => $request->ded_approval_status,
+            'ded_approval_remarks' => $request->ded_approval_remarks,
+            'fee_marked_at' => $request->fee_marked_at ? $request->fee_marked_at->toIso8601String() : null,
+            'fee_paid_at' => $request->fee_paid_at ? $request->fee_paid_at->toIso8601String() : null,
+            'requested_at' => $request->requested_at ? $request->requested_at->toIso8601String() : null,
+            'created_at' => $request->created_at ? $request->created_at->toIso8601String() : null,
+            'updated_at' => $request->updated_at ? $request->updated_at->toIso8601String() : null,
+        ];
     }
 
     private function resolveCategoryIdFromJoinRequest(CircleJoinRequest $request, string $key): ?int
     {
         $value = $request->getAttribute($key);
-        if ($value !== null) {
+        if ($value !== null && is_numeric($value)) {
             return (int) $value;
         }
 
@@ -301,7 +312,7 @@ class CircleJoinRequestController extends BaseApiController
             return null;
         }
 
-        return (int) $notesSelection[$key];
+        return is_numeric($notesSelection[$key]) ? (int) $notesSelection[$key] : null;
     }
 
     public function status(Request $request, string $id): JsonResponse
@@ -310,14 +321,12 @@ class CircleJoinRequestController extends BaseApiController
 
         $record = CircleJoinRequest::query()
             ->with([
-                'circle',
                 'user',
                 'cdApprovedBy',
                 'idApprovedBy',
                 'cdRejectedBy',
                 'idRejectedBy',
                 'dedApprovedBy',
-                'circleCategory',
             ])
             ->where('id', $id)
             ->first();
@@ -332,9 +341,52 @@ class CircleJoinRequestController extends BaseApiController
             ], 404);
         }
 
-        $circleName = $record->circle?->name ?? 'N/A';
-        $categoryId = $record->level1_category_id ?? ($record->circleCategory?->id ? (int) $record->circleCategory->id : null);
-        $categoryName = $record->circleCategory?->name ?? 'N/A';
+        $level1Id = $this->resolveCategoryIdFromJoinRequest($record, 'level1_category_id');
+        $level4Id = $this->resolveCategoryIdFromJoinRequest($record, 'level4_category_id');
+
+        $level1Category = null;
+        if ($level1Id) {
+            $cat = CircleCategory::find($level1Id);
+            if ($cat) {
+                $level1Category = [
+                    'id' => (int) $cat->id,
+                    'name' => (string) $cat->name,
+                    'slug' => $cat->slug,
+                    'circle_key' => $cat->circle_key,
+                ];
+            }
+        }
+
+        $otherCategoryReq = null;
+        if (blank($level4Id) && $level1Id && Schema::hasTable('custom_category_requests')) {
+            $otherCategoryReq = CustomCategoryRequest::query()
+                ->where('user_id', (string) $userId)
+                ->where('level1_category_id', (int) $level1Id)
+                ->latest()
+                ->first();
+        }
+
+        $otherName = $otherCategoryReq?->category_name ?? null;
+
+        $level4Category = null;
+        if ($otherName !== null && $otherName !== '') {
+            $level4Category = [
+                'id' => 'other',
+                'name' => $otherName,
+                'is_other' => true,
+            ];
+        } elseif ($level4Id) {
+            $l4Table = Schema::hasTable('level4_categories') ? 'level4_categories' : 'circle_category_level4';
+            if (Schema::hasTable($l4Table)) {
+                $l4 = DB::table($l4Table)->where('id', $level4Id)->first();
+                if ($l4) {
+                    $level4Category = [
+                        'id' => (int) $l4->id,
+                        'name' => (string) $l4->name,
+                    ];
+                }
+            }
+        }
 
         $isPassed = in_array((string) $record->status, [
             CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
@@ -424,12 +476,14 @@ class CircleJoinRequestController extends BaseApiController
         $data = [
             'id' => (string) $record->id,
             'user_id' => (string) $record->user_id,
-            'circle_id' => (string) $record->circle_id,
-            'circle_name' => $circleName,
-            'circle_category_id' => $categoryId,
-            'category_name' => $categoryName,
             'status' => (string) $record->status,
             'status_label' => $this->statusLabel($record->status),
+            'display_status' => $this->statusLabel($record->status),
+            'reason' => (string) ($record->reason_for_joining ?? ''),
+            'level1_category' => $level1Category,
+            'level4_category' => $level4Category,
+            'is_other_category' => $otherName !== null && $otherName !== '',
+            'other_category_name' => $otherName,
             'cd_approval' => [
                 'status' => $cdStatus,
                 'approved_at' => ($record->cd_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null)) ? ($record->cd_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null))->toIso8601String() : null,
