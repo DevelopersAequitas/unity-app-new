@@ -133,6 +133,21 @@ class RequirementController extends BaseApiController
                 ]);
             }
 
+            $impactPoints = $this->getActivityImpactReward('requirement');
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $user->id,
+                $impactPoints,
+                'requirement',
+                'Posted a business requirement',
+                (string) $user->id,
+                (string) $requirement->id,
+                'Life impact added for requirement activity.',
+                [
+                    'subject' => $requirement->subject,
+                    'status' => $requirement->status,
+                ]
+            );
+
             // NEW: auto-create post (do NOT award coins again)
             $this->createPostForRequirement($requirement);
 
@@ -171,11 +186,17 @@ class RequirementController extends BaseApiController
             // Ensure media includes URL
             $data['media'] = $this->addUrlsToMedia($requirement->media ?? []);
 
-            // If you attach coins as a dynamic attribute like $requirement->coins,
-            // keep that as is:
-            if ($requirement->getAttribute('coins')) {
-                $data['coins'] = $requirement->getAttribute('coins');
-            }
+            $coinsEarned = $coinsLedger ? $coinsLedger->amount : 0;
+            $coinBalanceAfter = $coinsLedger ? $coinsLedger->balance_after : 0;
+
+            $rewardData = $this->formatActivityRewardPayload(
+                $coinsEarned,
+                $coinBalanceAfter,
+                $impactPoints,
+                $updatedLifeImpact
+            );
+
+            $data = array_merge($data, $rewardData);
 
             return $this->success($data, 'Requirement created successfully', 201);
         } catch (Throwable $e) {

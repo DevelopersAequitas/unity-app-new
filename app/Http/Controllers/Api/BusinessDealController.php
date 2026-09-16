@@ -181,9 +181,10 @@ class BusinessDealController extends BaseApiController
                 );
             }
 
+            $impactPoints = $this->getActivityImpactReward('business_deal');
             $updatedLifeImpact = $this->increaseLifeImpact(
                 (string) $authUser->id,
-                5,
+                $impactPoints,
                 'business_deal',
                 'Closed a business deal',
                 (string) $authUser->id,
@@ -197,7 +198,20 @@ class BusinessDealController extends BaseApiController
                     'to_user_id' => $businessDeal->to_user_id ? (string) $businessDeal->to_user_id : null,
                 ]
             );
-            $businessDeal->setAttribute('life_impacted_count', $updatedLifeImpact);
+
+            $coinsEarned = $businessDeal->getAttribute('coins')['earned'] ?? 0;
+            $coinBalanceAfter = $businessDeal->getAttribute('coins')['balance_after'] ?? 0;
+
+            $rewardData = $this->formatActivityRewardPayload(
+                $coinsEarned,
+                $coinBalanceAfter,
+                $impactPoints,
+                $updatedLifeImpact
+            );
+
+            foreach ($rewardData as $key => $val) {
+                $businessDeal->setAttribute($key, $val);
+            }
 
             // Postman example (business deal create):
             // {

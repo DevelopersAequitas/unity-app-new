@@ -72,22 +72,63 @@ class BaseApiController extends Controller
         return $message;
     }
 
+    protected function getActivityImpactReward(string $activityType): int
+    {
+        $normalizedType = Str::of($activityType)->lower()->replace(' ', '_')->toString();
+
+        return (int) config("impact.activity_rewards.{$normalizedType}", 5);
+    }
+
+    protected function getActivityCoinReward(string $activityType): int
+    {
+        $normalizedType = Str::of($activityType)->lower()->replace(' ', '_')->toString();
+
+        return (int) config("coins.activity_rewards.{$normalizedType}", 0);
+    }
+
+    protected function formatActivityRewardPayload(
+        int $coinsEarned,
+        int $coinBalanceAfter,
+        int $impactsEarned,
+        int $totalLifeImpacted,
+    ): array {
+        return [
+            'coins' => [
+                'earned' => $coinsEarned,
+                'balance_after' => $coinBalanceAfter,
+            ],
+            'impacts' => [
+                'earned' => $impactsEarned,
+                'total' => $totalLifeImpacted,
+                'balance_after' => $totalLifeImpacted,
+            ],
+            'life_impact' => [
+                'earned' => $impactsEarned,
+                'total' => $totalLifeImpacted,
+                'balance_after' => $totalLifeImpacted,
+            ],
+            'life_impacted_count' => $totalLifeImpacted,
+        ];
+    }
+
     protected function increaseLifeImpact(
         string $userId,
-        int $points,
-        string $activityType,
-        string $title,
+        ?int $points = null,
+        string $activityType = '',
+        string $title = '',
         ?string $triggeredByUserId = null,
         ?string $activityId = null,
         ?string $description = null,
         ?array $meta = null,
     ): int {
+        $rewardPoints = $points ?? $this->getActivityImpactReward($activityType);
+
         return app(LifeImpactService::class)->addLifeImpact(
             $userId,
             $triggeredByUserId,
             $activityType,
             $activityId,
-            $points,
+            $rewardPoints,
             $title,
             $description,
             $meta ?? []
@@ -99,3 +140,4 @@ class BaseApiController extends Controller
         return app(LifeImpactService::class)->getCurrentTotal($userId);
     }
 }
+

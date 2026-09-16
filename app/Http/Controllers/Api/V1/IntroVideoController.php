@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Coins\CoinsService;
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,17 +30,51 @@ class IntroVideoController extends Controller
         $user->saveOrFail();
         $user->refresh();
 
-        // Award 1,000 coins for first-time intro video upload (idempotent duplicate protection)
+        // Award coins for first-time intro video upload (idempotent duplicate protection)
         $coinsService = app(CoinsService::class);
         $coinsLedger = $coinsService->rewardForIntroVideo($user);
         if ($coinsLedger) {
             $user->refresh();
+
+            $impactPoints = (int) config('impact.activity_rewards.introduction_video', 1);
+            if ($impactPoints > 0) {
+                app(LifeImpactService::class)->addLifeImpact(
+                    (string) $user->id,
+                    (string) $user->id,
+                    'introduction_video',
+                    (string) $user->profile_video_id,
+                    $impactPoints,
+                    'Uploaded an introduction video',
+                    'Life impact awarded for uploading profile introduction video.'
+                );
+            }
         }
 
+        $totalLifeImpact = app(LifeImpactService::class)->getCurrentTotal((string) $user->id);
         $responseData = $this->formatResponse($user);
+
+        $coinsEarned = $coinsLedger ? (int) $coinsLedger->amount : 0;
+        $coinsBalance = (int) $user->coins_balance;
+        $impactEarned = $coinsLedger ? (int) config('impact.activity_rewards.introduction_video', 1) : 0;
+
+        $responseData['coins'] = [
+            'earned' => $coinsEarned,
+            'balance_after' => $coinsBalance,
+        ];
+        $responseData['impacts'] = [
+            'earned' => $impactEarned,
+            'total' => $totalLifeImpact,
+            'balance_after' => $totalLifeImpact,
+        ];
+        $responseData['life_impact'] = [
+            'earned' => $impactEarned,
+            'total' => $totalLifeImpact,
+            'balance_after' => $totalLifeImpact,
+        ];
+        $responseData['life_impacted_count'] = $totalLifeImpact;
         if ($coinsLedger) {
-            $responseData['coins_earned'] = (int) $coinsLedger->amount;
-            $responseData['coins_balance'] = (int) $user->coins_balance;
+            $responseData['coins_earned'] = $coinsEarned;
+            $responseData['coins_balance'] = $coinsBalance;
         }
 
         return response()->json([

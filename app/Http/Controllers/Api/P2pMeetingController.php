@@ -153,6 +153,55 @@ class P2pMeetingController extends BaseApiController
                 ]);
             }
 
+            $impactPoints = $this->getActivityImpactReward('p2p_meeting');
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                $impactPoints,
+                'p2p_meeting',
+                'Completed a 1-to-1 peer meeting',
+                (string) $authUser->id,
+                (string) $meeting->id,
+                'Life impact added for P2P meeting activity.',
+                [
+                    'meeting_date' => $meeting->meeting_date,
+                    'meeting_place' => $meeting->meeting_place,
+                    'remarks' => $meeting->remarks,
+                    'peer_user_id' => $meeting->peer_user_id ? (string) $meeting->peer_user_id : null,
+                ]
+            );
+
+            if ($meeting->peer_user_id && (string) $meeting->peer_user_id !== (string) $authUser->id) {
+                $this->increaseLifeImpact(
+                    (string) $meeting->peer_user_id,
+                    $impactPoints,
+                    'p2p_meeting',
+                    'Completed a 1-to-1 peer meeting',
+                    (string) $authUser->id,
+                    (string) $meeting->id,
+                    'Life impact added for P2P meeting activity.',
+                    [
+                        'meeting_date' => $meeting->meeting_date,
+                        'meeting_place' => $meeting->meeting_place,
+                        'remarks' => $meeting->remarks,
+                        'initiator_user_id' => (string) $authUser->id,
+                    ]
+                );
+            }
+
+            $coinsEarned = $authCoinsLedger ? $authCoinsLedger->amount : 0;
+            $coinBalanceAfter = $authCoinsLedger ? $authCoinsLedger->balance_after : 0;
+
+            $rewardData = $this->formatActivityRewardPayload(
+                $coinsEarned,
+                $coinBalanceAfter,
+                $impactPoints,
+                $updatedLifeImpact
+            );
+
+            foreach ($rewardData as $key => $val) {
+                $meeting->setAttribute($key, $val);
+            }
+
             $meeting->setAttribute('media', $this->expandP2pMedia($meeting->media));
 
             $this->createPostForP2pMeeting($meeting);
@@ -229,8 +278,10 @@ class P2pMeetingController extends BaseApiController
         $attributes['post_id'] = $meeting->getAttribute('post_id')
             ?? $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id);
 
-        if ($meeting->getAttribute('coins') !== null) {
-            $attributes['coins'] = $meeting->getAttribute('coins');
+        foreach (['coins', 'impacts', 'life_impact', 'life_impacted_count'] as $rewardKey) {
+            if ($meeting->getAttribute($rewardKey) !== null) {
+                $attributes[$rewardKey] = $meeting->getAttribute($rewardKey);
+            }
         }
 
         return $this->formatP2pMeetingTimestamps($attributes);
