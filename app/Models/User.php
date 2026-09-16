@@ -1138,6 +1138,24 @@ class User extends Authenticatable
         return ! $this->isFreeMember();
     }
 
+    public function isPro(): bool
+    {
+        if ($this->getAttribute('is_pro') !== null) {
+            return (bool) $this->getAttribute('is_pro');
+        }
+
+        if (isset($this->is_verified) && $this->is_verified !== null && (bool) $this->is_verified) {
+            return true;
+        }
+
+        $status = strtolower(trim((string) ($this->effective_membership_status ?? $this->membership_status ?? '')));
+        if ($status !== '') {
+            return ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+        }
+
+        return $this->isPaidMember();
+    }
+
     public function publicProfileArray(): array
     {
         $name = (string) ($this->getAttribute('name')

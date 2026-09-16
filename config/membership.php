@@ -14,4 +14,7 @@ return [
         'Circle Director',
         'Board Advisor',
     ],
+    'pro_required_messages' => [
+        'testimonial' => 'Upgrade to Pro to give testimonials to your peers.',
+    ],
 ];

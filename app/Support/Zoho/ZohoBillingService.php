@@ -5,6 +5,7 @@ namespace App\Support\Zoho;
 use App\Models\Circle;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Membership\MembershipUpgradeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Support\Membership\MembershipUpdater;
 use Illuminate\Support\Carbon;
@@ -723,6 +724,7 @@ class ZohoBillingService
         }
 
         $applied = $this->membershipUpdater->applyPaidMembership($user, [
+            'zoho_customer_id' => $user->zoho_customer_id ?? data_get($hostedPage, 'customer_id') ?? data_get($subscription, 'customer_id'),
             'zoho_subscription_id' => $subscription['subscription_id'] ?? null,
             'zoho_plan_code' => $subscription['plan']['plan_code'] ?? $subscription['plan_code'] ?? data_get($subscription, 'plan_code') ?? data_get($hostedPage, 'plan.plan_code') ?? null,
             'zoho_last_invoice_id' => $hostedPage['invoice']['invoice_id'] ?? ($subscription['invoice_id'] ?? null),
@@ -730,6 +732,36 @@ class ZohoBillingService
             'membership_ends_at' => $subscription['next_billing_at'] ?? $subscription['expires_at'] ?? null,
             'last_payment_at' => now(),
         ]);
+
+        try {
+            $hostedPageId = data_get($hostedPage, 'hostedpage_id');
+            $subscriptionId = $subscription['subscription_id'] ?? null;
+            $payment = null;
+
+            if (Schema::hasTable('payments')) {
+                $payment = Payment::query()
+                    ->when($hostedPageId, fn ($q) => $q->where('zoho_hostedpage_id', $hostedPageId))
+                    ->when(! $hostedPageId && $subscriptionId, fn ($q) => $q->where('zoho_subscription_id', $subscriptionId))
+                    ->latest('created_at')
+                    ->first();
+            }
+
+            app(MembershipUpgradeService::class)->markAsOnlyUnityPeerAfterPayment($user, [
+                'payment_id' => $payment?->id,
+                'zoho_customer_id' => $user->zoho_customer_id ?? data_get($hostedPage, 'customer_id') ?? data_get($subscription, 'customer_id'),
+                'zoho_subscription_id' => $subscriptionId,
+                'zoho_plan_code' => $subscription['plan']['plan_code'] ?? $subscription['plan_code'] ?? data_get($subscription, 'plan_code') ?? data_get($hostedPage, 'plan.plan_code') ?? null,
+                'zoho_invoice_id' => $hostedPage['invoice']['invoice_id'] ?? ($subscription['invoice_id'] ?? null),
+                'membership_starts_at' => $subscription['start_date'] ?? $subscription['created_time'] ?? null,
+                'membership_ends_at' => $subscription['next_billing_at'] ?? $subscription['expires_at'] ?? null,
+                'last_payment_at' => now(),
+            ]);
+        } catch (Throwable $t) {
+            Log::warning('Zoho syncMembershipFromHostedPage user_memberships sync fallback error', [
+                'user_id' => $user->id,
+                'error' => $t->getMessage(),
+            ]);
+        }
 
         if ($applied) {
             $this->triggerMembershipWelcomeEmailAfterPaidActivation($user, 'zoho_hosted_page_sync');
@@ -848,6 +880,38 @@ class ZohoBillingService
             ]);
 
             $this->markPendingZohoPaymentPaid($user, $identifiers);
+
+            try {
+                $payment = Payment::query()
+                    ->where('user_id', $user->id)
+                    ->where(function ($q) use ($identifiers) {
+                        if (! empty($identifiers['hostedpage_id'])) {
+                            $q->where('zoho_hostedpage_id', $identifiers['hostedpage_id']);
+                        }
+                        if (! empty($identifiers['subscription_id'])) {
+                            $q->orWhere('zoho_subscription_id', $identifiers['subscription_id']);
+                        }
+                    })
+                    ->latest('created_at')
+                    ->first();
+
+                app(MembershipUpgradeService::class)->markAsOnlyUnityPeerAfterPayment($user, [
+                    'payment_id' => $payment?->id,
+                    'zoho_customer_id' => $identifiers['customer_id'] ?: $user->zoho_customer_id,
+                    'zoho_subscription_id' => $identifiers['subscription_id'] ?: $user->zoho_subscription_id,
+                    'zoho_plan_code' => $identifiers['plan_code'] ?: $user->zoho_plan_code,
+                    'zoho_invoice_id' => $identifiers['invoice_id'] ?: $user->zoho_last_invoice_id,
+                    'membership_starts_at' => $startsAt,
+                    'membership_ends_at' => $endsAt,
+                    'last_payment_at' => $lastPaymentAt,
+                ]);
+            } catch (Throwable $t) {
+                Log::warning('Zoho webhook user_memberships sync fallback error', [
+                    'user_id' => $user->id,
+                    'error' => $t->getMessage(),
+                ]);
+            }
+
             $this->triggerMembershipWelcomeEmailAfterPaidActivation($user, 'zoho_webhook_payment_success');
         }
 
