@@ -21,24 +21,18 @@ class TableRowResource extends JsonResource
         }
 
         if ($this->hasOtherUserContext($attributes)) {
-            $detailsResolver = app(OtherUserDetailsResolver::class);
-            $otherUser = $detailsResolver->resolve($request->user(), $this->resource);
+            unset(
+                $attributes['other_user_name'],
+                $attributes['other_user_profile_photo_url'],
+                $attributes['other_user_designation'],
+                $attributes['other_user_company_name'],
+                $attributes['other_user_city'],
+                $attributes['other_user_level4_category'],
+                $attributes['other_user_life_impacted_count']
+            );
 
-            if ($otherUser) {
-                if (empty($attributes['other_user_name'])) {
-                    $attributes['other_user_name'] = $otherUser['name'];
-                }
-                $attributes['other_user_profile_photo_url'] = $otherUser['profile_photo_url'];
-                $attributes['other_user_designation'] = $otherUser['designation'];
-                $attributes['other_user_company_name'] = $otherUser['company_name'];
-                $attributes['other_user_city'] = $otherUser['city'];
-                $attributes['other_user_level4_category'] = $otherUser['level4_category'];
-                $attributes['other_user_life_impacted_count'] = $otherUser['life_impacted_count'];
-                $attributes['other_user'] = $otherUser;
-            } else {
-                $photoResolver = app(OtherUserProfilePhotoUrlResolver::class);
-                $attributes['other_user_profile_photo_url'] = $photoResolver->resolve($request->user(), $this->resource);
-            }
+            $detailsResolver = app(OtherUserDetailsResolver::class);
+            $attributes['other_user'] = $detailsResolver->resolve($request->user(), $this->resource);
         }
 
         return $attributes;

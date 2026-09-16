@@ -43,20 +43,7 @@ class TestimonialHistoryController extends BaseApiController
             ->orderByDesc('id')
             ->get();
 
-        $nameResolver = app(OtherUserNameResolver::class);
-
-        $otherUserIds = $items->map(fn (Testimonial $testimonial): ?string => $this->resolveOtherUserId($testimonial, $authUserId));
-        $nameMap = $nameResolver->mapNames($otherUserIds);
-
-        $items = TableRowResource::collection(
-            $items->map(function (Testimonial $testimonial) use ($nameMap, $authUserId) {
-                $attributes = $testimonial->getAttributes();
-                $otherUserId = $this->resolveOtherUserId($testimonial, $authUserId);
-                $attributes['other_user_name'] = $otherUserId ? ($nameMap[$otherUserId] ?? null) : null;
-
-                return $attributes;
-            })
-        );
+        $items = TableRowResource::collection($items);
 
         $response = [
             'items' => $items,
