@@ -90,6 +90,8 @@ class UserProfileResource extends MemberDetailResource
             $data['membership_ends_at'] = $membershipBreakdown['total_valid_until'];
         }
 
+        $data['life_impacted_count'] = (int) ($this->life_impacted_count ?? 0);
+
         return $data;
     }
 

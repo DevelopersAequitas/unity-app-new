@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -350,9 +351,24 @@ class BusinessDealController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $items = collect($paginator->items())->map(function (BusinessDeal $deal): array {
+        $resolver = app(OtherUserDetailsResolver::class);
+        $items = collect($paginator->items())->map(function (BusinessDeal $deal) use ($resolver): array {
             $fromUser = $deal->fromUser;
             $toUser = $deal->toUser;
+
+            $formattedFrom = $fromUser ? array_merge($resolver->formatUser($fromUser) ?? [], [
+                'first_name' => $fromUser->first_name,
+                'last_name' => $fromUser->last_name,
+                'email' => $fromUser->email,
+                'phone' => $fromUser->phone,
+            ]) : null;
+
+            $formattedTo = $toUser ? array_merge($resolver->formatUser($toUser) ?? [], [
+                'first_name' => $toUser->first_name,
+                'last_name' => $toUser->last_name,
+                'email' => $toUser->email,
+                'phone' => $toUser->phone,
+            ]) : null;
 
             return [
                 'id' => (string) $deal->id,
@@ -364,28 +380,10 @@ class BusinessDealController extends BaseApiController
                 'comment' => $deal->comment ?? '',
                 'created_at' => $deal->created_at ? Carbon::parse($deal->created_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
                 'updated_at' => $deal->updated_at ? Carbon::parse($deal->updated_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
-                'from_user' => $fromUser ? [
-                    'id' => (string) $fromUser->id,
-                    'display_name' => $fromUser->display_name ?? trim(($fromUser->first_name ?? '').' '.($fromUser->last_name ?? '')),
-                    'first_name' => $fromUser->first_name,
-                    'last_name' => $fromUser->last_name,
-                    'email' => $fromUser->email,
-                    'phone' => $fromUser->phone,
-                    'company_name' => $fromUser->company_name,
-                    'designation' => $fromUser->designation,
-                    'profile_photo_url' => $fromUser->profile_photo_url ?? $fromUser->profile_photo ?? null,
-                ] : null,
-                'to_user' => $toUser ? [
-                    'id' => (string) $toUser->id,
-                    'display_name' => $toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')),
-                    'first_name' => $toUser->first_name,
-                    'last_name' => $toUser->last_name,
-                    'email' => $toUser->email,
-                    'phone' => $toUser->phone,
-                    'company_name' => $toUser->company_name,
-                    'designation' => $toUser->designation,
-                    'profile_photo_url' => $toUser->profile_photo_url ?? $toUser->profile_photo ?? null,
-                ] : null,
+                'from_user' => $formattedFrom,
+                'to_user' => $formattedTo,
+                'given_by' => $formattedFrom,
+                'given_to' => $formattedTo,
             ];
         })->values()->all();
 

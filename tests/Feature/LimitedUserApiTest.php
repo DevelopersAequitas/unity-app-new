@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\CircleCategoryLevel4;
+use App\Models\Connection;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,9 +66,11 @@ class LimitedUserApiTest extends TestCase
         });
 
         Schema::create('connections', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
             $table->uuid('requester_id');
             $table->uuid('addressee_id');
             $table->boolean('is_approved')->default(false);
+            $table->timestamp('approved_at')->nullable();
             $table->timestamps();
         });
 
@@ -192,15 +195,11 @@ class LimitedUserApiTest extends TestCase
                     'match_percentage',
                 ],
             ],
-            'meta',
-            'links',
-            'pagination' => [
-                'current_page',
-                'per_page',
-                'last_page',
-                'total',
-            ],
+            'total_users',
+            'total_user',
+            'total',
         ]);
+        $response->assertJsonMissing(['meta', 'links', 'pagination']);
 
         $data = $response->json('data');
 
@@ -274,7 +273,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertIsBool($nItem['is_verified']);
     }
 
-    public function test_limited_users_endpoint_supports_pagination(): void
+    public function test_limited_users_endpoint_returns_all_members_without_pagination(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -286,31 +285,14 @@ class LimitedUserApiTest extends TestCase
 
         Sanctum::actingAs($activeUser);
 
-        // Page 1 with per_page = 20
-        $response = $this->getJson('/api/v1/members/limited?page=1&per_page=20');
+        $response = $this->getJson('/api/v1/members/limited');
 
         $response->assertOk();
-        $this->assertCount(20, $response->json('data'));
+        $this->assertCount(25, $response->json('data'));
         $this->assertSame(25, $response->json('total_users'));
         $this->assertSame(25, $response->json('total_user'));
         $this->assertSame(25, $response->json('total'));
-        $this->assertSame(1, $response->json('pagination.current_page'));
-        $this->assertSame(20, $response->json('pagination.per_page'));
-        $this->assertSame(2, $response->json('pagination.last_page'));
-        $this->assertSame(25, $response->json('pagination.total'));
-        $this->assertSame(1, $response->json('meta.current_page'));
-        $this->assertSame(20, $response->json('meta.per_page'));
-        $this->assertSame(25, $response->json('meta.total'));
-        $response->assertJsonStructure(['meta', 'links', 'pagination']);
-
-        // Page 2 with per_page = 20
-        $responsePage2 = $this->getJson('/api/v1/members/limited?page=2&per_page=20');
-
-        $responsePage2->assertOk();
-        $this->assertCount(5, $responsePage2->json('data'));
-        $this->assertSame(2, $responsePage2->json('pagination.current_page'));
-        $this->assertSame(20, $responsePage2->json('pagination.per_page'));
-        $this->assertSame(25, $responsePage2->json('pagination.total'));
+        $response->assertJsonMissing(['meta', 'links', 'pagination']);
     }
 
     public function test_limited_users_endpoint_supports_paginate_false(): void
@@ -332,7 +314,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame(25, $response->json('total_users'));
         $this->assertSame(25, $response->json('total_user'));
         $this->assertSame(25, $response->json('total'));
-        $response->assertJsonMissing(['meta', 'links']);
+        $response->assertJsonMissing(['meta', 'links', 'pagination']);
     }
 
     public function test_members_endpoint_returns_all_members_without_pagination_with_all_fields(): void

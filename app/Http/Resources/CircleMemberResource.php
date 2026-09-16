@@ -139,6 +139,7 @@ class CircleMemberResource extends JsonResource
                     'business_category_name' => $categoryName,
                     'business_category' => $categoryName,
                     'business_sub_category' => $user?->business_sub_category,
+                    'level4_category' => $primaryCategory['name'] ?? $user?->level4Category?->name ?? $user?->business_sub_category ?? null,
                     'categories' => $categories,
                     'membership_status' => $user?->membership_status ?? null,
                     'life_impacted_count' => (int) ($user?->life_impacted_count ?? 0),

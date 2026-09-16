@@ -922,4 +922,43 @@ class ProfileCompleteDataTest extends TestCase
             ->assertJsonPath('data.membership_status_label', 'Premium Green Member')
             ->assertJsonPath('data.is_multi_circle_peer', false);
     }
+
+    public function test_profile_endpoint_returns_life_impacted_count_from_history_when_column_is_zero(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'life_impacted_count' => 0,
+        ]);
+
+        if (! Schema::hasTable('life_impact_histories')) {
+            Schema::create('life_impact_histories', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->integer('impact_value')->default(0);
+                $table->integer('life_impacted')->default(0);
+                $table->string('status')->nullable();
+                $table->boolean('counted_in_total')->default(true);
+                $table->timestamps();
+            });
+        }
+
+        DB::table('life_impact_histories')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $user->id,
+            'impact_value' => 7,
+            'life_impacted' => 7,
+            'status' => 'approved',
+            'counted_in_total' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/profile');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.life_impacted_count', 7);
+    }
 }

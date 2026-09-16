@@ -455,47 +455,20 @@ class MemberController extends BaseApiController
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
-        if ($request->input('paginate') === 'false' || $request->input('paginate') === '0' || $request->input('per_page') === 'all') {
-            if ($authUser instanceof User) {
-                $users = $memberMatchingService->rank($authUser, $query);
-            } else {
-                $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
-            }
-
-            $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
-
-            return LimitedUserResource::collection($users)->additional([
-                'success' => true,
-                'message' => 'Limited user data fetched successfully.',
-                'total_users' => $users->count(),
-                'total_user' => $users->count(),
-                'total' => $users->count(),
-            ]);
-        }
-
-        $page = max(1, (int) $request->input('page', 1));
-        $perPage = max(1, (int) $request->input('per_page', 20));
-
         if ($authUser instanceof User) {
-            $paginated = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
+            $users = $memberMatchingService->rank($authUser, $query);
         } else {
-            $paginated = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
         }
 
-        $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $paginated->getCollection());
+        $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
 
-        return LimitedUserResource::collection($paginated)->additional([
+        return LimitedUserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
-            'total_users' => $paginated->total(),
-            'total_user' => $paginated->total(),
-            'total' => $paginated->total(),
-            'pagination' => [
-                'current_page' => $paginated->currentPage(),
-                'per_page' => $paginated->perPage(),
-                'last_page' => $paginated->lastPage(),
-                'total' => $paginated->total(),
-            ],
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
         ]);
     }
 

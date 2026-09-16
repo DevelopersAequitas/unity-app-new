@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -451,9 +452,24 @@ class P2pMeetingController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $items = collect($paginator->items())->map(function (P2pMeeting $meeting): array {
+        $resolver = app(OtherUserDetailsResolver::class);
+        $items = collect($paginator->items())->map(function (P2pMeeting $meeting) use ($resolver): array {
             $initiatedBy = $meeting->initiator;
             $initiatedTo = $meeting->peer;
+
+            $formattedInitiatedBy = $initiatedBy ? array_merge($resolver->formatUser($initiatedBy) ?? [], [
+                'first_name' => $initiatedBy->first_name,
+                'last_name' => $initiatedBy->last_name,
+                'email' => $initiatedBy->email,
+                'phone' => $initiatedBy->phone,
+            ]) : null;
+
+            $formattedInitiatedTo = $initiatedTo ? array_merge($resolver->formatUser($initiatedTo) ?? [], [
+                'first_name' => $initiatedTo->first_name,
+                'last_name' => $initiatedTo->last_name,
+                'email' => $initiatedTo->email,
+                'phone' => $initiatedTo->phone,
+            ]) : null;
 
             return [
                 'id' => (string) $meeting->id,
@@ -465,28 +481,10 @@ class P2pMeetingController extends BaseApiController
                 'status' => 'completed',
                 'created_at' => $meeting->created_at ? Carbon::parse($meeting->created_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
                 'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
-                'initiated_by' => $initiatedBy ? [
-                    'id' => (string) $initiatedBy->id,
-                    'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '').' '.($initiatedBy->last_name ?? '')),
-                    'first_name' => $initiatedBy->first_name,
-                    'last_name' => $initiatedBy->last_name,
-                    'email' => $initiatedBy->email,
-                    'phone' => $initiatedBy->phone,
-                    'company_name' => $initiatedBy->company_name,
-                    'designation' => $initiatedBy->designation,
-                    'profile_photo_url' => $initiatedBy->profile_photo_url,
-                ] : null,
-                'initiated_to' => $initiatedTo ? [
-                    'id' => (string) $initiatedTo->id,
-                    'display_name' => $initiatedTo->display_name ?? trim(($initiatedTo->first_name ?? '').' '.($initiatedTo->last_name ?? '')),
-                    'first_name' => $initiatedTo->first_name,
-                    'last_name' => $initiatedTo->last_name,
-                    'email' => $initiatedTo->email,
-                    'phone' => $initiatedTo->phone,
-                    'company_name' => $initiatedTo->company_name,
-                    'designation' => $initiatedTo->designation,
-                    'profile_photo_url' => $initiatedTo->profile_photo_url,
-                ] : null,
+                'initiated_by' => $formattedInitiatedBy,
+                'initiated_to' => $formattedInitiatedTo,
+                'given_by' => $formattedInitiatedBy,
+                'given_to' => $formattedInitiatedTo,
             ];
         })->values()->all();
 

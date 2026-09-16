@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\User;
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,6 +33,8 @@ class ActivityReferralResource extends JsonResource
             'updated_at' => $this->updated_at?->toISOString(),
             'given_by_user' => $this->formatSafeUser($this->relationLoaded('givenByUser') ? $this->givenByUser : null),
             'received_by_user' => $this->formatSafeUser($this->relationLoaded('receivedByUser') ? $this->receivedByUser : null),
+            'given_by' => $this->formatSafeUser($this->relationLoaded('givenByUser') ? $this->givenByUser : null),
+            'given_to' => $this->formatSafeUser($this->relationLoaded('receivedByUser') ? $this->receivedByUser : null),
         ];
     }
 
@@ -41,21 +44,21 @@ class ActivityReferralResource extends JsonResource
             return null;
         }
 
-        $resolvedCity = $user->city_of_residence ?: (is_string($user->city) ? $user->city : data_get($user, 'city.name'));
+        $formatted = app(OtherUserDetailsResolver::class)->formatUser($user);
+        if (! $formatted) {
+            return null;
+        }
 
-        return [
-            'id' => (string) $user->id,
-            'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+        $resolvedCity = $formatted['city'] ?? ($user->city_of_residence ?: (is_string($user->city) ? $user->city : data_get($user, 'city.name')));
+
+        return array_merge($formatted, [
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'email' => $user->email,
             'phone' => $user->phone,
-            'company_name' => $user->company_name,
-            'designation' => $user->designation,
             'city' => $resolvedCity,
             'membership_status' => $user->membership_status,
-            'profile_photo_url' => $user->profile_photo_url,
             'public_profile_slug' => $user->public_profile_slug,
-        ];
+        ]);
     }
 }

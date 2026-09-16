@@ -3,7 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Support\ActivityHistory\OtherUserDetailsResolver;
-use App\Support\ActivityHistory\OtherUserProfilePhotoUrlResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -33,6 +32,16 @@ class TableRowResource extends JsonResource
 
             $detailsResolver = app(OtherUserDetailsResolver::class);
             $attributes['other_user'] = $detailsResolver->resolve($request->user(), $this->resource);
+
+            $fromId = $attributes['from_user_id'] ?? $attributes['initiator_user_id'] ?? null;
+            $toId = $attributes['to_user_id'] ?? $attributes['peer_user_id'] ?? null;
+
+            if ($fromId) {
+                $attributes['given_by'] = $detailsResolver->resolveUserById((string) $fromId);
+            }
+            if ($toId) {
+                $attributes['given_to'] = $detailsResolver->resolveUserById((string) $toId);
+            }
         }
 
         return $attributes;

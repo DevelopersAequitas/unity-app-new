@@ -93,6 +93,8 @@ class LeaderActivitiesService
             'designation' => (string) ($user->designation ?? $user->job_title ?? 'Member'),
             'circle_name' => $circleName,
             'circle_id' => $circleId,
+            'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
+            'is_pro' => method_exists($user, 'isPro') ? (bool) $user->isPro() : false,
         ];
     }
 

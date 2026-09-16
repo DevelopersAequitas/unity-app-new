@@ -20,7 +20,7 @@ class OtherUserDetailsResolver
     private static array $userCache = [];
 
     /**
-     * @return array{id: string, name: ?string, profile_photo_url: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
+     * @return array{id: string, name: ?string, display_name: ?string, profile_photo_url: ?string, profile_photo: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
      */
     public function resolve(?Authenticatable $authUser, mixed $row): ?array
     {
@@ -35,8 +35,16 @@ class OtherUserDetailsResolver
             return null;
         }
 
-        $user = $this->loadUser($otherUserId);
+        return $this->resolveUserById($otherUserId);
+    }
 
+    /**
+     * Format a user model into standard peer details array.
+     *
+     * @return array{id: string, name: ?string, display_name: ?string, profile_photo_url: ?string, profile_photo: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
+     */
+    public function formatUser(?User $user): ?array
+    {
         if (! $user) {
             return null;
         }
@@ -55,6 +63,7 @@ class OtherUserDetailsResolver
         return [
             'id' => (string) $user->id,
             'name' => $name,
+            'display_name' => $name,
             'profile_photo_url' => $profilePhotoUrl,
             'designation' => $designation,
             'company_name' => $companyName,
@@ -63,6 +72,22 @@ class OtherUserDetailsResolver
             'life_impacted_count' => $lifeImpactedCount,
             'is_pro' => $isPro,
         ];
+    }
+
+    /**
+     * Resolve and format user details by user ID.
+     *
+     * @return array{id: string, name: ?string, display_name: ?string, profile_photo_url: ?string, profile_photo: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
+     */
+    public function resolveUserById(?string $userId): ?array
+    {
+        if (! $userId) {
+            return null;
+        }
+
+        $user = $this->loadUser($userId);
+
+        return $this->formatUser($user);
     }
 
     private function extractAttributes(mixed $row): array
@@ -102,6 +127,11 @@ class OtherUserDetailsResolver
 
     private function buildName(User $user): ?string
     {
+        $rawDisplayName = trim((string) ($user->getRawOriginal('display_name') ?? $user->attributes['display_name'] ?? ''));
+        if ($rawDisplayName !== '') {
+            return $rawDisplayName;
+        }
+
         $displayName = trim((string) ($user->display_name ?? ''));
         if ($displayName !== '') {
             return $displayName;

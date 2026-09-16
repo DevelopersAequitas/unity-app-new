@@ -134,4 +134,3 @@ class BaseApiController extends Controller
         return app(LifeImpactService::class)->getCurrentTotal($userId);
     }
 }
-
