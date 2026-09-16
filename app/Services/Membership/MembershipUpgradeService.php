@@ -2,6 +2,7 @@
 
 namespace App\Services\Membership;
 
+use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\UserMembership;
@@ -41,18 +42,56 @@ class MembershipUpgradeService
                 $payment = Payment::query()->whereKey($data['payment_id'])->lockForUpdate()->first();
             }
 
-            $startedAt = $this->parseDate($data['membership_starts_at'] ?? $data['starts_at'] ?? $data['start_date'] ?? null)
-                ?? now();
-            $expiresAt = $this->parseDate($data['membership_ends_at'] ?? $data['ends_at'] ?? $data['end_date'] ?? null)
-                ?? $this->calculateExpiry($startedAt, $data, $payment);
+            $explicitStart = $this->parseDate($data['membership_starts_at'] ?? $data['starts_at'] ?? $data['start_date'] ?? null);
+            $explicitEnd = $this->parseDate($data['membership_ends_at'] ?? $data['ends_at'] ?? $data['end_date'] ?? null);
+
+            // Determine if user has an existing active or queued plan with validity extending into the future
+            $latestMembershipEnd = null;
+            if (Schema::hasTable('user_memberships')) {
+                $latestMembershipEnd = UserMembership::query()
+                    ->where('user_id', $lockedUser->id)
+                    ->when($payment?->id, fn ($q) => $q->where('payment_id', '!=', $payment->id))
+                    ->whereIn('status', ['active', 'queued'])
+                    ->whereNotNull('ends_at')
+                    ->where('ends_at', '>', now())
+                    ->max('ends_at');
+            }
+
+            $anchorDate = $this->parseDate($latestMembershipEnd);
+            if (! $anchorDate && $lockedUser->membership_ends_at && Carbon::parse($lockedUser->membership_ends_at)->isFuture()) {
+                $anchorDate = Carbon::parse($lockedUser->membership_ends_at);
+            }
+
+            $forceDates = (bool) ($data['force_dates'] ?? false);
+
+            if (! $forceDates && $anchorDate && $anchorDate->isFuture()) {
+                // User has remaining validity: queue new purchase directly after latest end date
+                $startedAt = $anchorDate->copy();
+                $expiresAt = $this->calculateExpiry($startedAt, $data, $payment);
+                $status = 'queued';
+            } else {
+                // User is new or previously expired, or explicit forced dates provided
+                $startedAt = $explicitStart ?? now();
+                $expiresAt = $explicitEnd ?? $this->calculateExpiry($startedAt, $data, $payment);
+                $status = $startedAt->isFuture() ? 'queued' : 'active';
+            }
+
+            // For users table: preserve earliest active start date, extend end date to furthest stacked expiry
+            $userStartsAt = ($anchorDate && $anchorDate->isFuture() && $lockedUser->membership_starts_at)
+                ? $lockedUser->membership_starts_at
+                : $startedAt;
+
+            $userEndsAt = ($lockedUser->membership_ends_at && Carbon::parse($lockedUser->membership_ends_at)->gt($expiresAt))
+                ? Carbon::parse($lockedUser->membership_ends_at)
+                : $expiresAt;
 
             $userUpdates = $this->filterColumns('users', [
                 'membership_status' => self::ONLY_GREEN_PEER_STATUS,
-                'membership_starts_at' => $startedAt,
-                'membership_ends_at' => $expiresAt,
-                'membership_start_date' => $startedAt->toDateString(),
-                'membership_end_date' => $expiresAt->toDateString(),
-                'membership_expiry' => $expiresAt,
+                'membership_starts_at' => $userStartsAt,
+                'membership_ends_at' => $userEndsAt,
+                'membership_start_date' => Carbon::parse($userStartsAt)->toDateString(),
+                'membership_end_date' => Carbon::parse($userEndsAt)->toDateString(),
+                'membership_expiry' => $userEndsAt,
                 'membership_approved_at' => $data['membership_approved_at'] ?? now(),
                 'membership_approved_by' => $data['membership_approved_by'] ?? null,
                 'last_payment_at' => $this->parseDate($data['paid_at'] ?? $data['payment_date'] ?? null) ?? now(),
@@ -81,14 +120,13 @@ class MembershipUpgradeService
                 }
             }
 
-            if ($payment) {
-                $this->syncUserMembershipRow($lockedUser, $payment, $startedAt, $expiresAt, $data);
-            }
+            $this->syncUserMembershipRow($lockedUser, $payment, $startedAt, $expiresAt, $data, $status);
 
             Log::info('Membership payment completed', [
                 'user_id' => (string) $lockedUser->id,
                 'payment_id' => $payment?->getKey(),
                 'membership_status' => self::ONLY_GREEN_PEER_STATUS,
+                'status' => $status,
                 'membership_starts_at' => $startedAt->toDateTimeString(),
                 'membership_expires_at' => $expiresAt->toDateTimeString(),
             ]);
@@ -124,6 +162,14 @@ class MembershipUpgradeService
         foreach (['duration_months', 'months'] as $key) {
             if ((int) ($data[$key] ?? 0) > 0) {
                 return (int) $data[$key];
+            }
+        }
+
+        $planId = $data['membership_plan_id'] ?? $payment?->membership_plan_id ?? null;
+        if ($planId && Schema::hasTable('membership_plans')) {
+            $plan = MembershipPlan::query()->find($planId);
+            if ($plan && (int) $plan->duration_months > 0) {
+                return (int) $plan->duration_months;
             }
         }
 
@@ -197,17 +243,20 @@ class MembershipUpgradeService
         }
     }
 
-    private function syncUserMembershipRow(User $user, ?Payment $payment, Carbon $startedAt, Carbon $expiresAt, array $data): void
+    private function syncUserMembershipRow(User $user, ?Payment $payment, Carbon $startedAt, Carbon $expiresAt, array $data, string $status = 'active'): void
     {
         if (! Schema::hasTable('user_memberships')) {
             return;
         }
 
         try {
+            // Expire previous memberships whose validity has already elapsed
             UserMembership::query()
                 ->where('user_id', $user->id)
                 ->where('status', 'active')
-                ->update(['status' => 'expired', 'ends_at' => $startedAt]);
+                ->whereNotNull('ends_at')
+                ->where('ends_at', '<=', now())
+                ->update(['status' => 'expired']);
 
             $existing = $payment
                 ? UserMembership::query()->where('payment_id', $payment->id)->first()
@@ -217,7 +266,7 @@ class MembershipUpgradeService
                 $existing->forceFill([
                     'starts_at' => $startedAt,
                     'ends_at' => $expiresAt,
-                    'status' => 'active',
+                    'status' => $status,
                 ])->save();
 
                 return;
@@ -229,7 +278,7 @@ class MembershipUpgradeService
                 'membership_plan_id' => $data['membership_plan_id'] ?? $payment?->membership_plan_id,
                 'starts_at' => $startedAt,
                 'ends_at' => $expiresAt,
-                'status' => 'active',
+                'status' => $status,
                 'payment_id' => $payment?->id,
             ]);
         } catch (Throwable $throwable) {

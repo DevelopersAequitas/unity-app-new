@@ -273,6 +273,7 @@ class BillingCheckoutController extends Controller
 
             $freshUser = DB::transaction(function () use ($user, $payment, $subscriptionBlock, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId) {
                 $syncedUser = $this->membershipSyncService->syncUserMembershipFromZoho($user, [
+                    'payment_id' => $payment?->id,
                     'subscription' => array_merge($subscriptionBlock, [
                         'subscription_id' => $subscriptionId,
                         'plan_code' => $planCode,
@@ -288,8 +289,6 @@ class BillingCheckoutController extends Controller
                         'paid_at' => now(),
                         'zoho_plan_code' => $planCode,
                     ])->save();
-
-                    $this->syncUserMembershipRow($syncedUser, $payment, $termStart, $termEnd);
                 }
 
                 return $syncedUser;
@@ -380,8 +379,7 @@ class BillingCheckoutController extends Controller
         }
 
         $existing = UserMembership::query()
-            ->where('user_id', $user->id)
-            ->latest('created_at')
+            ->where('payment_id', $payment->id)
             ->first();
 
         if ($existing) {

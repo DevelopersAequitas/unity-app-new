@@ -27,6 +27,7 @@ class MembershipSyncService
             ?? $this->calculateEndsAt($startAt, $subscription);
 
         $syncedUser = $this->membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, [
+            'payment_id' => $zohoData['payment_id'] ?? null,
             'zoho_subscription_id' => $subscription['subscription_id'] ?? null,
             'zoho_plan_code' => data_get($subscription, 'plan.plan_code') ?? $subscription['plan_code'] ?? null,
             'zoho_invoice_id' => $invoice['invoice_id'] ?? $subscription['invoice_id'] ?? null,
