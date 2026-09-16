@@ -210,13 +210,6 @@ class TestimonialController extends BaseApiController
 
         $testimonials = collect($paginator->items())->map(function (Testimonial $testimonial) {
             $giver = $testimonial->fromUser;
-            $profilePhotoUrl = null;
-            if ($giver) {
-                $profilePhotoId = $giver->profile_photo_file_id ?? $giver->profile_photo_id;
-                $profilePhotoUrl = $profilePhotoId
-                    ? url('/api/v1/files/'.$profilePhotoId)
-                    : ($giver->profile_photo_url ?? null);
-            }
 
             // Media mapping
             $media = null;
@@ -232,15 +225,13 @@ class TestimonialController extends BaseApiController
                 })->all();
             }
 
+            $givenBy = app(\App\Support\ActivityHistory\OtherUserDetailsResolver::class)->formatUserDetails($giver);
+
             return [
                 'id' => $testimonial->id,
                 'content' => $testimonial->content,
                 'media' => $media,
-                'given_by' => $giver ? [
-                    'id' => $giver->id,
-                    'name' => $giver->display_name ?? trim(($giver->first_name ?? '').' '.($giver->last_name ?? '')),
-                    'profile_photo' => $profilePhotoUrl,
-                ] : null,
+                'given_by' => $givenBy,
                 'created_at' => optional($testimonial->created_at)->toISOString(),
             ];
         });
