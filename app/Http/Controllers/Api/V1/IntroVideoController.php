@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Coins\CoinsService;
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,14 +31,14 @@ class IntroVideoController extends Controller
         $user->refresh();
 
         // Award coins for first-time intro video upload (idempotent duplicate protection)
-        $coinsService = app(\App\Services\Coins\CoinsService::class);
+        $coinsService = app(CoinsService::class);
         $coinsLedger = $coinsService->rewardForIntroVideo($user);
         if ($coinsLedger) {
             $user->refresh();
 
             $impactPoints = (int) config('impact.activity_rewards.introduction_video', 1);
             if ($impactPoints > 0) {
-                app(\App\Services\LifeImpact\LifeImpactService::class)->addLifeImpact(
+                app(LifeImpactService::class)->addLifeImpact(
                     (string) $user->id,
                     (string) $user->id,
                     'introduction_video',
@@ -48,7 +50,7 @@ class IntroVideoController extends Controller
             }
         }
 
-        $totalLifeImpact = app(\App\Services\LifeImpact\LifeImpactService::class)->getCurrentTotal((string) $user->id);
+        $totalLifeImpact = app(LifeImpactService::class)->getCurrentTotal((string) $user->id);
         $responseData = $this->formatResponse($user);
 
         $coinsEarned = $coinsLedger ? (int) $coinsLedger->amount : 0;

@@ -125,10 +125,10 @@ class PostController extends BaseApiController
         $circleIds = $pageRows->pluck('circle_id')->filter()->unique()->values()->all();
         $impactedPeerIds = $pageRows->pluck('impacted_peer_id')->filter()->unique()->values()->all();
         $postIds = $pageRows
-            ->filter(fn($row) => (string) ($row->source_type ?? '') === 'post')
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post')
             ->pluck('id')
             ->filter()
-            ->map(fn($id) => (string) $id)
+            ->map(fn ($id) => (string) $id)
             ->unique()
             ->values()
             ->all();
@@ -139,8 +139,8 @@ class PostController extends BaseApiController
             ->whereNull('deleted_at')
             ->latest('created_at')
             ->get(['id', 'post_id', 'activity_type', 'activity_id', 'title', 'description', 'creative_file_id', 'creative_url'])
-            ->groupBy(fn(ActivityCreative $creative): string => (string) $creative->post_id)
-            ->map(fn($creatives) => $creatives->first());
+            ->groupBy(fn (ActivityCreative $creative): string => (string) $creative->post_id)
+            ->map(fn ($creatives) => $creatives->first());
 
         $authors = User::query()
             ->whereIn('id', $authorIds)
@@ -157,7 +157,7 @@ class PostController extends BaseApiController
                 'main_business_category_id',
                 'business_sub_category',
             ])
-            ->keyBy(fn(User $author) => (string) $author->id);
+            ->keyBy(fn (User $author) => (string) $author->id);
 
         $circles = Circle::query()
             ->whereIn('id', $circleIds)
@@ -167,16 +167,16 @@ class PostController extends BaseApiController
         $impactedPeers = User::query()
             ->whereIn('id', $impactedPeerIds)
             ->get(['id', 'display_name', 'first_name', 'last_name'])
-            ->keyBy(fn(User $peer) => (string) $peer->id);
+            ->keyBy(fn (User $peer) => (string) $peer->id);
 
         $p2pMeetingsById = collect();
         $fallbackP2pMeetingIdByPostId = [];
 
         $p2pMeetingSourceIds = $pageRows
-            ->filter(fn($row) => (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row))
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row))
             ->pluck('post_source_id')
             ->filter()
-            ->map(fn($id) => (string) $id)
+            ->map(fn ($id) => (string) $id)
             ->unique()
             ->values()
             ->all();
@@ -195,10 +195,10 @@ class PostController extends BaseApiController
         })->values();
 
         if ($p2pPostsWithoutSource->isNotEmpty()) {
-            $fallbackAuthorIds = $p2pPostsWithoutSource->pluck('author_id')->filter()->map(fn($id) => (string) $id)->unique()->values()->all();
+            $fallbackAuthorIds = $p2pPostsWithoutSource->pluck('author_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
             $postCreatedAt = $p2pPostsWithoutSource
-                ->map(fn($row) => Carbon::parse((string) $row->created_at))
-                ->sortBy(fn(Carbon $value) => $value->getTimestamp())
+                ->map(fn ($row) => Carbon::parse((string) $row->created_at))
+                ->sortBy(fn (Carbon $value) => $value->getTimestamp())
                 ->values();
 
             if ($fallbackAuthorIds !== [] && $postCreatedAt->isNotEmpty()) {
@@ -209,7 +209,7 @@ class PostController extends BaseApiController
                     ->whereIn('initiator_user_id', $fallbackAuthorIds)
                     ->whereBetween('created_at', [$windowStart, $windowEnd])
                     ->get(['id', 'initiator_user_id', 'created_at', 'media'])
-                    ->groupBy(fn(P2pMeeting $meeting): string => (string) $meeting->initiator_user_id);
+                    ->groupBy(fn (P2pMeeting $meeting): string => (string) $meeting->initiator_user_id);
 
                 foreach ($p2pPostsWithoutSource as $row) {
                     $authorId = (string) ($row->author_id ?? '');
@@ -243,7 +243,7 @@ class PostController extends BaseApiController
             ->where('status', 'approved')
             ->pluck('user_id')
             ->unique()
-            ->map(fn($id) => (string) $id)
+            ->map(fn ($id) => (string) $id)
             ->toArray();
 
         $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
@@ -286,7 +286,7 @@ class PostController extends BaseApiController
                         ?? $author->business_sub_category
                         ?? null,
                     'profile_photo_url' => $author->profile_photo_file_id
-                        ? url('/api/v1/files/' . $author->profile_photo_file_id)
+                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
                 ] : null,
                 'circle' => $circle ? [
@@ -313,7 +313,7 @@ class PostController extends BaseApiController
                 && (string) ($row->post_source_event ?? '') === 'completed'
             ) {
                 $acceptedByName = trim((string) ($row->accepted_by_display_name
-                    ?: trim(((string) ($row->accepted_by_first_name ?? '')) . ' ' . ((string) ($row->accepted_by_last_name ?? '')))));
+                    ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
 
                 $item['accepted_by'] = $row->accepted_by_id ? [
                     'id' => (string) $row->accepted_by_id,
@@ -369,7 +369,7 @@ class PostController extends BaseApiController
 
     private function formatActivityCreative(?ActivityCreative $creative): ?array
     {
-        if (!$creative) {
+        if (! $creative) {
             return null;
         }
 
@@ -399,7 +399,7 @@ class PostController extends BaseApiController
     {
         $isP2pPost = (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row);
 
-        if ($isP2pPost && !empty($row->post_source_id)) {
+        if ($isP2pPost && ! empty($row->post_source_id)) {
             $meeting = $p2pMeetingsById->get((string) $row->post_source_id);
             if ($meeting) {
                 return $this->expandP2pMedia($meeting->media);
@@ -444,7 +444,7 @@ class PostController extends BaseApiController
         }
 
         $fileIds = collect($media)
-            ->map(fn($item): ?string => is_array($item) ? ($item['file_id'] ?? null) : null)
+            ->map(fn ($item): ?string => is_array($item) ? ($item['file_id'] ?? null) : null)
             ->filter()
             ->unique()
             ->values()
@@ -461,7 +461,7 @@ class PostController extends BaseApiController
                 return [
                     'file_id' => $fileId,
                     'media_type' => $mediaType,
-                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/'.$fileId) : null,
                     'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
                     'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
                     'size' => $file->size ?? $file->size_bytes ?? null,
@@ -487,13 +487,13 @@ class PostController extends BaseApiController
 
     public function userPosts(Request $request, string $userId)
     {
-        if (!Str::isUuid($userId)) {
+        if (! Str::isUuid($userId)) {
             return $this->error('User not found', 404);
         }
 
         $user = User::query()->find($userId);
 
-        if (!$user) {
+        if (! $user) {
             return $this->error('User not found', 404);
         }
 
@@ -511,8 +511,8 @@ class PostController extends BaseApiController
             ->withCount(['likes', 'comments', 'saves'])
             ->when($authUser, function ($query) use ($authUser): void {
                 $query->withExists([
-                    'likes as is_liked_by_me' => fn($likeQuery) => $likeQuery->where('user_id', $authUser->id),
-                    'saves as is_saved_by_me' => fn($saveQuery) => $saveQuery->where('user_id', $authUser->id),
+                    'likes as is_liked_by_me' => fn ($likeQuery) => $likeQuery->where('user_id', $authUser->id),
+                    'saves as is_saved_by_me' => fn ($saveQuery) => $saveQuery->where('user_id', $authUser->id),
                 ]);
             })
             ->latest('created_at')
@@ -564,14 +564,14 @@ class PostController extends BaseApiController
 
         $mediaItems = [];
 
-        if (!empty($data['media'])) {
+        if (! empty($data['media'])) {
             $fileIds = collect($data['media'])->pluck('id')->all();
 
             $files = File::whereIn('id', $fileIds)->get()->keyBy('id');
 
             foreach ($data['media'] as $item) {
                 $file = $files->get($item['id']);
-                if (!$file) {
+                if (! $file) {
                     continue;
                 }
 
@@ -622,7 +622,7 @@ class PostController extends BaseApiController
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return $this->error('Unauthorized', 401);
         }
 
@@ -631,7 +631,7 @@ class PostController extends BaseApiController
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('This post is managed by the system and cannot be modified.', 404);
         }
 
@@ -639,7 +639,7 @@ class PostController extends BaseApiController
             return $this->error('You are not authorized to edit this post.', 403);
         }
 
-        if (!empty($post->source_type) || (!empty($post->post_type) && $post->post_type !== 'standard') || !empty($post->template_id)) {
+        if (! empty($post->source_type) || (! empty($post->post_type) && $post->post_type !== 'standard') || ! empty($post->template_id)) {
             return $this->error('Generated template posts cannot be edited.', 403);
         }
 
@@ -672,13 +672,13 @@ class PostController extends BaseApiController
 
         if (array_key_exists('media', $data)) {
             $mediaItems = [];
-            if (!empty($data['media'])) {
+            if (! empty($data['media'])) {
                 $fileIds = collect($data['media'])->pluck('id')->all();
                 $files = File::whereIn('id', $fileIds)->get()->keyBy('id');
 
                 foreach ($data['media'] as $item) {
                     $file = $files->get($item['id']);
-                    if (!$file) {
+                    if (! $file) {
                         continue;
                     }
 
@@ -723,15 +723,15 @@ class PostController extends BaseApiController
         $post = Post::with(['user.level4Category', 'user.businessCategory', 'user.mainBusinessCategory', 'circle'])
             ->withCount(['likes', 'comments', 'saves'])
             ->withExists([
-                'likes as is_liked_by_me' => fn($query) => $query->where('user_id', $request->user()->id),
-                'saves as is_saved_by_me' => fn($query) => $query->where('user_id', $request->user()->id),
+                'likes as is_liked_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
+                'saves as is_saved_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
             ])
             ->where('id', $id)
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -782,7 +782,7 @@ class PostController extends BaseApiController
             ->where('user_id', $user->id)
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found or you are not allowed to delete it', 404);
         }
 
@@ -800,7 +800,7 @@ class PostController extends BaseApiController
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -827,7 +827,7 @@ class PostController extends BaseApiController
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -849,7 +849,7 @@ class PostController extends BaseApiController
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -878,7 +878,7 @@ class PostController extends BaseApiController
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -915,7 +915,7 @@ class PostController extends BaseApiController
     private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, ?string $text, ?PostComment $comment): void
     {
         $text = $text ?? '';
-        $mentionedUsers = $this->mentionedUsers($text)->reject(fn(User $user) => (string) $user->id === (string) $actor->id)->values();
+        $mentionedUsers = $this->mentionedUsers($text)->reject(fn (User $user) => (string) $user->id === (string) $actor->id)->values();
         if ($mentionedUsers->isEmpty()) {
             return;
         }
@@ -927,7 +927,7 @@ class PostController extends BaseApiController
                 ['screen' => 'post_details', 'post_id' => (string) $post->id, 'comment_id' => $comment?->id, 'mentioned_by' => (string) $actor->id, 'type' => 'mention'],
                 $actor,
                 $comment ?: $post,
-                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:' . ($comment?->id ?? $post->id)]
+                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:'.($comment?->id ?? $post->id)]
             );
         } catch (Throwable $e) {
             Log::warning('Mention notification failed', ['post_id' => (string) $post->id, 'error' => $e->getMessage()]);
@@ -944,7 +944,7 @@ class PostController extends BaseApiController
 
         return User::query()->where(function ($query) use ($handles): void {
             foreach ($handles as $handle) {
-                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle . '@%');
+                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle.'@%');
             }
         })->get();
     }
@@ -956,7 +956,7 @@ class PostController extends BaseApiController
 
     private function displayName(User $user): string
     {
-        return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
+        return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
     }
 
     private function sendPostLikeNotification(Post $post, PostLike $like, User $authUser, NotificationService $notifications): void
@@ -973,7 +973,7 @@ class PostController extends BaseApiController
                         $targets[] = [
                             'user' => $subjectUser,
                             'title' => 'New Like on Introduction',
-                            'body' => $likerName . ' liked your introduction post',
+                            'body' => $likerName.' liked your introduction post',
                         ];
                     }
                     if ($subjectUser->introduced_by) {
@@ -982,7 +982,7 @@ class PostController extends BaseApiController
                             $targets[] = [
                                 'user' => $introducerUser,
                                 'title' => 'New Like on Introduction',
-                                'body' => $likerName . ' liked the introduction of ' . $subjectName,
+                                'body' => $likerName.' liked the introduction of '.$subjectName,
                             ];
                         }
                     }
@@ -995,10 +995,10 @@ class PostController extends BaseApiController
                             default => 'Post Liked',
                         };
                         $body = match ($post->post_type) {
-                            'birthday' => $likerName . ' liked your birthday post',
-                            'anniversary' => $likerName . ' liked your anniversary post',
-                            'global_peer_certificate' => $likerName . ' liked your Global Peer Certificate post',
-                            default => $likerName . ' liked your post',
+                            'birthday' => $likerName.' liked your birthday post',
+                            'anniversary' => $likerName.' liked your anniversary post',
+                            'global_peer_certificate' => $likerName.' liked your Global Peer Certificate post',
+                            default => $likerName.' liked your post',
                         };
                         $targets[] = [
                             'user' => $subjectUser,
@@ -1015,7 +1015,7 @@ class PostController extends BaseApiController
                     $targets[] = [
                         'user' => $postOwner,
                         'title' => 'Post Liked',
-                        'body' => $likerName . ' liked your post',
+                        'body' => $likerName.' liked your post',
                     ];
                 }
             }
@@ -1042,7 +1042,7 @@ class PostController extends BaseApiController
                         'channel' => 'push',
                         'reference_type' => 'post',
                         'reference_id' => (string) $post->id,
-                        'dedupe_key' => 'post_like:' . $post->id . ':' . $authUser->id . ':' . $target['user']->id,
+                        'dedupe_key' => 'post_like:'.$post->id.':'.$authUser->id.':'.$target['user']->id,
                     ]
                 );
             } catch (Throwable $e) {
@@ -1071,7 +1071,7 @@ class PostController extends BaseApiController
                         $targets[] = [
                             'user' => $subjectUser,
                             'title' => 'New Comment on Introduction',
-                            'body' => $commenterName . ' commented on your introduction post',
+                            'body' => $commenterName.' commented on your introduction post',
                         ];
                     }
                     if ($subjectUser->introduced_by) {
@@ -1080,7 +1080,7 @@ class PostController extends BaseApiController
                             $targets[] = [
                                 'user' => $introducerUser,
                                 'title' => 'New Comment on Introduction',
-                                'body' => $commenterName . ' commented on the introduction of ' . $subjectName,
+                                'body' => $commenterName.' commented on the introduction of '.$subjectName,
                             ];
                         }
                     }
@@ -1093,10 +1093,10 @@ class PostController extends BaseApiController
                             default => 'New Comment on Post',
                         };
                         $body = match ($post->post_type) {
-                            'birthday' => $commenterName . ' commented on your birthday post',
-                            'anniversary' => $commenterName . ' commented on your anniversary post',
-                            'global_peer_certificate' => $commenterName . ' commented on your Global Peer Certificate post',
-                            default => $commenterName . ' commented on your post',
+                            'birthday' => $commenterName.' commented on your birthday post',
+                            'anniversary' => $commenterName.' commented on your anniversary post',
+                            'global_peer_certificate' => $commenterName.' commented on your Global Peer Certificate post',
+                            default => $commenterName.' commented on your post',
                         };
                         $targets[] = [
                             'user' => $subjectUser,
@@ -1113,7 +1113,7 @@ class PostController extends BaseApiController
                     $targets[] = [
                         'user' => $postOwner,
                         'title' => 'New Comment on Post',
-                        'body' => $commenterName . ' commented on your post',
+                        'body' => $commenterName.' commented on your post',
                     ];
                 }
             }
@@ -1140,7 +1140,7 @@ class PostController extends BaseApiController
                         'channel' => 'push',
                         'reference_type' => 'post',
                         'reference_id' => (string) $post->id,
-                        'dedupe_key' => 'post_comment:' . $comment->id . ':' . $target['user']->id,
+                        'dedupe_key' => 'post_comment:'.$comment->id.':'.$target['user']->id,
                     ]
                 );
             } catch (Throwable $e) {

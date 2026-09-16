@@ -22,9 +22,17 @@ class WhatsAppWebhookController extends Controller
      */
     public function verify(Request $request): Response|JsonResponse
     {
-        $mode = $request->query('hub_mode', $request->query('hub.mode'));
-        $token = $request->query('hub_verify_token', $request->query('hub.verify_token'));
-        $challenge = $request->query('hub_challenge', $request->query('hub.challenge'));
+        $hubMode = $request->query('hub_mode');
+        $hubDotMode = $request->query('hub.mode');
+        $mode = is_string($hubMode) ? $hubMode : (is_string($hubDotMode) ? $hubDotMode : null);
+
+        $hubVerifyToken = $request->query('hub_verify_token');
+        $hubDotVerifyToken = $request->query('hub.verify_token');
+        $token = is_string($hubVerifyToken) ? $hubVerifyToken : (is_string($hubDotVerifyToken) ? $hubDotVerifyToken : null);
+
+        $hubChallenge = $request->query('hub_challenge');
+        $hubDotChallenge = $request->query('hub.challenge');
+        $challenge = is_string($hubChallenge) ? $hubChallenge : (is_string($hubDotChallenge) ? $hubDotChallenge : null);
 
         $configuredToken = config('services.whatsapp.webhook_verify_token')
             ?? config('services.fleximsg.webhook_verify_token')
@@ -50,7 +58,8 @@ class WhatsAppWebhookController extends Controller
      */
     public function handle(Request $request): JsonResponse
     {
-        $payload = $request->all();
+        /** @var array<string, mixed> $payload */
+        $payload = (array) $request->all();
 
         Log::info('[WhatsAppWebhookController] Inbound WhatsApp webhook payload received.', [
             'headers' => $request->headers->all(),

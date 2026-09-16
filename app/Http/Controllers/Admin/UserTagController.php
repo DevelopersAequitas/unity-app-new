@@ -65,7 +65,7 @@ class UserTagController extends Controller
 
         // Check again for slug uniqueness after slugification
         if (UserTag::where('slug', $slug)->exists()) {
-            return back()->withInput()->withErrors(['slug' => 'The slug "' . $slug . '" is already in use.']);
+            return back()->withInput()->withErrors(['slug' => 'The slug "'.$slug.'" is already in use.']);
         }
 
         $tag = UserTag::create([
@@ -193,7 +193,7 @@ class UserTagController extends Controller
 
         $message = "User '{$user->display_name}' has been assigned to tag '{$userTag->name}'.";
         if ($userTag->slug === UserTag::SLUG_TEAM_MEMBER) {
-            $message .= " This user is now excluded from public leaderboards.";
+            $message .= ' This user is now excluded from public leaderboards.';
         }
 
         if ($request->wantsJson()) {
@@ -215,7 +215,7 @@ class UserTagController extends Controller
         $userName = $user ? $user->display_name : 'User';
         $message = "Removed '{$userTag->name}' tag from {$userName}.";
         if ($userTag->slug === UserTag::SLUG_TEAM_MEMBER) {
-            $message .= " This user is now eligible to appear in public leaderboards.";
+            $message .= ' This user is now eligible to appear in public leaderboards.';
         }
 
         if ($request->wantsJson()) {
@@ -271,7 +271,7 @@ class UserTagController extends Controller
         }
 
         $results = $users->map(function (User $user) {
-            $name = $user->display_name ?: trim($user->first_name . ' ' . $user->last_name);
+            $name = $user->display_name ?: trim($user->first_name.' '.$user->last_name);
             if (! $name) {
                 $name = $user->email;
             }

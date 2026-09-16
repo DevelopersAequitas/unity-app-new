@@ -87,6 +87,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
@@ -683,6 +684,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/notification-templates/{key}/edit', [NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
         Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'update'])->name('notification-templates.update');
         Route::get('/notification-templates/{key}/preview', [NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
+
+        // WhatsApp Templates Module
+        Route::get('/whatsapp-templates', [WhatsappTemplateController::class, 'index'])->name('whatsapp-templates.index');
+        Route::get('/whatsapp-templates/{id}', [WhatsappTemplateController::class, 'show'])->name('whatsapp-templates.show');
+        Route::get('/whatsapp-templates/{id}/edit', [WhatsappTemplateController::class, 'edit'])->name('whatsapp-templates.edit');
+        Route::put('/whatsapp-templates/{id}', [WhatsappTemplateController::class, 'update'])->name('whatsapp-templates.update');
+        Route::post('/whatsapp-templates/{id}/toggle-status', [WhatsappTemplateController::class, 'toggleStatus'])->name('whatsapp-templates.toggle-status');
+        Route::post('/whatsapp-templates/{id}/reveal-secret', [WhatsappTemplateController::class, 'revealSecret'])->name('whatsapp-templates.reveal-secret');
 
         // App Notifications & Mobile Navigation Showcase Module
         Route::get('/app-notifications', [AppNotificationAdminController::class, 'index'])->name('app-notifications.index');
