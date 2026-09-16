@@ -59,21 +59,11 @@ class IntroVideoController extends Controller
             'earned' => $coinsEarned,
             'balance_after' => $coinsBalance,
         ];
-        $responseData['impacts'] = [
-            'earned' => $impactEarned,
-            'total' => $totalLifeImpact,
-            'balance_after' => $totalLifeImpact,
-        ];
         $responseData['life_impact'] = [
             'earned' => $impactEarned,
             'total' => $totalLifeImpact,
             'balance_after' => $totalLifeImpact,
         ];
-        $responseData['life_impacted_count'] = $totalLifeImpact;
-        if ($coinsLedger) {
-            $responseData['coins_earned'] = $coinsEarned;
-            $responseData['coins_balance'] = $coinsBalance;
-        }
 
         return response()->json([
             'success' => true,
