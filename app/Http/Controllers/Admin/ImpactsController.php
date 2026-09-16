@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Admin\PermissionService;
 use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
@@ -113,6 +114,7 @@ class ImpactsController extends Controller
 
         $admin = Auth::guard('admin')->user();
         $this->applyDedImpactScope($impacts);
+        ActivityUserFilter::applyToActivityQuery($impacts, 'impacts.user_id');
 
         $impactsPaginator = $impacts
             ->orderByDesc('created_at')
@@ -130,6 +132,7 @@ class ImpactsController extends Controller
         if ($admin) {
             AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
         }
+        ActivityUserFilter::applyToUserQuery($peersQuery);
 
         $peers = $peersQuery->get();
 
@@ -295,6 +298,7 @@ class ImpactsController extends Controller
             ]);
 
         $this->applyDedImpactScope($impactsQuery);
+        ActivityUserFilter::applyToActivityQuery($impactsQuery, 'impacts.user_id');
 
         $impacts = $impactsQuery
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))

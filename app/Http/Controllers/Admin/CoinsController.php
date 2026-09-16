@@ -7,6 +7,7 @@ use App\Models\Circle;
 use App\Models\CoinLedger;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use App\Support\Coins\CoinLedgerFormatter;
@@ -114,6 +115,7 @@ class CoinsController extends Controller
             ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC");
 
         $this->applyCircleScopeToUsersQuery($usersQuery, auth('admin')->user());
+        ActivityUserFilter::applyToUserQuery($usersQuery);
 
         return view('admin.coins.create', [
             'users' => $usersQuery->get(),
@@ -263,6 +265,7 @@ class CoinsController extends Controller
             }]);
 
         $this->applyCircleScopeToUsersQuery($query, auth('admin')->user());
+        ActivityUserFilter::applyToUserQuery($query);
 
         $search = trim((string) ($filters['q'] ?? $filters['search'] ?? ''));
         $circleId = (string) ($filters['circle_id'] ?? 'all');
@@ -312,11 +315,11 @@ class CoinsController extends Controller
             ->whereIn('cl.user_id', $memberIds)
             ->select([
                 'cl.user_id',
-                DB::raw("count(case when cl.reference ilike 'Activity: testimonial%' then 1 end) as testimonial_count"),
-                DB::raw("count(case when cl.reference ilike 'Activity: referral%' then 1 end) as referral_count"),
-                DB::raw("count(case when cl.reference ilike 'Activity: business_deal%' then 1 end) as business_deal_count"),
-                DB::raw("count(case when cl.reference ilike 'Activity: p2p_meeting%' then 1 end) as p2p_meeting_count"),
-                DB::raw("count(case when cl.reference ilike 'Activity: requirement%' then 1 end) as requirement_count"),
+                DB::raw("count(case when lower(cl.reference) like 'activity: testimonial%' then 1 end) as testimonial_count"),
+                DB::raw("count(case when lower(cl.reference) like 'activity: referral%' then 1 end) as referral_count"),
+                DB::raw("count(case when lower(cl.reference) like 'activity: business_deal%' then 1 end) as business_deal_count"),
+                DB::raw("count(case when lower(cl.reference) like 'activity: p2p_meeting%' then 1 end) as p2p_meeting_count"),
+                DB::raw("count(case when lower(cl.reference) like 'activity: requirement%' then 1 end) as requirement_count"),
             ])
             ->groupBy('cl.user_id')
             ->get()

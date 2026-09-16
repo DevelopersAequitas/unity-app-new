@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -137,6 +138,7 @@ class ActivitiesVisitorRegistrationController extends Controller
             Schema::hasColumn('visitor_registrations', 'created_by') ? 'visitor_registrations.created_by' : null,
             Schema::hasColumn('visitor_registrations', 'invited_by_user_id') ? 'visitor_registrations.invited_by_user_id' : null,
         ]));
+        ActivityUserFilter::applyToActivityQuery($query, 'visitor_registrations.user_id', 'peer');
 
         $items = $query
             ->orderByDesc('created_at')

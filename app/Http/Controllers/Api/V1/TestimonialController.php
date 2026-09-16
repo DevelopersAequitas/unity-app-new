@@ -74,6 +74,15 @@ class TestimonialController extends BaseApiController
             return $this->error('You cannot give a testimonial to yourself.', 422);
         }
 
+        if (! $authUser->isPro()) {
+            return response()->json([
+                'success' => false,
+                'message' => config('membership.pro_required_messages.testimonial', 'Upgrade to Pro to give testimonials to your peers.'),
+                'error_code' => 'PRO_MEMBERSHIP_REQUIRED',
+                'requires_pro' => true,
+            ], 403);
+        }
+
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
@@ -176,78 +185,6 @@ class TestimonialController extends BaseApiController
 
             return $this->error('Something went wrong', 500);
         }
-    }
-
-    public function given(Request $request)
-    {
-        $authUser = $request->user();
-        $perPage = (int) $request->input('per_page', 20);
-        $perPage = max(1, min($perPage, 100));
-
-        $paginator = Testimonial::query()
-            ->with(['fromUser', 'toUser'])
-            ->where('from_user_id', $authUser->id)
-            ->where('is_deleted', false)
-            ->whereNull('deleted_at')
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
-
-        $testimonialsReceived = Testimonial::query()
-            ->where('to_user_id', $authUser->id)
-            ->where('is_deleted', false)
-            ->whereNull('deleted_at')
-            ->count();
-
-        return $this->success([
-            'summary' => [
-                'total_testimonials' => $paginator->total(),
-                'testimonials_given' => $paginator->total(),
-                'testimonials_received' => $testimonialsReceived,
-            ],
-            'items' => TestimonialResource::collection($paginator->items()),
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
-        ]);
-    }
-
-    public function received(Request $request)
-    {
-        $authUser = $request->user();
-        $perPage = (int) $request->input('per_page', 20);
-        $perPage = max(1, min($perPage, 100));
-
-        $paginator = Testimonial::query()
-            ->with(['fromUser', 'toUser'])
-            ->where('to_user_id', $authUser->id)
-            ->where('is_deleted', false)
-            ->whereNull('deleted_at')
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
-
-        $testimonialsGiven = Testimonial::query()
-            ->where('from_user_id', $authUser->id)
-            ->where('is_deleted', false)
-            ->whereNull('deleted_at')
-            ->count();
-
-        return $this->success([
-            'summary' => [
-                'total_testimonials' => $paginator->total(),
-                'testimonials_given' => $testimonialsGiven,
-                'testimonials_received' => $paginator->total(),
-            ],
-            'items' => TestimonialResource::collection($paginator->items()),
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
-        ]);
     }
 
     public function userTestimonials(Request $request, User $user)

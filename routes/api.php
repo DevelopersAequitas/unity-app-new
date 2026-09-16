@@ -504,8 +504,6 @@ Route::prefix('v1')->group(function () {
 
         // V1 Testimonials API
         Route::post('/testimonials', [V1TestimonialController::class, 'store']);
-        Route::get('/testimonials/given', [V1TestimonialController::class, 'given']);
-        Route::get('/testimonials/received', [V1TestimonialController::class, 'received']);
         Route::get('/users/{user}/testimonials', [V1TestimonialController::class, 'userTestimonials'])->whereUuid('user');
 
         Route::get('/my-circles', [MyCircleController::class, 'index']);
@@ -1175,6 +1173,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/zoho/org', [ZohoDebugController::class, 'org']);
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
+        Route::get('/billing/hostedpages/{hostedpageId}', [BillingCheckoutController::class, 'syncHostedPage']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
         Route::get('/billing/subscriptions-history', [UserSubscriptionController::class, 'index']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
