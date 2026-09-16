@@ -6,9 +6,12 @@ namespace App\Http\Resources;
 
 use App\Models\User;
 use App\Models\UserMembership;
+use App\Services\Billing\MembershipSyncService;
+use App\Services\Membership\MembershipUpgradeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class UserProfileResource extends MemberDetailResource
@@ -102,6 +105,11 @@ class UserProfileResource extends MemberDetailResource
 
         if ($user instanceof User) {
             $this->autoPromoteQueuedMemberships($user, $now);
+            try {
+                app(MembershipSyncService::class)->ensureUserMembershipsSynced($user);
+            } catch (Throwable) {
+                // Non-blocking sync
+            }
         }
 
         if (! Schema::hasTable('user_memberships')) {
@@ -147,7 +155,7 @@ class UserProfileResource extends MemberDetailResource
             $startsAt = $membership->starts_at;
             $endsAt = $membership->ends_at;
             $duration = $this->formatMembershipDuration($startsAt, $endsAt, $membership->plan?->duration_months);
-            $planName = $membership->plan?->name ?? ($duration ? "Pro Plan ({$duration})" : 'Pro Plan');
+            $planName = $membership->plan?->name ?? $user->zoho_plan_code ?? ($duration ? "Pro Plan ({$duration})" : 'Pro Plan');
 
             $card = [
                 'id' => (string) $membership->id,
@@ -162,13 +170,18 @@ class UserProfileResource extends MemberDetailResource
 
             if ($membership->status === 'active' && (! $endsAt || $endsAt->gte($now))) {
                 if ($active === null) {
+                    $card['status'] = 'active';
                     $active = $card;
                 } else {
+                    $card['status'] = 'queued';
                     $upcoming[] = $card;
                 }
             } elseif ($membership->status === 'queued' || ($startsAt && $startsAt->gt($now))) {
+                $card['status'] = 'queued';
                 $upcoming[] = $card;
             } elseif ($membership->status === 'expired' || ($endsAt && $endsAt->lt($now))) {
+                $card['status'] = 'expired';
+                $card['days_left'] = 0;
                 $expired[] = $card;
             }
         }
@@ -179,15 +192,51 @@ class UserProfileResource extends MemberDetailResource
             $endsAt = Carbon::parse((string) $user->membership_ends_at);
             $duration = $this->formatMembershipDuration($startsAt, $endsAt);
 
+            $createdMembership = app(MembershipUpgradeService::class)->syncUserMembershipRow(
+                $user,
+                null,
+                $startsAt ?? $now,
+                $endsAt,
+                ['zoho_plan_code' => $user->zoho_plan_code],
+                'active'
+            );
+
             $active = [
-                'id' => null,
+                'id' => $createdMembership?->id ? (string) $createdMembership->id : (string) Str::uuid(),
                 'plan_name' => $user->zoho_plan_code ?? ($duration ? "Pro Plan ({$duration})" : 'Pro Plan'),
                 'duration' => $duration,
                 'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
                 'ends_at' => $endsAt->toIso8601String(),
                 'status' => 'active',
                 'days_left' => max(0, (int) ceil($now->floatDiffInDays($endsAt, false))),
-                'payment_id' => null,
+                'payment_id' => $createdMembership?->payment_id ? (string) $createdMembership->payment_id : null,
+            ];
+        }
+
+        // Fallback for expired plan if user has past membership dates but user_memberships has no expired rows
+        if (empty($expired) && $user->membership_ends_at && Carbon::parse((string) $user->membership_ends_at)->isPast()) {
+            $startsAt = $user->membership_starts_at ? Carbon::parse((string) $user->membership_starts_at) : null;
+            $endsAt = Carbon::parse((string) $user->membership_ends_at);
+            $duration = $this->formatMembershipDuration($startsAt, $endsAt);
+
+            $createdMembership = app(MembershipUpgradeService::class)->syncUserMembershipRow(
+                $user,
+                null,
+                $startsAt ?? $endsAt->copy()->subMonth(),
+                $endsAt,
+                ['zoho_plan_code' => $user->zoho_plan_code],
+                'expired'
+            );
+
+            $expired[] = [
+                'id' => $createdMembership?->id ? (string) $createdMembership->id : (string) Str::uuid(),
+                'plan_name' => $user->zoho_plan_code ?? ($duration ? "Pro Plan ({$duration})" : 'Pro Plan'),
+                'duration' => $duration,
+                'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                'ends_at' => $endsAt->toIso8601String(),
+                'status' => 'expired',
+                'days_left' => 0,
+                'payment_id' => $createdMembership?->payment_id ? (string) $createdMembership->payment_id : null,
             ];
         }
 

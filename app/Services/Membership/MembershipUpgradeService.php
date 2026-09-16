@@ -243,13 +243,50 @@ class MembershipUpgradeService
         }
     }
 
-    private function syncUserMembershipRow(User $user, ?Payment $payment, Carbon $startedAt, Carbon $expiresAt, array $data, string $status = 'active'): void
+    public function syncUserMembershipRow(User $user, ?Payment $payment, CarbonInterface|\DateTimeInterface|string $startedAt, CarbonInterface|\DateTimeInterface|string $expiresAt, array $data = [], string $status = 'active'): ?UserMembership
     {
         if (! Schema::hasTable('user_memberships')) {
-            return;
+            return null;
         }
 
+        $startedAt = Carbon::parse($startedAt);
+        $expiresAt = Carbon::parse($expiresAt);
+
         try {
+            $planId = $data['membership_plan_id'] ?? $payment?->membership_plan_id ?? null;
+            if (! $planId && Schema::hasTable('membership_plans')) {
+                $planCode = (string) ($data['zoho_plan_code'] ?? $data['plan_code'] ?? $payment?->zoho_plan_code ?? $user->zoho_plan_code ?? '');
+                if ($planCode !== '') {
+                    $matchedPlan = MembershipPlan::query()
+                        ->where('slug', strtolower($planCode))
+                        ->orWhere('name', $planCode)
+                        ->first();
+
+                    if ($matchedPlan) {
+                        $planId = $matchedPlan->id;
+                    } else {
+                        $planName = $data['plan_name'] ?? "Pro Plan ({$planCode})";
+                        $durationMonths = (int) ($data['duration_months'] ?? 1);
+                        $newPlan = MembershipPlan::query()->create([
+                            'id' => (string) Str::uuid(),
+                            'name' => $planName,
+                            'slug' => strtolower($planCode),
+                            'price' => (float) ($data['amount'] ?? 0),
+                            'duration_days' => $durationMonths * 30,
+                            'duration_months' => $durationMonths,
+                            'is_active' => true,
+                            'is_free' => false,
+                            'sort_order' => 10,
+                        ]);
+                        $planId = $newPlan->id;
+                    }
+                }
+
+                if (! $planId) {
+                    $planId = MembershipPlan::query()->value('id');
+                }
+            }
+
             // Expire previous memberships whose validity has already elapsed
             UserMembership::query()
                 ->where('user_id', $user->id)
@@ -258,24 +295,35 @@ class MembershipUpgradeService
                 ->where('ends_at', '<=', now())
                 ->update(['status' => 'expired']);
 
-            $existing = $payment
-                ? UserMembership::query()->where('payment_id', $payment->id)->first()
-                : null;
+            $existing = null;
+            if ($payment) {
+                $existing = UserMembership::query()->where('payment_id', $payment->id)->first();
+            }
+
+            if (! $existing) {
+                $existing = UserMembership::query()
+                    ->where('user_id', $user->id)
+                    ->where('starts_at', $startedAt)
+                    ->where('ends_at', $expiresAt)
+                    ->first();
+            }
 
             if ($existing) {
                 $existing->forceFill([
                     'starts_at' => $startedAt,
                     'ends_at' => $expiresAt,
                     'status' => $status,
+                    'payment_id' => $payment?->id ?? $existing->payment_id,
+                    'membership_plan_id' => $planId ?? $existing->membership_plan_id,
                 ])->save();
 
-                return;
+                return $existing;
             }
 
-            UserMembership::query()->create([
+            return UserMembership::query()->create([
                 'id' => (string) Str::uuid(),
                 'user_id' => $user->id,
-                'membership_plan_id' => $data['membership_plan_id'] ?? $payment?->membership_plan_id,
+                'membership_plan_id' => $planId,
                 'starts_at' => $startedAt,
                 'ends_at' => $expiresAt,
                 'status' => $status,
@@ -287,6 +335,8 @@ class MembershipUpgradeService
                 'payment_id' => $payment?->id,
                 'error' => $throwable->getMessage(),
             ]);
+
+            return null;
         }
     }
 

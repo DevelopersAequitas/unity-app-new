@@ -1175,6 +1175,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/zoho/org', [ZohoDebugController::class, 'org']);
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
+        Route::get('/billing/hostedpages/{hostedpageId}', [BillingCheckoutController::class, 'syncHostedPage']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
         Route::get('/billing/subscriptions-history', [UserSubscriptionController::class, 'index']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
