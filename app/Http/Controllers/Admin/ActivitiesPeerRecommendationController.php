@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PeerRecommendation;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -115,6 +116,7 @@ class ActivitiesPeerRecommendationController extends Controller
             Schema::hasColumn('peer_recommendations', 'recommender_id') ? 'peer_recommendations.recommender_id' : null,
             Schema::hasColumn('peer_recommendations', 'recommended_user_id') ? 'peer_recommendations.recommended_user_id' : null,
         ]));
+        ActivityUserFilter::applyToActivityQuery($query, 'peer_recommendations.user_id', 'peer');
 
         $items = $query
             ->orderByDesc('created_at')

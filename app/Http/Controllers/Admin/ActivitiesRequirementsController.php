@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\File;
 use App\Models\Requirement;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -363,6 +364,7 @@ class ActivitiesRequirementsController extends Controller
 
         AdminCircleScope::applyToActivityQuery($query, $admin, $primaryColumn, null);
         app(IndustryScopeService::class)->applyToActivityQuery($query, $admin, [$primaryColumn]);
+        ActivityUserFilter::applyToActivityQuery($query, $primaryColumn, 'actor');
     }
 
     private function formatUserName(?string $displayName, ?string $firstName, ?string $lastName): string

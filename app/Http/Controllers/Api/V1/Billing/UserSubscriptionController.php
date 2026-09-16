@@ -9,6 +9,7 @@ use App\Models\CircleSubscription;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\UserMembership;
+use App\Services\Billing\MembershipSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,11 @@ class UserSubscriptionController extends BaseApiController
 
         if ($user instanceof User) {
             $this->autoPromoteQueuedMemberships($user, $now);
+            try {
+                app(MembershipSyncService::class)->ensureUserMembershipsSynced($user);
+            } catch (Throwable) {
+                // Non-blocking sync
+            }
         }
 
         $items = collect();
@@ -42,7 +48,14 @@ class UserSubscriptionController extends BaseApiController
                 $endsAt = $membership->ends_at;
 
                 $duration = $this->formatDuration($startsAt, $endsAt, $membership->plan?->duration_months);
-                $planName = $membership->plan?->name ?? ($duration ? "Pro Plan ({$duration})" : 'Pro Plan');
+                $planName = $membership->plan?->name ?? $user->zoho_plan_code ?? ($duration ? "Pro Plan ({$duration})" : 'Pro Plan');
+
+                $status = (string) $membership->status;
+                if ($endsAt && $endsAt->isPast()) {
+                    $status = 'expired';
+                } elseif ($startsAt && $startsAt->isFuture()) {
+                    $status = 'queued';
+                }
 
                 $card = [
                     'id' => $membership->id,
@@ -52,7 +65,7 @@ class UserSubscriptionController extends BaseApiController
                     'duration' => $duration,
                     'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
                     'ends_at' => $endsAt ? $endsAt->toIso8601String() : null,
-                    'status' => $membership->status,
+                    'status' => $status,
                     'days_left' => ($endsAt && $endsAt->isFuture()) ? max(0, (int) ceil($now->floatDiffInDays($endsAt, false))) : 0,
                     'payment_id' => $membership->payment_id,
                     'membership_plan' => $membership->plan ? [

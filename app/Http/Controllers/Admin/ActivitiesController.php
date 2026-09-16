@@ -16,6 +16,7 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
@@ -101,6 +102,7 @@ class ActivitiesController extends Controller
 
         $this->applyCircleScopeToUsersQuery($query, $admin);
         app(IndustryScopeService::class)->applyToUsersQuery($query, $admin);
+        ActivityUserFilter::applyToUserQuery($query);
 
         $query->selectSub($this->primaryCircleSubquery('name'), 'circle_name');
 
@@ -600,6 +602,7 @@ class ActivitiesController extends Controller
             'activity.'.$memberKey,
             $requiresPeer ? $this->relatedUserJoinColumn($activityType) : null
         );
+        ActivityUserFilter::applyToActivityQuery($query, 'activity.'.$memberKey, 'member_user');
 
         if (($filters['scope'] ?? null) === 'selected') {
             $memberIds = $filters['selected_member_ids'] ?? [];

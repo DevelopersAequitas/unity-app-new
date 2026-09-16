@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
@@ -256,6 +257,9 @@ class ReferralReportController extends Controller
 
     private function applyReferralCircleScope(Builder $query, array $userColumns): void
     {
+        $primaryUserColumn = $userColumns[0] ?? 'rd.referrer_user_id';
+        ActivityUserFilter::applyToActivityQuery($query, $primaryUserColumn);
+
         $admin = Auth::guard('admin')->user();
 
         if (! AdminAccess::isDed($admin) && ! AdminAccess::isCircleScoped($admin)) {

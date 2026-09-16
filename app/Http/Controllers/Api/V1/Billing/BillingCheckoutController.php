@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Billing;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserProfileResource;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\UserMembership;
@@ -85,38 +86,163 @@ class BillingCheckoutController extends Controller
 
     public function syncHostedPage(Request $request, string $hostedpageId)
     {
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $request->user();
 
         try {
+            $paymentQuery = Payment::query()
+                ->whereNotNull('zoho_hostedpage_id')
+                ->where('zoho_hostedpage_id', $hostedpageId);
+
+            if (Schema::hasColumn('payments', 'provider')) {
+                $paymentQuery->where(function ($query) {
+                    $query->where('provider', 'zoho')
+                        ->orWhereNull('provider');
+                });
+            }
+
+            $payment = $paymentQuery->latest('created_at')->first();
+
+            if (! $user && $payment) {
+                $user = User::query()->where('id', $payment->user_id)->first();
+            }
+
+            if (! $user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found for hosted page sync.',
+                    'data' => [
+                        'hostedpage_id' => $hostedpageId,
+                    ],
+                ], 404);
+            }
+
             $hostedPageResponse = $this->zohoBillingService->getHostedPage($hostedpageId);
-            $updated = $this->zohoBillingService->syncMembershipFromHostedPage($user, $hostedPageResponse);
-            $user->refresh();
+            $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
+            $subscriptionBlock = data_get($hostedPage, 'subscription') ?? data_get($hostedPage, 'subscriptions.0') ?? [];
+
+            $subscriptionId = data_get($subscriptionBlock, 'subscription_id')
+                ?? data_get($hostedPage, 'subscription_id')
+                ?? data_get($hostedPage, 'data.subscription.subscription_id')
+                ?? null;
+
+            $invoiceId = data_get($hostedPage, 'invoice.invoice_id')
+                ?? data_get($hostedPage, 'invoice_id')
+                ?? null;
+
+            $planCode = data_get($hostedPage, 'subscription.plan.plan_code')
+                ?? data_get($hostedPage, 'plan.plan_code')
+                ?? data_get($hostedPage, 'plan_code')
+                ?? data_get($hostedPage, 'subscription.plan_code')
+                ?? $payment?->zoho_plan_code;
+
+            $termStart = data_get($subscriptionBlock, 'current_term_starts_at')
+                ?? data_get($subscriptionBlock, 'created_time')
+                ?? now()->toDateTimeString();
+
+            $termEnd = data_get($subscriptionBlock, 'current_term_ends_at')
+                ?? data_get($subscriptionBlock, 'expires_at')
+                ?? null;
+
+            $customerId = $user->zoho_customer_id ?: (data_get($hostedPage, 'customer_id') ?: data_get($subscriptionBlock, 'customer_id'));
+
+            if (! $subscriptionId && $customerId) {
+                $subscriptionList = $this->zohoBillingService->listSubscriptionsByCustomer((string) $customerId);
+                $latestSubscription = data_get($subscriptionList, 'subscriptions.0', []);
+
+                if (is_array($latestSubscription) && $latestSubscription !== []) {
+                    $subscriptionId = data_get($latestSubscription, 'subscription_id');
+                    $planCode = $planCode ?? data_get($latestSubscription, 'plan.plan_code') ?? data_get($latestSubscription, 'plan_code');
+                    $termStart = data_get($latestSubscription, 'current_term_starts_at') ?? data_get($latestSubscription, 'created_time') ?? $termStart;
+                    $termEnd = data_get($latestSubscription, 'current_term_ends_at') ?? data_get($latestSubscription, 'expires_at') ?? $termEnd;
+                    $subscriptionBlock = $latestSubscription;
+                }
+            }
+
+            if (! $payment && Schema::hasTable('payments')) {
+                $payment = new Payment;
+                $payment->id = (string) Str::uuid();
+                $payment->user_id = $user->id;
+                $payment->zoho_hostedpage_id = $hostedpageId;
+                $payment->zoho_subscription_id = $subscriptionId;
+                $payment->zoho_invoice_id = $invoiceId;
+                if (Schema::hasColumn('payments', 'zoho_plan_code')) {
+                    $payment->zoho_plan_code = $planCode;
+                }
+                $payment->status = 'paid';
+                $payment->paid_at = now();
+                if (Schema::hasColumn('payments', 'provider')) {
+                    $payment->provider = 'zoho';
+                }
+                $payment->save();
+            }
+
+            $freshUser = DB::transaction(function () use ($user, $payment, $subscriptionBlock, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId, $customerId) {
+                $syncedUser = $this->membershipSyncService->syncUserMembershipFromZoho($user, [
+                    'payment_id' => $payment?->id,
+                    'zoho_customer_id' => $customerId,
+                    'subscription' => array_merge($subscriptionBlock, [
+                        'customer_id' => $customerId,
+                        'subscription_id' => $subscriptionId,
+                        'plan_code' => $planCode,
+                        'current_term_starts_at' => $termStart,
+                        'current_term_ends_at' => $termEnd,
+                    ]),
+                    'invoice' => ['invoice_id' => $invoiceId],
+                ]);
+
+                if ($payment) {
+                    $paymentFields = [
+                        'status' => 'paid',
+                        'paid_at' => now(),
+                        'zoho_subscription_id' => $subscriptionId,
+                        'zoho_invoice_id' => $invoiceId,
+                    ];
+                    if (Schema::hasColumn('payments', 'zoho_plan_code')) {
+                        $paymentFields['zoho_plan_code'] = $planCode;
+                    }
+                    $payment->forceFill($paymentFields)->save();
+                }
+
+                return $syncedUser;
+            });
+
+            // Ensure historical subscriptions and payments are synchronized into user_memberships
+            $this->membershipSyncService->ensureUserMembershipsSynced($freshUser, $this->zohoBillingService);
+            $freshUser->refresh();
+
+            $profileResource = new UserProfileResource($freshUser);
+            $profileData = $profileResource->toArray($request);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Hosted page membership sync completed.',
                 'data' => [
-                    'handled' => $updated,
-                    'zoho_customer_id' => $user->zoho_customer_id,
-                    'zoho_subscription_id' => $user->zoho_subscription_id,
-                    'zoho_plan_code' => $user->zoho_plan_code,
-                    'zoho_last_invoice_id' => $user->zoho_last_invoice_id,
-                    'membership_starts_at' => $user->membership_starts_at,
-                    'membership_ends_at' => $user->membership_ends_at,
-                    'last_payment_at' => $user->last_payment_at,
+                    'handled' => true,
+                    'zoho_customer_id' => $freshUser->zoho_customer_id,
+                    'zoho_subscription_id' => $freshUser->zoho_subscription_id,
+                    'zoho_plan_code' => $freshUser->zoho_plan_code,
+                    'zoho_last_invoice_id' => $freshUser->zoho_last_invoice_id,
+                    'membership_starts_at' => $freshUser->membership_starts_at,
+                    'membership_ends_at' => $freshUser->membership_ends_at,
+                    'last_payment_at' => $freshUser->last_payment_at,
+                    'active_membership' => $profileData['active_membership'] ?? null,
+                    'upcoming_memberships' => $profileData['upcoming_memberships'] ?? [],
+                    'expired_memberships' => $profileData['expired_memberships'] ?? [],
+                    'total_membership_valid_until' => $profileData['total_membership_valid_until'] ?? null,
+                    'total_membership_days_remaining' => $profileData['total_membership_days_remaining'] ?? 0,
                 ],
             ]);
         } catch (Throwable $throwable) {
             Log::error('Zoho hosted page sync failed', [
-                'user_id' => $user->id,
+                'user_id' => $user?->id,
                 'hostedpage_id' => $hostedpageId,
                 'message' => $throwable->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Hosted page sync failed.',
+                'message' => 'Hosted page sync failed: '.$throwable->getMessage(),
                 'data' => [],
             ], 500);
         }
@@ -284,11 +410,14 @@ class BillingCheckoutController extends Controller
                 ]);
 
                 if ($payment) {
-                    $payment->forceFill([
+                    $paymentFields = [
                         'status' => 'paid',
                         'paid_at' => now(),
-                        'zoho_plan_code' => $planCode,
-                    ])->save();
+                    ];
+                    if (Schema::hasColumn('payments', 'zoho_plan_code')) {
+                        $paymentFields['zoho_plan_code'] = $planCode;
+                    }
+                    $payment->forceFill($paymentFields)->save();
                 }
 
                 return $syncedUser;
@@ -342,10 +471,13 @@ class BillingCheckoutController extends Controller
 
         $payload = [
             'user_id' => $user->id,
-            'zoho_plan_code' => $planCode,
             'zoho_hostedpage_id' => $hostedpageId,
             'status' => 'pending',
         ];
+
+        if (Schema::hasColumn('payments', 'zoho_plan_code')) {
+            $payload['zoho_plan_code'] = $planCode;
+        }
 
         if (Schema::hasColumn('payments', 'provider')) {
             $payload['provider'] = 'zoho';
