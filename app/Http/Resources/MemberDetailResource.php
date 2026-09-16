@@ -28,6 +28,8 @@ class MemberDetailResource extends UserResource
             $this->resolveJoinedCircleCategories()
         );
 
+        $data['life_impacted_count'] = (int) ($this->life_impacted_count ?? 0);
+
         return $data;
     }
 

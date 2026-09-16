@@ -295,10 +295,17 @@ class User extends Authenticatable
         if (Schema::hasTable('impacts')) {
             $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
             $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
-            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : '1';
+            $hasImpactsValue = Schema::hasColumn('impacts', 'impact_value');
+            $impactsLifeExpr = ($hasImpactsLife && $hasImpactsValue)
+                ? 'COALESCE(NULLIF(life_impacted, 0), NULLIF(impact_value, 0), 1)'
+                : ($hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : ($hasImpactsValue ? 'COALESCE(NULLIF(impact_value, 0), 1)' : '1'));
 
             $query = DB::table('impacts')
                 ->where('user_id', (string) $this->id);
+
+            if (Schema::hasColumn('impacts', 'deleted_at')) {
+                $query->whereNull('deleted_at');
+            }
 
             if ($hasImpactsStatus) {
                 $query->where(function ($q): void {

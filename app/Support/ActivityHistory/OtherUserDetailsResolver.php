@@ -20,7 +20,7 @@ class OtherUserDetailsResolver
     private static array $userCache = [];
 
     /**
-     * @return array{id: string, name: ?string, profile_photo_url: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
+     * @return array{id: string, name: ?string, display_name: ?string, profile_photo_url: ?string, profile_photo: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
      */
     public function resolve(?Authenticatable $authUser, mixed $row): ?array
     {
@@ -35,8 +35,16 @@ class OtherUserDetailsResolver
             return null;
         }
 
-        $user = $this->loadUser($otherUserId);
+        return $this->resolveUserById($otherUserId);
+    }
 
+    /**
+     * Format a user model into standard peer details array.
+     *
+     * @return array{id: string, name: ?string, display_name: ?string, profile_photo_url: ?string, profile_photo: ?string, designation: ?string, company_name: ?string, city: ?string, level4_category: ?string, life_impacted_count: int, is_pro: bool}|null
+     */
+    public function formatUser(?User $user): ?array
+    {
         if (! $user) {
             return null;
         }
@@ -55,11 +63,11 @@ class OtherUserDetailsResolver
         return [
             'id' => (string) $user->id,
             'name' => $name,
+            'display_name' => $name,
             'profile_photo_url' => $profilePhotoUrl,
             'designation' => $designation,
             'company_name' => $companyName,
             'city' => $city,
-           
             'level4_category' => $level4Category,
             'life_impacted_count' => $lifeImpactedCount,
             'is_pro' => $isPro,

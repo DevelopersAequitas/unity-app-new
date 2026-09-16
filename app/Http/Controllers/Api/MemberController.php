@@ -566,7 +566,10 @@ class MemberController extends BaseApiController
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
-        $user = User::with($this->memberDetailRelations())
+        $user = User::query()
+            ->select('users.*')
+            ->addSelect($this->lifeImpactedCountExpression())
+            ->with($this->memberDetailRelations())
             ->withCount([
                 'followers as followers_count',
                 'following as following_count',
@@ -590,7 +593,10 @@ class MemberController extends BaseApiController
 
     public function publicProfileBySlug(Request $request, string $slug, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
-        $user = User::with($this->memberDetailRelations())
+        $user = User::query()
+            ->select('users.*')
+            ->addSelect($this->lifeImpactedCountExpression())
+            ->with($this->memberDetailRelations())
             ->withCount([
                 'followers as followers_count',
                 'following as following_count',
