@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -420,6 +421,7 @@ class ActivitiesP2PMeetingsController extends Controller
 
         AdminCircleScope::applyToActivityQuery($query, $admin, $primaryColumn, $peerColumn);
         app(IndustryScopeService::class)->applyToActivityQuery($query, $admin, array_filter([$primaryColumn, $peerColumn]));
+        ActivityUserFilter::applyToActivityQuery($query, $primaryColumn, 'actor');
     }
 
     private function formatUserName(?string $displayName, ?string $firstName, ?string $lastName): string
