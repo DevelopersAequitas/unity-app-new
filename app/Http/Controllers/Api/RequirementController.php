@@ -90,6 +90,21 @@ class RequirementController extends BaseApiController
                 ]);
             }
 
+            $impactPoints = $this->getActivityImpactReward('requirement');
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                $impactPoints,
+                'requirement',
+                'Posted a business requirement',
+                (string) $authUser->id,
+                (string) $requirement->id,
+                'Life impact added for requirement activity.',
+                [
+                    'subject' => $requirement->subject,
+                    'status' => $requirement->status,
+                ]
+            );
+
             try {
                 $requirement->load('user');
                 $this->requirementNotificationService->notifyRequirementCreated($requirement);
@@ -115,6 +130,20 @@ class RequirementController extends BaseApiController
                 ->first();
 
             $requirement->setAttribute('post_id', $post?->id);
+
+            $coinsEarned = $coinsLedger ? $coinsLedger->amount : 0;
+            $coinBalanceAfter = $coinsLedger ? $coinsLedger->balance_after : 0;
+
+            $rewardData = $this->formatActivityRewardPayload(
+                $coinsEarned,
+                $coinBalanceAfter,
+                $impactPoints,
+                $updatedLifeImpact
+            );
+
+            foreach ($rewardData as $key => $val) {
+                $requirement->setAttribute($key, $val);
+            }
 
             return $this->success($requirement, 'Requirement created successfully', 201);
         } catch (Throwable $e) {

@@ -42,34 +42,55 @@ class PeerRecommendationController extends BaseApiController
                 'coins_awarded' => false,
             ]);
 
-            $currentBalance = null;
+            $coinsEarned = 0;
+            $currentBalance = (int) ($authUser->coins_balance ?? 0);
 
             if (! $recommendation->coins_awarded) {
-                $amount = (int) config('coins.recommend_peer', 0);
+                $amount = $this->getActivityCoinReward('recommend_peer') ?: (int) config('coins.recommend_peer', 1000);
                 $ledger = $coinsService->reward($authUser, $amount, 'Recommend a Peer');
 
                 if ($ledger) {
                     $recommendation->coins_awarded = true;
                     $recommendation->coins_awarded_at = now();
                     $recommendation->save();
-                    $currentBalance = $ledger->balance_after;
+                    $coinsEarned = (int) $ledger->amount;
+                    $currentBalance = (int) $ledger->balance_after;
                 }
             }
 
-            return [$recommendation, $currentBalance];
+            $impactPoints = $this->getActivityImpactReward('recommend_peer');
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                $impactPoints,
+                'recommend_peer',
+                'Recommended a peer to the community',
+                (string) $authUser->id,
+                (string) $recommendation->id,
+                'Life impact added for peer recommendation activity.',
+                [
+                    'peer_name' => $recommendation->peer_name,
+                    'category' => $recommendation->category,
+                ]
+            );
+
+            return [$recommendation, $coinsEarned, $currentBalance, $impactPoints, $updatedLifeImpact];
         });
 
         /** @var PeerRecommendation $recommendation */
-        [$recommendation, $currentBalance] = $result;
+        [$recommendation, $coinsEarned, $currentBalance, $impactPoints, $updatedLifeImpact] = $result;
 
-        $payload = [
+        $rewardData = $this->formatActivityRewardPayload(
+            $coinsEarned,
+            $currentBalance,
+            $impactPoints,
+            $updatedLifeImpact
+        );
+
+        $payload = array_merge([
             'id' => $recommendation->id,
             'coins_awarded' => (bool) $recommendation->coins_awarded,
-        ];
-
-        if ($currentBalance !== null) {
-            $payload['current_coins_balance'] = (int) $currentBalance;
-        }
+            'current_coins_balance' => (int) $currentBalance,
+        ], $rewardData);
 
         return $this->success($payload, 'Peer recommendation submitted successfully.', 201);
     }

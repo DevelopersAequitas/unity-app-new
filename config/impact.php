@@ -2,6 +2,16 @@
 
 return [
     'requires_leadership_approval' => true,
+    'activity_rewards' => [
+        'testimonial' => 5,
+        'business_deal' => 5,
+        'referral' => 5,
+        'visitor_registration' => 1,
+        'p2p_meeting' => 1,
+        'requirement' => 1,
+        'recommend_peer' => 1,
+        'introduction_video' => 1,
+    ],
     'actions' => [
         'Created a collaboration opportunity',
         'Connected two members for collaboration',

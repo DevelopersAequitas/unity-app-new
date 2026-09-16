@@ -152,9 +152,10 @@ class TestimonialController extends BaseApiController
                 );
             }
 
+            $impactPoints = $this->getActivityImpactReward('testimonial');
             $updatedLifeImpact = $this->increaseLifeImpact(
                 (string) $authUser->id,
-                5,
+                $impactPoints,
                 'testimonial',
                 'Received a testimonial / review',
                 (string) $authUser->id,
@@ -171,10 +172,17 @@ class TestimonialController extends BaseApiController
             $resource = new TestimonialResource($testimonial);
             $data = $resource->toArray($request);
 
-            if ($testimonial->getAttribute('coins')) {
-                $data['coins'] = $testimonial->getAttribute('coins');
-            }
-            $data['life_impacted_count'] = $updatedLifeImpact;
+            $coinsEarned = $testimonial->getAttribute('coins')['earned'] ?? 0;
+            $coinBalanceAfter = $testimonial->getAttribute('coins')['balance_after'] ?? 0;
+
+            $rewardData = $this->formatActivityRewardPayload(
+                $coinsEarned,
+                $coinBalanceAfter,
+                $impactPoints,
+                $updatedLifeImpact
+            );
+
+            $data = array_merge($data, $rewardData);
 
             return $this->success($data, 'Testimonial saved successfully', 201);
         } catch (Throwable $e) {

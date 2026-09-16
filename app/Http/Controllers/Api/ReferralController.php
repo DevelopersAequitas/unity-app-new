@@ -468,9 +468,10 @@ class ReferralController extends BaseApiController
             }
 
             try {
+                $impactPoints = $this->getActivityImpactReward('referral');
                 $updatedLifeImpact = $this->increaseLifeImpact(
                     (string) $authUser->id,
-                    1,
+                    $impactPoints,
                     'referral',
                     'Gave a qualified business referral',
                     (string) $authUser->id,
@@ -485,10 +486,22 @@ class ReferralController extends BaseApiController
                         'address' => $referral->address,
                         'hot_value' => $referral->hot_value,
                         'remarks' => $referral->remarks,
-                        'to_user_id' => $referral->to_user_id ? (string) $referral->to_user_id : null,
                     ]
                 );
-                $referral->setAttribute('life_impacted_count', $updatedLifeImpact);
+
+                $coinsEarned = $referral->getAttribute('coins')['earned'] ?? 0;
+                $coinBalanceAfter = $referral->getAttribute('coins')['balance_after'] ?? 0;
+
+                $rewardData = $this->formatActivityRewardPayload(
+                    $coinsEarned,
+                    $coinBalanceAfter,
+                    $impactPoints,
+                    $updatedLifeImpact
+                );
+
+                foreach ($rewardData as $key => $val) {
+                    $referral->setAttribute($key, $val);
+                }
             } catch (Throwable $lifeImpactException) {
                 Log::warning('Referral life impact update failed: '.$lifeImpactException->getMessage(), [
                     'referral_id' => (string) $referral->id,

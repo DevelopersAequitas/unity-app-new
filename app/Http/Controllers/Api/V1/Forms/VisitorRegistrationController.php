@@ -43,9 +43,10 @@ class VisitorRegistrationController extends BaseApiController
             'coins_awarded' => false,
         ]);
 
+        $impactPoints = $this->getActivityImpactReward('visitor_registration');
         $updatedLifeImpact = $this->increaseLifeImpact(
             (string) $authUser->id,
-            1,
+            $impactPoints,
             'visitor_registration',
             'Brought a quality visitor to the meeting',
             (string) $authUser->id,
@@ -72,12 +73,20 @@ class VisitorRegistrationController extends BaseApiController
             ]
         );
 
-        return $this->success([
+        $rewardData = $this->formatActivityRewardPayload(
+            0,
+            (int) ($authUser->coin_balance ?? 0),
+            $impactPoints,
+            $updatedLifeImpact
+        );
+
+        $responseData = array_merge([
             'id' => $registration->id,
             'status' => $registration->status,
             'created_at' => $registration->created_at,
-            'life_impacted_count' => $updatedLifeImpact,
-        ], 'Visitor registration submitted successfully.', 201);
+        ], $rewardData);
+
+        return $this->success($responseData, 'Visitor registration submitted successfully.', 201);
     }
 
     public function myIndex(Request $request)

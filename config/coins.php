@@ -3,11 +3,14 @@
 return [
     'activity_rewards' => [
         'testimonial' => 5000,
+        'business_deal' => 10000,
         'referral' => 3000,
         'referral_signup' => 1000,
-        'requirement' => 3000,
-        'business_deal' => 10000,
+        'visitor_registration' => 1000,
+        'register_visitor' => 1000,
         'p2p_meeting' => 3000,
+        'requirement' => 3000,
+        'recommend_peer' => 1000,
         'introduction_video' => 1000,
     ],
     'recommend_peer' => 1000,
