@@ -3,8 +3,11 @@
 namespace App\Services\Coins;
 
 use App\Models\CoinsLedger;
+use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -143,7 +146,7 @@ class CoinsService
                         $q->where('source_type', 'introduction_video');
                     }
                     $q->orWhere('reference', 'LIKE', '%Introduction Video%')
-                      ->orWhere('reference', 'LIKE', '%introduction_video%');
+                        ->orWhere('reference', 'LIKE', '%introduction_video%');
                     if ($hasRemarkColumn) {
                         $q->orWhere('remark', 'LIKE', '%introduction_video%');
                     }
@@ -183,8 +186,8 @@ class CoinsService
 
             // Send notification for introduction video coin reward
             try {
-                if (class_exists(\App\Models\Notification::class)) {
-                    \App\Models\Notification::create([
+                if (class_exists(Notification::class)) {
+                    Notification::create([
                         'user_id' => $user->id,
                         'type' => 'activity_update',
                         'payload' => [
@@ -199,8 +202,8 @@ class CoinsService
                     ]);
                 }
 
-                if (class_exists(\App\Models\Notifications\AppNotification::class)) {
-                    \App\Models\Notifications\AppNotification::create([
+                if (class_exists(AppNotification::class)) {
+                    AppNotification::create([
                         'user_id' => $user->id,
                         'type' => 'introduction_video_reward',
                         'category' => 'coin_reward',
@@ -216,7 +219,7 @@ class CoinsService
                     ]);
                 }
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Intro video notification failed', ['error' => $e->getMessage()]);
+                Log::warning('Intro video notification failed', ['error' => $e->getMessage()]);
             }
 
             return $ledger;

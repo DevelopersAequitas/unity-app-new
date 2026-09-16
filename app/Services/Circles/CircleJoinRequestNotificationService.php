@@ -310,7 +310,7 @@ class CircleJoinRequestNotificationService
                 $circle->save();
             } else {
                 $circle->zoho_addon_code = 'CIRCLE_PREMIUM';
-                $circle->zoho_addon_name = $circle->name . ' Package';
+                $circle->zoho_addon_name = $circle->name.' Package';
                 $circle->circle_price_amount = $circle->circle_price_amount ?: 5000;
                 $circle->circle_price_currency = $circle->circle_price_currency ?: 'INR';
                 $circle->save();
@@ -359,11 +359,11 @@ class CircleJoinRequestNotificationService
                 'amount' => $circle->circle_price_amount ?: 5000,
                 'currency_code' => $circle->circle_price_currency ?: 'INR',
                 'status' => 'pending',
-                'zoho_checkout_url' => url('/api/v1/billing/circle-checkout/' . $circle->id),
+                'zoho_checkout_url' => url('/api/v1/billing/circle-checkout/'.$circle->id),
             ]);
         }
 
-        return $existing->zoho_checkout_url ?: url('/api/v1/billing/circle-checkout/' . $circle->id);
+        return $existing->zoho_checkout_url ?: url('/api/v1/billing/circle-checkout/'.$circle->id);
     }
 
     public function sendJoinRequestApprovedCongratulations(CircleJoinRequest $request): void

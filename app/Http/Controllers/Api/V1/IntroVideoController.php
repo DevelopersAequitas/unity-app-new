@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Coins\CoinsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,7 +30,7 @@ class IntroVideoController extends Controller
         $user->refresh();
 
         // Award 1,000 coins for first-time intro video upload (idempotent duplicate protection)
-        $coinsService = app(\App\Services\Coins\CoinsService::class);
+        $coinsService = app(CoinsService::class);
         $coinsLedger = $coinsService->rewardForIntroVideo($user);
         if ($coinsLedger) {
             $user->refresh();

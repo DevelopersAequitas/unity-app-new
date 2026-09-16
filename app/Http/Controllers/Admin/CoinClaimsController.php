@@ -271,7 +271,7 @@ class CoinClaimsController extends Controller
                         if ($hasSourceColumns) {
                             $q->where(function ($sq) use ($claim) {
                                 $sq->where('source_type', 'coin_claim_approved')
-                                   ->where('source_id', (string) $claim->id);
+                                    ->where('source_id', (string) $claim->id);
                             })->orWhere('reference', 'LIKE', '%#'.$claim->id.'%');
                         } else {
                             $q->where('reference', 'LIKE', '%#'.$claim->id.'%');

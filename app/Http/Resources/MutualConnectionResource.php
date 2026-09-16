@@ -85,7 +85,7 @@ class MutualConnectionResource extends JsonResource
             'headline' => $this->designation ?? '',
             'company' => $this->company_name ?? '',
             'company_name' => $this->company_name ?? '',
-            
+
             'level4_category' => $categoryName,
             'category' => $categoryName,
             'business_sub_category' => $this->business_sub_category ?? null,
