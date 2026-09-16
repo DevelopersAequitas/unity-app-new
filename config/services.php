@@ -49,6 +49,14 @@ return [
     'event_payment_gateway' => env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'),
     'zoho_event_ticket_item_id' => env('ZOHO_EVENT_TICKET_ITEM_ID'),
 
+    'whatsapp' => [
+        'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', env('FLEXIMSG_WEBHOOK_VERIFY_TOKEN', 'unity_app_whatsapp_verify_token')),
+    ],
+
+    'fleximsg' => [
+        'webhook_verify_token' => env('FLEXIMSG_WEBHOOK_VERIFY_TOKEN'),
+    ],
+
     'members_with_circles' => [
         // Fixed token for GET /api/v1/members-with-circles and /api/v1/members-with-circles/{identifier}
         'fixed_token' => env('MEMBERS_WITH_CIRCLES_FIXED_TOKEN', env('MEMBERS_LIST_FIXED_TOKEN', '302|cO0VMR2dmr9j8c3JtIU9dfkuZfSfvzaCCF1GVxJAdc6fdd2d')),
