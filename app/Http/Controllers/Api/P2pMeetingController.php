@@ -278,7 +278,7 @@ class P2pMeetingController extends BaseApiController
         $attributes['post_id'] = $meeting->getAttribute('post_id')
             ?? $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id);
 
-        foreach (['coins', 'impacts', 'life_impact', 'life_impacted_count'] as $rewardKey) {
+        foreach (['coins', 'life_impact'] as $rewardKey) {
             if ($meeting->getAttribute($rewardKey) !== null) {
                 $attributes[$rewardKey] = $meeting->getAttribute($rewardKey);
             }

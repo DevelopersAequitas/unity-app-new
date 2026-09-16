@@ -97,17 +97,11 @@ class BaseApiController extends Controller
                 'earned' => $coinsEarned,
                 'balance_after' => $coinBalanceAfter,
             ],
-            'impacts' => [
-                'earned' => $impactsEarned,
-                'total' => $totalLifeImpacted,
-                'balance_after' => $totalLifeImpacted,
-            ],
             'life_impact' => [
                 'earned' => $impactsEarned,
                 'total' => $totalLifeImpacted,
                 'balance_after' => $totalLifeImpacted,
             ],
-            'life_impacted_count' => $totalLifeImpacted,
         ];
     }
 
