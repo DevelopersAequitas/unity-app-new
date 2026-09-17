@@ -212,20 +212,20 @@ class UserResource extends JsonResource
             'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
-            'posts_count' => (int) ($this->posts_count ?? 0),
+            'posts_count' => $this->resolvePostsCount(),
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
-            'badges_count' => (int) ($this->badges_count ?? 0),
-            'my_badges_count' => (int) ($this->my_badges_count ?? ($this->badges_count ?? 0)),
-            'p2p_meetings_count' => (int) ($this->p2p_meetings_count ?? ($this->p2p_count ?? 0)),
-            'p2p_count' => (int) ($this->p2p_count ?? ($this->p2p_meetings_count ?? 0)),
-            'referrals_count' => (int) ($this->referrals_count ?? 0),
-            'given_referrals_count' => (int) ($this->given_referrals_count ?? 0),
-            'received_referrals_count' => (int) ($this->received_referrals_count ?? 0),
-            'business_deals_count' => (int) ($this->business_deals_count ?? ($this->deals_count ?? 0)),
-            'deals_count' => (int) ($this->deals_count ?? ($this->business_deals_count ?? 0)),
-            'given_business_deals_count' => (int) ($this->given_business_deals_count ?? 0),
-            'received_business_deals_count' => (int) ($this->received_business_deals_count ?? 0),
+            'badges_count' => $this->resolveBadgesCount(),
+            'my_badges_count' => $this->resolveBadgesCount(),
+            'p2p_meetings_count' => $this->resolveP2pMeetingsCount(),
+            'p2p_count' => $this->resolveP2pMeetingsCount(),
+            'referrals_count' => $this->resolveReferralsCount(),
+            'given_referrals_count' => $this->resolveGivenReferralsCount(),
+            'received_referrals_count' => $this->resolveReceivedReferralsCount(),
+            'business_deals_count' => $this->resolveBusinessDealsCount(),
+            'deals_count' => $this->resolveBusinessDealsCount(),
+            'given_business_deals_count' => $this->resolveGivenBusinessDealsCount(),
+            'received_business_deals_count' => $this->resolveReceivedBusinessDealsCount(),
             'business_type' => $this->business_type,
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
@@ -503,6 +503,29 @@ class UserResource extends JsonResource
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);
             })->count();
+    }
+
+    protected function resolvePostsCount(): int
+    {
+        if (isset($this->posts_count)) {
+            return (int) $this->posts_count;
+        }
+
+        if (! Schema::hasTable('posts')) {
+            return 0;
+        }
+
+        $query = DB::table('posts')->where('user_id', $this->id);
+
+        if (Schema::hasColumn('posts', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('posts', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
     }
 
     protected function resolveBadgesCount(): int
