@@ -88,9 +88,11 @@ class AdminAuthController extends Controller
             }
 
             if (! $result['success']) {
+                $errorKey = $request->has('email') ? 'email' : 'identifier';
+
                 return back()
                     ->withInput($request->all())
-                    ->withErrors(['identifier' => $result['message']]);
+                    ->withErrors([$errorKey => $result['message'], 'identifier' => $result['message']]);
             }
 
             // Direct login bypass handling

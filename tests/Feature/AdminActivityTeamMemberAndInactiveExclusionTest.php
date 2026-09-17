@@ -11,10 +11,10 @@ use App\Models\LifeImpactHistory;
 use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Requirement;
+use App\Models\Role;
 use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\UserTag;
-use App\Models\UserTagAssignment;
 use App\Support\ActivityUserFilter;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +48,8 @@ class AdminActivityTeamMemberAndInactiveExclusionTest extends TestCase
             $pdo = DB::connection()->getPdo();
             $pdo->sqliteCreateFunction('concat_ws', function (...$args) {
                 $separator = array_shift($args);
-                $nonNull = array_filter($args, fn($v) => !is_null($v) && $v !== '');
+                $nonNull = array_filter($args, fn ($v) => ! is_null($v) && $v !== '');
+
                 return implode($separator, $nonNull);
             });
             $pdo->sqliteCreateFunction('concat', function (...$args) {
@@ -363,7 +364,7 @@ class AdminActivityTeamMemberAndInactiveExclusionTest extends TestCase
             'email' => 'admin@example.com',
         ]);
 
-        $role = \App\Models\Role::create([
+        $role = Role::create([
             'id' => (string) Str::uuid(),
             'name' => 'Global Admin',
             'key' => 'global_admin',
