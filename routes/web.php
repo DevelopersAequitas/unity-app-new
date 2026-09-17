@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\Circles\CircleController;
 use App\Http\Controllers\Admin\Circles\CircleMemberController;
 use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CoinClaimsController;
+use App\Http\Controllers\Admin\CoinGuidelineController as AdminCoinGuidelineController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\CommissionManagementController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ImpactsController;
+use App\Http\Controllers\Admin\ImpactGuidelineController as AdminImpactGuidelineController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\IntroductionRequestsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
@@ -419,6 +421,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/{member}/requirements', [ActivitiesController::class, 'requirements'])->name('activities.requirements');
         Route::get('/coins', [CoinsController::class, 'index'])->name('coins.index');
         Route::get('/coins/export', [CoinsController::class, 'exportIndex'])->name('coins.export');
+
+        // Coin Guidelines Admin Routes
+        Route::get('/coin-guidelines', [AdminCoinGuidelineController::class, 'index'])->name('coin-guidelines.index');
+        Route::get('/coin-guidelines/create', [AdminCoinGuidelineController::class, 'create'])->name('coin-guidelines.create');
+        Route::post('/coin-guidelines', [AdminCoinGuidelineController::class, 'store'])->name('coin-guidelines.store');
+        Route::get('/coin-guidelines/{coin_guideline}/edit', [AdminCoinGuidelineController::class, 'edit'])->name('coin-guidelines.edit');
+        Route::put('/coin-guidelines/{coin_guideline}', [AdminCoinGuidelineController::class, 'update'])->name('coin-guidelines.update');
+        Route::delete('/coin-guidelines/{coin_guideline}', [AdminCoinGuidelineController::class, 'destroy'])->name('coin-guidelines.destroy');
+        Route::patch('/coin-guidelines/{coin_guideline}/status', [AdminCoinGuidelineController::class, 'toggleStatus'])->name('coin-guidelines.toggle-status');
+        Route::post('/coin-guidelines/update-header', [AdminCoinGuidelineController::class, 'updateHeader'])->name('coin-guidelines.update-header');
+        Route::post('/coin-guidelines/reorder', [AdminCoinGuidelineController::class, 'reorder'])->name('coin-guidelines.reorder');
+
         Route::get('/life-impact', [LifeImpactController::class, 'index'])
             ->name('life-impact.index');
         Route::get('/life-impact/export', [LifeImpactController::class, 'export'])
@@ -427,6 +441,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->name('life-impact.history');
         Route::get('/life-impact/{member}/history/{category}', [LifeImpactController::class, 'history'])
             ->name('life-impact.history.category');
+
+        // Impact Guidelines Admin Routes
+        Route::get('/impact-guidelines', [AdminImpactGuidelineController::class, 'index'])->name('impact-guidelines.index');
+        Route::get('/impact-guidelines/create', [AdminImpactGuidelineController::class, 'create'])->name('impact-guidelines.create');
+        Route::post('/impact-guidelines', [AdminImpactGuidelineController::class, 'store'])->name('impact-guidelines.store');
+        Route::get('/impact-guidelines/{impact_guideline}/edit', [AdminImpactGuidelineController::class, 'edit'])->name('impact-guidelines.edit');
+        Route::put('/impact-guidelines/{impact_guideline}', [AdminImpactGuidelineController::class, 'update'])->name('impact-guidelines.update');
+        Route::delete('/impact-guidelines/{impact_guideline}', [AdminImpactGuidelineController::class, 'destroy'])->name('impact-guidelines.destroy');
+        Route::patch('/impact-guidelines/{impact_guideline}/status', [AdminImpactGuidelineController::class, 'toggleStatus'])->name('impact-guidelines.toggle-status');
+        Route::post('/impact-guidelines/update-header', [AdminImpactGuidelineController::class, 'updateHeader'])->name('impact-guidelines.update-header');
+        Route::post('/impact-guidelines/reorder', [AdminImpactGuidelineController::class, 'reorder'])->name('impact-guidelines.reorder');
         Route::get('/coins/add', [CoinsController::class, 'create'])->name('coins.create');
         Route::post('/coins/add', [CoinsController::class, 'store'])->name('coins.store');
         Route::get('/coins/{member}/ledger', [CoinsController::class, 'ledger'])->name('coins.ledger');
