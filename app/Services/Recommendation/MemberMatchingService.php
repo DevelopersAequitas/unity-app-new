@@ -543,15 +543,20 @@ class MemberMatchingService
             return [];
         }
 
+        $sentQuery = DB::table('connections')
+            ->where(function ($q): void {
+                $q->where('is_approved', true)->orWhere('is_approved', 1);
+            })
+            ->whereIn('requester_id', $userIds)
+            ->select(['requester_id', 'addressee_id']);
+
         $records = DB::table('connections')
             ->where(function ($q): void {
                 $q->where('is_approved', true)->orWhere('is_approved', 1);
             })
-            ->where(function ($q) use ($userIds): void {
-                $q->whereIn('requester_id', $userIds)
-                    ->orWhereIn('addressee_id', $userIds);
-            })
+            ->whereIn('addressee_id', $userIds)
             ->select(['requester_id', 'addressee_id'])
+            ->union($sentQuery)
             ->get();
 
         $map = [];

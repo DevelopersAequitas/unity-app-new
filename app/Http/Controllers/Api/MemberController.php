@@ -373,15 +373,7 @@ class MemberController extends BaseApiController
             ->with([
                 'city:id,name,country,country_code',
                 'level4Category:id,name',
-                'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
             ]);
-
-        if (Schema::hasTable('connections')) {
-            $query->withCount([
-                'approvedSentConnections as approved_sent_count',
-                'approvedReceivedConnections as approved_received_count',
-            ]);
-        }
 
         // Exclude inactive members
         $query->where(function ($statusQuery) {
@@ -497,16 +489,15 @@ class MemberController extends BaseApiController
         $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
 
         $connections = collect();
-        if (Schema::hasTable('connections')) {
+        if (Schema::hasTable('connections') && ! empty($userIds)) {
+            $sent = Connection::query()
+                ->where('requester_id', $authUserId)
+                ->whereIn('addressee_id', $userIds);
+
             $connections = Connection::query()
-                ->where(function ($q) use ($authUserId, $userIds): void {
-                    $q->where('requester_id', $authUserId)
-                        ->whereIn('addressee_id', $userIds);
-                })
-                ->orWhere(function ($q) use ($authUserId, $userIds): void {
-                    $q->where('addressee_id', $authUserId)
-                        ->whereIn('requester_id', $userIds);
-                })
+                ->where('addressee_id', $authUserId)
+                ->whereIn('requester_id', $userIds)
+                ->union($sent)
                 ->get()
                 ->keyBy(function (Connection $connection) use ($authUserId): string {
                     return (string) ((string) $connection->requester_id === $authUserId
@@ -983,61 +974,6 @@ class MemberController extends BaseApiController
 
     private function lifeImpactedCountExpression()
     {
-        if (! Schema::hasTable('life_impact_histories')) {
-            if (Schema::hasTable('impacts')) {
-                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
-                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
-                $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(impacts.life_impacted, 0), 1)' : '1';
-                $impactsWhere = ['impacts.user_id = users.id'];
-                if ($hasImpactsStatus) {
-                    $impactsWhere[] = "(impacts.status IS NULL OR impacts.status = 'approved')";
-                }
-                $impactsWhereStr = implode(' AND ', $impactsWhere);
-                $impactsSubquery = "(SELECT COALESCE(SUM({$impactsLifeExpr}), 0) FROM impacts WHERE {$impactsWhereStr})";
-
-                return DB::raw(
-                    "COALESCE(NULLIF(users.life_impacted_count, 0), NULLIF({$impactsSubquery}, 0), 0) as life_impacted_count"
-                );
-            }
-
-            return 'life_impacted_count';
-        }
-
-        $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
-        $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
-        $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
-        $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
-
-        $valueExpr = ($hasImpactValue && $hasLifeImpacted)
-            ? 'COALESCE(NULLIF(life_impact_histories.impact_value, 0), NULLIF(life_impact_histories.life_impacted, 0), 0)'
-            : ($hasImpactValue ? 'COALESCE(NULLIF(life_impact_histories.impact_value, 0), 0)' : ($hasLifeImpacted ? 'COALESCE(NULLIF(life_impact_histories.life_impacted, 0), 0)' : '0'));
-
-        $whereConditions = ['life_impact_histories.user_id = users.id'];
-        if ($hasCounted) {
-            $whereConditions[] = '(life_impact_histories.counted_in_total IS NULL OR life_impact_histories.counted_in_total = true)';
-        }
-        if ($hasStatus) {
-            $whereConditions[] = "(life_impact_histories.status IS NULL OR life_impact_histories.status = 'approved')";
-        }
-
-        $whereStr = implode(' AND ', $whereConditions);
-        $historiesSubquery = "(SELECT COALESCE(SUM({$valueExpr}), 0) FROM life_impact_histories WHERE {$whereStr})";
-
-        $impactsSubquery = '0';
-        if (Schema::hasTable('impacts')) {
-            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
-            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
-            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(impacts.life_impacted, 0), 1)' : '1';
-            $impactsWhere = ['impacts.user_id = users.id'];
-            if ($hasImpactsStatus) {
-                $impactsWhere[] = "(impacts.status IS NULL OR impacts.status = 'approved')";
-            }
-            $impactsWhereStr = implode(' AND ', $impactsWhere);
-            $impactsSubquery = "(SELECT COALESCE(SUM({$impactsLifeExpr}), 0) FROM impacts WHERE {$impactsWhereStr})";
-        }
-
-        return DB::raw(
-            "COALESCE(NULLIF(users.life_impacted_count, 0), NULLIF({$historiesSubquery}, 0), NULLIF({$impactsSubquery}, 0), 0) as life_impacted_count"
-        );
+        return DB::raw('COALESCE(users.life_impacted_count, 0) as life_impacted_count');
     }
 }
