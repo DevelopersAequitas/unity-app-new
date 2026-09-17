@@ -183,6 +183,7 @@ class WhatsappNotificationService
             }
 
             // Immediately before sending, log pending delivery attempt
+            $loggedPayload = static::maskSensitivePayload($body);
             try {
                 if ($deliveryLog) {
                     $deliveryLog->update([
@@ -194,7 +195,7 @@ class WhatsappNotificationService
                         'creative_url' => $creativeUrl,
                         'provider' => 'fleximsg',
                         'status' => 'pending',
-                        'request_payload' => $body,
+                        'request_payload' => $loggedPayload,
                         'attempted_at' => $attemptedAt,
                     ]);
                 } else {
@@ -207,7 +208,7 @@ class WhatsappNotificationService
                         'creative_url' => $creativeUrl,
                         'provider' => 'fleximsg',
                         'status' => 'pending',
-                        'request_payload' => $body,
+                        'request_payload' => $loggedPayload,
                         'attempted_at' => $attemptedAt,
                     ];
                     if (is_string($customLogId) && trim($customLogId) !== '') {
@@ -302,11 +303,19 @@ class WhatsappNotificationService
                         return false;
                     }
 
-                    // FlexiMSG: check if the async WhatsApp trigger failed
-                    if (isset($responseData['whatsapp_triggered']) && $responseData['whatsapp_triggered'] === false) {
-                        $errorMsg = $responseData['error_message'] ?? '(no error_message returned by FlexiMSG)';
+                    // FlexiMSG: check if the async WhatsApp trigger failed or reported failure
+                    $isTriggerFailed = (isset($responseData['whatsapp_triggered']) && $responseData['whatsapp_triggered'] === false)
+                        || (isset($responseData['failed_at']) && filled($responseData['failed_at']));
+
+                    if ($isTriggerFailed) {
+                        $errorMsg = $responseData['error_message'] ?? '';
+                        if (empty($errorMsg) && isset($responseData['failed_at'])) {
+                            $errorMsg = 'FlexiMSG reported failed_at: '.$responseData['failed_at'];
+                        } elseif (empty($errorMsg)) {
+                            $errorMsg = '(no error_message returned by FlexiMSG - check WhatsApp template approval status, Copy Code button mapping, or WABA channel connectivity)';
+                        }
                         self::$lastError = "FlexiMsg whatsapp_triggered=false. Error: {$errorMsg}";
-                        Log::error('WhatsApp notification failed: FlexiMSG whatsapp_triggered=false. Header image variable is likely not mapped in the FlexiMSG template configuration.', [
+                        Log::error('WhatsApp notification failed: FlexiMSG whatsapp_triggered=false.', [
                             'template_key' => $templateKey,
                             'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
                             'phone' => $normalizedPhone,
@@ -314,9 +323,12 @@ class WhatsappNotificationService
                             'http_method' => 'POST',
                             'http_status' => $response->status(),
                             'fleximsg_log_id' => $responseData['log_id'] ?? null,
+                            'webhook_id' => $responseData['webhook_id'] ?? null,
                             'error_message' => $errorMsg,
                             'extracted_fields' => $responseData['extracted_fields'] ?? [],
-                            'fix_required' => 'Go to FlexiMSG dashboard -> Webhooks -> template -> map HEADER IMAGE variable to @{header_media_url}',
+                            'webhook_received' => $responseData['webhook_received'] ?? null,
+                            'whatsapp_triggered' => $responseData['whatsapp_triggered'] ?? null,
+                            'failed_at' => $responseData['failed_at'] ?? null,
                             'request_payload_keys' => array_keys($body),
                             'resolved_variables' => $resolvedVariables,
                             'header_media_url' => $creativeUrl,
@@ -521,6 +533,7 @@ class WhatsappNotificationService
         \DateTimeInterface $attemptedAt
     ): void {
         try {
+            $maskedPayload = static::maskSensitivePayload($payload);
             if ($deliveryLog) {
                 $deliveryLog->update([
                     'user_id' => $userId,
@@ -532,7 +545,7 @@ class WhatsappNotificationService
                     'provider' => 'fleximsg',
                     'status' => 'failed',
                     'error_message' => $errorMessage,
-                    'request_payload' => $payload,
+                    'request_payload' => $maskedPayload,
                     'attempted_at' => $attemptedAt,
                 ]);
             } else {
@@ -546,7 +559,7 @@ class WhatsappNotificationService
                     'provider' => 'fleximsg',
                     'status' => 'failed',
                     'error_message' => $errorMessage,
-                    'request_payload' => $payload,
+                    'request_payload' => $maskedPayload,
                     'attempted_at' => $attemptedAt,
                 ];
 
@@ -562,7 +575,32 @@ class WhatsappNotificationService
     }
 
     /**
-     * Normalize phone number to standard 12-digit Indian format (e.g. 919876543210).
+     * Mask sensitive fields (e.g. OTP, verification code, password, tokens) from logged payloads.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public static function maskSensitivePayload(array $payload): array
+    {
+        $sensitiveKeys = ['code', '@code', 'otp', '@otp', 'password', 'password_hash', 'token', 'secret', 'key', 'body_param_1', '@body_param_1', 'button_param_1', '@button_param_1', 'button_0_param_0', '@button_0_param_0'];
+        $masked = [];
+
+        foreach ($payload as $key => $value) {
+            $normalizedKey = strtolower(ltrim((string) $key, '@'));
+            if (in_array($normalizedKey, $sensitiveKeys, true) || str_contains($normalizedKey, 'otp') || str_contains($normalizedKey, 'password') || str_contains($normalizedKey, 'secret')) {
+                $masked[$key] = is_string($value) || is_numeric($value) ? '******' : $value;
+            } elseif (is_array($value)) {
+                $masked[$key] = static::maskSensitivePayload($value);
+            } else {
+                $masked[$key] = $value;
+            }
+        }
+
+        return $masked;
+    }
+
+    /**
+     * Normalize phone number to standard international format (digits only, e.g. 919876543210, 12025550123, 447700900123).
      */
     public static function normalizePhone(?string $phone): string
     {
@@ -570,18 +608,47 @@ class WhatsappNotificationService
             return '';
         }
 
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        $trimmed = trim($phone);
+        $hasPlus = str_starts_with($trimmed, '+');
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
 
+        if ($digits === '') {
+            return '';
+        }
+
+        // If input has explicit '+', trust the international country code digits
+        if ($hasPlus) {
+            return $digits;
+        }
+
+        // If input has '00' international prefix (e.g. 00447700900123), strip '00'
+        if (str_starts_with($trimmed, '00') && strlen($digits) > 2) {
+            return substr($digits, 2);
+        }
+
+        // Standard 10-digit Indian mobile number
         if (strlen($digits) === 10) {
             return '91'.$digits;
         }
 
+        // 12-digit number starting with 91 (India)
         if (strlen($digits) === 12 && str_starts_with($digits, '91')) {
             return $digits;
         }
 
-        if (strlen($digits) > 10) {
-            return '91'.substr($digits, -10);
+        // 11-digit number starting with 1 (US/Canada NANP)
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            return $digits;
+        }
+
+        // If number has 0 prefix (e.g. 09876543210 in India), strip and prepend 91
+        if (strlen($digits) === 11 && str_starts_with($digits, '0')) {
+            return '91'.substr($digits, 1);
+        }
+
+        // Other international numbers (>= 11 digits)
+        if (strlen($digits) >= 11) {
+            return $digits;
         }
 
         return $digits;

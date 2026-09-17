@@ -20,6 +20,33 @@ class WhatsappTemplateCatalogService
         // ==========================================
         // 1. AUTHENTICATION & SECURITY
         // ==========================================
+        'admin_otp' => [
+            'key' => 'admin_otp',
+            'name' => 'Admin Panel WhatsApp OTP Authentication',
+            'category' => 'Authentication',
+            'category_badge' => 'danger',
+            'trigger_type' => 'Admin Authentication',
+            'trigger_title' => 'When administrator requests WhatsApp login OTP',
+            'when_sent' => 'Triggered immediately when an administrator requests a 4-digit verification OTP code on WhatsApp for Admin Panel login.',
+            'description' => 'Delivers secure 4-digit one-time authentication passcodes via WhatsApp to verified administrators.',
+            'recipient' => 'Authenticating administrator mobile number',
+            'icon' => 'bi bi-shield-lock-fill',
+            'workflow_steps' => [
+                ['title' => 'Admin Requests OTP', 'desc' => 'Admin enters email or registered mobile on Admin Login page'],
+                ['title' => 'Generate 4-Digit Code', 'desc' => 'System creates secure, 5-minute expiring OTP in database'],
+                ['title' => 'Template Lookup', 'desc' => 'Resolves admin_otp template configuration from DB'],
+                ['title' => 'FlexiMSG Webhook', 'desc' => 'Dispatches payload to FlexiMSG webhook endpoint'],
+                ['title' => 'WhatsApp Delivery', 'desc' => 'Admin receives 4-digit verification code on WhatsApp'],
+            ],
+            'variables' => [
+                'phone' => 'Administrator normalized mobile number with country code',
+                'code' => '4-digit numeric verification passcode',
+                'name' => 'Administrator name',
+                'otp' => '4-digit numeric verification passcode',
+            ],
+            'default_webhook_url' => 'https://fleximsg.com/api/webhooks/1eb05f66-cfff-4b32-8c8a-f57309423894',
+            'default_webhook_secret' => 'PGU_ADMIN_OTP_WEBHOOK_2026_9fK7xQ2mL8vR4tN6',
+        ],
         'otp_verification' => [
             'key' => 'otp_verification',
             'name' => 'WhatsApp OTP Authentication',

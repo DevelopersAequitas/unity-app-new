@@ -1,31 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Mail\AdminLoginOtpMail;
-use App\Models\AdminLoginOtp;
+use App\Http\Requests\Admin\Auth\AdminRequestOtpRequest;
+use App\Http\Requests\Admin\Auth\AdminVerifyOtpRequest;
 use App\Models\AdminUser;
-use App\Models\CircleMember;
 use App\Models\IndustryDirectorAssignment;
-use App\Models\Role;
-use App\Models\User;
-use App\Services\EmailLogs\EmailLogService;
+use App\Services\Admin\Auth\AdminAuthService;
 use App\Support\AdminAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 class AdminAuthController extends Controller
 {
+    public function __construct(
+        protected AdminAuthService $adminAuthService
+    ) {}
+
     public function showLogin(Request $request): RedirectResponse|View
     {
         if (Auth::guard('admin')->check()) {
@@ -38,316 +38,212 @@ class AdminAuthController extends Controller
             return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         }
 
-        return view('admin.auth.login');
+        // Clear temporary login session draft on fresh page load if not redirected with validation errors or active OTP flow
+        if (! $request->session()->has('errors') && ! $request->session()->has('status')) {
+            $request->session()->forget([
+                'admin_login_identifier',
+                'admin_login_mobile',
+                'admin_login_email',
+                'admin_login_channel',
+                'admin_login_otp_length',
+            ]);
+        }
+
+        $loginMethods = $this->adminAuthService->getAvailableLoginMethods();
+        $enabledMethods = $this->adminAuthService->getEnabledLoginMethods();
+
+        return view('admin.auth.login', [
+            'loginMethods' => $loginMethods,
+            'enabledMethods' => $enabledMethods,
+        ]);
     }
 
-    public function requestOtp(Request $request): RedirectResponse
+    public function loginMethods(Request $request): JsonResponse
     {
+        $methods = $this->adminAuthService->getAvailableLoginMethods();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Available login methods retrieved successfully.',
+            'data' => [
+                'login_methods' => $methods,
+            ],
+        ]);
+    }
+
+    public function requestOtp(AdminRequestOtpRequest $request): JsonResponse|RedirectResponse
+    {
+        $identifier = $request->resolvedIdentifier();
+        $channel = $request->resolvedChannel();
+
         try {
-            $validated = $request->validate([
-                'email' => ['required', 'email'],
-            ]);
+            $result = $this->adminAuthService->requestOtp($identifier);
 
-            $email = strtolower(trim($validated['email']));
-
-            $bypassEmails = [
-                'hardik@gmail.com',
-                'harsh@gmail.com',
-                'urvashi@gmail.com',
-                'dhruvil@gmail.com',
-                'chirag@gmail.com',
-                'mohit@gmail.com',
-                'rahul@gmail.com',
-                'vinit@gmail.com',
-            ];
-
-            if (app()->environment('local')) {
-                $bypassEmails[] = 'missurvashi300@gmail.com';
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => $result['success'],
+                    'message' => $result['message'],
+                    'data' => $result['data'],
+                ], $result['status']);
             }
 
-            if ($email === 'harshchauhanwork26@gmail.com') {
-                $adminUser = AdminUser::query()
-                    ->whereRaw('LOWER(email) = ?', [$email])
-                    ->first();
+            if (! $result['success']) {
+                return back()
+                    ->withInput($request->all())
+                    ->withErrors(['identifier' => $result['message']]);
+            }
 
-                $isNewAdmin = false;
-                if (! $adminUser) {
-                    $user = User::query()
-                        ->whereRaw('LOWER(email) = ?', [$email])
-                        ->first();
+            // Direct login bypass handling
+            if (! empty($result['data']['is_direct_login']) && isset($result['data']['admin_user'])) {
+                /** @var AdminUser $bypassUser */
+                $bypassUser = $result['data']['admin_user'];
+                Auth::guard('admin')->login($bypassUser);
+                $request->session()->put('admin_user_id', $bypassUser->id);
+                $request->session()->put('admin_login_email', $bypassUser->email);
+                $request->session()->put('admin_login_identifier', $identifier);
+                $request->session()->regenerate();
 
-                    $adminUser = AdminUser::create([
-                        'id' => (string) Str::uuid(),
-                        'name' => $user ? $this->resolveAdminName($user) : ucfirst(explode('@', $email)[0]),
-                        'email' => $email,
-                    ]);
-                    $isNewAdmin = true;
+                if ($this->shouldRedirectToIndustryDirectorDashboard($bypassUser)) {
+                    return redirect()->route('admin.industry-director.dashboard');
                 }
 
-                if ($isNewAdmin) {
-                    $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
-                    if ($globalAdminRoleId) {
-                        $hasRole = DB::table('admin_user_roles')
-                            ->where('user_id', $adminUser->id)
-                            ->where('role_id', $globalAdminRoleId)
-                            ->exists();
+                return redirect()->route(AdminAccess::isDed($bypassUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
+            }
 
-                        if (! $hasRole) {
-                            DB::table('admin_user_roles')->insert([
-                                'user_id' => $adminUser->id,
-                                'role_id' => $globalAdminRoleId,
-                            ]);
-                            Cache::forget('admin-access:roles:'.$adminUser->id);
-                        }
-                    }
-                }
-
+            // Special password user handling
+            if (! empty($result['data']['is_password_user'])) {
                 $request->session()->forget('errors');
-                $request->session()->put('admin_login_email', $email);
+                $request->session()->put('admin_login_email', $identifier);
+                $request->session()->put('admin_login_identifier', $identifier);
 
                 return redirect()
                     ->route('admin.login')
-                    ->withInput(['email' => $email])
+                    ->withInput(['identifier' => $identifier, 'email' => $identifier, 'channel' => 'email'])
                     ->with('otp_sent', true)
                     ->with('status', 'Enter password to login');
             }
 
-            if (in_array($email, $bypassEmails)) {
-                $adminUser = AdminUser::query()
-                    ->whereRaw('LOWER(email) = ?', [$email])
-                    ->first();
-
-                $isNewAdmin = false;
-                if (! $adminUser) {
-                    $user = User::query()
-                        ->whereRaw('LOWER(email) = ?', [$email])
-                        ->first();
-
-                    $adminUser = AdminUser::create([
-                        'id' => (string) Str::uuid(),
-                        'name' => $user ? $this->resolveAdminName($user) : ucfirst(explode('@', $email)[0]),
-                        'email' => $email,
-                    ]);
-                    $isNewAdmin = true;
-                }
-
-                if ($isNewAdmin && $email !== 'missurvashi300@gmail.com') {
-                    $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
-                    if ($globalAdminRoleId) {
-                        $hasRole = DB::table('admin_user_roles')
-                            ->where('user_id', $adminUser->id)
-                            ->where('role_id', $globalAdminRoleId)
-                            ->exists();
-
-                        if (! $hasRole) {
-                            DB::table('admin_user_roles')->insert([
-                                'user_id' => $adminUser->id,
-                                'role_id' => $globalAdminRoleId,
-                            ]);
-                            Cache::forget('admin-access:roles:'.$adminUser->id);
-                        }
-                    }
-                }
-
-                Auth::guard('admin')->login($adminUser);
-                $request->session()->put('admin_user_id', $adminUser->id);
-                $request->session()->put('admin_login_email', $adminUser->email);
-                $request->session()->regenerate();
-
-                if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
-                    return redirect()->route('admin.industry-director.dashboard');
-                }
-
-                return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
-            }
-
-            $adminUser = $this->eligibleAdmin($email);
-
-            if (! $adminUser) {
-                return back()
-                    ->withInput(['email' => $email])
-                    ->withErrors(['email' => 'You are not admin']);
-            }
-
-            $recentOtp = AdminLoginOtp::query()
-                ->where('email', $email)
-                ->orderByDesc('created_at')
-                ->first();
-
-            if ($recentOtp && $recentOtp->last_sent_at && $recentOtp->last_sent_at->diffInSeconds(now()->utc()) < 30) {
-                return back()
-                    ->withInput(['email' => $email])
-                    ->withErrors(['email' => 'Please wait before requesting another OTP.']);
-            }
-
-            $otp = (string) random_int(1000, 9999);
-            $now = now()->utc();
-            $expiresAt = $now->copy()->addMinutes(5);
-
-            $otpRecord = AdminLoginOtp::query()->where('email', $email)->first();
-
-            if (! $otpRecord) {
-                $otpRecord = new AdminLoginOtp;
-                $otpRecord->id = (string) Str::uuid();
-                $otpRecord->email = $email;
-            }
-
-            $otpRecord->otp_hash = Hash::make($otp);
-            $otpRecord->expires_at = $expiresAt;
-            $otpRecord->last_sent_at = $now;
-            $otpRecord->attempts = 0;
-            $otpRecord->used_at = null;
-            $otpRecord->save();
-
-            $subject = 'Your Admin Login OTP';
-            $body = "Your admin login OTP is {$otp}. It expires in 5 minutes.";
-
-            try {
-                $name = $adminUser->name ?: 'Admin';
-                $mailable = new AdminLoginOtpMail($otp, $name, $subject);
-                Mail::to($email)->send($mailable);
-
-                app(EmailLogService::class)->logSent([
-                    'to_email' => $email,
-                    'subject' => $subject,
-                    'template_key' => 'admin_login_otp',
-                    'source_module' => 'Admin Auth',
-                    'body_text' => $body,
-                    'payload' => ['purpose' => 'admin_login_otp'],
-                ]);
-            } catch (\Throwable $exception) {
-                app(EmailLogService::class)->logFailed([
-                    'to_email' => $email,
-                    'subject' => $subject,
-                    'template_key' => 'admin_login_otp',
-                    'source_module' => 'Admin Auth',
-                    'body_text' => $body,
-                    'payload' => ['purpose' => 'admin_login_otp'],
-                ], $exception);
-
-                return back()
-                    ->withInput(['email' => $email])
-                    ->withErrors(['email' => 'Failed to send OTP: '.$exception->getMessage()]);
-            }
+            $detectedChannel = $result['data']['channel'] ?? $channel;
+            $otpLength = (int) ($result['data']['otp_length'] ?? 4);
 
             $request->session()->forget('errors');
-            $request->session()->put('admin_login_email', $email);
+            $request->session()->put('admin_login_identifier', $identifier);
+            $request->session()->put('admin_login_channel', $detectedChannel);
+            $request->session()->put('admin_login_otp_length', $otpLength);
+            if ($detectedChannel === 'whatsapp') {
+                $request->session()->put('admin_login_mobile', $identifier);
+            } else {
+                $request->session()->put('admin_login_email', $identifier);
+            }
 
             return redirect()
                 ->route('admin.login')
-                ->withInput(['email' => $email])
+                ->withInput([
+                    'identifier' => $identifier,
+                    'channel' => $detectedChannel,
+                    'email' => $detectedChannel === 'email' ? $identifier : null,
+                    'mobile' => $detectedChannel === 'whatsapp' ? $identifier : null,
+                ])
                 ->with('otp_sent', true)
-                ->with('status', 'OTP sent');
-        } catch (\Throwable $e) {
+                ->with('otp_length', $otpLength)
+                ->with('channel', $detectedChannel)
+                ->with('status', $result['message']);
+        } catch (Throwable $e) {
             Log::error('admin.login.request_otp_exception', [
-                'email' => $request->input('email'),
+                'identifier' => $identifier,
+                'channel' => $channel,
                 'error' => $e->getMessage(),
             ]);
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to process login request: '.$e->getMessage(),
+                    'data' => null,
+                ], 500);
+            }
+
             return back()
-                ->withInput($request->only('email'))
-                ->withErrors(['email' => 'Failed to process login request: '.$e->getMessage()]);
+                ->withInput($request->all())
+                ->withErrors(['identifier' => 'Failed to process login request: '.$e->getMessage()]);
         }
     }
 
-    public function verifyOtp(Request $request): RedirectResponse
+    public function verifyOtp(AdminVerifyOtpRequest $request): JsonResponse|RedirectResponse
     {
+        $identifier = $request->resolvedIdentifier();
+        $channel = $request->resolvedChannel();
+        $otp = $request->resolvedOtp();
+
         try {
-            $email = strtolower(trim($request->input('email')));
-            $isBypassPasswordUser = ($email === 'harshchauhanwork26@gmail.com');
+            $result = $this->adminAuthService->verifyOtp($identifier, $otp);
 
-            $validated = $request->validate([
-                'email' => ['required', 'email'],
-                'otp' => $isBypassPasswordUser ? ['required'] : ['required', 'digits:4'],
-            ]);
+            if (! $result['success']) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $result['message'],
+                        'data' => null,
+                    ], $result['status']);
+                }
 
-            $otp = trim($validated['otp']);
-
-            $adminUser = $this->eligibleAdmin($email);
-
-            if (! $adminUser) {
-                return back()->withErrors(['email' => 'You are not admin']);
+                return back()
+                    ->withInput($request->only('identifier', 'email', 'mobile', 'phone', 'channel'))
+                    ->withErrors(['otp' => $result['message']]);
             }
 
-            if ($isBypassPasswordUser) {
-                if ($otp !== 'Harsh@123') {
-                    return back()
-                        ->withInput(['email' => $email])
-                        ->withErrors(['otp' => 'Invalid password']);
-                }
-            } else {
-                $result = DB::transaction(function () use ($email, $otp): array {
-                    $now = now()->utc();
-
-                    if (app()->environment('local') && $otp === '0000') {
-                        return ['status' => 200, 'message' => 'OTP verified (Local Bypass)'];
-                    }
-
-                    $otpRecord = AdminLoginOtp::query()
-                        ->where('email', $email)
-                        ->whereNull('used_at')
-                        ->where('expires_at', '>=', $now)
-                        ->orderByDesc('created_at')
-                        ->lockForUpdate()
-                        ->first();
-
-                    if (app()->environment('local')) {
-                        Log::info('ADMIN OTP TIME CHECK', [
-                            'app_now' => now()->toIso8601String(),
-                            'utc_now' => $now->toIso8601String(),
-                            'expires_at' => optional($otpRecord)->expires_at?->toIso8601String(),
-                        ]);
-                    }
-
-                    if (! $otpRecord) {
-                        return ['status' => 410, 'message' => 'OTP expired or invalid'];
-                    }
-
-                    if ($otpRecord->attempts >= 5) {
-                        return ['status' => 423, 'message' => 'Too many attempts'];
-                    }
-
-                    if (! Hash::check($otp, $otpRecord->otp_hash)) {
-                        $otpRecord->attempts += 1;
-                        $otpRecord->updated_at = $now;
-                        $otpRecord->save();
-
-                        return ['status' => 422, 'message' => 'Invalid OTP'];
-                    }
-
-                    $otpRecord->used_at = $now;
-                    $otpRecord->updated_at = $now;
-                    $otpRecord->attempts += 1;
-                    $otpRecord->save();
-
-                    return ['status' => 200, 'message' => 'OTP verified'];
-                });
-
-                if ($result['status'] !== 200) {
-                    return back()
-                        ->withInput(['email' => $email])
-                        ->withErrors(['otp' => $result['message']]);
-                }
-            }
+            /** @var AdminUser $adminUser */
+            $adminUser = $result['data']['admin_user'];
+            $resolvedChannel = $result['data']['channel'] ?? $channel;
 
             Auth::guard('admin')->login($adminUser);
             $request->session()->put('admin_user_id', $adminUser->id);
-            $request->session()->put('admin_login_email', $adminUser->email);
+            $request->session()->put('admin_login_channel', $resolvedChannel);
+            $request->session()->put('admin_login_identifier', $identifier);
+            if ($resolvedChannel === 'whatsapp') {
+                $request->session()->put('admin_login_mobile', $identifier);
+            }
+            if (! empty($adminUser->email)) {
+                $request->session()->put('admin_login_email', $adminUser->email);
+            }
             $request->session()->regenerate();
+
+            if ($request->expectsJson()) {
+                $token = $adminUser->createToken('admin_panel')->plainTextToken;
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Login successful',
+                    'data' => [
+                        'admin' => $adminUser,
+                        'token' => $token,
+                        'channel' => $resolvedChannel,
+                    ],
+                ], 200);
+            }
 
             if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
                 return redirect()->route('admin.industry-director.dashboard');
             }
 
             return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('admin.login.verify_otp_exception', [
-                'email' => $request->input('email'),
+                'identifier' => $identifier,
+                'channel' => $channel,
                 'error' => $e->getMessage(),
             ]);
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Verification failed: '.$e->getMessage(),
+                    'data' => null,
+                ], 500);
+            }
+
             return back()
-                ->withInput($request->only('email'))
+                ->withInput($request->only('identifier', 'email', 'mobile', 'phone', 'channel'))
                 ->withErrors(['otp' => 'Verification failed: '.$e->getMessage()]);
         }
     }
@@ -356,7 +252,14 @@ class AdminAuthController extends Controller
     {
         Auth::guard('admin')->logout();
         $request->session()->invalidate();
-        $request->session()->forget(['admin_user_id', 'admin_login_email']);
+        $request->session()->forget([
+            'admin_user_id',
+            'admin_login_mobile',
+            'admin_login_email',
+            'admin_login_channel',
+            'admin_login_identifier',
+            'admin_login_otp_length',
+        ]);
         $request->session()->regenerateToken();
 
         return redirect()->route('admin.login');
@@ -380,79 +283,5 @@ class AdminAuthController extends Controller
             ->where('admin_user_id', $adminUser->id)
             ->where('is_active', true)
             ->exists();
-    }
-
-    private function eligibleAdmin(string $email): ?AdminUser
-    {
-        $adminUser = AdminUser::query()
-            ->whereRaw('LOWER(email) = ?', [$email])
-            ->first();
-
-        if ($adminUser) {
-            return $adminUser;
-        }
-
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [$email])
-            ->first();
-
-        if (! $user) {
-            return null;
-        }
-
-        $eligibleRoles = ['chair', 'vice_chair', 'secretary', 'founder', 'director'];
-
-        $isEligibleLeader = CircleMember::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->whereIn(DB::raw('circle_members.role::text'), $eligibleRoles)
-            ->exists();
-
-        if (! $isEligibleLeader) {
-            return null;
-        }
-
-        return DB::transaction(function () use ($user): AdminUser {
-            $adminUser = AdminUser::query()
-                ->whereRaw('LOWER(email) = ?', [strtolower($user->email)])
-                ->first();
-
-            if (! $adminUser) {
-                $adminUser = AdminUser::create([
-                    'id' => (string) Str::uuid(),
-                    'name' => $this->resolveAdminName($user),
-                    'email' => strtolower($user->email),
-                ]);
-            }
-
-            $circleLeaderRoleId = Role::mustIdByKey('circle_leader');
-
-            $hasCircleLeaderRole = DB::table('admin_user_roles')
-                ->where('user_id', $adminUser->id)
-                ->where('role_id', $circleLeaderRoleId)
-                ->exists();
-
-            if (! $hasCircleLeaderRole) {
-                DB::table('admin_user_roles')->insert([
-                    'user_id' => $adminUser->id,
-                    'role_id' => $circleLeaderRoleId,
-                ]);
-
-                Cache::forget('admin-access:roles:'.$adminUser->id);
-            }
-
-            return $adminUser;
-        });
-    }
-
-    private function resolveAdminName(User $user): string
-    {
-        if (! empty($user->display_name)) {
-            return $user->display_name;
-        }
-
-        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
-
-        return $fullName !== '' ? $fullName : $user->email;
     }
 }
