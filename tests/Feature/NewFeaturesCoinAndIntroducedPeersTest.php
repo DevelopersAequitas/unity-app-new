@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\CheckDynamicPermission;
+use App\Models\AdminUser;
 use App\Models\CoinClaimRequest;
 use App\Models\CoinsLedger;
 use App\Models\FileModel;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -201,13 +205,13 @@ class NewFeaturesCoinAndIntroducedPeersTest extends TestCase
         $this->assertSame('peers_global_feedback_video', $claim->activity_code);
 
         // 2. Admin approves claim
-        $superRole = \App\Models\Role::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+        $superRole = Role::create([
+            'id' => (string) Str::uuid(),
             'key' => 'global_admin',
             'name' => 'Global Admin',
         ]);
-        $adminUser = \App\Models\AdminUser::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+        $adminUser = AdminUser::create([
+            'id' => (string) Str::uuid(),
             'name' => 'Super Admin User',
             'email' => 'admin@example.com',
             'role' => 'global_admin',
@@ -215,7 +219,7 @@ class NewFeaturesCoinAndIntroducedPeersTest extends TestCase
         $adminUser->roles()->attach($superRole->id);
 
         $this->actingAs($adminUser, 'admin');
-        $this->withoutMiddleware([\App\Http\Middleware\CheckDynamicPermission::class]);
+        $this->withoutMiddleware([CheckDynamicPermission::class]);
 
         $approveResponse = $this->post(route('admin.coin-claims.approve', $claim->id), [
             'admin_notes' => 'Great feedback video!',
