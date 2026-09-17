@@ -209,17 +209,12 @@ class UserResource extends JsonResource
                 }),
             'circle_memberships' => $circleMemberships,
             'contact_visibility' => $this->contact_visibility ?? 'public',
-            'connection_count' => (int) ($this->connection_count ?? ($this->approved_sent_count ?? 0) + ($this->approved_received_count ?? 0)),
+            'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
             'posts_count' => (int) ($this->posts_count ?? 0),
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
-            'total_life_impact' => (int) ($this->life_impacted_count ?? 0),
-            'lifeImpactedCount' => (int) ($this->life_impacted_count ?? 0),
-            'impact_score' => (int) ($this->life_impacted_count ?? 0),
-            'lives_impacted' => (int) ($this->life_impacted_count ?? 0),
-            'lives_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'badges_count' => (int) ($this->badges_count ?? 0),
             'my_badges_count' => (int) ($this->my_badges_count ?? ($this->badges_count ?? 0)),
             'p2p_meetings_count' => (int) ($this->p2p_meetings_count ?? ($this->p2p_count ?? 0)),
@@ -490,19 +485,24 @@ class UserResource extends JsonResource
 
     private function resolveConnectionCount(): int
     {
+        if ($this->connection_count !== null) {
+            return (int) $this->connection_count;
+        }
+
+        if (isset($this->approved_sent_count) || isset($this->approved_received_count)) {
+            return (int) (($this->approved_sent_count ?? 0) + ($this->approved_received_count ?? 0));
+        }
+
         if (! Schema::hasTable('connections')) {
             return 0;
         }
 
-        if (isset($this->approved_sent_count) && isset($this->approved_received_count)) {
-            return (int) ($this->approved_sent_count + $this->approved_received_count);
-        }
-
-        return (int) (Connection::where('is_approved', true)
+        return (int) Connection::query()
+            ->where('is_approved', true)
             ->where(function ($query) {
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);
-            })->count());
+            })->count();
     }
 
     protected function resolveBadgesCount(): int

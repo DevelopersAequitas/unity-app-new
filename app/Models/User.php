@@ -254,6 +254,29 @@ class User extends Authenticatable
         return (int) ($value ?? 0);
     }
 
+    public function getConnectionCountAttribute($value): int
+    {
+        if ($value !== null) {
+            return (int) $value;
+        }
+
+        if (array_key_exists('approved_sent_count', $this->attributes) || array_key_exists('approved_received_count', $this->attributes)) {
+            return (int) (($this->attributes['approved_sent_count'] ?? 0) + ($this->attributes['approved_received_count'] ?? 0));
+        }
+
+        if (! Schema::hasTable('connections')) {
+            return 0;
+        }
+
+        return (int) Connection::query()
+            ->where('is_approved', true)
+            ->where(function ($query) {
+                $query->where('requester_id', $this->id)
+                    ->orWhere('addressee_id', $this->id);
+            })
+            ->count();
+    }
+
     public function contactPosts(): HasMany
     {
         return $this->hasMany(ContactPost::class, 'user_id');
