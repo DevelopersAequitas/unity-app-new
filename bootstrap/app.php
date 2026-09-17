@@ -6,18 +6,19 @@ use App\Http\Middleware\AdminRoleMiddleware;
 use App\Http\Middleware\AllowFixedMembersToken;
 use App\Http\Middleware\ApplyDynamicDataScope;
 use App\Http\Middleware\CheckDynamicPermission;
-use App\Http\Middleware\CheckLeaderCapability;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApiAccess;
 use App\Http\Middleware\EnsureIndustryDirector;
-use App\Http\Middleware\EnsureLeaderUser;
 use App\Http\Middleware\EnsureScanAppUser;
 use App\Http\Middleware\EnsureUnityUser;
+use App\Leader\Middleware\CheckLeaderCapability;
+use App\Leader\Middleware\EnsureLeaderUser;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -27,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+        then: function () {
+            Route::middleware('api')
+                ->prefix('api/v1')
+                ->group(base_path('routes/leader.php'));
+        },
     )
     ->withCommands([
         __DIR__.'/../app/Console/Commands',

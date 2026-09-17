@@ -78,19 +78,19 @@
 
     <div class="rounded-xl border bs surface overflow-hidden">
         <div class="overflow-x-auto relative">
-            <table class="min-w-[1100px] w-full border-collapse text-[13px] align-middle">
+            <table class="w-full border-collapse text-[13px] align-middle">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Company</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">City</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Circle</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Category</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Reason for Joining</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Status</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">DED Approval</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left whitespace-nowrap">Payment</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-center whitespace-nowrap">Actions</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">City</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[160px]">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[200px]">Category</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[180px]">Reason for Joining</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">DED Approval</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Payment</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -100,8 +100,12 @@
                             $peerName = $peer ? ($peer->display_name ?: trim(($peer->first_name ?? '') . ' ' . ($peer->last_name ?? ''))) : '—';
                             $peerCompany = $peer->company_name ?? $peer->company ?? $peer->business_name ?? '—';
                             $peerCity = $peer->city ?? '—';
-                            $peerCircles = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
-                            $peerCircle = $peerCircles !== '' ? $peerCircles : '—';
+                            
+                            $allPeerCirclesList = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->values() : collect();
+                            $peerCircleCount = $allPeerCirclesList->count();
+                            $peerCircleFirst = $peerCircleCount > 0 ? $allPeerCirclesList->first() : '—';
+                            $peerCircleFull = $peerCircleCount > 0 ? $allPeerCirclesList->implode(', ') : '—';
+
                             $categoryName = $row->circleCategory ? $row->circleCategory->name : '—';
                             $categoryId = $row->circleCategory ? $row->circleCategory->id : '';
                             $st = strtolower((string)$row->status);
@@ -117,7 +121,7 @@
                                 'peerId' => $peer?->id,
                                 'peerCompany' => $peerCompany,
                                 'peerCity' => $peerCity,
-                                'peerCircle' => $peerCircle,
+                                'peerCircle' => $peerCircleFull,
                                 'category' => $categoryName,
                                 'categoryId' => $categoryId,
                                 'reason' => $reasonText !== '' ? $reasonText : '—',
@@ -139,7 +143,7 @@
                             ];
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openRequestRowModal({{ json_encode($rowData) }})" title="Click row to view full request details">
-                            <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                            <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 @if ($peer)
                                     <div class="flex items-center gap-2 whitespace-nowrap">
                                         <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
@@ -155,10 +159,25 @@
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
-                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCircle }}</td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[180px]">
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[220px]">
+                                @if ($peerCircleCount > 0)
+                                    <div class="flex items-center gap-1.5 flex-wrap max-w-[220px]">
+                                        <span class="inline-block font-medium text-slate-700 max-w-[170px] truncate" title="{{ $peerCircleFull }}">
+                                            {{ $peerCircleFirst }}
+                                        </span>
+                                        @if ($peerCircleCount > 1)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0 cursor-help" title="{{ $peerCircleFull }}">
+                                                +{{ $peerCircleCount - 1 }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="t3">—</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 min-w-[200px] whitespace-normal">
                                 @if($row->circleCategory)
-                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] truncate" title="{{ $row->circleCategory->name }}">
+                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12px] leading-tight" title="{{ $row->circleCategory->name }}">
                                         Category: {{ $row->circleCategory->name }}
                                     </div>
                                     <div class="t3 text-[10px] mt-0.5">ID: {{ $row->circleCategory->id }}</div>
@@ -166,10 +185,10 @@
                                     <div class="t3">—</div>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[200px] truncate">
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[220px]">
                                 @if(!empty($row->reason_for_joining))
-                                    <span class="font-medium text-slate-700" title="{{ $row->reason_for_joining }}">
-                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 30) }}
+                                    <span class="font-medium text-slate-700 block truncate" title="{{ $row->reason_for_joining }}">
+                                        {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 35) }}
                                     </span>
                                 @else
                                     <span class="t3">—</span>
@@ -238,18 +257,18 @@
                                     <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
                                     @if($row->can_approve_cd)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
 
                                     @if($row->can_approve_id)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
 
                                     @if($row->can_approve_ded)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
                                 </div>
                             </td>
@@ -315,117 +334,129 @@
             </div>
         </div>
 
-            <div class="pt-3 border-t bs flex justify-between items-center gap-2 flex-wrap">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <a id="modalRowReviewBtn" href="#" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition no-underline shadow-sm flex items-center gap-1.5">
-                        Open Full Page
-                    </a>
+        <div class="pt-3 border-t bs flex justify-between items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+                <a id="modalRowReviewBtn" href="#" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition no-underline shadow-sm flex items-center gap-1.5">
+                    Open Full Page
+                </a>
 
-                    <!-- Dynamic Approve Form -->
-                    <form id="modalApproveForm" method="POST" action="" class="inline">
-                        @csrf
-                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5">
-                            Approve
-                        </button>
-                    </form>
+                <!-- Dynamic Approve Form -->
+                <form id="modalApproveForm" method="POST" action="" class="inline">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                        Approve
+                    </button>
+                </form>
 
-                    <!-- Dynamic Reject Form -->
-                    <form id="modalRejectForm" method="POST" action="" class="inline" onsubmit="const r = prompt('Enter rejection reason:'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason_field]').value = r.trim(); return true;">
-                        @csrf
-                        <input type="hidden" name="reason_field" id="modalRejectReasonInput">
-                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition shadow-sm cursor-pointer flex items-center gap-1.5">
-                            Reject
-                        </button>
-                    </form>
-                </div>
-
-                <button type="button" onclick="closeRequestRowModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition cursor-pointer">
-                    Close
-                </button>
+                <!-- Dynamic Reject Form -->
+                <form id="modalRejectForm" method="POST" action="" class="inline" onsubmit="const input = document.getElementById('modalRejectReasonInput'); const label = input.name === 'remarks' ? 'Enter rejection remarks (required):' : 'Enter rejection reason (required):'; const r = prompt(label); if (!r || !r.trim()) { return false; } input.value = r.trim(); return true;">
+                    @csrf
+                    <input type="hidden" name="reason" id="modalRejectReasonInput">
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                        Reject
+                    </button>
+                </form>
             </div>
+
+            <button type="button" onclick="closeRequestRowModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition cursor-pointer">
+                Close
+            </button>
         </div>
     </div>
+</div>
 
-    <script>
-        function openRequestRowModal(data) {
-            document.getElementById('modalRowPeerName').textContent = data.peerName || 'Circle Joining Request';
-            document.getElementById('modalRowCompany').textContent = data.peerCompany || '—';
-            document.getElementById('modalRowCity').textContent = data.peerCity || '—';
-            document.getElementById('modalRowCircle').textContent = data.peerCircle || '—';
-            document.getElementById('modalRowCategory').textContent = data.category + (data.categoryId ? ' (ID: ' + data.categoryId + ')' : '');
-            document.getElementById('modalRowReason').textContent = data.reason || '—';
-            
-            // Status Badge
-            const statusEl = document.getElementById('modalRowStatus');
-            statusEl.textContent = data.status || 'Pending';
-            if ((data.statusRaw || '').includes('approved') || data.statusRaw === 'circle_member') {
-                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
-            } else if ((data.statusRaw || '').includes('rejected')) {
-                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
-            } else {
-                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
-            }
+<script>
+    function openRequestRowModal(data) {
+        document.getElementById('modalRowPeerName').textContent = data.peerName || 'Circle Joining Request';
+        document.getElementById('modalRowCompany').textContent = data.peerCompany || '—';
+        document.getElementById('modalRowCity').textContent = data.peerCity || '—';
+        document.getElementById('modalRowCircle').textContent = data.peerCircle || '—';
+        document.getElementById('modalRowCategory').textContent = data.category + (data.categoryId ? ' (ID: ' + data.categoryId + ')' : '');
+        document.getElementById('modalRowReason').textContent = data.reason || '—';
+        
+        // Status Badge
+        const statusEl = document.getElementById('modalRowStatus');
+        statusEl.textContent = data.status || 'Pending';
+        if ((data.statusRaw || '').includes('approved') || data.statusRaw === 'circle_member') {
+            statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if ((data.statusRaw || '').includes('rejected')) {
+            statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
+        } else {
+            statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+        }
 
-            // DED Approval
-            const dedEl = document.getElementById('modalRowDed');
-            dedEl.textContent = data.dedApproval === 'approved' ? 'Approved' : (data.dedApproval === 'rejected' ? 'Rejected' : 'Pending');
-            if (data.dedApproval === 'approved') {
-                dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
-            } else if (data.dedApproval === 'rejected') {
-                dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
-            } else {
-                dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
-            }
+        // DED Approval
+        const dedEl = document.getElementById('modalRowDed');
+        dedEl.textContent = data.dedApproval === 'approved' ? 'Approved' : (data.dedApproval === 'rejected' ? 'Rejected' : 'Pending');
+        if (data.dedApproval === 'approved') {
+            dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if (data.dedApproval === 'rejected') {
+            dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
+        } else {
+            dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+        }
 
+        // Payment
+        const payEl = document.getElementById('modalRowPayment');
+        payEl.textContent = data.payment || 'Unpaid';
+        if (data.payment === 'Paid') {
+            payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if (data.payment === 'Unpaid') {
+            payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+        } else {
+            payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200';
+        }
 
+        // Action Forms (Approve / Reject URLs dynamically set if user can act)
+        const approveForm = document.getElementById('modalApproveForm');
+        const rejectForm = document.getElementById('modalRejectForm');
+        const rejectInput = document.getElementById('modalRejectReasonInput');
 
-            
-            // Payment
-            const payEl = document.getElementById('modalRowPayment');
-            payEl.textContent = data.payment || 'Unpaid';
-            if (data.payment === 'Paid') {
-                payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
-            } else if (data.payment === 'Unpaid') {
-                payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
-            } else {
-                payEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200';
-            }
+        let approveUrl = '';
+        let rejectUrl = '';
+        let rejectField = 'reason';
+        let canAct = false;
 
-            // Action Forms (Approve / Reject always displayed next to Open Full Page)
-            const approveForm = document.getElementById('modalApproveForm');
-            const rejectForm = document.getElementById('modalRejectForm');
-            const rejectInput = document.getElementById('modalRejectReasonInput');
+        if (data.canApproveDed) {
+            approveUrl = data.approveDedUrl;
+            rejectUrl = data.rejectDedUrl;
+            rejectField = 'remarks';
+            canAct = true;
+        } else if (data.canApproveId) {
+            approveUrl = data.approveIdUrl;
+            rejectUrl = data.rejectIdUrl;
+            rejectField = 'reason';
+            canAct = true;
+        } else if (data.canApproveCd) {
+            approveUrl = data.approveCdUrl;
+            rejectUrl = data.rejectCdUrl;
+            rejectField = 'reason';
+            canAct = true;
+        }
 
-            let approveUrl = data.approveCdUrl;
-            let rejectUrl = data.rejectCdUrl;
-            let rejectField = 'reason';
-
-            if (data.canApproveDed || (data.statusRaw || '').includes('ded')) {
-                approveUrl = data.approveDedUrl;
-                rejectUrl = data.rejectDedUrl;
-                rejectField = 'remarks';
-            } else if (data.canApproveId || (data.statusRaw || '').includes('id')) {
-                approveUrl = data.approveIdUrl;
-                rejectUrl = data.rejectIdUrl;
-                rejectField = 'reason';
-            }
-
-            approveForm.action = approveUrl || data.approveCdUrl;
-            rejectForm.action = rejectUrl || data.rejectCdUrl;
+        if (canAct && approveUrl && rejectUrl) {
+            approveForm.action = approveUrl;
+            rejectForm.action = rejectUrl;
             rejectInput.name = rejectField;
             approveForm.classList.remove('hidden');
             rejectForm.classList.remove('hidden');
-
-            // Full Review Link
-            document.getElementById('modalRowReviewBtn').href = data.showUrl || '#';
-
-            document.getElementById('requestRowDetailModal').classList.remove('hidden');
+        } else {
+            approveForm.action = '';
+            rejectForm.action = '';
+            approveForm.classList.add('hidden');
+            rejectForm.classList.add('hidden');
         }
 
-        function closeRequestRowModal() {
-            document.getElementById('requestRowDetailModal').classList.add('hidden');
-        }
-    </script>
+        // Full Review Link
+        document.getElementById('modalRowReviewBtn').href = data.showUrl || '#';
 
-    @include('admin.circle_join_requests.partials.ded_approval_modal')
+        document.getElementById('requestRowDetailModal').classList.remove('hidden');
+    }
+
+    function closeRequestRowModal() {
+        document.getElementById('requestRowDetailModal').classList.add('hidden');
+    }
+</script>
+
+@include('admin.circle_join_requests.partials.ded_approval_modal')
 @endsection

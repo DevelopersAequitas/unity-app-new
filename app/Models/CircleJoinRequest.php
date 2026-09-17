@@ -111,10 +111,6 @@ class CircleJoinRequest extends Model
             if (in_array($status, [self::STATUS_PENDING_CIRCLE_FEE, self::STATUS_CIRCLE_MEMBER, self::STATUS_PAID], true) && $dedStatus === 'pending') {
                 $request->ded_approval_status = 'approved';
 
-                if (Schema::hasColumn('circle_join_requests', 'ded_approved_by') && ! $request->ded_approved_by) {
-                    $request->ded_approved_by = $request->id_approved_by ?: $request->cd_approved_by;
-                }
-
                 if (Schema::hasColumn('circle_join_requests', 'ded_approved_at') && ! $request->ded_approved_at) {
                     $request->ded_approved_at = $request->id_approved_at ?: ($request->cd_approved_at ?: ($request->fee_marked_at ?: now()));
                 }

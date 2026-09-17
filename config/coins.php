@@ -3,11 +3,15 @@
 return [
     'activity_rewards' => [
         'testimonial' => 5000,
+        'business_deal' => 10000,
         'referral' => 3000,
         'referral_signup' => 1000,
-        'requirement' => 3000,
-        'business_deal' => 10000,
+        'visitor_registration' => 1000,
+        'register_visitor' => 1000,
         'p2p_meeting' => 3000,
+        'requirement' => 3000,
+        'recommend_peer' => 1000,
+        'introduction_video' => 1000,
     ],
     'recommend_peer' => 1000,
     'register_visitor' => 1000,
@@ -20,6 +24,7 @@ return [
         'renew_membership' => 2500,
         'invite_visitor' => 1000,
         'new_member_addition' => 5000,
+        'peers_global_feedback_video' => 5000,
     ],
     'claim_coin_labels' => [
         'attend_circle_meeting' => 'Attend Circle Meetings',
@@ -30,5 +35,6 @@ return [
         'renew_membership' => 'Renew Membership',
         'invite_visitor' => 'Invite a Visitor',
         'new_member_addition' => 'New Member Addition',
+        'peers_global_feedback_video' => 'Peers Global Feedback Video',
     ],
 ];

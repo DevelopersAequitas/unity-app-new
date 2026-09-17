@@ -64,7 +64,7 @@ When a user logs in, the backend computes their role and returns their customize
 ## Section 1: Authentication & User Profile
 
 ### 1.1 Request Login OTP
-* **Endpoint:** `POST /api/v1/auth/send-otp`
+* **Endpoint:** `POST /api/v1/leader/auth/send-otp` (or alias: `POST /api/v1/leader/send-otp`)
 * **Auth Required:** No
 
 #### Request Body:
@@ -89,7 +89,7 @@ When a user logs in, the backend computes their role and returns their customize
 ---
 
 ### 1.2 Verify Login OTP
-* **Endpoint:** `POST /api/v1/auth/verify-otp`
+* **Endpoint:** `POST /api/v1/leader/auth/verify-otp` (or alias: `POST /api/v1/leader/verify-otp`)
 * **Auth Required:** No
 * **Dev Bypass OTP:** `123456`
 

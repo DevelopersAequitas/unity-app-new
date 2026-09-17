@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Admin\PermissionService;
 use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
@@ -113,6 +114,7 @@ class ImpactsController extends Controller
 
         $admin = Auth::guard('admin')->user();
         $this->applyDedImpactScope($impacts);
+        ActivityUserFilter::applyToActivityQuery($impacts, 'impacts.user_id');
 
         $impactsPaginator = $impacts
             ->orderByDesc('created_at')
@@ -130,6 +132,7 @@ class ImpactsController extends Controller
         if ($admin) {
             AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
         }
+        ActivityUserFilter::applyToUserQuery($peersQuery);
 
         $peers = $peersQuery->get();
 
@@ -185,13 +188,17 @@ class ImpactsController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'impact_score' => ['required', 'integer', 'min:1'],
+            'impact_coin' => ['nullable', 'integer', 'min:1'],
         ], [
             'name.required' => 'Action name is required.',
             'impact_score.required' => 'Impact score is required.',
         ]);
 
+        $impactScore = (int) $validated['impact_score'];
+        $impactCoin = ! empty($validated['impact_coin']) ? (int) $validated['impact_coin'] : ($impactScore * 2500);
+
         try {
-            $this->impactActionService->createAction((string) $validated['name'], (int) $validated['impact_score']);
+            $this->impactActionService->createAction((string) $validated['name'], $impactScore, $impactCoin);
         } catch (\InvalidArgumentException $exception) {
             throw ValidationException::withMessages(['name' => $exception->getMessage()]);
         } catch (\RuntimeException $exception) {
@@ -210,14 +217,19 @@ class ImpactsController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'impact_score' => ['required', 'integer', 'min:1'],
+            'impact_coin' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        $impactScore = (int) $validated['impact_score'];
+        $impactCoin = ! empty($validated['impact_coin']) ? (int) $validated['impact_coin'] : ($impactScore * 2500);
 
         try {
             $this->impactActionService->updateAction(
                 $id,
                 (string) $validated['name'],
-                (int) $validated['impact_score'],
+                $impactScore,
+                $impactCoin,
                 array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : null
             );
         } catch (\InvalidArgumentException $exception) {
@@ -286,6 +298,7 @@ class ImpactsController extends Controller
             ]);
 
         $this->applyDedImpactScope($impactsQuery);
+        ActivityUserFilter::applyToActivityQuery($impactsQuery, 'impacts.user_id');
 
         $impacts = $impactsQuery
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))

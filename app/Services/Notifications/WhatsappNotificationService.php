@@ -9,6 +9,7 @@ use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class WhatsappNotificationService
@@ -37,6 +38,10 @@ class WhatsappNotificationService
         self::$lastResponse = null;
         $deliveryLog = null;
         $attemptedAt = now();
+        $normalizedPhone = static::normalizePhone($phone);
+        $customLogId = isset($payload['delivery_log_id']) && is_string($payload['delivery_log_id']) && trim($payload['delivery_log_id']) !== ''
+            ? trim($payload['delivery_log_id'])
+            : null;
 
         try {
             $template = WhatsappTemplate::query()
@@ -69,20 +74,27 @@ class WhatsappNotificationService
                 $creativeUrl = trim($creativeUrl);
             }
 
-            $normalizedPhone = static::normalizePhone($phone);
-
             // Resolve user ID if available
             $resolvedUserId = $userId ?? ($payload['user_id'] ?? $payload['userId'] ?? null);
             if (! is_string($resolvedUserId) || trim($resolvedUserId) === '') {
                 $resolvedUserId = null;
             }
             if ($resolvedUserId === null && $normalizedPhone !== '') {
-                $resolvedUserId = User::query()
-                    ->where('phone', $normalizedPhone)
-                    ->orWhere('secondary_mobile', $normalizedPhone)
-                    ->orWhere('phone', $phone)
-                    ->orWhere('secondary_mobile', $phone)
-                    ->value('id');
+                try {
+                    if (Schema::hasTable('users')) {
+                        $userQuery = User::query()->where('phone', $normalizedPhone);
+                        if (Schema::hasColumn('users', 'secondary_mobile')) {
+                            $userQuery->orWhere('secondary_mobile', $normalizedPhone);
+                        }
+                        $userQuery->orWhere('phone', $phone);
+                        if (Schema::hasColumn('users', 'secondary_mobile')) {
+                            $userQuery->orWhere('secondary_mobile', $phone);
+                        }
+                        $resolvedUserId = $userQuery->value('id');
+                    }
+                } catch (Throwable) {
+                    $resolvedUserId = null;
+                }
             }
 
             // Resolve notification ID if available
@@ -91,10 +103,9 @@ class WhatsappNotificationService
                 $resolvedNotificationId = null;
             }
 
-            $customLogId = $payload['delivery_log_id'] ?? null;
-            if (is_string($customLogId) && trim($customLogId) !== '') {
+            if ($customLogId !== null) {
                 try {
-                    $deliveryLog = WhatsappMessageDeliveryLog::find(trim($customLogId));
+                    $deliveryLog = WhatsappMessageDeliveryLog::find($customLogId);
                 } catch (Throwable) {
                     $deliveryLog = null;
                 }
@@ -218,6 +229,14 @@ class WhatsappNotificationService
                 ->timeout(15)
                 ->post($webhookUrl, $body);
 
+            $sanitizedWebhookUrl = static::sanitizeUrlForLog($webhookUrl);
+            $resolvedVariables = [
+                'name' => $payload['name'] ?? null,
+                'referrer_name' => $payload['referrer_name'] ?? null,
+                'referral_link' => $payload['referral_link'] ?? null,
+                'header_media_url' => $creativeUrl,
+            ];
+
             if ($response->successful()) {
                 $responseData = $response->json();
                 self::$lastResponse = $responseData;
@@ -227,9 +246,50 @@ class WhatsappNotificationService
                         self::$lastError = 'FlexiMsg API success=false: '.($responseData['error_message'] ?? 'Unknown Error');
                         Log::error('WhatsApp notification failed: API response indicated success=false.', [
                             'template_key' => $templateKey,
-                            'webhook_url' => $webhookUrl,
-                            'request_body' => $body,
-                            'response_body' => $response->body(),
+                            'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                            'phone' => $normalizedPhone,
+                            'webhook_url' => $sanitizedWebhookUrl,
+                            'http_method' => 'POST',
+                            'http_status' => $response->status(),
+                            'request_payload_keys' => array_keys($body),
+                            'resolved_variables' => $resolvedVariables,
+                            'header_media_url' => $creativeUrl,
+                            'provider_response' => $responseData,
+                            'provider_message_id' => null,
+                            'status' => 'failed',
+                            'failure_reason' => self::$lastError,
+                        ]);
+
+                        $deliveryLog?->update([
+                            'status' => 'failed',
+                            'error_message' => self::$lastError,
+                            'response_payload' => $responseData,
+                            'attempted_at' => $attemptedAt,
+                        ]);
+
+                        return false;
+                    }
+
+                    // Check passive synchronization ("Payload synchronized no further processing")
+                    $responseMsg = (string) ($responseData['message'] ?? '');
+                    if (stripos($responseMsg, 'Payload synchronized no further processing') !== false
+                        || stripos($response->body(), 'Payload synchronized no further processing') !== false
+                    ) {
+                        self::$lastError = 'FlexiMSG webhook synchronized the payload but did not trigger downstream WhatsApp processing.';
+                        Log::warning('WhatsApp notification not submitted: FlexiMSG payload synchronized without downstream WhatsApp processing.', [
+                            'template_key' => $templateKey,
+                            'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                            'phone' => $normalizedPhone,
+                            'webhook_url' => $sanitizedWebhookUrl,
+                            'http_method' => 'POST',
+                            'http_status' => $response->status(),
+                            'request_payload_keys' => array_keys($body),
+                            'resolved_variables' => $resolvedVariables,
+                            'header_media_url' => $creativeUrl,
+                            'provider_response' => $responseData,
+                            'provider_message_id' => null,
+                            'status' => 'failed',
+                            'failure_reason' => self::$lastError,
                         ]);
 
                         $deliveryLog?->update([
@@ -248,13 +308,22 @@ class WhatsappNotificationService
                         self::$lastError = "FlexiMsg whatsapp_triggered=false. Error: {$errorMsg}";
                         Log::error('WhatsApp notification failed: FlexiMSG whatsapp_triggered=false. Header image variable is likely not mapped in the FlexiMSG template configuration.', [
                             'template_key' => $templateKey,
-                            'webhook_url' => $webhookUrl,
+                            'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                            'phone' => $normalizedPhone,
+                            'webhook_url' => $sanitizedWebhookUrl,
+                            'http_method' => 'POST',
+                            'http_status' => $response->status(),
                             'fleximsg_log_id' => $responseData['log_id'] ?? null,
                             'error_message' => $errorMsg,
                             'extracted_fields' => $responseData['extracted_fields'] ?? [],
-                            'fix_required' => 'Go to FlexiMSG dashboard -> Webhooks -> wear_the_badge -> edit template -> map HEADER IMAGE variable to @{header_media_url}',
-                            'request_body' => $body,
-                            'response_body' => $response->body(),
+                            'fix_required' => 'Go to FlexiMSG dashboard -> Webhooks -> template -> map HEADER IMAGE variable to @{header_media_url}',
+                            'request_payload_keys' => array_keys($body),
+                            'resolved_variables' => $resolvedVariables,
+                            'header_media_url' => $creativeUrl,
+                            'provider_response' => $responseData,
+                            'provider_message_id' => null,
+                            'status' => 'failed',
+                            'failure_reason' => self::$lastError,
                         ]);
 
                         $deliveryLog?->update([
@@ -272,11 +341,20 @@ class WhatsappNotificationService
                         self::$lastError = 'FlexiMsg processing_status failure: '.($responseData['processing_status']);
                         Log::error('WhatsApp notification failed: FlexiMSG processing_status indicates failure.', [
                             'template_key' => $templateKey,
-                            'webhook_url' => $webhookUrl,
+                            'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                            'phone' => $normalizedPhone,
+                            'webhook_url' => $sanitizedWebhookUrl,
+                            'http_method' => 'POST',
+                            'http_status' => $response->status(),
                             'processing_status' => $responseData['processing_status'],
                             'fleximsg_log_id' => $responseData['log_id'] ?? null,
-                            'request_body' => $body,
-                            'response_body' => $response->body(),
+                            'request_payload_keys' => array_keys($body),
+                            'resolved_variables' => $resolvedVariables,
+                            'header_media_url' => $creativeUrl,
+                            'provider_response' => $responseData,
+                            'provider_message_id' => null,
+                            'status' => 'failed',
+                            'failure_reason' => self::$lastError,
                         ]);
 
                         $deliveryLog?->update([
@@ -293,9 +371,18 @@ class WhatsappNotificationService
                         self::$lastError = 'FlexiMsg status error: '.($responseData['status']);
                         Log::error('WhatsApp notification failed: API response status is error.', [
                             'template_key' => $templateKey,
-                            'webhook_url' => $webhookUrl,
-                            'request_body' => $body,
-                            'response_body' => $response->body(),
+                            'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                            'phone' => $normalizedPhone,
+                            'webhook_url' => $sanitizedWebhookUrl,
+                            'http_method' => 'POST',
+                            'http_status' => $response->status(),
+                            'request_payload_keys' => array_keys($body),
+                            'resolved_variables' => $resolvedVariables,
+                            'header_media_url' => $creativeUrl,
+                            'provider_response' => $responseData,
+                            'provider_message_id' => null,
+                            'status' => 'failed',
+                            'failure_reason' => self::$lastError,
                         ]);
 
                         $deliveryLog?->update([
@@ -320,7 +407,12 @@ class WhatsappNotificationService
 
                 $providerMessageId = null;
                 if (is_array($responseData)) {
-                    $rawId = $responseData['log_id'] ?? $responseData['message_id'] ?? $responseData['provider_message_id'] ?? $responseData['id'] ?? null;
+                    $rawId = $responseData['wamid']
+                        ?? $responseData['provider_message_id']
+                        ?? $responseData['message_id']
+                        ?? $responseData['log_id']
+                        ?? $responseData['id']
+                        ?? null;
                     if ($rawId !== null && (is_string($rawId) || is_numeric($rawId))) {
                         $providerMessageId = (string) $rawId;
                     }
@@ -336,13 +428,20 @@ class WhatsappNotificationService
 
                 Log::info('WhatsApp notification sent successfully.', [
                     'template_key' => $templateKey,
-                    'webhook_url' => $webhookUrl,
-                    'status_code' => $response->status(),
+                    'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                    'phone' => $normalizedPhone,
+                    'webhook_url' => $sanitizedWebhookUrl,
+                    'http_method' => 'POST',
+                    'http_status' => $response->status(),
                     'fleximsg_log_id' => $responseData['log_id'] ?? null,
                     'whatsapp_triggered' => $responseData['whatsapp_triggered'] ?? 'unknown',
                     'processing_status' => $responseData['processing_status'] ?? 'unknown',
-                    'request_body' => $body,
-                    'response_body' => $response->body(),
+                    'request_payload_keys' => array_keys($body),
+                    'resolved_variables' => $resolvedVariables,
+                    'header_media_url' => $creativeUrl,
+                    'provider_response' => $responseData,
+                    'provider_message_id' => $providerMessageId,
+                    'status' => 'sent',
                 ]);
 
                 return true;
@@ -356,17 +455,25 @@ class WhatsappNotificationService
             self::$lastError = 'FlexiMsg HTTP Non-2xx response: '.json_encode([
                 'status_code' => $response->status(),
                 'response_body' => $response->body(),
-                'request_url' => $webhookUrl,
+                'request_url' => $sanitizedWebhookUrl,
                 'request_payload_keys' => array_keys($body),
                 'request_headers' => $maskedHeaders,
             ], JSON_UNESCAPED_SLASHES);
 
             Log::error('WhatsApp notification failed HTTP response check.', [
                 'template_key' => $templateKey,
-                'webhook_url' => $webhookUrl,
-                'status_code' => $response->status(),
-                'request_body' => $body,
-                'response_body' => $response->body(),
+                'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                'phone' => $normalizedPhone,
+                'webhook_url' => $sanitizedWebhookUrl,
+                'http_method' => 'POST',
+                'http_status' => $response->status(),
+                'request_payload_keys' => array_keys($body),
+                'resolved_variables' => $resolvedVariables,
+                'header_media_url' => $creativeUrl,
+                'provider_response' => $response->json() ?? ['raw' => $response->body(), 'status' => $response->status()],
+                'provider_message_id' => null,
+                'status' => 'failed',
+                'failure_reason' => self::$lastError,
             ]);
 
             $deliveryLog?->update([
@@ -381,6 +488,8 @@ class WhatsappNotificationService
             self::$lastError = 'Exception: '.$exception->getMessage();
             Log::error('WhatsApp notification threw an exception.', [
                 'template_key' => $templateKey,
+                'delivery_log_id' => $deliveryLog?->id ?? $customLogId,
+                'phone' => $normalizedPhone ?? $phone,
                 'error' => $exception->getMessage(),
                 'exception_class' => get_class($exception),
             ]);
@@ -476,5 +585,53 @@ class WhatsappNotificationService
         }
 
         return $digits;
+    }
+
+    /**
+     * Sanitize webhook URL for logging to avoid exposing secrets or query parameters.
+     */
+    public static function sanitizeUrlForLog(?string $url): string
+    {
+        if ($url === null || trim($url) === '') {
+            return '';
+        }
+
+        $parsed = parse_url(trim($url));
+        if ($parsed === false) {
+            return '';
+        }
+
+        $scheme = isset($parsed['scheme']) ? $parsed['scheme'].'://' : '';
+        $host = $parsed['host'] ?? '';
+        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
+        $path = $parsed['path'] ?? '';
+
+        return "{$scheme}{$host}{$port}{$path}";
+    }
+
+    /**
+     * Check if a URL belongs to a Meta / WhatsApp CDN domain.
+     */
+    public static function isMetaCdnUrl(?string $url): bool
+    {
+        if ($url === null || trim($url) === '') {
+            return false;
+        }
+
+        $host = parse_url(trim($url), PHP_URL_HOST);
+        if ($host === null || $host === false) {
+            return false;
+        }
+
+        $host = strtolower($host);
+        $metaDomains = ['scontent.whatsapp.net', 'fbcdn.net', 'lookaside.fbsbx.com', 'whatsapp.com'];
+
+        foreach ($metaDomains as $domain) {
+            if ($host === $domain || str_ends_with($host, '.'.$domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

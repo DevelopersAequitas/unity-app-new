@@ -251,27 +251,19 @@ class User extends Authenticatable
 
     public function getLifeImpactedCountAttribute($value): int
     {
-        if ($value !== null) {
+        if ($value !== null && (int) $value > 0) {
             return (int) $value;
         }
 
         if (! $this->exists || ! isset($this->id)) {
-            return 0;
+            return (int) ($value ?? 0);
         }
 
-        static $hasLifeImpactHistories = null;
-        if ($hasLifeImpactHistories === null) {
-            $hasLifeImpactHistories = Schema::hasTable('life_impact_histories');
-        }
-
-        if ($hasLifeImpactHistories) {
-            static $hasStatus = null, $hasCounted = null, $hasImpactValue = null, $hasLifeImpacted = null;
-            if ($hasStatus === null) {
-                $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
-                $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
-                $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
-                $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
-            }
+        if (Schema::hasTable('life_impact_histories')) {
+            $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
+            $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+            $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+            $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
 
             $valueExpr = ($hasImpactValue && $hasLifeImpacted)
                 ? 'COALESCE(NULLIF(impact_value, 0), NULLIF(life_impacted, 0), 0)'
@@ -294,25 +286,26 @@ class User extends Authenticatable
 
             $sum = (int) $query->sum(DB::raw($valueExpr));
             if ($sum > 0) {
+                $this->attributes['life_impacted_count'] = $sum;
+
                 return $sum;
             }
         }
 
-        static $hasImpacts = null;
-        if ($hasImpacts === null) {
-            $hasImpacts = Schema::hasTable('impacts');
-        }
-
-        if ($hasImpacts) {
-            static $hasImpactsStatus = null, $hasImpactsLife = null;
-            if ($hasImpactsStatus === null) {
-                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
-                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
-            }
-            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : '1';
+        if (Schema::hasTable('impacts')) {
+            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+            $hasImpactsValue = Schema::hasColumn('impacts', 'impact_value');
+            $impactsLifeExpr = ($hasImpactsLife && $hasImpactsValue)
+                ? 'COALESCE(NULLIF(life_impacted, 0), NULLIF(impact_value, 0), 1)'
+                : ($hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : ($hasImpactsValue ? 'COALESCE(NULLIF(impact_value, 0), 1)' : '1'));
 
             $query = DB::table('impacts')
                 ->where('user_id', (string) $this->id);
+
+            if (Schema::hasColumn('impacts', 'deleted_at')) {
+                $query->whereNull('deleted_at');
+            }
 
             if ($hasImpactsStatus) {
                 $query->where(function ($q): void {
@@ -322,11 +315,13 @@ class User extends Authenticatable
 
             $sum = (int) $query->sum(DB::raw($impactsLifeExpr));
             if ($sum > 0) {
+                $this->attributes['life_impacted_count'] = $sum;
+
                 return $sum;
             }
         }
 
-        return 0;
+        return (int) ($value ?? 0);
     }
 
     public function contactPosts(): HasMany
@@ -1138,6 +1133,24 @@ class User extends Authenticatable
         return ! $this->isFreeMember();
     }
 
+    public function isPro(): bool
+    {
+        if ($this->getAttribute('is_pro') !== null) {
+            return (bool) $this->getAttribute('is_pro');
+        }
+
+        if (isset($this->is_verified) && $this->is_verified !== null && (bool) $this->is_verified) {
+            return true;
+        }
+
+        $status = strtolower(trim((string) ($this->effective_membership_status ?? $this->membership_status ?? '')));
+        if ($status !== '') {
+            return ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+        }
+
+        return $this->isPaidMember();
+    }
+
     public function publicProfileArray(): array
     {
         $name = (string) ($this->getAttribute('name')
@@ -1269,5 +1282,41 @@ class User extends Authenticatable
         $totalPercentage = (int) round(($personalPct + $businessPct + $interestsPct + $socialPct + $privacyPct) / 5);
 
         return min(100, max(0, $totalPercentage));
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            UserTag::class,
+            'user_tag_assignments',
+            'user_id',
+            'tag_id'
+        )->withTimestamps();
+    }
+
+    public function tagAssignments(): HasMany
+    {
+        return $this->hasMany(UserTagAssignment::class, 'user_id');
+    }
+
+    public function hasTag(string $slug): bool
+    {
+        return $this->tags()->where('user_tags.slug', $slug)->exists();
+    }
+
+    public function assignTag(string|UserTag $tag): void
+    {
+        $tagModel = is_string($tag) ? UserTag::where('slug', $tag)->first() : $tag;
+        if ($tagModel && ! $this->tags()->where('user_tags.id', $tagModel->id)->exists()) {
+            $this->tags()->attach($tagModel->id);
+        }
+    }
+
+    public function removeTag(string|UserTag $tag): void
+    {
+        $tagModel = is_string($tag) ? UserTag::where('slug', $tag)->first() : $tag;
+        if ($tagModel) {
+            $this->tags()->detach($tagModel->id);
+        }
     }
 }

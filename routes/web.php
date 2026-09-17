@@ -85,7 +85,9 @@ use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
@@ -345,6 +347,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->whereUuid('user')
             ->whereUuid('introducedMember')
             ->name('users.introduced-members.destroy');
+
+        // User Tags & Team Member Management
+        Route::get('/user-tags', [UserTagController::class, 'index'])->name('user-tags.index');
+        Route::get('/user-tags/create', [UserTagController::class, 'create'])->name('user-tags.create');
+        Route::post('/user-tags', [UserTagController::class, 'store'])->name('user-tags.store');
+        Route::get('/user-tags/{userTag}', [UserTagController::class, 'show'])->name('user-tags.show');
+        Route::get('/user-tags/{userTag}/edit', [UserTagController::class, 'edit'])->name('user-tags.edit');
+        Route::put('/user-tags/{userTag}', [UserTagController::class, 'update'])->name('user-tags.update');
+        Route::delete('/user-tags/{userTag}', [UserTagController::class, 'destroy'])->name('user-tags.destroy');
+        Route::post('/user-tags/{userTag}/users', [UserTagController::class, 'assignUser'])->name('user-tags.users.assign');
+        Route::delete('/user-tags/{userTag}/users/{userId}', [UserTagController::class, 'removeUser'])->name('user-tags.users.remove');
+        Route::get('/user-tags/{userTag}/users-search', [UserTagController::class, 'searchUsers'])->name('user-tags.users.search');
 
         // Story Submissions Admin
         Route::get('/stories', [StorySubmissionsController::class, 'index'])->name('stories.index');
@@ -670,6 +684,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/notification-templates/{key}/edit', [NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
         Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'update'])->name('notification-templates.update');
         Route::get('/notification-templates/{key}/preview', [NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
+
+        // WhatsApp Templates Module
+        Route::get('/whatsapp-templates', [WhatsappTemplateController::class, 'index'])->name('whatsapp-templates.index');
+        Route::get('/whatsapp-templates/{id}', [WhatsappTemplateController::class, 'show'])->name('whatsapp-templates.show');
+        Route::get('/whatsapp-templates/{id}/edit', [WhatsappTemplateController::class, 'edit'])->name('whatsapp-templates.edit');
+        Route::put('/whatsapp-templates/{id}', [WhatsappTemplateController::class, 'update'])->name('whatsapp-templates.update');
+        Route::post('/whatsapp-templates/{id}/toggle-status', [WhatsappTemplateController::class, 'toggleStatus'])->name('whatsapp-templates.toggle-status');
+        Route::post('/whatsapp-templates/{id}/reveal-secret', [WhatsappTemplateController::class, 'revealSecret'])->name('whatsapp-templates.reveal-secret');
 
         // App Notifications & Mobile Navigation Showcase Module
         Route::get('/app-notifications', [AppNotificationAdminController::class, 'index'])->name('app-notifications.index');

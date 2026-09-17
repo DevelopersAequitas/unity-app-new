@@ -38,6 +38,8 @@ class UserMiniResource extends JsonResource
             'id' => $user->id,
             'name' => $name,
             'display_name' => $user->display_name ?? $name,
+            'first_name' => $user->first_name ?? null,
+            'last_name' => $user->last_name ?? null,
             'profile_photo_url' => $this->buildProfilePhotoUrl($user),
             'city' => $cityName,
             'company_name' => $businessName,

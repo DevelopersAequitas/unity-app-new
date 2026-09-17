@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\CircleCategoryLevel4;
+use App\Models\UserFollow;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +14,7 @@ class UserMiniResource extends JsonResource
     public function toArray($request): array
     {
         $user = $this->resource;
+        $authUser = auth('sanctum')->user() ?: ($request ? $request->user() : null);
 
         $name = $user->name
             ?? $user->display_name
@@ -24,15 +26,46 @@ class UserMiniResource extends JsonResource
 
         $subCategory = $this->resolveSubCategory($user);
 
+        $isFollowing = false;
+        if ($user?->getAttribute('is_following') !== null) {
+            $isFollowing = (bool) $user->getAttribute('is_following');
+        } elseif ($authUser && $user && Schema::hasTable('user_follows')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $user->id;
+            if ($authUserId !== $targetId) {
+                $isFollowing = UserFollow::query()
+                    ->where('follower_id', $authUserId)
+                    ->where('following_id', $targetId)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->exists();
+            }
+        }
+
+        $isPro = false;
+        if ($user) {
+            $rawVerified = $user->is_verified ?? null;
+            if ($rawVerified !== null && (bool) $rawVerified) {
+                $isPro = true;
+            } elseif (method_exists($user, 'isPaidMember')) {
+                $isPro = (bool) $user->isPaidMember();
+            } else {
+                $status = strtolower(trim((string) ($user->effective_membership_status ?? $user->membership_status ?? '')));
+                $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+        }
+
         return [
             'id' => $user->id,
             'name' => $name !== '' ? trim((string) $name) : null,
             'profile_image_url' => $this->buildProfileImageUrl(),
+            'profile_photo_url' => $this->buildProfileImageUrl(),
             'company_name' => $user->company_name,
             'city' => $user->city,
             'designation' => $user->designation ?? $user->job_title ?? null,
             'level4_category' => $subCategory,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
+            'is_following' => $isFollowing,
+            'is_pro' => $isPro,
         ];
     }
 

@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\RequestOtpRequest;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendFounderEngagementJob;
 use App\Jobs\SendPrMediaVisibilityWhatsappJob;
 use App\Jobs\SendProfileCompletionWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
-use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\RegistrationRequestReceivedMail;
 use App\Mail\WelcomePeerMail;
@@ -26,6 +26,7 @@ use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
+use App\Services\Auth\OtpService;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\Notifications\DailyHabitLoopService;
@@ -79,6 +80,9 @@ class AuthController extends BaseApiController
         $profilePhotoFile = $this->storeRegisterProfilePhoto($request, $fileUploadService);
         if ($profilePhotoFile) {
             $data['profile_photo_file_id'] = (string) $profilePhotoFile->id;
+            $data['profile_photo_id'] = (string) $profilePhotoFile->id;
+        } elseif (! empty($data['profile_photo_id']) && empty($data['profile_photo_file_id'])) {
+            $data['profile_photo_file_id'] = (string) $data['profile_photo_id'];
         }
 
         try {
@@ -680,36 +684,36 @@ class AuthController extends BaseApiController
             : null;
 
         $otherCategoryReq = null;
-        if ($user->id && $user->main_business_category_id && Schema::hasTable('custom_category_requests')) {
-            $otherCategoryReq = CustomCategoryRequest::query()
-                ->where('user_id', (string) $user->id)
-                ->where('level1_category_id', (int) $user->main_business_category_id)
-                ->latest()
-                ->first();
+        if (blank($businessCategory) && $user->id && Schema::hasTable('custom_category_requests')) {
+            $query = CustomCategoryRequest::query()->where('user_id', (string) $user->id);
+            if ($user->main_business_category_id) {
+                $query->where('level1_category_id', (int) $user->main_business_category_id);
+            }
+            $otherCategoryReq = $query->latest()->first();
         }
 
-        $otherName = $otherCategoryReq?->category_name ?? $user->business_sub_category ?? null;
+        $otherName = $otherCategoryReq?->category_name ?? (blank($businessCategory) ? $user->business_sub_category : null) ?? null;
+        $isOther = (bool) (blank($businessCategory) && $otherName !== null && $otherName !== '');
 
-        if (blank($businessCategory) && $otherName !== null && $otherName !== '') {
+        if ($isOther) {
             $payload['is_other_category'] = true;
             $payload['other_category_name'] = $otherName;
             $payload['custom_category_name'] = $otherName;
             $payload['business_sub_category'] = $otherName;
-            $payload['business_category'] = [
-                'id' => 'other',
-                'name' => $otherName,
-                'is_other' => true,
-            ];
+            $payload['business_category'] = null;
+            $payload['business_category_id'] = null;
         } else {
-            $payload['is_other_category'] = (bool) ($otherName !== null && $otherName !== '');
-            $payload['other_category_name'] = $otherName;
-            $payload['custom_category_name'] = $otherName;
+            $payload['is_other_category'] = false;
+            $payload['other_category_name'] = null;
+            $payload['custom_category_name'] = null;
+            $payload['business_sub_category'] = $user->business_sub_category;
             $payload['business_category'] = $businessCategory
                 ? [
                     'id' => (int) $businessCategory->id,
                     'name' => (string) $businessCategory->name,
                 ]
                 : null;
+            $payload['business_category_id'] = $businessCategory ? (int) $businessCategory->id : null;
         }
 
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
@@ -846,8 +850,10 @@ class AuthController extends BaseApiController
         $user->designation = $data['designation'] ?? null;
         $user->city_id = $data['city_id'] ?? null;
 
-        $this->fillIfUserColumnExists($user, 'profile_photo_file_id', $data['profile_photo_file_id'] ?? null);
-        $this->fillIfUserColumnExists($user, 'profile_photo_id', $data['profile_photo_file_id'] ?? null);
+        $profilePhotoIdToFill = $data['profile_photo_file_id'] ?? $data['profile_photo_id'] ?? null;
+        $this->fillIfUserColumnExists($user, 'profile_photo_file_id', $profilePhotoIdToFill);
+        $this->fillIfUserColumnExists($user, 'profile_photo_id', $profilePhotoIdToFill);
+        $this->fillIfUserColumnExists($user, 'dob', $data['dob'] ?? $data['DOB'] ?? $data['date_of_birth'] ?? null);
         $this->fillIfUserColumnExists($user, 'city', $data['city'] ?? null);
         $this->fillIfUserColumnExists($user, 'state', $data['state'] ?? null);
         $this->fillIfUserColumnExists($user, 'district', $data['district'] ?? null);
@@ -987,8 +993,41 @@ class AuthController extends BaseApiController
         }
     }
 
-    public function login(Request $request)
+    public function login(Request $request, ?OtpService $otpService = null)
     {
+        $hasPassword = $request->filled('password');
+        $hasOtp = $request->filled('otp');
+
+        // If email provided without password and without otp, trigger OTP send (seamless OTP login flow)
+        if (! $hasPassword && ! $hasOtp && $request->filled('email')) {
+            $otpService = $otpService ?? app(OtpService::class);
+            $result = $otpService->requestOtp(
+                (string) $request->input('email'),
+                (string) ($request->input('channel') ?? 'email'),
+                $request->ip()
+            );
+
+            $response = [
+                'success' => $result['success'],
+                'message' => $result['message'],
+            ];
+
+            if (isset($result['error_code'])) {
+                $response['error_code'] = $result['error_code'];
+            }
+
+            if (array_key_exists('data', $result)) {
+                $response['data'] = $result['data'];
+            }
+
+            return response()->json($response, $result['status']);
+        }
+
+        // If otp is provided, verify OTP and log in
+        if ($hasOtp) {
+            return $this->verifyOtp($request);
+        }
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -1078,91 +1117,28 @@ class AuthController extends BaseApiController
         ]);
     }
 
-    public function requestOtp(Request $request): JsonResponse
+    public function requestOtp(RequestOtpRequest $request, OtpService $otpService): JsonResponse
     {
-        $data = $request->validate([
-            'email' => ['required', 'email'],
-        ]);
+        $result = $otpService->requestOtp(
+            (string) $request->input('email'),
+            (string) ($request->input('channel') ?? 'email'),
+            $request->ip()
+        );
 
-        $user = User::where('email', $data['email'])->first();
+        $response = [
+            'success' => $result['success'],
+            'message' => $result['message'],
+        ];
 
-        if (! $user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You are not a registered user.',
-                'data' => null,
-            ], 404);
+        if (isset($result['error_code'])) {
+            $response['error_code'] = $result['error_code'];
         }
 
-        if (($user->status ?? 'active') !== 'active') {
-            $message = 'Your account is inactive. Please contact support.';
-            if ($user->status === 'inactive') {
-                $message = 'Your registration request is under review. You will receive an email once it is approved.';
-            } elseif ($user->status === 'rejected') {
-                $message = 'Your registration request has been rejected. Please contact support for further details.';
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => $message,
-                'data' => null,
-            ], 403);
+        if (array_key_exists('data', $result)) {
+            $response['data'] = $result['data'];
         }
 
-        $otp = (string) random_int(1000, 9999);
-
-        OtpCode::create([
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'purpose' => 'login_otp',
-            'code' => Hash::make($otp),
-            'expires_at' => now()->addMinutes((int) config('auth.otp_expire_minutes', 10)),
-            'used_at' => null,
-        ]);
-
-        $mailable = new LoginOtpMail($otp, $user);
-
-        try {
-            Mail::to($user->email)->send($mailable);
-
-            app(EmailLogService::class)->logMailableSent($mailable, [
-                'user_id' => (string) $user->id,
-                'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
-                'template_key' => 'login_otp',
-                'source_module' => 'Auth',
-                'related_type' => User::class,
-                'related_id' => (string) $user->id,
-                'payload' => [
-                    'purpose' => 'login_otp',
-                ],
-            ]);
-        } catch (\Throwable $exception) {
-            app(EmailLogService::class)->logMailableFailed($mailable, [
-                'user_id' => (string) $user->id,
-                'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
-                'template_key' => 'login_otp',
-                'source_module' => 'Auth',
-                'related_type' => User::class,
-                'related_id' => (string) $user->id,
-                'payload' => [
-                    'purpose' => 'login_otp',
-                ],
-            ], $exception);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to send OTP email due to a mail server issue. Please try again later or request OTP via WhatsApp.',
-                'data' => null,
-            ], 503);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'OTP sent successfully.',
-            'data' => null,
-        ]);
+        return response()->json($response, $result['status']);
     }
 
     public function verifyOtp(Request $request): JsonResponse

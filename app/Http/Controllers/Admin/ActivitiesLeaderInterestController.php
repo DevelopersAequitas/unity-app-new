@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LeaderInterestSubmission;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -119,6 +120,7 @@ class ActivitiesLeaderInterestController extends Controller
             'leader_interest_submissions.user_id',
             Schema::hasColumn('leader_interest_submissions', 'member_id') ? 'leader_interest_submissions.member_id' : null,
         ]));
+        ActivityUserFilter::applyToActivityQuery($query, 'leader_interest_submissions.user_id', 'peer');
 
         $items = $query
             ->orderByDesc('created_at')

@@ -60,6 +60,33 @@ class IntroducedPeerService
     }
 
     /**
+     * Get paginated peers introduced by the given user, sorted by introduced_count DESC.
+     */
+    public function getIntroducedPeersWithCount(User $user, int $perPage = 20, int $page = 1)
+    {
+        return User::query()
+            ->where('introduced_by', $user->id)
+            ->whereNull('deleted_at')
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->withCount(['introducedPeers as introduced_count' => function ($q) {
+                $q->whereNull('deleted_at');
+            }])
+            ->with([
+                'city:id,name,country,country_code',
+                'profilePhotoFile',
+                'coverPhotoFile',
+                'introducedBy',
+                'level4Category:id,name',
+                'businessCategory:id,name',
+            ])
+            ->orderByDesc('introduced_count')
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    /**
      * Introduce a peer.
      *
      * @param  User  $user  The authenticated user who is introducing.
@@ -99,37 +126,39 @@ class IntroducedPeerService
             // Always update introducer's count and persist
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
             $lockedUser->members_introduced_count = $count;
-            $lockedUser->save();
+            $lockedUser->saveQuietly();
 
             $user->members_introduced_count = $count;
 
             // Sync user milestones
             $this->milestoneSyncService->sync($lockedUser);
-
-            // Explicitly calculate and award milestone badges in user_milestone_badges
-            app(MilestoneBadgeService::class)->calculateForUser($lockedUser);
         });
 
         // Trigger introduction creative rendering, timeline post and notifications if newly introduced
         if ($isNewIntroduction) {
             $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
 
-            // Generate and store milestone creative if count matches a configured milestone required_count
+            // Generate and store milestone creative ONLY if count matches a configured milestone required_count
             $creative = null;
-            try {
-                $creative = $this->introductionCreativeService->handleIntroductionCreative(
-                    $user,
-                    $introducedUser,
-                    $count,
-                    $introductionRequestId
-                );
-            } catch (Throwable $creativeEx) {
-                Log::error('[IntroducedPeerService] Failed storing introduction creative: '.$creativeEx->getMessage(), [
-                    'user_id' => $user->id,
-                    'introduced_id' => $introducedUser->id,
-                    'exception' => $creativeEx,
-                ]);
+            if ($this->introductionCreativeService->isConfiguredMilestone($count)) {
+                try {
+                    $creative = $this->introductionCreativeService->handleIntroductionCreative(
+                        $user,
+                        $introducedUser,
+                        $count,
+                        $introductionRequestId
+                    );
+                } catch (Throwable $creativeEx) {
+                    Log::error('[IntroducedPeerService] Failed storing introduction creative: '.$creativeEx->getMessage(), [
+                        'user_id' => $user->id,
+                        'introduced_id' => $introducedUser->id,
+                        'exception' => $creativeEx,
+                    ]);
+                }
             }
+
+            // Explicitly calculate and award milestone badges in user_milestone_badges
+            app(MilestoneBadgeService::class)->calculateForUser($user);
 
             // Trigger milestone WhatsApp notification workflow for exact milestone counts
             try {

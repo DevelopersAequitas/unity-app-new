@@ -121,6 +121,127 @@ class MemberListApiTest extends TestCase
         $this->assertSame(25, $memberPayload['life_impacted_count']);
     }
 
+    public function test_member_show_returns_life_impacted_count_from_users_table(): void
+    {
+        $this->createSchema();
+
+        $authUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Auth',
+            'display_name' => 'Auth User',
+            'email' => 'auth-show@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        $member = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Target',
+            'display_name' => 'Target Member',
+            'email' => 'target-show@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 15,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson("/api/v1/members/{$member->id}")
+            ->assertOk();
+
+        $this->assertSame(15, $response->json('data.life_impacted_count'));
+    }
+
+    public function test_member_show_returns_life_impacted_count_from_history_fallback(): void
+    {
+        $this->createSchema();
+
+        $authUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Auth',
+            'display_name' => 'Auth User',
+            'email' => 'auth-show-fallback@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        $member = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Fallback Target',
+            'display_name' => 'Fallback Member',
+            'email' => 'fallback-show@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        DB::table('life_impact_histories')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $member->id,
+            'impact_value' => 0,
+            'life_impacted' => 30,
+            'status' => 'approved',
+            'counted_in_total' => true,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson("/api/v1/members/{$member->id}")
+            ->assertOk();
+
+        $this->assertSame(30, $response->json('data.life_impacted_count'));
+    }
+
+    public function test_member_show_returns_life_impacted_count_from_impacts_fallback(): void
+    {
+        $this->createSchema();
+
+        $authUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Auth',
+            'display_name' => 'Auth User',
+            'email' => 'auth-show-impacts@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        $member = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Impacts Target',
+            'display_name' => 'Impacts Member',
+            'email' => 'impacts-show@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        if (! Schema::hasTable('impacts')) {
+            Schema::create('impacts', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->integer('life_impacted')->default(0);
+                $table->integer('impact_value')->default(0);
+                $table->string('status')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
+
+        DB::table('impacts')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $member->id,
+            'life_impacted' => 18,
+            'impact_value' => 18,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson("/api/v1/members/{$member->id}")
+            ->assertOk();
+
+        $this->assertSame(18, $response->json('data.life_impacted_count'));
+    }
+
     public function test_members_index_returns_contact_visibility_and_connection_count(): void
     {
         $this->createSchema();
@@ -178,7 +299,7 @@ class MemberListApiTest extends TestCase
             'is_approved' => false,
         ]);
 
-        Sanctum::actingAs($authUser);
+        Sanctum::actingAs($otherUser);
 
         $response = $this->getJson('/api/v1/members?per_page=10')
             ->assertOk();
@@ -307,6 +428,7 @@ class MemberListApiTest extends TestCase
         });
 
         Schema::create('connections', function (Blueprint $table): void {
+            $table->uuid('id')->nullable();
             $table->uuid('requester_id');
             $table->uuid('addressee_id');
             $table->boolean('is_approved')->default(false);

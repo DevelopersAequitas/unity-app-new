@@ -144,7 +144,19 @@ class PostController extends BaseApiController
 
         $authors = User::query()
             ->whereIn('id', $authorIds)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'profile_photo_file_id'])
+            ->with(['level4Category', 'businessCategory', 'mainBusinessCategory'])
+            ->get([
+                'id',
+                'display_name',
+                'first_name',
+                'last_name',
+                'company_name',
+                'designation',
+                'profile_photo_file_id',
+                'business_category_id',
+                'main_business_category_id',
+                'business_sub_category',
+            ])
             ->keyBy(fn (User $author) => (string) $author->id);
 
         $circles = Circle::query()
@@ -263,6 +275,16 @@ class PostController extends BaseApiController
                     'display_name' => $author->display_name,
                     'first_name' => $author->first_name,
                     'last_name' => $author->last_name,
+                    'company_name' => $author->company_name ?: null,
+                    'designation' => $author->designation ?? null,
+                    'level4_category' => $author->level4Category?->name
+                        ?? $author->business_sub_category
+                        ?? $author->businessCategory?->name
+                        ?? $author->mainBusinessCategory?->name
+                        ?? null,
+                    'business_sub_category' => $author->level4Category?->name
+                        ?? $author->business_sub_category
+                        ?? null,
                     'profile_photo_url' => $author->profile_photo_file_id
                         ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
@@ -698,7 +720,7 @@ class PostController extends BaseApiController
 
     public function show(Request $request, string $id)
     {
-        $post = Post::with(['user', 'circle'])
+        $post = Post::with(['user.level4Category', 'user.businessCategory', 'user.mainBusinessCategory', 'circle'])
             ->withCount(['likes', 'comments', 'saves'])
             ->withExists([
                 'likes as is_liked_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
@@ -725,6 +747,16 @@ class PostController extends BaseApiController
                 'display_name' => $post->user->display_name,
                 'first_name' => $post->user->first_name,
                 'last_name' => $post->user->last_name,
+                'company_name' => $post->user->company_name ?: null,
+                'designation' => $post->user->designation ?? null,
+                'level4_category' => $post->user->level4Category?->name
+                    ?? $post->user->business_sub_category
+                    ?? $post->user->businessCategory?->name
+                    ?? $post->user->mainBusinessCategory?->name
+                    ?? null,
+                'business_sub_category' => $post->user->level4Category?->name
+                    ?? $post->user->business_sub_category
+                    ?? null,
                 'profile_photo_url' => $post->user->profile_photo_url,
             ] : null,
             'circle' => $post->relationLoaded('circle') && $post->circle ? [

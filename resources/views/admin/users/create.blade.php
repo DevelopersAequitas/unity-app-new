@@ -911,8 +911,7 @@
                         };
                     },
                     cache: true
-                },
-                minimumInputLength: 1
+                }
             }).on('select2:select', function (e) {
                 const data = e.params.data;
                 const name = data.name || data.text || '';

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -169,6 +170,7 @@ class LifeImpactController extends Controller
 
         AdminCircleScope::applyToUsersQuery($query, auth('admin')->user());
         app(IndustryScopeService::class)->applyToUsersQuery($query, auth('admin')->user());
+        ActivityUserFilter::applyToUserQuery($query);
 
         $search = trim((string) ($filters['q'] ?? $filters['search'] ?? ''));
         $circleId = (string) ($filters['circle_id'] ?? 'all');

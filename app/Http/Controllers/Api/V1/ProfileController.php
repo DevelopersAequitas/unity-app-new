@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Profile\UpdateProfileRequest;
+use App\Http\Resources\UserProfileResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,7 @@ class ProfileController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profile fetched successfully',
-            'data' => $user,
+            'data' => new UserProfileResource($user),
         ]);
     }
 
@@ -99,7 +100,7 @@ class ProfileController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profile updated successfully',
-            'data' => $user,
+            'data' => new UserProfileResource($user),
         ]);
     }
 

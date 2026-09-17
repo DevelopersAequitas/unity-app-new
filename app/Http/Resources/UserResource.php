@@ -9,11 +9,15 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\Connection;
 use App\Models\CustomCategoryRequest;
+use App\Models\JoinedCircleCategory;
 use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
+use App\Models\UserFollow;
 use App\Services\ProfileMatchService;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -32,16 +36,95 @@ class UserResource extends JsonResource
         $profileVideoId = $this->profile_video_id;
         $profileVideoUrl = $this->resolveProfileVideoUrl();
 
+        $circleMemberships = $this->resolveCircleMemberships();
+        $circleCount = count($circleMemberships);
+        $isMultiCircle = $circleCount > 1;
+
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
+        $normalizedStatus = strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)));
+
+        if (in_array($normalizedStatus, ['free_peer', 'free_trial_peer', 'circle_peer', 'multi_circle_peer', 'only_unity_peer', 'global_peer', ''], true)) {
+            if ($circleCount > 1) {
+                $membershipStatus = 'multi_circle_peer';
+            } elseif ($circleCount === 1) {
+                $membershipStatus = 'circle_peer';
+            } elseif (in_array($normalizedStatus, ['circle_peer', 'multi_circle_peer'], true)) {
+                $membershipStatus = 'free_peer';
+            }
+        }
+
         $resolvedCircle = $this->resolvePrimaryCircleContext();
         $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
 
         $resolvedCity = null;
-        $authUser = auth('sanctum')->user();
+        $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
         $isBookmark = false;
         if ($authUser) {
             $bookmarks = $authUser->bookmarks ?? [];
             $isBookmark = in_array((string) $this->id, $bookmarks, true);
+        }
+
+        $isConnected = false;
+        $connectionStatus = 'none';
+        $isRequested = false;
+
+        if ($this->getAttribute('is_connected') !== null) {
+            $isConnected = (bool) $this->getAttribute('is_connected');
+            $connectionStatus = $this->getAttribute('connection_status') ?? ($isConnected ? 'connected' : 'none');
+            $isRequested = (bool) $this->getAttribute('is_requested');
+        } elseif ($authUser && Schema::hasTable('connections')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $this->id;
+
+            if ($authUserId === $targetId) {
+                $isConnected = false;
+                $connectionStatus = 'self';
+            } else {
+                $connection = Connection::query()
+                    ->where(function ($q) use ($authUserId, $targetId) {
+                        $q->where('requester_id', $authUserId)->where('addressee_id', $targetId);
+                    })
+                    ->orWhere(function ($q) use ($authUserId, $targetId) {
+                        $q->where('addressee_id', $authUserId)->where('requester_id', $targetId);
+                    })
+                    ->first();
+
+                if ($connection) {
+                    $isConnected = (bool) $connection->is_approved;
+                    $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+                    $connectionStatus = $isConnected
+                        ? 'connected'
+                        : ($isRequested ? 'pending_sent' : 'pending_received');
+                }
+            }
+        }
+
+        $isFollowing = false;
+        if ($this->getAttribute('is_following') !== null) {
+            $isFollowing = (bool) $this->getAttribute('is_following');
+        } elseif ($authUser && Schema::hasTable('user_follows')) {
+            $authUserId = (string) $authUser->id;
+            $targetId = (string) $this->id;
+
+            if ($authUserId !== $targetId) {
+                $isFollowing = UserFollow::query()
+                    ->where('follower_id', $authUserId)
+                    ->where('following_id', $targetId)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->exists();
+            }
+        }
+
+        $isPro = false;
+        if ($this->getAttribute('is_pro') !== null) {
+            $isPro = (bool) $this->getAttribute('is_pro');
+        } elseif (isset($this->is_verified) && $this->is_verified !== null && (bool) $this->is_verified) {
+            $isPro = true;
+        } elseif (method_exists($this->resource, 'isPaidMember')) {
+            $isPro = (bool) $this->resource->isPaidMember();
+        } else {
+            $status = strtolower(trim((string) ($membershipStatus ?? '')));
+            $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
         }
         if ($this->relationLoaded('city') && $this->city) {
             $resolvedCity = $this->city;
@@ -50,14 +133,15 @@ class UserResource extends JsonResource
         }
 
         $otherCategoryReq = null;
-        if (blank($this->business_category_id) && $this->id && $this->main_business_category_id && Schema::hasTable('custom_category_requests')) {
-            $otherCategoryReq = CustomCategoryRequest::query()
-                ->where('user_id', (string) $this->id)
-                ->where('level1_category_id', (int) $this->main_business_category_id)
-                ->latest()
-                ->first();
+        if (blank($this->business_category_id) && $this->id && Schema::hasTable('custom_category_requests')) {
+            $query = CustomCategoryRequest::query()->where('user_id', (string) $this->id);
+            if ($this->main_business_category_id) {
+                $query->where('level1_category_id', (int) $this->main_business_category_id);
+            }
+            $otherCategoryReq = $query->latest()->first();
         }
-        $otherCategoryName = $otherCategoryReq?->category_name ?? $this->business_sub_category ?? null;
+        $otherCategoryName = $otherCategoryReq?->category_name ?? (blank($this->business_category_id) ? $this->business_sub_category : null) ?? null;
+        $isOtherCategory = blank($this->business_category_id) && ($otherCategoryName !== null && $otherCategoryName !== '');
 
         $welcomeCreativeUrl = $this->resolveWelcomeCreativeUrl();
 
@@ -73,23 +157,22 @@ class UserResource extends JsonResource
                 'url' => $profileVideoUrl,
             ] : null,
             'profile_video_url' => $profileVideoUrl,
-            'intro_video_id' => $profileVideoId,
-            'intro_video_url' => $profileVideoUrl,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'display_name' => $this->display_name,
+            'name' => $this->display_name ?: trim(($this->first_name ?? '').' '.($this->last_name ?? '')),
             'company_name' => $this->company_name,
             'designation' => $this->designation,
             'email' => $this->email,
             'phone' => $this->phone,
             'introduced_by' => $this->introduced_by,
+            'introduced_count' => (int) ($this->introduced_count ?? ($this->relationLoaded('introducedPeers') ? $this->introducedPeers->count() : ($this->members_introduced_count ?? 0))),
             'introduced_by_user' => $this->relationLoaded('introducedBy') && $this->introducedBy ? [
                 'id' => $this->introducedBy->id,
                 'name' => $this->introducedBy->display_name ?: trim(($this->introducedBy->first_name ?? '').' '.($this->introducedBy->last_name ?? '')),
                 'profile_photo_url' => $this->introducedBy->profile_photo_url,
             ] : null,
             'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
-            'city_of_residence' => $this->city_of_residence,
             'membership_status' => $membershipStatus,
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
@@ -98,8 +181,11 @@ class UserResource extends JsonResource
                 'unity_peer' => 'Green Member',
                 'chartered_peer' => 'Premium Green Member',
                 'charter_investor' => 'Green Investor',
+                'circle_peer' => 'Circle Peer',
+                'multi_circle_peer' => 'Multi Circle Peer',
                 default => Str::headline(str_replace('_', ' ', (string) $membershipStatus)),
             },
+            'is_multi_circle_peer' => $isMultiCircle,
             'membership_starts_at' => $this->membership_starts_at ?? $this->membership_start_date,
             'membership_ends_at' => $this->membership_ends_at ?? $this->membership_expiry ?? $this->membership_end_date,
             'zoho_plan_code' => $this->zoho_plan_code,
@@ -137,15 +223,30 @@ class UserResource extends JsonResource
                         ] : null,
                     ];
                 }),
-            'circle_memberships' => $this->resolveCircleMemberships(),
+            'circle_memberships' => $circleMemberships,
             'contact_visibility' => $this->contact_visibility ?? 'public',
             'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
-            'posts' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
             'posts_count' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
+            'total_life_impact' => (int) ($this->life_impacted_count ?? 0),
+            'lifeImpactedCount' => (int) ($this->life_impacted_count ?? 0),
+            'impact_score' => (int) ($this->life_impacted_count ?? 0),
+            'lives_impacted' => (int) ($this->life_impacted_count ?? 0),
+            'lives_impacted_count' => (int) ($this->life_impacted_count ?? 0),
+            'badges_count' => $this->resolveBadgesCount(),
+            'my_badges_count' => $this->resolveBadgesCount(),
+            'p2p_meetings_count' => $this->resolveP2pMeetingsCount(),
+            'p2p_count' => $this->resolveP2pMeetingsCount(),
+            'referrals_count' => $this->resolveReferralsCount(),
+            'given_referrals_count' => $this->resolveGivenReferralsCount(),
+            'received_referrals_count' => $this->resolveReceivedReferralsCount(),
+            'business_deals_count' => $this->resolveBusinessDealsCount(),
+            'deals_count' => $this->resolveBusinessDealsCount(),
+            'given_business_deals_count' => $this->resolveGivenBusinessDealsCount(),
+            'received_business_deals_count' => $this->resolveReceivedBusinessDealsCount(),
             'business_type' => $this->business_type,
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
@@ -166,9 +267,9 @@ class UserResource extends JsonResource
             'social_links' => $this->resolveSocialLinks(),
             'media' => $this->mediaValue(),
             'profile_photo_url' => $profilePhotoUrl,
+            'profile_image' => $profilePhotoUrl,
             'cover_photo_url' => $coverPhotoUrl,
             'welcome_creative_url' => $welcomeCreativeUrl,
-            'profile_card_image_url' => $welcomeCreativeUrl,
             'address' => $this->address ?? null,
             'state' => $this->state ?? null,
             'country' => $this->country ?? null,
@@ -185,13 +286,20 @@ class UserResource extends JsonResource
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
             'is_bookmark' => $isBookmark,
-            'is_other_category' => (bool) ($otherCategoryName !== null && $otherCategoryName !== ''),
-            'other_category_name' => $otherCategoryName,
-            'custom_category_name' => $otherCategoryName,
-            'business_sub_category' => $otherCategoryName ?? $this->business_sub_category,
-            'business_category' => ($otherCategoryName !== null && $otherCategoryName !== '' && blank($this->businessCategory))
-                ? ['id' => 'other', 'name' => $otherCategoryName, 'is_other' => true]
-                : ($this->relationLoaded('businessCategory') && $this->businessCategory ? ['id' => $this->businessCategory->id, 'name' => $this->businessCategory->name] : null),
+            'is_connected' => (bool) $isConnected,
+            'is_following' => (bool) $isFollowing,
+            'is_pro' => (bool) $isPro,
+            'connection_status' => $connectionStatus,
+            'is_requested' => (bool) $isRequested,
+            'is_other_category' => (bool) $isOtherCategory,
+            'other_category_name' => $isOtherCategory ? $otherCategoryName : null,
+            'business_sub_category' => $isOtherCategory ? $otherCategoryName : $this->business_sub_category,
+            'business_category' => (! $isOtherCategory && (($this->relationLoaded('businessCategory') && $this->businessCategory) || ($this->relationLoaded('level4Category') && $this->level4Category)))
+                ? [
+                    'id' => ($this->relationLoaded('businessCategory') && $this->businessCategory ? $this->businessCategory->id : $this->level4Category->id),
+                    'name' => ($this->relationLoaded('businessCategory') && $this->businessCategory ? $this->businessCategory->name : $this->level4Category->name),
+                ]
+                : null,
             'story_link' => rescue(
                 fn () => SmeBusinessStorySubmission::where('user_id', $this->id)
                     ->whereRaw('LOWER(status) = ?', ['approved'])
@@ -334,6 +442,37 @@ class UserResource extends JsonResource
             ->groupBy('circle_id')
             ->map(fn ($items) => $items->first());
 
+        $joinedCategoriesByMemberId = collect();
+        $joinedCategoriesByCircleId = collect();
+
+        if (Schema::hasTable('joined_circle_categories')) {
+            $joinedRows = JoinedCircleCategory::query()
+                ->where(function ($query) use ($memberships) {
+                    $query->whereIn('circle_member_id', $memberships->pluck('id')->filter()->values())
+                        ->orWhere(function ($q) use ($memberships) {
+                            $q->where('user_id', (string) $this->id)
+                                ->whereIn('circle_id', $memberships->pluck('circle_id')->filter()->values());
+                        });
+                })
+                ->with([
+                    'level1Category:id,name',
+                    'level2Category:id,name',
+                    'level3Category:id,name',
+                    'level4Category:id,name',
+                ])
+                ->orderByDesc('updated_at')
+                ->get();
+
+            foreach ($joinedRows as $row) {
+                if ($row->circle_member_id && ! $joinedCategoriesByMemberId->has((string) $row->circle_member_id)) {
+                    $joinedCategoriesByMemberId->put((string) $row->circle_member_id, $row);
+                }
+                if ($row->circle_id && ! $joinedCategoriesByCircleId->has((string) $row->circle_id)) {
+                    $joinedCategoriesByCircleId->put((string) $row->circle_id, $row);
+                }
+            }
+        }
+
         $selectionByCircleMemberId = collect();
         if (Schema::hasTable('circle_member_category_selections')) {
             $selectionByCircleMemberId = CircleMemberCategorySelection::query()
@@ -368,6 +507,8 @@ class UserResource extends JsonResource
 
         return $memberships->map(function ($membership) use (
             $subscriptionMap,
+            $joinedCategoriesByMemberId,
+            $joinedCategoriesByCircleId,
             $selectionByCircleMemberId,
             $level1ById,
             $level2ById,
@@ -376,10 +517,17 @@ class UserResource extends JsonResource
         ): array {
             $subscription = $subscriptionMap->get((string) $membership->circle_id);
             $selection = $selectionByCircleMemberId->get((string) $membership->id);
-            $level1 = $selection ? $level1ById->get($selection->level1_category_id) : null;
-            $level2 = $selection ? $level2ById->get($selection->level2_category_id) : null;
-            $level3 = $selection ? $level3ById->get($selection->level3_category_id) : null;
-            $level4 = $selection ? $level4ById->get($selection->level4_category_id) : null;
+            $joinedSelection = $joinedCategoriesByMemberId->get((string) $membership->id)
+                ?? $joinedCategoriesByCircleId->get((string) $membership->circle_id);
+
+            $level1 = $joinedSelection?->level1Category
+                ?? ($selection ? $level1ById->get($selection->level1_category_id) : null);
+            $level2 = $joinedSelection?->level2Category
+                ?? ($selection ? $level2ById->get($selection->level2_category_id) : null);
+            $level3 = $joinedSelection?->level3Category
+                ?? ($selection ? $level3ById->get($selection->level3_category_id) : null);
+            $level4 = $joinedSelection?->level4Category
+                ?? ($selection ? $level4ById->get($selection->level4_category_id) : null);
 
             return [
                 'circle_member_id' => $membership->id,
@@ -488,9 +636,23 @@ class UserResource extends JsonResource
             $storedLinks = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
         }
 
+        $columnMap = [
+            'linkedin' => 'linkedin_profile',
+            'facebook' => 'facebook_profile',
+            'instagram' => 'instagram_handle',
+            'twitter' => 'twitter_handle',
+            'youtube' => 'youtube_channel',
+            'website' => 'other_website',
+        ];
+
         $links = [];
         foreach ($platforms as $platform) {
             $value = is_array($storedLinks) ? ($storedLinks[$platform] ?? null) : null;
+
+            if (blank($value)) {
+                $column = $columnMap[$platform] ?? null;
+                $value = $column ? $this->getAttribute($column) : null;
+            }
 
             if (blank($value)) {
                 $columnValue = $this->getAttribute($platform);
@@ -520,5 +682,206 @@ class UserResource extends JsonResource
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);
             })->count());
+    }
+
+    protected function resolveBadgesCount(): int
+    {
+        if (isset($this->badges_count)) {
+            return (int) $this->badges_count;
+        }
+
+        if (isset($this->my_badges_count)) {
+            return (int) $this->my_badges_count;
+        }
+
+        if (! Schema::hasTable('user_milestone_badges')) {
+            return 0;
+        }
+
+        return (int) DB::table('user_milestone_badges')
+            ->where('user_id', $this->id)
+            ->where('status', 'earned')
+            ->count();
+    }
+
+    protected function resolveP2pMeetingsCount(): int
+    {
+        if (isset($this->p2p_meetings_count)) {
+            return (int) $this->p2p_meetings_count;
+        }
+
+        if (isset($this->p2p_count)) {
+            return (int) $this->p2p_count;
+        }
+
+        if (! Schema::hasTable('p2p_meetings')) {
+            return 0;
+        }
+
+        $query = DB::table('p2p_meetings')
+            ->where(function ($q) {
+                $q->where('initiator_user_id', $this->id)
+                    ->orWhere('peer_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('p2p_meetings', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('p2p_meetings', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReferralsCount(): int
+    {
+        if (isset($this->referrals_count)) {
+            return (int) $this->referrals_count;
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            return 0;
+        }
+
+        $query = DB::table('referrals')
+            ->where(function ($q) {
+                $q->where('from_user_id', $this->id)
+                    ->orWhere('to_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveGivenReferralsCount(): int
+    {
+        if (isset($this->given_referrals_count)) {
+            return (int) $this->given_referrals_count;
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            return 0;
+        }
+
+        $query = DB::table('referrals')->where('from_user_id', $this->id);
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReceivedReferralsCount(): int
+    {
+        if (isset($this->received_referrals_count)) {
+            return (int) $this->received_referrals_count;
+        }
+
+        if (! Schema::hasTable('referrals')) {
+            return 0;
+        }
+
+        $query = DB::table('referrals')->where('to_user_id', $this->id);
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('referrals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveBusinessDealsCount(): int
+    {
+        if (isset($this->business_deals_count)) {
+            return (int) $this->business_deals_count;
+        }
+
+        if (isset($this->deals_count)) {
+            return (int) $this->deals_count;
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            return 0;
+        }
+
+        $query = DB::table('business_deals')
+            ->where(function ($q) {
+                $q->where('from_user_id', $this->id)
+                    ->orWhere('to_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveGivenBusinessDealsCount(): int
+    {
+        if (isset($this->given_business_deals_count)) {
+            return (int) $this->given_business_deals_count;
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            return 0;
+        }
+
+        $query = DB::table('business_deals')->where('from_user_id', $this->id);
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReceivedBusinessDealsCount(): int
+    {
+        if (isset($this->received_business_deals_count)) {
+            return (int) $this->received_business_deals_count;
+        }
+
+        if (! Schema::hasTable('business_deals')) {
+            return 0;
+        }
+
+        $query = DB::table('business_deals')->where('to_user_id', $this->id);
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
     }
 }

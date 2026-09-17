@@ -32,6 +32,7 @@ class City extends Model
         'id',
         'name',
         'state',
+        'state_code',
         'district',
         'country',
         'country_code',
@@ -75,7 +76,7 @@ class City extends Model
         return $this->attributes['state_name'] ?? $this->attributes['state'] ?? null;
     }
 
-    private static array $stateCodes = [
+    public static array $stateCodes = [
         'andhra pradesh' => 'AP',
         'arunachal pradesh' => 'AR',
         'assam' => 'AS',
@@ -114,15 +115,40 @@ class City extends Model
         'puducherry' => 'PY',
     ];
 
+    public function getStateCodeAttribute(): ?string
+    {
+        return $this->attributes['state_code'] ?? null;
+    }
+
     public function getFormattedLocationAttribute(): string
     {
-        $cityName = $this->name;
-        $stateName = $this->state;
-        $stateKey = strtolower(trim($stateName ?? ''));
-        $stateCode = self::$stateCodes[$stateKey] ?? strtoupper(substr($stateName ?? '', 0, 2));
-        $countryCode = strtoupper($this->country_code ?? 'IN');
+        $cityName = trim((string) ($this->name ?? $this->city_name ?? ''));
+        $stateName = trim((string) ($this->state ?? ''));
+        $countryCode = strtoupper(trim((string) ($this->country_code ?? '')));
 
-        return "{$cityName}, {$stateCode}, {$countryCode}";
+        if ($countryCode === '' && ! empty($this->country)) {
+            $countryCode = strtoupper(substr(trim((string) $this->country), 0, 2));
+        }
+
+        $stateCode = $this->state_code ? strtoupper(trim((string) $this->state_code)) : null;
+        if (empty($stateCode) && $stateName !== '') {
+            $stateKey = strtolower($stateName);
+            if (isset(self::$stateCodes[$stateKey])) {
+                $stateCode = self::$stateCodes[$stateKey];
+            } elseif (strlen($stateName) <= 3) {
+                $stateCode = strtoupper($stateName);
+            } else {
+                $stateCode = $stateName;
+            }
+        }
+
+        $parts = array_values(array_filter([
+            $cityName,
+            $stateCode,
+            $countryCode ?: null,
+        ], fn ($val) => $val !== null && $val !== ''));
+
+        return implode(', ', $parts);
     }
 
     public function getCountryNameAttribute(): ?string

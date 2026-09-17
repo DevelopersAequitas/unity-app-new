@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -153,6 +154,55 @@ class P2pMeetingController extends BaseApiController
                 ]);
             }
 
+            $impactPoints = $this->getActivityImpactReward('p2p_meeting');
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                $impactPoints,
+                'p2p_meeting',
+                'Completed a 1-to-1 peer meeting',
+                (string) $authUser->id,
+                (string) $meeting->id,
+                'Life impact added for P2P meeting activity.',
+                [
+                    'meeting_date' => $meeting->meeting_date,
+                    'meeting_place' => $meeting->meeting_place,
+                    'remarks' => $meeting->remarks,
+                    'peer_user_id' => $meeting->peer_user_id ? (string) $meeting->peer_user_id : null,
+                ]
+            );
+
+            if ($meeting->peer_user_id && (string) $meeting->peer_user_id !== (string) $authUser->id) {
+                $this->increaseLifeImpact(
+                    (string) $meeting->peer_user_id,
+                    $impactPoints,
+                    'p2p_meeting',
+                    'Completed a 1-to-1 peer meeting',
+                    (string) $authUser->id,
+                    (string) $meeting->id,
+                    'Life impact added for P2P meeting activity.',
+                    [
+                        'meeting_date' => $meeting->meeting_date,
+                        'meeting_place' => $meeting->meeting_place,
+                        'remarks' => $meeting->remarks,
+                        'initiator_user_id' => (string) $authUser->id,
+                    ]
+                );
+            }
+
+            $coinsEarned = $authCoinsLedger ? $authCoinsLedger->amount : 0;
+            $coinBalanceAfter = $authCoinsLedger ? $authCoinsLedger->balance_after : 0;
+
+            $rewardData = $this->formatActivityRewardPayload(
+                $coinsEarned,
+                $coinBalanceAfter,
+                $impactPoints,
+                $updatedLifeImpact
+            );
+
+            foreach ($rewardData as $key => $val) {
+                $meeting->setAttribute($key, $val);
+            }
+
             $meeting->setAttribute('media', $this->expandP2pMedia($meeting->media));
 
             $this->createPostForP2pMeeting($meeting);
@@ -229,8 +279,10 @@ class P2pMeetingController extends BaseApiController
         $attributes['post_id'] = $meeting->getAttribute('post_id')
             ?? $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id);
 
-        if ($meeting->getAttribute('coins') !== null) {
-            $attributes['coins'] = $meeting->getAttribute('coins');
+        foreach (['coins', 'life_impact'] as $rewardKey) {
+            if ($meeting->getAttribute($rewardKey) !== null) {
+                $attributes[$rewardKey] = $meeting->getAttribute($rewardKey);
+            }
         }
 
         return $this->formatP2pMeetingTimestamps($attributes);
@@ -400,9 +452,24 @@ class P2pMeetingController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $items = collect($paginator->items())->map(function (P2pMeeting $meeting): array {
+        $resolver = app(OtherUserDetailsResolver::class);
+        $items = collect($paginator->items())->map(function (P2pMeeting $meeting) use ($resolver): array {
             $initiatedBy = $meeting->initiator;
             $initiatedTo = $meeting->peer;
+
+            $formattedInitiatedBy = $initiatedBy ? array_merge($resolver->formatUser($initiatedBy) ?? [], [
+                'first_name' => $initiatedBy->first_name,
+                'last_name' => $initiatedBy->last_name,
+                'email' => $initiatedBy->email,
+                'phone' => $initiatedBy->phone,
+            ]) : null;
+
+            $formattedInitiatedTo = $initiatedTo ? array_merge($resolver->formatUser($initiatedTo) ?? [], [
+                'first_name' => $initiatedTo->first_name,
+                'last_name' => $initiatedTo->last_name,
+                'email' => $initiatedTo->email,
+                'phone' => $initiatedTo->phone,
+            ]) : null;
 
             return [
                 'id' => (string) $meeting->id,
@@ -414,28 +481,10 @@ class P2pMeetingController extends BaseApiController
                 'status' => 'completed',
                 'created_at' => $meeting->created_at ? Carbon::parse($meeting->created_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
                 'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
-                'initiated_by' => $initiatedBy ? [
-                    'id' => (string) $initiatedBy->id,
-                    'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '').' '.($initiatedBy->last_name ?? '')),
-                    'first_name' => $initiatedBy->first_name,
-                    'last_name' => $initiatedBy->last_name,
-                    'email' => $initiatedBy->email,
-                    'phone' => $initiatedBy->phone,
-                    'company_name' => $initiatedBy->company_name,
-                    'designation' => $initiatedBy->designation,
-                    'profile_photo_url' => $initiatedBy->profile_photo_url,
-                ] : null,
-                'initiated_to' => $initiatedTo ? [
-                    'id' => (string) $initiatedTo->id,
-                    'display_name' => $initiatedTo->display_name ?? trim(($initiatedTo->first_name ?? '').' '.($initiatedTo->last_name ?? '')),
-                    'first_name' => $initiatedTo->first_name,
-                    'last_name' => $initiatedTo->last_name,
-                    'email' => $initiatedTo->email,
-                    'phone' => $initiatedTo->phone,
-                    'company_name' => $initiatedTo->company_name,
-                    'designation' => $initiatedTo->designation,
-                    'profile_photo_url' => $initiatedTo->profile_photo_url,
-                ] : null,
+                'initiated_by' => $formattedInitiatedBy,
+                'initiated_to' => $formattedInitiatedTo,
+                'given_by' => $formattedInitiatedBy,
+                'given_to' => $formattedInitiatedTo,
             ];
         })->values()->all();
 

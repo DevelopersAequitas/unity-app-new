@@ -10,8 +10,10 @@ use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
+use App\Models\Connection;
 use App\Models\JoinedCircleCategory;
 use App\Models\User;
+use App\Models\UserFollow;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -296,7 +298,7 @@ class CircleCategoryUsageController extends Controller
             ->where('id', $mainCategoryId)
             ->first();
 
-        $closedMap = $this->getClosedLevel4CategoriesMap($circle->id);
+        $closedMap = $this->getClosedLevel4CategoriesMap($circle->id, $request);
         $closedLevel4Ids = array_keys($closedMap);
 
         if ($closedLevel4Ids === []) {
@@ -325,6 +327,14 @@ class CircleCategoryUsageController extends Controller
 
         $closedCategories = $closedLevel4Records->map(function (CircleCategoryLevel4 $row) use ($closedMap): array {
             $peers = $closedMap[$row->id] ?? [];
+            $formattedPeers = array_map(function (array $peer) use ($row): array {
+                $peer['level4_category'] = $row->name;
+                $peer['business_sub_category'] = $row->name;
+                $peer['category'] = $row->name;
+                $peer['category_name'] = $row->name;
+
+                return $peer;
+            }, $peers);
 
             return [
                 'id' => $row->id,
@@ -339,7 +349,7 @@ class CircleCategoryUsageController extends Controller
                     'id' => $row->level3Category->level2Category->id,
                     'name' => $row->level3Category->level2Category->name,
                 ] : null,
-                'occupied_by' => $peers,
+                'occupied_by' => $formattedPeers,
             ];
         })->values()->all();
 
@@ -569,18 +579,19 @@ class CircleCategoryUsageController extends Controller
      * Get array of closed (occupied) level4 category details for a given circle.
      * Returns an associative array mapping level4_category_id => list of occupied peer details.
      *
-     * @return array<int, list<array{user_id: string|null, user_name: string|null, company_name: string|null, occupied_at: string|null}>>
+     * @return array<int, list<array<string, mixed>>>
      */
-    private function getClosedLevel4CategoriesMap(string $circleId): array
+    private function getClosedLevel4CategoriesMap(string $circleId, ?Request $request = null): array
     {
         $closedMap = [];
+        $rawOccupancies = [];
+        $allUserIds = [];
 
         if (Schema::hasTable('joined_circle_categories')) {
             $rows = JoinedCircleCategory::query()
                 ->where('circle_id', $circleId)
                 ->whereNotNull('level4_category_id')
                 ->where('level4_category_id', '>', 0)
-                ->with(['user:id,first_name,last_name,display_name,company_name'])
                 ->orderBy('created_at')
                 ->get();
 
@@ -590,40 +601,20 @@ class CircleCategoryUsageController extends Controller
                     continue;
                 }
 
-                $u = $row->user;
-                $userName = trim((string) ($u?->display_name ?? ''));
-                if ($userName === '') {
-                    $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                $userId = $row->user_id ? (string) $row->user_id : null;
+                if ($userId) {
+                    $allUserIds[] = $userId;
                 }
 
                 $occupiedAt = $row->created_at
                     ? $row->created_at->toIso8601String()
                     : ($row->updated_at ? $row->updated_at->toIso8601String() : null);
 
-                $userId = $row->user_id ? (string) $row->user_id : null;
-
-                $peerData = [
+                $rawOccupancies[] = [
+                    'l4_id' => $l4Id,
                     'user_id' => $userId,
-                    'user_name' => $userName !== '' ? $userName : null,
-                    'company_name' => $u?->company_name ?? null,
                     'occupied_at' => $occupiedAt,
                 ];
-
-                if (! isset($closedMap[$l4Id])) {
-                    $closedMap[$l4Id] = [];
-                }
-
-                $exists = false;
-                foreach ($closedMap[$l4Id] as $existing) {
-                    if ($userId && $existing['user_id'] === $userId) {
-                        $exists = true;
-                        break;
-                    }
-                }
-
-                if (! $exists) {
-                    $closedMap[$l4Id][] = $peerData;
-                }
             }
         }
 
@@ -636,25 +627,15 @@ class CircleCategoryUsageController extends Controller
                 ->orderBy('created_at')
                 ->get(['id', 'user_id', 'level_4_category_id', 'created_at']);
 
-            $userIds = $members->pluck('user_id')->filter()->unique()->values()->all();
-            $users = [];
-            if ($userIds !== []) {
-                $users = User::query()
-                    ->whereIn('id', $userIds)
-                    ->get(['id', 'first_name', 'last_name', 'display_name', 'company_name'])
-                    ->keyBy(fn ($u) => (string) $u->id);
-            }
-
             foreach ($members as $m) {
                 $l4Id = (int) $m->level_4_category_id;
                 if ($l4Id <= 0) {
                     continue;
                 }
 
-                $u = $m->user_id ? ($users[(string) $m->user_id] ?? null) : null;
-                $userName = trim((string) ($u?->display_name ?? ''));
-                if ($userName === '') {
-                    $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                $userId = $m->user_id ? (string) $m->user_id : null;
+                if ($userId) {
+                    $allUserIds[] = $userId;
                 }
 
                 $occupiedAt = null;
@@ -666,30 +647,181 @@ class CircleCategoryUsageController extends Controller
                     }
                 }
 
-                $userId = $m->user_id ? (string) $m->user_id : null;
-
-                $peerData = [
+                $rawOccupancies[] = [
+                    'l4_id' => $l4Id,
                     'user_id' => $userId,
-                    'user_name' => $userName !== '' ? $userName : null,
-                    'company_name' => $u?->company_name ?? null,
                     'occupied_at' => $occupiedAt,
                 ];
+            }
+        }
 
-                if (! isset($closedMap[$l4Id])) {
-                    $closedMap[$l4Id] = [];
-                }
+        $allUserIds = array_values(array_unique(array_filter($allUserIds)));
+        $users = [];
+        if ($allUserIds !== []) {
+            $users = User::query()
+                ->whereIn('id', $allUserIds)
+                ->with(['cityRelation:id,name', 'city:id,name'])
+                ->get([
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'display_name',
+                    'company_name',
+                    'designation',
+                    'business_sub_category',
+                    'profile_photo_url',
+                    'profile_photo_file_id',
+                    'city',
+                    'city_id',
+                    'life_impacted_count',
+                ])
+                ->keyBy(fn ($u) => (string) $u->id);
+        }
 
-                $exists = false;
-                foreach ($closedMap[$l4Id] as $existing) {
-                    if ($userId && $existing['user_id'] === $userId) {
-                        $exists = true;
-                        break;
+        $allL4Ids = array_values(array_unique(array_filter(array_column($rawOccupancies, 'l4_id'))));
+        $l4CategoryNames = [];
+        if ($allL4Ids !== []) {
+            $l4CategoryNames = CircleCategoryLevel4::query()
+                ->whereIn('id', $allL4Ids)
+                ->pluck('name', 'id')
+                ->all();
+        }
+
+        $authUser = auth('sanctum')->user() ?: ($request instanceof Request ? $request->user() : null);
+        $bookmarks = $authUser ? ($authUser->bookmarks ?? []) : [];
+        if (! is_array($bookmarks)) {
+            $bookmarks = [];
+        }
+
+        $connectedUserIds = [];
+        $pendingSentUserIds = [];
+        $pendingReceivedUserIds = [];
+        $followedUserIds = [];
+
+        if ($authUser && $allUserIds !== []) {
+            $authUserId = (string) $authUser->id;
+
+            if (Schema::hasTable('connections')) {
+                $connections = Connection::query()
+                    ->where(function ($q) use ($authUserId, $allUserIds) {
+                        $q->where('requester_id', $authUserId)->whereIn('addressee_id', $allUserIds);
+                    })
+                    ->orWhere(function ($q) use ($authUserId, $allUserIds) {
+                        $q->where('addressee_id', $authUserId)->whereIn('requester_id', $allUserIds);
+                    })
+                    ->get();
+
+                foreach ($connections as $conn) {
+                    $otherId = (string) ((string) $conn->requester_id === $authUserId ? $conn->addressee_id : $conn->requester_id);
+                    if ($conn->is_approved) {
+                        $connectedUserIds[$otherId] = true;
+                    } elseif ((string) $conn->requester_id === $authUserId) {
+                        $pendingSentUserIds[$otherId] = true;
+                    } else {
+                        $pendingReceivedUserIds[$otherId] = true;
                     }
                 }
+            }
 
-                if (! $exists) {
-                    $closedMap[$l4Id][] = $peerData;
+            if (Schema::hasTable('user_follows')) {
+                $followedUserIds = UserFollow::query()
+                    ->where('follower_id', $authUserId)
+                    ->whereIn('following_id', $allUserIds)
+                    ->whereIn('status', ['accepted', 'pending'])
+                    ->pluck('following_id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->all();
+            }
+        }
+
+        foreach ($rawOccupancies as $occ) {
+            $l4Id = $occ['l4_id'];
+            $userId = $occ['user_id'];
+            $occupiedAt = $occ['occupied_at'];
+
+            $u = $userId ? ($users[$userId] ?? null) : null;
+            $userName = trim((string) ($u?->display_name ?? ''));
+            if ($userName === '') {
+                $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+            }
+            if ($userName === '') {
+                $userName = trim((string) ($u?->name ?? ''));
+            }
+
+            $profilePhotoId = $u?->profile_photo_file_id;
+            $profilePhotoUrl = $profilePhotoId
+                ? url('/api/v1/files/'.$profilePhotoId)
+                : ($u?->profile_photo_url ?: null);
+
+            $cityName = $u?->cityRelation?->name ?? $u?->city?->name ?? (is_string($u?->city) ? $u->city : null);
+
+            $isBookmarked = $userId ? in_array($userId, $bookmarks, true) : false;
+            $isConnected = $userId ? isset($connectedUserIds[$userId]) : false;
+            $isRequested = $userId ? isset($pendingSentUserIds[$userId]) : false;
+            $isFollowing = $userId ? in_array($userId, $followedUserIds, true) : false;
+
+            $isPro = false;
+            if ($u) {
+                $rawVerified = $u->is_verified ?? null;
+                if ($rawVerified !== null && (bool) $rawVerified) {
+                    $isPro = true;
+                } elseif (method_exists($u, 'isPaidMember')) {
+                    $isPro = (bool) $u->isPaidMember();
+                } else {
+                    $status = strtolower(trim((string) ($u->effective_membership_status ?? $u->membership_status ?? '')));
+                    $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
                 }
+            }
+
+            $connectionStatus = 'none';
+            if ($authUser && $userId === (string) $authUser->id) {
+                $connectionStatus = 'self';
+            } elseif ($isConnected) {
+                $connectionStatus = 'connected';
+            } elseif ($isRequested) {
+                $connectionStatus = 'pending_sent';
+            } elseif ($userId && isset($pendingReceivedUserIds[$userId])) {
+                $connectionStatus = 'pending_received';
+            }
+
+            $l4CategoryName = $l4CategoryNames[$l4Id] ?? ($u?->business_sub_category ?? null);
+
+            $peerData = [
+                'user_id' => $userId,
+                'user_name' => $userName !== '' ? $userName : null,
+                'name' => $userName !== '' ? $userName : null,
+                'display_name' => $userName !== '' ? $userName : null,
+                'profile_photo_url' => $profilePhotoUrl,
+                'profile_photo_file_id' => $profilePhotoId ? (string) $profilePhotoId : null,
+                'avatar_url' => $profilePhotoUrl,
+                'designation' => $u?->designation ?? null,
+                'company_name' => $u?->company_name ?? null,
+                'level4_category' => $l4CategoryName, 'city' => $cityName,
+                'impact_count' => (int) ($u?->life_impacted_count ?? 0),
+                'is_connected' => $isConnected,
+                'is_bookmarked' => $isBookmarked,
+                'is_following' => $isFollowing,
+                'is_pro' => $isPro,
+                'is_requested' => $isRequested,
+                'connection_status' => $connectionStatus,
+                'can_send_connection_request' => ! $isConnected && ! $isRequested && ($connectionStatus !== 'self'),
+                'occupied_at' => $occupiedAt,
+            ];
+
+            if (! isset($closedMap[$l4Id])) {
+                $closedMap[$l4Id] = [];
+            }
+
+            $exists = false;
+            foreach ($closedMap[$l4Id] as $existing) {
+                if ($userId && $existing['user_id'] === $userId) {
+                    $exists = true;
+                    break;
+                }
+            }
+
+            if (! $exists) {
+                $closedMap[$l4Id][] = $peerData;
             }
         }
 

@@ -19,12 +19,18 @@ class CoinClaimUserNotificationService
     {
         $activity = $this->registry->get((string) $claim->activity_code) ?? [];
         $activityLabel = (string) ($activity['label'] ?? $claim->activity_code);
-        $coinsAwarded = $claim->coins_awarded !== null ? (int) $claim->coins_awarded : null;
+        $coinsAwarded = $claim->coins_awarded !== null ? (int) $claim->coins_awarded : 0;
+
+        $isFeedbackVideo = str_contains((string) $claim->activity_code, 'feedback_video');
+        $title = $isFeedbackVideo ? 'Feedback Video Approved 🎉' : 'Coin claim approved 🎉';
+        $body = $isFeedbackVideo
+            ? 'Your Peers Global feedback video has been approved. '.number_format($coinsAwarded).' coins have been added to your account.'
+            : 'Your claim for '.$activityLabel.' was approved. '.number_format($coinsAwarded).' coins added.';
 
         $payload = [
             'notification_type' => 'coin_claim_approved',
-            'title' => 'Coin claim approved',
-            'body' => 'Your claim for '.$activityLabel.' was approved. '.($coinsAwarded ?? 0).' coins added.',
+            'title' => $title,
+            'body' => $body,
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => $coinsAwarded,
@@ -41,10 +47,16 @@ class CoinClaimUserNotificationService
         $activityLabel = (string) ($activity['label'] ?? $claim->activity_code);
         $reason = (string) ($claim->admin_notes ?? 'Not provided');
 
+        $isFeedbackVideo = str_contains((string) $claim->activity_code, 'feedback_video');
+        $title = $isFeedbackVideo ? 'Feedback Video Rejected' : 'Coin claim rejected';
+        $body = $isFeedbackVideo
+            ? 'Your Peers Global feedback video claim was rejected. Reason: '.$reason
+            : 'Your claim for '.$activityLabel.' was rejected. Reason: '.$reason;
+
         $payload = [
             'notification_type' => 'coin_claim_rejected',
-            'title' => 'Coin claim rejected',
-            'body' => 'Your claim for '.$activityLabel.' was rejected. Reason: '.$reason,
+            'title' => $title,
+            'body' => $body,
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => null,

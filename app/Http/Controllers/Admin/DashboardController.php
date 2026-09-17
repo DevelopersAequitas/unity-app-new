@@ -7,6 +7,7 @@ use App\Models\Circle;
 use App\Models\User;
 use App\Services\Api\Ded\DashboardAggregationService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
+use App\Support\ActivityUserFilter;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
@@ -545,6 +546,7 @@ class DashboardController extends Controller
             $qualifiedUserColumn,
             $qualifiedPeerColumn
         );
+        ActivityUserFilter::applyToActivityQuery($query, $qualifiedUserColumn);
 
         if ($circleId) {
             $this->applyCircleFilterToActivityQuery($query, $qualifiedUserColumn, $qualifiedPeerColumn, $circleId);
@@ -561,6 +563,7 @@ class DashboardController extends Controller
 
         $query = User::query();
         AdminCircleScope::applyToUsersQuery($query, $admin);
+        ActivityUserFilter::applyToUserQuery($query);
 
         if ($circleId) {
             $this->applyCircleFilterToUsersQuery($query, $circleId);

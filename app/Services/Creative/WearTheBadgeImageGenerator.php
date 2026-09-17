@@ -332,7 +332,7 @@ class WearTheBadgeImageGenerator
             $filename = 'welcome_creative_'.Str::uuid().'.png';
             $tempPath = tempnam(sys_get_temp_dir(), 'wc_img');
 
-            imagepng($canvas, $tempPath, 9);
+            imagepng($canvas, $tempPath, 6);
             imagedestroy($canvas);
 
             $disk = config('filesystems.default', 'public');
@@ -502,6 +502,25 @@ class WearTheBadgeImageGenerator
                 }
 
                 if ($avatarImg) {
+                    $origW = imagesx($avatarImg);
+                    $origH = imagesy($avatarImg);
+                    if ($origW > 800 || $origH > 800) {
+                        $maxDim = 800;
+                        if ($origW >= $origH) {
+                            $newW = $maxDim;
+                            $newH = (int) ($origH * ($maxDim / $origW));
+                        } else {
+                            $newH = $maxDim;
+                            $newW = (int) ($origW * ($maxDim / $origH));
+                        }
+                        $downscaled = imagecreatetruecolor($newW, $newH);
+                        imagealphablending($downscaled, false);
+                        imagesavealpha($downscaled, true);
+                        imagecopyresampled($downscaled, $avatarImg, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+                        imagedestroy($avatarImg);
+                        $avatarImg = $downscaled;
+                    }
+
                     $circularPhoto = $this->createCircularPhoto($avatarImg, $avatarSize);
                     if ($circularPhoto) {
                         $tx = $centerX - ($avatarSize / 2);

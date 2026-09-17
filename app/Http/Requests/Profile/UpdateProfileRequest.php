@@ -17,6 +17,43 @@ class UpdateProfileRequest extends FormRequest
                 'contact_visibility' => ContactVisibility::normalize($this->input('contact_visibility')),
             ]);
         }
+
+        if ($this->has('latitude') && ! $this->has('google_maps_latitude')) {
+            $this->merge(['google_maps_latitude' => $this->input('latitude')]);
+        }
+        if ($this->has('longitude') && ! $this->has('google_maps_longitude')) {
+            $this->merge(['google_maps_longitude' => $this->input('longitude')]);
+        }
+
+        $rawBusinessCategory = $this->input('business_category');
+        $rawBusinessCategoryId = $this->input('business_category_id');
+
+        $isOther = $this->has('is_other_category')
+            ? $this->boolean('is_other_category')
+            : (
+                strtolower((string) $rawBusinessCategoryId) === 'other'
+                || (is_array($rawBusinessCategory) && strtolower((string) data_get($rawBusinessCategory, 'id')) === 'other')
+                || (! empty($this->input('other_category_name')) && empty($rawBusinessCategoryId) && empty($rawBusinessCategory))
+            );
+
+        if ($isOther) {
+            $otherName = $this->input('other_category_name', $this->input('custom_category_name', $this->input('business_sub_category')));
+            $this->merge([
+                'is_other_category' => true,
+                'other_category_name' => $otherName,
+                'custom_category_name' => $otherName,
+                'business_sub_category' => $otherName,
+                'business_category_id' => null,
+                'business_category' => null,
+            ]);
+        } elseif ($this->has('business_category') && is_array($rawBusinessCategory)) {
+            $catId = data_get($rawBusinessCategory, 'id');
+            if ($catId && strtolower((string) $catId) !== 'other') {
+                $this->merge([
+                    'business_category_id' => $catId,
+                ]);
+            }
+        }
     }
 
     public function authorize(): bool
@@ -48,7 +85,7 @@ class UpdateProfileRequest extends FormRequest
             'skills.*' => ['string', 'max:100'],
             'interests' => ['sometimes', 'nullable', 'array'],
             'interests.*' => ['string', 'max:100'],
-            'media' => ['sometimes', 'array'],
+            'media' => ['sometimes', 'nullable', 'array'],
             'media.*.id' => ['required', 'string', 'max:255'],
             'media.*.type' => ['required', Rule::in(['video', 'image'])],
             'media.*.url' => ['sometimes', 'nullable', 'url', 'max:1000'],
@@ -67,7 +104,12 @@ class UpdateProfileRequest extends FormRequest
             'timezone' => ['sometimes', 'nullable', 'string', 'max:100'],
             'preferred_language' => ['sometimes', 'nullable', 'string', 'max:50'],
             'business_logo_id' => ['sometimes', 'nullable'],
+            'is_other_category' => ['sometimes', 'nullable', 'boolean'],
+            'other_category_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'custom_category_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'business_category' => ['sometimes', 'nullable'],
             'business_category_id' => ['sometimes', 'nullable'],
+            'main_business_category_id' => ['sometimes', 'nullable'],
             'business_sub_category' => ['sometimes', 'nullable', 'string', 'max:255'],
             'company_type' => ['sometimes', 'nullable', 'string', 'max:100'],
             'year_of_establishment' => ['sometimes', 'nullable', 'integer', 'between:1800,'.$currentYear],
@@ -99,6 +141,8 @@ class UpdateProfileRequest extends FormRequest
             'business_country' => ['sometimes', 'nullable', 'string', 'max:100'],
             'google_maps_latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
             'google_maps_longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'industries_of_interest' => ['sometimes', 'nullable', 'array'],
             'industries_of_interest.*' => ['string', 'max:150'],
             'collaboration_goals' => ['sometimes', 'nullable', 'array'],
@@ -107,6 +151,21 @@ class UpdateProfileRequest extends FormRequest
             'willing_to_mentor' => ['sometimes', 'nullable', 'boolean'],
             'open_to_cross_city_collaboration' => ['sometimes', 'nullable', 'boolean'],
             'open_to_speaking_at_events' => ['sometimes', 'nullable', 'boolean'],
+
+            // Professional Journey & Leadership
+            'leadership_roles' => ['sometimes', 'nullable', 'array'],
+            'leadership_roles.*' => ['string', 'max:150'],
+            'special_recognitions' => ['sometimes', 'nullable', 'array'],
+            'special_recognitions.*' => ['string', 'max:250'],
+
+            // Sustainability & Goals
+            'sustainability_areas' => ['sometimes', 'nullable', 'array'],
+            'sustainability_areas.*' => ['string', 'max:150'],
+            'sustainability_contribution' => ['sometimes', 'nullable', 'string'],
+            'greenpreneur_goals' => ['sometimes', 'nullable', 'array'],
+            'greenpreneur_goals.*' => ['string', 'max:150'],
+            'community_directory_listing' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'story_link' => ['sometimes', 'nullable', 'url', 'max:500'],
         ];
     }
 }

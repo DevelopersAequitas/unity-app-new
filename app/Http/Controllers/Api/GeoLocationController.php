@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Resources\GeoNearbyPeerResource;
 use App\Models\Connection;
 use App\Models\User;
+use App\Models\UserFollow;
 use App\Models\UserGeoLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class GeoLocationController extends BaseApiController
 {
@@ -76,14 +79,32 @@ class GeoLocationController extends BaseApiController
         $validated = $request->validate([
             'radius_km' => ['nullable', 'numeric', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:5000'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:5000'],
+            'level4_category_id' => ['nullable'],
+            'level_4_category_id' => ['nullable'],
+            'category_id' => ['nullable'],
+            'level4_category' => ['nullable', 'string'],
+            'level_4_category' => ['nullable', 'string'],
         ]);
 
         $radiusKm = array_key_exists('radius_km', $validated) && $validated['radius_km'] !== null && $validated['radius_km'] !== ''
             ? (float) $validated['radius_km']
             : null;
-        $limit = array_key_exists('limit', $validated) && $validated['limit'] !== null && $validated['limit'] !== ''
-            ? (int) $validated['limit']
-            : null;
+
+        $perPageInput = $request->input('per_page') ?? $request->input('limit');
+        $perPage = $perPageInput !== null && $perPageInput !== ''
+            ? max(1, min((int) $perPageInput, 5000))
+            : 20;
+        $page = max(1, (int) $request->input('page', 1));
+
+        $filterCategoryId = $request->input('level4_category_id')
+            ?? $request->input('level_4_category_id')
+            ?? $request->input('category_id');
+
+        $filterCategoryName = $request->input('level4_category')
+            ?? $request->input('level_4_category');
+
         $authUser = $request->user();
 
         $myLocation = UserGeoLocation::query()
@@ -105,8 +126,8 @@ class GeoLocationController extends BaseApiController
             $myLocation->latitude,
         ];
 
-        $peers = User::query()
-            ->with('cityRelation:id,name')
+        $peersQuery = User::query()
+            ->with(['cityRelation:id,name', 'level4Category:id,name'])
             ->join('user_geo_locations', 'user_geo_locations.user_id', '=', 'users.id')
             ->where('user_geo_locations.is_visible', true)
             ->where('users.id', '!=', (string) $authUser->id)
@@ -118,6 +139,8 @@ class GeoLocationController extends BaseApiController
                 'users.company_name',
                 'users.designation',
                 'users.business_type',
+                'users.business_category_id',
+                'users.business_sub_category',
                 'users.profile_photo_file_id',
                 'users.profile_photo_url',
                 'users.city_id',
@@ -130,16 +153,49 @@ class GeoLocationController extends BaseApiController
             ->when($radiusKm !== null, function ($query) use ($distanceExpression, $distanceBindings, $radiusKm) {
                 $query->whereRaw($distanceExpression.' <= ?', [...$distanceBindings, $radiusKm]);
             })
-            ->orderBy('distance_km', 'asc')
-            ->when($limit !== null, fn ($query) => $query->limit($limit))
-            ->get();
+            ->when($filterCategoryId, function ($query, $catId) {
+                $query->where(function ($q) use ($catId) {
+                    $q->where('users.business_category_id', $catId);
+                    if (Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'level_4_category_id')) {
+                        $q->orWhereExists(function ($sub) use ($catId) {
+                            $sub->select(DB::raw(1))
+                                ->from('circle_members')
+                                ->whereColumn('circle_members.user_id', 'users.id')
+                                ->where('circle_members.level_4_category_id', $catId);
+                        });
+                    }
+                });
+            })
+            ->when($filterCategoryName, function ($query, $catName) {
+                $catNameLower = strtolower(trim((string) $catName));
+                $query->where(function ($q) use ($catNameLower) {
+                    $q->whereRaw('LOWER(users.business_sub_category) LIKE ?', ["%{$catNameLower}%"])
+                        ->orWhereHas('level4Category', function ($sub) use ($catNameLower) {
+                            $sub->whereRaw('LOWER(name) LIKE ?', ["%{$catNameLower}%"]);
+                        });
+                });
+            })
+            ->orderBy('distance_km', 'asc');
 
-        $this->attachConnectionState($peers, (string) $authUser->id);
+        $paginated = $peersQuery->paginate($perPage, ['*'], 'page', $page);
+
+        $this->attachConnectionState($paginated->getCollection(), (string) $authUser->id);
 
         return $this->success([
             'radius_km' => $radiusKm,
-            'total' => $peers->count(),
-            'items' => GeoNearbyPeerResource::collection($peers),
+            'total' => $paginated->total(),
+            'current_page' => $paginated->currentPage(),
+            'per_page' => $paginated->perPage(),
+            'last_page' => $paginated->lastPage(),
+            'has_more_pages' => $paginated->hasMorePages(),
+            'pagination' => [
+                'current_page' => $paginated->currentPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'last_page' => $paginated->lastPage(),
+                'has_more' => $paginated->hasMorePages(),
+            ],
+            'items' => GeoNearbyPeerResource::collection($paginated->getCollection()),
         ], 'Nearby peers fetched successfully.');
     }
 
@@ -179,6 +235,10 @@ class GeoLocationController extends BaseApiController
 
     private function distanceExpression(): string
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return '(? * 0 + ? * 0 + ? * 0)';
+        }
+
         return '6371 * acos(LEAST(1, GREATEST(-1, '
             .'cos(radians(?)) * cos(radians(user_geo_locations.latitude)) * '
             .'cos(radians(user_geo_locations.longitude) - radians(?)) + '
@@ -194,23 +254,50 @@ class GeoLocationController extends BaseApiController
 
         $peerIds = $peers->pluck('id')->map(fn ($id) => (string) $id)->all();
 
-        $connections = Connection::query()
-            ->where(function ($query) use ($authUserId, $peerIds) {
-                $query->where('requester_id', $authUserId)
-                    ->whereIn('addressee_id', $peerIds);
-            })
-            ->orWhere(function ($query) use ($authUserId, $peerIds) {
-                $query->whereIn('requester_id', $peerIds)
-                    ->where('addressee_id', $authUserId);
-            })
-            ->get()
-            ->keyBy(function (Connection $connection) use ($authUserId) {
-                return (string) ($connection->requester_id === $authUserId
-                    ? $connection->addressee_id
-                    : $connection->requester_id);
-            });
+        $connections = collect();
+        if (Schema::hasTable('connections')) {
+            $connections = Connection::query()
+                ->where(function ($query) use ($authUserId, $peerIds) {
+                    $query->where('requester_id', $authUserId)
+                        ->whereIn('addressee_id', $peerIds);
+                })
+                ->orWhere(function ($query) use ($authUserId, $peerIds) {
+                    $query->whereIn('requester_id', $peerIds)
+                        ->where('addressee_id', $authUserId);
+                })
+                ->get()
+                ->keyBy(function (Connection $connection) use ($authUserId) {
+                    return (string) ($connection->requester_id === $authUserId
+                        ? $connection->addressee_id
+                        : $connection->requester_id);
+                });
+        }
 
-        $peers->each(function (User $peer) use ($connections, $authUserId): void {
+        $followedUserIds = [];
+        if (Schema::hasTable('user_follows')) {
+            $followedUserIds = UserFollow::query()
+                ->where('follower_id', $authUserId)
+                ->whereIn('following_id', $peerIds)
+                ->whereIn('status', ['accepted', 'pending'])
+                ->pluck('following_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
+        $peers->each(function (User $peer) use ($connections, $authUserId, $followedUserIds): void {
+            $peer->setAttribute('is_following', in_array((string) $peer->id, $followedUserIds, true));
+
+            $rawVerified = $peer->is_verified ?? null;
+            if ($rawVerified !== null && (bool) $rawVerified) {
+                $isPro = true;
+            } elseif (method_exists($peer, 'isPaidMember')) {
+                $isPro = (bool) $peer->isPaidMember();
+            } else {
+                $status = strtolower(trim((string) ($peer->effective_membership_status ?? $peer->membership_status ?? '')));
+                $isPro = $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+            }
+            $peer->setAttribute('is_pro', $isPro);
+
             $connection = $connections->get((string) $peer->id);
 
             $peer->setAttribute('connection_status', null);

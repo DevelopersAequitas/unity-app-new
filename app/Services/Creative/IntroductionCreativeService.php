@@ -70,6 +70,17 @@ class IntroductionCreativeService
             return null;
         }
 
+        // Strictly milestone-gated: only exact configured milestones may generate/store milestone creatives
+        if (! $this->isConfiguredMilestone($introducedCount)) {
+            Log::info('[IntroductionCreativeService] Skipped: Introduced count is not a configured milestone.', [
+                'introducer_id' => $introducer->id,
+                'requester_id' => $introducedUser->id,
+                'introduced_count' => $introducedCount,
+            ]);
+
+            return null;
+        }
+
         $deterministicId = Uuid::uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', "intro_creative.{$introducer->id}.{$introducedUser->id}")->toString();
 
         try {
@@ -94,11 +105,17 @@ class IntroductionCreativeService
                     || file_exists(storage_path('app/public/'.$s3Key))
                     || file_exists(public_path('storage/'.$s3Key)));
 
-                if (! $fileExists || $isRawTemplate) {
+                $countMismatch = (int) $existingCreative->introduced_count !== $introducedCount;
+
+                if (! $fileExists || $isRawTemplate || $countMismatch) {
                     try {
-                        $newUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount);
-                        $existingCreative->update(['image_url' => $newUrl]);
+                        $newUrl = $this->creativeGenerator->generateOrGetUrl($introducer, $introducedCount, true);
+                        $existingCreative->update([
+                            'image_url' => $newUrl,
+                            'introduced_count' => $introducedCount,
+                        ]);
                         $existingCreative->image_url = $newUrl;
+                        $existingCreative->introduced_count = $introducedCount;
                     } catch (Throwable $regenEx) {
                         Log::warning('[IntroductionCreativeService] Could not regenerate missing physical creative: '.$regenEx->getMessage());
                     }

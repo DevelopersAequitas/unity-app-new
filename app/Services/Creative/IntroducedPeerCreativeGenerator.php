@@ -233,8 +233,6 @@ class IntroducedPeerCreativeGenerator
             if (empty($existingUrl)) {
                 if ($introducedCount === 1 && ! empty($user->connector_creative_url)) {
                     $existingUrl = (string) $user->connector_creative_url;
-                } elseif (! empty($user->growth_creative_url)) {
-                    $existingUrl = (string) $user->growth_creative_url;
                 }
             }
 

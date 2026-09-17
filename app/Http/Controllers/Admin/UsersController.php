@@ -26,6 +26,7 @@ use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\LifeImpact\LifeImpactService;
@@ -1307,6 +1308,10 @@ class UsersController extends Controller
                     $this->upsertCircleMemberCategorySelection($additionalMemberRecord, $user->id, $validated);
                 }
 
+                if (($selectedCircleId && ! $isAddingAdditionalCircle) || $isAddingAdditionalCircle) {
+                    app(CircleJoinRequestPaymentSyncService::class)->updateUserCircleMembershipTier($user->fresh() ?? $user);
+                }
+
                 if ($request->has('role_ids')) {
                     $adminUser = $this->resolveAdminUserForRoleAssignment($user);
                     $selectedRoleIds = collect($validated['role_ids'] ?? [])
@@ -1574,6 +1579,8 @@ class UsersController extends Controller
 
         $member->delete();
 
+        app(CircleJoinRequestPaymentSyncService::class)->updateUserCircleMembershipTier($user->fresh() ?? $user);
+
         return redirect()
             ->route('admin.users.edit', $user->id)
             ->with('status', 'Circle membership removed successfully.');
@@ -1627,6 +1634,8 @@ class UsersController extends Controller
         }
 
         $this->upsertCircleMemberCategorySelection($member, $user->id, $validated);
+
+        app(CircleJoinRequestPaymentSyncService::class)->updateUserCircleMembershipTier($user->fresh() ?? $user);
 
         return redirect()
             ->route('admin.users.edit', $user->id)

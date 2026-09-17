@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CoinClaims\RejectCoinClaimRequest;
 use App\Models\Circle;
 use App\Models\CoinClaimRequest;
+use App\Models\CoinsLedger;
 use App\Models\User;
 use App\Services\Admin\PermissionService;
 use App\Services\CoinClaims\CoinClaimEmailService;
+use App\Services\CoinClaims\CoinClaimUserNotificationService;
 use App\Services\Coins\CoinsService;
 use App\Support\AdminCircleScope;
 use App\Support\CoinClaims\CoinClaimActivityRegistry;
@@ -27,6 +29,7 @@ class CoinClaimsController extends Controller
         private readonly CoinClaimActivityRegistry $registry,
         private readonly CoinsService $coinsService,
         private readonly CoinClaimEmailService $emailService,
+        private readonly CoinClaimUserNotificationService $notificationService,
     ) {}
 
     public function index(Request $request): View
@@ -217,6 +220,15 @@ class CoinClaimsController extends Controller
                 $claim->rejected_at = null;
                 $claim->coins_awarded = $coins;
                 $claim->admin_notes = $request->input('admin_notes');
+                if (Schema::hasColumn('coin_claim_requests', 'reviewed_by_admin_id')) {
+                    $claim->reviewed_by_admin_id = $admin?->id;
+                }
+                if (Schema::hasColumn('coin_claim_requests', 'reviewed_by')) {
+                    $claim->reviewed_by = $admin?->id;
+                }
+                if (Schema::hasColumn('coin_claim_requests', 'reviewed_at')) {
+                    $claim->reviewed_at = now();
+                }
                 $claim->save();
 
                 $isNewMemberAddition = Str::lower(trim((string) $claim->activity_code)) === 'new_member_addition';
@@ -251,7 +263,23 @@ class CoinClaimsController extends Controller
                     }
                 }
 
-                if ($coins > 0 && $claim->user) {
+                // Strict duplicate award protection: check if coins for this claim were already awarded
+                $hasSourceColumns = Schema::hasColumn('coins_ledger', 'source_type') && Schema::hasColumn('coins_ledger', 'source_id');
+                $alreadyAwarded = CoinsLedger::query()
+                    ->where('user_id', $claim->user_id)
+                    ->where(function ($q) use ($claim, $hasSourceColumns) {
+                        if ($hasSourceColumns) {
+                            $q->where(function ($sq) use ($claim) {
+                                $sq->where('source_type', 'coin_claim_approved')
+                                    ->where('source_id', (string) $claim->id);
+                            })->orWhere('reference', 'LIKE', '%#'.$claim->id.'%');
+                        } else {
+                            $q->where('reference', 'LIKE', '%#'.$claim->id.'%');
+                        }
+                    })
+                    ->exists();
+
+                if (! $alreadyAwarded && $coins > 0 && $claim->user) {
                     $this->coinsService->reward(
                         $claim->user,
                         $coins,
@@ -266,7 +294,17 @@ class CoinClaimsController extends Controller
                     );
                 }
 
-                $this->emailService->sendApproved($claim->fresh('user'));
+                $freshClaim = $claim->fresh('user');
+                $this->emailService->sendApproved($freshClaim);
+
+                try {
+                    $this->notificationService->sendApproved($freshClaim);
+                } catch (\Throwable $notifEx) {
+                    Log::warning('Coin claim approved notification failed', [
+                        'claim_id' => (string) $claim->id,
+                        'error' => $notifEx->getMessage(),
+                    ]);
+                }
 
                 return 'Coin claim approved.';
             });
@@ -312,9 +350,28 @@ class CoinClaimsController extends Controller
                 $claim->rejected_at = now();
                 $claim->approved_at = null;
                 $claim->admin_notes = $request->validated('admin_notes');
+                if (Schema::hasColumn('coin_claim_requests', 'reviewed_by_admin_id')) {
+                    $claim->reviewed_by_admin_id = $admin?->id;
+                }
+                if (Schema::hasColumn('coin_claim_requests', 'reviewed_by')) {
+                    $claim->reviewed_by = $admin?->id;
+                }
+                if (Schema::hasColumn('coin_claim_requests', 'reviewed_at')) {
+                    $claim->reviewed_at = now();
+                }
                 $claim->save();
 
-                $this->emailService->sendRejected($claim->fresh('user'));
+                $freshClaim = $claim->fresh('user');
+                $this->emailService->sendRejected($freshClaim);
+
+                try {
+                    $this->notificationService->sendRejected($freshClaim);
+                } catch (\Throwable $notifEx) {
+                    Log::warning('Coin claim rejected notification failed', [
+                        'claim_id' => (string) $claim->id,
+                        'error' => $notifEx->getMessage(),
+                    ]);
+                }
 
                 return 'Coin claim rejected.';
             });

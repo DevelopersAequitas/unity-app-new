@@ -15,12 +15,24 @@ class NotificationController extends BaseApiController
         $authUser = $request->user();
 
         $query = Notification::where('user_id', $authUser->id);
-        $excludedTypes = ['engagement_reminder', 'daily_engagement_reminder', 'daily_reminder', 'engagement'];
+        $excludedTypes = [
+            'engagement_reminder',
+            'daily_engagement_reminder',
+            'daily_reminder',
+            'engagement',
+            'engagement_founder',
+            'streak_reminder',
+            'streak',
+        ];
 
         $query->whereNotIn('type', $excludedTypes)
             ->where(function ($q) use ($excludedTypes): void {
                 $q->whereNull('payload->notification_type')
                     ->orWhereNotIn('payload->notification_type', $excludedTypes);
+            })
+            ->where(function ($q) use ($excludedTypes): void {
+                $q->whereNull('payload->type')
+                    ->orWhereNotIn('payload->type', $excludedTypes);
             });
 
         if (! is_null($request->input('is_read'))) {

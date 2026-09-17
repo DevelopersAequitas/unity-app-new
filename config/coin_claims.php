@@ -69,5 +69,13 @@ return [
                 ['key' => 'membership_confirmation_file', 'label' => 'Membership Confirmation', 'type' => 'file', 'required' => false],
             ],
         ],
+        'peers_global_feedback_video' => [
+            'label' => 'Peers Global Feedback Video',
+            'coins' => 5000,
+            'fields' => [
+                ['key' => 'feedback_video', 'label' => 'Feedback Video', 'type' => 'file', 'required' => true],
+                ['key' => 'feedback_video_url', 'label' => 'Feedback Video URL', 'type' => 'url', 'required' => false],
+            ],
+        ],
     ],
 ];

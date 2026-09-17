@@ -1,151 +1,314 @@
-# Unity App Developer Rules Book 🚀
-> **Pragmatic, High-Performance PHP & Laravel Standards for Solo Developers & Small Teams**
+# Unity App Developer & AI Rules 🚀
 
-This rules book defines the engineering standards, architecture decisions, and coding style for the Unity App codebase. It is designed to maximize developer velocity while ensuring a robust, secure, and clean codebase.
-
----
-
-## 1. Core Philosophy (The Pragmatic "One-Man Army" Approach)
-
-When working as a solo developer or in a small team, **simplicity, clarity, and reliability are your best friends.** Avoid over-engineering and premature optimization.
-
-*   **No Over-Engineering:** Do not create layers of abstraction (e.g., Repository Pattern, excessive interfaces) unless they solve a concrete, immediate problem. Use Laravel's Eloquent ORM, custom query builders, and Services directly.
-*   **Fail Loudly & Early:** Let errors throw exceptions. Do not catch exceptions just to return empty values unless you have a specific fallback strategy. Use Laravel's global exception handler or HTTP responses.
-*   **Automate Style:** Never argue about code styling. The formatter is the source of truth. Always run the formatting tools before committing.
-*   **Write Tests for Core Logic:** You don't need 100% code coverage, but critical business paths (e.g., payment flows, campaign runs, auth checks, custom commands) **must** have feature tests.
+> **Pragmatic Laravel standards with strict product boundaries.**  
+> The goal is to move fast without allowing changes in one product to accidentally break another.
 
 ---
 
-## 2. PHP 8.2+ & Modern Coding Standards
-
-Since this codebase is running on PHP 8.2+, take full advantage of modern language features.
-
-*   **Strict Types:** Always add `declare(strict_types=1);` at the top of every new PHP file.
-*   **Strict Typing:** Type-hint all method arguments, return values, and class properties. Use PHP 8 constructor property promotion to simplify classes.
-    ```php
-    declare(strict_types=1);
-
-    namespace App\Services;
-
-    use App\Models\User;
-
-    class PeerService
-    {
-        // Use constructor property promotion
-        public function __construct(
-            protected SmsService $smsService
-        ) {}
-
-        public function registerPeer(User $user): void
-        {
-            // Business logic
-        }
-    }
-    ```
-*   **Strict Expressions:** Use `match` expressions instead of long `switch` statements where applicable. Use nullsafe operators (`?->`) to avoid nested null checks.
-*   **Linting & Styling:** 
-    *   This project uses **Laravel Pint** for style enforcement.
-    *   Before committing any code, run:
-        ```bash
-        ./vendor/bin/pint
-        ```
-    *   Adhere to **PSR-12 / PER Coding Style**.
+> ### 📌 Mandatory AI Prompt Suffix (Team Copy-Paste Directive)
+> **Copy and paste this line at the end of every prompt you send to any AI assistant:**  
+> ```text
+> 🔒 Adhere strictly to DEVELOPER_RULES.md. Restrict all changes strictly to the designated Product/Domain. Do NOT touch, refactor, or alter shared models, legacy APIs, or unrelated product files without explicit permission.
+> ```
 
 ---
 
-## 3. Laravel 12 Architecture & Patterns
+## 1. Core Principles
 
-### 3.1 Routing
-*   **Class-Based Routes:** Always reference controller methods using array syntax. Never use string-based controllers.
-*   **UUID Constraints:** Because this codebase uses UUIDs for primary keys, always append the `whereUuid` constraint to route parameters.
-*   **Route Groups:** Group routes by middleware, versioning (`v1`), prefix, and namespaces.
-    ```php
-    // Correct routing pattern
-    Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
-        Route::get('/posts/{id}', [AdminOpsController::class, 'postShow'])->whereUuid('id');
-    });
-    ```
-
-### 3.2 Controllers
-*   **Thin Controllers:** Keep controllers focused on handling HTTP requests and returning responses.
-*   **Validation:** Never write validation logic directly in the controller methods. Use custom **Form Request** classes.
-*   **Response Helpers:** Use uniform JSON responses for API endpoints.
-    ```php
-    public function show(GetPostRequest $request, string $id): JsonResponse
-    {
-        $post = $this->postService->findPostWithDetails($id);
-        
-        return response()->json([
-            'status' => 'success',
-            'data' => new PostResource($post)
-        ]);
-    }
-    ```
-
-### 3.3 Models
-*   **UUID Primary Keys:** Use string primary keys and generate UUIDs automatically using the `creating` event within the model's `booted()` method.
-    ```php
-    protected $primaryKey = 'id';
-    protected $keyType = 'string';
-    public $incrementing = false;
-
-    protected static function booted(): void
-    {
-        static::creating(function (self $model): void {
-            if (empty($model->id)) {
-                $model->id = (string) \Illuminate\Support\Str::uuid();
-            }
-        });
-    }
-    ```
-*   **Casting:** Explicitly define casts for attributes (e.g., `'industry_tags' => 'array'`, `'membership_expiry' => 'datetime'`, `'is_verified' => 'boolean'`).
-*   **Soft Deletes:** Use Laravel's `SoftDeletes` trait on all entities containing business or user-generated data.
-
-### 3.4 Services & Actions
-*   **Encapsulate Business Logic:** Write business logic (e.g., external API calls, complex payment math, notification dispatching) inside Service classes located in `app/Services/`.
-*   **Dependency Injection:** Resolve Services via the Laravel container in controllers or commands.
+* **Do not over-engineer.** Prefer Laravel, Eloquent, Services, Form Requests, Policies, Jobs, and Resources. Add abstractions only when they solve a real problem.
+* **Keep controllers thin.** HTTP handling belongs in controllers; business logic belongs in Services/Actions.
+* **Fail clearly.** Do not silently swallow exceptions or return fake/empty success responses.
+* **Preserve existing behavior.** Existing production APIs are contracts unless explicitly approved for change.
+* **Small, focused changes.** Do not refactor unrelated code while implementing a feature.
+* **Never optimize for elegance at the cost of compatibility.**
 
 ---
 
-## 4. Third-Party Integrations
+## 2. 🚨 Product Boundary Rules — MOST IMPORTANT
 
-When dealing with third-party APIs (e.g., **Razorpay**, **Zoho**):
-*   **Dedicated Services:** Build a wrapper service class under `app/Services/` (e.g., `app/Services/RazorpayService.php`).
-*   **Configuration & Credentials:** Never hardcode api keys or secrets. Retrieve them from `config/services.php` (which reads from `.env`).
-*   **Webhook Handlers:** Use robust webhook controllers. Validate signature payloads. Log webhook payloads under a specific log channel or custom database table (`WebhookEvent`) for troubleshooting.
-*   **Asynchronous Jobs:** Dispatch heavy API transactions or notification deliveries to the queue using Laravel Jobs (`app/Jobs/`).
+This repository contains multiple products. **Treat them as separate applications even though they share one Laravel project/database.**
+
+### Products
+
+* **Member App**
+* **Leader App**
+* **Admin Panel**
+* **Scan App**
+* **DED**
+* **Shared/Integration infrastructure**
+
+### Mandatory rules
+
+* A **Leader** task must primarily touch Leader code.
+* A **Member** task must primarily touch Member code.
+* Never modify another product's controller, route, service, API contract, or business logic unless the task explicitly requires it.
+* **Shared data does not mean shared business logic.**
+* Do not move product-specific logic into shared classes merely to reuse code.
+* Before changing shared code, verify every affected product.
+* Never assume a model/service is safe to change just because it is used by the current feature.
+
+### Dependency direction
+
+```text
+Product
+   ↓
+Shared Kernel / Infrastructure
+   ↓
+Database
+```
+
+**Product A must not depend on Product B.**
 
 ---
 
-## 5. Database & Migrations
+## 3. 🛡️ AI Development Rules
 
-*   **Immutable Migrations:** Never edit a database migration file that has already been executed on other environments or staging/production database. Write a new migration file to modify columns.
-*   **Explicit Constraints & Indexes:** Always define foreign keys and add indexes to frequently queried columns (e.g., `status`, `user_id`, `created_at`).
-*   **Seeders:** Use database seeders for lookups and initial setup data (e.g., categories, roles) so anyone can set up the environment with `php artisan migrate --seed`.
+AI assistants must treat this repository as a **protected multi-product system**.
+
+Before changing code:
+
+1. Identify which product owns the feature.
+2. Identify the routes, controllers, services, models, middleware and tests involved.
+3. Check whether any changed class is shared with another product.
+4. Make the smallest safe change.
+5. Do not modify unrelated legacy code.
+6. Do not perform broad refactors unless explicitly requested.
+
+### AI must NOT
+
+* Rewrite large files unnecessarily.
+* Rename/move existing APIs without approval.
+* Change API response structures casually.
+* Modify legacy Member behavior while implementing Leader functionality.
+* Change shared models simply to make a new feature easier.
+* Delete or replace old endpoints because a new implementation exists.
+* Introduce a new architecture/pattern without a concrete need.
+
+**If a shared dependency must change, stop and identify the impact before changing it.**
 
 ---
 
-## 6. Testing Strategy
+## 4. 🏗️ Product Architecture
 
-*   **Pest or PHPUnit:** This codebase uses PHPUnit for running feature tests.
-*   **Test Naming:** Use clear descriptive names: `test_user_is_downgraded_after_expiry()` or `test_razorpay_webhook_creates_subscription()`.
-*   **External Faking:** Always mock external API requests in tests using `Http::fake()` or custom mocking objects to prevent tests from calling real services.
-*   **Database Cleanup:** Use `Illuminate\Foundation\Testing\RefreshDatabase` or transactions on test methods to ensure test isolation.
+New code should follow the product boundary.
+
+### Leader
+
+```text
+app/Http/Controllers/Api/V1/Leader/
+app/Services/Leader/
+app/Http/Requests/Leader/
+app/Http/Resources/Leader/
+app/Policies/Leader/
+routes/leader.php
+tests/Feature/Leader/
+```
+
+### Other products
+
+Follow the same principle as their boundaries are introduced.
+
+**Do not put new Leader business logic into generic locations such as:**
+
+```text
+app/Http/Controllers/Api/
+app/Services/
+```
+
+unless the code is genuinely shared infrastructure.
 
 ---
 
-## 7. Security Rules
+## 5. 🛣️ Routing Rules
 
-*   **Validation:** Validate ALL inputs. Reject invalid payloads early.
-*   **Authorization:** Use Laravel Policy classes (`app/Policies/`) to check permissions. Never assume database lookups are safe without verifying if the user owns the record.
-*   **SQL Injection:** Always use Eloquent or query builder bindings. Avoid raw SQL strings unless bindings are fully configured.
-*   **Data Masking:** Mask sensitive user details (e.g., password hashes, personal identification numbers) in logs.
+* Product routes must live in product-specific route files.
+* Leader routes belong in `routes/leader.php`.
+* Keep API versioning and middleware explicit.
+* Use class-based controller references.
+* Preserve existing public API URLs during migrations unless a breaking change is explicitly approved.
+* Never delete an existing endpoint merely because it has been moved internally.
+* Use UUID route constraints where the application expects UUIDs.
+* After route changes, verify the route list and middleware.
+
+### Important
+
+**Route organization must not accidentally change:**
+
+* URL
+* HTTP method
+* middleware
+* authentication
+* authorization
+* route name
+* parameter behavior
+* response contract
 
 ---
 
-## 8. Command Checklist for Developers
-Before you commit and push to Git:
-1.  **Format Code:** `vendor/bin/pint`
-2.  **Run Tests:** `php artisan test` or `./vendor/bin/phpunit`
-3.  **Check Routes:** Verify routes list if routes were added: `php artisan route:list`
-4.  **Confirm Env:** Ensure any new env variable is added to `.env.example`
+## 6. 🎯 Controllers, Requests & Responses
+
+### Controllers
+
+Controllers should:
+
+1. Receive the request.
+2. Validate/authorize through dedicated classes.
+3. Call the appropriate Service/Action.
+4. Return the API response.
+
+### Validation
+
+* Use Form Requests for non-trivial validation.
+* Never trust client input.
+* Authorization must be explicit.
+
+### API Responses
+
+* Use stable, explicit API response structures.
+* Prefer API Resources/DTO-style response shaping where appropriate.
+* **Do not expose Eloquent models directly as accidental API contracts.**
+* Existing mobile API response structures must be treated as contracts.
+
+---
+
+## 7. 🧠 Models & Shared Models
+
+Models represent data, but **business behavior must remain product-aware**.
+
+* Avoid turning `User`, `Circle`, or other shared models into "God Models."
+* Do not add Leader-specific business logic to a shared model unless it is truly domain-wide.
+* Do not change shared model relationships/casts/accessors without checking all consumers.
+* Prefer product Services/Actions for product-specific behavior.
+* Keep shared models focused on shared data and universally valid behavior.
+
+**Shared model = high-risk change.**
+
+---
+
+## 8. ⚙️ Services & Business Logic
+
+* Put meaningful business logic in Services/Actions.
+* Services should have one clear responsibility.
+* Keep external integrations behind dedicated services.
+* Do not create Repository/Interface layers without a real requirement.
+* Use dependency injection.
+* Avoid Services that become another "God Class."
+
+For integrations such as Razorpay/Zoho:
+
+* Credentials come from configuration/environment.
+* Validate webhooks/signatures.
+* Use Jobs for appropriate asynchronous work.
+* Never hardcode secrets.
+
+---
+
+## 9. 🗄️ Database & Migrations
+
+* **Never edit an already-applied production/staging migration.**
+* Create a new migration for schema changes.
+* Add appropriate indexes and foreign keys.
+* Be careful with shared tables: a schema change can affect every product.
+* Do not rename/delete shared columns without checking all consumers.
+* Treat database schema changes as cross-product changes.
+
+---
+
+## 10. 🔐 Security
+
+* Validate all external input.
+* Authorize every protected resource.
+* Use Policies/Middleware where appropriate.
+* Never trust IDs supplied by clients without ownership/permission checks.
+* Use Eloquent/query bindings instead of unsafe raw SQL.
+* Never hardcode secrets.
+* Never log passwords, tokens, API keys, or sensitive personal data.
+
+---
+
+## 11. 🧪 Testing & Regression Protection
+
+Every meaningful feature should have tests appropriate to its risk.
+
+### Especially required for:
+
+* Authentication
+* Authorization/capabilities
+* Leader flows
+* Payments
+* External integrations
+* Critical business rules
+* Existing APIs being migrated/refactored
+
+### Cross-product rule
+
+If a change touches shared code, test the affected existing product flows as well.
+
+**A successful new test is not enough if an old product flow breaks.**
+
+Use fake external services in tests.
+
+---
+
+## 12. 🚦 Legacy & Production API Protection
+
+Existing production APIs are **protected contracts**.
+
+Classify APIs internally as:
+
+* **Frozen Legacy** — do not modify behavior casually.
+* **Active** — changes require compatibility consideration.
+* **New** — can follow the new architecture.
+
+When replacing/moving an existing endpoint:
+
+> **Extract → Verify → Test → Protect → Then improve.**
+
+Do not use a migration as an excuse for a simultaneous rewrite.
+
+---
+
+## 13. 👑 Leader App Launch Rules
+
+Leader is currently being prepared for production/store launch.
+
+Therefore:
+
+* Leader is the **first product to receive the new architectural boundary**.
+* Existing Leader API URLs should remain unchanged unless explicitly approved.
+* Leader routes should be isolated into `routes/leader.php`.
+* Leader controllers/services should remain under their Leader namespaces/directories.
+* Leader-specific business logic must not be added to Member/legacy code.
+* Every Leader endpoint should have appropriate regression/feature coverage before launch.
+* Changes to shared models or shared services during Leader work require explicit impact review.
+
+**Goal: launch Leader cleanly without creating new coupling to legacy Member flows.**
+
+---
+
+## 14. 📋 Before Committing
+
+Run:
+
+1. `vendor/bin/pint`
+2. Relevant PHPUnit/feature tests
+3. `php artisan route:list` when routes changed
+4. Check `.env.example` for new environment variables
+5. Review the Git diff
+6. Confirm no unrelated product files changed
+
+### Final AI check
+
+Before finishing any task, ask:
+
+> **Did I change anything outside the product/domain requested?**
+
+If yes, explain why it was necessary.
+
+---
+
+## 15. 🚫 Golden Rule
+
+> **Do not make a local problem a global change.**
+
+Keep product behavior isolated, keep shared code minimal, preserve existing API contracts, and make changes small enough that another developer—or an AI assistant—can understand their impact.

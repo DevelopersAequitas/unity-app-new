@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,6 +17,10 @@ class P2PMeetingRequestResource extends JsonResource
     {
         $this->resource->loadMissing(['requester', 'invitee', 'rescheduleRequests']);
 
+        $resolver = app(OtherUserDetailsResolver::class);
+        $requesterProfile = $this->requester ? array_merge($this->requester->publicProfileArray(), $resolver->formatUser($this->requester) ?? []) : null;
+        $inviteeProfile = $this->invitee ? array_merge($this->invitee->publicProfileArray(), $resolver->formatUser($this->invitee) ?? []) : null;
+
         return [
             'id' => (string) $this->id,
             'status' => (string) $this->status,
@@ -24,8 +29,10 @@ class P2PMeetingRequestResource extends JsonResource
             'message' => $this->message,
             'responded_at' => $this->responded_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
-            'requester' => $this->requester?->publicProfileArray(),
-            'invitee' => $this->invitee?->publicProfileArray(),
+            'requester' => $requesterProfile,
+            'invitee' => $inviteeProfile,
+            'given_by' => $requesterProfile,
+            'given_to' => $inviteeProfile,
             'reschedule_requests' => $this->rescheduleRequests,
         ];
     }
