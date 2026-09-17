@@ -699,15 +699,52 @@ class Circle extends Model
             }
         }
 
+        // Validate all user IDs against users table to prevent foreign key constraint violations
+        if (Schema::hasTable('users')) {
+            $candidateUserIds = array_filter(array_values($newValues));
+
+            if (isset($calendar['leadership']) && is_array($calendar['leadership'])) {
+                foreach ($calendar['leadership'] as $lKey => $lVal) {
+                    if (is_string($lVal) && $lVal !== '') {
+                        $candidateUserIds[] = $lVal;
+                    }
+                }
+            }
+
+            $candidateUserIds = array_values(array_unique($candidateUserIds));
+
+            if (! empty($candidateUserIds)) {
+                $validUserIds = DB::table('users')
+                    ->whereIn('id', $candidateUserIds)
+                    ->pluck('id')
+                    ->map(fn ($id) => (string) $id)
+                    ->all();
+
+                $validUserIdSet = array_flip($validUserIds);
+
+                foreach ($newValues as $col => $val) {
+                    if ($val !== null && ! isset($validUserIdSet[(string) $val])) {
+                        $newValues[$col] = null;
+                    }
+                }
+
+                if (isset($calendar['leadership']) && is_array($calendar['leadership'])) {
+                    foreach ($calendar['leadership'] as $lKey => $lVal) {
+                        if ($lVal !== null && ! isset($validUserIdSet[(string) $lVal])) {
+                            $calendar['leadership'][$lKey] = null;
+                        }
+                    }
+                }
+            }
+        }
+
         $updates = [];
 
         foreach ($newValues as $col => $val) {
             if (Schema::hasColumn('circles', $col)) {
                 $updates[$col] = $val;
             }
-            if ($val !== null) {
-                data_set($calendar, 'leadership.'.$col, $val);
-            }
+            data_set($calendar, 'leadership.'.$col, $val);
         }
         $updates['calendar'] = json_encode($calendar);
         $updates['updated_at'] = now();
