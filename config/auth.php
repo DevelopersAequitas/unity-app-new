@@ -135,4 +135,34 @@ return [
 
     'otp_expire_minutes' => (int) env('OTP_EXPIRATION_MINUTES', 10),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Login Methods
+    |--------------------------------------------------------------------------
+    |
+    | Supported authentication methods for the admin panel.
+    |
+    */
+
+    'admin_login_methods' => [
+        'email' => [
+            'key' => 'email',
+            'label' => 'Email OTP',
+            'enabled' => (bool) env('ADMIN_AUTH_EMAIL_ENABLED', true),
+            'digits' => 4,
+            'input_type' => 'email',
+            'placeholder' => 'you@company.com',
+            'color' => '#3b82f6',
+        ],
+        'whatsapp' => [
+            'key' => 'whatsapp',
+            'label' => 'WhatsApp OTP',
+            'enabled' => (bool) env('ADMIN_AUTH_WHATSAPP_ENABLED', true),
+            'digits' => 4,
+            'input_type' => 'tel',
+            'placeholder' => 'e.g. 9876543210',
+            'color' => '#10b981',
+        ],
+    ],
+
 ];

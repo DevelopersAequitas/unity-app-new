@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\Activities;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\TableRowResource;
 use App\Models\Testimonial;
-use App\Support\ActivityHistory\OtherUserNameResolver;
 use Illuminate\Http\Request;
 
 class TestimonialHistoryController extends BaseApiController
