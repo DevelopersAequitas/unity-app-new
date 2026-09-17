@@ -30,8 +30,8 @@
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
-            ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+            ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
             ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*']],
             ['icon' => 'bi-whatsapp', 'label' => 'WhatsApp Templates', 'route' => 'admin.whatsapp-templates.index', 'active_routes' => ['admin.whatsapp-templates.*']],
             ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
@@ -45,8 +45,8 @@
                 ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Industries') ? [
                     ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
                 ] : []),
-                ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+                ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
                 ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
                     ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*']],
                 ] : []),
@@ -79,8 +79,8 @@
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
-                ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*']],
+                ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
+                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
@@ -636,9 +636,33 @@
                             </ul>
                         </div>
                     </li>
+                @elseif ($item['label'] === 'Coins')
+                    @php
+                        $coinsActive = request()->routeIs('admin.coins.*') || request()->routeIs('admin.coin-guidelines.*');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $coinsActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $coinsActive ? 'active' : '' }}" href="javascript:void(0)" title="Coins">
+                            <i class="bi {{ $item['icon'] ?? 'bi-coin' }} me-2"></i><span class="menu-text me-auto text-start">Coins</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $coinsActive ? 'show' : '' }}" id="coinsSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.coins.index') ? 'active' : '' }}" href="{{ route('admin.coins.index') }}">
+                                        Coins Overview
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.coin-guidelines.*') ? 'active' : '' }}" href="{{ route('admin.coin-guidelines.index') }}">
+                                        Coin Guidelines
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @elseif ($item['label'] === 'Life Impact')
                     @php
-                        $lifeImpactActive = request()->routeIs('admin.life-impact.*') || request()->routeIs('admin.life-impact-recognitions.*');
+                        $lifeImpactActive = request()->routeIs('admin.life-impact.*') || request()->routeIs('admin.life-impact-recognitions.*') || request()->routeIs('admin.impact-guidelines.*');
                         $currentTab = request('tab');
                         $isRecognitionsRoute = request()->routeIs('admin.life-impact-recognitions.*');
                         $isOverviewRoute = request()->routeIs('admin.life-impact.index');
@@ -663,6 +687,11 @@
                                 <li class="nav-item">
                                     <a class="nav-link {{ ($isRecognitionsRoute && $currentTab === 'creative') ? 'active' : '' }}" href="{{ route('admin.life-impact-recognitions.index', ['tab' => 'creative']) }}">
                                         Creative
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.impact-guidelines.*') ? 'active' : '' }}" href="{{ route('admin.impact-guidelines.index') }}">
+                                        Impact Guidelines
                                     </a>
                                 </li>
                             </ul>

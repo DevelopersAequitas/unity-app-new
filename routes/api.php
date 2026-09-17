@@ -85,6 +85,7 @@ use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
+use App\Http\Controllers\Api\V1\CoinGuidelineController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
@@ -113,6 +114,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\GlobalPeerCertificateController;
 use App\Http\Controllers\Api\V1\ImpactController;
+use App\Http\Controllers\Api\V1\ImpactGuidelineController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\IntroducedPeerController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
@@ -260,6 +262,8 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+    Route::get('/coin-guidelines', [CoinGuidelineController::class, 'index']);
+    Route::get('/impact-guidelines', [ImpactGuidelineController::class, 'index']);
     Route::get('/tutorials', [TutorialController::class, 'index']);
     Route::post('/tutorials', [TutorialController::class, 'store']);
     Route::prefix('scan-app')->group(function () {
