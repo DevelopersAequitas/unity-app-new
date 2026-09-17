@@ -9,45 +9,46 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Database state expiration / stale cleaning (no notifications)
-Schedule::command('memberships:expire')->daily();
-Schedule::command('memberships:expire-users')->hourly();
-Schedule::command('users:expire-trial')->hourly();
-Schedule::command('collaborations:expire')->dailyAt('00:10');
-Schedule::command('members:mark-offline-stale')->everyMinute();
-Schedule::command('app:check-maintenance-transitions')->everyMinute();
+Schedule::command('memberships:expire')->daily()->withoutOverlapping();
+Schedule::command('memberships:expire-users')->hourly()->withoutOverlapping();
+Schedule::command('users:expire-trial')->hourly()->withoutOverlapping();
+Schedule::command('collaborations:expire')->dailyAt('00:10')->withoutOverlapping();
+Schedule::command('members:mark-offline-stale')->everyMinute()->withoutOverlapping();
+Schedule::command('app:check-maintenance-transitions')->everyMinute()->withoutOverlapping();
 
 // App Update reminders (push + in-app)
-Schedule::command('app:update-reminder-notifications')->hourly();
+Schedule::command('app:update-reminder-notifications')->hourly()->withoutOverlapping();
 
 // Membership expiry reminders (mail + push + in-app)
-Schedule::command('memberships:send-expiry-reminders')->dailyAt('11:25')->timezone(config('app.timezone', 'UTC'));
-Schedule::command('memberships:send-upcoming-expiry-reminders')->dailyAt('11:25')->timezone(config('app.timezone', 'UTC'));
-Schedule::command('memberships:send-circle-expiry-reminders')->dailyAt('11:25')->timezone(config('app.timezone', 'UTC'));
+Schedule::command('memberships:send-expiry-reminders')->dailyAt('11:25')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+Schedule::command('memberships:send-upcoming-expiry-reminders')->dailyAt('11:25')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+Schedule::command('memberships:send-circle-expiry-reminders')->dailyAt('11:25')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
 // Connections pending reminders (push + in-app)
-Schedule::command('connections:send-pending-reminders')->dailyAt('09:00')->timezone(config('app.timezone', 'UTC'));
+Schedule::command('connections:send-pending-reminders')->dailyAt('09:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
 // Brand Partner Offer Expiry reminders (in-app notifications)
-Schedule::command('PGU:brand-partner-expiry-alerts')->dailyAt('08:00')->timezone(config('app.timezone', 'UTC'));
+Schedule::command('PGU:brand-partner-expiry-alerts')->dailyAt('08:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
 // Engagement reminders (push + in-app)
-Schedule::command('app:send-daily-engagement-reminders')->hourly();
+Schedule::command('app:send-daily-engagement-reminders')->hourly()->withoutOverlapping();
 
 // Notification campaigns scheduler (mail + push + in-app campaigns)
-Schedule::command('campaigns:run')->everyMinute();
-Schedule::command('notifications:campaigns every-five-minutes')->everyFiveMinutes();
-Schedule::command('notifications:campaigns hourly')->hourly();
-Schedule::command('notifications:campaigns daily')->dailyAt('09:15')->timezone(config('app.timezone', 'UTC'));
-Schedule::command('notifications:campaigns weekly')->sundays()->at('18:00')->timezone(config('app.timezone', 'UTC'));
+Schedule::command('campaigns:run')->everyMinute()->withoutOverlapping();
+Schedule::command('notifications:campaigns every-five-minutes')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('notifications:campaigns hourly')->hourly()->withoutOverlapping();
+Schedule::command('notifications:campaigns daily')->dailyAt('09:15')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+Schedule::command('notifications:campaigns weekly')->sundays()->at('18:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 Schedule::command('app:send-anniversary-notifications')
     ->dailyAt('09:00')
-    ->timezone(config('app.timezone', 'UTC'));
+    ->timezone(config('app.timezone', 'UTC'))
+    ->withoutOverlapping();
 
 // Profile completion reminders (WhatsApp 48-hour cycle)
-Schedule::command('profile-completion:send-reminders')->hourly();
+Schedule::command('profile-completion:send-reminders')->hourly()->withoutOverlapping();
 
 // Circle recommendation reminders (WhatsApp 3-day cycle)
-Schedule::command('circle-recommendation:send-reminders')->dailyAt('10:00')->timezone(config('app.timezone', 'UTC'));
+Schedule::command('circle-recommendation:send-reminders')->dailyAt('10:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
 // Phase 2: 30-Day Daily Habit Loop (WhatsApp checked every 15 minutes)
-Schedule::command('habit-loop:send-daily')->everyFifteenMinutes()->timezone(config('app.timezone', 'UTC'));
+Schedule::command('habit-loop:send-daily')->everyFifteenMinutes()->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
