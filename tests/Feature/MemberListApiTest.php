@@ -149,6 +149,10 @@ class MemberListApiTest extends TestCase
             ->assertOk();
 
         $this->assertSame(15, $response->json('data.life_impacted_count'));
+        $this->assertArrayNotHasKey('total_life_impact', $response->json('data'));
+        $this->assertArrayNotHasKey('lifeImpactedCount', $response->json('data'));
+        $this->assertArrayNotHasKey('lives_impacted', $response->json('data'));
+        $this->assertArrayNotHasKey('lives_impacted_count', $response->json('data'));
     }
 
     public function test_member_show_returns_life_impacted_count_from_history_fallback(): void
