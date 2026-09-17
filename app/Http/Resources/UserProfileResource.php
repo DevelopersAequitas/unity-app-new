@@ -42,10 +42,11 @@ class UserProfileResource extends MemberDetailResource
 
         // Remove all duplicate and redundant fields
         unset(
-            // Count aliases (duplicates of badges_count, p2p_meetings_count, business_deals_count)
+            // Count aliases (duplicates of badges_count, p2p_meetings_count, business_deals_count, testimonials_count)
             $data['my_badges_count'],
             $data['p2p_count'],
             $data['deals_count'],
+            $data['testimonial_count'],
 
             // Profile video duplicate (profile_video_id & profile_video_url are canonical)
             $data['profile_video'],

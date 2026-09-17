@@ -226,6 +226,10 @@ class UserResource extends JsonResource
             'deals_count' => $this->resolveBusinessDealsCount(),
             'given_business_deals_count' => $this->resolveGivenBusinessDealsCount(),
             'received_business_deals_count' => $this->resolveReceivedBusinessDealsCount(),
+            'testimonials_count' => $this->resolveTestimonialsCount(),
+            'testimonial_count' => $this->resolveTestimonialsCount(),
+            'given_testimonials_count' => $this->resolveGivenTestimonialsCount(),
+            'received_testimonials_count' => $this->resolveReceivedTestimonialsCount(),
             'business_type' => $this->business_type,
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
@@ -723,6 +727,83 @@ class UserResource extends JsonResource
         }
 
         if (Schema::hasColumn('business_deals', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveTestimonialsCount(): int
+    {
+        if (isset($this->testimonials_count)) {
+            return (int) $this->testimonials_count;
+        }
+
+        if (isset($this->testimonial_count)) {
+            return (int) $this->testimonial_count;
+        }
+
+        if (! Schema::hasTable('testimonials')) {
+            return 0;
+        }
+
+        $query = DB::table('testimonials')
+            ->where(function ($q) {
+                $q->where('from_user_id', $this->id)
+                    ->orWhere('to_user_id', $this->id);
+            });
+
+        if (Schema::hasColumn('testimonials', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('testimonials', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveGivenTestimonialsCount(): int
+    {
+        if (isset($this->given_testimonials_count)) {
+            return (int) $this->given_testimonials_count;
+        }
+
+        if (! Schema::hasTable('testimonials')) {
+            return 0;
+        }
+
+        $query = DB::table('testimonials')->where('from_user_id', $this->id);
+
+        if (Schema::hasColumn('testimonials', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('testimonials', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function resolveReceivedTestimonialsCount(): int
+    {
+        if (isset($this->received_testimonials_count)) {
+            return (int) $this->received_testimonials_count;
+        }
+
+        if (! Schema::hasTable('testimonials')) {
+            return 0;
+        }
+
+        $query = DB::table('testimonials')->where('to_user_id', $this->id);
+
+        if (Schema::hasColumn('testimonials', 'is_deleted')) {
+            $query->where('is_deleted', false);
+        }
+
+        if (Schema::hasColumn('testimonials', 'deleted_at')) {
             $query->whereNull('deleted_at');
         }
 
