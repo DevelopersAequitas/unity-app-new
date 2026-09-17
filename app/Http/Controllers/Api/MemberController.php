@@ -231,8 +231,16 @@ class MemberController extends BaseApiController
                 ->withCount([
                     'followers as followers_count',
                     'following as following_count',
-                ])
-                ->find($authUserId);
+                ]);
+
+            if (Schema::hasTable('connections')) {
+                $self->withCount([
+                    'approvedSentConnections as approved_sent_count',
+                    'approvedReceivedConnections as approved_received_count',
+                ]);
+            }
+
+            $self = $self->find($authUserId);
 
             if ($self) {
                 $members->push($self);
@@ -374,6 +382,13 @@ class MemberController extends BaseApiController
                 'city:id,name,country,country_code',
                 'level4Category:id,name',
             ]);
+
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
 
         // Exclude inactive members
         $query->where(function ($statusQuery) {
@@ -557,15 +572,23 @@ class MemberController extends BaseApiController
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
-        $user = User::query()
+        $userQuery = User::query()
             ->select('users.*')
             ->addSelect($this->lifeImpactedCountExpression())
             ->with($this->memberDetailRelations())
             ->withCount([
                 'followers as followers_count',
                 'following as following_count',
-            ])
-            ->find($id);
+            ]);
+
+        if (Schema::hasTable('connections')) {
+            $userQuery->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
+
+        $user = $userQuery->find($id);
 
         if (! $user) {
             return $this->error('Member not found', 404);
@@ -584,16 +607,23 @@ class MemberController extends BaseApiController
 
     public function publicProfileBySlug(Request $request, string $slug, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
-        $user = User::query()
+        $userQuery = User::query()
             ->select('users.*')
             ->addSelect($this->lifeImpactedCountExpression())
             ->with($this->memberDetailRelations())
             ->withCount([
                 'followers as followers_count',
                 'following as following_count',
-            ])
-            ->where('public_profile_slug', $slug)
-            ->first();
+            ]);
+
+        if (Schema::hasTable('connections')) {
+            $userQuery->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
+
+        $user = $userQuery->where('public_profile_slug', $slug)->first();
 
         if (! $user) {
             return $this->error('Public profile not found', 404);

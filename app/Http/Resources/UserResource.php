@@ -209,7 +209,7 @@ class UserResource extends JsonResource
                 }),
             'circle_memberships' => $circleMemberships,
             'contact_visibility' => $this->contact_visibility ?? 'public',
-            'connection_count' => (int) ($this->connection_count ?? ($this->approved_sent_count ?? 0) + ($this->approved_received_count ?? 0)),
+            'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
             'posts_count' => (int) ($this->posts_count ?? 0),
@@ -485,19 +485,24 @@ class UserResource extends JsonResource
 
     private function resolveConnectionCount(): int
     {
+        if ($this->connection_count !== null) {
+            return (int) $this->connection_count;
+        }
+
+        if (isset($this->approved_sent_count) || isset($this->approved_received_count)) {
+            return (int) (($this->approved_sent_count ?? 0) + ($this->approved_received_count ?? 0));
+        }
+
         if (! Schema::hasTable('connections')) {
             return 0;
         }
 
-        if (isset($this->approved_sent_count) && isset($this->approved_received_count)) {
-            return (int) ($this->approved_sent_count + $this->approved_received_count);
-        }
-
-        return (int) (Connection::where('is_approved', true)
+        return (int) Connection::query()
+            ->where('is_approved', true)
             ->where(function ($query) {
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);
-            })->count());
+            })->count();
     }
 
     protected function resolveBadgesCount(): int

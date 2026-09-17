@@ -246,6 +246,66 @@ class MemberListApiTest extends TestCase
         $this->assertSame(18, $response->json('data.life_impacted_count'));
     }
 
+    public function test_member_show_returns_correct_connection_count(): void
+    {
+        $this->createSchema();
+
+        $authUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Auth',
+            'display_name' => 'Auth User',
+            'email' => 'auth-show-connections@example.com',
+            'status' => 'active',
+        ]);
+
+        $targetMember = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Target',
+            'display_name' => 'Target Member',
+            'email' => 'target-connections@example.com',
+            'status' => 'active',
+        ]);
+
+        $connectedPeer1 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Peer1',
+            'email' => 'peer1@example.com',
+            'status' => 'active',
+        ]);
+
+        $connectedPeer2 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Peer2',
+            'email' => 'peer2@example.com',
+            'status' => 'active',
+        ]);
+
+        Connection::create([
+            'requester_id' => $targetMember->id,
+            'addressee_id' => $connectedPeer1->id,
+            'is_approved' => true,
+        ]);
+
+        Connection::create([
+            'requester_id' => $connectedPeer2->id,
+            'addressee_id' => $targetMember->id,
+            'is_approved' => true,
+        ]);
+
+        Connection::create([
+            'requester_id' => $targetMember->id,
+            'addressee_id' => $authUser->id,
+            'is_approved' => false,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson("/api/v1/members/{$targetMember->id}")
+            ->assertOk();
+
+        $this->assertSame(2, $response->json('data.connection_count'));
+    }
+
     public function test_members_index_returns_contact_visibility_and_connection_count(): void
     {
         $this->createSchema();
