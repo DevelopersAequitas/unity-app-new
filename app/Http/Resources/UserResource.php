@@ -2,15 +2,7 @@
 
 namespace App\Http\Resources;
 
-use App\Models\CircleCategory;
-use App\Models\CircleCategoryLevel2;
-use App\Models\CircleCategoryLevel3;
-use App\Models\CircleCategoryLevel4;
-use App\Models\CircleMemberCategorySelection;
 use App\Models\Connection;
-use App\Models\CustomCategoryRequest;
-use App\Models\JoinedCircleCategory;
-use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
 use App\Models\UserFollow;
 use App\Services\ProfileMatchService;
@@ -132,15 +124,7 @@ class UserResource extends JsonResource
             $resolvedCity = $this->getAttribute('city');
         }
 
-        $otherCategoryReq = null;
-        if (blank($this->business_category_id) && $this->id && Schema::hasTable('custom_category_requests')) {
-            $query = CustomCategoryRequest::query()->where('user_id', (string) $this->id);
-            if ($this->main_business_category_id) {
-                $query->where('level1_category_id', (int) $this->main_business_category_id);
-            }
-            $otherCategoryReq = $query->latest()->first();
-        }
-        $otherCategoryName = $otherCategoryReq?->category_name ?? (blank($this->business_category_id) ? $this->business_sub_category : null) ?? null;
+        $otherCategoryName = blank($this->business_category_id) ? $this->business_sub_category : null;
         $isOtherCategory = blank($this->business_category_id) && ($otherCategoryName !== null && $otherCategoryName !== '');
 
         $welcomeCreativeUrl = $this->resolveWelcomeCreativeUrl();
@@ -225,10 +209,10 @@ class UserResource extends JsonResource
                 }),
             'circle_memberships' => $circleMemberships,
             'contact_visibility' => $this->contact_visibility ?? 'public',
-            'connection_count' => $this->resolveConnectionCount(),
+            'connection_count' => (int) ($this->connection_count ?? ($this->approved_sent_count ?? 0) + ($this->approved_received_count ?? 0)),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
-            'posts_count' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
+            'posts_count' => (int) ($this->posts_count ?? 0),
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'total_life_impact' => (int) ($this->life_impacted_count ?? 0),
@@ -236,17 +220,17 @@ class UserResource extends JsonResource
             'impact_score' => (int) ($this->life_impacted_count ?? 0),
             'lives_impacted' => (int) ($this->life_impacted_count ?? 0),
             'lives_impacted_count' => (int) ($this->life_impacted_count ?? 0),
-            'badges_count' => $this->resolveBadgesCount(),
-            'my_badges_count' => $this->resolveBadgesCount(),
-            'p2p_meetings_count' => $this->resolveP2pMeetingsCount(),
-            'p2p_count' => $this->resolveP2pMeetingsCount(),
-            'referrals_count' => $this->resolveReferralsCount(),
-            'given_referrals_count' => $this->resolveGivenReferralsCount(),
-            'received_referrals_count' => $this->resolveReceivedReferralsCount(),
-            'business_deals_count' => $this->resolveBusinessDealsCount(),
-            'deals_count' => $this->resolveBusinessDealsCount(),
-            'given_business_deals_count' => $this->resolveGivenBusinessDealsCount(),
-            'received_business_deals_count' => $this->resolveReceivedBusinessDealsCount(),
+            'badges_count' => (int) ($this->badges_count ?? 0),
+            'my_badges_count' => (int) ($this->my_badges_count ?? ($this->badges_count ?? 0)),
+            'p2p_meetings_count' => (int) ($this->p2p_meetings_count ?? ($this->p2p_count ?? 0)),
+            'p2p_count' => (int) ($this->p2p_count ?? ($this->p2p_meetings_count ?? 0)),
+            'referrals_count' => (int) ($this->referrals_count ?? 0),
+            'given_referrals_count' => (int) ($this->given_referrals_count ?? 0),
+            'received_referrals_count' => (int) ($this->received_referrals_count ?? 0),
+            'business_deals_count' => (int) ($this->business_deals_count ?? ($this->deals_count ?? 0)),
+            'deals_count' => (int) ($this->deals_count ?? ($this->business_deals_count ?? 0)),
+            'given_business_deals_count' => (int) ($this->given_business_deals_count ?? 0),
+            'received_business_deals_count' => (int) ($this->received_business_deals_count ?? 0),
             'business_type' => $this->business_type,
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
@@ -300,13 +284,7 @@ class UserResource extends JsonResource
                     'name' => ($this->relationLoaded('businessCategory') && $this->businessCategory ? $this->businessCategory->name : $this->level4Category->name),
                 ]
                 : null,
-            'story_link' => rescue(
-                fn () => SmeBusinessStorySubmission::where('user_id', $this->id)
-                    ->whereRaw('LOWER(status) = ?', ['approved'])
-                    ->value('story_link'),
-                null,
-                false
-            ),
+            'story_link' => $this->story_link ?? null,
             'profile_match' => $this->when(
                 $request->attributes->get('profile_match_enabled', false),
                 fn () => $this->resolveProfileMatch($request)
@@ -408,127 +386,16 @@ class UserResource extends JsonResource
 
     private function resolveCircleMemberships(): array
     {
-        if (! Schema::hasTable('circle_members') || ! Schema::hasTable('circle_subscriptions')) {
+        if (! $this->resource->relationLoaded('circleMemberships')) {
             return [];
         }
 
-        $joinedStatus = (string) config('circle.member_joined_status', 'approved');
-        $memberships = $this->resource->relationLoaded('circleMemberships')
-            ? $this->resource->circleMemberships
-            : $this->resource->circleMemberships()
-                ->where('status', $joinedStatus)
-                ->whereNull('deleted_at')
-                ->whereNull('left_at')
-                ->where(function ($query): void {
-                    $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
-
-                    if (Schema::hasColumn('circle_members', 'expires_at')) {
-                        $query->orWhere('expires_at', '>=', now());
-                    }
-                })
-                ->orderByDesc('joined_at')
-                ->with('circle:id,name,slug')
-                ->get();
-
-        if (! $memberships instanceof Collection) {
+        $memberships = $this->resource->circleMemberships;
+        if (! $memberships instanceof Collection || $memberships->isEmpty()) {
             return [];
         }
 
-        $subscriptionMap = $this->resource->circleSubscriptions()
-            ->whereIn('circle_id', $memberships->pluck('circle_id')->filter()->values())
-            ->orderByDesc('paid_at')
-            ->orderByDesc('created_at')
-            ->get()
-            ->groupBy('circle_id')
-            ->map(fn ($items) => $items->first());
-
-        $joinedCategoriesByMemberId = collect();
-        $joinedCategoriesByCircleId = collect();
-
-        if (Schema::hasTable('joined_circle_categories')) {
-            $joinedRows = JoinedCircleCategory::query()
-                ->where(function ($query) use ($memberships) {
-                    $query->whereIn('circle_member_id', $memberships->pluck('id')->filter()->values())
-                        ->orWhere(function ($q) use ($memberships) {
-                            $q->where('user_id', (string) $this->id)
-                                ->whereIn('circle_id', $memberships->pluck('circle_id')->filter()->values());
-                        });
-                })
-                ->with([
-                    'level1Category:id,name',
-                    'level2Category:id,name',
-                    'level3Category:id,name',
-                    'level4Category:id,name',
-                ])
-                ->orderByDesc('updated_at')
-                ->get();
-
-            foreach ($joinedRows as $row) {
-                if ($row->circle_member_id && ! $joinedCategoriesByMemberId->has((string) $row->circle_member_id)) {
-                    $joinedCategoriesByMemberId->put((string) $row->circle_member_id, $row);
-                }
-                if ($row->circle_id && ! $joinedCategoriesByCircleId->has((string) $row->circle_id)) {
-                    $joinedCategoriesByCircleId->put((string) $row->circle_id, $row);
-                }
-            }
-        }
-
-        $selectionByCircleMemberId = collect();
-        if (Schema::hasTable('circle_member_category_selections')) {
-            $selectionByCircleMemberId = CircleMemberCategorySelection::query()
-                ->whereIn('circle_member_id', $memberships->pluck('id')->filter()->values())
-                ->get([
-                    'circle_member_id',
-                    'level1_category_id',
-                    'level2_category_id',
-                    'level3_category_id',
-                    'level4_category_id',
-                ])
-                ->keyBy(fn (CircleMemberCategorySelection $row) => (string) $row->circle_member_id);
-        }
-
-        $level1Ids = $selectionByCircleMemberId->pluck('level1_category_id')->filter()->unique()->values();
-        $level2Ids = $selectionByCircleMemberId->pluck('level2_category_id')->filter()->unique()->values();
-        $level3Ids = $selectionByCircleMemberId->pluck('level3_category_id')->filter()->unique()->values();
-        $level4Ids = $selectionByCircleMemberId->pluck('level4_category_id')->filter()->unique()->values();
-
-        $level1ById = $level1Ids->isEmpty()
-            ? collect()
-            : CircleCategory::query()->whereIn('id', $level1Ids)->get()->keyBy('id');
-        $level2ById = $level2Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel2::query()->whereIn('id', $level2Ids)->get()->keyBy('id');
-        $level3ById = $level3Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel3::query()->whereIn('id', $level3Ids)->get()->keyBy('id');
-        $level4ById = $level4Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel4::query()->whereIn('id', $level4Ids)->get()->keyBy('id');
-
-        return $memberships->map(function ($membership) use (
-            $subscriptionMap,
-            $joinedCategoriesByMemberId,
-            $joinedCategoriesByCircleId,
-            $selectionByCircleMemberId,
-            $level1ById,
-            $level2ById,
-            $level3ById,
-            $level4ById
-        ): array {
-            $subscription = $subscriptionMap->get((string) $membership->circle_id);
-            $selection = $selectionByCircleMemberId->get((string) $membership->id);
-            $joinedSelection = $joinedCategoriesByMemberId->get((string) $membership->id)
-                ?? $joinedCategoriesByCircleId->get((string) $membership->circle_id);
-
-            $level1 = $joinedSelection?->level1Category
-                ?? ($selection ? $level1ById->get($selection->level1_category_id) : null);
-            $level2 = $joinedSelection?->level2Category
-                ?? ($selection ? $level2ById->get($selection->level2_category_id) : null);
-            $level3 = $joinedSelection?->level3Category
-                ?? ($selection ? $level3ById->get($selection->level3_category_id) : null);
-            $level4 = $joinedSelection?->level4Category
-                ?? ($selection ? $level4ById->get($selection->level4_category_id) : null);
-
+        return $memberships->map(function ($membership): array {
             return [
                 'circle_member_id' => $membership->id,
                 'circle_id' => $membership->circle_id,
@@ -540,16 +407,11 @@ class UserResource extends JsonResource
                 'expires_at' => $this->resolveCircleMembershipExpiry($membership),
                 'joined_via' => $membership->joined_via,
                 'payment_status' => $membership->payment_status,
-                'zoho_addon_code' => $membership->zoho_addon_code ?: optional($subscription)->zoho_addon_code,
-                'addon_name' => $membership->addon_name ?: optional($subscription)->zoho_addon_name,
-                'circle_subscription_id' => $membership->circle_subscription_id ?: optional($subscription)->id,
-                'subscription_status' => $membership->subscription_status ?: optional($subscription)->status,
-                'selected_category_path' => [
-                    'level1' => $level1 ? ['id' => $level1->id, 'name' => $level1->name] : null,
-                    'level2' => $level2 ? ['id' => $level2->id, 'name' => $level2->name] : null,
-                    'level3' => $level3 ? ['id' => $level3->id, 'name' => $level3->name] : null,
-                    'level4' => $level4 ? ['id' => $level4->id, 'name' => $level4->name] : null,
-                ],
+                'zoho_addon_code' => $membership->zoho_addon_code,
+                'addon_name' => $membership->addon_name,
+                'circle_subscription_id' => $membership->circle_subscription_id,
+                'subscription_status' => $membership->subscription_status,
+                'selected_category_path' => null,
             ];
         })->values()->all();
     }
@@ -565,64 +427,23 @@ class UserResource extends JsonResource
 
     private function resolvePrimaryCircleContext(): array
     {
-        if (! Schema::hasTable('circle_members') || ! Schema::hasTable('circle_subscriptions')) {
+        if (! $this->resource->relationLoaded('circleMemberships')) {
             return [];
         }
 
-        $joinedStatus = (string) config('circle.member_joined_status', 'approved');
-        $membership = $this->resource->circleMemberships()
-            ->where('status', $joinedStatus)
-            ->whereNull('deleted_at')
-            ->whereNull('left_at')
-            ->where(function ($query): void {
-                $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
-
-                if (Schema::hasColumn('circle_members', 'expires_at')) {
-                    $query->orWhere('expires_at', '>=', now());
-                }
-            })
-            // Selection rule for legacy single-circle fields:
-            // prefer paid memberships, then latest join.
-            ->orderByRaw('CASE WHEN paid_starts_at IS NULL THEN 1 ELSE 0 END ASC')
-            ->orderByDesc('paid_starts_at')
-            ->orderByDesc('joined_at')
-            ->orderByDesc('created_at')
-            ->with(['circle:id,name,slug,city_id', 'circle.cityRef:id,name'])
-            ->first();
-
+        $membership = $this->resource->circleMemberships->first();
         if (! $membership) {
             return [];
         }
 
-        $subscription = $this->resource->circleSubscriptions()
-            ->where('circle_id', $membership->circle_id)
-            ->orderByDesc('paid_at')
-            ->when(Schema::hasColumn('circle_subscriptions', 'started_at'), function ($query): void {
-                $query->orderByDesc('started_at');
-            })
-            ->when(Schema::hasColumn('circle_subscriptions', 'created_at'), function ($query): void {
-                $query->orderByDesc('created_at');
-            })
-            ->first();
-
         return [
-            'circle_id' => $membership->circle_id ?: $this->active_circle_id,
-            'joined_at' => $membership->paid_starts_at
-                ?? $membership->joined_at
-                ?? optional($subscription)->started_at
-                ?? $this->circle_joined_at,
-            'expires_at' => $this->resolveCircleMembershipExpiry($membership)
-                ?? optional($subscription)->expires_at
-                ?? $this->circle_expires_at,
-            'addon_code' => $membership->zoho_addon_code
-                ?: optional($subscription)->zoho_addon_code
-                ?: $this->active_circle_addon_code,
-            'addon_name' => optional($subscription)->zoho_addon_name
-                ?: $this->active_circle_addon_name,
-            'circle_subscription_id' => optional($subscription)->id
-                ?: $this->active_circle_subscription_id,
+            'circle_id' => $membership->circle_id,
+            'addon_code' => $membership->zoho_addon_code,
+            'addon_name' => $membership->addon_name,
+            'joined_at' => $membership->joined_at,
+            'expires_at' => $membership->expires_at ?? $membership->paid_ends_at,
+            'circle_subscription_id' => $membership->circle_subscription_id,
             'circle' => $membership->circle,
-            'subscription' => $subscription,
         ];
     }
 
