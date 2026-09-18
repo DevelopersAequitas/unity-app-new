@@ -998,7 +998,19 @@ Route::prefix('v1')->group(function () {
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
         });
 
+        // Direct top-level aliases for Peer App activity logging & history
+        Route::get('/p2p-meetings', [P2pMeetingHistoryController::class, 'index']);
+        Route::post('/p2p-meetings', [P2pMeetingController::class, 'store']);
+        Route::get('/p2p-meetings/{id}', [P2pMeetingController::class, 'show']);
         Route::get('/p2p-meetings/user/{userId}', [P2pMeetingController::class, 'userMeetings'])->whereUuid('userId');
+
+        Route::get('/business-deals', [BusinessDealHistoryController::class, 'index']);
+        Route::post('/business-deals', [BusinessDealController::class, 'store']);
+        Route::get('/business-deals/{id}', [BusinessDealHistoryController::class, 'show']);
+
+        Route::get('/requirements', [RequirementHistoryController::class, 'index']);
+        Route::post('/requirements', [ActivitiesRequirementController::class, 'store']);
+        Route::get('/requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
         // P2P Meeting Requests
         Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
