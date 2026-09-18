@@ -38,9 +38,13 @@ class TableRowResource extends JsonResource
 
             if ($fromId) {
                 $attributes['given_by'] = $detailsResolver->resolveUserById((string) $fromId);
+                $attributes['initiator'] = $attributes['given_by'];
+                $attributes['initiated_by'] = $attributes['given_by'];
             }
             if ($toId) {
                 $attributes['given_to'] = $detailsResolver->resolveUserById((string) $toId);
+                $attributes['peer'] = $attributes['given_to'];
+                $attributes['initiated_to'] = $attributes['given_to'];
             }
         }
 

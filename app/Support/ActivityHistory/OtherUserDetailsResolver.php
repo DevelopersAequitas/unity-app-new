@@ -24,14 +24,14 @@ class OtherUserDetailsResolver
      */
     public function resolve(?Authenticatable $authUser, mixed $row): ?array
     {
-        if (! $authUser) {
+        if (!$authUser) {
             return null;
         }
 
         $attributes = $this->extractAttributes($row);
         $otherUserId = $this->resolveOtherUserId($attributes, (string) $authUser->getAuthIdentifier());
 
-        if (! $otherUserId) {
+        if (!$otherUserId) {
             return null;
         }
 
@@ -45,7 +45,7 @@ class OtherUserDetailsResolver
      */
     public function formatUser(?User $user): ?array
     {
-        if (! $user) {
+        if (!$user) {
             return null;
         }
 
@@ -81,7 +81,7 @@ class OtherUserDetailsResolver
      */
     public function resolveUserById(?string $userId): ?array
     {
-        if (! $userId) {
+        if (!$userId) {
             return null;
         }
 
@@ -118,7 +118,7 @@ class OtherUserDetailsResolver
 
     private function loadUser(string $userId): ?User
     {
-        if (! array_key_exists($userId, self::$userCache)) {
+        if (!array_key_exists($userId, self::$userCache)) {
             self::$userCache[$userId] = User::find($userId);
         }
 
@@ -137,7 +137,7 @@ class OtherUserDetailsResolver
             return $displayName;
         }
 
-        $fullName = trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? '')));
+        $fullName = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
         if ($fullName !== '') {
             return $fullName;
         }
@@ -163,7 +163,7 @@ class OtherUserDetailsResolver
             ?? null;
 
         if ($profilePhotoFileId) {
-            return url('/api/v1/files/'.$profilePhotoFileId);
+            return url('/api/v1/files/' . $profilePhotoFileId);
         }
 
         return $user->profile_photo_url ?? null;
@@ -181,7 +181,7 @@ class OtherUserDetailsResolver
 
         if (blank($user->business_category_id ?? null) && $user->id && class_exists(CustomCategoryRequest::class) && Schema::hasTable('custom_category_requests')) {
             $query = CustomCategoryRequest::query()->where('user_id', (string) $user->id);
-            if (! empty($user->main_business_category_id)) {
+            if (!empty($user->main_business_category_id)) {
                 $query->where('level1_category_id', (int) $user->main_business_category_id);
             }
             $otherCategoryReq = $query->latest()->first();
@@ -190,7 +190,7 @@ class OtherUserDetailsResolver
             }
         }
 
-        if (! empty($user->business_category_id) && class_exists(CircleCategoryLevel4::class) && Schema::hasTable('circle_category_level4')) {
+        if (!empty($user->business_category_id) && class_exists(CircleCategoryLevel4::class) && Schema::hasTable('circle_category_level4')) {
             $cat = CircleCategoryLevel4::find($user->business_category_id);
             if ($cat && filled($cat->name)) {
                 return trim((string) $cat->name);

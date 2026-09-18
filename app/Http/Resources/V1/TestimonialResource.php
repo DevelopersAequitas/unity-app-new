@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\V1;
 
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class TestimonialResource extends JsonResource
@@ -49,17 +50,6 @@ class TestimonialResource extends JsonResource
             return null;
         }
 
-        $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id;
-        $profilePhotoUrl = $profilePhotoId
-            ? url('/api/v1/files/'.$profilePhotoId)
-            : ($user->profile_photo_url ?? null);
-
-        return [
-            'id' => $user->id,
-            'display_name' => $user->display_name ?? $user->first_name.' '.$user->last_name,
-            'company_name' => $user->company_name,
-            'designation' => $user->designation,
-            'profile_photo_url' => $profilePhotoUrl,
-        ];
+        return app(OtherUserDetailsResolver::class)->formatUser($user);
     }
 }

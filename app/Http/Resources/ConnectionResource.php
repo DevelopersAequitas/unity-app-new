@@ -64,15 +64,26 @@ class ConnectionResource extends JsonResource
             $status = $role === 'requester' ? 'pending_received' : 'pending_sent';
         }
 
+        $resolver = app(\App\Support\ActivityHistory\OtherUserDetailsResolver::class);
+        $companyName = $resolver->resolveCompanyName($user);
+        $city = $resolver->resolveCity($user);
+        $level4Category = $resolver->resolveLevel4Category($user);
+
         return [
             'id' => $user->id,
             'display_name' => $user->display_name,
+            'name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'profile_photo_url' => $user->profile_photo_url,
-            'company_name' => $user->company_name,
-            'city' => $this->resolveCity($user),
-            'category' => $user->level4Category?->name ?? null,
+            'company_name' => $companyName,
+            'company' => $companyName,
+            'business_name' => $companyName,
+            'city' => $city,
+            'category' => $level4Category,
+            'level4_category' => $level4Category,
+            'level_4_category' => $level4Category,
+            'business_sub_category' => $level4Category,
             'designation' => $user->designation ?? null,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
             'is_following' => $isFollowing,
@@ -80,22 +91,5 @@ class ConnectionResource extends JsonResource
             'is_connected' => (bool) $this->is_approved,
             'connection_status' => $status,
         ];
-    }
-
-    private function resolveCity($user): ?string
-    {
-        if (! $user) {
-            return null;
-        }
-
-        $cityRelation = $user->relationLoaded('city')
-            ? $user->getRelationValue('city')
-            : null;
-
-        if ($cityRelation) {
-            return $cityRelation->name;
-        }
-
-        return $user->city_name ?? $user->city ?? null;
     }
 }

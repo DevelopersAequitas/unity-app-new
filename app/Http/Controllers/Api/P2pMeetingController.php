@@ -244,7 +244,14 @@ class P2pMeetingController extends BaseApiController
 
             return $this->success($this->buildP2pMeetingResponse($meeting), 'P2P meeting saved successfully', 201);
         } catch (Throwable $e) {
-            return $this->error('Something went wrong', 500);
+            Log::error('Failed to create P2P meeting', [
+                'auth_user_id' => $authUser->id ?? null,
+                'peer_user_id' => $request->input('peer_user_id'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return $this->error('Something went wrong: '.$e->getMessage(), 500);
         }
     }
 
@@ -283,6 +290,27 @@ class P2pMeetingController extends BaseApiController
             if ($meeting->getAttribute($rewardKey) !== null) {
                 $attributes[$rewardKey] = $meeting->getAttribute($rewardKey);
             }
+        }
+
+        $resolver = app(OtherUserDetailsResolver::class);
+        $initiatorId = $meeting->initiator_user_id ? (string) $meeting->initiator_user_id : null;
+        $peerId = $meeting->peer_user_id ? (string) $meeting->peer_user_id : null;
+
+        $initiatorDetails = $initiatorId ? $resolver->resolveUserById($initiatorId) : null;
+        $peerDetails = $peerId ? $resolver->resolveUserById($peerId) : null;
+
+        $attributes['initiator'] = $initiatorDetails;
+        $attributes['peer'] = $peerDetails;
+        $attributes['given_by'] = $initiatorDetails;
+        $attributes['given_to'] = $peerDetails;
+        $attributes['initiated_by'] = $initiatorDetails;
+        $attributes['initiated_to'] = $peerDetails;
+
+        if (auth()->check()) {
+            $authId = (string) auth()->id();
+            $attributes['other_user'] = ($authId === $initiatorId) ? $peerDetails : $initiatorDetails;
+        } else {
+            $attributes['other_user'] = $peerDetails ?? $initiatorDetails;
         }
 
         return $this->formatP2pMeetingTimestamps($attributes);
