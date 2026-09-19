@@ -107,6 +107,10 @@ class LeaderMemberController extends Controller
         $filters = [
             'page' => $request->query('page', 1),
             'per_page' => $request->query('per_page', 20),
+            'search' => $request->query('search'),
+            'post_type' => $request->query('post_type'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
         ];
 
         $result = $this->member360Service->getMemberPosts($memberId, $filters);
@@ -142,6 +146,10 @@ class LeaderMemberController extends Controller
         $filters = [
             'page' => $request->query('page', 1),
             'per_page' => $request->query('per_page', 20),
+            'search' => $request->query('search'),
+            'activity_type' => $request->query('activity_type'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
         ];
 
         $result = $this->member360Service->getMemberCreatives($memberId, $filters);
@@ -177,6 +185,10 @@ class LeaderMemberController extends Controller
         $filters = [
             'page' => $request->query('page', 1),
             'per_page' => $request->query('per_page', 20),
+            'search' => $request->query('search'),
+            'badge_type' => $request->query('badge_type'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
         ];
 
         $result = $this->member360Service->getMemberBadges($memberId, $filters);
@@ -212,6 +224,11 @@ class LeaderMemberController extends Controller
         $filters = [
             'page' => $request->query('page', 1),
             'per_page' => $request->query('per_page', 20),
+            'search' => $request->query('search'),
+            'event_type' => $request->query('event_type'),
+            'status' => $request->query('status'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
         ];
 
         $result = $this->member360Service->getMemberEvents($memberId, $filters);
@@ -247,6 +264,11 @@ class LeaderMemberController extends Controller
         $filters = [
             'page' => $request->query('page', 1),
             'per_page' => $request->query('per_page', 20),
+            'search' => $request->query('search'),
+            'status' => $request->query('status'),
+            'event_type' => $request->query('event_type'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
         ];
 
         $result = $this->member360Service->getMemberEventRegistrations($memberId, $filters);

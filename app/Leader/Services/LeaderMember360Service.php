@@ -811,12 +811,42 @@ class LeaderMember360Service
     {
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $postType = isset($filters['post_type']) ? trim((string) $filters['post_type']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
 
-        $paginator = Post::query()
+        $query = Post::query()
             ->where('user_id', $memberId)
             ->whereNull('deleted_at')
-            ->withCount(['comments', 'likes'])
-            ->orderByDesc('created_at')
+            ->withCount(['comments', 'likes']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('content_text', 'like', "%{$search}%")
+                    ->orWhere('title', 'like', "%{$search}%");
+            });
+        }
+
+        if ($postType) {
+            $query->where('post_type', $postType);
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $paginator = $query->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $items = collect($paginator->items())->map(function (Post $post): array {
@@ -860,11 +890,41 @@ class LeaderMember360Service
     {
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $activityType = isset($filters['activity_type']) ? trim((string) $filters['activity_type']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
 
-        $paginator = ActivityCreative::query()
+        $query = ActivityCreative::query()
             ->where('user_id', $memberId)
-            ->whereNull('deleted_at')
-            ->orderByDesc('created_at')
+            ->whereNull('deleted_at');
+
+        if ($search) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($activityType) {
+            $query->where('activity_type', $activityType);
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $paginator = $query->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $items = collect($paginator->items())->map(function (ActivityCreative $creative): array {
@@ -915,12 +975,39 @@ class LeaderMember360Service
     {
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $badgeType = isset($filters['badge_type']) ? trim((string) $filters['badge_type']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
 
-        $paginator = UserMilestoneBadge::query()
+        $query = UserMilestoneBadge::query()
             ->with('badge')
             ->where('user_id', $memberId)
-            ->where('status', UserMilestoneBadge::STATUS_EARNED)
-            ->orderByDesc('earned_at')
+            ->where('status', UserMilestoneBadge::STATUS_EARNED);
+
+        if ($search) {
+            $query->whereHas('badge', fn ($q) => $q->where('title', 'like', "%{$search}%"));
+        }
+
+        if ($badgeType) {
+            $query->whereHas('badge', fn ($q) => $q->where('type', $badgeType));
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('earned_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('earned_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $paginator = $query->orderByDesc('earned_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $items = collect($paginator->items())->map(function (UserMilestoneBadge $umb): array {
@@ -967,6 +1054,12 @@ class LeaderMember360Service
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
 
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $eventType = isset($filters['event_type']) ? trim((string) $filters['event_type']) : null;
+        $status = isset($filters['status']) ? trim((string) $filters['status']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
+
         // Events the member registered for
         $eventIds = DB::table('event_registrations')
             ->where('user_id', $memberId)
@@ -1001,10 +1094,41 @@ class LeaderMember360Service
             ];
         }
 
-        $paginator = Event::query()
+        $query = Event::query()
             ->whereIn('id', $allEventIds)
-            ->whereNull('deleted_at')
-            ->orderByDesc('start_at')
+            ->whereNull('deleted_at');
+
+        if ($search) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('location_text', 'like', "%{$search}%");
+            });
+        }
+
+        if ($eventType) {
+            $query->where('event_type', $eventType);
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('start_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('start_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $paginator = $query->orderByDesc('start_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $registrationMap = DB::table('event_registrations')
@@ -1077,12 +1201,44 @@ class LeaderMember360Service
     {
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $status = isset($filters['status']) ? trim((string) $filters['status']) : null;
+        $eventType = isset($filters['event_type']) ? trim((string) $filters['event_type']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
 
-        $paginator = EventRegistration::query()
+        $query = EventRegistration::query()
             ->with(['event', 'occurrence'])
             ->where('user_id', $memberId)
-            ->whereNull('deleted_at')
-            ->orderByDesc('created_at')
+            ->whereNull('deleted_at');
+
+        if ($search) {
+            $query->whereHas('event', fn ($q) => $q->where('title', 'like', "%{$search}%"));
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($eventType) {
+            $query->whereHas('event', fn ($q) => $q->where('event_type', $eventType));
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $paginator = $query->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $items = collect($paginator->items())->map(function (EventRegistration $reg): array {
