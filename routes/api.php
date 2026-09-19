@@ -1224,7 +1224,9 @@ Route::prefix('v1')->group(function () {
     Route::post('/become-a-mentor', [BecomeMentorController::class, 'submit']);
     Route::post('/become-a-speaker', [WebsiteFormsController::class, 'submitBecomeSpeaker']);
     Route::post('/share-sme-business-story', [WebsiteFormsController::class, 'submitSmeBusinessStory']);
+    Route::get('/leadership-certification/questions', [WebsiteFormsController::class, 'leadershipCertificationQuestions']);
     Route::post('/leadership-certification', [WebsiteFormsController::class, 'submitLeadershipCertification']);
+    Route::get('/entrepreneur-certification/questions', [WebsiteFormsController::class, 'entrepreneurCertificationQuestions']);
     Route::post('/entrepreneur-certification', [WebsiteFormsController::class, 'submitEntrepreneurCertification']);
     Route::post('/partner-with-us', [WebsiteFormsController::class, 'submitPartnerWithUs']);
 
