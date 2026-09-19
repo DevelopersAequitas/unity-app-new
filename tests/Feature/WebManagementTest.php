@@ -114,6 +114,37 @@ class WebManagementTest extends TestCase
 
         $response = $this->actingAs($admin, 'admin')->get(route('admin.web.page-media.index'));
         $response->assertStatus(200);
-        $response->assertSee('Page Media Assignments');
+        $response->assertSee('Website Page Media');
+    }
+
+    public function test_public_web_media_api(): void
+    {
+        $response = $this->getJson('/api/v1/web-media');
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'count',
+            'data',
+        ]);
+    }
+
+    public function test_public_web_blogs_api(): void
+    {
+        $response = $this->getJson('/api/v1/web-blogs');
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'data',
+        ]);
+    }
+
+    public function test_public_web_settings_api(): void
+    {
+        $response = $this->getJson('/api/v1/web-settings');
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'data',
+        ]);
     }
 }

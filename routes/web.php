@@ -842,6 +842,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             // Media Library
             Route::get('/media', [WebMediaController::class, 'index'])->name('media.index');
+            Route::post('/media', [WebMediaController::class, 'store'])->name('media.store');
+            Route::delete('/media/{id}', [WebMediaController::class, 'destroy'])->name('media.destroy')->whereUuid('id');
 
             // Page Media Config
             Route::get('/page-media', [WebPageMediaController::class, 'index'])->name('page-media.index');

@@ -5,24 +5,115 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Web\WebMedia;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class WebMediaController extends Controller
 {
     public function index(Request $request): View
     {
-        $mediaAssets = [
-            ['id' => '1', 'title' => 'Peers Global Grand Launch & Conclave Reel', 'file_name' => 'hero-background.mp4', 'type' => 'video', 'size' => '28.4 MB', 'url' => '/videos/hero-background.mp4', 'updated_at' => '2026-09-15'],
-            ['id' => '2', 'title' => 'Peers Cyber Earth Network Loop', 'file_name' => 'global-earth-hd.mp4', 'type' => 'video', 'size' => '42.1 MB', 'url' => '/videos/global-earth-hd.mp4', 'updated_at' => '2026-09-14'],
-            ['id' => '3', 'title' => 'Leadership Journey Background', 'file_name' => 'journey-bg.mp4', 'type' => 'video', 'size' => '19.8 MB', 'url' => '/videos/journey-bg.mp4', 'updated_at' => '2026-09-10'],
-            ['id' => '4', 'title' => 'Dr. Pravin Parmar Cutout Banner', 'file_name' => 'dr-pravin-cutout.png', 'type' => 'image', 'size' => '1.2 MB', 'url' => '/images/dr-pravin-cutout.png', 'updated_at' => '2026-09-08'],
-            ['id' => '5', 'title' => 'Peers Global Official Logo Full', 'file_name' => 'logo-full.png', 'type' => 'image', 'size' => '240 KB', 'url' => '/images/logo-full.png', 'updated_at' => '2026-09-01'],
-            ['id' => '6', 'title' => 'Ahmedabad Riverfront Banner', 'file_name' => 'ahmedabad-riverfront.png', 'type' => 'image', 'size' => '2.8 MB', 'url' => '/images/territory/ahmedabad-riverfront.png', 'updated_at' => '2026-08-25'],
-        ];
+        $category = $request->query('category');
+        $type = $request->query('type');
+        $search = $request->query('search');
+
+        if (! \Illuminate\Support\Facades\Schema::hasTable('web_media')) {
+            $emptyPaginator = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 18);
+
+            return view('admin.web.media.index', [
+                'mediaAssets' => $emptyPaginator,
+                'selectedCategory' => $category ?? 'all',
+                'selectedType' => $type ?? 'all',
+            ]);
+        }
+
+        $query = WebMedia::query();
+
+        if (! empty($category) && $category !== 'all') {
+            $query->where('category', $category);
+        }
+
+        if (! empty($type) && $type !== 'all') {
+            $query->where('file_type', $type);
+        }
+
+        if (! empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('file_name', 'like', "%{$search}%");
+            });
+        }
+
+        $mediaAssets = $query->orderBy('created_at', 'desc')->paginate(18);
 
         return view('admin.web.media.index', [
             'mediaAssets' => $mediaAssets,
+            'selectedCategory' => $category ?? 'all',
+            'selectedType' => $type ?? 'all',
         ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'category' => 'nullable|string|max:100',
+            'file_type' => 'required|string',
+            'media_file' => 'nullable|file|max:102400',
+            'media_url' => 'nullable|string',
+        ]);
+
+        $filePath = $request->input('media_url') ?: '';
+        $fileSize = 0;
+        $fileName = 'external-link';
+
+        if ($request->hasFile('media_file')) {
+            $file = $request->file('media_file');
+            if ($file && $file->isValid()) {
+                $ext = strtolower($file->getClientOriginalExtension());
+                $fileName = Str::uuid().'.'.$ext;
+                $destinationPath = public_path('uploads/web-media');
+
+                if (! File::isDirectory($destinationPath)) {
+                    File::makeDirectory($destinationPath, 0755, true, true);
+                }
+
+                $file->move($destinationPath, $fileName);
+                $filePath = '/uploads/web-media/'.$fileName;
+                $fileSize = filesize($destinationPath.DIRECTORY_SEPARATOR.$fileName);
+            }
+        }
+
+        WebMedia::create([
+            'title' => $request->input('title'),
+            'file_name' => $fileName,
+            'file_path' => $filePath,
+            'file_type' => $request->input('file_type'),
+            'file_size' => $fileSize,
+            'category' => $request->input('category', 'general'),
+            'alt_text' => $request->input('title'),
+        ]);
+
+        return redirect()->route('admin.web.media.index')->with('success', 'Media asset uploaded successfully.');
+    }
+
+    public function destroy(string $id): RedirectResponse
+    {
+        $media = WebMedia::find($id);
+        if ($media) {
+            // Delete file if local
+            if (Str::startsWith($media->file_path, '/uploads/web-media/')) {
+                $localPath = public_path(ltrim($media->file_path, '/'));
+                if (File::exists($localPath)) {
+                    File::delete($localPath);
+                }
+            }
+            $media->delete();
+        }
+
+        return redirect()->route('admin.web.media.index')->with('success', 'Media asset deleted successfully.');
     }
 }
