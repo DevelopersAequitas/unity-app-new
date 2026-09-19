@@ -6,6 +6,7 @@ use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAuthController;
 use App\Leader\Controllers\LeaderDashboardController;
 use App\Leader\Controllers\LeaderFinanceController;
+use App\Leader\Controllers\LeaderMemberController;
 use App\Leader\Controllers\LeaderNotificationsController;
 use App\Leader\Controllers\LeaderPeersController;
 use App\Leader\Controllers\LeaderReportsController;
@@ -121,4 +122,13 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::post('/leader/roles', [LeaderRoleManagementController::class, 'store']);
     Route::put('/leader/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
     Route::delete('/leader/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+
+    // ── Member 360° APIs ─────────────────────────────────────────────────────
+    Route::get('/leader/members/{member_id}', [LeaderMemberController::class, 'show'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/activities', [LeaderMemberController::class, 'activities'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/posts', [LeaderMemberController::class, 'posts'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/creatives', [LeaderMemberController::class, 'creatives'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/event-registrations', [LeaderMemberController::class, 'eventRegistrations'])->whereUuid('member_id');
 });
