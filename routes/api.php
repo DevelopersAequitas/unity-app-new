@@ -1398,3 +1398,26 @@ Route::get('/send-test-push', function (Request $request) {
         ]);
     }
 });
+
+// ── Peers Global Website Public API Endpoints (v1) ──────────────────────
+Route::prefix('v1')->group(function () {
+    // Web Media (Videos, Images, Hero Banners, Section Assets)
+    Route::get('/web-media', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'index']);
+    Route::post('/web-media', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'store']);
+    Route::get('/web-media/assets', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'assets']);
+    Route::post('/web-media/upload', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'upload']);
+    Route::delete('/web-media/{id}', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'destroy']);
+
+    // Web Blogs & Publications
+    Route::get('/web-blogs', [\App\Http\Controllers\Api\V1\Web\WebBlogApiController::class, 'index']);
+    Route::get('/web-blogs/{slug}', [\App\Http\Controllers\Api\V1\Web\WebBlogApiController::class, 'show']);
+    Route::post('/web-blogs', [\App\Http\Controllers\Api\V1\Web\WebBlogApiController::class, 'store']);
+
+    // Web Partnerships & Ecosystem
+    Route::get('/web-partnerships', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'partnerships']);
+    Route::get('/web-opportunities', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'opportunities']);
+    Route::get('/web-companies', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'companies']);
+    Route::get('/web-settings', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'settings']);
+    Route::post('/web-messages', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'submitMessage']);
+    Route::get('/web-collaborations', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'collaborations']);
+});

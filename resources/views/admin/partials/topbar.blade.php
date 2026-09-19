@@ -147,6 +147,15 @@
                 <span class="fw-semibold" style="color: var(--text-secondary);">{{ $greeting }},</span>
                 <span style="color: var(--text-primary); font-weight: 600;">{{ $admin?->name ?? 'Admin' }}</span>
             </span>
+            @if(request()->routeIs('admin.web.*') || request()->is('admin/web*'))
+                <span class="badge rounded-pill d-inline-flex align-items-center gap-1 ms-1" style="background: rgba(99, 102, 241, 0.12); color: #6366f1; font-size: 0.72rem; padding: 4px 10px; font-weight: 600;">
+                    <i class="bi bi-globe2"></i> Web Platform
+                </span>
+            @else
+                <span class="badge rounded-pill d-inline-flex align-items-center gap-1 ms-1" style="background: rgba(59, 130, 246, 0.1); color: #2563eb; font-size: 0.72rem; padding: 4px 10px; font-weight: 600;">
+                    <i class="bi bi-phone"></i> App Platform
+                </span>
+            @endif
         </div>
 
         {{-- Search --}}
