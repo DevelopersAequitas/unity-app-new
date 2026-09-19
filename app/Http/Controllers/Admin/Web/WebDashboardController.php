@@ -23,7 +23,9 @@ class WebDashboardController extends Controller
         // 1. KPI Stats
         $totalPeers = Schema::hasTable('users') ? User::count() : 1248;
         $activeCircles = Schema::hasTable('circles') ? Circle::where('status', 'active')->count() : 86;
-        $awaitingReview = WebPartnership::whereIn('status', ['Under Review', 'Pending Due Diligence'])->count();
+        $awaitingReview = (Schema::hasTable('web_partnerships') && Schema::hasColumn('web_partnerships', 'status'))
+            ? WebPartnership::whereIn('status', ['Under Review', 'Pending Due Diligence'])->count()
+            : 42;
         $newSignupsToday = Schema::hasTable('users') ? User::whereDate('created_at', now()->toDateString())->count() : 14;
 
         // Fallbacks for empty states
@@ -38,12 +40,12 @@ class WebDashboardController extends Controller
         }
 
         // 2. Partnerships & Requests
-        $partnerships = WebPartnership::latest()->take(10)->get();
-        $partnershipCount = WebPartnership::count();
-        $opportunityCount = WebOpportunity::count();
-        $companyCount = WebCompany::count();
-        $blogCount = WebBlog::count();
-        $pageMediaCount = WebPageMedia::count();
+        $partnerships = Schema::hasTable('web_partnerships') ? WebPartnership::orderBy('created_at', 'desc')->take(10)->get() : collect();
+        $partnershipCount = Schema::hasTable('web_partnerships') ? WebPartnership::count() : 0;
+        $opportunityCount = Schema::hasTable('web_opportunities') ? WebOpportunity::count() : 0;
+        $companyCount = Schema::hasTable('web_companies') ? WebCompany::count() : 0;
+        $blogCount = Schema::hasTable('web_blogs') ? WebBlog::count() : 0;
+        $pageMediaCount = Schema::hasTable('web_page_medias') ? WebPageMedia::count() : 0;
 
         // 3. Top Partners
         $topPartners = [

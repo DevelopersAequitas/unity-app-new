@@ -20,25 +20,10 @@ class WebPageMedia extends Model
 
     public $incrementing = false;
 
-    protected $fillable = [
-        'id',
-        'page_id',
-        'page_title',
-        'page_slug',
-        'section_key',
-        'title',
-        'description',
-        'media_type',
-        'media_source',
-        'media_url',
-        'local_file_name',
-        'is_active',
-        'sort_order',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'sort_order' => 'integer',
     ];
 
     protected static function booted(): void
@@ -48,5 +33,20 @@ class WebPageMedia extends Model
                 $model->id = (string) Str::uuid();
             }
         });
+    }
+
+    public function getSectionKeyAttribute(?string $value): string
+    {
+        return $value ?: ($this->attributes['section_name'] ?? ($this->attributes['slot_key'] ?? 'Main Section'));
+    }
+
+    public function getMediaSourceAttribute(?string $value): string
+    {
+        return $value ?: 'localhost';
+    }
+
+    public function getPageTitleAttribute(?string $value): string
+    {
+        return $value ?: ucfirst($this->attributes['page_id'] ?? 'Home');
     }
 }

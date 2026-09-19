@@ -20,26 +20,13 @@ class WebOpportunity extends Model
 
     public $incrementing = false;
 
-    protected $fillable = [
-        'id',
-        'code',
-        'title',
-        'sector',
-        'value',
-        'location',
-        'status',
-        'description',
-        'requirements',
-        'tags',
-        'proposer_name',
-        'proposer_company',
-        'deadline',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'requirements' => 'array',
         'tags' => 'array',
         'deadline' => 'date',
+        'is_verified' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -48,9 +35,29 @@ class WebOpportunity extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
-            if (empty($model->code)) {
+            if (empty($model->attributes['code']) && \Illuminate\Support\Facades\Schema::hasColumn('web_opportunities', 'code')) {
                 $model->code = 'OPP-'.random_int(100, 999);
             }
         });
+    }
+
+    public function getSectorAttribute(?string $value): string
+    {
+        return $value ?: ($this->attributes['category'] ?? ($this->attributes['deal_type'] ?? 'Growth'));
+    }
+
+    public function getValueAttribute(?string $value): string
+    {
+        return $value ?: ($this->attributes['deal_size'] ?? '₹ 2.5 Cr');
+    }
+
+    public function getProposerCompanyAttribute(?string $value): string
+    {
+        return $value ?: 'Peers Member Enterprise';
+    }
+
+    public function getCodeAttribute(?string $value): string
+    {
+        return $value ?: ('OPP-'.substr((string) ($this->id ?? '100'), 0, 4));
     }
 }

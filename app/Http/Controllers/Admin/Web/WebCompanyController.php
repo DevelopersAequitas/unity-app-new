@@ -8,25 +8,43 @@ use App\Http\Controllers\Controller;
 use App\Models\Web\WebCompany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class WebCompanyController extends Controller
 {
     public function index(Request $request): View
     {
+        if (! Schema::hasTable('web_companies')) {
+            return view('admin.web.companies.index', [
+                'companies' => collect(),
+            ]);
+        }
+
         $query = WebCompany::query();
 
         if ($request->filled('q')) {
             $q = trim((string) $request->input('q'));
             $query->where(function ($sq) use ($q): void {
-                $sq->where('name', 'ilike', "%{$q}%")
-                    ->orWhere('industry', 'ilike', "%{$q}%")
-                    ->orWhere('sector', 'ilike', "%{$q}%")
-                    ->orWhere('city', 'ilike', "%{$q}%");
+                if (Schema::hasColumn('web_companies', 'name')) {
+                    $sq->orWhere('name', 'ilike', "%{$q}%");
+                }
+                if (Schema::hasColumn('web_companies', 'industry')) {
+                    $sq->orWhere('industry', 'ilike', "%{$q}%");
+                }
+                if (Schema::hasColumn('web_companies', 'sector')) {
+                    $sq->orWhere('sector', 'ilike', "%{$q}%");
+                }
+                if (Schema::hasColumn('web_companies', 'city')) {
+                    $sq->orWhere('city', 'ilike', "%{$q}%");
+                }
+                if (Schema::hasColumn('web_companies', 'headquarters')) {
+                    $sq->orWhere('headquarters', 'ilike', "%{$q}%");
+                }
             });
         }
 
-        $companies = $query->latest()->paginate(15)->withQueryString();
+        $companies = $query->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
 
         return view('admin.web.companies.index', [
             'companies' => $companies,
@@ -41,16 +59,29 @@ class WebCompanyController extends Controller
             'sector' => 'nullable|string|max:255',
             'location' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
+            'headquarters' => 'nullable|string|max:255',
             'website' => 'nullable|string|max:255',
+            'website_url' => 'nullable|string|max:255',
             'employee_count' => 'nullable|string|max:100',
             'turnover' => 'nullable|string|max:100',
+            'revenue_range' => 'nullable|string|max:100',
             'description' => 'nullable|string',
+            'bio' => 'nullable|string',
             'is_verified' => 'nullable|boolean',
         ]);
 
-        $validated['is_verified'] = $request->has('is_verified');
+        $data = [];
+        foreach ($validated as $k => $v) {
+            if ($v !== null && Schema::hasColumn('web_companies', $k)) {
+                $data[$k] = $v;
+            }
+        }
 
-        WebCompany::create($validated);
+        if (Schema::hasColumn('web_companies', 'is_verified')) {
+            $data['is_verified'] = $request->has('is_verified');
+        }
+
+        WebCompany::create($data);
 
         return redirect()->route('admin.web.companies.index')->with('success', 'Company added successfully.');
     }

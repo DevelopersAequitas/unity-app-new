@@ -20,32 +20,14 @@ class WebPartnership extends Model
 
     public $incrementing = false;
 
-    protected $fillable = [
-        'id',
-        'code',
-        'title',
-        'company_a',
-        'company_b',
-        'sector',
-        'route',
-        'value',
-        'numeric_value',
-        'status',
-        'stage',
-        'progress_percent',
-        'avatar_a',
-        'avatar_b',
-        'signed_date',
-        'description',
-        'synergies',
-        'lead_manager',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'numeric_value' => 'decimal:2',
         'progress_percent' => 'integer',
         'signed_date' => 'date',
         'synergies' => 'array',
+        'is_featured' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -54,9 +36,34 @@ class WebPartnership extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
-            if (empty($model->code)) {
+            if (empty($model->attributes['code']) && \Illuminate\Support\Facades\Schema::hasColumn('web_partnerships', 'code')) {
                 $model->code = 'PTS-'.random_int(100, 999);
             }
         });
+    }
+
+    public function getTitleAttribute(?string $value): string
+    {
+        return $value ?: ($this->attributes['company_name'] ?? 'Strategic Partnership');
+    }
+
+    public function getCompanyAAttribute(?string $value): string
+    {
+        return $value ?: ($this->attributes['company_name'] ?? 'Enterprise Partner');
+    }
+
+    public function getCompanyBAttribute(?string $value): string
+    {
+        return $value ?: 'Peers Global Network';
+    }
+
+    public function getSectorAttribute(?string $value): string
+    {
+        return $value ?: ($this->attributes['industry'] ?? ($this->attributes['partnership_tier'] ?? 'Strategic'));
+    }
+
+    public function getCodeAttribute(?string $value): string
+    {
+        return $value ?: ('PTS-'.substr((string) ($this->id ?? '100'), 0, 4));
     }
 }
