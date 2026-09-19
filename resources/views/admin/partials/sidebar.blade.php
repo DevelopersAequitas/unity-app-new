@@ -343,6 +343,8 @@
 
         return true;
     }));
+
+    $isWebMode = request()->routeIs('admin.web.*') || request()->is('admin/web*');
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
@@ -366,7 +368,109 @@
         </a>
     </div>
 
+    {{-- App / Web Switcher --}}
+    <div class="px-3 mb-3">
+        <div class="p-1 rounded-3 d-flex align-items-center justify-content-between" style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1);">
+            <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : ($isDed ? 'admin.ded.dashboard' : ($isCircleScoped ? 'admin.circle-member.dashboard' : 'admin.dashboard'))) }}" 
+               class="btn btn-sm d-flex align-items-center justify-content-center gap-1.5 flex-grow-1 py-1.5 px-2 rounded-2 text-decoration-none transition {{ ! $isWebMode ? 'btn-primary shadow-sm fw-bold text-white' : 'text-secondary hover-text-white' }}" 
+               style="font-size: 0.78rem; border: none; border-radius: 6px;">
+                <i class="bi bi-phone{{ ! $isWebMode ? '-fill' : '' }}"></i>
+                <span class="menu-text">App</span>
+            </a>
+            <a href="{{ route('admin.web.dashboard') }}" 
+               class="btn btn-sm d-flex align-items-center justify-content-center gap-1.5 flex-grow-1 py-1.5 px-2 rounded-2 text-decoration-none transition {{ $isWebMode ? 'btn-indigo shadow-sm fw-bold text-white' : 'text-secondary hover-text-white' }}" 
+               style="font-size: 0.78rem; border: none; border-radius: 6px; {{ $isWebMode ? 'background-color: #6366f1 !important;' : '' }}">
+                <i class="bi bi-globe{{ $isWebMode ? '2' : '' }}"></i>
+                <span class="menu-text">Web</span>
+            </a>
+        </div>
+    </div>
+
     <nav class="flex-grow-1">
+        @if ($isWebMode)
+            <div class="px-3 pb-2 text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem; letter-spacing: 0.08em;">
+                Web Platform
+            </div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.dashboard') ? 'active' : '' }}" href="{{ route('admin.web.dashboard') }}" title="Dashboard">
+                        <i class="bi bi-speedometer2 me-2"></i><span class="menu-text">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.partnerships.*') ? 'active' : '' }}" href="{{ route('admin.web.partnerships.index') }}" title="Partnerships">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-people-fill me-2"></i><span class="menu-text">Partnerships</span>
+                        </div>
+                        <span class="badge rounded-pill px-2 py-0.5" style="font-size: 0.65rem; background: rgba(99, 102, 241, 0.2); color: #a5b4fc;">86</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.opportunities.*') ? 'active' : '' }}" href="{{ route('admin.web.opportunities.index') }}" title="Opportunities">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-compass me-2"></i><span class="menu-text">Opportunities</span>
+                        </div>
+                        <span class="badge rounded-pill px-2 py-0.5" style="font-size: 0.65rem; background: rgba(168, 85, 247, 0.2); color: #d8b4fe;">New</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.companies.*') ? 'active' : '' }}" href="{{ route('admin.web.companies.index') }}" title="Companies">
+                        <i class="bi bi-building me-2"></i><span class="menu-text">Companies</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.blogs.*') ? 'active' : '' }}" href="{{ route('admin.web.blogs.index') }}" title="Publications">
+                        <i class="bi bi-file-earmark-richtext me-2"></i><span class="menu-text">Publications</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.media.*') ? 'active' : '' }}" href="{{ route('admin.web.media.index') }}" title="Media Library">
+                        <i class="bi bi-images me-2"></i><span class="menu-text">Media Library</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.page-media.*') ? 'active' : '' }}" href="{{ route('admin.web.page-media.index') }}" title="Page Medias">
+                        <i class="bi bi-collection-play me-2"></i><span class="menu-text">Page Medias</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.circles.*') ? 'active' : '' }}" href="{{ route('admin.web.circles.index') }}" title="Peer Circles">
+                        <i class="bi bi-diagram-3 me-2"></i><span class="menu-text">Peer Circles</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.events.*') ? 'active' : '' }}" href="{{ route('admin.web.events.index') }}" title="Conclaves & Events">
+                        <i class="bi bi-calendar-event me-2"></i><span class="menu-text">Conclaves & Events</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.messages.*') ? 'active' : '' }}" href="{{ route('admin.web.messages.index') }}" title="Messages">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-chat-dots me-2"></i><span class="menu-text">Messages</span>
+                        </div>
+                        <span class="badge rounded-pill px-2 py-0.5" style="font-size: 0.65rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5;">4</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.analytics.*') ? 'active' : '' }}" href="{{ route('admin.web.analytics.index') }}" title="Analytics">
+                        <i class="bi bi-graph-up-arrow me-2"></i><span class="menu-text">Analytics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.web.settings.*') ? 'active' : '' }}" href="{{ route('admin.web.settings.index') }}" title="Settings & Users">
+                        <i class="bi bi-gear me-2"></i><span class="menu-text">Settings & Users</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-3 pt-2 border-top border-secondary border-opacity-25">
+                    <a class="nav-link text-info d-flex align-items-center justify-content-between" href="https://peersglobal.com" target="_blank" title="View Live Site">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-box-arrow-up-right me-2"></i><span class="menu-text">View Live Site</span>
+                        </div>
+                        <i class="bi bi-chevron-right fs-7 text-muted"></i>
+                    </a>
+                </li>
+            </ul>
+        @else
         <ul class="nav flex-column">
             @if ($dashboardItem)
                 <li class="nav-item">
@@ -822,6 +926,7 @@
 
 
         </ul>
+        @endif
     </nav>
 
     <div class="sidebar-footer">

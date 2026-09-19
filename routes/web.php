@@ -53,8 +53,8 @@ use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
-use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\ImpactGuidelineController as AdminImpactGuidelineController;
+use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\IntroductionRequestsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
@@ -89,6 +89,18 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\Web\WebAnalyticsController;
+use App\Http\Controllers\Admin\Web\WebBlogController;
+use App\Http\Controllers\Admin\Web\WebCircleController;
+use App\Http\Controllers\Admin\Web\WebCompanyController;
+use App\Http\Controllers\Admin\Web\WebDashboardController;
+use App\Http\Controllers\Admin\Web\WebEventController;
+use App\Http\Controllers\Admin\Web\WebMediaController;
+use App\Http\Controllers\Admin\Web\WebMessageController;
+use App\Http\Controllers\Admin\Web\WebOpportunityController;
+use App\Http\Controllers\Admin\Web\WebPageMediaController;
+use App\Http\Controllers\Admin\Web\WebPartnershipController;
+use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -801,6 +813,54 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Wildcard route defined at the bottom to avoid intercepting concrete paths
         Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
             Route::get('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'show'])->name('brand-partners.show');
+        });
+
+        // ── Peers Global Website Management Module ──────────────────────
+        Route::prefix('web')->name('web.')->group(function () {
+            Route::get('/dashboard', [WebDashboardController::class, 'index'])->name('dashboard');
+
+            // Partnerships
+            Route::get('/partnerships', [WebPartnershipController::class, 'index'])->name('partnerships.index');
+            Route::post('/partnerships', [WebPartnershipController::class, 'store'])->name('partnerships.store');
+            Route::put('/partnerships/{id}', [WebPartnershipController::class, 'update'])->name('partnerships.update')->whereUuid('id');
+            Route::delete('/partnerships/{id}', [WebPartnershipController::class, 'destroy'])->name('partnerships.destroy')->whereUuid('id');
+
+            // Opportunities
+            Route::get('/opportunities', [WebOpportunityController::class, 'index'])->name('opportunities.index');
+            Route::post('/opportunities', [WebOpportunityController::class, 'store'])->name('opportunities.store');
+            Route::delete('/opportunities/{id}', [WebOpportunityController::class, 'destroy'])->name('opportunities.destroy')->whereUuid('id');
+
+            // Companies
+            Route::get('/companies', [WebCompanyController::class, 'index'])->name('companies.index');
+            Route::post('/companies', [WebCompanyController::class, 'store'])->name('companies.store');
+            Route::delete('/companies/{id}', [WebCompanyController::class, 'destroy'])->name('companies.destroy')->whereUuid('id');
+
+            // Publications / Blogs
+            Route::get('/blogs', [WebBlogController::class, 'index'])->name('blogs.index');
+            Route::post('/blogs', [WebBlogController::class, 'store'])->name('blogs.store');
+            Route::delete('/blogs/{id}', [WebBlogController::class, 'destroy'])->name('blogs.destroy')->whereUuid('id');
+
+            // Media Library
+            Route::get('/media', [WebMediaController::class, 'index'])->name('media.index');
+
+            // Page Media Config
+            Route::get('/page-media', [WebPageMediaController::class, 'index'])->name('page-media.index');
+            Route::post('/page-media', [WebPageMediaController::class, 'store'])->name('page-media.store');
+            Route::delete('/page-media/{id}', [WebPageMediaController::class, 'destroy'])->name('page-media.destroy')->whereUuid('id');
+
+            // Circles & Events
+            Route::get('/circles', [WebCircleController::class, 'index'])->name('circles.index');
+            Route::get('/events', [WebEventController::class, 'index'])->name('events.index');
+
+            // Messages & Inquiries
+            Route::get('/messages', [WebMessageController::class, 'index'])->name('messages.index');
+            Route::post('/messages/{id}/read', [WebMessageController::class, 'markRead'])->name('messages.read')->whereUuid('id');
+            Route::delete('/messages/{id}', [WebMessageController::class, 'destroy'])->name('messages.destroy')->whereUuid('id');
+
+            // Analytics & Settings
+            Route::get('/analytics', [WebAnalyticsController::class, 'index'])->name('analytics.index');
+            Route::get('/settings', [WebSettingController::class, 'index'])->name('settings.index');
+            Route::post('/settings', [WebSettingController::class, 'update'])->name('settings.update');
         });
     });
 });
