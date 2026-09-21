@@ -150,7 +150,7 @@
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 100px;">Status</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 130px;">Requested At</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Admin Note</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width: 120px;">Action</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width: 180px;">Action</th>
                     </tr>
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -258,10 +258,20 @@
                                 <span class="t3">—</span>
                             @endif
                         </td>
-                        <td class="px-3 py-2.5 text-right whitespace-nowrap" style="min-width: 120px;">
-                            <button class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold no-underline hover:bg-indigo-100 transition whitespace-nowrap cursor-pointer" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
-                                <i class="bi bi-eye me-1"></i> View
-                            </button>
+                        <td class="px-3 py-2.5 text-right whitespace-nowrap" style="min-width: 180px;">
+                            <div class="flex items-center justify-end gap-1.5">
+                                @if($joinRequest->status === 'pending')
+                                    <button type="button" class="inline-flex items-center justify-center px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-semibold hover:bg-emerald-100 transition whitespace-nowrap cursor-pointer" data-bs-toggle="modal" data-bs-target="#approve{{ $joinRequest->id }}" title="Accept Request">
+                                        <i class="bi bi-check-lg me-1 text-emerald-600 font-bold"></i> Accept
+                                    </button>
+                                    <button type="button" class="inline-flex items-center justify-center px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-300 text-xs font-semibold hover:bg-rose-100 transition whitespace-nowrap cursor-pointer" data-bs-toggle="modal" data-bs-target="#reject{{ $joinRequest->id }}" title="Reject Request">
+                                        <i class="bi bi-x-lg me-1 text-rose-600 font-bold"></i> Reject
+                                    </button>
+                                @endif
+                                <button type="button" class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold no-underline hover:bg-indigo-100 transition whitespace-nowrap cursor-pointer" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}" title="View Details">
+                                    <i class="bi bi-eye me-1"></i> View
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 @empty
@@ -397,7 +407,17 @@
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer bg-slate-100 border-t border-slate-200 px-4 py-2.5">
+                    <div class="modal-footer bg-slate-100 border-t border-slate-200 px-4 py-2.5 flex justify-between items-center">
+                        <div class="flex items-center gap-1.5">
+                            @if($joinRequest->status === 'pending')
+                                <button type="button" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition inline-flex items-center gap-1.5 shadow-xs" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#approve{{ $joinRequest->id }}">
+                                    <i class="bi bi-check-lg"></i> Accept Request
+                                </button>
+                                <button type="button" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition inline-flex items-center gap-1.5 shadow-xs" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#reject{{ $joinRequest->id }}">
+                                    <i class="bi bi-x-lg"></i> Reject Request
+                                </button>
+                            @endif
+                        </div>
                         <button type="button" class="px-4 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold transition" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
