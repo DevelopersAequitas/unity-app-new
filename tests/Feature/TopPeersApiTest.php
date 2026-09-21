@@ -9,6 +9,8 @@ use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Models\UserTag;
+use App\Models\UserTagAssignment;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -35,11 +37,38 @@ class TopPeersApiTest extends TestCase
 
     protected function createSchema(): void
     {
+        Schema::dropIfExists('user_tag_assignments');
+        Schema::dropIfExists('user_tags');
         Schema::dropIfExists('users');
         Schema::dropIfExists('business_deals');
         Schema::dropIfExists('p2p_meetings');
         Schema::dropIfExists('testimonials');
         Schema::dropIfExists('referrals');
+
+        Schema::create('user_tags', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('user_tag_assignments', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('user_id');
+            $table->unsignedBigInteger('tag_id');
+            $table->timestamps();
+
+            $table->unique(['user_id', 'tag_id']);
+        });
+
+        UserTag::create([
+            'name' => 'Team Member',
+            'slug' => 'team_member',
+            'description' => 'Internal team member excluded from leaderboards',
+            'is_active' => true,
+        ]);
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -344,5 +373,54 @@ class TopPeersApiTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.total', 2)
             ->assertJsonCount(2, 'data.peers');
+    }
+
+    public function test_team_members_are_excluded_from_p2p_meetings_leaderboard(): void
+    {
+        $teamMemberTag = UserTag::where('slug', 'team_member')->firstOrFail();
+
+        $normalPeer = $this->createUser('Normal Peer');
+        $teamMember = $this->createUser('Team Member');
+        $otherPeer = $this->createUser('Other Peer');
+
+        // Assign team member tag
+        UserTagAssignment::create([
+            'user_id' => $teamMember->id,
+            'tag_id' => $teamMemberTag->id,
+        ]);
+
+        // Team member has 10 meetings
+        for ($i = 0; $i < 10; $i++) {
+            P2pMeeting::query()->create([
+                'id' => (string) Str::uuid(),
+                'initiator_user_id' => $teamMember->id,
+                'peer_user_id' => $otherPeer->id,
+                'meeting_date' => '2026-06-10',
+                'is_deleted' => false,
+            ]);
+        }
+
+        // Normal peer has 2 meetings
+        for ($i = 0; $i < 2; $i++) {
+            P2pMeeting::query()->create([
+                'id' => (string) Str::uuid(),
+                'initiator_user_id' => $normalPeer->id,
+                'peer_user_id' => $otherPeer->id,
+                'meeting_date' => '2026-06-10',
+                'is_deleted' => false,
+            ]);
+        }
+
+        Sanctum::actingAs($normalPeer);
+
+        $response = $this->getJson('/api/v1/leaderboards/p2p-meetings');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        // Verify team member is NOT in the leaderboard peers
+        $peerIds = collect($response->json('data.peers'))->pluck('id')->all();
+        $this->assertNotContains($teamMember->id, $peerIds);
+        $this->assertContains($normalPeer->id, $peerIds);
     }
 }

@@ -222,8 +222,8 @@ class TopPeersService
 
             $union = $given->unionAll($received);
 
-            return DB::table(DB::raw("({$union->toSql()}) as combined_deals"))
-                ->mergeBindings($union)
+            return DB::query()
+                ->fromSub($union, 'combined_deals')
                 ->select('user_id')
                 ->selectRaw('count(*) as deals_count')
                 ->selectRaw('coalesce(sum(deal_amount), 0) as total_amount')
@@ -269,8 +269,8 @@ class TopPeersService
 
         $union = $initiator->unionAll($attended);
 
-        return DB::table(DB::raw("({$union->toSql()}) as combined_meetings"))
-            ->mergeBindings($union)
+        return DB::query()
+            ->fromSub($union, 'combined_meetings')
             ->select('user_id')
             ->selectRaw('count(*) as meetings_count')
             ->groupBy('user_id');
@@ -303,8 +303,8 @@ class TopPeersService
 
             $union = $given->unionAll($received);
 
-            return DB::table(DB::raw("({$union->toSql()}) as combined_testimonials"))
-                ->mergeBindings($union)
+            return DB::query()
+                ->fromSub($union, 'combined_testimonials')
                 ->select('user_id')
                 ->selectRaw('count(*) as testimonials_count')
                 ->selectRaw('coalesce(avg(rating), 0) as avg_rating')
@@ -344,8 +344,8 @@ class TopPeersService
 
             $union = $given->unionAll($received);
 
-            return DB::table(DB::raw("({$union->toSql()}) as combined_referrals"))
-                ->mergeBindings($union)
+            return DB::query()
+                ->fromSub($union, 'combined_referrals')
                 ->select('user_id')
                 ->selectRaw('count(*) as referrals_count')
                 ->groupBy('user_id');
@@ -364,8 +364,8 @@ class TopPeersService
         ?string $secondarySortColumn,
         int $limit
     ): Collection {
-        $query = DB::table(DB::raw("({$subquery->toSql()}) as agg"))
-            ->mergeBindings($subquery)
+        $query = DB::query()
+            ->fromSub($subquery, 'agg')
             ->join('users as u', 'u.id', '=', 'agg.user_id')
             ->select('agg.*');
 
@@ -535,8 +535,8 @@ class TopPeersService
 
         $authUserId = (string) $authUser->id;
 
-        $userRow = DB::table(DB::raw("({$subquery->toSql()}) as agg"))
-            ->mergeBindings($subquery)
+        $userRow = DB::query()
+            ->fromSub($subquery, 'agg')
             ->where('user_id', $authUserId)
             ->first();
 
@@ -553,8 +553,8 @@ class TopPeersService
             ];
         }
 
-        $higherQuery = DB::table(DB::raw("({$subquery->toSql()}) as agg"))
-            ->mergeBindings($subquery)
+        $higherQuery = DB::query()
+            ->fromSub($subquery, 'agg')
             ->join('users as u', 'u.id', '=', 'agg.user_id');
 
         ActivityUserFilter::applyToUserQuery($higherQuery, 'u.id', 'u');
@@ -599,8 +599,8 @@ class TopPeersService
 
         $authUserId = (string) $authUser->id;
 
-        $userRow = DB::table(DB::raw("({$subquery->toSql()}) as agg"))
-            ->mergeBindings($subquery)
+        $userRow = DB::query()
+            ->fromSub($subquery, 'agg')
             ->where('user_id', $authUserId)
             ->first();
 
@@ -615,8 +615,8 @@ class TopPeersService
             ];
         }
 
-        $higherQuery = DB::table(DB::raw("({$subquery->toSql()}) as agg"))
-            ->mergeBindings($subquery)
+        $higherQuery = DB::query()
+            ->fromSub($subquery, 'agg')
             ->join('users as u', 'u.id', '=', 'agg.user_id');
 
         ActivityUserFilter::applyToUserQuery($higherQuery, 'u.id', 'u');
