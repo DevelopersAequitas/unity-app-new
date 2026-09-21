@@ -18,7 +18,9 @@ use App\Models\LeadershipCertificationSubmission;
 use App\Models\PartnerWithUsSubmission;
 use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
+use App\Services\Certifications\CertificationQuestionsService;
 use App\Services\EmailLogs\EmailLogService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -189,6 +191,15 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
+    public function leadershipCertificationQuestions(CertificationQuestionsService $questionsService): JsonResponse
+    {
+        return response()->json([
+            'status' => true,
+            'message' => 'Leadership certification questions fetched successfully.',
+            'data' => $questionsService->getLeadershipCertificationQuestions(),
+        ]);
+    }
+
     public function showLeadershipCertification(string $id)
     {
         $item = LeadershipCertificationSubmission::find($id);
@@ -269,6 +280,15 @@ class WebsiteFormsController extends BaseApiController
             'status' => true,
             'message' => 'Submission fetched successfully.',
             'data' => $item,
+        ]);
+    }
+
+    public function entrepreneurCertificationQuestions(CertificationQuestionsService $questionsService): JsonResponse
+    {
+        return response()->json([
+            'status' => true,
+            'message' => 'Entrepreneur certification questions fetched successfully.',
+            'data' => $questionsService->getEntrepreneurCertificationQuestions(),
         ]);
     }
 

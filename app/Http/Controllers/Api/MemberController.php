@@ -462,20 +462,32 @@ class MemberController extends BaseApiController
 
         $authUser = auth('sanctum')->user() ?: $request->user();
 
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 15)));
+
         if ($authUser instanceof User) {
-            $users = $memberMatchingService->rank($authUser, $query);
+            $paginator = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
         } else {
-            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
+            $paginator = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
         }
 
-        $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $users);
+        $pageItems = collect($paginator->items());
 
-        return LimitedUserResource::collection($users)->additional([
+        $this->attachConnectionStatuses($authUser instanceof User ? $authUser : null, $pageItems);
+
+        return LimitedUserResource::collection($pageItems)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
-            'total_users' => $users->count(),
-            'total_user' => $users->count(),
-            'total' => $users->count(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            // kept for backward compatibility
+            'total_users' => $paginator->total(),
+            'total_user' => $paginator->total(),
+            'total' => $paginator->total(),
         ]);
     }
 

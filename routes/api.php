@@ -85,6 +85,7 @@ use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
+use App\Http\Controllers\Api\V1\CoinGuidelineController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
@@ -113,6 +114,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\GlobalPeerCertificateController;
 use App\Http\Controllers\Api\V1\ImpactController;
+use App\Http\Controllers\Api\V1\ImpactGuidelineController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\IntroducedPeerController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
@@ -133,6 +135,7 @@ use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PeerReferralsApiController;
+use App\Http\Controllers\Api\V1\Peers\TopPeersController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
@@ -154,6 +157,9 @@ use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
+use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
+use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
+use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
@@ -260,6 +266,8 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+    Route::get('/coin-guidelines', [CoinGuidelineController::class, 'index']);
+    Route::get('/impact-guidelines', [ImpactGuidelineController::class, 'index']);
     Route::get('/tutorials', [TutorialController::class, 'index']);
     Route::post('/tutorials', [TutorialController::class, 'store']);
     Route::prefix('scan-app')->group(function () {
@@ -969,6 +977,10 @@ Route::prefix('v1')->group(function () {
         // Leaderboards
         Route::get('/leaderboards/coins', [LeaderboardController::class, 'coins']);
         Route::get('/leaderboards/impacts', [LeaderboardController::class, 'impacts']);
+        Route::get('/leaderboards/business-deals', [TopPeersController::class, 'businessDeals']);
+        Route::get('/leaderboards/p2p-meetings', [TopPeersController::class, 'p2pMeetings']);
+        Route::get('/leaderboards/testimonials', [TopPeersController::class, 'testimonials']);
+        Route::get('/leaderboards/referrals', [TopPeersController::class, 'referrals']);
 
         Route::prefix('activities')->group(function () {
             Route::get('p2p-meetings', [P2pMeetingHistoryController::class, 'index']);
@@ -994,7 +1006,19 @@ Route::prefix('v1')->group(function () {
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
         });
 
+        // Direct top-level aliases for Peer App activity logging & history
+        Route::get('/p2p-meetings', [P2pMeetingHistoryController::class, 'index']);
+        Route::post('/p2p-meetings', [P2pMeetingController::class, 'store']);
+        Route::get('/p2p-meetings/{id}', [P2pMeetingController::class, 'show']);
         Route::get('/p2p-meetings/user/{userId}', [P2pMeetingController::class, 'userMeetings'])->whereUuid('userId');
+
+        Route::get('/business-deals', [BusinessDealHistoryController::class, 'index']);
+        Route::post('/business-deals', [BusinessDealController::class, 'store']);
+        Route::get('/business-deals/{id}', [BusinessDealHistoryController::class, 'show']);
+
+        Route::get('/requirements', [RequirementHistoryController::class, 'index']);
+        Route::post('/requirements', [ActivitiesRequirementController::class, 'store']);
+        Route::get('/requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
         // P2P Meeting Requests
         Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
@@ -1208,7 +1232,9 @@ Route::prefix('v1')->group(function () {
     Route::post('/become-a-mentor', [BecomeMentorController::class, 'submit']);
     Route::post('/become-a-speaker', [WebsiteFormsController::class, 'submitBecomeSpeaker']);
     Route::post('/share-sme-business-story', [WebsiteFormsController::class, 'submitSmeBusinessStory']);
+    Route::get('/leadership-certification/questions', [WebsiteFormsController::class, 'leadershipCertificationQuestions']);
     Route::post('/leadership-certification', [WebsiteFormsController::class, 'submitLeadershipCertification']);
+    Route::get('/entrepreneur-certification/questions', [WebsiteFormsController::class, 'entrepreneurCertificationQuestions']);
     Route::post('/entrepreneur-certification', [WebsiteFormsController::class, 'submitEntrepreneurCertification']);
     Route::post('/partner-with-us', [WebsiteFormsController::class, 'submitPartnerWithUs']);
 
@@ -1379,4 +1405,27 @@ Route::get('/send-test-push', function (Request $request) {
             'error' => $e->getMessage(),
         ]);
     }
+});
+
+// ── Peers Global Website Public API Endpoints (v1) ──────────────────────
+Route::prefix('v1')->group(function () {
+    // Web Media (Videos, Images, Hero Banners, Section Assets)
+    Route::get('/web-media', [WebMediaApiController::class, 'index']);
+    Route::post('/web-media', [WebMediaApiController::class, 'store']);
+    Route::get('/web-media/assets', [WebMediaApiController::class, 'assets']);
+    Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
+    Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
+
+    // Web Blogs & Publications
+    Route::get('/web-blogs', [WebBlogApiController::class, 'index']);
+    Route::get('/web-blogs/{slug}', [WebBlogApiController::class, 'show']);
+    Route::post('/web-blogs', [WebBlogApiController::class, 'store']);
+
+    // Web Partnerships & Ecosystem
+    Route::get('/web-partnerships', [WebPublicApiController::class, 'partnerships']);
+    Route::get('/web-opportunities', [WebPublicApiController::class, 'opportunities']);
+    Route::get('/web-companies', [WebPublicApiController::class, 'companies']);
+    Route::get('/web-settings', [WebPublicApiController::class, 'settings']);
+    Route::post('/web-messages', [WebPublicApiController::class, 'submitMessage']);
+    Route::get('/web-collaborations', [WebPublicApiController::class, 'collaborations']);
 });

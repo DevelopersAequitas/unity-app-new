@@ -1110,9 +1110,10 @@ class User extends Authenticatable
             ?? $this->display_name
             ?? trim(($this->first_name ?? '').' '.($this->last_name ?? '')));
 
-        $companyName = (string) ($this->getAttribute('company_name') ?? '');
-        $city = (string) ($this->getAttribute('city') ?? '');
-        $industry = (string) ($this->getAttribute('industry') ?? '');
+        $companyName = (string) ($this->getAttribute('company_name') ?? $this->getAttribute('business_name') ?? '');
+        $city = (string) ($this->getAttribute('city') ?? $this->getAttribute('business_city') ?? $this->getAttribute('city_of_residence') ?? '');
+        $level4Name = (string) ($this->level4Category?->name ?? $this->getAttribute('business_sub_category') ?? $this->getAttribute('industry') ?? '');
+        $industry = (string) ($this->getAttribute('industry') ?? $level4Name);
 
         if ((blank($companyName) || blank($city) || blank($industry)) && method_exists($this, 'profile')) {
             try {
@@ -1120,21 +1121,35 @@ class User extends Authenticatable
                     ? $this->getRelation('profile')
                     : $this->profile()->first();
 
-                $companyName = blank($companyName) ? (string) ($profile->company_name ?? '') : $companyName;
-                $city = blank($city) ? (string) ($profile->city ?? '') : $city;
+                $companyName = blank($companyName) ? (string) ($profile->company_name ?? $profile->business_name ?? '') : $companyName;
+                $city = blank($city) ? (string) ($profile->city ?? $profile->business_city ?? '') : $city;
                 $industry = blank($industry) ? (string) ($profile->industry ?? '') : $industry;
             } catch (Throwable $e) {
                 // Relation is optional in this project scope.
             }
         }
 
+        $profilePhotoUrl = $this->profile_photo_url ?? null;
+        if (! $profilePhotoUrl && ($this->profile_photo_file_id ?? $this->profile_photo_id)) {
+            $fileId = $this->profile_photo_file_id ?? $this->profile_photo_id;
+            $profilePhotoUrl = url('/api/v1/files/'.$fileId);
+        }
+
         return [
             'id' => (string) $this->id,
             'name' => $name,
+            'display_name' => $name,
             'company_name' => $companyName,
+            'company' => $companyName,
+            'business_name' => $companyName,
             'email' => (string) ($this->email ?? ''),
             'city' => $city,
+            'level4_category' => $level4Name ?: null,
+            'level_4_category' => $level4Name ?: null,
+            'business_sub_category' => $level4Name ?: null,
+            'category' => $level4Name ?: null,
             'industry' => $industry,
+            'profile_photo_url' => $profilePhotoUrl,
         ];
     }
 

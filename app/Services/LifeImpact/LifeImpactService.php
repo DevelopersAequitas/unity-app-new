@@ -42,10 +42,13 @@ class LifeImpactService
         $newTotal = (int) DB::transaction(function () use ($userId, $impactValue, $activityType, $title, $triggeredByUserId, $activityId, $description, $meta) {
             $historyTable = $this->lifeImpactHistoriesTable();
 
+            $currentCount = (int) (DB::table('users')->where('id', $userId)->value('life_impacted_count') ?? 0);
+            $newImpactCount = min(2147483647, max(0, $currentCount + $impactValue));
+
             DB::table('users')
                 ->where('id', $userId)
                 ->update([
-                    'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + '.$impactValue),
+                    'life_impacted_count' => $newImpactCount,
                     'updated_at' => now(),
                 ]);
 

@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\Circles\CircleController;
 use App\Http\Controllers\Admin\Circles\CircleMemberController;
 use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CoinClaimsController;
+use App\Http\Controllers\Admin\CoinGuidelineController as AdminCoinGuidelineController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\CommissionManagementController;
@@ -52,6 +53,7 @@ use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
+use App\Http\Controllers\Admin\ImpactGuidelineController as AdminImpactGuidelineController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\IntroductionRequestsController;
@@ -87,6 +89,18 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\Web\WebAnalyticsController;
+use App\Http\Controllers\Admin\Web\WebBlogController;
+use App\Http\Controllers\Admin\Web\WebCircleController;
+use App\Http\Controllers\Admin\Web\WebCompanyController;
+use App\Http\Controllers\Admin\Web\WebDashboardController;
+use App\Http\Controllers\Admin\Web\WebEventController;
+use App\Http\Controllers\Admin\Web\WebMediaController;
+use App\Http\Controllers\Admin\Web\WebMessageController;
+use App\Http\Controllers\Admin\Web\WebOpportunityController;
+use App\Http\Controllers\Admin\Web\WebPageMediaController;
+use App\Http\Controllers\Admin\Web\WebPartnershipController;
+use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -419,6 +433,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/{member}/requirements', [ActivitiesController::class, 'requirements'])->name('activities.requirements');
         Route::get('/coins', [CoinsController::class, 'index'])->name('coins.index');
         Route::get('/coins/export', [CoinsController::class, 'exportIndex'])->name('coins.export');
+
+        // Coin Guidelines Admin Routes
+        Route::get('/coin-guidelines', [AdminCoinGuidelineController::class, 'index'])->name('coin-guidelines.index');
+        Route::get('/coin-guidelines/create', [AdminCoinGuidelineController::class, 'create'])->name('coin-guidelines.create');
+        Route::post('/coin-guidelines', [AdminCoinGuidelineController::class, 'store'])->name('coin-guidelines.store');
+        Route::get('/coin-guidelines/{coin_guideline}/edit', [AdminCoinGuidelineController::class, 'edit'])->name('coin-guidelines.edit');
+        Route::put('/coin-guidelines/{coin_guideline}', [AdminCoinGuidelineController::class, 'update'])->name('coin-guidelines.update');
+        Route::delete('/coin-guidelines/{coin_guideline}', [AdminCoinGuidelineController::class, 'destroy'])->name('coin-guidelines.destroy');
+        Route::patch('/coin-guidelines/{coin_guideline}/status', [AdminCoinGuidelineController::class, 'toggleStatus'])->name('coin-guidelines.toggle-status');
+        Route::post('/coin-guidelines/update-header', [AdminCoinGuidelineController::class, 'updateHeader'])->name('coin-guidelines.update-header');
+        Route::post('/coin-guidelines/reorder', [AdminCoinGuidelineController::class, 'reorder'])->name('coin-guidelines.reorder');
+
         Route::get('/life-impact', [LifeImpactController::class, 'index'])
             ->name('life-impact.index');
         Route::get('/life-impact/export', [LifeImpactController::class, 'export'])
@@ -427,6 +453,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->name('life-impact.history');
         Route::get('/life-impact/{member}/history/{category}', [LifeImpactController::class, 'history'])
             ->name('life-impact.history.category');
+
+        // Impact Guidelines Admin Routes
+        Route::get('/impact-guidelines', [AdminImpactGuidelineController::class, 'index'])->name('impact-guidelines.index');
+        Route::get('/impact-guidelines/create', [AdminImpactGuidelineController::class, 'create'])->name('impact-guidelines.create');
+        Route::post('/impact-guidelines', [AdminImpactGuidelineController::class, 'store'])->name('impact-guidelines.store');
+        Route::get('/impact-guidelines/{impact_guideline}/edit', [AdminImpactGuidelineController::class, 'edit'])->name('impact-guidelines.edit');
+        Route::put('/impact-guidelines/{impact_guideline}', [AdminImpactGuidelineController::class, 'update'])->name('impact-guidelines.update');
+        Route::delete('/impact-guidelines/{impact_guideline}', [AdminImpactGuidelineController::class, 'destroy'])->name('impact-guidelines.destroy');
+        Route::patch('/impact-guidelines/{impact_guideline}/status', [AdminImpactGuidelineController::class, 'toggleStatus'])->name('impact-guidelines.toggle-status');
+        Route::post('/impact-guidelines/update-header', [AdminImpactGuidelineController::class, 'updateHeader'])->name('impact-guidelines.update-header');
+        Route::post('/impact-guidelines/reorder', [AdminImpactGuidelineController::class, 'reorder'])->name('impact-guidelines.reorder');
         Route::get('/coins/add', [CoinsController::class, 'create'])->name('coins.create');
         Route::post('/coins/add', [CoinsController::class, 'store'])->name('coins.store');
         Route::get('/coins/{member}/ledger', [CoinsController::class, 'ledger'])->name('coins.ledger');
@@ -776,6 +813,56 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Wildcard route defined at the bottom to avoid intercepting concrete paths
         Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
             Route::get('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'show'])->name('brand-partners.show');
+        });
+
+        // ── Peers Global Website Management Module ──────────────────────
+        Route::prefix('web')->name('web.')->group(function () {
+            Route::get('/dashboard', [WebDashboardController::class, 'index'])->name('dashboard');
+
+            // Partnerships
+            Route::get('/partnerships', [WebPartnershipController::class, 'index'])->name('partnerships.index');
+            Route::post('/partnerships', [WebPartnershipController::class, 'store'])->name('partnerships.store');
+            Route::put('/partnerships/{id}', [WebPartnershipController::class, 'update'])->name('partnerships.update')->whereUuid('id');
+            Route::delete('/partnerships/{id}', [WebPartnershipController::class, 'destroy'])->name('partnerships.destroy')->whereUuid('id');
+
+            // Opportunities
+            Route::get('/opportunities', [WebOpportunityController::class, 'index'])->name('opportunities.index');
+            Route::post('/opportunities', [WebOpportunityController::class, 'store'])->name('opportunities.store');
+            Route::delete('/opportunities/{id}', [WebOpportunityController::class, 'destroy'])->name('opportunities.destroy')->whereUuid('id');
+
+            // Companies
+            Route::get('/companies', [WebCompanyController::class, 'index'])->name('companies.index');
+            Route::post('/companies', [WebCompanyController::class, 'store'])->name('companies.store');
+            Route::delete('/companies/{id}', [WebCompanyController::class, 'destroy'])->name('companies.destroy')->whereUuid('id');
+
+            // Publications / Blogs
+            Route::get('/blogs', [WebBlogController::class, 'index'])->name('blogs.index');
+            Route::post('/blogs', [WebBlogController::class, 'store'])->name('blogs.store');
+            Route::delete('/blogs/{id}', [WebBlogController::class, 'destroy'])->name('blogs.destroy')->whereUuid('id');
+
+            // Media Library
+            Route::get('/media', [WebMediaController::class, 'index'])->name('media.index');
+            Route::post('/media', [WebMediaController::class, 'store'])->name('media.store');
+            Route::delete('/media/{id}', [WebMediaController::class, 'destroy'])->name('media.destroy')->whereUuid('id');
+
+            // Page Media Config
+            Route::get('/page-media', [WebPageMediaController::class, 'index'])->name('page-media.index');
+            Route::post('/page-media', [WebPageMediaController::class, 'store'])->name('page-media.store');
+            Route::delete('/page-media/{id}', [WebPageMediaController::class, 'destroy'])->name('page-media.destroy')->whereUuid('id');
+
+            // Circles & Events
+            Route::get('/circles', [WebCircleController::class, 'index'])->name('circles.index');
+            Route::get('/events', [WebEventController::class, 'index'])->name('events.index');
+
+            // Messages & Inquiries
+            Route::get('/messages', [WebMessageController::class, 'index'])->name('messages.index');
+            Route::post('/messages/{id}/read', [WebMessageController::class, 'markRead'])->name('messages.read')->whereUuid('id');
+            Route::delete('/messages/{id}', [WebMessageController::class, 'destroy'])->name('messages.destroy')->whereUuid('id');
+
+            // Analytics & Settings
+            Route::get('/analytics', [WebAnalyticsController::class, 'index'])->name('analytics.index');
+            Route::get('/settings', [WebSettingController::class, 'index'])->name('settings.index');
+            Route::post('/settings', [WebSettingController::class, 'update'])->name('settings.update');
         });
     });
 });

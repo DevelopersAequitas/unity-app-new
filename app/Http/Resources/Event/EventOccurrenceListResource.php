@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Events\EventQrService;
 use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
@@ -27,6 +28,20 @@ class EventOccurrenceListResource extends JsonResource
         $metadata = is_array($metadata) ? $metadata : [];
         $zohoFormUrl = $event->zoho_form_url ?? data_get($metadata, 'zoho_form_url');
         $visitorRegistrationEnabled = $eventService->visitorRegistrationEnabled($event);
+
+        $timezone = $request->header('X-Timezone')
+            ?: $request->query('timezone')
+            ?: data_get($metadata, 'timezone')
+            ?: (config('app.timezone') ?: 'Asia/Kolkata');
+        if ($timezone === 'UTC' && ! $request->hasHeader('X-Timezone') && ! $request->has('timezone') && empty(data_get($metadata, 'timezone'))) {
+            $timezone = 'Asia/Kolkata';
+        }
+
+        $startAtUtc = $this->start_at ? Carbon::parse($this->start_at)->utc() : null;
+        $endAtUtc = $this->end_at ? Carbon::parse($this->end_at)->utc() : null;
+        $startLocal = $startAtUtc ? $startAtUtc->copy()->setTimezone($timezone) : null;
+        $endLocal = $endAtUtc ? $endAtUtc->copy()->setTimezone($timezone) : null;
+
         $circles = [];
         if (Schema::hasTable('event_circles') && $event->relationLoaded('circles')) {
             try {
@@ -64,13 +79,13 @@ class EventOccurrenceListResource extends JsonResource
                 'ends_at' => optional($event->recurrence_ends_at)->toISOString(),
             ],
             'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null] : null,
-            'start_at' => optional($this->start_at)->toISOString(),
-            'start_date' => optional($this->start_at)->toDateString(),
-            'start_time' => optional($this->start_at)->format('H:i:s'),
-            'end_at' => optional($this->end_at)->toISOString(),
+            'start_at' => optional($startAtUtc)->toISOString(),
+            'start_date' => optional($startLocal)->toDateString(),
+            'start_time' => optional($startLocal)->format('H:i:s'),
+            'end_at' => optional($endAtUtc)->toISOString(),
             'status' => $this->status ?? $event->status ?? 'scheduled',
-            'display_date' => optional($this->start_at)->format('M d, Y'),
-            'display_time' => trim(optional($this->start_at)->format('h:i A').' - '.optional($this->end_at)->format('h:i A'), ' -'),
+            'display_date' => optional($startLocal)->format('M d, Y'),
+            'display_time' => trim(optional($startLocal)->format('h:i A').' - '.optional($endLocal)->format('h:i A'), ' -'),
             'location_text' => $event->location_text,
             'location' => [
                 'text' => $event->location_text,

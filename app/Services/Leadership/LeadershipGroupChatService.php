@@ -133,7 +133,7 @@ class LeadershipGroupChatService
         return count($validMessageIds);
     }
 
-    public function getMessages(Circle $circle, User $user, int $perPage = 20): ?LengthAwarePaginator
+    public function getMessages(Circle $circle, User $user, int $perPage = 30, ?string $beforeMessageId = null): ?LengthAwarePaginator
     {
         if (! $this->ensureUserCanAccessCircleLeadershipChat($user, $circle)) {
             return null;
@@ -141,11 +141,23 @@ class LeadershipGroupChatService
 
         $perPage = max(1, min($perPage, 100));
 
-        $paginator = LeadershipGroupMessage::query()
+        $query = LeadershipGroupMessage::query()
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
             ->whereDoesntHave('deletions', function ($query) use ($user): void {
                 $query->where('user_id', $user->id);
+            })
+            ->when($beforeMessageId, function ($q) use ($beforeMessageId) {
+                $before = LeadershipGroupMessage::query()->find($beforeMessageId);
+                if ($before) {
+                    $q->where(function ($sub) use ($before) {
+                        $sub->where('created_at', '<', $before->created_at)
+                            ->orWhere(function ($s) use ($before) {
+                                $s->where('created_at', '=', $before->created_at)
+                                    ->where('id', '<', $before->id);
+                            });
+                    });
+                }
             })
             ->with([
                 'sender',
@@ -154,8 +166,9 @@ class LeadershipGroupChatService
                 },
             ])
             ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->paginate($perPage);
+            ->orderByDesc('id');
+
+        $paginator = $query->paginate($perPage);
 
         $replyIds = collect($paginator->items())
             ->pluck('reply_to_message_id')

@@ -6,6 +6,7 @@ use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAuthController;
 use App\Leader\Controllers\LeaderDashboardController;
 use App\Leader\Controllers\LeaderFinanceController;
+use App\Leader\Controllers\LeaderMemberController;
 use App\Leader\Controllers\LeaderNotificationsController;
 use App\Leader\Controllers\LeaderPeersController;
 use App\Leader\Controllers\LeaderReportsController;
@@ -71,34 +72,35 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
     Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
 
-    // Activities (Collision renamed for testimonials and impacts)
-    Route::get('/referrals', [LeaderActivitiesController::class, 'referrals']);
-    Route::get('/referral', [LeaderActivitiesController::class, 'referrals']);
-    Route::post('/referrals', [LeaderActivitiesController::class, 'storeReferral']);
+    // Activities (Scoped under /leader/ to avoid colliding with Peer/Member App APIs)
+    Route::get('/leader/referrals', [LeaderActivitiesController::class, 'referrals']);
+    Route::get('/leader/referral', [LeaderActivitiesController::class, 'referrals']);
+    Route::post('/leader/referrals', [LeaderActivitiesController::class, 'storeReferral']);
 
     Route::get('/leader/testimonials', [LeaderActivitiesController::class, 'testimonials']);
     Route::get('/leader/testimonial', [LeaderActivitiesController::class, 'testimonials']);
     Route::post('/leader/testimonials', [LeaderActivitiesController::class, 'storeTestimonial']);
 
-    Route::get('/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
-    Route::get('/coins', [LeaderActivitiesController::class, 'peersByCoins']);
+    Route::get('/leader/peers-by-coins', [LeaderActivitiesController::class, 'peersByCoins']);
+    Route::get('/leader/coins', [LeaderActivitiesController::class, 'peersByCoins']);
 
     Route::get('/leader/impacts', [LeaderActivitiesController::class, 'impacts']);
     Route::get('/leader/life-impacts', [LeaderActivitiesController::class, 'impacts']);
     Route::get('/leader/impact', [LeaderActivitiesController::class, 'impacts']);
     Route::post('/leader/impacts', [LeaderActivitiesController::class, 'storeImpact']);
 
-    Route::get('/p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
-    Route::get('/peer-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
-    Route::get('/p2p-meeting', [LeaderActivitiesController::class, 'p2pMeetings']);
-    Route::post('/p2p-meetings', [LeaderActivitiesController::class, 'storeP2pMeeting']);
+    Route::get('/leader/p2p-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+    Route::get('/leader/peer-meetings', [LeaderActivitiesController::class, 'p2pMeetings']);
+    Route::get('/leader/p2p-meeting', [LeaderActivitiesController::class, 'p2pMeetings']);
+    Route::post('/leader/p2p-meetings', [LeaderActivitiesController::class, 'storeP2pMeeting']);
+    Route::post('/leader/peers/p2p-meetings', [LeaderPeersController::class, 'storeP2pMeeting']);
 
-    Route::get('/business-deals', [LeaderActivitiesController::class, 'businessDeals']);
-    Route::get('/business-deal', [LeaderActivitiesController::class, 'businessDeals']);
-    Route::post('/business-deals', [LeaderActivitiesController::class, 'storeBusinessDeal']);
+    Route::get('/leader/business-deals', [LeaderActivitiesController::class, 'businessDeals']);
+    Route::get('/leader/business-deal', [LeaderActivitiesController::class, 'businessDeals']);
+    Route::post('/leader/business-deals', [LeaderActivitiesController::class, 'storeBusinessDeal']);
 
-    Route::get('/requirements', [LeaderActivitiesController::class, 'requirements']);
-    Route::get('/requirement', [LeaderActivitiesController::class, 'requirements']);
+    Route::get('/leader/requirements', [LeaderActivitiesController::class, 'requirements']);
+    Route::get('/leader/requirement', [LeaderActivitiesController::class, 'requirements']);
 
     // Notifications (Leader App)
     Route::get('/leader/notifications', [LeaderNotificationsController::class, 'index']);
@@ -115,4 +117,18 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::post('/roles', [LeaderRoleManagementController::class, 'store']);
     Route::put('/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
     Route::delete('/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+    Route::get('/leader/roles/matrix', [LeaderRoleManagementController::class, 'matrix']);
+    Route::put('/leader/roles/matrix', [LeaderRoleManagementController::class, 'updateMatrix']);
+    Route::post('/leader/roles', [LeaderRoleManagementController::class, 'store']);
+    Route::put('/leader/roles/{id}', [LeaderRoleManagementController::class, 'update'])->whereUuid('id');
+    Route::delete('/leader/roles/{id}', [LeaderRoleManagementController::class, 'destroy'])->whereUuid('id');
+
+    // ── Member 360° APIs ─────────────────────────────────────────────────────
+    Route::get('/leader/members/{member_id}', [LeaderMemberController::class, 'show'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/activities', [LeaderMemberController::class, 'activities'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/posts', [LeaderMemberController::class, 'posts'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/creatives', [LeaderMemberController::class, 'creatives'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/event-registrations', [LeaderMemberController::class, 'eventRegistrations'])->whereUuid('member_id');
 });

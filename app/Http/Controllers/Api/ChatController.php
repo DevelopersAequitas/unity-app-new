@@ -163,27 +163,50 @@ class ChatController extends BaseApiController
             return $this->error('Chat not found', 404);
         }
 
-        $perPage = (int) $request->input('per_page', 50);
+        $perPage = (int) $request->input('per_page', 30);
         $perPage = max(1, min($perPage, 100));
 
-        $paginator = Message::with('sender')
+        $beforeMessageId = $request->input('before_message_id') ?? $request->input('before_id');
+
+        $query = Message::with('sender')
             ->where('chat_id', $chat->id)
             ->whereNull('deleted_at')
             ->when((string) $chat->user1_id === (string) $authUser->id, function ($q) {
                 $q->whereNull('deleted_for_user1_at');
             }, function ($q) {
                 $q->whereNull('deleted_for_user2_at');
-            })
-            ->orderBy('created_at', 'asc')
+            });
+
+        if ($beforeMessageId) {
+            $beforeMessage = Message::query()->where('chat_id', $chat->id)->find($beforeMessageId);
+            if ($beforeMessage) {
+                $query->where(function ($q) use ($beforeMessage) {
+                    $q->where('created_at', '<', $beforeMessage->created_at)
+                        ->orWhere(function ($sub) use ($beforeMessage) {
+                            $sub->where('created_at', '=', $beforeMessage->created_at)
+                                ->where('id', '<', $beforeMessage->id);
+                        });
+                });
+            }
+        }
+
+        $paginator = $query->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage);
 
+        $items = $paginator->items();
+        $oldestItemInPage = ! empty($items) ? end($items) : null;
+
         $data = [
-            'items' => MessageResource::collection($paginator),
+            'items' => MessageResource::collection($items),
+            'messages' => MessageResource::collection($items),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
+                'has_more' => $paginator->hasMorePages(),
+                'next_cursor' => $oldestItemInPage ? (string) $oldestItemInPage->id : null,
             ],
         ];
 
