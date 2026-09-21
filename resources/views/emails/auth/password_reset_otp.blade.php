@@ -11,8 +11,19 @@
             <td align="center">
                 <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e6e9f0; box-shadow:0 10px 30px rgba(17,24,39,0.06);">
                     <tr>
-                        <td style="background:linear-gradient(90deg,#2a5bd7,#4ea1ff); padding:22px 28px; color:#ffffff; font-size:20px; font-weight:700; letter-spacing:0.2px;">
-                            Peers Global Unity
+                        <td style="background:linear-gradient(90deg,#2a5bd7,#4ea1ff); padding:18px 28px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    @if(file_exists(public_path('images/peers-global-icon.jpeg')))
+                                    <td style="vertical-align:middle; padding-right:12px;">
+                                        <img src="{{ $message->embed(public_path('images/peers-global-icon.jpeg')) }}" alt="Logo" width="36" height="36" style="display:block; width:36px; height:36px; border-radius:8px; border:none; background-color:#ffffff; padding:2px;">
+                                    </td>
+                                    @endif
+                                    <td style="vertical-align:middle; color:#ffffff; font-size:20px; font-weight:700; letter-spacing:0.2px;">
+                                        Peers Global Unity
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                     <tr>
