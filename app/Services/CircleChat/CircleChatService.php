@@ -27,7 +27,7 @@ class CircleChatService
         private readonly CircleChatAccessService $accessService,
     ) {}
 
-    public function getMessages(User $user, Circle $circle, int $perPage = 20, ?string $beforeMessageId = null): LengthAwarePaginator
+    public function getMessages(User $user, Circle $circle, int $perPage = 30, ?string $beforeMessageId = null): LengthAwarePaginator
     {
         $this->accessService->ensureUserIsCircleMember($user, $circle->id);
 
@@ -40,7 +40,13 @@ class CircleChatService
             ->when($beforeMessageId, function ($q) use ($beforeMessageId) {
                 $before = CircleChatMessage::query()->find($beforeMessageId);
                 if ($before) {
-                    $q->where('created_at', '<', $before->created_at);
+                    $q->where(function ($sub) use ($before) {
+                        $sub->where('created_at', '<', $before->created_at)
+                            ->orWhere(function ($s) use ($before) {
+                                $s->where('created_at', '=', $before->created_at)
+                                    ->where('id', '<', $before->id);
+                            });
+                    });
                 }
             })
             ->with([
@@ -50,14 +56,10 @@ class CircleChatService
             ])
             ->withCount('reads')
             ->withExists(['reads as is_read_by_me' => fn ($q) => $q->where('user_id', $user->id)])
-            ->orderByDesc('created_at');
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
-        $paginator = $query->paginate(max(1, min($perPage, 100)));
-
-        $collection = $paginator->getCollection()->reverse()->values();
-        $paginator->setCollection($collection);
-
-        return $paginator;
+        return $query->paginate(max(1, min($perPage, 100)));
     }
 
     public function sendMessage(User $user, Circle $circle, array $validated, ?UploadedFile $attachment): CircleChatMessage

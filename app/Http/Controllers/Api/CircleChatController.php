@@ -20,24 +20,33 @@ class CircleChatController extends BaseApiController
     public function index(Request $request, Circle $circle)
     {
         try {
+            $beforeMessageId = $request->input('before_message_id') ?? $request->input('before_id');
+
             $paginator = $this->circleChatService->getMessages(
                 $request->user(),
                 $circle,
-                (int) $request->input('per_page', 20),
-                $request->input('before_message_id')
+                (int) $request->input('per_page', 30),
+                $beforeMessageId
             );
+
+            $items = $paginator->items();
+            $oldestItemInPage = ! empty($items) ? end($items) : null;
+            $resourceCollection = CircleChatMessageResource::collection($items);
 
             return $this->success([
                 'circle' => [
                     'id' => (string) $circle->id,
                     'name' => $circle->name,
                 ],
-                'messages' => CircleChatMessageResource::collection($paginator->items()),
+                'items' => $resourceCollection,
+                'messages' => $resourceCollection,
                 'pagination' => [
                     'current_page' => $paginator->currentPage(),
                     'last_page' => $paginator->lastPage(),
                     'per_page' => $paginator->perPage(),
                     'total' => $paginator->total(),
+                    'has_more' => $paginator->hasMorePages(),
+                    'next_cursor' => $oldestItemInPage ? (string) $oldestItemInPage->id : null,
                 ],
             ], 'Circle chat messages fetched successfully.');
         } catch (HttpException $exception) {
