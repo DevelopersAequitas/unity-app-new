@@ -263,11 +263,7 @@ class EventController extends BaseApiController
             return null;
         }
 
-        if ($dateTime instanceof \DateTimeInterface) {
-            return Carbon::parse($dateTime->format('Y-m-d H:i:s'), $timezone);
-        }
-
-        return Carbon::parse((string) $dateTime, $timezone);
+        return Carbon::parse($dateTime)->setTimezone($timezone);
     }
 
     private function eventImageUrl(Event $event): ?string

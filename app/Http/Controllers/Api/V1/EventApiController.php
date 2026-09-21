@@ -9,7 +9,6 @@ use App\Models\EventOccurrence;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use Carbon\Carbon;
-use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -213,11 +212,7 @@ class EventApiController extends BaseApiController
             return null;
         }
 
-        if ($dateTime instanceof DateTimeInterface) {
-            return Carbon::parse($dateTime->format('Y-m-d H:i:s.u'), $timezone);
-        }
-
-        return Carbon::parse((string) $dateTime)->setTimezone($timezone);
+        return Carbon::parse($dateTime)->setTimezone($timezone);
     }
 
     private function dateTimeForResponse(mixed $dateTime): ?Carbon
@@ -226,7 +221,7 @@ class EventApiController extends BaseApiController
             return null;
         }
 
-        return Carbon::parse($dateTime);
+        return Carbon::parse($dateTime)->utc();
     }
 
     private function registeredCount(string $eventId, ?string $occurrenceId): int

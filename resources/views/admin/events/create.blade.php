@@ -149,6 +149,9 @@
     $organizer = data_get($metadata, 'organizer', []);
     $selectedCircleIds = collect(old('circle_ids', $isEdit ? $event->circles->pluck('id')->all() : []))->map(fn ($id) => (string) $id)->all();
     $stateOptions = $circles->map(fn ($circle) => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null)->filter()->unique()->sort()->values();
+    $eventTimezone = old('timezone', data_get($metadata, 'timezone') ?: 'Asia/Kolkata');
+    $startAtFormatted = old('start_at', $isEdit && $event->start_at ? \Carbon\Carbon::parse($event->start_at)->setTimezone($eventTimezone)->format('Y-m-d\TH:i') : null);
+    $endAtFormatted = old('end_at', $isEdit && $event->end_at ? \Carbon\Carbon::parse($event->end_at)->setTimezone($eventTimezone)->format('Y-m-d\TH:i') : null);
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -384,8 +387,9 @@
                                 </div>
                             </div>
                         </div>
-                        <input type="hidden" name="start_at" id="startAtHidden" value="{{ old('start_at', optional($event->start_at ?? null)->format('Y-m-d\TH:i')) }}">
-                        <input type="hidden" name="end_at" id="endAtHidden" value="{{ old('end_at', optional($event->end_at ?? null)->format('Y-m-d\TH:i')) }}">
+                        <input type="hidden" name="timezone" id="timezoneInput" value="{{ $eventTimezone }}">
+                        <input type="hidden" name="start_at" id="startAtHidden" value="{{ $startAtFormatted }}">
+                        <input type="hidden" name="end_at" id="endAtHidden" value="{{ $endAtFormatted }}">
                         <div class="col-12"><div class="text-danger small d-none" id="dateTimeError">Please select valid start date and start time.</div></div>
                     </div>
 
@@ -1004,6 +1008,15 @@
                 e.preventDefault();
             }
         });
+
+        const tzEl = document.getElementById('timezoneInput');
+        if (tzEl && !tzEl.value) {
+            try {
+                tzEl.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+            } catch (e) {
+                tzEl.value = 'Asia/Kolkata';
+            }
+        }
 
         initDateTimeFields();
         updateEventType(); updateSelectedCircleText(); updateMode(); updateRecurrence();

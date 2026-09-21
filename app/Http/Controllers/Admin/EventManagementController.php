@@ -569,6 +569,22 @@ class EventManagementController extends Controller
 
     private function prepareEventData(Request $request, array $data, ?Event $event = null): array
     {
+        $timezone = $request->input('timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
+        if ($timezone === 'UTC' && ! $request->has('timezone')) {
+            $timezone = 'Asia/Kolkata';
+        }
+
+        if (! empty($data['start_at'])) {
+            $localStart = Carbon::parse($data['start_at'], $timezone);
+            $data['start_at'] = $localStart->copy()->utc()->toDateTimeString();
+        } else {
+            $localStart = null;
+        }
+
+        if (! empty($data['end_at'])) {
+            $data['end_at'] = Carbon::parse($data['end_at'], $timezone)->utc()->toDateTimeString();
+        }
+
         $data['event_type'] = match ($data['event_type'] ?? null) {
             'public_visitor_event' => 'public_event',
             'training_workshop' => 'training',
@@ -598,8 +614,10 @@ class EventManagementController extends Controller
             if ($monthlyPattern === 'fixed') {
                 $data['recurrence_week_of_month'] = null;
                 $data['recurrence_day_of_week'] = null;
-                if (! empty($data['start_at'])) {
-                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                if ($localStart) {
+                    $data['recurrence_day_of_month'] = (int) $localStart->format('j');
+                } elseif (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->setTimezone($timezone)->format('j');
                 }
             } else {
                 $data['recurrence_day_of_month'] = null;
@@ -615,6 +633,7 @@ class EventManagementController extends Controller
         }
 
         $metadata = $this->normalizeMetadata($event?->metadata ?? ($data['metadata'] ?? []));
+        $metadata['timezone'] = $timezone;
         $metadata['what_youll_gain'] = $this->cleanGains($data['what_youll_gain'] ?? []);
         $metadata['organizer'] = [
             'name' => $data['organizer_name'] ?? null,
