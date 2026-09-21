@@ -1,40 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Requirement\RequirementTimelineResource;
-use App\Models\Requirement;
+use App\Services\Requirements\TimelineRequirementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class TimelineRequirementController extends Controller
 {
+    public function __construct(
+        private readonly TimelineRequirementService $timelineRequirementService,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
-        $query = Requirement::query()
-            ->select('requirements.*')
-            ->selectRaw('rp.post_id as post_id')
-            ->with('user')
-            ->leftJoinSub(
-                DB::table('posts')
-                    ->selectRaw('DISTINCT ON (source_id) source_id, id as post_id')
-                    ->where('source_type', '=', 'requirement')
-                    ->where('is_deleted', '=', false)
-                    ->orderBy('source_id')
-                    ->orderByDesc('created_at'),
-                'rp',
-                'rp.source_id',
-                '=',
-                'requirements.id'
-            )
-            ->where('requirements.status', '=', 'open')
-            ->whereNull('requirements.deleted_at')
-            ->orderByDesc('requirements.created_at');
-
-        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
-        $paginated = $query->paginate($perPage);
+        $paginated = $this->timelineRequirementService->getOpenRequirements($request);
 
         return response()->json([
             'status' => true,
