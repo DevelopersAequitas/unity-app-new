@@ -135,6 +135,7 @@ use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PeerReferralsApiController;
+use App\Http\Controllers\Api\V1\Peers\TopPeersController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
@@ -156,6 +157,9 @@ use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
+use App\Http\Controllers\Api\V1\Web\WebBlogApiController;
+use App\Http\Controllers\Api\V1\Web\WebMediaApiController;
+use App\Http\Controllers\Api\V1\Web\WebPublicApiController;
 use App\Http\Controllers\Api\V1\WhatsApp\WhatsAppWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
@@ -973,6 +977,10 @@ Route::prefix('v1')->group(function () {
         // Leaderboards
         Route::get('/leaderboards/coins', [LeaderboardController::class, 'coins']);
         Route::get('/leaderboards/impacts', [LeaderboardController::class, 'impacts']);
+        Route::get('/leaderboards/business-deals', [TopPeersController::class, 'businessDeals']);
+        Route::get('/leaderboards/p2p-meetings', [TopPeersController::class, 'p2pMeetings']);
+        Route::get('/leaderboards/testimonials', [TopPeersController::class, 'testimonials']);
+        Route::get('/leaderboards/referrals', [TopPeersController::class, 'referrals']);
 
         Route::prefix('activities')->group(function () {
             Route::get('p2p-meetings', [P2pMeetingHistoryController::class, 'index']);
@@ -1402,22 +1410,22 @@ Route::get('/send-test-push', function (Request $request) {
 // ── Peers Global Website Public API Endpoints (v1) ──────────────────────
 Route::prefix('v1')->group(function () {
     // Web Media (Videos, Images, Hero Banners, Section Assets)
-    Route::get('/web-media', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'index']);
-    Route::post('/web-media', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'store']);
-    Route::get('/web-media/assets', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'assets']);
-    Route::post('/web-media/upload', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'upload']);
-    Route::delete('/web-media/{id}', [\App\Http\Controllers\Api\V1\Web\WebMediaApiController::class, 'destroy']);
+    Route::get('/web-media', [WebMediaApiController::class, 'index']);
+    Route::post('/web-media', [WebMediaApiController::class, 'store']);
+    Route::get('/web-media/assets', [WebMediaApiController::class, 'assets']);
+    Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
+    Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
 
     // Web Blogs & Publications
-    Route::get('/web-blogs', [\App\Http\Controllers\Api\V1\Web\WebBlogApiController::class, 'index']);
-    Route::get('/web-blogs/{slug}', [\App\Http\Controllers\Api\V1\Web\WebBlogApiController::class, 'show']);
-    Route::post('/web-blogs', [\App\Http\Controllers\Api\V1\Web\WebBlogApiController::class, 'store']);
+    Route::get('/web-blogs', [WebBlogApiController::class, 'index']);
+    Route::get('/web-blogs/{slug}', [WebBlogApiController::class, 'show']);
+    Route::post('/web-blogs', [WebBlogApiController::class, 'store']);
 
     // Web Partnerships & Ecosystem
-    Route::get('/web-partnerships', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'partnerships']);
-    Route::get('/web-opportunities', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'opportunities']);
-    Route::get('/web-companies', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'companies']);
-    Route::get('/web-settings', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'settings']);
-    Route::post('/web-messages', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'submitMessage']);
-    Route::get('/web-collaborations', [\App\Http\Controllers\Api\V1\Web\WebPublicApiController::class, 'collaborations']);
+    Route::get('/web-partnerships', [WebPublicApiController::class, 'partnerships']);
+    Route::get('/web-opportunities', [WebPublicApiController::class, 'opportunities']);
+    Route::get('/web-companies', [WebPublicApiController::class, 'companies']);
+    Route::get('/web-settings', [WebPublicApiController::class, 'settings']);
+    Route::post('/web-messages', [WebPublicApiController::class, 'submitMessage']);
+    Route::get('/web-collaborations', [WebPublicApiController::class, 'collaborations']);
 });
