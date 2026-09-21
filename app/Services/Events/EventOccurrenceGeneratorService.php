@@ -19,12 +19,17 @@ class EventOccurrenceGeneratorService
             $starts = $this->buildStarts($event);
             $durationSeconds = max(0, CarbonImmutable::parse($event->end_at ?? $event->start_at)->diffInSeconds(CarbonImmutable::parse($event->start_at), true));
             $created = collect();
+            $eventTz = data_get($event->metadata, 'timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
+            if ($eventTz === 'UTC') {
+                $eventTz = 'Asia/Kolkata';
+            }
+
             $type = $event->recurrence_type ?: 'none';
 
             if ($type === 'none') {
                 $occurrenceStart = $starts[0] ?? CarbonImmutable::parse($event->start_at);
                 $occurrenceEnd = $durationSeconds > 0 ? $occurrenceStart->addSeconds($durationSeconds) : null;
-                $occurrenceDate = $occurrenceStart->toDateString();
+                $occurrenceDate = $occurrenceStart->setTimezone($eventTz)->toDateString();
 
                 $allOccurrences = $event->occurrences()->withTrashed()->get();
 
@@ -75,7 +80,7 @@ class EventOccurrenceGeneratorService
 
             foreach ($starts as $occurrenceStart) {
                 $occurrenceEnd = $durationSeconds > 0 ? $occurrenceStart->addSeconds($durationSeconds) : null;
-                $occurrenceDate = $occurrenceStart->toDateString();
+                $occurrenceDate = $occurrenceStart->setTimezone($eventTz)->toDateString();
                 $existingOccurrence = $event->occurrences()
                     ->withTrashed()
                     ->where('occurrence_date', $occurrenceDate)
@@ -126,10 +131,15 @@ class EventOccurrenceGeneratorService
             $type = $event->recurrence_type ?: 'none';
 
             if ($type === 'none') {
+                $eventTz = data_get($event->metadata, 'timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
+                if ($eventTz === 'UTC') {
+                    $eventTz = 'Asia/Kolkata';
+                }
+
                 $allOccurrences = $event->occurrences()->get();
                 if ($allOccurrences->count() > 1) {
                     $keepId = $allOccurrences->first(fn ($occ) => $occ->registrations()->exists())?->id
-                        ?? $allOccurrences->firstWhere('occurrence_date', CarbonImmutable::parse($event->start_at)->toDateString())?->id
+                        ?? $allOccurrences->firstWhere('occurrence_date', CarbonImmutable::parse($event->start_at)->setTimezone($eventTz)->toDateString())?->id
                         ?? $allOccurrences->first()?->id;
 
                     $event->occurrences()

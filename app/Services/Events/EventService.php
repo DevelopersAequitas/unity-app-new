@@ -90,8 +90,10 @@ class EventService
     {
         $eventType = $filters['event_type'] ?? $filters['type'] ?? null;
         $search = $filters['search'] ?? $filters['title'] ?? null;
-        $status = $filters['status'] ?? null;
-        $timezone = config('app.timezone') ?: 'UTC';
+        $timezone = $filters['timezone'] ?? request()?->header('X-Timezone') ?? config('app.timezone') ?: 'Asia/Kolkata';
+        if ($timezone === 'UTC' && empty($filters['timezone']) && ! request()?->hasHeader('X-Timezone')) {
+            $timezone = 'Asia/Kolkata';
+        }
 
         $this->ensureMissingOneTimeOccurrences($filters, $user, $timezone);
 
@@ -143,10 +145,10 @@ class EventService
 
         if (! $this->statusFilterControlsDateWindow($status)) {
             if (isset($filters['from_date']) || isset($filters['to_date'])) {
-                $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
-                    ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+                $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()->utc()))
+                    ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()->utc()));
             } else {
-                $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
+                $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay()->utc());
             }
         }
 
@@ -195,8 +197,11 @@ class EventService
 
     public function listPastOccurrences(string $circleId, ?User $user = null, int $perPage = 10): LengthAwarePaginator
     {
-        $timezone = config('app.timezone') ?: 'UTC';
-        $now = Carbon::now($timezone);
+        $timezone = request()?->header('X-Timezone') ?? config('app.timezone') ?: 'Asia/Kolkata';
+        if ($timezone === 'UTC' && ! request()?->hasHeader('X-Timezone')) {
+            $timezone = 'Asia/Kolkata';
+        }
+        $now = Carbon::now('UTC');
 
         $this->ensureMissingOneTimeOccurrencesForCircle($circleId, $timezone);
 
@@ -364,11 +369,11 @@ class EventService
         $now = Carbon::now($timezone);
 
         match ($status) {
-            'today' => $query->whereBetween('start_at', [$now->copy()->startOfDay(), $now->copy()->endOfDay()]),
-            'live' => $query->where('start_at', '<=', $now)->where(function (Builder $liveQuery) use ($now): void {
-                $liveQuery->whereNull('end_at')->orWhere('end_at', '>=', $now);
+            'today' => $query->whereBetween('start_at', [$now->copy()->startOfDay()->utc(), $now->copy()->endOfDay()->utc()]),
+            'live' => $query->where('start_at', '<=', $now->copy()->utc())->where(function (Builder $liveQuery) use ($now): void {
+                $liveQuery->whereNull('end_at')->orWhere('end_at', '>=', $now->copy()->utc());
             }),
-            'upcoming' => $query->where('start_at', '>', $now),
+            'upcoming' => $query->where('start_at', '>', $now->copy()->utc()),
             default => $this->applyExactOccurrenceOrEventStatusFilter($query, $status),
         };
     }
@@ -764,6 +769,22 @@ class EventService
 
     private function normalize(array $data, ?User $actor, bool $withDefaults = true): array
     {
+        $timezone = $data['timezone'] ?? data_get($data, 'metadata.timezone') ?? (config('app.timezone') ?: 'Asia/Kolkata');
+        if ($timezone === 'UTC' && empty($data['timezone']) && empty(data_get($data, 'metadata.timezone'))) {
+            $timezone = 'Asia/Kolkata';
+        }
+
+        if (! empty($data['start_at'])) {
+            $localStart = Carbon::parse($data['start_at'], $timezone);
+            $data['start_at'] = $localStart->copy()->utc()->toDateTimeString();
+        } else {
+            $localStart = null;
+        }
+
+        if (! empty($data['end_at'])) {
+            $data['end_at'] = Carbon::parse($data['end_at'], $timezone)->utc()->toDateTimeString();
+        }
+
         if ($actor && empty($data['created_by_user_id'])) {
             $data['created_by_user_id'] = $actor->id;
         }
@@ -857,6 +878,10 @@ class EventService
             $data['member_registration_enabled'] = $data['member_registration_enabled'] ?? true;
         }
 
+        $metadata = (array) ($data['metadata'] ?? []);
+        $metadata['timezone'] = $timezone;
+        $data['metadata'] = $metadata;
+
         $recurrenceType = $data['recurrence_type'] ?? null;
         if ($recurrenceType === 'none') {
             $data['recurrence_interval'] = null;
@@ -874,16 +899,20 @@ class EventService
             if (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'fixed') {
                 $data['recurrence_week_of_month'] = null;
                 $data['recurrence_day_of_week'] = null;
-                if (! empty($data['start_at'])) {
-                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                if ($localStart) {
+                    $data['recurrence_day_of_month'] = (int) $localStart->format('j');
+                } elseif (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->setTimezone($timezone)->format('j');
                 }
             } elseif (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'weekday') {
                 $data['recurrence_day_of_month'] = null;
             } else {
                 $data['recurrence_week_of_month'] = null;
                 $data['recurrence_day_of_week'] = null;
-                if (! empty($data['start_at'])) {
-                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                if ($localStart) {
+                    $data['recurrence_day_of_month'] = (int) $localStart->format('j');
+                } elseif (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->setTimezone($timezone)->format('j');
                 }
             }
         }
@@ -895,7 +924,7 @@ class EventService
             $data['circle_id'] = $data['circle_ids'][0];
         }
 
-        unset($data['circle_ids'], $data['monthly_pattern']);
+        unset($data['circle_ids'], $data['monthly_pattern'], $data['timezone']);
 
         return $data;
     }
