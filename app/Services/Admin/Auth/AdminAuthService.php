@@ -559,7 +559,7 @@ class AdminAuthService
         $otpRecord->save();
 
         $sent = $this->whatsappNotificationService->send(
-            templateKey: 'admin_otp',
+            templateKey: 'otp_verification',
             phone: $phone,
             payload: [
                 'code' => $otp,
