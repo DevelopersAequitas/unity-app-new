@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Creative\LifeImpactCreativeGenerator;
@@ -429,6 +430,11 @@ class LifeImpactRecognitionsController extends Controller
                 'description' => $caption,
                 'image' => $imageUrl,
                 'status' => 'active',
+            ]);
+
+            PostMention::firstOrCreate([
+                'post_id' => $post->id,
+                'peer_id' => $peer->id,
             ]);
 
             return response()->json([

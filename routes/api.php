@@ -895,6 +895,8 @@ Route::prefix('v1')->group(function () {
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
         Route::get('/posts/feed', [PostController::class, 'feed']);
+        Route::get('/timeline', [PostController::class, 'feed']);
+        Route::get('/posts', [PostController::class, 'feed']);
         Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
         Route::middleware('auth:sanctum')->get('/ads/my', [AdController::class, 'myAds']);
         Route::middleware('auth:sanctum')->get('/ads/all', [AdController::class, 'allAds']);

@@ -15,6 +15,7 @@ use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\PostComment;
 use App\Models\PostLike;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\AdFeedService;
 use App\Services\Notifications\NotificationDispatchService;
@@ -208,6 +209,23 @@ class PostController extends BaseApiController
                 ->keyBy(fn (User $u) => (string) $u->id)
             : collect();
 
+        $postMentionsByPostId = $postIds !== []
+            ? DB::table('post_mentions')
+                ->join('users', 'users.id', '=', 'post_mentions.peer_id')
+                ->whereIn('post_mentions.post_id', $postIds)
+                ->select([
+                    'post_mentions.post_id',
+                    'users.id as peer_id',
+                    'users.display_name',
+                    'users.first_name',
+                    'users.last_name',
+                    'users.name',
+                    'users.profile_photo_file_id',
+                ])
+                ->get()
+                ->groupBy(fn ($pm): string => (string) $pm->post_id)
+            : collect();
+
         $p2pMeetingsById = collect();
         $fallbackP2pMeetingIdByPostId = [];
 
@@ -285,7 +303,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -300,6 +318,22 @@ class PostController extends BaseApiController
 
             $mentions = [];
 
+            // 1. Stored post mentions from post_mentions table
+            $dbMentions = $postMentionsByPostId->get((string) $row->id);
+            if ($dbMentions && $dbMentions->isNotEmpty()) {
+                foreach ($dbMentions as $dm) {
+                    $mName = $dm->display_name ?: trim((($dm->first_name ?? '').' '.($dm->last_name ?? '')));
+                    $mentions[] = [
+                        'id' => (string) $dm->peer_id,
+                        'name' => $mName !== '' ? $mName : ($dm->name ?: 'Peer Member'),
+                        'profile_photo_url' => $dm->profile_photo_file_id
+                            ? url('/api/v1/files/'.$dm->profile_photo_file_id)
+                            : null,
+                    ];
+                }
+            }
+
+            // 2. Recognition posts (Life Impact, Member Introducers)
             $postSourceType = (string) ($row->post_source_type ?? '');
             $postType = (string) ($row->post_type ?? '');
             $isRecognition = in_array($postSourceType, ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
@@ -307,7 +341,7 @@ class PostController extends BaseApiController
 
             if ($isRecognition && ! empty($row->post_source_id)) {
                 $recPeer = $mentionedPeers->get((string) $row->post_source_id);
-                if ($recPeer) {
+                if ($recPeer && ! collect($mentions)->contains('id', (string) $recPeer->id)) {
                     $recName = $recPeer->display_name ?: trim(($recPeer->first_name ?? '').' '.($recPeer->last_name ?? ''));
                     $mentions[] = [
                         'id' => (string) $recPeer->id,
@@ -319,7 +353,7 @@ class PostController extends BaseApiController
                 }
             } elseif ((string) $row->source_type === 'impact' && ! empty($row->impacted_peer_id)) {
                 $impPeer = $mentionedPeers->get((string) $row->impacted_peer_id);
-                if ($impPeer) {
+                if ($impPeer && ! collect($mentions)->contains('id', (string) $impPeer->id)) {
                     $impName = $impPeer->display_name ?: trim(($impPeer->first_name ?? '').' '.($impPeer->last_name ?? ''));
                     $mentions[] = [
                         'id' => (string) $impPeer->id,
@@ -336,15 +370,34 @@ class PostController extends BaseApiController
                 && ! empty($row->accepted_by_id)
             ) {
                 $accPeer = $mentionedPeers->get((string) $row->accepted_by_id);
-                $acceptedByName = trim((string) ($row->accepted_by_display_name
-                    ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
-                $mentions[] = [
-                    'id' => (string) $row->accepted_by_id,
-                    'name' => $acceptedByName !== '' ? $acceptedByName : ($accPeer ? ($accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''))) : 'Peer Member'),
-                    'profile_photo_url' => $accPeer?->profile_photo_file_id
-                        ? url('/api/v1/files/'.$accPeer->profile_photo_file_id)
-                        : null,
-                ];
+                if (! collect($mentions)->contains('id', (string) $row->accepted_by_id)) {
+                    $acceptedByName = trim((string) ($row->accepted_by_display_name
+                        ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
+                    $mentions[] = [
+                        'id' => (string) $row->accepted_by_id,
+                        'name' => $acceptedByName !== '' ? $acceptedByName : ($accPeer ? ($accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''))) : 'Peer Member'),
+                        'profile_photo_url' => $accPeer?->profile_photo_file_id
+                            ? url('/api/v1/files/'.$accPeer->profile_photo_file_id)
+                            : null,
+                    ];
+                }
+            }
+
+            // 3. Inline markdown mentions @[Name](uuid)
+            if (! empty($row->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $row->content_text, $inlineMatches)) {
+                foreach ($inlineMatches[2] as $idx => $matchedUuid) {
+                    if (! collect($mentions)->contains('id', $matchedUuid)) {
+                        $matchedName = $inlineMatches[1][$idx] ?? 'Peer Member';
+                        $u = $mentionedPeers->get($matchedUuid);
+                        $mentions[] = [
+                            'id' => $matchedUuid,
+                            'name' => $matchedName,
+                            'profile_photo_url' => $u?->profile_photo_file_id
+                                ? url('/api/v1/files/'.$u->profile_photo_file_id)
+                                : null,
+                        ];
+                    }
+                }
             }
 
             $item = [
@@ -672,6 +725,8 @@ class PostController extends BaseApiController
             }
         }
 
+        $mentionedPeerIds = $this->extractMentionedPeerIds($request, $data['content_text'] ?? null);
+
         $post = Post::create([
             'user_id' => $user->id,
             'circle_id' => $data['circle_id'] ?? null,
@@ -684,8 +739,12 @@ class PostController extends BaseApiController
             'is_deleted' => false,
         ]);
 
+        if (! empty($mentionedPeerIds)) {
+            $this->syncPostMentions($post, $mentionedPeerIds);
+        }
+
         $this->dispatchNewPostNotifications($notificationService, $post);
-        $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
+        $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null, $mentionedPeerIds);
 
         return response()->json([
             'success' => true,
@@ -697,6 +756,7 @@ class PostController extends BaseApiController
                 'content_text' => $post->content_text,
                 'media' => $post->media ?? [],
                 'tags' => $post->tags ?? [],
+                'mentions' => $this->formatPostMentions($post),
                 'visibility' => $post->visibility,
                 'moderation_status' => $post->moderation_status,
                 'sponsored' => $post->sponsored,
@@ -783,8 +843,10 @@ class PostController extends BaseApiController
 
         $post->save();
 
-        if (array_key_exists('content_text', $data)) {
-            $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
+        if (array_key_exists('content_text', $data) || $request->has('mentions') || $request->has('tagged_peer_ids')) {
+            $mentionedPeerIds = $this->extractMentionedPeerIds($request, $post->content_text);
+            $this->syncPostMentions($post, $mentionedPeerIds);
+            $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null, $mentionedPeerIds);
         }
 
         return response()->json([
@@ -797,6 +859,7 @@ class PostController extends BaseApiController
                 'content_text' => $post->content_text,
                 'media' => $post->media ?? [],
                 'tags' => $post->tags ?? [],
+                'mentions' => $this->formatPostMentions($post),
                 'visibility' => $post->visibility,
                 'moderation_status' => $post->moderation_status,
                 'sponsored' => $post->sponsored,
@@ -829,6 +892,7 @@ class PostController extends BaseApiController
             'content_text' => $post->content_text,
             'media' => $post->media ?? [],
             'tags' => $post->tags ?? [],
+            'mentions' => $this->formatPostMentions($post),
             'visibility' => $post->visibility,
             'moderation_status' => $post->moderation_status,
             'author' => $post->relationLoaded('user') && $post->user ? [
@@ -1001,10 +1065,10 @@ class PostController extends BaseApiController
         }
     }
 
-    private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, ?string $text, ?PostComment $comment): void
+    private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, ?string $text, ?PostComment $comment, array $mentionedPeerIds = []): void
     {
         $text = $text ?? '';
-        $mentionedUsers = $this->mentionedUsers($text)->reject(fn (User $user) => (string) $user->id === (string) $actor->id)->values();
+        $mentionedUsers = $this->mentionedUsers($text, $mentionedPeerIds)->reject(fn (User $user) => (string) $user->id === (string) $actor->id)->values();
         if ($mentionedUsers->isEmpty()) {
             return;
         }
@@ -1023,19 +1087,159 @@ class PostController extends BaseApiController
         }
     }
 
-    private function mentionedUsers(string $text): Collection
+    private function mentionedUsers(string $text, array $additionalPeerIds = []): Collection
     {
-        preg_match_all('/@([A-Za-z0-9_.-]{2,50})/', $text, $matches);
-        $handles = collect($matches[1] ?? [])->filter()->unique()->values();
-        if ($handles->isEmpty()) {
-            return collect();
+        $peerIds = [];
+        if (preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', $text, $matches)) {
+            $peerIds = array_merge($peerIds, $matches[2]);
+        }
+        if (preg_match_all('/@\{([0-9a-fA-F-]{36}):([^\}]+)\}/', $text, $matches)) {
+            $peerIds = array_merge($peerIds, $matches[1]);
+        }
+        $peerIds = array_values(array_unique(array_filter(array_merge($peerIds, $additionalPeerIds))));
+
+        $users = collect();
+        if ($peerIds !== []) {
+            $users = User::query()->whereIn('id', $peerIds)->get();
         }
 
-        return User::query()->where(function ($query) use ($handles): void {
-            foreach ($handles as $handle) {
-                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle.'@%');
+        preg_match_all('/@([A-Za-z0-9_.-]{2,50})/', $text, $legacyMatches);
+        $handles = collect($legacyMatches[1] ?? [])
+            ->filter(fn ($h) => ! in_array($h, $peerIds, true))
+            ->unique()
+            ->values();
+
+        if ($handles->isNotEmpty()) {
+            $legacyUsers = User::query()->where(function ($query) use ($handles): void {
+                foreach ($handles as $handle) {
+                    $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle.'@%');
+                }
+            })->get();
+            $users = $users->concat($legacyUsers)->unique('id')->values();
+        }
+
+        return $users;
+    }
+
+    /**
+     * Extract and normalize peer UUIDs from mentions array, tagged_peer_ids, and content_text markdown.
+     *
+     * @return array<int, string>
+     */
+    private function extractMentionedPeerIds(Request $request, ?string $contentText): array
+    {
+        $peerIds = [];
+
+        // 1. From payload mentions array: [{"id": "uuid", "name": "..."}]
+        $rawMentions = $request->input('mentions');
+        if (is_array($rawMentions)) {
+            foreach ($rawMentions as $item) {
+                $id = is_array($item) ? ($item['id'] ?? null) : (is_string($item) ? $item : null);
+                if (is_string($id) && Str::isUuid($id)) {
+                    $peerIds[] = $id;
+                }
             }
-        })->get();
+        }
+
+        // 2. From payload tagged_peer_ids array
+        $tagged = $request->input('tagged_peer_ids');
+        if (is_array($tagged)) {
+            foreach ($tagged as $id) {
+                if (is_string($id) && Str::isUuid($id)) {
+                    $peerIds[] = $id;
+                }
+            }
+        }
+
+        // 3. From markdown format: @[Peer Name](uuid)
+        if (! empty($contentText)) {
+            if (preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', $contentText, $matches)) {
+                foreach ($matches[2] as $id) {
+                    if (Str::isUuid($id)) {
+                        $peerIds[] = $id;
+                    }
+                }
+            }
+
+            // 4. From tag format: @{uuid:Peer Name}
+            if (preg_match_all('/@\{([0-9a-fA-F-]{36}):([^\}]+)\}/', $contentText, $matches)) {
+                foreach ($matches[1] as $id) {
+                    if (Str::isUuid($id)) {
+                        $peerIds[] = $id;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($peerIds)));
+    }
+
+    private function syncPostMentions(Post $post, array $peerIds): void
+    {
+        PostMention::where('post_id', $post->id)->delete();
+
+        foreach ($peerIds as $peerId) {
+            PostMention::create([
+                'post_id' => $post->id,
+                'peer_id' => $peerId,
+            ]);
+        }
+    }
+
+    private function formatPostMentions(Post $post): array
+    {
+        $mentions = [];
+
+        // 1. Check post_mentions table
+        $postMentions = PostMention::where('post_id', $post->id)->with('peer')->get();
+        foreach ($postMentions as $pm) {
+            $peer = $pm->peer;
+            if ($peer) {
+                $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                $mentions[] = [
+                    'id' => (string) $peer->id,
+                    'name' => $name !== '' ? $name : ($peer->name ?: 'Peer Member'),
+                    'profile_photo_url' => $peer->profile_photo_file_id
+                        ? url('/api/v1/files/'.$peer->profile_photo_file_id)
+                        : null,
+                ];
+            }
+        }
+
+        // 2. Recognition posts
+        $recognitionTypes = ['life_impact', 'member_introduction', 'recognition', 'growth_honour'];
+        if ((in_array((string) $post->source_type, $recognitionTypes, true) || in_array((string) $post->post_type, ['life_impact_recognition', 'growth_honour'], true)) && ! empty($post->source_id)) {
+            $peer = User::find($post->source_id);
+            if ($peer && ! collect($mentions)->contains('id', (string) $peer->id)) {
+                $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                $mentions[] = [
+                    'id' => (string) $peer->id,
+                    'name' => $name !== '' ? $name : ($peer->name ?: 'Peer Member'),
+                    'profile_photo_url' => $peer->profile_photo_file_id
+                        ? url('/api/v1/files/'.$peer->profile_photo_file_id)
+                        : null,
+                ];
+            }
+        }
+
+        // 3. Inline markdown mentions @[Name](uuid)
+        if (! empty($post->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', $post->content_text, $inlineMatches)) {
+            foreach ($inlineMatches[2] as $idx => $matchedUuid) {
+                if (! collect($mentions)->contains('id', $matchedUuid)) {
+                    $matchedName = $inlineMatches[1][$idx] ?? 'Peer Member';
+                    $u = User::find($matchedUuid);
+                    $mentions[] = [
+                        'id' => $matchedUuid,
+                        'name' => $matchedName,
+                        'profile_photo_url' => $u?->profile_photo_file_id
+                            ? url('/api/v1/files/'.$u->profile_photo_file_id)
+                            : null,
+                    ];
+                }
+            }
+        }
+
+        return $mentions;
     }
 
     private function postPreview(Post $post): string

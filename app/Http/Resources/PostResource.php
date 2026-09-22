@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\File;
+use App\Models\PostMention;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -78,24 +79,61 @@ class PostResource extends JsonResource
             'tags' => $this->tags,
             'mentions' => (function () {
                 $mentions = [];
+
+                if ($this->relationLoaded('postMentions') && $this->postMentions) {
+                    foreach ($this->postMentions as $pm) {
+                        $peer = $pm->peer;
+                        if ($peer) {
+                            $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                            $mentions[] = [
+                                'id' => (string) $peer->id,
+                                'name' => $name !== '' ? $name : 'Peer Member',
+                                'profile_photo_url' => $peer->profile_photo_file_id
+                                    ? url('/api/v1/files/'.$peer->profile_photo_file_id)
+                                    : null,
+                            ];
+                        }
+                    }
+                } elseif (! empty($this->id)) {
+                    $loadedMentions = PostMention::with('peer')
+                        ->where('post_id', $this->id)
+                        ->get();
+                    foreach ($loadedMentions as $pm) {
+                        $peer = $pm->peer;
+                        if ($peer) {
+                            $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                            $mentions[] = [
+                                'id' => (string) $peer->id,
+                                'name' => $name !== '' ? $name : 'Peer Member',
+                                'profile_photo_url' => $peer->profile_photo_file_id
+                                    ? url('/api/v1/files/'.$peer->profile_photo_file_id)
+                                    : null,
+                            ];
+                        }
+                    }
+                }
+
                 $isRecognition = in_array((string) ($this->source_type ?? ''), ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
                     || in_array((string) ($this->post_type ?? ''), ['life_impact_recognition', 'growth_honour'], true);
 
                 if ($isRecognition && ! empty($this->source_id)) {
-                    $recognizedPeer = User::find($this->source_id);
-                    if ($recognizedPeer) {
-                        $recName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '').' '.($recognizedPeer->last_name ?? ''));
-                        $mentions[] = [
-                            'id' => (string) $recognizedPeer->id,
-                            'name' => $recName !== '' ? $recName : 'Peer Member',
-                            'profile_photo_url' => $recognizedPeer->profile_photo_file_id
-                                ? url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id)
-                                : null,
-                        ];
+                    $alreadyIncluded = collect($mentions)->contains('id', (string) $this->source_id);
+                    if (! $alreadyIncluded) {
+                        $recognizedPeer = User::find($this->source_id);
+                        if ($recognizedPeer) {
+                            $recName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '').' '.($recognizedPeer->last_name ?? ''));
+                            $mentions[] = [
+                                'id' => (string) $recognizedPeer->id,
+                                'name' => $recName !== '' ? $recName : 'Peer Member',
+                                'profile_photo_url' => $recognizedPeer->profile_photo_file_id
+                                    ? url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id)
+                                    : null,
+                            ];
+                        }
                     }
                 }
 
-                return $mentions;
+                return array_values($mentions);
             })(),
             'visibility' => $this->visibility,
             'moderation_status' => $this->moderation_status ?? null,

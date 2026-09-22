@@ -132,6 +132,7 @@ class LimitedUserResource extends JsonResource
         return [
             'id' => $user->id,
             'name' => $name !== '' ? trim((string) $name) : null,
+            'display_name' => $user->display_name ?: ($name !== '' ? trim((string) $name) : null),
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'city' => $formattedCity,
