@@ -219,7 +219,6 @@ class PostController extends BaseApiController
                     'users.display_name',
                     'users.first_name',
                     'users.last_name',
-                    'users.name',
                     'users.profile_photo_file_id',
                 ])
                 ->get()
@@ -325,7 +324,7 @@ class PostController extends BaseApiController
                     $mName = $dm->display_name ?: trim((($dm->first_name ?? '').' '.($dm->last_name ?? '')));
                     $mentions[] = [
                         'id' => (string) $dm->peer_id,
-                        'name' => $mName !== '' ? $mName : ($dm->name ?: 'Peer Member'),
+                        'name' => $mName !== '' ? $mName : 'Peer Member',
                         'profile_photo_url' => $dm->profile_photo_file_id
                             ? url('/api/v1/files/'.$dm->profile_photo_file_id)
                             : null,
@@ -1198,7 +1197,7 @@ class PostController extends BaseApiController
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                 $mentions[] = [
                     'id' => (string) $peer->id,
-                    'name' => $name !== '' ? $name : ($peer->name ?: 'Peer Member'),
+                    'name' => $name !== '' ? $name : 'Peer Member',
                     'profile_photo_url' => $peer->profile_photo_file_id
                         ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                         : null,
@@ -1214,7 +1213,7 @@ class PostController extends BaseApiController
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                 $mentions[] = [
                     'id' => (string) $peer->id,
-                    'name' => $name !== '' ? $name : ($peer->name ?: 'Peer Member'),
+                    'name' => $name !== '' ? $name : 'Peer Member',
                     'profile_photo_url' => $peer->profile_photo_file_id
                         ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                         : null,

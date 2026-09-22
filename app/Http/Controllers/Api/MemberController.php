@@ -442,7 +442,6 @@ class MemberController extends BaseApiController
                 $q->where('users.first_name', 'ilike', $term)
                     ->orWhere('users.last_name', 'ilike', $term)
                     ->orWhere('users.display_name', 'ilike', $term)
-                    ->orWhere('users.name', 'ilike', $term)
                     ->orWhere('users.company_name', 'ilike', $term);
                 if (Schema::hasColumn('users', 'business_name')) {
                     $q->orWhere('users.business_name', 'ilike', $term);
