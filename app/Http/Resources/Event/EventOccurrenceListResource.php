@@ -37,10 +37,10 @@ class EventOccurrenceListResource extends JsonResource
             $timezone = 'Asia/Kolkata';
         }
 
-        $startAtUtc = $this->start_at ? Carbon::parse($this->start_at)->utc() : null;
-        $endAtUtc = $this->end_at ? Carbon::parse($this->end_at)->utc() : null;
-        $startLocal = $startAtUtc ? $startAtUtc->copy()->setTimezone($timezone) : null;
-        $endLocal = $endAtUtc ? $endAtUtc->copy()->setTimezone($timezone) : null;
+        $startAtParsed = $this->start_at ? Carbon::parse($this->start_at) : null;
+        $endAtParsed = $this->end_at ? Carbon::parse($this->end_at) : null;
+        $startLocal = $startAtParsed;
+        $endLocal = $endAtParsed;
 
         $circles = [];
         if (Schema::hasTable('event_circles') && $event->relationLoaded('circles')) {
@@ -79,10 +79,10 @@ class EventOccurrenceListResource extends JsonResource
                 'ends_at' => optional($event->recurrence_ends_at)->toISOString(),
             ],
             'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null] : null,
-            'start_at' => optional($startAtUtc)->toISOString(),
+            'start_at' => optional($startAtParsed)->format('Y-m-d\TH:i:s'),
             'start_date' => optional($startLocal)->toDateString(),
             'start_time' => optional($startLocal)->format('H:i:s'),
-            'end_at' => optional($endAtUtc)->toISOString(),
+            'end_at' => optional($endAtParsed)->format('Y-m-d\TH:i:s'),
             'status' => $this->status ?? $event->status ?? 'scheduled',
             'display_date' => optional($startLocal)->format('M d, Y'),
             'display_time' => trim(optional($startLocal)->format('h:i A').' - '.optional($endLocal)->format('h:i A'), ' -'),
