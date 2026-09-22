@@ -25,10 +25,10 @@ class EventDetailResource extends JsonResource
             $timezone = 'Asia/Kolkata';
         }
 
-        $startAtUtc = $this->start_at ? Carbon::parse($this->start_at)->utc() : null;
-        $endAtUtc = $this->end_at ? Carbon::parse($this->end_at)->utc() : null;
-        $startLocal = $startAtUtc ? $startAtUtc->copy()->setTimezone($timezone) : null;
-        $endLocal = $endAtUtc ? $endAtUtc->copy()->setTimezone($timezone) : null;
+        $startAtParsed = $this->start_at ? Carbon::parse($this->start_at) : null;
+        $endAtParsed = $this->end_at ? Carbon::parse($this->end_at) : null;
+        $startLocal = $startAtParsed;
+        $endLocal = $endAtParsed;
 
         $circles = [];
         if (Schema::hasTable('event_circles') && $this->relationLoaded('circles')) {
@@ -62,10 +62,10 @@ class EventDetailResource extends JsonResource
             'circle_ids' => collect($circles)->pluck('id')->values()->all(),
             'circles' => $circles,
             'circle' => $this->circle ? ['id' => $this->circle->id, 'name' => $this->circle->name, 'slug' => $this->circle->slug ?? null] : null,
-            'start_at' => optional($startAtUtc)->toISOString(),
+            'start_at' => optional($startAtParsed)->format('Y-m-d\TH:i:s'),
             'start_date' => optional($startLocal)->toDateString(),
             'start_time' => optional($startLocal)->format('H:i:s'),
-            'end_at' => optional($endAtUtc)->toISOString(),
+            'end_at' => optional($endAtParsed)->format('Y-m-d\TH:i:s'),
             'display_date' => optional($startLocal)->format('M d, Y'),
             'display_time' => trim(optional($startLocal)->format('h:i A').' - '.optional($endLocal)->format('h:i A'), ' -'),
             'location_text' => $this->location_text,

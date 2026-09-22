@@ -292,6 +292,7 @@ class LifeImpactRecognitionsController extends Controller
                 'is_unlocked' => $isUnlocked,
                 'is_current' => $isCurrent,
                 'badge_image' => asset($hMeta['badge_image']),
+                'creative_image' => asset($hMeta['creative_image'] ?? ('images/life_impact_creatives/'.$hMeta['title'].'.png')),
                 'posted_to_timeline' => ! empty($matchingPost),
                 'post_id' => $matchingPost?->id,
                 'post_view_url' => $matchingPost ? route('admin.posts.show', $matchingPost->id) : null,

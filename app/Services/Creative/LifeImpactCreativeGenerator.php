@@ -42,6 +42,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a IMPACT CREATOR for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #ImpactCreator #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'ImpactCreator',
                 'badge_image' => 'images/life_impact_badges/Impact Creator.png',
+                'creative_image' => 'images/life_impact_creatives/Impact Creator.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             50 => [
@@ -51,6 +52,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a CHANGE MAKER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #ChangeMaker #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'ChangeMaker',
                 'badge_image' => 'images/life_impact_badges/Change Maker.png',
+                'creative_image' => 'images/life_impact_creatives/Change Maker.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             100 => [
@@ -60,6 +62,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a LIFE CHANGER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #LifeChanger #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'LifeChanger',
                 'badge_image' => 'images/life_impact_badges/Life Changer.png',
+                'creative_image' => 'images/life_impact_creatives/Life Changer.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             250 => [
@@ -69,6 +72,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a IMPACT BUILDER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #ImpactBuilder #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'ImpactBuilder',
                 'badge_image' => 'images/life_impact_badges/Impact Builder.png',
+                'creative_image' => 'images/life_impact_creatives/Impact Builder.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             500 => [
@@ -78,6 +82,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a ECOSYSTEM BUILDER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #EcosystemBuilder #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'EcosystemBuilder',
                 'badge_image' => 'images/life_impact_badges/Ecosystem Builder.png',
+                'creative_image' => 'images/life_impact_creatives/Ecosystem Builder.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             1000 => [
@@ -87,6 +92,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a IMPACT ARCHITECT for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #ImpactArchitect #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'ImpactArchitect',
                 'badge_image' => 'images/life_impact_badges/Impact Architect.png',
+                'creative_image' => 'images/life_impact_creatives/Impact Architect.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             2500 => [
@@ -96,6 +102,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a LEGACY MAKER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #LegacyMaker #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'LegacyMaker',
                 'badge_image' => 'images/life_impact_badges/Legacy Maker.png',
+                'creative_image' => 'images/life_impact_creatives/Legacy Maker.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             5000 => [
@@ -105,6 +112,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a TORCHBEARER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #Torchbearer #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'Torchbearer',
                 'badge_image' => 'images/life_impact_badges/Torchbearer.png',
+                'creative_image' => 'images/life_impact_creatives/Torchbearer.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             10000 => [
@@ -114,6 +122,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a WORLD CHANGER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #WorldChanger #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'WorldChanger',
                 'badge_image' => 'images/life_impact_badges/World Changer.png',
+                'creative_image' => 'images/life_impact_creatives/World Changer.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             25000 => [
@@ -123,6 +132,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a HUMANITARIAN for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #Humanitarian #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'Humanitarian',
                 'badge_image' => 'images/life_impact_badges/Humanitarian.png',
+                'creative_image' => 'images/life_impact_creatives/Humanitarian.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             50000 => [
@@ -132,6 +142,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a HISTORY MAKER for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #HistoryMaker #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'HistoryMaker',
                 'badge_image' => 'images/life_impact_badges/History Maker.png',
+                'creative_image' => 'images/life_impact_creatives/History Maker.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
             100000 => [
@@ -141,6 +152,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a PEERS GLOBAL LEGEND for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #PeersGlobalLegend #ImpactLife #1MillionEntrepreneurs",
                 'hashtag' => 'PeersGlobalLegend',
                 'badge_image' => 'images/life_impact_badges/Peers Global Legend.png',
+                'creative_image' => 'images/life_impact_creatives/Peers Global Legend.png',
                 'quote' => 'Every action creates ripples. You create impact.',
             ],
         ];
@@ -149,7 +161,7 @@ class LifeImpactCreativeGenerator
     /**
      * Get Life Impact recognition metadata based on impacted lives count or explicit DB record.
      *
-     * @return array{title: string, required_count: int, compliment: string, caption_template: string, hashtag: string, badge_image: string, quote: string}
+     * @return array{title: string, required_count: int, compliment: string, caption_template: string, hashtag: string, badge_image: string, creative_image?: string, quote: string}
      */
     public function getRecognitionMeta(int $lifeImpactedCount, ?LifeImpactRecognitionCreative $recognition = null): array
     {
@@ -176,6 +188,7 @@ class LifeImpactCreativeGenerator
                 'caption_template' => "🎉 BIG CONGRATULATIONS!\n\nCongratulations to {name} on becoming a {$recognition->recognition_name} for impacting {count} lives.\n\nYour contribution is making a lasting difference and supporting our mission of impacting 1 Million Entrepreneurs.\n\n1 Action = 1 Life Impacted. 🌍\n\n#PeersGlobal #".Str::studly($recognition->recognition_name).' #ImpactLife #1MillionEntrepreneurs',
                 'hashtag' => Str::studly($recognition->recognition_name),
                 'badge_image' => "images/life_impact_badges/{$recognition->recognition_name}.png",
+                'creative_image' => "images/life_impact_creatives/{$recognition->recognition_name}.png",
                 'quote' => 'Every action creates ripples. You create impact.',
             ];
             $meta['title'] = $recognition->recognition_name;
@@ -400,7 +413,12 @@ class LifeImpactCreativeGenerator
             }
 
             if (! $templatePath || ! file_exists($templatePath)) {
-                if (! empty($meta['badge_image']) && file_exists(public_path($meta['badge_image']))) {
+                $creativeRel = $meta['creative_image'] ?? ('images/life_impact_creatives/'.$meta['title'].'.png');
+                if (! empty($creativeRel) && file_exists(public_path($creativeRel))) {
+                    $templatePath = public_path($creativeRel);
+                } elseif (! empty($creativeRel) && file_exists(storage_path('app/public/'.$creativeRel))) {
+                    $templatePath = storage_path('app/public/'.$creativeRel);
+                } elseif (! empty($meta['badge_image']) && file_exists(public_path($meta['badge_image']))) {
                     $templatePath = public_path($meta['badge_image']);
                 } elseif (! empty($meta['badge_image']) && file_exists(storage_path('app/public/'.$meta['badge_image']))) {
                     $templatePath = storage_path('app/public/'.$meta['badge_image']);
