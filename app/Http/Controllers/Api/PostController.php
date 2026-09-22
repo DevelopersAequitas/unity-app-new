@@ -169,6 +169,40 @@ class PostController extends BaseApiController
             ->get(['id', 'display_name', 'first_name', 'last_name'])
             ->keyBy(fn (User $peer) => (string) $peer->id);
 
+        $mentionSourceTypes = ['life_impact', 'member_introduction', 'recognition', 'growth_honour', 'introduction', 'birthday', 'anniversary'];
+        $mentionPostTypes = ['life_impact_recognition', 'growth_honour', 'introduction', 'birthday', 'anniversary'];
+
+        $mentionedPeerIds = $pageRows
+            ->filter(function ($row) use ($mentionSourceTypes, $mentionPostTypes): bool {
+                $sourceType = (string) ($row->post_source_type ?? '');
+                $postType = (string) ($row->post_type ?? '');
+
+                return in_array($sourceType, $mentionSourceTypes, true)
+                    || in_array($postType, $mentionPostTypes, true);
+            })
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $mentionedPeers = $mentionedPeerIds !== []
+            ? User::query()
+                ->whereIn('id', $mentionedPeerIds)
+                ->get([
+                    'id',
+                    'display_name',
+                    'first_name',
+                    'last_name',
+                    'company_name',
+                    'designation',
+                    'city',
+                    'profile_photo_file_id',
+                ])
+                ->keyBy(fn (User $u) => (string) $u->id)
+            : collect();
+
         $p2pMeetingsById = collect();
         $fallbackP2pMeetingIdByPostId = [];
 
@@ -246,7 +280,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $mentionSourceTypes, $mentionPostTypes, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -322,6 +356,37 @@ class PostController extends BaseApiController
                     'city' => $row->accepted_by_city,
                 ] : null;
             }
+
+            $postSourceType = (string) ($row->post_source_type ?? '');
+            $postType = (string) ($row->post_type ?? '');
+            $isMentionPost = in_array($postSourceType, $mentionSourceTypes, true)
+                || in_array($postType, $mentionPostTypes, true);
+
+            $mentionUser = ($isMentionPost && ! empty($row->post_source_id))
+                ? $mentionedPeers->get((string) $row->post_source_id)
+                : null;
+
+            $mentionData = null;
+            if ($mentionUser) {
+                $mName = $mentionUser->display_name ?: trim(($mentionUser->first_name ?? '').' '.($mentionUser->last_name ?? ''));
+                $mentionData = [
+                    'id' => (string) $mentionUser->id,
+                    'peer_id' => (string) $mentionUser->id,
+                    'name' => $mName !== '' ? $mName : 'Peer Member',
+                    'display_name' => $mentionUser->display_name,
+                    'first_name' => $mentionUser->first_name,
+                    'last_name' => $mentionUser->last_name,
+                    'company_name' => $mentionUser->company_name ?: null,
+                    'city' => $mentionUser->city ?: null,
+                    'designation' => $mentionUser->designation ?: null,
+                    'profile_photo_url' => $mentionUser->profile_photo_file_id
+                        ? url('/api/v1/files/'.$mentionUser->profile_photo_file_id)
+                        : null,
+                ];
+            }
+
+            $item['mention'] = $mentionData;
+            $item['mentions'] = $mentionData ? [$mentionData] : [];
 
             if ((string) $row->source_type === 'impact') {
                 $impactedPeer = $row->impacted_peer_id ? $impactedPeers->get((string) $row->impacted_peer_id) : null;
