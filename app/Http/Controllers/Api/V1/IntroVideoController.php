@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Connection;
+use App\Models\IntroVideoLike;
 use App\Models\User;
 use App\Models\UserFollow;
 use App\Services\Coins\CoinsService;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class IntroVideoController extends Controller
 {
@@ -56,7 +58,7 @@ class IntroVideoController extends Controller
         }
 
         $user->loadMissing(['level4Category', 'businessCategory', 'city']);
-        $this->attachConnectionStatuses($user, [$user]);
+        $this->attachConnectionAndLikeStatuses($user, [$user]);
 
         $totalLifeImpact = app(LifeImpactService::class)->getCurrentTotal((string) $user->id);
         $responseData = $this->formatResponse($user, $user);
@@ -89,7 +91,7 @@ class IntroVideoController extends Controller
     {
         $user = $request->user();
         $user->loadMissing(['level4Category', 'businessCategory', 'city']);
-        $this->attachConnectionStatuses($user, [$user]);
+        $this->attachConnectionAndLikeStatuses($user, [$user]);
 
         return response()->json([
             'success' => true,
@@ -109,7 +111,7 @@ class IntroVideoController extends Controller
         $user->refresh();
 
         $user->loadMissing(['level4Category', 'businessCategory', 'city']);
-        $this->attachConnectionStatuses($user, [$user]);
+        $this->attachConnectionAndLikeStatuses($user, [$user]);
 
         return response()->json([
             'success' => true,
@@ -119,7 +121,7 @@ class IntroVideoController extends Controller
     }
 
     /**
-     * Get all users' intro videos with complete peer metadata.
+     * Get all users' intro videos with complete peer metadata, likes count, and like status.
      */
     public function index(Request $request): JsonResponse
     {
@@ -132,7 +134,7 @@ class IntroVideoController extends Controller
 
         if ($request->boolean('all', false) || $request->input('per_page') === 'all') {
             $users = $query->get();
-            $this->attachConnectionStatuses($authUser, $users);
+            $this->attachConnectionAndLikeStatuses($authUser, $users);
 
             $data = $users->map(fn (User $user): array => $this->formatResponse($user, $authUser))->values()->all();
 
@@ -147,7 +149,7 @@ class IntroVideoController extends Controller
         $perPage = max(1, min($perPage, 100));
 
         $users = $query->paginate($perPage);
-        $this->attachConnectionStatuses($authUser, $users->items());
+        $this->attachConnectionAndLikeStatuses($authUser, $users->items());
 
         $data = collect($users->items())->map(fn (User $user): array => $this->formatResponse($user, $authUser))->values()->all();
 
@@ -165,11 +167,174 @@ class IntroVideoController extends Controller
     }
 
     /**
-     * Batch attach connection, following, and pro statuses for users relative to the auth user.
+     * Like an intro video.
+     */
+    public function like(Request $request, string $id): JsonResponse
+    {
+        $authUser = auth('sanctum')->user() ?: $request->user();
+        if (! $authUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $targetUser = $this->findTargetVideoOwner($id);
+        if (! $targetUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Intro video not found',
+            ], 404);
+        }
+
+        if (Schema::hasTable('intro_video_likes')) {
+            IntroVideoLike::query()->firstOrCreate([
+                'user_id' => (string) $authUser->id,
+                'video_owner_id' => (string) $targetUser->id,
+            ], [
+                'id' => (string) Str::uuid(),
+                'intro_video_id' => $targetUser->profile_video_id ? (string) $targetUser->profile_video_id : null,
+                'created_at' => now(),
+            ]);
+        }
+
+        $likesCount = Schema::hasTable('intro_video_likes')
+            ? IntroVideoLike::query()->where('video_owner_id', (string) $targetUser->id)->count()
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Intro video liked successfully',
+            'data' => [
+                'is_liked' => true,
+                'likes_count' => $likesCount,
+            ],
+        ]);
+    }
+
+    /**
+     * Unlike an intro video.
+     */
+    public function unlike(Request $request, string $id): JsonResponse
+    {
+        $authUser = auth('sanctum')->user() ?: $request->user();
+        if (! $authUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $targetUser = $this->findTargetVideoOwner($id);
+        if (! $targetUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Intro video not found',
+            ], 404);
+        }
+
+        if (Schema::hasTable('intro_video_likes')) {
+            IntroVideoLike::query()
+                ->where('user_id', (string) $authUser->id)
+                ->where('video_owner_id', (string) $targetUser->id)
+                ->delete();
+        }
+
+        $likesCount = Schema::hasTable('intro_video_likes')
+            ? IntroVideoLike::query()->where('video_owner_id', (string) $targetUser->id)->count()
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Intro video unliked successfully',
+            'data' => [
+                'is_liked' => false,
+                'likes_count' => $likesCount,
+            ],
+        ]);
+    }
+
+    /**
+     * Toggle like/unlike for an intro video.
+     */
+    public function toggleLike(Request $request, string $id): JsonResponse
+    {
+        $authUser = auth('sanctum')->user() ?: $request->user();
+        if (! $authUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $targetUser = $this->findTargetVideoOwner($id);
+        if (! $targetUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Intro video not found',
+            ], 404);
+        }
+
+        $isLiked = false;
+        $message = 'Intro video unliked successfully';
+
+        if (Schema::hasTable('intro_video_likes')) {
+            $existing = IntroVideoLike::query()
+                ->where('user_id', (string) $authUser->id)
+                ->where('video_owner_id', (string) $targetUser->id)
+                ->first();
+
+            if ($existing) {
+                $existing->delete();
+                $isLiked = false;
+                $message = 'Intro video unliked successfully';
+            } else {
+                IntroVideoLike::query()->create([
+                    'id' => (string) Str::uuid(),
+                    'user_id' => (string) $authUser->id,
+                    'video_owner_id' => (string) $targetUser->id,
+                    'intro_video_id' => $targetUser->profile_video_id ? (string) $targetUser->profile_video_id : null,
+                    'created_at' => now(),
+                ]);
+                $isLiked = true;
+                $message = 'Intro video liked successfully';
+            }
+        }
+
+        $likesCount = Schema::hasTable('intro_video_likes')
+            ? IntroVideoLike::query()->where('video_owner_id', (string) $targetUser->id)->count()
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => [
+                'is_liked' => $isLiked,
+                'likes_count' => $likesCount,
+            ],
+        ]);
+    }
+
+    /**
+     * Find target video owner by User ID or intro video file ID.
+     */
+    private function findTargetVideoOwner(string $id): ?User
+    {
+        return User::query()
+            ->where(function ($q) use ($id): void {
+                $q->where('id', $id)
+                    ->orWhere('profile_video_id', $id);
+            })
+            ->whereNotNull('profile_video_id')
+            ->first();
+    }
+
+    /**
+     * Batch attach connection, following, pro statuses, and intro video like states.
      *
      * @param  Collection<int, User>|array<int, User>  $users
      */
-    private function attachConnectionStatuses(?User $authUser, mixed $users): void
+    private function attachConnectionAndLikeStatuses(?User $authUser, mixed $users): void
     {
         $userCollection = $users instanceof Collection ? $users : collect($users);
 
@@ -177,8 +342,30 @@ class IntroVideoController extends Controller
             return;
         }
 
+        $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
+
+        $likeCounts = collect();
+        $likedVideoOwnerIds = [];
+
+        if (Schema::hasTable('intro_video_likes') && ! empty($userIds)) {
+            $likeCounts = IntroVideoLike::query()
+                ->whereIn('video_owner_id', $userIds)
+                ->selectRaw('video_owner_id, count(*) as count')
+                ->groupBy('video_owner_id')
+                ->pluck('count', 'video_owner_id');
+
+            if ($authUser) {
+                $likedVideoOwnerIds = IntroVideoLike::query()
+                    ->where('user_id', (string) $authUser->id)
+                    ->whereIn('video_owner_id', $userIds)
+                    ->pluck('video_owner_id')
+                    ->map(fn ($id): string => (string) $id)
+                    ->all();
+            }
+        }
+
         if (! $authUser) {
-            $userCollection->each(function (User $user): void {
+            $userCollection->each(function (User $user) use ($likeCounts): void {
                 $user->setAttribute('is_connected', false);
                 $user->setAttribute('connection_status', null);
                 $user->setAttribute('is_requested', false);
@@ -186,13 +373,14 @@ class IntroVideoController extends Controller
                 $user->setAttribute('is_following', false);
                 $user->setAttribute('is_pro', $this->calculateIsPro($user));
                 $user->setAttribute('is_verified', (bool) ($user->is_verified ?? false));
+                $user->setAttribute('likes_count', (int) ($likeCounts->get((string) $user->id) ?? 0));
+                $user->setAttribute('is_liked', false);
             });
 
             return;
         }
 
         $authUserId = (string) $authUser->id;
-        $userIds = $userCollection->pluck('id')->map(fn ($id): string => (string) $id)->all();
 
         $connections = collect();
         if (Schema::hasTable('connections') && ! empty($userIds)) {
@@ -223,12 +411,14 @@ class IntroVideoController extends Controller
                 ->all();
         }
 
-        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds): void {
+        $userCollection->each(function (User $user) use ($connections, $authUserId, $followedUserIds, $likeCounts, $likedVideoOwnerIds): void {
             $isSelf = (string) $user->id === $authUserId;
 
             $user->setAttribute('is_following', ! $isSelf && in_array((string) $user->id, $followedUserIds, true));
             $user->setAttribute('is_pro', $this->calculateIsPro($user));
             $user->setAttribute('is_verified', (bool) ($user->is_verified ?? false));
+            $user->setAttribute('likes_count', (int) ($likeCounts->get((string) $user->id) ?? 0));
+            $user->setAttribute('is_liked', in_array((string) $user->id, $likedVideoOwnerIds, true));
 
             if ($isSelf) {
                 $user->setAttribute('is_connected', false);
@@ -323,6 +513,8 @@ class IntroVideoController extends Controller
         $isVerified = (bool) ($user->getAttribute('is_verified') ?? ($user->is_verified ?? false));
 
         $lifeImpactCount = (int) ($user->life_impacted_count ?? 0);
+        $likesCount = (int) ($user->getAttribute('likes_count') ?? 0);
+        $isLiked = (bool) ($user->getAttribute('is_liked') ?? false);
 
         return [
             'id' => (string) $user->id,
@@ -338,9 +530,11 @@ class IntroVideoController extends Controller
             'city_name' => $cityName,
             'level4_category' => $categoryName,
             'profile_photo_url' => $user->profile_photo_url,
-           'intro_video_id' => $introVideoId,
+            'intro_video_id' => $introVideoId,
             'intro_video_url' => $user->profile_video_url,
-           'life_impacted_count' => $lifeImpactCount,
+            'life_impacted_count' => $lifeImpactCount,
+            'likes_count' => $likesCount,
+            'is_liked' => $isLiked,
             'is_connected' => $isConnected,
             'connection_status' => $connectionStatus,
             'is_requested' => $isRequested,
