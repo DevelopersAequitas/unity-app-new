@@ -24,7 +24,6 @@ class DailyHabitSend extends Model
     protected $fillable = [
         'id',
         'user_id',
-        'journey_started_at',
         'day_number',
         'scheduled_at',
         'sent_at',
@@ -33,7 +32,6 @@ class DailyHabitSend extends Model
     ];
 
     protected $casts = [
-        'journey_started_at' => 'datetime',
         'scheduled_at' => 'datetime',
         'sent_at' => 'datetime',
     ];

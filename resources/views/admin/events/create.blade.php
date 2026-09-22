@@ -150,8 +150,8 @@
     $selectedCircleIds = collect(old('circle_ids', $isEdit ? $event->circles->pluck('id')->all() : []))->map(fn ($id) => (string) $id)->all();
     $stateOptions = $circles->map(fn ($circle) => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null)->filter()->unique()->sort()->values();
     $eventTimezone = old('timezone', data_get($metadata, 'timezone') ?: 'Asia/Kolkata');
-    $startAtFormatted = old('start_at', $isEdit && $event->start_at ? \Carbon\Carbon::parse($event->start_at)->setTimezone($eventTimezone)->format('Y-m-d\TH:i') : null);
-    $endAtFormatted = old('end_at', $isEdit && $event->end_at ? \Carbon\Carbon::parse($event->end_at)->setTimezone($eventTimezone)->format('Y-m-d\TH:i') : null);
+    $startAtFormatted = old('start_at', $isEdit && $event->start_at ? \Carbon\Carbon::parse($event->start_at)->format('Y-m-d\TH:i') : null);
+    $endAtFormatted = old('end_at', $isEdit && $event->end_at ? \Carbon\Carbon::parse($event->end_at)->format('Y-m-d\TH:i') : null);
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-4">

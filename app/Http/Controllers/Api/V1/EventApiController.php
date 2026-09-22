@@ -188,9 +188,9 @@ class EventApiController extends BaseApiController
                 'event_type' => $event->event_type,
                 'event_category' => $event->event_category,
                 'mode' => $event->mode,
-                'start_at' => $responseStartAt?->toISOString(),
-                'end_at' => $responseEndAt?->toISOString(),
-                'formatted_start_at' => $groupingStartAt?->format('d M Y h:i A'),
+                'start_at' => $responseStartAt?->format('Y-m-d\TH:i:s'),
+                'end_at' => $responseEndAt?->format('Y-m-d\TH:i:s'),
+                'formatted_start_at' => $responseStartAt?->format('d M Y h:i A'),
                 'recurrence' => $event->recurrence_type,
                 'status' => $occurrence?->status ?? $event->status ?? 'scheduled',
                 'registered_count' => $this->registeredCount($event->id, $occurrenceId),
@@ -221,7 +221,7 @@ class EventApiController extends BaseApiController
             return null;
         }
 
-        return Carbon::parse($dateTime)->utc();
+        return Carbon::parse($dateTime);
     }
 
     private function registeredCount(string $eventId, ?string $occurrenceId): int

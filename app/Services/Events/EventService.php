@@ -775,14 +775,14 @@ class EventService
         }
 
         if (! empty($data['start_at'])) {
-            $localStart = Carbon::parse($data['start_at'], $timezone);
-            $data['start_at'] = $localStart->copy()->utc()->toDateTimeString();
+            $localStart = Carbon::parse($data['start_at']);
+            $data['start_at'] = $localStart->copy()->toDateTimeString();
         } else {
             $localStart = null;
         }
 
         if (! empty($data['end_at'])) {
-            $data['end_at'] = Carbon::parse($data['end_at'], $timezone)->utc()->toDateTimeString();
+            $data['end_at'] = Carbon::parse($data['end_at'])->toDateTimeString();
         }
 
         if ($actor && empty($data['created_by_user_id'])) {
