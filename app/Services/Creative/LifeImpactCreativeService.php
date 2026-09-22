@@ -119,7 +119,8 @@ class LifeImpactCreativeService
                 ->first();
 
             if ($existingCreative && ! empty($existingCreative->image_url)) {
-                $isRawTemplate = str_contains((string) $existingCreative->image_url, '/images/life_impact_badges/');
+                $isRawTemplate = str_contains((string) $existingCreative->image_url, '/images/life_impact_badges/')
+                    || str_contains((string) $existingCreative->image_url, '/images/life_impact_creatives/');
                 $s3Key = preg_replace('~^https?://[^/]+/storage/~i', '', (string) $existingCreative->image_url);
                 $s3Key = ltrim($s3Key, '/');
 

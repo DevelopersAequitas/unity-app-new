@@ -972,6 +972,40 @@ class MemberController extends BaseApiController
         return $this->success(null, 'Member bookmarked successfully.');
     }
 
+    public function bookmarkedPeers(
+        Request $request,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService
+    ): JsonResponse {
+        $authUser = auth('sanctum')->user() ?: $request->user();
+
+        if (! $authUser) {
+            return $this->error('Unauthenticated.', 401);
+        }
+
+        $bookmarks = $authUser->bookmarks ?? [];
+        if (! is_array($bookmarks) || empty($bookmarks)) {
+            return $this->success([], 'Bookmarked peers fetched successfully.');
+        }
+
+        $bookmarkIds = array_values(array_unique(array_filter(array_map('strval', $bookmarks))));
+        if (empty($bookmarkIds)) {
+            return $this->success([], 'Bookmarked peers fetched successfully.');
+        }
+
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService)
+            ->whereIn('users.id', $bookmarkIds);
+
+        $users = $query->get();
+
+        $this->attachConnectionStatuses($authUser, $users);
+
+        return $this->success(
+            LimitedUserResource::collection($users),
+            'Bookmarked peers fetched successfully.'
+        );
+    }
+
     public function unbookmark(Request $request, string $id): JsonResponse
     {
         $target = User::find($id);

@@ -652,14 +652,17 @@
                             {{-- Canva Graphic Preview Image --}}
                             <div class="relative overflow-hidden bg-slate-900 aspect-[4/5] flex items-center justify-center border-b border-amber-500/20">
                                 @php
-                                    $badgeRel = $honour['badge_image'] ?? '';
-                                    $badgeSrc = !empty($badgeRel) ? asset($badgeRel) : '';
-                                    if (!empty($badgeRel) && !file_exists(public_path($badgeRel)) && file_exists(storage_path('app/public/'.$badgeRel))) {
-                                        $badgeSrc = asset('storage/'.$badgeRel);
+                                    $creativeRel = $honour['creative_image'] ?? ('images/life_impact_creatives/' . $honour['title'] . '.png');
+                                    $creativeSrc = !empty($creativeRel) && file_exists(public_path($creativeRel)) ? asset($creativeRel) : '';
+                                    if (empty($creativeSrc) && !empty($creativeRel) && file_exists(storage_path('app/public/'.$creativeRel))) {
+                                        $creativeSrc = asset('storage/'.$creativeRel);
+                                    }
+                                    if (empty($creativeSrc) && !empty($honour['badge_image'])) {
+                                        $creativeSrc = asset($honour['badge_image']);
                                     }
                                 @endphp
-                                @if(!empty($badgeSrc))
-                                    <img src="{{ $badgeSrc }}" alt="{{ $honour['title'] }}" class="w-full h-full object-cover" loading="lazy">
+                                @if(!empty($creativeSrc))
+                                    <img src="{{ $creativeSrc }}" alt="{{ $honour['title'] }}" class="w-full h-full object-cover" loading="lazy">
                                 @endif
                                 <div class="absolute top-3 right-3">
                                     <span class="chip px-2.5 py-1 text-[11px] font-bold bg-amber-500/90 text-black border-amber-400 shadow">
