@@ -613,6 +613,16 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class, 'user_id');
     }
 
+    public function introVideoLikes(): HasMany
+    {
+        return $this->hasMany(IntroVideoLike::class, 'user_id');
+    }
+
+    public function receivedIntroVideoLikes(): HasMany
+    {
+        return $this->hasMany(IntroVideoLike::class, 'video_owner_id');
+    }
+
     public function activeCircle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'active_circle_id');

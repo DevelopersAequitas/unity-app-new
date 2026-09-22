@@ -531,6 +531,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/intro-videos', [IntroVideoController::class, 'store']);
         Route::get('/intro-videos/me', [IntroVideoController::class, 'show']);
         Route::delete('/intro-videos', [IntroVideoController::class, 'destroy']);
+        Route::post('/intro-videos/{id}/like', [IntroVideoController::class, 'like'])->whereUuid('id');
+        Route::delete('/intro-videos/{id}/like', [IntroVideoController::class, 'unlike'])->whereUuid('id');
+        Route::post('/intro-videos/{id}/unlike', [IntroVideoController::class, 'unlike'])->whereUuid('id');
+        Route::post('/intro-videos/{id}/toggle-like', [IntroVideoController::class, 'toggleLike'])->whereUuid('id');
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
