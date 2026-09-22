@@ -65,17 +65,13 @@ class MilestoneBadge extends Model
         $title = trim((string) ($this->attributes['title'] ?? ''));
         $type = (string) ($this->attributes['type'] ?? '');
 
-        // 1. Direct local file resolution by type and title (ensures local dev always has working badges)
+        // 1. Direct local file resolution by type and title (ensures both local and QA/prod always display the badge medal)
         if ($type === self::TYPE_LIFE_IMPACT && $title !== '') {
-            $impactFile = 'images/life_impact_badges/'.$title.'.png';
-            if (file_exists(public_path($impactFile))) {
-                return asset('images/life_impact_badges/'.rawurlencode($title).'.png');
-            }
-        } elseif ($type === self::TYPE_MEMBER_INTRODUCTION && $title !== '') {
-            $introFile = 'images/member_introduce_badges/'.$title.'.png';
-            if (file_exists(public_path($introFile))) {
-                return asset('images/member_introduce_badges/'.rawurlencode($title).'.png');
-            }
+            return asset('images/life_impact_badges/'.rawurlencode($title).'.png?v=2');
+        }
+
+        if ($type === self::TYPE_MEMBER_INTRODUCTION && $title !== '') {
+            return asset('images/member_introduce_badges/'.rawurlencode($title).'.png?v=2');
         }
 
         if (empty($value)) {
@@ -84,23 +80,21 @@ class MilestoneBadge extends Model
 
         $cleanPath = ltrim(preg_replace('#^(storage/|public/)+#i', '', $value), '/');
         if (str_starts_with($cleanPath, 'images/')) {
-            return asset($cleanPath);
+            return asset($cleanPath.'?v=2');
         }
 
         if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
-            // Fix remote peersunity.com URLs in local dev if broken
-            if (app()->isLocal() && str_contains($value, 'peersunity.com')) {
-                if (str_contains($value, '/images/')) {
-                    $sub = substr($value, strpos($value, '/images/') + 1);
-                    if (file_exists(public_path($sub))) {
-                        return asset($sub);
-                    }
-                }
-                if (str_contains($value, '/api/v1/files/')) {
-                    $filePath = substr($value, strpos($value, '/api/v1/files/') + 14);
+            // If remote peersunity.com points to static images, resolve from current host asset
+            if (str_contains($value, 'peersunity.com/images/')) {
+                $sub = substr($value, strpos($value, '/images/') + 1);
 
-                    return url('/api/v1/files/'.ltrim($filePath, '/'));
-                }
+                return asset($sub.'?v=2');
+            }
+
+            if (str_contains($value, 'peersunity.com/api/v1/files/')) {
+                $filePath = substr($value, strpos($value, '/api/v1/files/') + 14);
+
+                return url('/api/v1/files/'.ltrim($filePath, '/'));
             }
 
             if (str_contains($value, '/api/v1/files/')) {
