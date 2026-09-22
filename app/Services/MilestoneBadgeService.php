@@ -9,7 +9,6 @@ use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
-use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Services\Notifications\ImpactMilestoneWhatsappNotificationService;
 use App\Services\Notifications\MilestoneCatalystWhatsappService;
 use App\Services\Notifications\MilestoneConnectorWhatsappService;
@@ -162,62 +161,46 @@ class MilestoneBadgeService
 
                 if (! $existingPost && Schema::hasTable('posts')) {
                     if ($badge->type === MilestoneBadge::TYPE_LIFE_IMPACT) {
-                        $lifeImpactGenerator = app(LifeImpactCreativeGenerator::class);
-                        $meta = $lifeImpactGenerator->getRecognitionMeta((int) $badge->required_count);
-                        $description = $lifeImpactGenerator->formatCaption($user, (int) $badge->required_count, $meta);
-                        $postTitle = "🎉 Big Congratulations! {$userName} became a {$meta['title']}";
-                        $postType = 'life_impact_recognition';
-                        $tags = ['milestone_honour', 'life_impact', 'life_impact_recognition', (string) $user->id, $meta['hashtag']];
-
+                        // Life Impact timeline posts and WhatsApp triggers are handled by LifeImpactService to prevent duplicate creative posts
                         try {
-                            $fileRecord = $lifeImpactGenerator->generate($user, (int) $badge->required_count, (int) $badge->required_count);
-                            $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
-                            $media = [
-                                [
-                                    'id' => $fileRecord->id,
-                                    'type' => 'image',
-                                    'url' => $creativeImageUrl,
-                                ],
-                            ];
-                        } catch (\Throwable $creativeEx) {
-                            Log::error("[MilestoneBadgeService] Failed generating life impact creative for badge {$badge->title}: ".$creativeEx->getMessage());
-                            $creativeImageUrl = ! empty($meta['badge_image']) ? asset($meta['badge_image']) : url('/images/life_impact_badges/Impact Creator.png');
-                            $media = [
-                                [
-                                    'id' => (string) Str::uuid(),
-                                    'type' => 'image',
-                                    'url' => $creativeImageUrl,
-                                ],
-                            ];
+                            app(LifeImpactService::class)->checkAndPublishLifeImpactTimelinePosts(
+                                (string) $user->id,
+                                0,
+                                (int) ($user->life_impacted_count ?? $badge->required_count)
+                            );
+                        } catch (\Throwable $e) {
+                            Log::error('[MilestoneBadgeService] Failed delegating life impact timeline post: '.$e->getMessage());
                         }
-                    } else {
-                        $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
-                        $postTitle = "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉";
-                        $postType = 'growth_honour';
-                        $tags = ['milestone_honour', 'growth_track', 'growth_honour', (string) $user->id];
 
-                        try {
-                            $generator = app(IntroducedPeerCreativeGenerator::class);
-                            $fileRecord = $generator->generate($user, (int) $badge->required_count);
-                            $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
-                            $media = [
-                                [
-                                    'id' => $fileRecord->id,
-                                    'type' => 'image',
-                                    'url' => $creativeImageUrl,
-                                ],
-                            ];
-                        } catch (\Throwable $creativeEx) {
-                            Log::error("[MilestoneBadgeService] Failed generating composite creative for badge {$badge->title}: ".$creativeEx->getMessage());
-                            $creativeImageUrl = $badge->badge_image_url ?: url('/images/introduction-template.png');
-                            $media = [
-                                [
-                                    'id' => (string) Str::uuid(),
-                                    'type' => 'image',
-                                    'url' => $creativeImageUrl,
-                                ],
-                            ];
-                        }
+                        continue;
+                    }
+
+                    $description = "Congratulations to {$userName} for unlocking the \"{$badge->title}\" Honour in Track 1 — Growth for introducing {$badge->required_count} paid members to Peers Global! 🎉\n\n\"{$badge->description}\"";
+                    $postTitle = "🏆 Track 1 Growth Honour Unlocked: {$badge->title}! 🎉";
+                    $postType = 'growth_honour';
+                    $tags = ['milestone_honour', 'growth_track', 'growth_honour', (string) $user->id];
+
+                    try {
+                        $generator = app(IntroducedPeerCreativeGenerator::class);
+                        $fileRecord = $generator->generate($user, (int) $badge->required_count);
+                        $creativeImageUrl = url('/api/v1/files/'.$fileRecord->id);
+                        $media = [
+                            [
+                                'id' => $fileRecord->id,
+                                'type' => 'image',
+                                'url' => $creativeImageUrl,
+                            ],
+                        ];
+                    } catch (\Throwable $creativeEx) {
+                        Log::error("[MilestoneBadgeService] Failed generating composite creative for badge {$badge->title}: ".$creativeEx->getMessage());
+                        $creativeImageUrl = $badge->badge_image_url ?: url('/images/introduction-template.png');
+                        $media = [
+                            [
+                                'id' => (string) Str::uuid(),
+                                'type' => 'image',
+                                'url' => $creativeImageUrl,
+                            ],
+                        ];
                     }
 
                     Post::create([
