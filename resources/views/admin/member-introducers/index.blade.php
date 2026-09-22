@@ -680,7 +680,7 @@
                             {{-- Canva Graphic Preview Image --}}
                             <div class="relative overflow-hidden bg-slate-900 aspect-[4/5] flex items-center justify-center border-b border-amber-500/20">
                                 @php
-                                    $badgeRel = $honour['badge_image'] ?? '';
+                                    $badgeRel = $honour['creative_image'] ?? $honour['badge_image'] ?? '';
                                     $badgeSrc = !empty($badgeRel) ? asset($badgeRel) : '';
                                     if (!empty($badgeRel) && !file_exists(public_path($badgeRel)) && file_exists(storage_path('app/public/'.$badgeRel))) {
                                         $badgeSrc = asset('storage/'.$badgeRel);
@@ -707,7 +707,7 @@
                                     <span class="text-amber-500 font-extrabold">{{ $honour['title'] }}</span>
                                     <span class="t3 text-[11px]">({{ $honour['required_count'] }} {{ $honour['required_count'] === 1 ? 'Introduced' : 'Introduced' }})</span>
                                 </div>
-                                <button type="button" onclick="openCanvaLevelModal('{{ $honour['title'] }}', '{{ asset($honour['badge_image']) }}', '{{ addslashes($honour['compliment']) }}', '{{ addslashes($honour['caption_template'] ?? '') }}', '{{ $honour['hashtag'] ?? '' }}', {{ $honour['required_count'] }})" class="btn btn-sm btn-outline-warning text-xs font-semibold rounded-lg px-3 py-1.5 w-full">
+                                <button type="button" onclick="openCanvaLevelModal('{{ $honour['title'] }}', '{{ !empty($badgeSrc) ? $badgeSrc : asset($honour['badge_image']) }}', '{{ addslashes($honour['compliment']) }}', '{{ addslashes($honour['caption_template'] ?? '') }}', '{{ $honour['hashtag'] ?? '' }}', {{ $honour['required_count'] }})" class="btn btn-sm btn-outline-warning text-xs font-semibold rounded-lg px-3 py-1.5 w-full">
                                     <i class="bi bi-image me-1"></i> Preview {{ $honour['title'] }} Creative
                                 </button>
                             </div>

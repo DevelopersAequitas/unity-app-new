@@ -161,10 +161,10 @@ class SendImpactMilestoneWhatsappJob implements ShouldQueue
         // 6. Header Media URL -> exact life_impact_creatives.image_url (@header_media_url)
         $headerMediaUrl = trim((string) $this->imageUrl);
 
-        if ($headerMediaUrl === '' || str_contains($headerMediaUrl, '/images/life_impact_badges/')) {
+        if ($headerMediaUrl === '' || str_contains($headerMediaUrl, '/images/life_impact_badges/') || str_contains($headerMediaUrl, '/images/life_impact_creatives/')) {
             $errorMsg = $headerMediaUrl === ''
                 ? "Impact milestone creative image_url is missing for threshold {$this->threshold}."
-                : "Impact milestone creative image_url is an unrendered raw badge template for threshold {$this->threshold}.";
+                : "Impact milestone creative image_url is an unrendered raw template for threshold {$this->threshold}.";
             Log::error("[SendImpactMilestoneWhatsappJob] Skipped: {$errorMsg}", [
                 'user_id' => $this->userId,
                 'threshold' => $this->threshold,
