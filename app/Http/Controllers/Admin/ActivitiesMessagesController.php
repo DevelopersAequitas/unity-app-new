@@ -35,6 +35,8 @@ class ActivitiesMessagesController extends Controller
                 'm.chat_id',
                 'm.sender_id',
                 'm.is_read',
+                'm.content',
+                'm.attachments',
                 'm.created_at',
                 DB::raw("CASE WHEN m.attachments IS NOT NULL AND m.attachments != 'null'::jsonb AND jsonb_array_length(m.attachments) > 0 THEN 'media' ELSE 'text' END as message_type"),
                 'sender.display_name as sender_display_name',
