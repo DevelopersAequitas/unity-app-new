@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\File;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -75,6 +76,27 @@ class PostResource extends JsonResource
                 })->filter()->values()->all()
                 : null,
             'tags' => $this->tags,
+            'mentions' => (function () {
+                $mentions = [];
+                $isRecognition = in_array((string) ($this->source_type ?? ''), ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
+                    || in_array((string) ($this->post_type ?? ''), ['life_impact_recognition', 'growth_honour'], true);
+
+                if ($isRecognition && ! empty($this->source_id)) {
+                    $recognizedPeer = User::find($this->source_id);
+                    if ($recognizedPeer) {
+                        $recName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '').' '.($recognizedPeer->last_name ?? ''));
+                        $mentions[] = [
+                            'id' => (string) $recognizedPeer->id,
+                            'name' => $recName !== '' ? $recName : 'Peer Member',
+                            'profile_photo_url' => $recognizedPeer->profile_photo_file_id
+                                ? url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id)
+                                : null,
+                        ];
+                    }
+                }
+
+                return $mentions;
+            })(),
             'visibility' => $this->visibility,
             'moderation_status' => $this->moderation_status ?? null,
             'is_system_announcement' => $isAnniversary,
