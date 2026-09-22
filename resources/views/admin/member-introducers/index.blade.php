@@ -579,7 +579,10 @@
                                     <div class="space-y-2 text-xs divide-y divide-slate-800">
                                         <div class="flex justify-between items-center pt-1">
                                             <span class="text-slate-400">Full Name:</span>
-                                            <span id="studioPeerNameVal" class="font-bold text-white text-sm"></span>
+                                            <a id="studioPeerNameLink" href="#" onclick="event.preventDefault(); if (studioActivePeerId) openActivityPeerModal(studioActivePeerId, event);" class="font-bold text-amber-400 hover:text-amber-300 hover:underline text-sm inline-flex items-center gap-1.5 cursor-pointer no-underline" title="Open Peer Profile">
+                                                <span id="studioPeerNameVal"></span>
+                                                <i class="bi bi-box-arrow-up-right text-[10px]"></i>
+                                            </a>
                                         </div>
                                         <div class="flex justify-between items-center pt-2">
                                             <span class="text-slate-400">Company &amp; City:</span>
@@ -857,7 +860,10 @@
                                 <div class="space-y-1 text-xs">
                                     <div class="flex justify-between items-center">
                                         <span class="t3">Peer Name:</span>
-                                        <span id="modalPeerNameVal" class="font-bold t1"></span>
+                                        <a id="modalPeerNameLink" href="#" onclick="event.preventDefault(); if (currentActiveIntroducerId) openActivityPeerModal(currentActiveIntroducerId, event);" class="font-bold text-indigo-600 hover:text-indigo-800 hover:underline inline-flex items-center gap-1.5 cursor-pointer no-underline text-xs" title="Open Peer Profile">
+                                            <span id="modalPeerNameVal"></span>
+                                            <i class="bi bi-box-arrow-up-right text-[10px]"></i>
+                                        </a>
                                     </div>
                                     <div class="flex justify-between items-center">
                                         <span class="t3">Company &amp; City:</span>
