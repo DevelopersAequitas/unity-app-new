@@ -41,6 +41,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on being recognised as a Peers Global CONNECTOR. Proud to have you contributing to the Peers Global mission of impacting 1 Million Entrepreneurs.',
                 'hashtag' => '#Connector',
                 'badge_image' => 'images/member_introduce_badges/Connector.png',
+                'creative_image' => 'images/member_introduce_creatives/Connector.png',
             ],
             3 => [
                 'title' => 'CATALYST',
@@ -49,6 +50,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global CATALYST. 3 entrepreneurs introduced. 3 new connections. And the beginning of something bigger. Your contribution is helping build a stronger entrepreneurial community.',
                 'hashtag' => '#Catalyst',
                 'badge_image' => 'images/member_introduce_badges/Catalyst.png',
+                'creative_image' => 'images/member_introduce_creatives/Catalyst.png',
             ],
             5 => [
                 'title' => 'INFLUENCER',
@@ -57,6 +59,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on being recognised as a Peers Global INFLUENCER. When people trust your recommendation, your influence can create real opportunities for others. Thank you for using your influence to grow the Peers Global community.',
                 'hashtag' => '#Influencer',
                 'badge_image' => 'images/member_introduce_badges/Influencer.png',
+                'creative_image' => 'images/member_introduce_creatives/Influencer.png',
             ],
             10 => [
                 'title' => 'AMBASSADOR',
@@ -65,6 +68,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global AMBASSADOR. 10 entrepreneurs introduced. One strong contribution to a much bigger mission. You are helping take the Peers Global spirit to more entrepreneurs and more opportunities.',
                 'hashtag' => '#Ambassador',
                 'badge_image' => 'images/member_introduce_badges/Ambassador.png',
+                'creative_image' => 'images/member_introduce_creatives/Ambassador.png',
             ],
             20 => [
                 'title' => 'RAINMAKER',
@@ -73,6 +77,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on earning the Peers Global RAINMAKER honour. 20 entrepreneurs introduced. You don\'t wait for opportunities. You help create them for others. Your contribution is making the community stronger, one connection at a time.',
                 'hashtag' => '#Rainmaker',
                 'badge_image' => 'images/member_introduce_badges/Rainmaker.png',
+                'creative_image' => 'images/member_introduce_creatives/Rainmaker.png',
             ],
             35 => [
                 'title' => 'TRAILBLAZER',
@@ -81,6 +86,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global TRAILBLAZER. 35 entrepreneurs introduced. You went first, created the path and brought others along. This is what leadership through contribution looks like.',
                 'hashtag' => '#Trailblazer',
                 'badge_image' => 'images/member_introduce_badges/Trailblazer.png',
+                'creative_image' => 'images/member_introduce_creatives/Trailblazer.png',
             ],
             50 => [
                 'title' => 'VANGUARD',
@@ -89,6 +95,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on earning the Peers Global VANGUARD honour. 50 entrepreneurs introduced. Your contribution is helping shape a stronger entrepreneurial community. Build the community you want to belong to.',
                 'hashtag' => '#Vanguard',
                 'badge_image' => 'images/member_introduce_badges/Vanguard.png',
+                'creative_image' => 'images/member_introduce_creatives/Vanguard.png',
             ],
             75 => [
                 'title' => 'LUMINARY',
@@ -97,6 +104,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global LUMINARY. 75 entrepreneurs introduced. Your name is becoming a reference point for entrepreneurs in your city. Let your influence light the way for others.',
                 'hashtag' => '#Luminary',
                 'badge_image' => 'images/member_introduce_badges/Luminary.png',
+                'creative_image' => 'images/member_introduce_creatives/Luminary.png',
             ],
             100 => [
                 'title' => 'MOVEMENT MAKER',
@@ -105,6 +113,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global MOVEMENT MAKER. 100 entrepreneurs introduced. You have moved beyond networking. You are helping build a movement of entrepreneurs who believe in growing by helping others grow.',
                 'hashtag' => '#MovementMaker',
                 'badge_image' => 'images/member_introduce_badges/Movement Maker.png',
+                'creative_image' => 'images/member_introduce_creatives/Movement Maker.png',
             ],
             150 => [
                 'title' => 'COMMUNITY TITAN',
@@ -113,6 +122,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on earning the Peers Global COMMUNITY TITAN honour. 150 entrepreneurs introduced. Great communities are built by people who contribute.',
                 'hashtag' => '#CommunityTitan',
                 'badge_image' => 'images/member_introduce_badges/Community Titan.png',
+                'creative_image' => 'images/member_introduce_creatives/Community Titan.png',
             ],
             250 => [
                 'title' => 'NETWORK ARCHITECT',
@@ -121,6 +131,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global NETWORK ARCHITECT. 250 entrepreneurs introduced. Your contribution will continue to create connections long after the introduction is made.',
                 'hashtag' => '#NetworkArchitect',
                 'badge_image' => 'images/member_introduce_badges/Network Architect.png',
+                'creative_image' => 'images/member_introduce_creatives/Network Architect.png',
             ],
             500 => [
                 'title' => 'GLOBAL ICON',
@@ -129,6 +140,7 @@ class IntroducedPeerCreativeGenerator
                 'caption_template' => 'Congratulations to {name}, {company}, on becoming a Peers Global GLOBAL ICON. 500 entrepreneurs introduced. This is more than a recognition. It is a legacy of contribution.',
                 'hashtag' => '#GlobalIcon',
                 'badge_image' => 'images/member_introduce_badges/Global Icon.png',
+                'creative_image' => 'images/member_introduce_creatives/Global Icon.png',
             ],
         ];
     }
@@ -320,11 +332,20 @@ class IntroducedPeerCreativeGenerator
 
             $meta = $this->getHonourMeta($introducedCount);
 
-            $templatePath = ! empty($meta['badge_image']) ? public_path($meta['badge_image']) : null;
+            $templatePath = ! empty($meta['creative_image']) ? public_path($meta['creative_image']) : null;
             if (! $templatePath || ! file_exists($templatePath)) {
-                $storageTemplate = ! empty($meta['badge_image']) ? storage_path('app/public/'.$meta['badge_image']) : null;
+                $storageTemplate = ! empty($meta['creative_image']) ? storage_path('app/public/'.$meta['creative_image']) : null;
                 if ($storageTemplate && file_exists($storageTemplate)) {
                     $templatePath = $storageTemplate;
+                }
+            }
+            if (! $templatePath || ! file_exists($templatePath)) {
+                $templatePath = ! empty($meta['badge_image']) ? public_path($meta['badge_image']) : null;
+                if (! $templatePath || ! file_exists($templatePath)) {
+                    $storageTemplate = ! empty($meta['badge_image']) ? storage_path('app/public/'.$meta['badge_image']) : null;
+                    if ($storageTemplate && file_exists($storageTemplate)) {
+                        $templatePath = $storageTemplate;
+                    }
                 }
             }
             $isCanvaTemplate = $templatePath && file_exists($templatePath);
