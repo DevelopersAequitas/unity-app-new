@@ -16,56 +16,49 @@ use Illuminate\Support\Str;
 class DailyHabitLoopService
 {
     /**
-     * Start the 30-day journey when a user becomes eligible.
-     * Registration day is Day 0 (no habit message on registration day).
-     * Day 1 is scheduled for the next applicable day at 10:00 AM local time.
+     * Start the 12-day independent WhatsApp onboarding sequence when a user registers.
+     * Each Day N is scheduled at registration timestamp + (N * 24 hours).
      */
     public function startJourney(User $user, ?Carbon $startedAt = null): void
     {
-        $startedAt = $startedAt ?? now();
-        $timezone = $this->getUserTimezone($user);
+        $startedAt = $startedAt ?? ($user->created_at ? Carbon::parse($user->created_at) : now());
 
-        // Calculate schedule time for Day 1 (starts next day at 10:00 AM local time)
-        $scheduledAt = $this->calculateDay1ScheduleTime($startedAt, $timezone);
-
-        // Prevent duplicate scheduling if Day 1 already exists
-        $exists = DailyHabitSend::where('user_id', $user->id)
-            ->where('day_number', 1)
-            ->exists();
-
-        if ($exists) {
-            Log::info('Daily Habit Loop Day 1 already scheduled or sent for user.', [
+        // Check if journey already initialized for this user
+        $existingCount = DailyHabitSend::where('user_id', $user->id)->count();
+        if ($existingCount > 0) {
+            Log::info('Daily Habit Loop already initialized for user.', [
                 'user_id' => $user->id,
             ]);
 
             return;
         }
 
-        // Create the send record with unique protection storing only delivery state
-        DailyHabitSend::create([
-            'id' => (string) Str::uuid(),
-            'user_id' => $user->id,
-            'journey_started_at' => $startedAt,
-            'day_number' => 1,
-            'scheduled_at' => $scheduledAt,
-            'status' => 'scheduled',
-        ]);
+        // Initialize Days 1 through 12, each at registration + (day_number * 24 hours)
+        for ($day = 1; $day <= 12; $day++) {
+            $scheduledAt = $this->calculateDayScheduleTime($startedAt, $day);
 
-        Log::info('Daily Habit Loop started for user.', [
+            DailyHabitSend::create([
+                'id' => (string) Str::uuid(),
+                'user_id' => $user->id,
+                'day_number' => $day,
+                'scheduled_at' => $scheduledAt,
+                'status' => 'scheduled',
+            ]);
+        }
+
+        Log::info('Daily Habit Loop 12-day journey initialized for user.', [
             'user_id' => $user->id,
-            'journey_started_at' => $startedAt->toIso8601String(),
-            'scheduled_at' => $scheduledAt->toIso8601String(),
+            'started_at' => $startedAt->toIso8601String(),
         ]);
     }
 
     /**
-     * Schedule the next day's message (consecutive day).
-     * Missing or inactive templates must not block sequence progression.
+     * Schedule a day's message if not already scheduled (up to Day 12).
      */
     public function scheduleNextDay(User $user, int $currentDayNumber, Carbon $lastSentAt): void
     {
-        if ($currentDayNumber >= 30) {
-            Log::info('Daily Habit Loop completed for user.', [
+        if ($currentDayNumber >= 12) {
+            Log::info('Daily Habit Loop completed for user (Day 12 reached).', [
                 'user_id' => $user->id,
             ]);
 
@@ -87,23 +80,12 @@ class DailyHabitLoopService
             return;
         }
 
-        $timezone = $this->getUserTimezone($user);
-
-        // Derive source time from previous send record (sent_at if sent, or scheduled_at if failed/skipped)
-        $currentSend = DailyHabitSend::where('user_id', $user->id)
-            ->where('day_number', $currentDayNumber)
-            ->first();
-
-        $sourceTime = ($currentSend && $currentSend->sent_at)
-            ? $currentSend->sent_at
-            : ($currentSend && $currentSend->scheduled_at ? $currentSend->scheduled_at : $lastSentAt);
-
-        $scheduledAt = $sourceTime->copy()->addHours(24);
+        $journeyStartedAt = $this->getJourneyStartedAt($user);
+        $scheduledAt = $this->calculateDayScheduleTime($journeyStartedAt, $nextDayNumber);
 
         DailyHabitSend::create([
             'id' => (string) Str::uuid(),
             'user_id' => $user->id,
-            'journey_started_at' => $this->getJourneyStartedAt($user),
             'day_number' => $nextDayNumber,
             'scheduled_at' => $scheduledAt,
             'status' => 'scheduled',
@@ -120,14 +102,32 @@ class DailyHabitLoopService
      */
     public function resolveTemplateForDay(int $dayNumber): ?WhatsappTemplate
     {
+        if ($dayNumber < 1 || $dayNumber > 12) {
+            return null;
+        }
+
         if ($dayNumber === 1) {
-            return WhatsappTemplate::where('template_key', 'day_1_complete_profile')
+            $template = WhatsappTemplate::where('template_key', 'day_1_complete_profile')
                 ->where('is_active', true)
                 ->first();
+
+            if ($template) {
+                return $template;
+            }
         }
 
         if ($dayNumber === 2) {
             $template = WhatsappTemplate::where('template_key', 'business_referrals_day_2')
+                ->where('is_active', true)
+                ->first();
+
+            if ($template) {
+                return $template;
+            }
+        }
+
+        if ($dayNumber === 3) {
+            $template = WhatsappTemplate::where('template_key', 'day_3_photo')
                 ->where('is_active', true)
                 ->first();
 
@@ -156,36 +156,43 @@ class DailyHabitLoopService
             }
         }
 
+        // Dynamic fallback lookup for all days (e.g. day_3, day_3_*, day_5, day_5_*, etc.)
         return WhatsappTemplate::query()
+            ->where('is_active', true)
             ->where(function ($query) use ($dayNumber): void {
                 $query->where('template_key', "day_{$dayNumber}")
-                    ->orWhere('template_key', 'like', "day_{$dayNumber}_%");
+                    ->orWhere('template_key', 'like', "day_{$dayNumber}\\_%")
+                    ->orWhere('template_key', 'like', "day_{$dayNumber}-%")
+                    ->orWhere('template_key', 'like', "day{$dayNumber}\\_%")
+                    ->orWhere('template_key', 'like', "%day_{$dayNumber}%")
+                    ->orWhere('template_key', 'like', "%day{$dayNumber}%");
             })
-            ->where('is_active', true)
             ->first();
     }
 
     /**
-     * Calculate preferred 10 AM send time for Day 1.
-     * Registration day is Day 0, Day 1 always starts next day at 10:00 AM local time.
+     * Calculate scheduled time for Day N from registration timestamp.
+     * scheduled_at = registration_time + (day_number * 24 hours)
      */
-    public function calculateDay1ScheduleTime(Carbon $dateTime, string $timezone): Carbon
+    public function calculateDayScheduleTime(Carbon $startedAt, int $dayNumber): Carbon
     {
-        $localTime = $dateTime->copy()->setTimezone($timezone);
-        $scheduledLocal = $localTime->copy()->addDay()->setTime(10, 0, 0);
-
-        return $scheduledLocal->setTimezone('UTC');
+        return $startedAt->copy()->addHours($dayNumber * 24);
     }
 
     /**
-     * Calculate next consecutive day's 10 AM send time.
+     * Calculate send time for Day 1: exactly 24 hours after registration timestamp.
      */
-    public function calculateNextConsecutiveScheduleTime(Carbon $lastSentAt, string $timezone): Carbon
+    public function calculateDay1ScheduleTime(Carbon $dateTime, ?string $timezone = null): Carbon
     {
-        $lastSentLocal = $lastSentAt->copy()->setTimezone($timezone);
-        $scheduledLocal = $lastSentLocal->copy()->addDay()->setTime(10, 0, 0);
+        return $dateTime->copy()->addHours(24);
+    }
 
-        return $scheduledLocal->setTimezone('UTC');
+    /**
+     * Calculate next consecutive day's send time: exactly 24 hours after previous successful send time.
+     */
+    public function calculateNextConsecutiveScheduleTime(Carbon $lastSentAt, ?string $timezone = null): Carbon
+    {
+        return $lastSentAt->copy()->addHours(24);
     }
 
     /**
@@ -217,33 +224,40 @@ class DailyHabitLoopService
     {
         $baseUrl = rtrim((string) config('app.url'), '/');
 
-        $circle = null;
-        if ($user->relationLoaded('activeCircle') && $user->activeCircle) {
-            $circle = $user->activeCircle;
-        } elseif (! empty($user->active_circle_id)) {
-            $circle = Circle::find($user->active_circle_id);
-        }
+        try {
+            $circle = null;
+            if ($user->relationLoaded('activeCircle') && $user->activeCircle) {
+                $circle = $user->activeCircle;
+            } elseif (! empty($user->active_circle_id)) {
+                $circle = Circle::find($user->active_circle_id);
+            }
 
-        if (! $circle && method_exists($user, 'circles')) {
-            $circle = $user->circles()->first();
-        }
+            if (! $circle && method_exists($user, 'circles')) {
+                $circle = $user->circles()->first();
+            }
 
-        if (! $circle && method_exists($user, 'circleMembers')) {
-            $member = $user->circleMembers()
-                ->where(function ($query): void {
-                    $query->whereNull('status')->orWhere('status', 'approved');
-                })
-                ->with('circle')
-                ->first();
-            $circle = $member?->circle;
-        }
+            if (! $circle && method_exists($user, 'circleMembers')) {
+                $member = $user->circleMembers()
+                    ->where(function ($query): void {
+                        $query->whereNull('status')->orWhere('status', 'approved');
+                    })
+                    ->with('circle')
+                    ->first();
+                $circle = $member?->circle;
+            }
 
-        if (! $circle && method_exists($user, 'foundedCircles')) {
-            $circle = $user->foundedCircles()->first();
-        }
+            if (! $circle && method_exists($user, 'foundedCircles')) {
+                $circle = $user->foundedCircles()->first();
+            }
 
-        if ($circle && ! empty($circle->id)) {
-            return "{$baseUrl}/circles/{$circle->id}";
+            if ($circle && ! empty($circle->id)) {
+                return "{$baseUrl}/circles/{$circle->id}";
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Daily Habit Loop failed to resolve circle link.', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return "{$baseUrl}/circles";
@@ -271,6 +285,10 @@ class DailyHabitLoopService
             ->orderBy('day_number', 'asc')
             ->first();
 
-        return $firstSend ? $firstSend->journey_started_at : now();
+        if ($firstSend && $firstSend->scheduled_at) {
+            return $firstSend->scheduled_at->copy()->subHours($firstSend->day_number * 24);
+        }
+
+        return $user->created_at ? Carbon::parse($user->created_at) : now();
     }
 }

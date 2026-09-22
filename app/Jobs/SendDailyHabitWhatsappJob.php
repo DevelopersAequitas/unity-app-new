@@ -56,6 +56,13 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
             return;
         }
 
+        // Sequence cap check: Day 12 is the final configured Day
+        if ($sendRecord->day_number > 12) {
+            $this->markAsFailed($sendRecord, "Day {$sendRecord->day_number} exceeds maximum 12-day sequence.");
+
+            return;
+        }
+
         // Double-send protection: check if there's already a successful sent record for this day number and user
         $alreadySent = DailyHabitSend::where('user_id', $sendRecord->user_id)
             ->where('day_number', $sendRecord->day_number)
@@ -104,16 +111,6 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
         if (! $template) {
             $this->markAsFailed($sendRecord, "Active template not found for day {$sendRecord->day_number}.");
 
-            try {
-                $habitLoopService->scheduleNextDay($user, $sendRecord->day_number, $sendRecord->scheduled_at ?? now());
-            } catch (Throwable $e) {
-                Log::error('Daily Habit Loop next day scheduling failed on missing template.', [
-                    'user_id' => $user->id,
-                    'day_number' => $sendRecord->day_number,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
             return;
         }
 
@@ -132,7 +129,14 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
             'phone' => $normalizedPhone,
             'mobile' => $normalizedPhone,
             'day_number' => (string) $sendRecord->day_number,
+            'user_id' => (string) $user->id,
         ];
+
+        // Day 1 specific dynamic variables
+        if ($sendRecord->day_number === 1) {
+            $payload['ProfileLink'] = rtrim((string) config('app.url'), '/').'/profile';
+            $payload['profile_link'] = $payload['ProfileLink'];
+        }
 
         // Day 2 specific dynamic variables
         if ($sendRecord->day_number === 2) {
@@ -158,7 +162,13 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
         $errorMessage = null;
 
         try {
-            $success = $whatsappService->send($template->template_key, (string) $rawPhone, $payload);
+            $success = $whatsappService->send(
+                $template->template_key,
+                (string) $rawPhone,
+                $payload,
+                (string) $user->id,
+                (string) $sendRecord->id
+            );
             if (! $success) {
                 $errorMessage = WhatsappNotificationService::$lastError ?: 'FlexiMsg notification service failed to send.';
             }
@@ -168,7 +178,9 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
 
         // Update status using a lock to prevent concurrent success races
         $shouldScheduleNext = false;
-        DB::transaction(function () use ($sendRecord, $success, $errorMessage, &$shouldScheduleNext): void {
+        $sentTimestamp = null;
+
+        DB::transaction(function () use ($sendRecord, $success, $errorMessage, &$shouldScheduleNext, &$sentTimestamp): void {
             $lockedRecord = DailyHabitSend::where('id', $sendRecord->id)
                 ->lockForUpdate()
                 ->first();
@@ -178,26 +190,30 @@ class SendDailyHabitWhatsappJob implements ShouldQueue
             }
 
             if ($success) {
+                $sentTimestamp = now();
                 $lockedRecord->update([
                     'status' => 'sent',
-                    'sent_at' => now(),
+                    'sent_at' => $sentTimestamp,
                     'error_message' => null,
                 ]);
+                $shouldScheduleNext = true;
             } else {
                 $lockedRecord->update([
                     'status' => 'failed',
                     'error_message' => $errorMessage,
                 ]);
+                $shouldScheduleNext = false;
             }
-            $shouldScheduleNext = true;
         });
 
-        if ($shouldScheduleNext) {
+        // Only schedule next consecutive Day if current Day was successful
+        if ($shouldScheduleNext && $sentTimestamp !== null) {
             try {
-                $habitLoopService->scheduleNextDay($user, $sendRecord->day_number, now());
+                $habitLoopService->scheduleNextDay($user, $sendRecord->day_number, $sentTimestamp);
             } catch (Throwable $e) {
                 Log::error('Daily Habit Loop next day scheduling failed.', [
                     'user_id' => $user->id,
+                    'day_number' => $sendRecord->day_number,
                     'error' => $e->getMessage(),
                 ]);
             }

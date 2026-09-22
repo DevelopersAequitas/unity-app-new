@@ -386,9 +386,21 @@ class LifeImpactService
                 foreach ($levels as $threshold => $meta) {
                     if ($newTotal >= $threshold) {
                         $existingPost = Post::query()
-                            ->where('source_type', 'life_impact')
-                            ->where('source_id', $user->id)
-                            ->where('source_event', "level_{$threshold}")
+                            ->where(function ($q) use ($user, $threshold, $meta): void {
+                                $q->where(function ($sub) use ($user, $threshold): void {
+                                    $sub->where('source_type', 'life_impact')
+                                        ->where('source_id', $user->id)
+                                        ->where('source_event', "level_{$threshold}");
+                                })->orWhere(function ($sub) use ($user, $threshold): void {
+                                    $sub->where('post_type', 'life_impact_recognition')
+                                        ->where('tags', 'like', "%level_{$threshold}%")
+                                        ->where('tags', 'like', "%{$user->id}%");
+                                })->orWhere(function ($sub) use ($user, $meta): void {
+                                    $sub->where('post_type', 'life_impact_recognition')
+                                        ->where('title', 'like', "%{$meta['title']}%")
+                                        ->where('tags', 'like', "%{$user->id}%");
+                                });
+                            })
                             ->first();
 
                         if (! $existingPost) {
