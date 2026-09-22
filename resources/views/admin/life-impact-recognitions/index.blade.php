@@ -528,12 +528,9 @@
                                         </span>
                                     </div>
                                     <div class="space-y-1.5 text-xs text-slate-200">
-                                        <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                                        <div class="flex justify-between py-1 border-b border-slate-800">
                                             <span class="text-slate-400">Peer Name:</span>
-                                            <a id="studioPeerNameLink" href="#" onclick="event.preventDefault(); if (currentStudioPeerId) openActivityPeerModal(currentStudioPeerId, event);" class="font-bold text-amber-400 hover:text-amber-300 hover:underline inline-flex items-center gap-1.5 cursor-pointer no-underline text-xs" title="Open Peer Profile">
-                                                <span id="studioPeerName">-</span>
-                                                <i class="bi bi-box-arrow-up-right text-[10px]"></i>
-                                            </a>
+                                            <span id="studioPeerName" class="font-bold text-white">-</span>
                                         </div>
                                         <div class="flex justify-between py-1 border-b border-slate-800">
                                             <span class="text-slate-400">Company Name:</span>
@@ -713,10 +710,7 @@
                     </div>
                     <div class="space-y-3.5 flex flex-col justify-between">
                         <div class="space-y-2.5">
-                            <a id="modalPeerNameLink" href="#" onclick="event.preventDefault(); if (modalActivePeerId) openActivityPeerModal(modalActivePeerId, event);" class="font-bold text-base text-amber-400 hover:text-amber-300 hover:underline inline-flex items-center gap-1.5 cursor-pointer no-underline m-0" title="Open Peer Profile">
-                                <span id="modalPeerName"></span>
-                                <i class="bi bi-box-arrow-up-right text-xs"></i>
-                            </a>
+                            <h6 id="modalPeerName" class="font-bold text-base text-amber-400 m-0"></h6>
                             <p id="modalPeerSub" class="text-xs text-slate-400 m-0"></p>
                             <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
                                 <div class="flex justify-between">

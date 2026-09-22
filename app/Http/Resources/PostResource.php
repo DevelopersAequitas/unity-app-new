@@ -3,7 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Models\File;
-use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -149,31 +148,6 @@ class PostResource extends JsonResource
                 'profile_photo_url' => null,
             ];
             $response['author'] = $response['user'];
-        }
-
-        $isRecognition = in_array((string) ($this->source_type ?? ''), ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
-            || in_array((string) ($this->post_type ?? ''), ['life_impact_recognition', 'growth_honour'], true);
-
-        if ($isRecognition && ! empty($this->source_id)) {
-            $recognizedPeer = User::find($this->source_id);
-            if ($recognizedPeer) {
-                $recName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '').' '.($recognizedPeer->last_name ?? ''));
-                $response['recognized_peer'] = [
-                    'id' => (string) $recognizedPeer->id,
-                    'name' => $recName !== '' ? $recName : 'Peer Member',
-                    'display_name' => $recognizedPeer->display_name,
-                    'first_name' => $recognizedPeer->first_name,
-                    'last_name' => $recognizedPeer->last_name,
-                    'company_name' => $recognizedPeer->company_name ?: null,
-                    'city' => $recognizedPeer->city ?: null,
-                    'designation' => $recognizedPeer->designation ?: null,
-                    'profile_photo_url' => $recognizedPeer->profile_photo_file_id
-                        ? url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id)
-                        : null,
-                ];
-            }
-            $response['source_type'] = $this->source_type;
-            $response['source_id'] = (string) $this->source_id;
         }
 
         return $response;

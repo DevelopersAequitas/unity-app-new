@@ -169,40 +169,6 @@ class PostController extends BaseApiController
             ->get(['id', 'display_name', 'first_name', 'last_name'])
             ->keyBy(fn (User $peer) => (string) $peer->id);
 
-        $recognitionSourceTypes = ['life_impact', 'member_introduction', 'recognition', 'growth_honour'];
-        $recognitionPostTypes = ['life_impact_recognition', 'growth_honour'];
-
-        $recognizedPeerIds = $pageRows
-            ->filter(function ($row) use ($recognitionSourceTypes, $recognitionPostTypes): bool {
-                $sourceType = (string) ($row->post_source_type ?? '');
-                $postType = (string) ($row->post_type ?? '');
-
-                return in_array($sourceType, $recognitionSourceTypes, true)
-                    || in_array($postType, $recognitionPostTypes, true);
-            })
-            ->pluck('post_source_id')
-            ->filter()
-            ->map(fn ($id) => (string) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $recognizedPeers = $recognizedPeerIds !== []
-            ? User::query()
-                ->whereIn('id', $recognizedPeerIds)
-                ->get([
-                    'id',
-                    'display_name',
-                    'first_name',
-                    'last_name',
-                    'company_name',
-                    'designation',
-                    'city',
-                    'profile_photo_file_id',
-                ])
-                ->keyBy(fn (User $u) => (string) $u->id)
-            : collect();
-
         $p2pMeetingsById = collect();
         $fallbackP2pMeetingIdByPostId = [];
 
@@ -280,7 +246,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $recognizedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -355,33 +321,6 @@ class PostController extends BaseApiController
                     'company_name' => $row->accepted_by_company_name,
                     'city' => $row->accepted_by_city,
                 ] : null;
-            }
-
-            $postSourceType = (string) ($row->post_source_type ?? '');
-            $postType = (string) ($row->post_type ?? '');
-            $isRecognition = in_array($postSourceType, ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
-                || in_array($postType, ['life_impact_recognition', 'growth_honour'], true);
-
-            if ($isRecognition && ! empty($row->post_source_id)) {
-                $recPeer = $recognizedPeers->get((string) $row->post_source_id);
-                if ($recPeer) {
-                    $recName = $recPeer->display_name ?: trim(($recPeer->first_name ?? '').' '.($recPeer->last_name ?? ''));
-                    $item['recognized_peer'] = [
-                        'id' => (string) $recPeer->id,
-                        'name' => $recName !== '' ? $recName : 'Peer Member',
-                        'display_name' => $recPeer->display_name,
-                        'first_name' => $recPeer->first_name,
-                        'last_name' => $recPeer->last_name,
-                        'company_name' => $recPeer->company_name ?: null,
-                        'city' => $recPeer->city ?: null,
-                        'designation' => $recPeer->designation ?: null,
-                        'profile_photo_url' => $recPeer->profile_photo_file_id
-                            ? url('/api/v1/files/'.$recPeer->profile_photo_file_id)
-                            : null,
-                    ];
-                }
-                $item['source_type'] = $postSourceType;
-                $item['source_id'] = (string) $row->post_source_id;
             }
 
             if ((string) $row->source_type === 'impact') {
