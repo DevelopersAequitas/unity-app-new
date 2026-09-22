@@ -62,4 +62,19 @@ return [
         'fixed_token' => env('MEMBERS_WITH_CIRCLES_FIXED_TOKEN', env('MEMBERS_LIST_FIXED_TOKEN', '302|cO0VMR2dmr9j8c3JtIU9dfkuZfSfvzaCCF1GVxJAdc6fdd2d')),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
+    'facebook' => [
+        'client_id' => env('FACEBOOK_CLIENT_ID'),
+        'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+    ],
+
+    'linkedin' => [
+        'client_id' => env('LINKEDIN_CLIENT_ID'),
+        'client_secret' => env('LINKEDIN_CLIENT_SECRET'),
+        'redirect_uri' => env('LINKEDIN_REDIRECT_URI'),
+    ],
+
 ];
