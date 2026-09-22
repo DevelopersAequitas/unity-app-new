@@ -23,7 +23,7 @@ class SendDailyHabitLoopCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Send due Phase 2 30-Day Daily Habit Loop WhatsApp messages';
+    protected $description = 'Send due 12-Day Sequential WhatsApp Onboarding Workflow messages';
 
     /**
      * Execute the console command.
@@ -33,6 +33,7 @@ class SendDailyHabitLoopCommand extends Command
         $now = now();
         $dueSends = DailyHabitSend::query()
             ->where('status', 'scheduled')
+            ->where('day_number', '<=', 12)
             ->where('scheduled_at', '<=', $now)
             ->get();
 
