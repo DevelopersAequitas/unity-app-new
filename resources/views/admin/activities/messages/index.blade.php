@@ -678,7 +678,17 @@
                                     <div class="fw-bold text-dark truncate" style="max-width: 140px;">{{ $conv->user1_name }}</div>
                                     <div class="text-muted truncate" style="font-size: 10.5px;">↔ {{ $conv->user2_name }}</div>
                                 </td>
-                                <td class="text-end pe-3 py-2 fw-bold" style="color: #0ea5e9;">{{ number_format($conv->total_messages) }}</td>
+                                <td class="text-end pe-3 py-2 fw-bold" style="color: #0ea5e9;">
+                                    <div class="d-flex align-items-center justify-content-end gap-1.5">
+                                        <span>{{ number_format($conv->total_messages) }}</span>
+                                        @if(!empty($conv->chat_id))
+                                        <button type="button" class="btn btn-xs btn-outline-info py-0 px-1.5 rounded-pill" style="font-size: 10px;"
+                                                onclick="openFullChatModal('{{ $conv->chat_id }}')" title="Open Full Chat History">
+                                            <i class="bi bi-chat-dots"></i>
+                                        </button>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                             @empty
                             <tr><td colspan="3" class="text-center py-4 text-muted">No conversation data found</td></tr>
@@ -728,7 +738,7 @@
                         <th class="py-3">Sender City</th>
                         <th class="py-3">Receiver City</th>
                         <th class="py-3">Membership</th>
-                        <th class="text-end pe-4 py-3">Preview</th>
+                        <th class="text-end pe-4 py-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
@@ -834,11 +844,20 @@
                                 {{ $item->sender_membership_status ?? 'Peer' }}
                             </span>
                         </td>
-                        <td class="text-end pe-4 py-3">
-                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 rounded-pill d-inline-flex align-items-center gap-1 fw-semibold"
-                                    data-payload="{{ $b64Payload }}" onclick="openMessagePreview(this)" style="font-size: 11.5px;">
-                                <i class="bi bi-eye"></i> View
-                            </button>
+                        <td class="text-end pe-4 py-3 whitespace-nowrap">
+                            <div class="d-inline-flex align-items-center gap-1.5">
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 rounded-pill d-inline-flex align-items-center gap-1 fw-semibold"
+                                        data-payload="{{ $b64Payload }}" onclick="openMessagePreview(this)" style="font-size: 11.5px;" title="Inspect single message">
+                                    <i class="bi bi-eye"></i> View
+                                </button>
+                                @if(!empty($item->chat_id))
+                                <button type="button" class="btn btn-sm btn-primary py-1 px-2.5 rounded-pill d-inline-flex align-items-center gap-1 fw-semibold"
+                                        style="background: #0d9488; border-color: #0d9488; font-size: 11.5px;"
+                                        onclick="openFullChatModal('{{ $item->chat_id }}')" title="View Full Chat History">
+                                    <i class="bi bi-chat-dots-fill"></i> View Full Chat
+                                </button>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @empty
@@ -957,10 +976,118 @@
             </div>
 
             {{-- Modal Footer --}}
-            <div class="modal-footer bg-white px-4 py-3 d-flex justify-content-between">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-3" id="copyMsgBtn" onclick="copyMessageText()">
-                    <i class="bi bi-clipboard me-1"></i> Copy Text
-                </button>
+            <div class="modal-footer bg-white px-4 py-3 d-flex justify-content-between flex-wrap gap-2">
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" id="copyMsgBtn" onclick="copyMessageText()">
+                        <i class="bi bi-clipboard me-1"></i> Copy Text
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-primary px-3 fw-semibold d-inline-flex align-items-center gap-1.5"
+                            style="background: #0d9488; border-color: #0d9488; border-radius: 8px;"
+                            id="previewOpenFullChatBtn" onclick="openFullChatFromPreview()">
+                        <i class="bi bi-chat-dots-fill"></i> View Full Chat
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary px-3 fw-semibold" data-bs-dismiss="modal" style="border-radius: 8px;">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── FULL CONVERSATION / CHAT MODAL ── --}}
+<div class="modal fade" id="fullChatModal" tabindex="-1" aria-labelledby="fullChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content shadow-xl border-0" style="border-radius: 20px; overflow: hidden; height: 85vh; max-height: 850px; display: flex; flex-direction: column;">
+            
+            {{-- Chat Header --}}
+            <div class="modal-header text-white px-4 py-3 border-0 flex-shrink-0" style="background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);">
+                <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                            <i class="bi bi-chat-left-text-fill"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <h5 class="modal-title fw-bold mb-0 text-white" id="fullChatModalLabel" style="font-size: 1.15rem;">Full Chat History</h5>
+                                <span class="badge bg-white text-teal-800 fw-bold px-2.5 py-1 rounded-pill" style="color: #0f766e !important; font-size: 11px;" id="chatTotalCountBadge">0 Messages</span>
+                            </div>
+                            <div class="text-white-50 small mt-0.5" id="chatParticipantsSub" style="font-size: 11.5px;">User 1 ↔ User 2</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="input-group input-group-sm" style="width: 220px;">
+                            <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" id="chatSearchInput" class="form-control border-0" placeholder="Search in chat…" oninput="filterChatMessages(this.value)">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-light border-0 px-2.5 py-1.5 text-teal-900 fw-semibold" style="border-radius: 8px;" onclick="reloadCurrentChat()" title="Refresh Chat">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Participants Info Strip --}}
+            <div class="bg-light border-bottom px-4 py-2.5 flex-shrink-0">
+                <div class="row align-items-center g-2 text-center text-md-start">
+                    <div class="col-md-5">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="avatar-circle" id="chatU1Avatar" style="background: #6366f1; width: 32px; height: 32px; font-size: 12px;">U1</div>
+                            <div class="truncate">
+                                <span class="badge bg-white text-secondary border me-1" style="font-size: 9.5px;">PARTICIPANT 1</span>
+                                <strong class="text-dark" id="chatU1Name" style="font-size: 12.5px;">User 1</strong>
+                                <span class="text-muted small ms-1" id="chatU1Meta" style="font-size: 11px;">(city)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 text-center text-muted d-none d-md-block">
+                        <span class="badge bg-white text-muted border px-2 py-1" style="font-size: 11px;">↔ Chat Thread</span>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="d-flex align-items-center justify-content-md-end gap-2">
+                            <div class="text-md-end truncate">
+                                <span class="badge bg-white text-secondary border me-1" style="font-size: 9.5px;">PARTICIPANT 2</span>
+                                <strong class="text-dark" id="chatU2Name" style="font-size: 12.5px;">User 2</strong>
+                                <span class="text-muted small ms-1" id="chatU2Meta" style="font-size: 11px;">(city)</span>
+                            </div>
+                            <div class="avatar-circle" id="chatU2Avatar" style="background: #0d9488; width: 32px; height: 32px; font-size: 12px;">U2</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Chat Scrollable Body --}}
+            <div class="modal-body p-4 flex-grow-1 overflow-auto" id="fullChatScrollContainer" style="background: #f1f5f9; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px;">
+                {{-- Loader --}}
+                <div id="fullChatLoader" class="text-center py-5">
+                    <div class="spinner-border text-teal-600 mb-2" role="status" style="color: #0d9488; width: 2.5rem; height: 2.5rem;"></div>
+                    <div class="text-muted small fw-semibold">Loading conversation history…</div>
+                </div>
+
+                {{-- Empty state --}}
+                <div id="fullChatEmpty" class="text-center py-5 d-none">
+                    <div class="p-4 bg-white rounded-4 shadow-sm d-inline-block" style="max-width: 360px;">
+                        <i class="bi bi-chat-dots fs-1 text-muted opacity-50 mb-2 d-block"></i>
+                        <h6 class="fw-bold text-dark">No Messages Found</h6>
+                        <p class="text-muted small mb-0">There are no message records stored for this conversation thread.</p>
+                    </div>
+                </div>
+
+                {{-- Messages Stream Container --}}
+                <div id="fullChatMessagesStream" class="d-flex flex-column gap-3 d-none" style="max-width: 860px; margin: 0 auto;">
+                    <!-- Chat bubbles injected here dynamically -->
+                </div>
+            </div>
+
+            {{-- Chat Footer --}}
+            <div class="modal-footer bg-white px-4 py-2.5 border-top d-flex justify-content-between align-items-center flex-shrink-0">
+                <div class="text-muted small" style="font-size: 11.5px;" id="chatLastActiveInfo">
+                    <i class="bi bi-shield-lock text-success me-1"></i> Admin read-only conversation inspector
+                </div>
                 <button type="button" class="btn btn-sm btn-secondary px-4 fw-semibold" data-bs-dismiss="modal" style="border-radius: 8px;">
                     Close
                 </button>
@@ -1027,6 +1154,8 @@
 
 // ── Interactive Message Modal ──
 let currentMessageText = '';
+let currentActiveChatId = '';
+let fullChatCachedData = null;
 
 function decodePayload(raw) {
     if (!raw) return {};
@@ -1054,6 +1183,7 @@ function openMessagePreview(btn) {
         const data = decodePayload(raw);
 
         currentMessageText = data.content || '';
+        currentActiveChatId = data.chat_id || '';
 
         const sentAtEl = document.getElementById('modalSentAt');
         if (sentAtEl) sentAtEl.textContent = 'Sent on ' + (data.created_at || '—');
@@ -1199,5 +1329,239 @@ function copyMessageText() {
         setTimeout(() => btn.innerHTML = oldHtml, 2000);
     });
 }
+
+function openFullChatFromPreview() {
+    if (!currentActiveChatId) {
+        alert('No conversation ID associated with this message.');
+        return;
+    }
+    // Hide preview modal and open full chat modal
+    const previewModalEl = document.getElementById('messageDetailModal');
+    if (previewModalEl) {
+        const modal = bootstrap.Modal.getInstance(previewModalEl);
+        if (modal) modal.hide();
+    }
+    openFullChatModal(currentActiveChatId);
+}
+
+function reloadCurrentChat() {
+    if (currentActiveChatId) {
+        openFullChatModal(currentActiveChatId, true);
+    }
+}
+
+function openFullChatModal(chatId, forceReload = false) {
+    currentActiveChatId = chatId;
+    const modalEl = document.getElementById('fullChatModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const loader = document.getElementById('fullChatLoader');
+    const emptyState = document.getElementById('fullChatEmpty');
+    const stream = document.getElementById('fullChatMessagesStream');
+    const searchInput = document.getElementById('chatSearchInput');
+    if (searchInput) searchInput.value = '';
+
+    if (loader) loader.classList.remove('d-none');
+    if (emptyState) emptyState.classList.add('d-none');
+    if (stream) {
+        stream.classList.add('d-none');
+        stream.innerHTML = '';
+    }
+
+    fetch('/admin/activities/messages/conversation/' + encodeURIComponent(chatId), {
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to load conversation history');
+        return response.json();
+    })
+    .then(json => {
+        if (loader) loader.classList.add('d-none');
+        if (!json.success || !json.data) {
+            if (emptyState) emptyState.classList.remove('d-none');
+            return;
+        }
+
+        fullChatCachedData = json.data;
+        renderFullChat(json.data);
+    })
+    .catch(err => {
+        console.error('Conversation fetch error:', err);
+        if (loader) loader.classList.add('d-none');
+        if (emptyState) {
+            emptyState.classList.remove('d-none');
+            emptyState.querySelector('h6').textContent = 'Error Loading Chat';
+            emptyState.querySelector('p').textContent = err.message || 'Unable to retrieve conversation messages.';
+        }
+    });
+}
+
+function renderFullChat(data) {
+    const stream = document.getElementById('fullChatMessagesStream');
+    const emptyState = document.getElementById('fullChatEmpty');
+    const countBadge = document.getElementById('chatTotalCountBadge');
+    const subTitle = document.getElementById('chatParticipantsSub');
+    const u1Avatar = document.getElementById('chatU1Avatar');
+    const u1Name = document.getElementById('chatU1Name');
+    const u1Meta = document.getElementById('chatU1Meta');
+    const u2Avatar = document.getElementById('chatU2Avatar');
+    const u2Name = document.getElementById('chatU2Name');
+    const u2Meta = document.getElementById('chatU2Meta');
+    const scrollContainer = document.getElementById('fullChatScrollContainer');
+
+    const u1 = data.user1 || {};
+    const u2 = data.user2 || {};
+    const messages = data.messages || [];
+
+    if (countBadge) countBadge.textContent = (data.total_messages || messages.length) + ' Messages';
+    if (subTitle) subTitle.textContent = (u1.name || 'User 1') + ' ↔ ' + (u2.name || 'User 2');
+
+    if (u1Name) u1Name.textContent = u1.name || 'User 1';
+    if (u1Meta) u1Meta.textContent = (u1.city ? u1.city + ' • ' : '') + (u1.email || '');
+    if (u1Avatar) u1Avatar.textContent = (u1.name ? u1.name.substring(0, 2).toUpperCase() : 'U1');
+
+    if (u2Name) u2Name.textContent = u2.name || 'User 2';
+    if (u2Meta) u2Meta.textContent = (u2.city ? u2.city + ' • ' : '') + (u2.email || '');
+    if (u2Avatar) u2Avatar.textContent = (u2.name ? u2.name.substring(0, 2).toUpperCase() : 'U2');
+
+    if (!messages || messages.length === 0) {
+        if (emptyState) emptyState.classList.remove('d-none');
+        if (stream) stream.classList.add('d-none');
+        return;
+    }
+
+    if (emptyState) emptyState.classList.add('d-none');
+    if (stream) {
+        stream.classList.remove('d-none');
+        stream.innerHTML = '';
+    }
+
+    let lastDate = '';
+
+    messages.forEach(msg => {
+        // Date separator
+        const msgDate = msg.date_formatted || '';
+        if (msgDate && msgDate !== lastDate) {
+            lastDate = msgDate;
+            const dateSep = document.createElement('div');
+            dateSep.className = 'text-center my-2';
+            dateSep.innerHTML = `<span class="badge bg-white text-muted border shadow-2xs px-3 py-1 fw-semibold" style="border-radius: 9999px; font-size: 11px;">📅 ${msgDate}</span>`;
+            stream.appendChild(dateSep);
+        }
+
+        const isU1 = msg.is_user1;
+        const bubbleWrapper = document.createElement('div');
+        bubbleWrapper.className = `d-flex align-items-end gap-2.5 chat-message-row ${isU1 ? 'justify-content-start' : 'justify-content-end'}`;
+        bubbleWrapper.setAttribute('data-msg-text', (msg.content || '') + ' ' + (msg.sender_name || ''));
+
+        const senderInitials = msg.sender_name ? msg.sender_name.substring(0, 2).toUpperCase() : (isU1 ? 'U1' : 'U2');
+        const avatarBg = isU1 ? '#6366f1' : '#0d9488';
+
+        let attachmentsHtml = '';
+        if (msg.attachments && msg.attachments.length > 0) {
+            attachmentsHtml += '<div class="mt-2 d-flex flex-wrap gap-2">';
+            msg.attachments.forEach(att => {
+                const fileUrl = att.url || (att.file_id ? '/api/v1/files/' + att.file_id : '#');
+                const isImg = (att.kind === 'image') || (att.mime && att.mime.startsWith('image/')) || (att.name && att.name.match(/\.(jpg|jpeg|png|gif|webp)$/i));
+                if (isImg) {
+                    attachmentsHtml += `
+                        <div class="border rounded-3 overflow-hidden shadow-2xs" style="max-width: 220px; max-height: 180px; background: #000;">
+                            <a href="${fileUrl}" target="_blank" title="Click to view full image">
+                                <img src="${fileUrl}" alt="Attachment" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.src='https://placehold.co/200x150/e2e8f0/475569?text=Image';">
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    attachmentsHtml += `
+                        <a href="${fileUrl}" target="_blank" class="badge bg-light text-dark border p-2 d-inline-flex align-items-center gap-1.5 text-decoration-none">
+                            <i class="bi bi-file-earmark-arrow-down text-primary"></i>
+                            <span>${att.name || 'Attachment'}</span>
+                        </a>
+                    `;
+                }
+            });
+            attachmentsHtml += '</div>';
+        }
+
+        const readTick = msg.is_read
+            ? '<i class="bi bi-check2-all text-teal-600 ms-1" title="Read" style="color:#0d9488; font-size:12px;"></i>'
+            : '<i class="bi bi-check text-muted ms-1" title="Sent" style="font-size:12px;"></i>';
+
+        const bubbleCard = `
+            <div class="chat-bubble shadow-sm p-3" style="
+                max-width: 72%;
+                border-radius: ${isU1 ? '16px 16px 16px 4px' : '16px 16px 4px 16px'};
+                background: ${isU1 ? '#ffffff' : '#e6fffa'};
+                border: 1px solid ${isU1 ? '#e2e8f0' : '#bbf7d0'};
+                color: #1e293b;
+            ">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                    <span class="fw-bold small" style="color: ${isU1 ? '#4f46e5' : '#0f766e'}; font-size: 11.5px;">${msg.sender_name || (isU1 ? u1.name : u2.name)}</span>
+                    <span class="badge ${isU1 ? 'bg-indigo-subtle text-indigo-700' : 'bg-teal-subtle text-teal-700'} border-0 px-1.5 py-0.5" style="font-size: 9px;">${msg.sender_membership || 'Peer'}</span>
+                </div>
+                ${msg.content ? `<div class="chat-text" style="font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">${escapeHtml(msg.content)}</div>` : ''}
+                ${attachmentsHtml}
+                <div class="d-flex align-items-center justify-content-end gap-1 mt-1 text-muted" style="font-size: 10.5px;">
+                    <span>${msg.time_formatted || ''}</span>
+                    ${readTick}
+                </div>
+            </div>
+        `;
+
+        if (isU1) {
+            bubbleWrapper.innerHTML = `
+                <div class="avatar-circle flex-shrink-0" style="background: ${avatarBg}; width: 30px; height: 30px; font-size: 11px;">${senderInitials}</div>
+                ${bubbleCard}
+            `;
+        } else {
+            bubbleWrapper.innerHTML = `
+                ${bubbleCard}
+                <div class="avatar-circle flex-shrink-0" style="background: ${avatarBg}; width: 30px; height: 30px; font-size: 11px;">${senderInitials}</div>
+            `;
+        }
+
+        stream.appendChild(bubbleWrapper);
+    });
+
+    // Auto-scroll to bottom of chat
+    setTimeout(() => {
+        if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }, 100);
+}
+
+function filterChatMessages(term) {
+    const rows = document.querySelectorAll('.chat-message-row');
+    if (!rows.length) return;
+    const clean = (term || '').trim().toLowerCase();
+    rows.forEach(row => {
+        if (!clean) {
+            row.classList.remove('d-none');
+            return;
+        }
+        const text = (row.getAttribute('data-msg-text') || '').toLowerCase();
+        if (text.includes(clean)) {
+            row.classList.remove('d-none');
+        } else {
+            row.classList.add('d-none');
+        }
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 </script>
 @endpush
+

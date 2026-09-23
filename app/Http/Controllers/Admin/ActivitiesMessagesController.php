@@ -541,6 +541,148 @@ class ActivitiesMessagesController extends Controller
     }
 
     // ──────────────────────────────────────────────
+    // Full Conversation / Chat View Endpoint
+    // ──────────────────────────────────────────────
+
+    public function conversation(Request $request, string $chatId)
+    {
+        $chat = DB::table('chats as c')
+            ->leftJoin('users as u1', 'u1.id', '=', 'c.user1_id')
+            ->leftJoin('users as u2', 'u2.id', '=', 'c.user2_id')
+            ->where('c.id', $chatId)
+            ->select([
+                'c.id as chat_id',
+                'c.user1_id',
+                'c.user2_id',
+                'c.last_message_at',
+                'c.created_at as chat_created_at',
+                // User 1
+                'u1.display_name as u1_display_name',
+                'u1.first_name as u1_first_name',
+                'u1.last_name as u1_last_name',
+                'u1.email as u1_email',
+                'u1.phone as u1_phone',
+                'u1.city as u1_city',
+                'u1.membership_status as u1_membership',
+                'u1.company_name as u1_company',
+                'u1.designation as u1_designation',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', u1.first_name, u1.last_name)), ''), u1.display_name, '—') as u1_name"),
+                // User 2
+                'u2.display_name as u2_display_name',
+                'u2.first_name as u2_first_name',
+                'u2.last_name as u2_last_name',
+                'u2.email as u2_email',
+                'u2.phone as u2_phone',
+                'u2.city as u2_city',
+                'u2.membership_status as u2_membership',
+                'u2.company_name as u2_company',
+                'u2.designation as u2_designation',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', u2.first_name, u2.last_name)), ''), u2.display_name, '—') as u2_name"),
+            ])
+            ->first();
+
+        if (! $chat) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conversation not found.',
+                ], 404);
+            }
+            return redirect()->route('admin.activities.messages.index')->with('error', 'Conversation not found.');
+        }
+
+        $messagesQuery = DB::table('messages as m')
+            ->leftJoin('users as sender', 'sender.id', '=', 'm.sender_id')
+            ->where('m.chat_id', $chatId)
+            ->whereNull('m.deleted_at')
+            ->select([
+                'm.id',
+                'm.chat_id',
+                'm.sender_id',
+                'm.content',
+                'm.attachments',
+                'm.is_read',
+                'm.created_at',
+                'sender.display_name as sender_display_name',
+                'sender.first_name as sender_first_name',
+                'sender.last_name as sender_last_name',
+                'sender.email as sender_email',
+                'sender.city as sender_city',
+                'sender.membership_status as sender_membership',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', sender.first_name, sender.last_name)), ''), sender.display_name, '—') as sender_name"),
+            ])
+            ->orderBy('m.created_at', 'asc');
+
+        $messages = $messagesQuery->get()->map(function ($msg) use ($chat) {
+            $at = $msg->created_at ? Carbon::parse($msg->created_at) : null;
+            $rawAtts = $msg->attachments;
+            if (is_string($rawAtts)) {
+                $decoded = json_decode($rawAtts, true);
+                $atts = is_array($decoded) ? $decoded : [];
+            } elseif (is_array($rawAtts)) {
+                $atts = $rawAtts;
+            } else {
+                $atts = [];
+            }
+
+            $isMedia = ! empty($atts);
+            $isUser1 = ((string) $msg->sender_id === (string) $chat->user1_id);
+
+            return [
+                'id'                   => $msg->id,
+                'chat_id'              => $msg->chat_id,
+                'sender_id'            => $msg->sender_id,
+                'sender_name'          => $msg->sender_name,
+                'sender_email'         => $msg->sender_email ?? '',
+                'sender_city'          => $msg->sender_city ?? '',
+                'sender_membership'    => $msg->sender_membership ?? 'Peer',
+                'is_user1'             => $isUser1,
+                'sender_type'          => $isUser1 ? 'user1' : 'user2',
+                'content'              => $msg->content ?? '',
+                'attachments'          => $atts,
+                'is_media'             => $isMedia,
+                'is_read'              => (bool) $msg->is_read,
+                'created_at'           => $at ? $at->toIso8601String() : null,
+                'created_at_formatted' => $at ? $at->format('M d, Y h:i A') : '—',
+                'date_formatted'       => $at ? $at->format('M d, Y') : '—',
+                'time_formatted'       => $at ? $at->format('h:i A') : '—',
+            ];
+        });
+
+        $responseData = [
+            'success' => true,
+            'data'    => [
+                'chat_id'         => $chat->chat_id,
+                'total_messages'  => $messages->count(),
+                'last_message_at' => $chat->last_message_at ? Carbon::parse($chat->last_message_at)->format('M d, Y h:i A') : null,
+                'user1'           => [
+                    'id'          => $chat->user1_id,
+                    'name'        => $chat->u1_name,
+                    'email'       => $chat->u1_email,
+                    'phone'       => $chat->u1_phone,
+                    'city'        => $chat->u1_city,
+                    'company'     => $chat->u1_company,
+                    'designation' => $chat->u1_designation,
+                    'membership'  => $chat->u1_membership ?? 'Peer',
+                ],
+                'user2'           => [
+                    'id'          => $chat->user2_id,
+                    'name'        => $chat->u2_name,
+                    'email'       => $chat->u2_email,
+                    'phone'       => $chat->u2_phone,
+                    'city'        => $chat->u2_city,
+                    'company'     => $chat->u2_company,
+                    'designation' => $chat->u2_designation,
+                    'membership'  => $chat->u2_membership ?? 'Peer',
+                ],
+                'messages'        => $messages,
+            ],
+        ];
+
+        return response()->json($responseData);
+    }
+
+    // ──────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────
 

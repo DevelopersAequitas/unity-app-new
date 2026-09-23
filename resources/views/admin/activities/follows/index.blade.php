@@ -12,7 +12,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     padding: 16px 18px;
-    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);  
     position: relative;
     cursor: pointer;
     text-decoration: none !important;

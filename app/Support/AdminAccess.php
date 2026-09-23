@@ -488,7 +488,7 @@ class AdminAccess
                         'events', 'events management', 'event gallery' => 'events',
                         'coins', 'coin claims', 'coin guidelines', 'coin-guidelines' => 'coins',
                         'life impact', 'life-impact', 'impact option', 'pending impacts', 'impact guidelines', 'impact-guidelines' => 'life-impact',
-                        'notifications & email', 'notifications', 'email logs', 'campaigns', 'daily notifications', 'app notifications', 'all app notifications', 'app-notifications' => 'notifications',
+                        'notifications & email', 'notifications', 'email logs', 'campaigns', 'daily notifications', 'app notifications', 'all app notifications', 'app-notifications', 'notification monitoring', 'notification-monitoring', 'notification logs' => 'notifications',
                         'pending requests', 'pending-requests', 'ad booking requests', 'pending ad requests' => 'pending-requests',
                         'referral report', 'referral-report' => 'referral-report',
                         'content & posts', 'posts & timeline', 'posts', 'content', 'circulars', 'post reports' => 'content',
