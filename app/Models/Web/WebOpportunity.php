@@ -6,6 +6,7 @@ namespace App\Models\Web;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class WebOpportunity extends Model
@@ -35,7 +36,7 @@ class WebOpportunity extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
-            if (empty($model->attributes['code']) && \Illuminate\Support\Facades\Schema::hasColumn('web_opportunities', 'code')) {
+            if (empty($model->attributes['code']) && Schema::hasColumn('web_opportunities', 'code')) {
                 $model->code = 'OPP-'.random_int(100, 999);
             }
         });

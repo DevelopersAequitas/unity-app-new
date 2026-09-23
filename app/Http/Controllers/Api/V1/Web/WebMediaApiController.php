@@ -10,6 +10,7 @@ use App\Models\Web\WebPageMedia;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class WebMediaApiController extends Controller
@@ -22,7 +23,7 @@ class WebMediaApiController extends Controller
         $pageId = $request->query('pageId');
         $slug = $request->query('slug');
 
-        if (! \Illuminate\Support\Facades\Schema::hasTable('web_page_medias')) {
+        if (! Schema::hasTable('web_page_medias')) {
             return response()->json([
                 'success' => true,
                 'count' => 0,

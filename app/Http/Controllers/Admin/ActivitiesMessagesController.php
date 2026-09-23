@@ -24,10 +24,10 @@ class ActivitiesMessagesController extends Controller
     {
         $filters = $this->buildFilters($request);
 
-        $summary   = $this->buildSummary($filters);
-        $trends    = $this->buildTrends($filters);
+        $summary = $this->buildSummary($filters);
+        $trends = $this->buildTrends($filters);
         $baseQuery = $this->baseQuery($filters);
-        $total     = (clone $baseQuery)->count();
+        $total = (clone $baseQuery)->count();
 
         $items = (clone $baseQuery)
             ->select([
@@ -61,19 +61,19 @@ class ActivitiesMessagesController extends Controller
 
         // Conversation analytics (top 10 most active)
         $topConversations = $this->topConversations($filters);
-        $topSenders       = $this->topSenders($filters);
-        $topReceivers     = $this->topReceivers($filters);
+        $topSenders = $this->topSenders($filters);
+        $topReceivers = $this->topReceivers($filters);
 
         return view('admin.activities.messages.index', [
-            'items'            => $items,
-            'filters'          => $filters,
-            'summary'          => $summary,
-            'trends'           => $trends,
+            'items' => $items,
+            'filters' => $filters,
+            'summary' => $summary,
+            'trends' => $trends,
             'topConversations' => $topConversations,
-            'topSenders'       => $topSenders,
-            'topReceivers'     => $topReceivers,
-            'total'            => $total,
-            'circles'          => $this->circleOptions(),
+            'topSenders' => $topSenders,
+            'topReceivers' => $topReceivers,
+            'total' => $total,
+            'circles' => $this->circleOptions(),
         ]);
     }
 
@@ -83,8 +83,8 @@ class ActivitiesMessagesController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
-        $filters  = $this->buildFilters($request);
-        $filename = 'message_analytics_' . now()->format('Ymd_His') . '.csv';
+        $filters = $this->buildFilters($request);
+        $filename = 'message_analytics_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
@@ -149,10 +149,10 @@ class ActivitiesMessagesController extends Controller
                 fclose($handle);
             }
         }, $filename, [
-            'Content-Type'  => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
-            'Pragma'        => 'no-cache',
-            'Expires'       => '0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 
@@ -163,35 +163,37 @@ class ActivitiesMessagesController extends Controller
     private function buildFilters(Request $request): array
     {
         $preset = (string) $request->query('date_preset', '');
-        $from   = (string) $request->query('from', '');
-        $to     = (string) $request->query('to', '');
+        $from = (string) $request->query('from', '');
+        $to = (string) $request->query('to', '');
 
         [$fromDt, $toDt] = $this->resolveDateRange($preset, $from, $to);
 
         $perPage = (int) $request->query('per_page', 20);
-        if ($perPage <= 0 || $perPage > 200) $perPage = 20;
+        if ($perPage <= 0 || $perPage > 200) {
+            $perPage = 20;
+        }
 
         return [
-            'q'                  => trim((string) $request->query('q', '')),
-            'date_preset'        => $preset,
-            'from'               => $from,
-            'to'                 => $to,
-            'from_dt'            => $fromDt,
-            'to_dt'              => $toDt,
-            'circle_id'          => (string) $request->query('circle_id', ''),
-            'sender_name'        => trim((string) $request->query('sender_name', '')),
-            'sender_email'       => trim((string) $request->query('sender_email', '')),
-            'sender_city'        => trim((string) $request->query('sender_city', '')),
-            'sender_membership'  => trim((string) $request->query('sender_membership', '')),
-            'receiver_name'      => trim((string) $request->query('receiver_name', '')),
-            'receiver_email'     => trim((string) $request->query('receiver_email', '')),
-            'receiver_city'      => trim((string) $request->query('receiver_city', '')),
-            'receiver_membership'=> trim((string) $request->query('receiver_membership', '')),
-            'message_type'       => trim((string) $request->query('message_type', '')),
-            'read_status'        => trim((string) $request->query('read_status', '')),
-            'per_page'           => $perPage,
-            'sort'               => (string) $request->query('sort', 'created_at'),
-            'direction'          => strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc',
+            'q' => trim((string) $request->query('q', '')),
+            'date_preset' => $preset,
+            'from' => $from,
+            'to' => $to,
+            'from_dt' => $fromDt,
+            'to_dt' => $toDt,
+            'circle_id' => (string) $request->query('circle_id', ''),
+            'sender_name' => trim((string) $request->query('sender_name', '')),
+            'sender_email' => trim((string) $request->query('sender_email', '')),
+            'sender_city' => trim((string) $request->query('sender_city', '')),
+            'sender_membership' => trim((string) $request->query('sender_membership', '')),
+            'receiver_name' => trim((string) $request->query('receiver_name', '')),
+            'receiver_email' => trim((string) $request->query('receiver_email', '')),
+            'receiver_city' => trim((string) $request->query('receiver_city', '')),
+            'receiver_membership' => trim((string) $request->query('receiver_membership', '')),
+            'message_type' => trim((string) $request->query('message_type', '')),
+            'read_status' => trim((string) $request->query('read_status', '')),
+            'per_page' => $perPage,
+            'sort' => (string) $request->query('sort', 'created_at'),
+            'direction' => strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc',
         ];
     }
 
@@ -210,35 +212,39 @@ class ActivitiesMessagesController extends Controller
             ->joinSub(
                 DB::table('chats')->select('id', DB::raw('CASE WHEN user1_id = user2_id THEN user2_id ELSE user1_id END as receiver_id')),
                 'chat_receiver',
-                fn($join) => $join->on('chat_receiver.id', '=', 'm.chat_id')
+                fn ($join) => $join->on('chat_receiver.id', '=', 'm.chat_id')
             )
             ->join('users as receiver', function ($join) {
-                $join->on('receiver.id', '=', DB::raw("CASE WHEN c.user1_id = m.sender_id THEN c.user2_id ELSE c.user1_id END"));
+                $join->on('receiver.id', '=', DB::raw('CASE WHEN c.user1_id = m.sender_id THEN c.user2_id ELSE c.user1_id END'));
             });
 
         // Global search (no message content for privacy)
         if ($filters['q'] !== '') {
-            $like = '%' . $this->escapeLike($filters['q']) . '%';
+            $like = '%'.$this->escapeLike($filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('sender.display_name', 'ILIKE', $like)
-                  ->orWhere('sender.first_name', 'ILIKE', $like)
-                  ->orWhere('sender.last_name', 'ILIKE', $like)
-                  ->orWhere('sender.email', 'ILIKE', $like)
-                  ->orWhere('receiver.display_name', 'ILIKE', $like)
-                  ->orWhere('receiver.first_name', 'ILIKE', $like)
-                  ->orWhere('receiver.last_name', 'ILIKE', $like)
-                  ->orWhere('receiver.email', 'ILIKE', $like);
+                    ->orWhere('sender.first_name', 'ILIKE', $like)
+                    ->orWhere('sender.last_name', 'ILIKE', $like)
+                    ->orWhere('sender.email', 'ILIKE', $like)
+                    ->orWhere('receiver.display_name', 'ILIKE', $like)
+                    ->orWhere('receiver.first_name', 'ILIKE', $like)
+                    ->orWhere('receiver.last_name', 'ILIKE', $like)
+                    ->orWhere('receiver.email', 'ILIKE', $like);
             });
         }
 
-        if ($filters['from_dt']) $query->where('m.created_at', '>=', $filters['from_dt']);
-        if ($filters['to_dt'])   $query->where('m.created_at', '<=', $filters['to_dt']);
+        if ($filters['from_dt']) {
+            $query->where('m.created_at', '>=', $filters['from_dt']);
+        }
+        if ($filters['to_dt']) {
+            $query->where('m.created_at', '<=', $filters['to_dt']);
+        }
 
         if ($filters['message_type'] === 'text') {
             $query->where(function ($q) {
                 $q->whereNull('m.attachments')
-                  ->orWhereRaw("m.attachments = 'null'::jsonb")
-                  ->orWhereRaw("jsonb_array_length(m.attachments) = 0");
+                    ->orWhereRaw("m.attachments = 'null'::jsonb")
+                    ->orWhereRaw('jsonb_array_length(m.attachments) = 0');
             });
         } elseif ($filters['message_type'] === 'media') {
             $query->whereRaw("m.attachments IS NOT NULL AND m.attachments != 'null'::jsonb AND jsonb_array_length(m.attachments) > 0");
@@ -252,14 +258,14 @@ class ActivitiesMessagesController extends Controller
 
         // Sender filters
         if ($filters['sender_name'] !== '') {
-            $like = '%' . $this->escapeLike($filters['sender_name']) . '%';
+            $like = '%'.$this->escapeLike($filters['sender_name']).'%';
             $query->whereRaw("coalesce(nullif(trim(concat_ws(' ', sender.first_name, sender.last_name)), ''), sender.display_name, '') ILIKE ?", [$like]);
         }
         if ($filters['sender_email'] !== '') {
-            $query->where('sender.email', 'ILIKE', '%' . $this->escapeLike($filters['sender_email']) . '%');
+            $query->where('sender.email', 'ILIKE', '%'.$this->escapeLike($filters['sender_email']).'%');
         }
         if ($filters['sender_city'] !== '') {
-            $query->where('sender.city', 'ILIKE', '%' . $this->escapeLike($filters['sender_city']) . '%');
+            $query->where('sender.city', 'ILIKE', '%'.$this->escapeLike($filters['sender_city']).'%');
         }
         if ($filters['sender_membership'] !== '') {
             $query->where('sender.membership_status', $filters['sender_membership']);
@@ -267,14 +273,14 @@ class ActivitiesMessagesController extends Controller
 
         // Receiver filters
         if ($filters['receiver_name'] !== '') {
-            $like = '%' . $this->escapeLike($filters['receiver_name']) . '%';
+            $like = '%'.$this->escapeLike($filters['receiver_name']).'%';
             $query->whereRaw("coalesce(nullif(trim(concat_ws(' ', receiver.first_name, receiver.last_name)), ''), receiver.display_name, '') ILIKE ?", [$like]);
         }
         if ($filters['receiver_email'] !== '') {
-            $query->where('receiver.email', 'ILIKE', '%' . $this->escapeLike($filters['receiver_email']) . '%');
+            $query->where('receiver.email', 'ILIKE', '%'.$this->escapeLike($filters['receiver_email']).'%');
         }
         if ($filters['receiver_city'] !== '') {
-            $query->where('receiver.city', 'ILIKE', '%' . $this->escapeLike($filters['receiver_city']) . '%');
+            $query->where('receiver.city', 'ILIKE', '%'.$this->escapeLike($filters['receiver_city']).'%');
         }
         if ($filters['receiver_membership'] !== '') {
             $query->where('receiver.membership_status', $filters['receiver_membership']);
@@ -306,10 +312,14 @@ class ActivitiesMessagesController extends Controller
             ->join('users as sender', 'sender.id', '=', 'm.sender_id');
         ActivityUserFilter::applyToActivityQuery($mq, 'm.sender_id', 'sender');
 
-        if ($filters['from_dt']) $mq->where('m.created_at', '>=', $filters['from_dt']);
-        if ($filters['to_dt'])   $mq->where('m.created_at', '<=', $filters['to_dt']);
+        if ($filters['from_dt']) {
+            $mq->where('m.created_at', '>=', $filters['from_dt']);
+        }
+        if ($filters['to_dt']) {
+            $mq->where('m.created_at', '<=', $filters['to_dt']);
+        }
 
-        $stats = (clone $mq)->selectRaw("
+        $stats = (clone $mq)->selectRaw('
             COUNT(*) as total_messages,
             COUNT(*) FILTER (WHERE m.attachments IS NULL OR jsonb_array_length(m.attachments) = 0) as total_text,
             COUNT(*) FILTER (WHERE m.attachments IS NOT NULL AND jsonb_array_length(m.attachments) > 0) as total_media,
@@ -317,39 +327,39 @@ class ActivitiesMessagesController extends Controller
             COUNT(*) FILTER (WHERE m.is_read = false) as total_unread,
             COUNT(DISTINCT m.sender_id) as unique_senders,
             COUNT(DISTINCT m.chat_id) as total_conversations
-        ")->first();
+        ')->first();
 
         // Unique active receivers
         $uniqReceivers = DB::table('messages as m')
             ->whereNull('m.deleted_at')
             ->join('chats as c', 'c.id', '=', 'm.chat_id')
-            ->when($filters['from_dt'], fn($q) => $q->where('m.created_at', '>=', $filters['from_dt']))
-            ->when($filters['to_dt'],   fn($q) => $q->where('m.created_at', '<=', $filters['to_dt']))
-            ->selectRaw("COUNT(DISTINCT CASE WHEN c.user1_id = m.sender_id THEN c.user2_id ELSE c.user1_id END) as cnt")
+            ->when($filters['from_dt'], fn ($q) => $q->where('m.created_at', '>=', $filters['from_dt']))
+            ->when($filters['to_dt'], fn ($q) => $q->where('m.created_at', '<=', $filters['to_dt']))
+            ->selectRaw('COUNT(DISTINCT CASE WHEN c.user1_id = m.sender_id THEN c.user2_id ELSE c.user1_id END) as cnt')
             ->value('cnt');
 
-        $total        = (int) ($stats->total_messages ?? 0);
-        $totalText    = (int) ($stats->total_text ?? 0);
-        $totalMedia   = (int) ($stats->total_media ?? 0);
-        $totalRead    = (int) ($stats->total_read ?? 0);
-        $totalUnread  = (int) ($stats->total_unread ?? 0);
-        $totalConvs   = (int) ($stats->total_conversations ?? 0);
-        $uniqueSenders= (int) ($stats->unique_senders ?? 0);
+        $total = (int) ($stats->total_messages ?? 0);
+        $totalText = (int) ($stats->total_text ?? 0);
+        $totalMedia = (int) ($stats->total_media ?? 0);
+        $totalRead = (int) ($stats->total_read ?? 0);
+        $totalUnread = (int) ($stats->total_unread ?? 0);
+        $totalConvs = (int) ($stats->total_conversations ?? 0);
+        $uniqueSenders = (int) ($stats->unique_senders ?? 0);
 
-        $avgPerConv   = $totalConvs > 0 ? round($total / $totalConvs, 2) : 0;
+        $avgPerConv = $totalConvs > 0 ? round($total / $totalConvs, 2) : 0;
         $avgPerMember = max(1, $uniqueSenders) > 0 ? round($total / max(1, $uniqueSenders), 2) : 0;
 
         return [
-            'total_messages'      => $total,
-            'total_text'          => $totalText,
-            'total_media'         => $totalMedia,
-            'total_read'          => $totalRead,
-            'total_unread'        => $totalUnread,
-            'unique_senders'      => $uniqueSenders,
-            'unique_receivers'    => (int) $uniqReceivers,
+            'total_messages' => $total,
+            'total_text' => $totalText,
+            'total_media' => $totalMedia,
+            'total_read' => $totalRead,
+            'total_unread' => $totalUnread,
+            'unique_senders' => $uniqueSenders,
+            'unique_receivers' => (int) $uniqReceivers,
             'total_conversations' => $totalConvs,
-            'avg_per_conversation'=> $avgPerConv,
-            'avg_per_member'      => $avgPerMember,
+            'avg_per_conversation' => $avgPerConv,
+            'avg_per_member' => $avgPerMember,
         ];
     }
 
@@ -360,7 +370,7 @@ class ActivitiesMessagesController extends Controller
     private function buildTrends(array $filters): array
     {
         $trendFrom = $filters['from_dt'] ?? now()->subDays(29)->startOfDay();
-        $trendTo   = $filters['to_dt']   ?? now()->endOfDay();
+        $trendTo = $filters['to_dt'] ?? now()->endOfDay();
 
         if (Carbon::parse($trendFrom)->diffInDays(Carbon::parse($trendTo)) > 90) {
             $trendFrom = Carbon::parse($trendTo)->subDays(89)->startOfDay();
@@ -387,17 +397,17 @@ class ActivitiesMessagesController extends Controller
             COUNT(*) as total,
             COUNT(DISTINCT m.chat_id) as conversations
         ")
-        ->groupByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
-        ->orderByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
-        ->get();
+            ->groupByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
+            ->orderByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
+            ->get();
 
         $fromDate = Carbon::parse($trendFrom)->startOfDay();
-        $toDate   = Carbon::parse($trendTo)->endOfDay();
+        $toDate = Carbon::parse($trendTo)->endOfDay();
 
         if ($rows->isEmpty() && empty($filters['from_dt']) && empty($filters['to_dt'])) {
             $latestDate = DB::table('messages')->whereNull('deleted_at')->max('created_at');
             if ($latestDate) {
-                $toDate   = Carbon::parse($latestDate)->endOfDay();
+                $toDate = Carbon::parse($latestDate)->endOfDay();
                 $fromDate = $toDate->copy()->subDays(29)->startOfDay();
 
                 $reQuery = DB::table('messages as m')
@@ -417,9 +427,9 @@ class ActivitiesMessagesController extends Controller
                     COUNT(*) as total,
                     COUNT(DISTINCT m.chat_id) as conversations
                 ")
-                ->groupByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
-                ->orderByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
-                ->get();
+                    ->groupByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
+                    ->orderByRaw("DATE(m.created_at AT TIME ZONE 'UTC')")
+                    ->get();
             }
         }
 
@@ -428,14 +438,16 @@ class ActivitiesMessagesController extends Controller
             $dataByDay[$row->day] = $row;
         }
 
-        $labels = []; $totals = []; $conversations = [];
+        $labels = [];
+        $totals = [];
+        $conversations = [];
 
         $curr = $fromDate->copy();
         while ($curr->lte($toDate)) {
-            $dayKey          = $curr->format('Y-m-d');
-            $labels[]        = $curr->format('d M');
-            $row             = $dataByDay[$dayKey] ?? null;
-            $totals[]        = $row ? (int) $row->total : 0;
+            $dayKey = $curr->format('Y-m-d');
+            $labels[] = $curr->format('d M');
+            $row = $dataByDay[$dayKey] ?? null;
+            $totals[] = $row ? (int) $row->total : 0;
             $conversations[] = $row ? (int) $row->conversations : 0;
             $curr->addDay();
         }
@@ -452,9 +464,9 @@ class ActivitiesMessagesController extends Controller
         return DB::table('messages as m')
             ->whereNull('m.deleted_at')
             ->join('users as sender', 'sender.id', '=', 'm.sender_id')
-            ->when($filters['from_dt'], fn($q) => $q->where('m.created_at', '>=', $filters['from_dt']))
-            ->when($filters['to_dt'],   fn($q) => $q->where('m.created_at', '<=', $filters['to_dt']))
-            ->tap(fn($q) => ActivityUserFilter::applyToActivityQuery($q, 'm.sender_id', 'sender'))
+            ->when($filters['from_dt'], fn ($q) => $q->where('m.created_at', '>=', $filters['from_dt']))
+            ->when($filters['to_dt'], fn ($q) => $q->where('m.created_at', '<=', $filters['to_dt']))
+            ->tap(fn ($q) => ActivityUserFilter::applyToActivityQuery($q, 'm.sender_id', 'sender'))
             ->groupBy('m.sender_id', 'sender.display_name', 'sender.first_name', 'sender.last_name', 'sender.email', 'sender.city', 'sender.membership_status')
             ->orderByDesc(DB::raw('COUNT(*)'))
             ->limit(10)
@@ -476,10 +488,10 @@ class ActivitiesMessagesController extends Controller
             ->whereNull('m.deleted_at')
             ->join('chats as c', 'c.id', '=', 'm.chat_id')
             ->join('users as receiver', function ($join) {
-                $join->on('receiver.id', '=', DB::raw("CASE WHEN c.user1_id = m.sender_id THEN c.user2_id ELSE c.user1_id END"));
+                $join->on('receiver.id', '=', DB::raw('CASE WHEN c.user1_id = m.sender_id THEN c.user2_id ELSE c.user1_id END'));
             })
-            ->when($filters['from_dt'], fn($q) => $q->where('m.created_at', '>=', $filters['from_dt']))
-            ->when($filters['to_dt'],   fn($q) => $q->where('m.created_at', '<=', $filters['to_dt']))
+            ->when($filters['from_dt'], fn ($q) => $q->where('m.created_at', '>=', $filters['from_dt']))
+            ->when($filters['to_dt'], fn ($q) => $q->where('m.created_at', '<=', $filters['to_dt']))
             ->groupBy('receiver.id', 'receiver.display_name', 'receiver.first_name', 'receiver.last_name', 'receiver.email', 'receiver.city', 'receiver.membership_status')
             ->orderByDesc(DB::raw('COUNT(*)'))
             ->limit(10)
@@ -501,8 +513,12 @@ class ActivitiesMessagesController extends Controller
             ->join('users as u2', 'u2.id', '=', 'c.user2_id')
             ->leftJoin('messages as m', function ($join) use ($filters) {
                 $join->on('m.chat_id', '=', 'c.id')->whereNull('m.deleted_at');
-                if ($filters['from_dt']) $join->where('m.created_at', '>=', $filters['from_dt']);
-                if ($filters['to_dt'])   $join->where('m.created_at', '<=', $filters['to_dt']);
+                if ($filters['from_dt']) {
+                    $join->where('m.created_at', '>=', $filters['from_dt']);
+                }
+                if ($filters['to_dt']) {
+                    $join->where('m.created_at', '<=', $filters['to_dt']);
+                }
             })
             ->groupBy(
                 'c.id', 'c.created_at', 'c.last_message_at',
@@ -530,38 +546,38 @@ class ActivitiesMessagesController extends Controller
 
     private function resolveDateRange(string $preset, string $from, string $to): array
     {
-        $tz  = config('app.timezone', 'UTC');
+        $tz = config('app.timezone', 'UTC');
         $now = Carbon::now($tz);
 
         return match ($preset) {
-            'today'          => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
-            'yesterday'      => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
-            'this_week'      => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
-            'last_week'      => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
-            'this_month'     => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
-            'last_month'     => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
-            'this_quarter'   => [$now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()],
-            'last_quarter'   => [$now->copy()->subQuarter()->startOfQuarter(), $now->copy()->subQuarter()->endOfQuarter()],
-            'this_year'      => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
-            'last_year'      => [$now->copy()->subYear()->startOfYear(), $now->copy()->subYear()->endOfYear()],
-            'last_7_days'    => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
-            'last_30_days'   => [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()],
-            'last_90_days'   => [$now->copy()->subDays(89)->startOfDay(), $now->copy()->endOfDay()],
-            'custom'         => [
+            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
+            'this_week' => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
+            'last_week' => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+            'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
+            'this_quarter' => [$now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()],
+            'last_quarter' => [$now->copy()->subQuarter()->startOfQuarter(), $now->copy()->subQuarter()->endOfQuarter()],
+            'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
+            'last_year' => [$now->copy()->subYear()->startOfYear(), $now->copy()->subYear()->endOfYear()],
+            'last_7_days' => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
+            'last_30_days' => [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()],
+            'last_90_days' => [$now->copy()->subDays(89)->startOfDay(), $now->copy()->endOfDay()],
+            'custom' => [
                 $from !== '' ? Carbon::parse($from, $tz)->startOfDay() : null,
-                $to   !== '' ? Carbon::parse($to, $tz)->endOfDay()   : null,
+                $to !== '' ? Carbon::parse($to, $tz)->endOfDay() : null,
             ],
-            default          => [null, null],
+            default => [null, null],
         };
     }
 
     private function resolveSortColumn(string $sort): string
     {
         return match ($sort) {
-            'sender_name'    => 'sender.first_name',
-            'receiver_name'  => 'receiver.first_name',
-            'is_read'        => 'm.is_read',
-            default          => 'm.created_at',
+            'sender_name' => 'sender.first_name',
+            'receiver_name' => 'receiver.first_name',
+            'is_read' => 'm.is_read',
+            default => 'm.created_at',
         };
     }
 
@@ -585,7 +601,8 @@ class ActivitiesMessagesController extends Controller
 
     private function formatName(?string $display, ?string $first, ?string $last): string
     {
-        $full = trim(($first ?? '') . ' ' . ($last ?? ''));
+        $full = trim(($first ?? '').' '.($last ?? ''));
+
         return $full !== '' ? $full : ($display ?? '—');
     }
 }

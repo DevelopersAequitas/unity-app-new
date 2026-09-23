@@ -6,6 +6,7 @@ namespace App\Models\Web;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class WebCompany extends Model
@@ -33,7 +34,7 @@ class WebCompany extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
-            if (empty($model->attributes['slug']) && \Illuminate\Support\Facades\Schema::hasColumn('web_companies', 'slug')) {
+            if (empty($model->attributes['slug']) && Schema::hasColumn('web_companies', 'slug')) {
                 $model->slug = Str::slug($model->name ?? 'company').'-'.random_int(100, 999);
             }
         });

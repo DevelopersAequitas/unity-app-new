@@ -8,7 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Web\WebMedia;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -20,8 +22,8 @@ class WebMediaController extends Controller
         $type = $request->query('type');
         $search = $request->query('search');
 
-        if (! \Illuminate\Support\Facades\Schema::hasTable('web_media')) {
-            $emptyPaginator = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 18);
+        if (! Schema::hasTable('web_media')) {
+            $emptyPaginator = new LengthAwarePaginator([], 0, 18);
 
             return view('admin.web.media.index', [
                 'mediaAssets' => $emptyPaginator,

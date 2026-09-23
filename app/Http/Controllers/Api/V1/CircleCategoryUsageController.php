@@ -81,28 +81,34 @@ class CircleCategoryUsageController extends Controller
                 ->orderBy('id')
                 ->get(['id', 'name', 'level2_id']);
 
-        $level3Ids = $level3->pluck('id')->values();
-
-        $level4 = $level3Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel4::query()
-                ->whereIn('level3_id', $level3Ids)
-                ->orderBy('sort_order')
-                ->orderBy('id')
-                ->get(['id', 'name', 'level3_id']);
+        $level4 = CircleCategoryLevel4::query()
+            ->where('circle_category_id', $mainCategory->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name', 'level2_id', 'level3_id']);
 
         $level4ByLevel3 = [];
-        foreach ($level4 as $row) {
-            $parentId = (int) ($row->level3_id ?? 0);
-            if ($parentId <= 0) {
-                continue;
-            }
+        $level4ByLevel2Direct = [];
+        $directLevel4 = [];
 
-            $level4ByLevel3[$parentId][] = [
+        foreach ($level4 as $row) {
+            $l3Id = (int) ($row->level3_id ?? 0);
+            $l2Id = (int) ($row->level2_id ?? 0);
+
+            $item = [
                 'id' => $row->id,
                 'name' => $row->name,
                 'level' => 4,
             ];
+
+            if ($l3Id > 0) {
+                $level4ByLevel3[$l3Id][] = $item;
+            } elseif ($l2Id > 0) {
+                $level4ByLevel2Direct[$l2Id][] = $item;
+            } else {
+                $directLevel4[] = $item;
+            }
         }
 
         $level3ByLevel2 = [];
@@ -122,12 +128,21 @@ class CircleCategoryUsageController extends Controller
 
         $children = [];
         foreach ($level2 as $row) {
+            $l2Children = array_merge(
+                $level3ByLevel2[$row->id] ?? [],
+                $level4ByLevel2Direct[$row->id] ?? []
+            );
+
             $children[] = [
                 'id' => $row->id,
                 'name' => $row->name,
                 'level' => 2,
-                'children' => $level3ByLevel2[$row->id] ?? [],
+                'children' => $l2Children,
             ];
+        }
+
+        if (! empty($directLevel4)) {
+            $children = array_merge($children, $directLevel4);
         }
 
         return response()->json([
@@ -199,7 +214,8 @@ class CircleCategoryUsageController extends Controller
         $level3Ids = $level3->pluck('id')->values();
 
         $level4Query = CircleCategoryLevel4::query()
-            ->whereIn('level3_id', $level3Ids)
+            ->where('circle_category_id', $mainCategoryId)
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id');
 
@@ -207,23 +223,30 @@ class CircleCategoryUsageController extends Controller
             $level4Query->whereNotIn('id', $closedLevel4Ids);
         }
 
-        $level4 = $level3Ids->isEmpty()
-            ? collect()
-            : $level4Query->get(['id', 'name', 'level3_id']);
+        $level4 = $level4Query->get(['id', 'name', 'level2_id', 'level3_id']);
 
         $level4ByLevel3 = [];
-        foreach ($level4 as $row) {
-            $parentId = (int) ($row->level3_id ?? 0);
-            if ($parentId <= 0) {
-                continue;
-            }
+        $level4ByLevel2Direct = [];
+        $directLevel4 = [];
 
-            $level4ByLevel3[$parentId][] = [
+        foreach ($level4 as $row) {
+            $l3Id = (int) ($row->level3_id ?? 0);
+            $l2Id = (int) ($row->level2_id ?? 0);
+
+            $item = [
                 'id' => $row->id,
                 'name' => $row->name,
                 'level' => 4,
                 'is_closed' => false,
             ];
+
+            if ($l3Id > 0) {
+                $level4ByLevel3[$l3Id][] = $item;
+            } elseif ($l2Id > 0) {
+                $level4ByLevel2Direct[$l2Id][] = $item;
+            } else {
+                $directLevel4[] = $item;
+            }
         }
 
         $level3ByLevel2 = [];
@@ -243,12 +266,21 @@ class CircleCategoryUsageController extends Controller
 
         $openCategories = [];
         foreach ($level2 as $row) {
+            $l2Children = array_merge(
+                $level3ByLevel2[$row->id] ?? [],
+                $level4ByLevel2Direct[$row->id] ?? []
+            );
+
             $openCategories[] = [
                 'id' => $row->id,
                 'name' => $row->name,
                 'level' => 2,
-                'children' => $level3ByLevel2[$row->id] ?? [],
+                'children' => $l2Children,
             ];
+        }
+
+        if (! empty($directLevel4)) {
+            $openCategories = array_merge($openCategories, $directLevel4);
         }
 
         return response()->json([
@@ -320,7 +352,7 @@ class CircleCategoryUsageController extends Controller
 
         $closedLevel4Records = CircleCategoryLevel4::query()
             ->whereIn('id', $closedLevel4Ids)
-            ->with(['level3Category.level2Category'])
+            ->with(['level3Category.level2Category', 'level2Category'])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -336,6 +368,8 @@ class CircleCategoryUsageController extends Controller
                 return $peer;
             }, $peers);
 
+            $parentL2 = $row->level3Category?->level2Category ?? $row->level2Category;
+
             return [
                 'id' => $row->id,
                 'name' => $row->name,
@@ -345,9 +379,9 @@ class CircleCategoryUsageController extends Controller
                     'id' => $row->level3Category->id,
                     'name' => $row->level3Category->name,
                 ] : null,
-                'parent_level2' => $row->level3Category?->level2Category ? [
-                    'id' => $row->level3Category->level2Category->id,
-                    'name' => $row->level3Category->level2Category->name,
+                'parent_level2' => $parentL2 ? [
+                    'id' => $parentL2->id,
+                    'name' => $parentL2->name,
                 ] : null,
                 'occupied_by' => $formattedPeers,
             ];

@@ -8,6 +8,37 @@
     <a href="{{ route('admin.categories.index') }}" class="btn btn-sm btn-outline-secondary">Back to List</a>
 </div>
 
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show shadow-sm d-flex align-items-center mb-3" role="alert">
+        <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+        <div>{{ session('success') }}</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm d-flex align-items-center mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+        <div>{{ session('error') }}</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if(isset($errors) && $errors->any())
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-3" role="alert">
+        <div class="d-flex align-items-center mb-1">
+            <i class="bi bi-exclamation-octagon-fill me-2 fs-5"></i>
+            <strong>Please check the following errors:</strong>
+        </div>
+        <ul class="mb-0 ps-3">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
 <div class="row g-3 mb-3">
     <div class="col-lg-7">
         <div class="card shadow-sm h-100">
@@ -85,19 +116,37 @@
                 <h6 class="mb-2">Add Level 4 Category</h6>
                 <form method="POST" action="{{ route('admin.categories.level4.store', $category) }}" class="d-grid gap-2" id="add-level4-form">
                     @csrf
-                    <select name="level2_id" class="form-select" id="level4-level2" required>
-                        <option value="">Select Level 2 Parent</option>
-                        @foreach($level2Options as $option)
-                            <option value="{{ $option->id }}">{{ $option->name }}</option>
-                        @endforeach
-                    </select>
-                    <select name="level3_id" class="form-select" id="level4-level3" required>
-                        <option value="">Select Level 3 Parent</option>
-                        @foreach($level3Options as $option)
-                            <option value="{{ $option->id }}" data-level2-id="{{ $option->level2_id }}">{{ $option->name }}</option>
-                        @endforeach
-                    </select>
+                    <div class="small text-muted mb-1">
+                        Parent: <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">{{ $category->name }}</span>
+                    </div>
                     <input type="text" name="name" class="form-control" placeholder="Level 4 Category Name" required>
+                    
+                    <div class="accordion accordion-flush" id="accL4Parent">
+                        <div class="accordion-item bg-transparent">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed py-1 px-0 text-muted small bg-transparent shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#l4AdvancedParent">
+                                    + Assign to Level 2 / 3 (Optional)
+                                </button>
+                            </h2>
+                            <div id="l4AdvancedParent" class="accordion-collapse collapse">
+                                <div class="d-grid gap-2 pt-2">
+                                    <select name="level2_id" class="form-select form-select-sm" id="level4-level2">
+                                        <option value="">Select Level 2 Parent (Optional)</option>
+                                        @foreach($level2Options as $option)
+                                            <option value="{{ $option->id }}">{{ $option->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <select name="level3_id" class="form-select form-select-sm" id="level4-level3" disabled>
+                                        <option value="">Select Level 3 Parent (Optional)</option>
+                                        @foreach($level3Options as $option)
+                                            <option value="{{ $option->id }}" data-level2-id="{{ $option->level2_id }}">{{ $option->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-primary btn-sm">Add Level 4</button>
                 </form>
             </div>
@@ -108,10 +157,34 @@
 <div class="card shadow-sm">
     <div class="card-header fw-semibold">Hierarchical Category Tree</div>
     <div class="card-body">
-        @if(empty($children))
+        @if(empty($children) && empty($directLevel4Categories))
             <p class="text-muted mb-0">No child categories found for this main category.</p>
         @else
             <div class="small text-muted mb-2">Main Category: <strong class="text-dark">{{ $category->name }}</strong></div>
+
+            @if(!empty($directLevel4Categories))
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <div class="fw-semibold text-dark mb-2 pb-2 border-bottom d-flex justify-content-between align-items-center">
+                        <span>Direct Subcategories (Level 4)</span>
+                        <span class="badge bg-secondary-subtle text-secondary border">{{ count($directLevel4Categories) }}</span>
+                    </div>
+                    <ul class="list-unstyled mb-0">
+                        @foreach($directLevel4Categories as $level4Category)
+                            <li class="d-flex justify-content-between align-items-center py-1">
+                                <span class="text-muted">• Level 4: {{ $level4Category->name }}</span>
+                                <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             @foreach($children as $level2Node)
                 <div class="border rounded p-3 mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
@@ -125,8 +198,30 @@
                         </form>
                     </div>
 
+                    @if(!empty($level2Node['direct_level4']))
+                        <div class="ms-3 border-start ps-3 mb-2">
+                            <div class="small fw-semibold text-muted mb-1">Direct Level 4 Subcategories:</div>
+                            <ul class="list-unstyled mb-0">
+                                @foreach($level2Node['direct_level4'] as $level4Category)
+                                    <li class="d-flex justify-content-between align-items-center py-1">
+                                        <span class="text-muted">• Level 4: {{ $level4Category->name }}</span>
+                                        <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     @if(empty($level2Node['children']))
-                        <div class="text-muted ms-2">No level 3 categories.</div>
+                        @if(empty($level2Node['direct_level4']))
+                            <div class="text-muted ms-2">No subcategories.</div>
+                        @endif
                     @else
                         @foreach($level2Node['children'] as $level3Node)
                             <div class="ms-3 border-start ps-3 mb-2">
@@ -180,28 +275,33 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
-    const originalOptions = Array.from(level3Select.querySelectorAll('option')).map((option) => option.cloneNode(true));
+    const originalOptions = Array.from(level3Select.querySelectorAll('option')).filter((opt) => opt.value !== '');
 
     const renderLevel3Options = () => {
         const selectedLevel2 = level2Select.value;
         level3Select.innerHTML = '';
 
-        originalOptions.forEach((option) => {
-            if (!option.value) {
-                level3Select.appendChild(option.cloneNode(true));
-                return;
-            }
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Select Level 3 Parent (Optional)';
+        level3Select.appendChild(defaultOption);
 
-            if (selectedLevel2 && option.dataset.level2Id === selectedLevel2) {
+        if (!selectedLevel2) {
+            level3Select.disabled = true;
+            return;
+        }
+
+        level3Select.disabled = false;
+        let count = 0;
+        originalOptions.forEach((option) => {
+            if (option.dataset.level2Id === selectedLevel2) {
                 level3Select.appendChild(option.cloneNode(true));
+                count++;
             }
         });
 
-        if (level3Select.options.length <= 1) {
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = selectedLevel2 ? 'No Level 3 categories for selected Level 2' : 'Select Level 3 Parent';
-            level3Select.appendChild(placeholder);
+        if (count === 0) {
+            defaultOption.textContent = 'No Level 3 categories (will attach directly to Level 2)';
         }
     };
 

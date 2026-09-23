@@ -64,20 +64,20 @@ class ActivitiesConnectionsController extends Controller
             ->withQueryString();
 
         // Top activity reports
-        $topSenders    = $this->topMembersBySent($filters);
-        $topReceivers  = $this->topMembersByReceived($filters);
-        $topAccepted   = $this->topMembersByAccepted($filters);
+        $topSenders = $this->topMembersBySent($filters);
+        $topReceivers = $this->topMembersByReceived($filters);
+        $topAccepted = $this->topMembersByAccepted($filters);
 
         return view('admin.activities.connections.index', [
-            'items'         => $items,
-            'filters'       => $filters,
-            'summary'       => $summary,
-            'trends'        => $trends,
-            'topSenders'    => $topSenders,
-            'topReceivers'  => $topReceivers,
-            'topAccepted'   => $topAccepted,
-            'total'         => $total,
-            'circles'       => $this->circleOptions(),
+            'items' => $items,
+            'filters' => $filters,
+            'summary' => $summary,
+            'trends' => $trends,
+            'topSenders' => $topSenders,
+            'topReceivers' => $topReceivers,
+            'topAccepted' => $topAccepted,
+            'total' => $total,
+            'circles' => $this->circleOptions(),
         ]);
     }
 
@@ -87,8 +87,8 @@ class ActivitiesConnectionsController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
-        $filters  = $this->buildFilters($request);
-        $filename = 'connections_analytics_' . now()->format('Ymd_His') . '.csv';
+        $filters = $this->buildFilters($request);
+        $filename = 'connections_analytics_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
@@ -141,7 +141,7 @@ class ActivitiesConnectionsController extends Controller
                     ->orderBy('c.created_at')
                     ->chunk(500, function ($rows) use ($handle) {
                         foreach ($rows as $row) {
-                            $senderName   = $this->formatName($row->actor_display_name, $row->actor_first_name, $row->actor_last_name);
+                            $senderName = $this->formatName($row->actor_display_name, $row->actor_first_name, $row->actor_last_name);
                             $receiverName = $this->formatName($row->peer_display_name, $row->peer_first_name, $row->peer_last_name);
 
                             $requestedAt = $row->created_at ? Carbon::parse($row->created_at) : null;
@@ -174,10 +174,10 @@ class ActivitiesConnectionsController extends Controller
                 fclose($handle);
             }
         }, $filename, [
-            'Content-Type'  => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
-            'Pragma'        => 'no-cache',
-            'Expires'       => '0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 
@@ -188,8 +188,8 @@ class ActivitiesConnectionsController extends Controller
     private function buildFilters(Request $request): array
     {
         $preset = (string) $request->query('date_preset', '');
-        $from   = (string) $request->query('from', '');
-        $to     = (string) $request->query('to', '');
+        $from = (string) $request->query('from', '');
+        $to = (string) $request->query('to', '');
 
         [$fromDt, $toDt] = $this->resolveDateRange($preset, $from, $to);
 
@@ -198,34 +198,34 @@ class ActivitiesConnectionsController extends Controller
             $perPage = 20;
         }
 
-        $sort      = (string) $request->query('sort', 'created_at');
+        $sort = (string) $request->query('sort', 'created_at');
         $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
         return [
             // Search
-            'q'              => trim((string) $request->query('q', '')),
+            'q' => trim((string) $request->query('q', '')),
             // Date
-            'date_preset'    => $preset,
-            'from'           => $from,
-            'to'             => $to,
-            'from_dt'        => $fromDt,
-            'to_dt'          => $toDt,
+            'date_preset' => $preset,
+            'from' => $from,
+            'to' => $to,
+            'from_dt' => $fromDt,
+            'to_dt' => $toDt,
             // Circle
-            'circle_id'      => (string) $request->query('circle_id', ''),
+            'circle_id' => (string) $request->query('circle_id', ''),
             // Advanced filters
-            'sender_name'    => trim((string) $request->query('sender_name', '')),
-            'sender_email'   => trim((string) $request->query('sender_email', '')),
-            'sender_city'    => trim((string) $request->query('sender_city', '')),
+            'sender_name' => trim((string) $request->query('sender_name', '')),
+            'sender_email' => trim((string) $request->query('sender_email', '')),
+            'sender_city' => trim((string) $request->query('sender_city', '')),
             'sender_membership' => trim((string) $request->query('sender_membership', '')),
-            'receiver_name'  => trim((string) $request->query('receiver_name', '')),
+            'receiver_name' => trim((string) $request->query('receiver_name', '')),
             'receiver_email' => trim((string) $request->query('receiver_email', '')),
-            'receiver_city'  => trim((string) $request->query('receiver_city', '')),
+            'receiver_city' => trim((string) $request->query('receiver_city', '')),
             'receiver_membership' => trim((string) $request->query('receiver_membership', '')),
-            'status'         => (string) $request->query('status', ''),
+            'status' => (string) $request->query('status', ''),
             // Pagination & sorting
-            'per_page'       => $perPage,
-            'sort'           => $sort,
-            'direction'      => $direction,
+            'per_page' => $perPage,
+            'sort' => $sort,
+            'direction' => $direction,
         ];
     }
 
@@ -241,16 +241,16 @@ class ActivitiesConnectionsController extends Controller
 
         // Global search
         if ($filters['q'] !== '') {
-            $like = '%' . $this->escapeLike($filters['q']) . '%';
+            $like = '%'.$this->escapeLike($filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
-                  ->orWhere('actor.first_name', 'ILIKE', $like)
-                  ->orWhere('actor.last_name', 'ILIKE', $like)
-                  ->orWhere('actor.email', 'ILIKE', $like)
-                  ->orWhere('peer.display_name', 'ILIKE', $like)
-                  ->orWhere('peer.first_name', 'ILIKE', $like)
-                  ->orWhere('peer.last_name', 'ILIKE', $like)
-                  ->orWhere('peer.email', 'ILIKE', $like);
+                    ->orWhere('actor.first_name', 'ILIKE', $like)
+                    ->orWhere('actor.last_name', 'ILIKE', $like)
+                    ->orWhere('actor.email', 'ILIKE', $like)
+                    ->orWhere('peer.display_name', 'ILIKE', $like)
+                    ->orWhere('peer.first_name', 'ILIKE', $like)
+                    ->orWhere('peer.last_name', 'ILIKE', $like)
+                    ->orWhere('peer.email', 'ILIKE', $like);
             });
         }
 
@@ -271,17 +271,17 @@ class ActivitiesConnectionsController extends Controller
 
         // Sender filters
         if ($filters['sender_name'] !== '') {
-            $like = '%' . $this->escapeLike($filters['sender_name']) . '%';
+            $like = '%'.$this->escapeLike($filters['sender_name']).'%';
             $query->where(function ($q) use ($like) {
                 $q->whereRaw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '') ILIKE ?", [$like]);
             });
         }
         if ($filters['sender_email'] !== '') {
-            $like = '%' . $this->escapeLike($filters['sender_email']) . '%';
+            $like = '%'.$this->escapeLike($filters['sender_email']).'%';
             $query->where('actor.email', 'ILIKE', $like);
         }
         if ($filters['sender_city'] !== '') {
-            $like = '%' . $this->escapeLike($filters['sender_city']) . '%';
+            $like = '%'.$this->escapeLike($filters['sender_city']).'%';
             $query->where('actor.city', 'ILIKE', $like);
         }
         if ($filters['sender_membership'] !== '') {
@@ -290,17 +290,17 @@ class ActivitiesConnectionsController extends Controller
 
         // Receiver filters
         if ($filters['receiver_name'] !== '') {
-            $like = '%' . $this->escapeLike($filters['receiver_name']) . '%';
+            $like = '%'.$this->escapeLike($filters['receiver_name']).'%';
             $query->where(function ($q) use ($like) {
                 $q->whereRaw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '') ILIKE ?", [$like]);
             });
         }
         if ($filters['receiver_email'] !== '') {
-            $like = '%' . $this->escapeLike($filters['receiver_email']) . '%';
+            $like = '%'.$this->escapeLike($filters['receiver_email']).'%';
             $query->where('peer.email', 'ILIKE', $like);
         }
         if ($filters['receiver_city'] !== '') {
-            $like = '%' . $this->escapeLike($filters['receiver_city']) . '%';
+            $like = '%'.$this->escapeLike($filters['receiver_city']).'%';
             $query->where('peer.city', 'ILIKE', $like);
         }
         if ($filters['receiver_membership'] !== '') {
@@ -330,23 +330,23 @@ class ActivitiesConnectionsController extends Controller
     {
         $q = $this->baseQuery($filters);
 
-        $stats = (clone $q)->selectRaw("
+        $stats = (clone $q)->selectRaw('
             COUNT(*) as total_requests,
             COUNT(*) FILTER (WHERE c.is_approved = true) as total_accepted,
             COUNT(*) FILTER (WHERE c.is_approved = false) as total_pending,
             COUNT(DISTINCT c.requester_id) as unique_senders,
             COUNT(DISTINCT c.addressee_id) as unique_receivers
-        ")->first();
+        ')->first();
 
         $totalRequests = (int) ($stats->total_requests ?? 0);
         $totalAccepted = (int) ($stats->total_accepted ?? 0);
-        $totalPending  = (int) ($stats->total_pending ?? 0);
+        $totalPending = (int) ($stats->total_pending ?? 0);
         $uniqueSenders = (int) ($stats->unique_senders ?? 0);
         $uniqueReceivers = (int) ($stats->unique_receivers ?? 0);
 
         // Average requests per member
         $uniqueMembers = max(1, $uniqueSenders + $uniqueReceivers);
-        $avgPerMember  = $uniqueMembers > 0 ? round($totalRequests / $uniqueMembers, 2) : 0;
+        $avgPerMember = $uniqueMembers > 0 ? round($totalRequests / $uniqueMembers, 2) : 0;
 
         // Average per day
         $dayCount = 1;
@@ -356,7 +356,7 @@ class ActivitiesConnectionsController extends Controller
             $dayCount = max(1, Carbon::parse($filters['from_dt'])->diffInDays(now()) + 1);
         } else {
             // Use actual date range from data
-            $dateRange = (clone $q)->selectRaw("MIN(c.created_at) as min_date, MAX(c.created_at) as max_date")->first();
+            $dateRange = (clone $q)->selectRaw('MIN(c.created_at) as min_date, MAX(c.created_at) as max_date')->first();
             if ($dateRange && $dateRange->min_date && $dateRange->max_date) {
                 $dayCount = max(1, Carbon::parse($dateRange->min_date)->diffInDays(Carbon::parse($dateRange->max_date)) + 1);
             }
@@ -366,14 +366,14 @@ class ActivitiesConnectionsController extends Controller
         $acceptanceRate = $totalRequests > 0 ? round(($totalAccepted / $totalRequests) * 100, 1) : 0;
 
         return [
-            'total_requests'    => $totalRequests,
-            'total_accepted'    => $totalAccepted,
-            'total_pending'     => $totalPending,
-            'unique_senders'    => $uniqueSenders,
-            'unique_receivers'  => $uniqueReceivers,
-            'avg_per_member'    => $avgPerMember,
-            'avg_per_day'       => $avgPerDay,
-            'acceptance_rate'   => $acceptanceRate,
+            'total_requests' => $totalRequests,
+            'total_accepted' => $totalAccepted,
+            'total_pending' => $totalPending,
+            'unique_senders' => $uniqueSenders,
+            'unique_receivers' => $uniqueReceivers,
+            'avg_per_member' => $avgPerMember,
+            'avg_per_day' => $avgPerDay,
+            'acceptance_rate' => $acceptanceRate,
         ];
     }
 
@@ -384,7 +384,7 @@ class ActivitiesConnectionsController extends Controller
     private function buildTrends(array $filters): array
     {
         $trendFrom = $filters['from_dt'] ?? now()->subDays(29)->startOfDay();
-        $trendTo   = $filters['to_dt'] ?? now()->endOfDay();
+        $trendTo = $filters['to_dt'] ?? now()->endOfDay();
 
         if (Carbon::parse($trendFrom)->diffInDays(Carbon::parse($trendTo)) > 90) {
             $trendFrom = Carbon::parse($trendTo)->subDays(89)->startOfDay();
@@ -406,7 +406,7 @@ class ActivitiesConnectionsController extends Controller
         }
 
         $query->where('c.created_at', '>=', $trendFrom)
-              ->where('c.created_at', '<=', $trendTo);
+            ->where('c.created_at', '<=', $trendTo);
 
         $rows = $query->selectRaw("
             DATE(c.created_at AT TIME ZONE 'UTC') as day,
@@ -414,17 +414,17 @@ class ActivitiesConnectionsController extends Controller
             COUNT(*) FILTER (WHERE c.is_approved = true) as accepted,
             COUNT(*) FILTER (WHERE c.is_approved = false) as pending
         ")->groupByRaw("DATE(c.created_at AT TIME ZONE 'UTC')")
-          ->orderByRaw("DATE(c.created_at AT TIME ZONE 'UTC')")
-          ->get();
+            ->orderByRaw("DATE(c.created_at AT TIME ZONE 'UTC')")
+            ->get();
 
         $fromDate = Carbon::parse($trendFrom)->startOfDay();
-        $toDate   = Carbon::parse($trendTo)->endOfDay();
+        $toDate = Carbon::parse($trendTo)->endOfDay();
 
         // If no records in the past 30 days and no explicit date filter given, find latest activity window
         if ($rows->isEmpty() && empty($filters['from_dt']) && empty($filters['to_dt'])) {
             $latestDate = DB::table('connections')->max('created_at');
             if ($latestDate) {
-                $toDate   = Carbon::parse($latestDate)->endOfDay();
+                $toDate = Carbon::parse($latestDate)->endOfDay();
                 $fromDate = $toDate->copy()->subDays(29)->startOfDay();
 
                 $reQuery = DB::table('connections as c')
@@ -445,8 +445,8 @@ class ActivitiesConnectionsController extends Controller
                     COUNT(*) FILTER (WHERE c.is_approved = true) as accepted,
                     COUNT(*) FILTER (WHERE c.is_approved = false) as pending
                 ")->groupByRaw("DATE(c.created_at AT TIME ZONE 'UTC')")
-                  ->orderByRaw("DATE(c.created_at AT TIME ZONE 'UTC')")
-                  ->get();
+                    ->orderByRaw("DATE(c.created_at AT TIME ZONE 'UTC')")
+                    ->get();
             }
         }
 
@@ -455,19 +455,19 @@ class ActivitiesConnectionsController extends Controller
             $dataByDay[$row->day] = $row;
         }
 
-        $labels   = [];
-        $totals   = [];
+        $labels = [];
+        $totals = [];
         $accepted = [];
-        $pending  = [];
+        $pending = [];
 
         $curr = $fromDate->copy();
         while ($curr->lte($toDate)) {
-            $dayKey     = $curr->format('Y-m-d');
-            $labels[]   = $curr->format('d M');
-            $row        = $dataByDay[$dayKey] ?? null;
-            $totals[]   = $row ? (int) $row->total : 0;
+            $dayKey = $curr->format('Y-m-d');
+            $labels[] = $curr->format('d M');
+            $row = $dataByDay[$dayKey] ?? null;
+            $totals[] = $row ? (int) $row->total : 0;
             $accepted[] = $row ? (int) $row->accepted : 0;
-            $pending[]  = $row ? (int) $row->pending : 0;
+            $pending[] = $row ? (int) $row->pending : 0;
             $curr->addDay();
         }
 
@@ -482,9 +482,9 @@ class ActivitiesConnectionsController extends Controller
     {
         return DB::table('connections as c')
             ->join('users as actor', 'actor.id', '=', 'c.requester_id')
-            ->when($filters['from_dt'], fn($q) => $q->where('c.created_at', '>=', $filters['from_dt']))
-            ->when($filters['to_dt'], fn($q) => $q->where('c.created_at', '<=', $filters['to_dt']))
-            ->tap(fn($q) => $this->applyAdminScope($q, 'c.requester_id', null))
+            ->when($filters['from_dt'], fn ($q) => $q->where('c.created_at', '>=', $filters['from_dt']))
+            ->when($filters['to_dt'], fn ($q) => $q->where('c.created_at', '<=', $filters['to_dt']))
+            ->tap(fn ($q) => $this->applyAdminScope($q, 'c.requester_id', null))
             ->groupBy('c.requester_id', 'actor.display_name', 'actor.first_name', 'actor.last_name', 'actor.email', 'actor.city', 'actor.membership_status')
             ->orderByDesc(DB::raw('COUNT(*)'))
             ->limit(10)
@@ -495,7 +495,7 @@ class ActivitiesConnectionsController extends Controller
                 'actor.city as member_city',
                 'actor.membership_status',
                 DB::raw('COUNT(*) as total_sent'),
-                DB::raw("COUNT(*) FILTER (WHERE c.is_approved = true) as total_accepted"),
+                DB::raw('COUNT(*) FILTER (WHERE c.is_approved = true) as total_accepted'),
             ])
             ->get();
     }
@@ -504,9 +504,9 @@ class ActivitiesConnectionsController extends Controller
     {
         return DB::table('connections as c')
             ->join('users as peer', 'peer.id', '=', 'c.addressee_id')
-            ->when($filters['from_dt'], fn($q) => $q->where('c.created_at', '>=', $filters['from_dt']))
-            ->when($filters['to_dt'], fn($q) => $q->where('c.created_at', '<=', $filters['to_dt']))
-            ->tap(fn($q) => $this->applyAdminScope($q, 'c.addressee_id', null))
+            ->when($filters['from_dt'], fn ($q) => $q->where('c.created_at', '>=', $filters['from_dt']))
+            ->when($filters['to_dt'], fn ($q) => $q->where('c.created_at', '<=', $filters['to_dt']))
+            ->tap(fn ($q) => $this->applyAdminScope($q, 'c.addressee_id', null))
             ->groupBy('c.addressee_id', 'peer.display_name', 'peer.first_name', 'peer.last_name', 'peer.email', 'peer.city', 'peer.membership_status')
             ->orderByDesc(DB::raw('COUNT(*)'))
             ->limit(10)
@@ -526,9 +526,9 @@ class ActivitiesConnectionsController extends Controller
         return DB::table('connections as c')
             ->join('users as actor', 'actor.id', '=', 'c.requester_id')
             ->where('c.is_approved', true)
-            ->when($filters['from_dt'], fn($q) => $q->where('c.created_at', '>=', $filters['from_dt']))
-            ->when($filters['to_dt'], fn($q) => $q->where('c.created_at', '<=', $filters['to_dt']))
-            ->tap(fn($q) => $this->applyAdminScope($q, 'c.requester_id', null))
+            ->when($filters['from_dt'], fn ($q) => $q->where('c.created_at', '>=', $filters['from_dt']))
+            ->when($filters['to_dt'], fn ($q) => $q->where('c.created_at', '<=', $filters['to_dt']))
+            ->tap(fn ($q) => $this->applyAdminScope($q, 'c.requester_id', null))
             ->groupBy('c.requester_id', 'actor.display_name', 'actor.first_name', 'actor.last_name', 'actor.email', 'actor.city', 'actor.membership_status')
             ->orderByDesc(DB::raw('COUNT(*)'))
             ->limit(10)
@@ -553,38 +553,38 @@ class ActivitiesConnectionsController extends Controller
         $now = Carbon::now($tz);
 
         return match ($preset) {
-            'today'          => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
-            'yesterday'      => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
-            'this_week'      => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
-            'last_week'      => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
-            'this_month'     => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
-            'last_month'     => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
-            'this_quarter'   => [$now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()],
-            'last_quarter'   => [$now->copy()->subQuarter()->startOfQuarter(), $now->copy()->subQuarter()->endOfQuarter()],
-            'this_year'      => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
-            'last_year'      => [$now->copy()->subYear()->startOfYear(), $now->copy()->subYear()->endOfYear()],
-            'last_7_days'    => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
-            'last_30_days'   => [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()],
-            'last_90_days'   => [$now->copy()->subDays(89)->startOfDay(), $now->copy()->endOfDay()],
-            'custom'         => [
+            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
+            'this_week' => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
+            'last_week' => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+            'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
+            'this_quarter' => [$now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()],
+            'last_quarter' => [$now->copy()->subQuarter()->startOfQuarter(), $now->copy()->subQuarter()->endOfQuarter()],
+            'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
+            'last_year' => [$now->copy()->subYear()->startOfYear(), $now->copy()->subYear()->endOfYear()],
+            'last_7_days' => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
+            'last_30_days' => [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()],
+            'last_90_days' => [$now->copy()->subDays(89)->startOfDay(), $now->copy()->endOfDay()],
+            'custom' => [
                 $from !== '' ? Carbon::parse($from, $tz)->startOfDay() : null,
                 $to !== '' ? Carbon::parse($to, $tz)->endOfDay() : null,
             ],
-            'all_time'       => [null, null],
-            default          => [null, null],
+            'all_time' => [null, null],
+            default => [null, null],
         };
     }
 
     private function resolveSortColumn(string $sort): string
     {
         return match ($sort) {
-            'sender_name'    => 'actor.first_name',
-            'receiver_name'  => 'peer.first_name',
-            'sender_city'    => 'actor.city',
-            'receiver_city'  => 'peer.city',
-            'is_approved'    => 'c.is_approved',
-            'approved_at'    => 'c.approved_at',
-            default          => 'c.created_at',
+            'sender_name' => 'actor.first_name',
+            'receiver_name' => 'peer.first_name',
+            'sender_city' => 'actor.city',
+            'receiver_city' => 'peer.city',
+            'is_approved' => 'c.is_approved',
+            'approved_at' => 'c.approved_at',
+            default => 'c.created_at',
         };
     }
 
@@ -608,7 +608,8 @@ class ActivitiesConnectionsController extends Controller
 
     private function formatName(?string $display, ?string $first, ?string $last): string
     {
-        $full = trim(($first ?? '') . ' ' . ($last ?? ''));
+        $full = trim(($first ?? '').' '.($last ?? ''));
+
         return $full !== '' ? $full : ($display ?? '—');
     }
 }
