@@ -6,6 +6,8 @@ namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
 use App\Models\Circle;
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
@@ -293,17 +295,73 @@ class CircleManagementTest extends TestCase
 
     public function test_cannot_add_duplicate_member_to_circle(): void
     {
+        $cat = CircleCategory::create([
+            'name' => 'Tech Category',
+            'slug' => 'tech-category-'.Str::random(5),
+        ]);
+
+        $subCat = CircleCategoryLevel4::create([
+            'circle_category_id' => $cat->id,
+            'name' => 'Web Development',
+            'is_active' => true,
+        ]);
+
         // Founder is already in the circle
         $response = $this->actingAs($this->admin, 'admin')
             ->postJson(route('admin.circles.members.store', $this->circle), [
                 'user_id' => $this->founder->id,
                 'role' => 'member',
+                'level4_category_id' => $subCat->id,
             ]);
 
         $response->assertStatus(422);
         $response->assertJson([
             'success' => false,
             'message' => 'This peer is already a member of this circle.',
+        ]);
+    }
+
+    public function test_can_add_member_with_category_to_circle(): void
+    {
+        $newPeer = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        $cat = CircleCategory::create([
+            'name' => 'Marketing Category',
+            'slug' => 'marketing-category-'.Str::random(5),
+        ]);
+
+        $subCat = CircleCategoryLevel4::create([
+            'circle_category_id' => $cat->id,
+            'name' => 'SEO Specialist',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->postJson(route('admin.circles.members.store', $this->circle), [
+                'user_id' => $newPeer->id,
+                'role' => 'member',
+                'level4_category_id' => $subCat->id,
+                'level1_category_id' => $cat->id,
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'message' => 'Member added to the circle.',
+        ]);
+
+        $this->assertDatabaseHas('circle_members', [
+            'circle_id' => $this->circle->id,
+            'user_id' => $newPeer->id,
+        ]);
+
+        $this->assertDatabaseHas('joined_circle_categories', [
+            'circle_id' => $this->circle->id,
+            'user_id' => $newPeer->id,
+            'level1_category_id' => $cat->id,
+            'level4_category_id' => $subCat->id,
         ]);
     }
 }

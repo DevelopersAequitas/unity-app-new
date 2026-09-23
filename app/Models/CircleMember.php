@@ -227,4 +227,9 @@ class CircleMember extends Model
     {
         return $this->belongsTo(CircleCategoryLevel4::class, 'level_4_category_id');
     }
+
+    public function joinedCircleCategory(): HasOne
+    {
+        return $this->hasOne(JoinedCircleCategory::class, 'circle_member_id');
+    }
 }

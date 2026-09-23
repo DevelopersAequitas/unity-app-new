@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
 use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\City;
 use App\Models\Role;
 use App\Models\User;
@@ -449,7 +450,12 @@ class CircleController extends Controller
         }, $meetings, array_keys($meetings));
 
         $peerMembers = $circle->members()
-            ->with(['user', 'roleRef'])
+            ->with([
+                'user',
+                'roleRef',
+                'joinedCircleCategory.level1Category',
+                'joinedCircleCategory.level4Category',
+            ])
             ->when($peerFilters['peer_name'] !== '', function ($query) use ($peerFilters): void {
                 $like = '%'.$peerFilters['peer_name'].'%';
 
@@ -471,6 +477,28 @@ class CircleController extends Controller
             ->paginate(15)
             ->appends($peerFilters);
 
+        $circleMainCategories = $circle->categories ?? collect();
+        if ($circleMainCategories->isEmpty() && Schema::hasTable('circle_category_mappings')) {
+            $mappedCategoryIds = DB::table('circle_category_mappings')
+                ->where('circle_id', $circle->id)
+                ->pluck('category_id')
+                ->all();
+            if (! empty($mappedCategoryIds)) {
+                $circleMainCategories = CircleCategory::query()->whereIn('id', $mappedCategoryIds)->orderBy('sort_order')->get();
+            }
+        }
+        if ($circleMainCategories->isEmpty()) {
+            $circleMainCategories = CircleCategory::query()->orderBy('sort_order')->get();
+        }
+
+        $mainCategoryIds = $circleMainCategories->pluck('id')->all();
+        $circleSubCategories = CircleCategoryLevel4::query()
+            ->whereIn('circle_category_id', $mainCategoryIds)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'circle_category_id', 'level2_id', 'level3_id']);
+
         return view('admin.circles.show', [
             'circle' => $circle,
             'circleStage' => $circleStage,
@@ -482,6 +510,8 @@ class CircleController extends Controller
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
             'peerMembers' => $peerMembers,
             'peerFilters' => $peerFilters,
+            'circleMainCategories' => $circleMainCategories,
+            'circleSubCategories' => $circleSubCategories,
         ]);
     }
 

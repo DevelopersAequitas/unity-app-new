@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Circles\StoreCircleMemberRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleMemberRequest;
 use App\Models\Circle;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
+use App\Models\User;
 use App\Support\AdminAccess;
+use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,17 +47,63 @@ class CircleMemberController extends Controller
         }
 
         try {
-            $payload = [
-                'user_id' => $data['user_id'],
-                'role' => $data['role'],
-                'status' => 'approved',
-            ];
+            DB::transaction(function () use ($circle, $data): void {
+                $rawJoinedAt = $data['joined_at'] ?? $data['circle_joined_at'] ?? null;
+                $rawExpiresAt = $data['expires_at'] ?? $data['circle_expires_at'] ?? null;
 
-            if (Schema::hasColumn('circle_members', 'joined_at')) {
-                $payload['joined_at'] = now();
-            }
+                $joinedAt = $rawJoinedAt ? Carbon::parse($rawJoinedAt) : now();
+                $expiresAt = $rawExpiresAt ? Carbon::parse($rawExpiresAt) : null;
 
-            $circle->members()->create($payload);
+                $payload = [
+                    'user_id' => $data['user_id'],
+                    'role' => $data['role'],
+                    'status' => 'approved',
+                ];
+
+                if (Str::isUuid($data['role'])) {
+                    $payload['role_id'] = $data['role'];
+                }
+
+                if (Schema::hasColumn('circle_members', 'joined_at')) {
+                    $payload['joined_at'] = $joinedAt;
+                }
+
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $payload['expires_at'] = $expiresAt;
+                }
+
+                $member = $circle->members()->create($payload);
+
+                Circle::syncLeadershipFromMembers($circle);
+
+                $level4Id = (int) ($data['level4_category_id'] ?? 0);
+                if ($level4Id > 0 && Schema::hasTable('joined_circle_categories')) {
+                    $level4 = CircleCategoryLevel4::find($level4Id);
+                    $level1Id = $level4?->circle_category_id ?? ($data['level1_category_id'] ?? null);
+                    $level2Id = $level4?->level2_id ?? null;
+                    $level3Id = $level4?->level3_id ?? null;
+
+                    JoinedCircleCategory::query()->updateOrCreate(
+                        ['circle_member_id' => $member->id],
+                        [
+                            'user_id' => $data['user_id'],
+                            'circle_id' => $circle->id,
+                            'level1_category_id' => $level1Id,
+                            'level2_category_id' => $level2Id,
+                            'level3_category_id' => $level3Id,
+                            'level4_category_id' => $level4Id,
+                        ]
+                    );
+                }
+
+                $user = User::query()->find($data['user_id']);
+                if ($user && empty($user->active_circle_id)) {
+                    $user->active_circle_id = $circle->id;
+                    $user->circle_joined_at = $joinedAt;
+                    $user->circle_expires_at = $expiresAt;
+                    $user->save();
+                }
+            });
         } catch (QueryException $e) {
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
