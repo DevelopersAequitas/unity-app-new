@@ -69,8 +69,8 @@ class CategoryControllerTest extends TestCase
         Schema::create('circle_category_level4', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('circle_category_id');
-            $table->foreignId('level2_id');
-            $table->foreignId('level3_id');
+            $table->foreignId('level2_id')->nullable();
+            $table->foreignId('level3_id')->nullable();
             $table->string('name');
             $table->string('slug');
             $table->boolean('is_active')->default(true);
@@ -174,5 +174,60 @@ class CategoryControllerTest extends TestCase
         $this->assertFalse($this->level2->refresh()->is_active);
         $this->assertFalse($this->level3->refresh()->is_active);
         $this->assertFalse($this->level4->refresh()->is_active);
+    }
+
+    public function test_can_create_level4_category_directly_under_main_category(): void
+    {
+        $response = $this->actingAs($this->admin, 'admin')
+            ->post(route('admin.categories.level4.store', $this->category1), [
+                'name' => 'Direct Level 4 Category',
+            ]);
+
+        $response->assertRedirect(route('admin.categories.view', $this->category1));
+        $response->assertSessionHas('success');
+
+        $created = CircleCategoryLevel4::query()->where('name', 'Direct Level 4 Category')->first();
+        $this->assertNotNull($created);
+        $this->assertEquals($this->category1->id, $created->circle_category_id);
+        $this->assertNull($created->level2_id);
+        $this->assertNull($created->level3_id);
+    }
+
+    public function test_can_create_level4_category_under_level2_without_level3(): void
+    {
+        $response = $this->actingAs($this->admin, 'admin')
+            ->post(route('admin.categories.level4.store', $this->category1), [
+                'level2_id' => $this->level2->id,
+                'name' => 'Level 2 Direct Level 4 Category',
+            ]);
+
+        $response->assertRedirect(route('admin.categories.view', $this->category1));
+        $response->assertSessionHas('success');
+
+        $created = CircleCategoryLevel4::query()->where('name', 'Level 2 Direct Level 4 Category')->first();
+        $this->assertNotNull($created);
+        $this->assertEquals($this->category1->id, $created->circle_category_id);
+        $this->assertEquals($this->level2->id, $created->level2_id);
+        $this->assertNull($created->level3_id);
+    }
+
+    public function test_can_view_category_with_direct_level4_category(): void
+    {
+        CircleCategoryLevel4::create([
+            'circle_category_id' => $this->category1->id,
+            'level2_id' => null,
+            'level3_id' => null,
+            'name' => 'Standalone Level 4',
+            'slug' => 'standalone-level-4',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->get(route('admin.categories.view', $this->category1));
+
+        $response->assertStatus(200);
+        $response->assertSee('Standalone Level 4');
+        $response->assertSee('Direct Subcategories (Level 4)');
     }
 }

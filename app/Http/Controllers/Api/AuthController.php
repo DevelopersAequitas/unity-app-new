@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\RequestOtpRequest;
+use App\Http\Requests\Auth\SocialLoginRequest;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendFounderEngagementJob;
 use App\Jobs\SendPrMediaVisibilityWhatsappJob;
@@ -27,6 +28,7 @@ use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
 use App\Services\Auth\OtpService;
+use App\Services\Auth\SocialAuthService;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\Notifications\DailyHabitLoopService;
@@ -1107,6 +1109,71 @@ class AuthController extends BaseApiController
         }
 
         // If you already have a UserResource, you can use it here instead of returning $user directly
+        return response()->json([
+            'success' => true,
+            'message' => 'Login successful.',
+            'data' => [
+                'token' => $token,
+                'user' => new UserResource($user),
+            ],
+        ]);
+    }
+
+    public function socialLogin(SocialLoginRequest $request, SocialAuthService $socialAuthService): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $user = $socialAuthService->handleSocialUser(
+                (string) $validated['provider'],
+                (string) $validated['token'],
+                isset($validated['timezone']) ? (string) $validated['timezone'] : null
+            );
+        } catch (\Throwable $e) {
+            Log::warning('auth.social_login.failed', [
+                'provider' => $validated['provider'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => null,
+            ], 400);
+        }
+
+        $user->expireFreeTrialIfNeeded();
+        $user->refresh();
+
+        if (($user->status ?? 'active') !== 'active') {
+            $message = 'Your account is inactive. Please contact support.';
+            if ($user->status === 'inactive') {
+                $message = 'Your registration request is under review. You will receive an email once it is approved.';
+            } elseif ($user->status === 'rejected') {
+                $message = 'Your registration request has been rejected. Please contact support for further details.';
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'data' => null,
+            ], 403);
+        }
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $pushToken = $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($user, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful.',

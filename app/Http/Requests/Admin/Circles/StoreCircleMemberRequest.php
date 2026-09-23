@@ -24,6 +24,12 @@ class StoreCircleMemberRequest extends FormRequest
                 Rule::unique('circle_members', 'user_id')->where(fn ($query) => $query->where('circle_id', $circleId)->whereNull('deleted_at')),
             ],
             'role' => ['required', 'string'],
+            'level4_category_id' => ['required', 'integer', 'exists:circle_category_level4,id'],
+            'level1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'joined_at' => ['nullable', 'date'],
+            'expires_at' => ['nullable', 'date', 'after_or_equal:joined_at'],
+            'circle_joined_at' => ['nullable', 'date'],
+            'circle_expires_at' => ['nullable', 'date'],
         ];
     }
 
@@ -31,6 +37,8 @@ class StoreCircleMemberRequest extends FormRequest
     {
         return [
             'user_id.unique' => 'This peer is already a member of this circle.',
+            'level4_category_id.required' => 'Please select a sub category for the peer.',
+            'level4_category_id.exists' => 'The selected sub category is invalid.',
         ];
     }
 }

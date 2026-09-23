@@ -88,21 +88,30 @@ class CategoryController extends Controller
         }
 
         $level4ByLevel3 = [];
+        $level4ByLevel2Direct = [];
+        $directLevel4Categories = [];
+
         foreach ($level4Categories as $level4Category) {
             $level3Id = $level4Category->level3_id ?? $level4Category->circle_category_level3_id ?? null;
-            if ($level3Id === null) {
-                continue;
-            }
+            $level2Id = $level4Category->level2_id ?? $level4Category->circle_category_level2_id ?? null;
 
-            $level4ByLevel3[$level3Id][] = $level4Category;
+            if ($level3Id !== null) {
+                $level4ByLevel3[$level3Id][] = $level4Category;
+            } elseif ($level2Id !== null) {
+                $level4ByLevel2Direct[$level2Id][] = $level4Category;
+            } else {
+                $directLevel4Categories[] = $level4Category;
+            }
         }
 
         $children = [];
         foreach ($level2Categories as $level2Category) {
             $level3Children = $level3ByLevel2[$level2Category->id] ?? [];
+            $level2DirectL4 = $level4ByLevel2Direct[$level2Category->id] ?? [];
 
             $children[] = [
                 'category' => $level2Category,
+                'direct_level4' => $level2DirectL4,
                 'children' => collect($level3Children)->map(function ($level3Category) use ($level4ByLevel3) {
                     return [
                         'category' => $level3Category,
@@ -123,6 +132,7 @@ class CategoryController extends Controller
             'level4Count' => $level4Count,
             'totalChildren' => $level2Count + $level3Count + $level4Count,
             'children' => $children,
+            'directLevel4Categories' => $directLevel4Categories,
             'level2Options' => $level2Categories,
             'level3Options' => $level3Categories,
         ]);
@@ -149,7 +159,7 @@ class CategoryController extends Controller
             'sort_order' => ((int) CircleCategoryLevel2::query()->where('circle_category_id', $category->id)->max('sort_order')) + 1,
         ]);
 
-        return redirect()->route('admin.categories.view', $category)->with('success', 'Level 2 category added successfully.');
+        return redirect()->route('admin.categories.view', $category)->with('success', "Level 2 category \"{$validated['name']}\" added successfully.");
     }
 
     public function storeLevel3(Request $request, CircleCategory $category): RedirectResponse
@@ -179,7 +189,7 @@ class CategoryController extends Controller
             'sort_order' => ((int) CircleCategoryLevel3::query()->where('level2_id', (int) $validated['level2_id'])->max('sort_order')) + 1,
         ]);
 
-        return redirect()->route('admin.categories.view', $category)->with('success', 'Level 3 category added successfully.');
+        return redirect()->route('admin.categories.view', $category)->with('success', "Level 3 category \"{$validated['name']}\" added successfully.");
     }
 
     public function storeLevel4(Request $request, CircleCategory $category): RedirectResponse
@@ -188,34 +198,71 @@ class CategoryController extends Controller
 
         $validated = $request->validate([
             'level2_id' => [
-                'required',
+                'nullable',
                 'integer',
                 Rule::exists('circle_category_level2', 'id')->where(fn ($query) => $query->where('circle_category_id', $category->id)),
             ],
             'level3_id' => [
-                'required',
+                'nullable',
                 'integer',
-                Rule::exists('circle_category_level3', 'id')->where(fn ($query) => $query->where('level2_id', (int) $request->input('level2_id'))->where('circle_category_id', $category->id)),
+                Rule::exists('circle_category_level3', 'id')->where(function ($query) use ($category, $request) {
+                    $query->where('circle_category_id', $category->id);
+                    if ($request->filled('level2_id')) {
+                        $query->where('level2_id', (int) $request->input('level2_id'));
+                    }
+
+                    return $query;
+                }),
             ],
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('circle_category_level4', 'name')->where(fn ($query) => $query->where('level3_id', (int) $request->input('level3_id'))),
+                Rule::unique('circle_category_level4', 'name')->where(function ($query) use ($category, $request) {
+                    $query->where('circle_category_id', $category->id);
+                    if ($request->filled('level3_id')) {
+                        $query->where('level3_id', (int) $request->input('level3_id'));
+                    } else {
+                        $query->whereNull('level3_id');
+                        if ($request->filled('level2_id')) {
+                            $query->where('level2_id', (int) $request->input('level2_id'));
+                        } else {
+                            $query->whereNull('level2_id');
+                        }
+                    }
+
+                    return $query;
+                }),
             ],
         ]);
 
+        $level2Id = $request->filled('level2_id') ? (int) $validated['level2_id'] : null;
+        $level3Id = $request->filled('level3_id') ? (int) $validated['level3_id'] : null;
+
+        if ($level3Id !== null && $level2Id === null) {
+            $level2Id = CircleCategoryLevel3::query()->where('id', $level3Id)->value('level2_id');
+        }
+
+        $sortQuery = CircleCategoryLevel4::query()->where('circle_category_id', $category->id);
+        if ($level3Id !== null) {
+            $sortQuery->where('level3_id', $level3Id);
+        } elseif ($level2Id !== null) {
+            $sortQuery->where('level2_id', $level2Id)->whereNull('level3_id');
+        } else {
+            $sortQuery->whereNull('level2_id')->whereNull('level3_id');
+        }
+
         CircleCategoryLevel4::query()->create([
             'circle_category_id' => $category->id,
-            'level2_id' => (int) $validated['level2_id'],
-            'level3_id' => (int) $validated['level3_id'],
+            'level2_id' => $level2Id,
+            'level3_id' => $level3Id,
             'name' => $validated['name'],
             'slug' => Str::slug($validated['name']),
             'is_active' => true,
-            'sort_order' => ((int) CircleCategoryLevel4::query()->where('level3_id', (int) $validated['level3_id'])->max('sort_order')) + 1,
+            'sort_order' => ((int) $sortQuery->max('sort_order')) + 1,
         ]);
 
-        return redirect()->route('admin.categories.view', $category)->with('success', 'Level 4 category added successfully.');
+        return redirect()->route('admin.categories.view', $category)->with('success', "Level 4 category \"{$validated['name']}\" saved successfully.");
     }
 
     public function store(StoreCategoryRequest $request): RedirectResponse

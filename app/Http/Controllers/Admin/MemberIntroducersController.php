@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
 use App\Services\IndustryDirector\IndustryScopeService;
@@ -498,6 +499,11 @@ class MemberIntroducersController extends Controller
                 'description' => $caption,
                 'image' => $imageUrl,
                 'status' => 'active',
+            ]);
+
+            PostMention::firstOrCreate([
+                'post_id' => $post->id,
+                'peer_id' => $introducer->id,
             ]);
 
             return response()->json([
