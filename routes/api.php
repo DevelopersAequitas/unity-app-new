@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
+use App\Http\Controllers\Api\ActivityVideoApiController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
 use App\Http\Controllers\Api\AdsController;
@@ -1437,4 +1438,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/web-settings', [WebPublicApiController::class, 'settings']);
     Route::post('/web-messages', [WebPublicApiController::class, 'submitMessage']);
     Route::get('/web-collaborations', [WebPublicApiController::class, 'collaborations']);
+
+    // Activity Video Management API for Flutter/Mobile
+    Route::get('/activities/videos', [ActivityVideoApiController::class, 'index']);
 });
+
+// Top-level alias for Flutter app
+Route::get('/activities/videos', [ActivityVideoApiController::class, 'index']);
+
