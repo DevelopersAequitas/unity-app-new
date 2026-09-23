@@ -195,24 +195,6 @@ class CircleCategoryUsageController extends Controller
         $closedMap = $this->getClosedLevel4CategoriesMap($circle->id);
         $closedLevel4Ids = array_keys($closedMap);
 
-        $level2 = CircleCategoryLevel2::query()
-            ->where('circle_category_id', $mainCategoryId)
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get(['id', 'name']);
-
-        $level2Ids = $level2->pluck('id')->values();
-
-        $level3 = $level2Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel3::query()
-                ->whereIn('level2_id', $level2Ids)
-                ->orderBy('sort_order')
-                ->orderBy('id')
-                ->get(['id', 'name', 'level2_id']);
-
-        $level3Ids = $level3->pluck('id')->values();
-
         $level4Query = CircleCategoryLevel4::query()
             ->where('circle_category_id', $mainCategoryId)
             ->where('is_active', true)
@@ -223,65 +205,16 @@ class CircleCategoryUsageController extends Controller
             $level4Query->whereNotIn('id', $closedLevel4Ids);
         }
 
-        $level4 = $level4Query->get(['id', 'name', 'level2_id', 'level3_id']);
+        $level4 = $level4Query->get(['id', 'name']);
 
-        $level4ByLevel3 = [];
-        $level4ByLevel2Direct = [];
-        $directLevel4 = [];
-
-        foreach ($level4 as $row) {
-            $l3Id = (int) ($row->level3_id ?? 0);
-            $l2Id = (int) ($row->level2_id ?? 0);
-
-            $item = [
+        $openCategories = $level4->map(function ($row): array {
+            return [
                 'id' => $row->id,
                 'name' => $row->name,
                 'level' => 4,
                 'is_closed' => false,
             ];
-
-            if ($l3Id > 0) {
-                $level4ByLevel3[$l3Id][] = $item;
-            } elseif ($l2Id > 0) {
-                $level4ByLevel2Direct[$l2Id][] = $item;
-            } else {
-                $directLevel4[] = $item;
-            }
-        }
-
-        $level3ByLevel2 = [];
-        foreach ($level3 as $row) {
-            $parentId = (int) ($row->level2_id ?? 0);
-            if ($parentId <= 0) {
-                continue;
-            }
-
-            $level3ByLevel2[$parentId][] = [
-                'id' => $row->id,
-                'name' => $row->name,
-                'level' => 3,
-                'children' => $level4ByLevel3[$row->id] ?? [],
-            ];
-        }
-
-        $openCategories = [];
-        foreach ($level2 as $row) {
-            $l2Children = array_merge(
-                $level3ByLevel2[$row->id] ?? [],
-                $level4ByLevel2Direct[$row->id] ?? []
-            );
-
-            $openCategories[] = [
-                'id' => $row->id,
-                'name' => $row->name,
-                'level' => 2,
-                'children' => $l2Children,
-            ];
-        }
-
-        if (! empty($directLevel4)) {
-            $openCategories = array_merge($openCategories, $directLevel4);
-        }
+        })->values()->all();
 
         return response()->json([
             'success' => true,
