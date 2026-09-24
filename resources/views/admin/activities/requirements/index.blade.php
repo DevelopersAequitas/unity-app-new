@@ -179,33 +179,55 @@
 
         <!-- Metrics Cards -->
         <div class="activities-stats-grid">
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition"
+                 onclick="document.getElementById('requirementsLogGrid')?.scrollIntoView({ behavior: 'smooth' })"
+                 title="Click to jump to Requirements Log"
+                 style="cursor: pointer;">
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-file-earmark-text-fill"></i>
                 </div>
                 <div>
                     <div class="metric-val">{{ number_format($total) }}</div>
-                    <div class="metric-label">Total Requirements</div>
+                    <div class="metric-label">
+                        Total Requirements <i class="bi bi-arrow-down-short ms-0.5 text-muted"></i>
+                    </div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            @php
+                $topMember = ($topMembers ?? collect())->first();
+                $topPeerId = $topMember ? ($topMember->actor_id ?? $topMember->id ?? $topMember->user_id ?? null) : null;
+                $topPeerName = $topMember ? ($topMember->peer_name ?? $displayName($topMember->display_name ?? null, $topMember->first_name ?? null, $topMember->last_name ?? null)) : null;
+            @endphp
+            <div class="activity-metric-card {{ $topPeerId ? 'cursor-pointer hover:shadow-md transition' : '' }}"
+                 @if($topPeerId)
+                     onclick="openActivityPeerModal('{{ $topPeerId }}', event)"
+                     title="Click to view {{ $topPeerName }}'s profile and activities"
+                     style="cursor: pointer;"
+                 @endif>
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
                 <div>
-                    <div class="metric-val">
-                        @if(($topMembers ?? collect())->isNotEmpty())
-                            {{ $topMembers->first()->total_count ?? 0 }}
-                        @else
-                            0
+                    <div class="metric-val flex items-center gap-2">
+                        <span>{{ $topMember->total_count ?? 0 }}</span>
+                        @if($topPeerName && $topPeerName !== '—')
+                            <span class="text-[11px] font-medium text-indigo-600 truncate max-w-[140px]">({{ $topPeerName }})</span>
                         @endif
                     </div>
-                    <div class="metric-label">Most Requirements by One Peer</div>
+                    <div class="metric-label">
+                        Most Requirements by One Peer
+                        @if($topPeerId)
+                            <i class="bi bi-box-arrow-up-right ms-1 text-[10px] text-muted"></i>
+                        @endif
+                    </div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition"
+                 onclick="window.location.href='{{ route('admin.activities.requirements.index', array_merge(request()->except(['media', 'page']), ['media' => 'yes'])) }}#requirementsLogGrid'"
+                 title="Click to filter requirements with attachments"
+                 style="cursor: pointer;">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-images"></i>
                 </div>
@@ -213,7 +235,9 @@
                     <div class="metric-val">
                         {{ number_format(count($validMediaIds ?? [])) }}
                     </div>
-                    <div class="metric-label">Verified Attachments</div>
+                    <div class="metric-label">
+                        Verified Attachments <i class="bi bi-filter ms-0.5 text-muted"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -283,7 +307,7 @@
                 </div>
 
                 <!-- All Logs Grid -->
-                <div class="rounded-xl border bs surface overflow-hidden">
+                <div id="requirementsLogGrid" class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Requirements Log</span>
                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Requirements count: {{ number_format($items->total()) }}</span>

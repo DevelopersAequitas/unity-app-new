@@ -242,33 +242,55 @@
 
         <!-- Metrics Cards -->
         <div class="activities-stats-grid">
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition"
+                 onclick="document.getElementById('referralsLogGrid')?.scrollIntoView({ behavior: 'smooth' })"
+                 title="Click to jump to Referrals Log"
+                 style="cursor: pointer;">
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-person-plus-fill"></i>
                 </div>
                 <div>
                     <div class="metric-val">{{ number_format($total) }}</div>
-                    <div class="metric-label">Total Referrals</div>
+                    <div class="metric-label">
+                        Total Referrals <i class="bi bi-arrow-down-short ms-0.5 text-muted"></i>
+                    </div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            @php
+                $topMember = ($topMembers ?? collect())->first();
+                $topPeerId = $topMember ? ($topMember->actor_id ?? $topMember->id ?? $topMember->user_id ?? null) : null;
+                $topPeerName = $topMember ? ($topMember->peer_name ?? $displayName($topMember->display_name ?? null, $topMember->first_name ?? null, $topMember->last_name ?? null)) : null;
+            @endphp
+            <div class="activity-metric-card {{ $topPeerId ? 'cursor-pointer hover:shadow-md transition' : '' }}"
+                 @if($topPeerId)
+                     onclick="openActivityPeerModal('{{ $topPeerId }}', event)"
+                     title="Click to view {{ $topPeerName }}'s profile and activities"
+                     style="cursor: pointer;"
+                 @endif>
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
                 <div>
-                    <div class="metric-val">
-                        @if(($topMembers ?? collect())->isNotEmpty())
-                            {{ $topMembers->first()->total_count ?? 0 }}
-                        @else
-                            0
+                    <div class="metric-val flex items-center gap-2">
+                        <span>{{ $topMember->total_count ?? 0 }}</span>
+                        @if($topPeerName && $topPeerName !== '—')
+                            <span class="text-[11px] font-medium text-indigo-600 truncate max-w-[140px]">({{ $topPeerName }})</span>
                         @endif
                     </div>
-                    <div class="metric-label">Most Referrals by One Peer</div>
+                    <div class="metric-label">
+                        Most Referrals by One Peer
+                        @if($topPeerId)
+                            <i class="bi bi-box-arrow-up-right ms-1 text-[10px] text-muted"></i>
+                        @endif
+                    </div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition"
+                 onclick="document.getElementById('referralsLogGrid')?.scrollIntoView({ behavior: 'smooth' })"
+                 title="Click to jump to Referrals Log"
+                 style="cursor: pointer;">
                 <div class="metric-icon bg-danger-subtle text-danger">
                     <i class="bi bi-fire"></i>
                 </div>
@@ -276,7 +298,9 @@
                     <div class="metric-val">
                         {{ number_format($items->where('hot_value', '>', 3)->count()) }}
                     </div>
-                    <div class="metric-label">Hot Referrals (Page)</div>
+                    <div class="metric-label">
+                        Hot Referrals (Page) <i class="bi bi-arrow-down-short ms-0.5 text-muted"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -346,7 +370,7 @@
                 </div>
 
                 <!-- All Logs Grid -->
-                <div class="rounded-xl border bs surface overflow-hidden">
+                <div id="referralsLogGrid" class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Referrals Log</span>
                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Referrals count: {{ number_format($items->total()) }}</span>

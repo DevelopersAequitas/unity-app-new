@@ -72,28 +72,10 @@
 
 @section('content')
 <div class="space-y-4">
-
-    {{-- Page Header --}}
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            <div class="d-flex align-items-center gap-2">
-                <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(239,68,68,0.12); color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 20px;">
-                    <i class="bi bi-play-btn-fill"></i>
-                </div>
-                <div>
-                    <h4 class="fw-bold mb-0" style="color: #0f172a; font-size: 1.25rem;">Activity Video Management</h4>
-                    <p class="text-muted mb-0" style="font-size: 0.82rem;">Manage founder & explainer videos (YouTube URLs or uploaded MP4 files) for all activities</p>
-                </div>
-            </div>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-sm btn-primary px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-sm"
-                    style="background: #0d9488; border-color: #0d9488; border-radius: 10px;"
-                    onclick="openVideoModal()">
-                <i class="bi bi-plus-circle-fill"></i> Configure Activity Video
-            </button>
-        </div>
-    </div>
+    @include('admin.activities.partials.header', [
+        'title' => 'Activity Videos',
+        'actionButton' => '<button type="button" class="btn btn-sm btn-primary px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-sm" style="background: #0d9488; border-color: #0d9488; border-radius: 10px;" onclick="openVideoModal()"><i class="bi bi-plus-circle-fill"></i> Configure Activity Video</button>'
+    ])
 
     {{-- Alerts --}}
     @if(session('success'))
@@ -115,42 +97,42 @@
     {{-- 6 Summary Stat Cards --}}
     <div class="row g-3">
         <div class="col-6 col-md-2">
-            <div class="video-stat-card">
+            <div class="video-stat-card cursor-pointer" onclick="document.getElementById('videoCatalog')?.scrollIntoView({behavior: 'smooth'})" title="Click to view activity videos catalog">
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 11px;">Total Activities</div>
                 <div class="fs-3 fw-bold text-dark mt-1">{{ $stats['total_activities'] }}</div>
                 <div class="text-muted small" style="font-size: 11px;">System activities</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="video-stat-card">
+            <div class="video-stat-card cursor-pointer" onclick="document.getElementById('videoCatalog')?.scrollIntoView({behavior: 'smooth'})" title="Click to view configured videos">
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 11px;">Configured</div>
                 <div class="fs-3 fw-bold text-teal-600 mt-1" style="color: #0d9488;">{{ $stats['configured_count'] }}</div>
                 <div class="text-muted small" style="font-size: 11px;">With video attached</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="video-stat-card">
+            <div class="video-stat-card cursor-pointer" onclick="document.getElementById('videoCatalog')?.scrollIntoView({behavior: 'smooth'})" title="Click to view active videos">
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 11px;">Active</div>
                 <div class="fs-3 fw-bold text-success mt-1">{{ $stats['active_count'] }}</div>
                 <div class="text-muted small" style="font-size: 11px;">Visible in Mobile API</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="video-stat-card">
+            <div class="video-stat-card cursor-pointer" onclick="document.getElementById('videoCatalog')?.scrollIntoView({behavior: 'smooth'})" title="Click to view YouTube linked videos">
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 11px;">YouTube Links</div>
                 <div class="fs-3 fw-bold text-danger mt-1">{{ $stats['youtube_count'] }}</div>
                 <div class="text-muted small" style="font-size: 11px;">Streamed from YouTube</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="video-stat-card">
+            <div class="video-stat-card cursor-pointer" onclick="document.getElementById('videoCatalog')?.scrollIntoView({behavior: 'smooth'})" title="Click to view uploaded video files">
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 11px;">Uploaded Files</div>
                 <div class="fs-3 fw-bold text-primary mt-1">{{ $stats['file_count'] }}</div>
                 <div class="text-muted small" style="font-size: 11px;">Stored MP4/Video</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="video-stat-card">
+            <div class="video-stat-card cursor-pointer" onclick="document.getElementById('videoCatalog')?.scrollIntoView({behavior: 'smooth'})" title="Click to view pending videos">
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 11px;">Pending</div>
                 <div class="fs-3 fw-bold text-warning mt-1">{{ $stats['missing_count'] }}</div>
                 <div class="text-muted small" style="font-size: 11px;">No video configured</div>
@@ -159,7 +141,7 @@
     </div>
 
     {{-- Activities Video Cards Grid --}}
-    <div class="card border shadow-sm" style="border-radius: 16px; overflow: hidden;">
+    <div id="videoCatalog" class="card border shadow-sm" style="border-radius: 16px; overflow: hidden;">
         <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <span class="fw-bold text-dark" style="font-size: 0.95rem;">Activity Video Catalog</span>

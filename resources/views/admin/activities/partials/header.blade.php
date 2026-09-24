@@ -57,6 +57,24 @@
             'icon' => 'bi-hand-thumbs-up-fill'
         ],
         [
+            'label' => 'Connections',
+            'route' => 'admin.activities.connections.index',
+            'active_check' => ['admin.activities.connections*'],
+            'icon' => 'bi-diagram-3-fill'
+        ],
+        [
+            'label' => 'Follows',
+            'route' => 'admin.activities.follows.index',
+            'active_check' => ['admin.activities.follows*'],
+            'icon' => 'bi-person-check-fill'
+        ],
+        [
+            'label' => 'Messages',
+            'route' => 'admin.activities.messages.index',
+            'active_check' => ['admin.activities.messages*'],
+            'icon' => 'bi-chat-dots-fill'
+        ],
+        [
             'label' => 'Collaborations',
             'route' => 'admin.collaborations.index',
             'active_check' => ['admin.collaborations*'],
@@ -67,6 +85,12 @@
             'route' => 'admin.activities.register-visitor.index',
             'active_check' => ['admin.activities.register-visitor*'],
             'icon' => 'bi-person-vcard-fill'
+        ],
+        [
+            'label' => 'Activity Videos',
+            'route' => 'admin.activities.videos.index',
+            'active_check' => ['admin.activities.videos*'],
+            'icon' => 'bi-play-btn-fill'
         ]
     ];
 @endphp
