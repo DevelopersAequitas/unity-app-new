@@ -414,6 +414,7 @@ use Carbon\Carbon;
             'billing_term' => $billingTerm,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
+            'category' => $safeStr($membership->joinedCircleCategory?->level4Category?->name),
             'edit_url' => $editUrl,
             'avatar' => data_get($m, 'avatar_url'),
             'color' => '#6366F1',
@@ -829,13 +830,13 @@ use Carbon\Carbon;
             <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
             <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
-            <div class="md:col-span-6">
-                <label class="block text-[11px] t3 mb-1 font-medium">Select Peer</label>
+            <div class="md:col-span-3">
+                <label class="block text-[11px] t3 mb-1 font-medium">Select Peer <span class="text-rose-500">*</span></label>
                 <select id="peer_select" name="user_id" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required></select>
             </div>
 
             <div class="md:col-span-3">
-                <label class="block text-[11px] t3 mb-1 font-medium">Role</label>
+                <label class="block text-[11px] t3 mb-1 font-medium">Role <span class="text-rose-500">*</span></label>
                 <select name="role" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required>
                     @foreach (($roles ?? []) as $roleOption)
                         @php
@@ -847,7 +848,50 @@ use Carbon\Carbon;
                 </select>
             </div>
 
+            @php
+                $circleMainCategories = $circleMainCategories ?? collect();
+                $circleSubCategories = $circleSubCategories ?? collect();
+                $singleMainCat = $circleMainCategories->count() === 1 ? $circleMainCategories->first() : null;
+            @endphp
+
             <div class="md:col-span-3">
+                <label class="block text-[11px] t3 mb-1 font-medium">Main Category <span class="text-rose-500">*</span></label>
+                @if ($singleMainCat)
+                    <input type="text" class="w-full px-3 py-1.5 rounded-lg border bs surface-2 t1 text-xs outline-none bg-gray-100 cursor-not-allowed" value="{{ $singleMainCat->name }}" readonly title="{{ $singleMainCat->name }}">
+                    <input type="hidden" name="level1_category_id" id="circle_level1_category_id" value="{{ $singleMainCat->id }}">
+                @else
+                    <select name="level1_category_id" id="circle_level1_category_id" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required>
+                        <option value="">Select main category</option>
+                        @foreach ($circleMainCategories as $mainCat)
+                            <option value="{{ $mainCat->id }}" @selected($loop->first)>{{ $mainCat->name }}</option>
+                        @endforeach
+                    </select>
+                @endif
+            </div>
+
+            <div class="md:col-span-3">
+                <label class="block text-[11px] t3 mb-1 font-medium">Sub Category <span class="text-rose-500">*</span></label>
+                <select id="circle_level4_category_id" name="level4_category_id" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" required>
+                    <option value="">Select sub category</option>
+                    @foreach ($circleSubCategories as $subCat)
+                        <option value="{{ $subCat->id }}" data-main-id="{{ $subCat->circle_category_id }}">
+                            {{ $subCat->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="md:col-span-4">
+                <label class="block text-[11px] t3 mb-1 font-medium" for="circle_joined_at">Circle Joined Date <span class="text-rose-500">*</span></label>
+                <input type="date" id="circle_joined_at" name="joined_at" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ now()->format('Y-m-d') }}" required>
+            </div>
+
+            <div class="md:col-span-4">
+                <label class="block text-[11px] t3 mb-1 font-medium" for="circle_expires_at">Circle Expiry Date <span class="text-rose-500">*</span></label>
+                <input type="date" id="circle_expires_at" name="expires_at" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ now()->addYear()->format('Y-m-d') }}" required>
+            </div>
+
+            <div class="md:col-span-4">
                 <button class="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring border-0 cursor-pointer">
                     <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i> Add Peer
                 </button>
@@ -921,6 +965,11 @@ use Carbon\Carbon;
                                     <div class="font-medium t1 text-[12.5px]">{{ $memberName }}</div>
                                     <div class="t3 text-[11px] mt-0.5">{{ $memberCompany }}</div>
                                     <div class="t3 text-[11px]">{{ $memberCity }}</div>
+                                    @if($membership->joinedCircleCategory?->level4Category)
+                                        <div class="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 bg-indigo-50/80 px-1.5 py-0.5 rounded border border-indigo-100 mt-1">
+                                            <i class="bi bi-tag-fill text-[9px]"></i> {{ $membership->joinedCircleCategory->level4Category->name }}
+                                        </div>
+                                    @endif
                                 </td>
 
                                 <td class="px-3 py-2.5 t1 text-[12.5px] font-mono">{{ $member->email ?? '—' }}</td>
@@ -964,7 +1013,12 @@ use Carbon\Carbon;
                                     </span>
                                 </td>
 
-                                <td class="px-3 py-2.5 t2 text-xs font-mono">{{ optional($membership->joined_at ?? $membership->created_at ?? null)->format('Y-m-d') ?? '—' }}</td>
+                                <td class="px-3 py-2.5 t2 text-xs font-mono">
+                                    <div>{{ optional($membership->joined_at ?? $membership->created_at ?? null)->format('Y-m-d') ?? '—' }}</div>
+                                    @if($membership->expires_at)
+                                        <div class="text-[11px] text-slate-400 mt-0.5 font-normal">Exp: <span class="font-mono text-slate-600">{{ \Carbon\Carbon::parse($membership->expires_at)->format('Y-m-d') }}</span></div>
+                                    @endif
+                                </td>
 
                                 <td class="px-3 py-2.5 text-right whitespace-nowrap" onclick="event.stopPropagation()">
                                     <form method="POST" action="{{ route('admin.circles.members.destroy', [$circle, $membership]) }}"
@@ -1084,6 +1138,7 @@ use Carbon\Carbon;
                         <div class="flex justify-between"><span class="text-slate-400">Mobile</span><span class="text-slate-800 font-mono font-medium">${m.mobile}</span></div>
                         <div class="flex justify-between"><span class="text-slate-400">Company</span><span class="text-slate-800 font-medium">${m.company}</span></div>
                         <div class="flex justify-between"><span class="text-slate-400">Industry</span><span class="text-slate-800 font-medium">${m.industry}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Category</span><span class="text-slate-800 font-medium">${m.category}</span></div>
                         <div class="flex justify-between"><span class="text-slate-400">Role</span><span class="text-slate-800 font-medium">${m.role}</span></div>
                     </div>
                 </div>
@@ -1181,6 +1236,46 @@ use Carbon\Carbon;
             });
         }
 
+        const level1Select = jQuery('#circle_level1_category_id');
+        const level4Select = jQuery('#circle_level4_category_id');
+        if (level1Select.is('select') && level4Select.length) {
+            function filterSubCategories() {
+                const selectedMainId = String(level1Select.val() || '');
+                level4Select.find('option').each(function () {
+                    const opt = jQuery(this);
+                    const optMainId = String(opt.data('main-id') || '');
+                    if (!opt.val() || !selectedMainId || optMainId === selectedMainId) {
+                        opt.show().prop('disabled', false);
+                    } else {
+                        opt.hide().prop('disabled', true);
+                    }
+                });
+                if (level4Select.find('option:selected').is(':disabled')) {
+                    level4Select.val('');
+                }
+            }
+            level1Select.on('change', filterSubCategories);
+            filterSubCategories();
+        }
+
+        const joinedDateInput = jQuery('#circle_joined_at');
+        const expiryDateInput = jQuery('#circle_expires_at');
+        if (joinedDateInput.length && expiryDateInput.length) {
+            joinedDateInput.on('change', function () {
+                const val = joinedDateInput.val();
+                if (val) {
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) {
+                        d.setFullYear(d.getFullYear() + 1);
+                        const yyyy = d.getFullYear();
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        expiryDateInput.val(`${yyyy}-${mm}-${dd}`);
+                    }
+                }
+            });
+        }
+
         const addPeerForm = jQuery('#add-peer-form');
         if (addPeerForm.length) {
             addPeerForm.on('submit', function (e) {
@@ -1202,12 +1297,16 @@ use Carbon\Carbon;
                         window.location.reload();
                     },
                     error: function (xhr) {
-                        let msg = 'This peer is already a member of this circle.';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            msg = xhr.responseJSON.message;
+                        let msg = 'Failed to add member to the circle.';
+                        if (xhr.responseJSON) {
+                            if (xhr.responseJSON.errors) {
+                                msg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                            } else if (xhr.responseJSON.message) {
+                                msg = xhr.responseJSON.message;
+                            }
                         }
                         
-                        const alertHtml = '<div class="alert alert-danger alert-danger-custom mt-2 w-100 text-xs">' + escapeHtml(msg) + '</div>';
+                        const alertHtml = '<div class="alert alert-danger alert-danger-custom mt-2 w-100 text-xs">' + msg + '</div>';
                         addPeerForm.append(alertHtml);
                     }
                 });

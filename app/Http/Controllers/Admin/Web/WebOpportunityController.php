@@ -9,6 +9,7 @@ use App\Models\Web\WebOpportunity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class WebOpportunityController extends Controller
@@ -82,7 +83,7 @@ class WebOpportunityController extends Controller
         }
 
         if (Schema::hasColumn('web_opportunities', 'slug') && empty($data['slug'])) {
-            $data['slug'] = \Illuminate\Support\Str::slug($validated['title']).'-'.random_int(100, 999);
+            $data['slug'] = Str::slug($validated['title']).'-'.random_int(100, 999);
         }
 
         WebOpportunity::create($data);

@@ -84,6 +84,16 @@ class Post extends Model
         return $this->hasMany(PostComment::class);
     }
 
+    public function postMentions(): HasMany
+    {
+        return $this->hasMany(PostMention::class, 'post_id');
+    }
+
+    public function mentionedPeers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'post_mentions', 'post_id', 'peer_id')->withTimestamps();
+    }
+
     public function likes(): HasMany
     {
         return $this->hasMany(PostLike::class);

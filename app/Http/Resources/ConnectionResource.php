@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\UserFollow;
+use App\Support\ActivityHistory\OtherUserDetailsResolver;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
 
@@ -64,7 +65,7 @@ class ConnectionResource extends JsonResource
             $status = $role === 'requester' ? 'pending_received' : 'pending_sent';
         }
 
-        $resolver = app(\App\Support\ActivityHistory\OtherUserDetailsResolver::class);
+        $resolver = app(OtherUserDetailsResolver::class);
         $companyName = $resolver->resolveCompanyName($user);
         $city = $resolver->resolveCity($user);
         $level4Category = $resolver->resolveLevel4Category($user);

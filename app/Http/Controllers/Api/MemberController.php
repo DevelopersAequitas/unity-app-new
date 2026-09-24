@@ -435,6 +435,20 @@ class MemberController extends BaseApiController
             }
         }
 
+        $search = trim((string) ($request->query('search') ?: $request->query('q', '')));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search): void {
+                $term = "%{$search}%";
+                $q->where('users.first_name', 'ilike', $term)
+                    ->orWhere('users.last_name', 'ilike', $term)
+                    ->orWhere('users.display_name', 'ilike', $term)
+                    ->orWhere('users.company_name', 'ilike', $term);
+                if (Schema::hasColumn('users', 'business_name')) {
+                    $q->orWhere('users.business_name', 'ilike', $term);
+                }
+            });
+        }
+
         return $query;
     }
 
