@@ -92,7 +92,7 @@ class P2PMeetingRequestController extends BaseApiController
 
         if (! empty($validated['status'])) {
             $statuses = explode(',', $validated['status']);
-            $allowedStatuses = ['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled', 'completed'];
+            $allowedStatuses = ['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled'];
             $statuses = array_intersect($statuses, $allowedStatuses);
 
             if (in_array('pending', $statuses, true) && ! in_array('reschedule_requested', $statuses, true)) {
@@ -282,8 +282,8 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only the invitee can request reschedule before accepting the meeting.', 422);
         }
 
-        if (in_array($status, ['rejected', 'cancelled', 'completed'], true) || (bool) $meetingRequest->is_logged) {
-            return $this->error("This meeting cannot be rescheduled because it is already {$status}.", 422);
+        if (in_array($status, ['rejected', 'cancelled'], true) || (bool) $meetingRequest->is_logged) {
+            return $this->error('This meeting cannot be rescheduled.', 422);
         }
 
         if (! $this->canRequestReschedule($meetingRequest, (string) $authUser->id, $status)) {

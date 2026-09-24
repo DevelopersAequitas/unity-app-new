@@ -147,7 +147,6 @@ class P2pMeetingController extends BaseApiController
             if ($meetingRequest) {
                 $meetingRequest->update([
                     'is_logged' => true,
-                    'status' => 'completed',
                     'logged_at' => now(),
                     'logged_by_user_id' => $authUser->id,
                     'p2p_meeting_id' => $meeting->id,

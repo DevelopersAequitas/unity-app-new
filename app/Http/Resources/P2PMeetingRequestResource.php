@@ -23,14 +23,13 @@ class P2PMeetingRequestResource extends JsonResource
         $requesterProfile = $this->requester ? array_merge($this->requester->publicProfileArray(), $resolver->formatUser($this->requester) ?? []) : null;
         $inviteeProfile = $this->invitee ? array_merge($this->invitee->publicProfileArray(), $resolver->formatUser($this->invitee) ?? []) : null;
 
-        $isLogged = (bool) ($this->is_logged || strtolower((string) $this->status) === 'completed');
+        $isLogged = (bool) $this->is_logged;
         $rawStatus = strtolower((string) $this->status);
-        $status = $isLogged ? 'completed' : (string) $this->status;
         $canLogMeeting = ! $isLogged && in_array($rawStatus, ['accepted', 'scheduled'], true);
 
         return [
             'id' => (string) $this->id,
-            'status' => $status,
+            'status' => (string) $this->status,
             'scheduled_at' => $this->scheduled_at?->toIso8601String(),
             'place' => (string) $this->place,
             'message' => $this->message,
