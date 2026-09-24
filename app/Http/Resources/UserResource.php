@@ -210,8 +210,10 @@ class UserResource extends JsonResource
             'circle_memberships' => $circleMemberships,
             'contact_visibility' => $this->contact_visibility ?? 'public',
             'connection_count' => $this->resolveConnectionCount(),
-            'followers_count' => (int) ($this->followers_count ?? 0),
-            'following_count' => (int) ($this->following_count ?? 0),
+            'followers_count' => $this->resolveFollowersCount(),
+            'following_count' => $this->resolveFollowingCount(),
+            'bookmark_count' => $this->resolveBookmarksCount(),
+            'bookmarks_count' => $this->resolveBookmarksCount(),
             'posts_count' => $this->resolvePostsCount(),
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
@@ -507,6 +509,56 @@ class UserResource extends JsonResource
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);
             })->count();
+    }
+
+    protected function resolveFollowersCount(): int
+    {
+        if (isset($this->followers_count)) {
+            return (int) $this->followers_count;
+        }
+
+        if (! Schema::hasTable('user_follows')) {
+            return 0;
+        }
+
+        return (int) UserFollow::query()
+            ->where('following_id', $this->id)
+            ->whereIn('status', ['accepted', 'pending'])
+            ->count();
+    }
+
+    protected function resolveFollowingCount(): int
+    {
+        if (isset($this->following_count)) {
+            return (int) $this->following_count;
+        }
+
+        if (! Schema::hasTable('user_follows')) {
+            return 0;
+        }
+
+        return (int) UserFollow::query()
+            ->where('follower_id', $this->id)
+            ->whereIn('status', ['accepted', 'pending'])
+            ->count();
+    }
+
+    protected function resolveBookmarksCount(): int
+    {
+        if (isset($this->bookmarks_count)) {
+            return (int) $this->bookmarks_count;
+        }
+
+        if (isset($this->bookmark_count)) {
+            return (int) $this->bookmark_count;
+        }
+
+        $bookmarks = $this->bookmarks ?? [];
+        if (is_array($bookmarks)) {
+            return count($bookmarks);
+        }
+
+        return 0;
     }
 
     protected function resolvePostsCount(): int
