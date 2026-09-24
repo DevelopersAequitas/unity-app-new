@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
 use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreP2pMeetingRequest;
 use App\Models\FileModel;
 use App\Models\P2pMeeting;
+use App\Models\P2PMeetingRequest;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -104,16 +107,56 @@ class P2pMeetingController extends BaseApiController
 
         try {
             $mediaEntries = $this->buildMediaEntries((array) $request->input('media_file_ids', []));
+            $meetingRequestId = $request->input('p2p_meeting_request_id');
 
             $meeting = P2pMeeting::create([
                 'initiator_user_id' => $authUser->id,
                 'peer_user_id' => $request->input('peer_user_id'),
+                'p2p_meeting_request_id' => $meetingRequestId,
                 'meeting_date' => $request->input('meeting_date'),
                 'meeting_place' => $request->input('meeting_place'),
                 'remarks' => $request->input('remarks'),
                 'media' => $mediaEntries,
                 'is_deleted' => false,
             ]);
+
+            // Update matching P2P meeting request to mark is_logged=true for both users
+            $meetingRequest = null;
+            if ($meetingRequestId) {
+                $meetingRequest = P2PMeetingRequest::find($meetingRequestId);
+            } else {
+                $meetingRequest = P2PMeetingRequest::query()
+                    ->where(function ($q) use ($authUser, $meeting): void {
+                        $q->where(function ($sub) use ($authUser, $meeting): void {
+                            $sub->where('requester_id', $authUser->id)
+                                ->where('invitee_id', $meeting->peer_user_id);
+                        })->orWhere(function ($sub) use ($authUser, $meeting): void {
+                            $sub->where('requester_id', $meeting->peer_user_id)
+                                ->where('invitee_id', $authUser->id);
+                        });
+                    })
+                    ->where(function ($q): void {
+                        $q->where('is_logged', false)
+                            ->orWhereNull('is_logged');
+                    })
+                    ->whereIn('status', ['accepted', 'scheduled', 'pending'])
+                    ->latest('scheduled_at')
+                    ->first();
+            }
+
+            if ($meetingRequest) {
+                $meetingRequest->update([
+                    'is_logged' => true,
+                    'status' => 'completed',
+                    'logged_at' => now(),
+                    'logged_by_user_id' => $authUser->id,
+                    'p2p_meeting_id' => $meeting->id,
+                ]);
+
+                if (! $meeting->p2p_meeting_request_id) {
+                    $meeting->update(['p2p_meeting_request_id' => $meetingRequest->id]);
+                }
+            }
 
             $coinsService = app(CoinsService::class);
             $authCoinsLedger = null;
@@ -304,7 +347,8 @@ class P2pMeetingController extends BaseApiController
         $attributes['given_by'] = $initiatorDetails;
         $attributes['given_to'] = $peerDetails;
         $attributes['initiated_by'] = $initiatorDetails;
-        $attributes['initiated_to'] = $peerDetails;
+        $attributes['p2p_meeting_request_id'] = $meeting->p2p_meeting_request_id ? (string) $meeting->p2p_meeting_request_id : null;
+        $attributes['is_logged'] = true;
 
         if (auth()->check()) {
             $authId = (string) auth()->id();
