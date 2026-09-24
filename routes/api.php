@@ -506,6 +506,8 @@ Route::prefix('v1')->group(function () {
 
         // Global Peer Certificate API
         Route::get('/my/global-peer-certificate', [GlobalPeerCertificateController::class, 'show']);
+        Route::get('/users/{userId}/global-peer-certificate', [GlobalPeerCertificateController::class, 'showUser'])->whereUuid('userId');
+        Route::get('/peers/{userId}/global-peer-certificate', [GlobalPeerCertificateController::class, 'showUser'])->whereUuid('userId');
         Route::post('/my/global-peer-certificate/regenerate', [GlobalPeerCertificateController::class, 'regenerate']);
 
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
@@ -972,6 +974,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/coins', [CoinsController::class, 'balance']);
         Route::get('/me/coins/ledger', [CoinsController::class, 'ledger']);
         Route::get('/coins/history', [CoinHistoryController::class, 'index']);
+        Route::get('/milestones', [CoinMilestoneController::class, 'index']);
+        Route::get('/milestones/latest', [CoinMilestoneController::class, 'myLatest']);
+        Route::get('/milestones/history', [CoinMilestoneController::class, 'myHistory']);
         Route::get('/users/{userId}/milestone/latest', [CoinMilestoneController::class, 'latest']);
         Route::get('/users/{userId}/milestone/history', [CoinMilestoneController::class, 'history']);
 
@@ -1065,8 +1070,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
         Route::get('/my/requirements', [V1RequirementController::class, 'myIndex']);
 
-        // Support
+        // Support Tickets
         Route::post('/support', [SupportTicketController::class, 'store']);
+        Route::post('/support/tickets', [SupportTicketController::class, 'store']);
+        Route::get('/support/tickets', [SupportTicketController::class, 'index']);
+        Route::get('/support/tickets/{id}', [SupportTicketController::class, 'show'])->whereUuid('id');
         Route::get('/support/my-tickets', [SupportTicketController::class, 'myTickets']);
 
         Route::get('/admin/support-tickets', [SupportTicketController::class, 'adminIndex']);

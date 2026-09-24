@@ -156,15 +156,27 @@ class WebsiteFormsController extends BaseApiController
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
 
         $onlyMy = $request->boolean('my') || str_contains($request->path(), '/my');
-        $user = Auth::guard('admin')->user() ?? $request->user();
+        $targetUserId = $request->query('user_id') ?? $request->query('peer_id');
 
-        if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
-            $query->where(function ($q) use ($user) {
-                if (! empty($user->email)) {
-                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+        if ($targetUserId) {
+            $targetUser = User::find($targetUserId);
+            $query->where(function ($q) use ($targetUserId, $targetUser) {
+                $q->whereIn('id', CertificationSubmission::query()->where('user_id', $targetUserId)->pluck('id'));
+                if ($targetUser && ! empty($targetUser->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $targetUser->email)]);
                 }
-                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
             });
+        } else {
+            $user = Auth::guard('admin')->user() ?? $request->user();
+
+            if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
+                $query->where(function ($q) use ($user) {
+                    if (! empty($user->email)) {
+                        $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                    }
+                    $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
+                });
+            }
         }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -227,15 +239,27 @@ class WebsiteFormsController extends BaseApiController
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
 
         $onlyMy = $request->boolean('my') || str_contains($request->path(), '/my');
-        $user = Auth::guard('admin')->user() ?? $request->user();
+        $targetUserId = $request->query('user_id') ?? $request->query('peer_id');
 
-        if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
-            $query->where(function ($q) use ($user) {
-                if (! empty($user->email)) {
-                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+        if ($targetUserId) {
+            $targetUser = User::find($targetUserId);
+            $query->where(function ($q) use ($targetUserId, $targetUser) {
+                $q->whereIn('id', CertificationSubmission::query()->where('user_id', $targetUserId)->pluck('id'));
+                if ($targetUser && ! empty($targetUser->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $targetUser->email)]);
                 }
-                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
             });
+        } else {
+            $user = Auth::guard('admin')->user() ?? $request->user();
+
+            if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
+                $query->where(function ($q) use ($user) {
+                    if (! empty($user->email)) {
+                        $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                    }
+                    $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
+                });
+            }
         }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -294,7 +318,15 @@ class WebsiteFormsController extends BaseApiController
 
     public function userCertifications(string $userId)
     {
-        $submissions = CertificationSubmission::where('user_id', $userId)->get();
+        $targetUser = User::find($userId);
+        $submissions = CertificationSubmission::query()
+            ->where(function ($q) use ($userId, $targetUser) {
+                $q->where('user_id', $userId);
+                if ($targetUser && ! empty($targetUser->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $targetUser->email)]);
+                }
+            })
+            ->get();
 
         $data = $submissions->map(function ($sub) {
             return [

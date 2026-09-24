@@ -19,10 +19,10 @@ class StoreCoinClaimRequest extends FormRequest
     {
         return [
             'activity_code' => ['required', 'string'],
-            'payload' => ['nullable', 'array'],
-            'fields' => ['nullable', 'array'],
-            'files' => ['nullable', 'array'],
-            'files.*' => ['nullable', 'file', 'max:102400'],
+            'payload' => ['nullable'],
+            'fields' => ['nullable'],
+            'files' => ['nullable'],
+            'files.*' => ['nullable'],
         ];
     }
 
@@ -39,14 +39,33 @@ class StoreCoinClaimRequest extends FormRequest
             }
 
             $fieldMap = $registry->fieldMap($activityCode);
-            $payload = (array) $this->input('payload', []);
-            $fields = array_merge($payload, (array) $this->input('fields', []));
-            $files = $this->file('files', []);
+            $rawInputs = $this->all();
+            $payload = is_array($this->input('payload')) ? $this->input('payload') : [];
+            $nestedFields = is_array($this->input('fields')) ? $this->input('fields') : [];
+
+            // Extract root-level inputs that match known field keys or are general fields
+            $rootFields = [];
+            foreach ($rawInputs as $k => $v) {
+                if (! in_array($k, ['_token', '_method', 'activity_code', 'payload', 'fields', 'files'], true)) {
+                    $rootFields[$k] = $v;
+                }
+            }
+
+            // Merge in order: root fields, payload, nested fields
+            $fields = array_merge($rootFields, $payload, $nestedFields);
+
+            // Collect all files from files[] array, root file inputs, and allFiles()
+            $files = is_array($this->file('files')) ? $this->file('files') : [];
+            foreach ($this->allFiles() as $fileKey => $uploadedFile) {
+                if ($fileKey !== 'files' && ! isset($files[$fileKey])) {
+                    $files[$fileKey] = $uploadedFile;
+                }
+            }
 
             // Special handling for peers_global_feedback_video: allow either file upload or URL/storage-reference string
             if ($activityCode === 'peers_global_feedback_video') {
-                $hasVideoFile = isset($files['feedback_video']) || $this->hasFile('feedback_video') || $this->hasFile('file');
-                $hasVideoField = ! empty($fields['feedback_video']) || ! empty($fields['feedback_video_url']) || ! empty($payload['feedback_video']);
+                $hasVideoFile = isset($files['feedback_video']) || isset($files['file']) || $this->hasFile('feedback_video') || $this->hasFile('file');
+                $hasVideoField = ! empty($fields['feedback_video']) || ! empty($fields['feedback_video_url']) || ! empty($fields['url']) || ! empty($payload['feedback_video']);
 
                 if (! $hasVideoFile && ! $hasVideoField) {
                     $validator->errors()->add('fields.feedback_video', 'Feedback video is required.');
@@ -55,9 +74,10 @@ class StoreCoinClaimRequest extends FormRequest
                 return;
             }
 
+            // Only check unknown fields for explicitly submitted nested `fields` or `payload`
             $fieldKeys = array_keys($fieldMap);
-            $providedFieldKeys = array_keys($fields);
-            $unknownFieldKeys = array_diff($providedFieldKeys, $fieldKeys);
+            $explicitProvidedKeys = array_merge(array_keys($nestedFields), array_keys($payload));
+            $unknownFieldKeys = array_diff($explicitProvidedKeys, $fieldKeys);
 
             foreach ($unknownFieldKeys as $unknownFieldKey) {
                 $suggestedKey = $this->closestKey((string) $unknownFieldKey, $fieldKeys);
@@ -79,23 +99,26 @@ class StoreCoinClaimRequest extends FormRequest
                 $required = (bool) ($definition['required'] ?? false);
                 $label = $this->fieldLabel($key, $definition);
                 $value = $fields[$key] ?? null;
-                $file = $files[$key] ?? null;
+                $file = $files[$key] ?? ($files['file'] ?? ($this->file($key) ?? null));
 
                 if ($type === 'file') {
-                    if ($required && ! $file) {
+                    $hasFileRecord = $file instanceof \Illuminate\Http\UploadedFile
+                        || (! empty($value) && (is_string($value) || is_numeric($value)));
+
+                    if ($required && ! $hasFileRecord) {
                         $validator->errors()->add("files.$key", "$label is required.");
                     }
 
                     continue;
                 }
 
-                if ($required && ($value === null || trim((string) $value) === '')) {
+                if ($required && ($value === null || (is_string($value) && trim($value) === ''))) {
                     $validator->errors()->add("fields.$key", "$label is required.");
 
                     continue;
                 }
 
-                if ($value === null || trim((string) $value) === '') {
+                if ($value === null || (is_string($value) && trim($value) === '')) {
                     continue;
                 }
 

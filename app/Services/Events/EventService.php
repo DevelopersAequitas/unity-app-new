@@ -89,6 +89,7 @@ class EventService
     public function listOccurrences(array $filters, ?User $user = null, int $perPage = 20): LengthAwarePaginator
     {
         $eventType = $filters['event_type'] ?? $filters['type'] ?? null;
+        $status = $filters['status'] ?? null;
         $search = $filters['search'] ?? $filters['title'] ?? null;
         $timezone = $filters['timezone'] ?? request()?->header('X-Timezone') ?? config('app.timezone') ?: 'Asia/Kolkata';
         if ($timezone === 'UTC' && empty($filters['timezone']) && ! request()?->hasHeader('X-Timezone')) {
@@ -489,30 +490,47 @@ class EventService
 
     public function isEligible(Event $event, ?User $user): bool
     {
+        if ($this->visitorRegistrationEnabled($event) || (bool) ($event->is_public ?? false) || $event->visibility === 'public') {
+            return true;
+        }
+
         if (! $user) {
-            return $this->visitorRegistrationEnabled($event);
+            return false;
         }
 
         if ($this->isAdmin($user)) {
             return true;
         }
 
+        $allowedCircleIds = array_filter([$event->circle_id]);
+        if (Schema::hasTable('event_circles')) {
+            try {
+                if ($event->relationLoaded('circles')) {
+                    $allowedCircleIds = array_unique(array_merge($allowedCircleIds, $event->circles->pluck('id')->all()));
+                } else {
+                    $allowedCircleIds = array_unique(array_merge($allowedCircleIds, $event->circles()->pluck('circles.id')->all()));
+                }
+            } catch (\Throwable) {
+                // Ignore error
+            }
+        }
+
         return match ($event->event_type) {
-            'circle_meeting' => CircleMember::query()
-                ->where('circle_id', $event->circle_id)
+            'circle_meeting', 'circle_event' => empty($allowedCircleIds) || CircleMember::query()
+                ->whereIn('circle_id', $allowedCircleIds)
                 ->where('user_id', $user->id)
                 ->whereIn('status', ['approved', 'active'])
                 ->whereNull('deleted_at')
                 ->exists(),
-            'global_event', 'public_event' => true,
+            'global_event', 'public_event', 'state_event', 'city_event' => true,
             default => true,
         };
     }
 
     public function canRegister(Event $event, ?User $user): array
     {
-        if ($user && ! $this->memberRegistrationEnabled($event) && ! $this->isAdmin($user)) {
-            return ['can_register' => false, 'reason' => 'Member registration is not enabled for this event.'];
+        if ($user && ! $this->memberRegistrationEnabled($event) && ! $this->visitorRegistrationEnabled($event) && ! $this->isAdmin($user)) {
+            return ['can_register' => false, 'reason' => 'Registration is not enabled for this event.'];
         }
 
         if (! $this->isEligible($event, $user)) {

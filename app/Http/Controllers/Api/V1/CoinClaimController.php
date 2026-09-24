@@ -46,15 +46,24 @@ class CoinClaimController extends BaseApiController
         try {
             $activityCode = (string) $request->input('activity_code');
             $fieldMap = $this->registry->fieldMap($activityCode);
-            $payloadInput = (array) $request->input('payload', []);
-            $fields = array_merge($payloadInput, (array) $request->input('fields', []));
-            $uploaded = $request->file('files', []);
 
-            if (empty($uploaded)) {
-                foreach (['feedback_video', 'file', 'payment_proof_file', 'event_confirmation_file', 'membership_confirmation_file'] as $fileKey) {
-                    if ($request->hasFile($fileKey)) {
-                        $uploaded[$fileKey] = $request->file($fileKey);
-                    }
+            $rawInputs = $request->all();
+            $payloadInput = is_array($request->input('payload')) ? $request->input('payload') : [];
+            $nestedFields = is_array($request->input('fields')) ? $request->input('fields') : [];
+
+            $rootFields = [];
+            foreach ($rawInputs as $k => $v) {
+                if (! in_array($k, ['_token', '_method', 'activity_code', 'payload', 'fields', 'files'], true)) {
+                    $rootFields[$k] = $v;
+                }
+            }
+
+            $fields = array_merge($rootFields, $payloadInput, $nestedFields);
+
+            $uploaded = is_array($request->file('files')) ? $request->file('files') : [];
+            foreach ($request->allFiles() as $fileKey => $uploadedFile) {
+                if ($fileKey !== 'files' && ! isset($uploaded[$fileKey])) {
+                    $uploaded[$fileKey] = $uploadedFile;
                 }
             }
 
@@ -66,9 +75,11 @@ class CoinClaimController extends BaseApiController
                     $normalizedFields[$fieldKey.'_normalized'] = preg_replace('/\D+/', '', (string) $normalizedFields[$fieldKey]);
                 }
 
-                $file = $uploaded[$fieldKey] ?? null;
+                $file = $uploaded[$fieldKey] ?? ($uploaded['file'] ?? null);
                 if ($file instanceof UploadedFile) {
                     $fileIds[$fieldKey] = $this->storeClaimFile($file, (string) $user?->id);
+                } elseif (! empty($normalizedFields[$fieldKey]) && ($fieldDefinition['type'] ?? null) === 'file') {
+                    $fileIds[$fieldKey] = (string) $normalizedFields[$fieldKey];
                 }
             }
 

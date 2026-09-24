@@ -41,25 +41,32 @@ class SentConnectionResource extends JsonResource
             }
         }
 
+        $formattedAddressee = $addressee ? [
+            'id' => (string) $addressee->id,
+            'display_name' => $addressee->display_name,
+            'first_name' => $addressee->first_name,
+            'last_name' => $addressee->last_name,
+            'profile_photo_url' => $this->buildProfilePhotoUrl($addressee),
+            'company_name' => $addressee->company_name,
+            'city' => $this->resolveCity($addressee),
+            'category' => $addressee->level4Category?->name ?? null,
+            'designation' => $addressee->designation ?? null,
+            'life_impacted_count' => (int) ($addressee->life_impacted_count ?? 0),
+            'is_following' => $isFollowing,
+            'is_pro' => $isPro,
+            'is_connected' => (bool) $this->is_approved,
+            'connection_status' => $this->is_approved ? 'connected' : 'pending_sent',
+        ] : null;
+
         return [
+            'id' => (string) $this->id,
             'requested_at' => $this->created_at,
+            'created_at' => $this->created_at,
             'is_approved' => (bool) $this->is_approved,
-            'addressee' => $addressee ? [
-                'id' => $addressee->id,
-                'display_name' => $addressee->display_name,
-                'first_name' => $addressee->first_name,
-                'last_name' => $addressee->last_name,
-                'profile_photo_url' => $this->buildProfilePhotoUrl($addressee),
-                'company_name' => $addressee->company_name,
-                'city' => $this->resolveCity($addressee),
-                'category' => $addressee->level4Category?->name ?? null,
-                'designation' => $addressee->designation ?? null,
-                'life_impacted_count' => (int) ($addressee->life_impacted_count ?? 0),
-                'is_following' => $isFollowing,
-                'is_pro' => $isPro,
-                'is_connected' => (bool) $this->is_approved,
-                'connection_status' => $this->is_approved ? 'connected' : 'pending_sent',
-            ] : null,
+            'user' => $formattedAddressee,
+            'peer' => $formattedAddressee,
+            'to_user' => $formattedAddressee,
+            'addressee' => $formattedAddressee,
         ];
     }
 
