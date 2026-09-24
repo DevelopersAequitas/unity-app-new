@@ -1446,3 +1446,5 @@ Route::prefix('v1')->group(function () {
 // Top-level alias for Flutter app
 Route::get('/activities/videos', [ActivityVideoApiController::class, 'index']);
 
+// Ask / Requirement Discovery System
+require __DIR__.'/ask.php';
