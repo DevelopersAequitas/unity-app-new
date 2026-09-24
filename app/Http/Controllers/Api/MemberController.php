@@ -811,11 +811,36 @@ class MemberController extends BaseApiController
             ->first();
 
         if ($existing) {
+            $existing->load(['requester', 'addressee']);
+
             if ($existing->is_approved) {
-                return $this->error('You are already connected with this member', 422);
+                return $this->success(new ConnectionResource($existing), 'You are already connected with this member');
             }
 
-            return $this->error('A connection request already exists', 422);
+            if ((string) $existing->requester_id === (string) $authUser->id) {
+                return $this->success(new ConnectionResource($existing), 'Connection request already sent');
+            }
+
+            // If the target had already sent a request to authUser, accept it now
+            $existing->is_approved = true;
+            $existing->approved_at = now();
+            $existing->save();
+
+            $notifyUserService->notifyUser(
+                $target,
+                $authUser,
+                'connection_accepted',
+                [
+                    'request_id' => (string) $existing->id,
+                    'from_user_id' => (string) $authUser->id,
+                    'to_user_id' => (string) $target->id,
+                    'title' => 'Connection Accepted',
+                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' accepted your connection request',
+                ],
+                $existing
+            );
+
+            return $this->success(new ConnectionResource($existing), 'Connection request accepted');
         }
 
         $connection = Connection::create([
@@ -838,11 +863,6 @@ class MemberController extends BaseApiController
             $connection
         );
 
-        // Postman example (send connection request):
-        // POST /api/v1/members/{id}/connect
-        // Verify SQL:
-        // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
-
         return $this->success(new ConnectionResource($connection), 'Connection request sent', 201);
     }
 
@@ -850,12 +870,29 @@ class MemberController extends BaseApiController
     {
         $authUser = $request->user();
 
-        $connection = Connection::where('requester_id', $id)
-            ->where('addressee_id', $authUser->id)
+        $connection = Connection::where(function ($q) use ($authUser, $id) {
+            $q->where('requester_id', $id)
+                ->where('addressee_id', $authUser->id);
+        })
+            ->orWhere(function ($q) use ($authUser, $id) {
+                $q->where('id', $id)
+                    ->where('addressee_id', $authUser->id);
+            })
             ->where('is_approved', false)
             ->first();
 
         if (! $connection) {
+            $already = Connection::where(function ($q) use ($authUser, $id) {
+                $q->where('requester_id', $id)->where('addressee_id', $authUser->id);
+            })->orWhere(function ($q) use ($authUser, $id) {
+                $q->where('id', $id)->where('addressee_id', $authUser->id);
+            })->where('is_approved', true)->first();
+
+            if ($already) {
+                $already->load(['requester', 'addressee']);
+                return $this->success(new ConnectionResource($already), 'Connection request accepted');
+            }
+
             return $this->error('Connection request not found', 404);
         }
 
@@ -883,11 +920,6 @@ class MemberController extends BaseApiController
             );
         }
 
-        // Postman example (accept connection request):
-        // POST /api/v1/members/{requesterUserId}/accept
-        // Verify SQL:
-        // select * from notifications where user_id = '<requester-user-uuid>' order by created_at desc limit 20;
-
         return $this->success(new ConnectionResource($connection), 'Connection request accepted');
     }
 
@@ -902,6 +934,13 @@ class MemberController extends BaseApiController
             ->orWhere(function ($q) use ($authUser, $id) {
                 $q->where('requester_id', $id)
                     ->where('addressee_id', $authUser->id);
+            })
+            ->orWhere(function ($q) use ($authUser, $id) {
+                $q->where('id', $id)
+                    ->where(function ($sub) use ($authUser) {
+                        $sub->where('requester_id', $authUser->id)
+                            ->orWhere('addressee_id', $authUser->id);
+                    });
             })
             ->first();
 
