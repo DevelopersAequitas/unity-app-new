@@ -1,7 +1,8 @@
-# Unity App Developer & AI Rules 🚀
+# PHP / Laravel Developer Rules 🚀
 
-> **Pragmatic Laravel standards with strict product boundaries.**  
-> The goal is to move fast without allowing changes in one product to accidentally break another.
+> **Production-first Laravel standards for a multi-product system.**
+>
+> The goal is to keep the codebase maintainable, predictable, secure, backward-compatible, and easy to scale without creating unnecessary complexity.
 
 ---
 
@@ -13,302 +14,976 @@
 
 ---
 
-## 1. Core Principles
+## 1. 👨‍💻 Development Standard
 
-* **Do not over-engineer.** Prefer Laravel, Eloquent, Services, Form Requests, Policies, Jobs, and Resources. Add abstractions only when they solve a real problem.
-* **Keep controllers thin.** HTTP handling belongs in controllers; business logic belongs in Services/Actions.
-* **Fail clearly.** Do not silently swallow exceptions or return fake/empty success responses.
-* **Preserve existing behavior.** Existing production APIs are contracts unless explicitly approved for change.
-* **Small, focused changes.** Do not refactor unrelated code while implementing a feature.
-* **Never optimize for elegance at the cost of compatibility.**
+All backend and Admin Panel development must be approached with the discipline of a **senior PHP/Laravel engineer with 20+ years of professional software-development experience**.
+
+Prioritize:
+
+* Stability over cleverness.
+* Maintainability over shortcuts.
+* Backward compatibility over unnecessary rewrites.
+* Clear architecture over excessive abstraction.
+* Small, focused changes over large refactors.
+* Production safety over development convenience.
+
+**Always follow this `DEVELOPER_RULES.md` file strictly. Do not bypass, ignore, or partially apply these rules for convenience.**
 
 ---
 
-## 2. 🚨 Product Boundary Rules — MOST IMPORTANT
+# 2. 🏢 Product Boundaries
 
-This repository contains multiple products. **Treat them as separate applications even though they share one Laravel project/database.**
+This repository contains multiple products/applications that share infrastructure and/or database resources.
 
-### Products
+Current products include:
 
-* **Member App**
-* **Leader App**
-* **Admin Panel**
-* **Scan App**
-* **DED**
-* **Shared/Integration infrastructure**
+* Member App
+* Leader App
+* Admin Panel
+* Scan App
+* DED
+* Shared/Integration Infrastructure
 
-### Mandatory rules
+### Mandatory Rules
 
-* A **Leader** task must primarily touch Leader code.
-* A **Member** task must primarily touch Member code.
-* Never modify another product's controller, route, service, API contract, or business logic unless the task explicitly requires it.
-* **Shared data does not mean shared business logic.**
-* Do not move product-specific logic into shared classes merely to reuse code.
-* Before changing shared code, verify every affected product.
-* Never assume a model/service is safe to change just because it is used by the current feature.
+* Treat every product as an independent domain.
+* A feature must primarily modify code belonging to that product.
+* Never modify another product's business logic without explicit requirement.
+* Shared database tables do **not** mean shared business logic.
+* Never assume shared code is safe to change.
+* Before changing shared code, identify all known consumers.
+* Product A must never depend on Product B's business logic.
 
-### Dependency direction
+### Architecture Direction
 
 ```text
-Product
-   ↓
-Shared Kernel / Infrastructure
-   ↓
+Product Domain
+      ↓
+Shared Services / Infrastructure
+      ↓
 Database
 ```
 
-**Product A must not depend on Product B.**
+Never create:
+
+```text
+Product A
+   ↓
+Product B
+```
 
 ---
 
-## 3. 🛡️ AI Development Rules
+# 3. 🤖 AI Development Rules
 
-AI assistants must treat this repository as a **protected multi-product system**.
+AI assistants must treat this repository as a **production multi-product system**, not as a greenfield project.
 
-Before changing code:
+Before making changes, AI must:
 
-1. Identify which product owns the feature.
-2. Identify the routes, controllers, services, models, middleware and tests involved.
-3. Check whether any changed class is shared with another product.
-4. Make the smallest safe change.
-5. Do not modify unrelated legacy code.
-6. Do not perform broad refactors unless explicitly requested.
+1. Identify the product/domain owning the feature.
+2. Identify the affected routes, controllers, services, models and resources.
+3. Check whether affected code is shared.
+4. Check existing API contracts before changing responses.
+5. Make the smallest safe implementation.
+6. Preserve existing behavior unless a change is explicitly requested.
+7. Review the final diff for unrelated changes.
 
-### AI must NOT
+### AI Must NOT
 
 * Rewrite large files unnecessarily.
-* Rename/move existing APIs without approval.
-* Change API response structures casually.
-* Modify legacy Member behavior while implementing Leader functionality.
-* Change shared models simply to make a new feature easier.
-* Delete or replace old endpoints because a new implementation exists.
-* Introduce a new architecture/pattern without a concrete need.
+* Perform unrelated refactoring.
+* Rename existing APIs without approval.
+* Remove existing APIs because a new implementation exists.
+* Change response structures casually.
+* Change shared models simply to make a feature easier.
+* Move business logic between products.
+* Introduce unnecessary Repository/Interface/Factory/Abstract layers.
+* Replace working production architecture merely because another pattern looks cleaner.
+* Delete legacy code without confirming all consumers.
+* Change database structure without considering every product using it.
 
-**If a shared dependency must change, stop and identify the impact before changing it.**
+### Mandatory AI Rule
+
+> **Before completing any task, verify that the implementation follows every applicable rule in this file and that no unrelated product, API, database structure, or shared business logic was changed.**
 
 ---
 
-## 4. 🏗️ Product Architecture
+# 4. 🧱 Architecture
 
-New code should follow the product boundary.
+Use Laravel's existing architecture wherever possible.
 
-### Leader
+Preferred structure:
 
 ```text
-app/Http/Controllers/Api/V1/Leader/
-app/Services/Leader/
-app/Http/Requests/Leader/
-app/Http/Resources/Leader/
-app/Policies/Leader/
+Controller
+    ↓
+Form Request / Authorization
+    ↓
+Service / Action
+    ↓
+Model / Query
+    ↓
+Resource / Response
+```
+
+Use:
+
+* Controllers for HTTP handling.
+* Form Requests for validation.
+* Policies/Gates for authorization.
+* Services/Actions for meaningful business logic.
+* API Resources for response formatting.
+* Jobs for appropriate asynchronous work.
+* Models for data relationships and universally valid model behavior.
+
+Do not create abstractions unless they solve an actual problem.
+
+---
+
+# 5. 🎯 Controllers
+
+Controllers must remain thin.
+
+A controller should generally:
+
+1. Receive the request.
+2. Validate/authorize.
+3. Call the appropriate Service/Action.
+4. Return the appropriate response.
+
+Do not place large business workflows directly inside controllers.
+
+Avoid:
+
+```php
+public function store(Request $request)
+{
+    // 200+ lines of business logic
+}
+```
+
+Prefer:
+
+```php
+public function store(StorePeerRequest $request)
+{
+    $peer = $this->peerService->create($request->validated());
+
+    return new PeerResource($peer);
+}
+```
+
+---
+
+# 6. ⚙️ Services & Business Logic
+
+Business logic belongs in appropriate Services/Actions.
+
+Rules:
+
+* Each service should have a clear responsibility.
+* Avoid "God Services".
+* Use dependency injection.
+* Keep integrations isolated.
+* Do not duplicate the same business rule in multiple controllers.
+* Do not create a Service layer merely for simple CRUD that does not need it.
+
+For external integrations:
+
+* Credentials must come from configuration/environment.
+* Never hardcode secrets.
+* Validate signatures/webhooks.
+* Use Jobs when asynchronous processing is appropriate.
+* Handle failures explicitly.
+
+---
+
+# 7. 🛣️ Routing
+
+Product-specific routes must remain isolated.
+
+For example:
+
+```text
+routes/
+├── api.php
+├── leader.php
+├── admin.php
+└── ...
+```
+
+Leader routes belong in:
+
+```text
 routes/leader.php
-tests/Feature/Leader/
 ```
 
-### Other products
-
-Follow the same principle as their boundaries are introduced.
-
-**Do not put new Leader business logic into generic locations such as:**
-
-```text
-app/Http/Controllers/Api/
-app/Services/
-```
-
-unless the code is genuinely shared infrastructure.
-
----
-
-## 5. 🛣️ Routing Rules
-
-* Product routes must live in product-specific route files.
-* Leader routes belong in `routes/leader.php`.
-* Keep API versioning and middleware explicit.
-* Use class-based controller references.
-* Preserve existing public API URLs during migrations unless a breaking change is explicitly approved.
-* Never delete an existing endpoint merely because it has been moved internally.
-* Use UUID route constraints where the application expects UUIDs.
-* After route changes, verify the route list and middleware.
-
-### Important
-
-**Route organization must not accidentally change:**
+Routes must preserve:
 
 * URL
 * HTTP method
-* middleware
-* authentication
-* authorization
-* route name
-* parameter behavior
-* response contract
-
----
-
-## 6. 🎯 Controllers, Requests & Responses
-
-### Controllers
-
-Controllers should:
-
-1. Receive the request.
-2. Validate/authorize through dedicated classes.
-3. Call the appropriate Service/Action.
-4. Return the API response.
-
-### Validation
-
-* Use Form Requests for non-trivial validation.
-* Never trust client input.
-* Authorization must be explicit.
-
-### API Responses
-
-* Use stable, explicit API response structures.
-* Prefer API Resources/DTO-style response shaping where appropriate.
-* **Do not expose Eloquent models directly as accidental API contracts.**
-* Existing mobile API response structures must be treated as contracts.
-
----
-
-## 7. 🧠 Models & Shared Models
-
-Models represent data, but **business behavior must remain product-aware**.
-
-* Avoid turning `User`, `Circle`, or other shared models into "God Models."
-* Do not add Leader-specific business logic to a shared model unless it is truly domain-wide.
-* Do not change shared model relationships/casts/accessors without checking all consumers.
-* Prefer product Services/Actions for product-specific behavior.
-* Keep shared models focused on shared data and universally valid behavior.
-
-**Shared model = high-risk change.**
-
----
-
-## 8. ⚙️ Services & Business Logic
-
-* Put meaningful business logic in Services/Actions.
-* Services should have one clear responsibility.
-* Keep external integrations behind dedicated services.
-* Do not create Repository/Interface layers without a real requirement.
-* Use dependency injection.
-* Avoid Services that become another "God Class."
-
-For integrations such as Razorpay/Zoho:
-
-* Credentials come from configuration/environment.
-* Validate webhooks/signatures.
-* Use Jobs for appropriate asynchronous work.
-* Never hardcode secrets.
-
----
-
-## 9. 🗄️ Database & Migrations
-
-* **Never edit an already-applied production/staging migration.**
-* Create a new migration for schema changes.
-* Add appropriate indexes and foreign keys.
-* Be careful with shared tables: a schema change can affect every product.
-* Do not rename/delete shared columns without checking all consumers.
-* Treat database schema changes as cross-product changes.
-
----
-
-## 10. 🔐 Security
-
-* Validate all external input.
-* Authorize every protected resource.
-* Use Policies/Middleware where appropriate.
-* Never trust IDs supplied by clients without ownership/permission checks.
-* Use Eloquent/query bindings instead of unsafe raw SQL.
-* Never hardcode secrets.
-* Never log passwords, tokens, API keys, or sensitive personal data.
-
----
-
-## 11. 🧪 Testing & Regression Protection
-
-Every meaningful feature should have tests appropriate to its risk.
-
-### Especially required for:
-
 * Authentication
-* Authorization/capabilities
-* Leader flows
-* Payments
-* External integrations
-* Critical business rules
-* Existing APIs being migrated/refactored
+* Middleware
+* Authorization
+* Route name
+* Parameters
+* API response contract
 
-### Cross-product rule
+Use UUID constraints where applicable.
 
-If a change touches shared code, test the affected existing product flows as well.
-
-**A successful new test is not enough if an old product flow breaks.**
-
-Use fake external services in tests.
+Never change a production endpoint's public contract simply to make internal code cleaner.
 
 ---
 
-## 12. 🚦 Legacy & Production API Protection
+# 8. 📦 API Contract Rules
 
-Existing production APIs are **protected contracts**.
+### Production API responses are contracts.
 
-Classify APIs internally as:
+Before modifying an existing response:
 
-* **Frozen Legacy** — do not modify behavior casually.
-* **Active** — changes require compatibility consideration.
-* **New** — can follow the new architecture.
+1. Search for all consumers.
+2. Check mobile/web/Admin Panel usage.
+3. Determine whether the field is already used.
+4. Preserve existing fields unless removal/change is explicitly approved.
+5. Prefer backward-compatible additions.
 
-When replacing/moving an existing endpoint:
+Never casually change:
 
-> **Extract → Verify → Test → Protect → Then improve.**
+```text
+field names
+field types
+nullability
+nested structures
+pagination structure
+status values
+enum values
+```
 
-Do not use a migration as an excuse for a simultaneous rewrite.
+### Do NOT expose Eloquent models directly
 
----
+Use API Resources or controlled response objects.
 
-## 13. 👑 Leader App Launch Rules
+Bad:
 
-Leader is currently being prepared for production/store launch.
+```php
+return $peer;
+```
 
-Therefore:
+Preferred:
 
-* Leader is the **first product to receive the new architectural boundary**.
-* Existing Leader API URLs should remain unchanged unless explicitly approved.
-* Leader routes should be isolated into `routes/leader.php`.
-* Leader controllers/services should remain under their Leader namespaces/directories.
-* Leader-specific business logic must not be added to Member/legacy code.
-* Every Leader endpoint should have appropriate regression/feature coverage before launch.
-* Changes to shared models or shared services during Leader work require explicit impact review.
-
-**Goal: launch Leader cleanly without creating new coupling to legacy Member flows.**
-
----
-
-## 14. 📋 Before Committing
-
-Run:
-
-1. `vendor/bin/pint`
-2. Relevant PHPUnit/feature tests
-3. `php artisan route:list` when routes changed
-4. Check `.env.example` for new environment variables
-5. Review the Git diff
-6. Confirm no unrelated product files changed
-
-### Final AI check
-
-Before finishing any task, ask:
-
-> **Did I change anything outside the product/domain requested?**
-
-If yes, explain why it was necessary.
+```php
+return new PeerResource($peer);
+```
 
 ---
 
-## 15. 🚫 Golden Rule
+# 9. 👥 Peer API Data Contract — STRICT
+
+Whenever an API shares **Peer/Member information**, use the following canonical Peer fields.
+
+### Canonical Peer JSON
+
+```json
+{
+    "id": "b8be8e51-6ba9-4269-8b20-d5fc60de4271",
+    "name": "Vinit Chavda",
+    "display_name": "Vinit Chavda",
+    "first_name": "Vinit",
+    "last_name": "Chavda",
+    "city": "Ahmedabad, IN",
+    "company_name": "CK FutureTech",
+    "life_impacted_count": 42754,
+    "introduced_count": 0,
+    "profile_photo_image": "https://dev.peersunity.com/api/v1/files/01a0950a-4c7e-72f1-9cf7-4473b0bc2491",
+    "membership_status": "free_trial_peer",
+    "designation": "Developer",
+    "level4_category": "DGFT Consultants",
+    "is_bookmark": false,
+    "is_following": false,
+    "is_verified": false,
+    "is_pro": false,
+    "is_connected": false,
+    "connection_status": "pending_sent",
+    "is_requested": true,
+    "can_send_connection_request": false,
+    "match_percentage": 20
+}
+```
+
+### 🚨 No Duplicate/Copy Fields
+
+**Never create duplicate fields representing the same information.**
+
+For example, do NOT introduce additional alternatives such as:
+
+```text
+photo
+photo_url
+avatar
+avatar_url
+profilePhoto
+profilePhotoUrl
+image
+image_url
+profile_pic
+profile_pic_url
+profile_image
+profile_photo_url
+```
+
+when the canonical Peer contract already defines the required fields.
+
+**Use the exact established field names and meanings.**
+
+Do not rename, duplicate, or create "temporary" alternative fields without explicit approval.
+
+### Important
+
+The single canonical profile-image field is:
+
+```text
+profile_photo_image
+```
+
+Do not create additional profile-image fields (such as `profile_image` or `profile_photo_url`).
+
+If the backend implementation internally has different names, map them to `profile_photo_image` in the canonical API response instead of exposing additional fields.
+
+### Peer API Consistency
+
+Whenever Peer information is returned from:
+
+* Search
+* Recommendations
+* Matching
+* Connections
+* Followers
+* Following
+* Bookmarks
+* Leaderboard
+* Introductions
+* Networking
+* Notifications containing Peer information
+* Any other Peer-related endpoint
+
+use the established Peer response contract consistently.
+
+Do not create a different Peer structure for every endpoint.
+
+Additional fields may only be added when they represent genuinely new information and are approved as part of the API contract.
+
+---
+
+# 10. 🧠 Models
+
+Models should represent data and universally valid model behavior.
+
+Avoid creating "God Models".
+
+For shared models such as:
+
+```text
+User
+Peer
+Circle
+Company
+Membership
+```
+
+be extremely careful before adding:
+
+* Product-specific business logic.
+* Product-specific relationships.
+* Product-specific scopes.
+* Product-specific accessors.
+* Product-specific side effects.
+
+If the logic belongs only to Leader, keep it in Leader code.
+
+If the logic belongs only to Member, keep it in Member code.
+
+Shared model changes are **high-risk changes**.
+
+---
+
+# 11. 🗄️ Database Rules
+
+### Never modify an already-applied migration.
+
+If the schema needs to change:
+
+```text
+Create a new migration.
+```
+
+Never edit an old production migration to "fix" the schema.
+
+Before database changes:
+
+* Check all products using the table.
+* Check foreign keys.
+* Check indexes.
+* Check existing queries.
+* Check API consumers.
+* Check nullable/default behavior.
+* Check data migration requirements.
+
+### Shared tables
+
+A shared table is a cross-product dependency.
+
+Changing it must be treated as a cross-product change.
+
+Never rename/delete a shared column without checking all consumers.
+
+---
+
+# 12. 🔐 Security
+
+Always:
+
+* Validate external input.
+* Authorize protected resources.
+* Use Policies/Middleware appropriately.
+* Verify ownership/permissions.
+* Use parameter binding/Eloquent safely.
+* Protect sensitive endpoints.
+* Keep secrets in environment/configuration.
+
+Never:
+
+* Hardcode passwords.
+* Hardcode API keys.
+* Hardcode tokens.
+* Log passwords.
+* Log authentication tokens.
+* Log sensitive personal information unnecessarily.
+* Trust user-supplied IDs without authorization checks.
+
+---
+
+# 13. 🧪 Testing
+
+Meaningful production changes must have appropriate tests.
+
+Especially test:
+
+* Authentication.
+* Authorization.
+* Permissions.
+* Peer flows.
+* Leader flows.
+* Payments.
+* Critical business rules.
+* External integrations.
+* Existing API contracts.
+* Shared services/models.
+
+If shared code changes:
+
+> Test the existing product flows that depend on that shared code.
+
+A new feature passing its own test is not enough if an existing product can break.
+
+---
+
+# 14. 🚨 Production & Legacy API Protection
+
+Production APIs must be treated as protected contracts.
+
+Classify APIs as:
+
+### Frozen Legacy
+
+Existing production behavior should not be changed casually.
+
+### Active
+
+Changes are allowed only with compatibility consideration.
+
+### New
+
+New architecture and conventions can be applied.
+
+When replacing existing implementation:
+
+```text
+Understand
+   ↓
+Extract
+   ↓
+Implement
+   ↓
+Test
+   ↓
+Verify existing behavior
+   ↓
+Improve
+```
+
+Do not combine:
+
+```text
+feature development
++
+architecture rewrite
++
+legacy cleanup
++
+database redesign
+```
+
+unless explicitly requested.
+
+---
+
+# 15. 🖥️ Admin Panel Rules
+
+The Admin Panel is a product/interface of its own.
+
+Do not place business logic directly inside:
+
+* Blade templates.
+* JavaScript UI code.
+* Controllers with large workflows.
+
+Admin functionality must use the same backend business rules as the API where appropriate.
+
+Never bypass authorization merely because an action is performed from Admin Panel.
+
+Admin users must still have explicit permissions for sensitive operations.
+
+---
+
+# 16. 🔄 Backward Compatibility
+
+When adding a feature:
+
+> **Add before removing.**
+
+Prefer:
+
+```text
+Old API → Continue working
+New API → Introduce new behavior
+Migration → Gradually move consumers
+Removal → Only after explicit approval
+```
+
+Do not break existing mobile applications because the backend was improved.
+
+Remember:
+
+> **The currently released mobile application is also a production consumer.**
+
+---
+
+# 17. 📁 Code Organization
+
+Keep product-specific code inside product-specific namespaces/directories.
+
+Example:
+
+```text
+app/
+├── Http/
+│   ├── Controllers/
+│   │   └── Api/
+│   │       └── V1/
+│   │           └── Leader/
+│   ├── Requests/
+│   │   └── Leader/
+│   └── Resources/
+│       └── Leader/
+│
+├── Services/
+│   └── Leader/
+│
+└── Policies/
+    └── Leader/
+```
+
+Avoid putting product-specific code into generic locations such as:
+
+```text
+app/Services/
+app/Http/Controllers/
+```
+
+unless the class is genuinely shared.
+
+---
+
+# 18. 📐 Naming & Code Quality
+
+Use clear, predictable names.
+
+Prefer:
+
+```text
+PeerService
+ConnectionService
+LeaderboardService
+CreatePeerRequest
+PeerResource
+```
+
+Avoid:
+
+```text
+Helper
+CommonHelper
+GlobalService
+MiscService
+UtilityService
+EverythingService
+```
+
+unless the responsibility is genuinely broad and justified.
+
+Keep methods focused.
+
+Avoid methods that perform multiple unrelated workflows.
+
+---
+
+# 19. 🧹 Refactoring Rules
+
+Refactoring is allowed only when it directly supports the requested task or has been explicitly requested.
+
+Before refactoring:
+
+* Understand current behavior.
+* Identify consumers.
+* Confirm API compatibility.
+* Check shared dependencies.
+* Add/verify tests.
+
+Do not turn:
+
+```text
+"Add leaderboard filter"
+```
+
+into:
+
+```text
+"Rewrite leaderboard architecture"
+```
+
+unless explicitly requested.
+
+---
+
+# 20. 🚀 New Feature Development
+
+For every new feature:
+
+### Step 1 — Understand
+
+Identify:
+
+* Product.
+* User flow.
+* API.
+* Database tables.
+* Existing services.
+* Existing consumers.
+
+### Step 2 — Design
+
+Determine the smallest clean implementation.
+
+### Step 3 — Implement
+
+Follow existing architecture.
+
+### Step 4 — Validate
+
+Check:
+
+* API response.
+* Authorization.
+* Validation.
+* Error handling.
+* Database behavior.
+* Existing consumers.
+
+### Step 5 — Test
+
+Run relevant tests.
+
+### Step 6 — Review
+
+Review the final diff and remove unrelated changes.
+
+---
+
+# 21. 🔍 Error Handling
+
+Never silently hide errors.
+
+Bad:
+
+```php
+try {
+    // operation
+} catch (\Exception $e) {
+    return [];
+}
+```
+
+This can make production failures look like valid empty data.
+
+Errors should be:
+
+* Handled intentionally.
+* Logged appropriately.
+* Returned with meaningful API responses.
+* Converted to user-safe messages where necessary.
+
+Never expose internal stack traces, secrets, SQL queries, or sensitive implementation details to clients.
+
+---
+
+# 22. ⚡ Performance
+
+Optimize based on actual problems.
+
+Before optimizing:
+
+* Identify the bottleneck.
+* Check query count.
+* Check indexes.
+* Check N+1 queries.
+* Check unnecessary API/database calls.
+* Check caching opportunities.
+
+Prefer simple optimizations:
+
+```text
+Eager loading
+Indexes
+Pagination
+Caching
+Query optimization
+Queues
+```
+
+Do not introduce complex caching or infrastructure without a real requirement.
+
+---
+
+# 23. 📦 Dependencies
+
+Before adding a package:
+
+1. Check whether Laravel/PHP already provides the functionality.
+2. Check whether an existing package already handles it.
+3. Check package maintenance/status.
+4. Consider production impact.
+5. Consider security.
+6. Consider long-term maintenance.
+
+Do not add dependencies for trivial functionality.
+
+---
+
+# 24. 🌐 API Versioning
+
+API versions must remain explicit.
+
+Example:
+
+```text
+/api/v1/...
+```
+
+Do not introduce breaking changes into an existing version.
+
+Breaking changes should generally require:
+
+```text
+New API version
++
+Migration plan
++
+Consumer verification
+```
+
+---
+
+# 25. 👑 Leader App Rules
+
+Leader App is a separate product domain.
+
+Leader-specific code must remain isolated.
+
+Example:
+
+```text
+routes/leader.php
+
+app/Http/Controllers/Api/V1/Leader/
+app/Http/Requests/Leader/
+app/Http/Resources/Leader/
+app/Services/Leader/
+app/Policies/Leader/
+tests/Feature/Leader/
+```
+
+Leader code must not introduce unnecessary coupling to Member functionality.
+
+Leader-specific business rules must not be placed inside shared models/services simply for convenience.
+
+If shared functionality is genuinely required:
+
+1. Identify the shared behavior.
+2. Verify all consumers.
+3. Extract only the genuinely shared portion.
+4. Test existing products.
+5. Document the dependency.
+
+---
+
+# 26. 🔔 Notifications & Automated Workflows
+
+Notifications must respect product and role boundaries.
+
+Before implementing automation:
+
+* Identify who triggers it.
+* Identify who receives it.
+* Check role permissions.
+* Avoid duplicate notifications.
+* Ensure retries are safe.
+* Use Jobs where appropriate.
+
+Never allow a lower-level role to access data/actions outside its permission scope merely because the notification workflow needs it.
+
+---
+
+# 27. 📊 Logging & Observability
+
+Production logs should help developers debug issues without exposing sensitive information.
+
+Log:
+
+* Important failures.
+* Integration failures.
+* Critical workflow failures.
+* Relevant identifiers where safe.
+
+Do not log:
+
+* Passwords.
+* Access tokens.
+* API secrets.
+* Private keys.
+* Sensitive authentication information.
+
+Use structured/contextual logging where appropriate.
+
+---
+
+# 28. 🛑 Shared Code Change Rule
+
+Before modifying any shared:
+
+```text
+Model
+Service
+Migration
+Middleware
+Helper
+Resource
+Enum
+Configuration
+```
+
+ask:
+
+```text
+Who uses this?
+Which products use this?
+Could this change alter existing behavior?
+Is the change backward compatible?
+```
+
+If the answer is unclear, investigate before changing it.
+
+> **Never make a local problem a global change.**
+
+---
+
+# 29. ✅ Before Commit / Pull Request
+
+Run the applicable checks:
+
+```bash
+vendor/bin/pint
+```
+
+Run relevant tests:
+
+```bash
+php artisan test
+```
+
+If routes changed:
+
+```bash
+php artisan route:list
+```
+
+Also verify:
+
+* No unrelated files changed.
+* No debugging code remains.
+* No secrets were committed.
+* No accidental API response changes occurred.
+* No duplicate Peer fields were introduced.
+* No production migration was modified.
+* No unrelated product was affected.
+* New environment variables are documented.
+* Database changes are backward compatible.
+
+---
+
+# 30. 🧠 Final Development Checklist
+
+Before considering any task complete, verify:
+
+```text
+[ ] Correct product/domain identified
+[ ] Existing architecture understood
+[ ] Shared dependencies checked
+[ ] Existing API contract preserved
+[ ] Peer API uses canonical fields
+[ ] No duplicate/copy fields introduced
+[ ] Validation implemented
+[ ] Authorization implemented
+[ ] Business logic placed correctly
+[ ] Database impact checked
+[ ] Error handling implemented
+[ ] Tests added/updated where required
+[ ] Existing flows verified
+[ ] No unrelated refactoring
+[ ] No secrets/debug code
+[ ] Git diff reviewed
+[ ] Production compatibility verified
+```
+
+---
+
+# 🔒 GOLDEN RULE
 
 > **Do not make a local problem a global change.**
 
-Keep product behavior isolated, keep shared code minimal, preserve existing API contracts, and make changes small enough that another developer—or an AI assistant—can understand their impact.
+> **Do not create duplicate data fields when an existing contract already defines the correct field.**
+
+> **Do not break a production API simply to make the implementation cleaner.**
+
+> **Keep products isolated, keep shared code genuinely shared, keep API contracts stable, and make every change understandable to the next developer.**
+
+**Most importantly: follow `DEVELOPER_RULES.md` completely and consistently for every development task.**
