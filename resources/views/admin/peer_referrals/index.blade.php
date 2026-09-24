@@ -97,15 +97,16 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referrer Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referred Peer</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact Info</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company &amp; Role</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Parent Circle</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Category</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 170px;">Referrer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 130px;">Referrer Circle/City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Referred Peer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Contact Info</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Company &amp; Role</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 120px;">Target Circle</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 100px;">Category</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 90px;">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 110px;">Created At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width: 100px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -113,22 +114,22 @@
                             @php
                                 $refUser = $referral->referrer;
                                 $refUserName = $refUser ? ($refUser->display_name ?: trim(($refUser->first_name ?? '') . ' ' . ($refUser->last_name ?? ''))) : '—';
+                                $refCircle = $refUser?->activeCircle?->name ?? null;
+                                $refCity = $refUser?->cityRelation?->name ?? $refUser?->city ?? null;
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($refUser)
-                                        <div class="flex items-start gap-2">
-                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5" style="background-color: {{ $getAvatarBg($refUserName) }}">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($refUserName) }}">
                                                 {{ $getInitials($refUserName) }}
                                             </div>
-                                            <div>
-                                                <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $refUser->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline block">
-                                                    {{ $refUserName }}
+                                            <div class="min-w-0">
+                                                <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $refUser->id }}', event);" class="text-indigo-600 font-semibold hover:text-indigo-800 hover:underline no-underline block truncate" title="Click to view {{ $refUserName }}'s complete profile">
+                                                    {{ $refUserName }} <i class="bi bi-box-arrow-up-right text-[10px] text-indigo-400 ms-0.5"></i>
                                                 </a>
-                                                <div class="text-[10px] t3 mt-1 space-y-0.5">
-                                                    <div>Email: <span class="t1">{{ $refUser->email }}</span></div>
-                                                    <div>Circle: <span class="font-semibold text-indigo-600">{{ $refUser->activeCircle?->name ?? '—' }}</span></div>
-                                                    <div>City: <span class="font-semibold text-slate-700">{{ $refUser->cityRelation?->name ?? $refUser->city ?? '—' }}</span></div>
+                                                <div class="text-[11px] t3 truncate font-mono" title="{{ $refUser->email }}">
+                                                    {{ $refUser->email }}
                                                 </div>
                                             </div>
                                         </div>
@@ -136,27 +137,48 @@
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <div class="space-y-1">
+                                        @if($refCircle)
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                <i class="bi bi-circle-fill text-[6px]"></i> {{ $refCircle }}
+                                            </span>
+                                        @endif
+                                        @if($refCity)
+                                            <div class="text-[11px] t2 flex items-center gap-1">
+                                                <i class="bi bi-geo-alt text-slate-400 text-[10px]"></i> {{ $refCity }}
+                                            </div>
+                                        @endif
+                                        @if(!$refCircle && !$refCity)
+                                            <span class="t3">—</span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $referral->referred_name }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">
-                                    <div>{{ $referral->referred_phone }}</div>
+                                    <div class="font-mono">{{ $referral->referred_phone }}</div>
                                     @if($referral->referred_email)
-                                        <div class="text-[11px] t3">{{ $referral->referred_email }}</div>
+                                        <div class="text-[11px] t3 truncate max-w-[150px]" title="{{ $referral->referred_email }}">{{ $referral->referred_email }}</div>
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2">
-                                    <div>{{ $referral->referred_company_name ?? '—' }}</div>
+                                    <div class="font-medium t1">{{ $referral->referred_company_name ?? '—' }}</div>
                                     @if($referral->referred_designation)
                                         <div class="text-[11px] t3">{{ $referral->referred_designation }}</div>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $referral->mainCircle?->name ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                        {{ $referral->mainCircle?->name ?? '—' }}
+                                    </span>
+                                </td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $referral->category?->name ?? '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     <span class="px-2 py-0.5 rounded text-[11px] font-semibold border {{ $getStatusBadgeClass($referral->status) }}">
                                         {{ ucfirst($referral->status) }}
                                     </span>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">
                                     {{ $referral->created_at?->format('d M Y, h:i A') ?? '—' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
@@ -167,7 +189,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-8 text-xs t3">No peer referrals found.</td>
+                                <td colspan="10" class="text-center py-8 text-xs t3">No peer referrals found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -179,4 +201,5 @@
             </div>
         </div>
     </div>
+    @include('admin.activities.partials.peer-modal')
 @endsection

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Activity;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -17,6 +19,14 @@ class StoreP2pMeetingRequest extends FormRequest
 
         if (! $this->has('peer_user_id') && $this->filled('to_user_id')) {
             $merge['peer_user_id'] = $this->input('to_user_id');
+        }
+
+        if (! $this->has('p2p_meeting_request_id')) {
+            if ($this->filled('meeting_request_id')) {
+                $merge['p2p_meeting_request_id'] = $this->input('meeting_request_id');
+            } elseif ($this->filled('request_id')) {
+                $merge['p2p_meeting_request_id'] = $this->input('request_id');
+            }
         }
 
         if (! $this->has('meeting_date') && $this->filled('date')) {
@@ -58,6 +68,7 @@ class StoreP2pMeetingRequest extends FormRequest
     {
         return [
             'peer_user_id' => ['required', 'uuid', 'exists:users,id'],
+            'p2p_meeting_request_id' => ['nullable', 'uuid', 'exists:p2p_meeting_requests,id'],
             'meeting_date' => ['required', 'date_format:Y-m-d'],
             'meeting_place' => ['required', 'string', 'max:255'],
             'remarks' => ['required', 'string'],

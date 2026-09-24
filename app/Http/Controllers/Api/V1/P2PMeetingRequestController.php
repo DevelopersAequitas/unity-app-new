@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
@@ -65,6 +67,7 @@ class P2PMeetingRequestController extends BaseApiController
                 'place' => $validated['place'],
                 'message' => $validated['message'] ?? null,
                 'status' => 'pending',
+                'is_logged' => false,
             ]);
         });
 
@@ -89,7 +92,7 @@ class P2PMeetingRequestController extends BaseApiController
 
         if (! empty($validated['status'])) {
             $statuses = explode(',', $validated['status']);
-            $allowedStatuses = ['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled'];
+            $allowedStatuses = ['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled', 'completed'];
             $statuses = array_intersect($statuses, $allowedStatuses);
 
             if (in_array('pending', $statuses, true) && ! in_array('reschedule_requested', $statuses, true)) {
@@ -279,7 +282,7 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only the invitee can request reschedule before accepting the meeting.', 422);
         }
 
-        if (in_array($status, ['rejected', 'cancelled', 'completed'], true)) {
+        if (in_array($status, ['rejected', 'cancelled', 'completed'], true) || (bool) $meetingRequest->is_logged) {
             return $this->error("This meeting cannot be rescheduled because it is already {$status}.", 422);
         }
 
@@ -396,6 +399,10 @@ class P2PMeetingRequestController extends BaseApiController
 
     private function canRequestReschedule(P2PMeetingRequest $meetingRequest, string $authUserId, ?string $status = null): bool
     {
+        if ((bool) $meetingRequest->is_logged || strtolower((string) $meetingRequest->status) === 'completed') {
+            return false;
+        }
+
         $status ??= $this->normalizedMeetingStatus($meetingRequest);
 
         if (in_array($status, ['accepted', 'scheduled', 'reschedule_rejected'], true)) {

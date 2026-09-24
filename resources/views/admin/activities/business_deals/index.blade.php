@@ -129,47 +129,92 @@
 
         <!-- Metrics Cards -->
         <div class="activities-stats-grid">
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition" onclick="document.getElementById('dealsLogGrid')?.scrollIntoView({behavior: 'smooth'})" title="Click to view all business deals in table">
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-briefcase-fill"></i>
                 </div>
                 <div>
                     <div class="metric-val">{{ number_format($total) }}</div>
-                    <div class="metric-label">Total Deals</div>
+                    <div class="metric-label">
+                        Total Deals ({{ ($filters['member_type'] ?? 'peer') === 'team_member' ? 'Team Members' : (($filters['member_type'] ?? 'peer') === 'all' ? 'All' : 'Regular Peers') }})
+                        <i class="bi bi-arrow-down-short text-muted"></i>
+                    </div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition border border-indigo-200/80" onclick="openDealValueBreakdownModal()" title="Click to open Team vs Regular Peer Value Breakdown Popup">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-currency-rupee"></i>
                 </div>
                 <div>
-                    <div class="metric-val">
-                        ₹{{ number_format($items->sum('deal_amount'), 2) }}
+                    <div class="metric-val text-indigo-700">
+                        ₹{{ number_format(($filters['member_type'] ?? 'peer') === 'team_member' ? ($dealBreakdown['team_total'] ?? 0) : (($filters['member_type'] ?? 'peer') === 'all' ? ($dealBreakdown['combined_total'] ?? 0) : ($dealBreakdown['peer_total'] ?? $items->sum('deal_amount'))), 2) }}
                     </div>
-                    <div class="metric-label">Total Deal Value (Page)</div>
+                    <div class="metric-label d-flex items-center gap-1.5 flex-wrap">
+                        <span>Total Deal Value ({{ ($filters['member_type'] ?? 'peer') === 'team_member' ? 'Team' : (($filters['member_type'] ?? 'peer') === 'all' ? 'All' : 'Peers') }})</span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <i class="bi bi-pie-chart-fill"></i> Breakdown Popup
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            @php
+                $topMember = ($topMembers ?? collect())->first();
+                $topPeerId = $topMember ? ($topMember->actor_id ?? $topMember->id ?? $topMember->user_id ?? null) : null;
+                $topPeerName = $topMember ? ($topMember->peer_name ?? $displayName($topMember->display_name ?? null, $topMember->first_name ?? null, $topMember->last_name ?? null)) : null;
+            @endphp
+            <div class="activity-metric-card {{ $topPeerId ? 'cursor-pointer hover:shadow-md transition' : '' }}"
+                 @if($topPeerId)
+                     onclick="openActivityPeerModal('{{ $topPeerId }}', event)"
+                     title="Click to view {{ $topPeerName }}'s profile and activities"
+                     style="cursor: pointer;"
+                 @endif>
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
                 <div>
-                    <div class="metric-val">
-                        @if(($topMembers ?? collect())->isNotEmpty())
-                            {{ $topMembers->first()->total_count ?? 0 }}
-                        @else
-                            0
+                    <div class="metric-val flex items-center gap-2">
+                        <span>{{ $topMember->total_count ?? 0 }}</span>
+                        @if($topPeerName && $topPeerName !== '—')
+                            <span class="text-[11px] font-medium text-indigo-600 truncate max-w-[140px]">({{ $topPeerName }})</span>
                         @endif
                     </div>
-                    <div class="metric-label">Most Deals by One Peer</div>
+                    <div class="metric-label">
+                        Most Deals by One Peer
+                        @if($topPeerId)
+                            <i class="bi bi-box-arrow-up-right ms-1 text-[10px] text-muted"></i>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- Quick Scope Filter Pills -->
+        <div class="flex items-center justify-between gap-3 flex-wrap bg-slate-50 p-2.5 rounded-xl border bs">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider px-1"><i class="bi bi-funnel-fill me-1"></i>Deals Scope:</span>
+                <a href="{{ route('admin.activities.business-deals.index', array_merge(request()->query(), ['member_type' => 'peer'])) }}" 
+                   class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 no-underline {{ ($filters['member_type'] ?? 'peer') === 'peer' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200' }}">
+                    <i class="bi bi-people-fill"></i> Regular Peers ({{ number_format($dealBreakdown['peer_count'] ?? 0) }}) • ₹{{ number_format($dealBreakdown['peer_total'] ?? 0, 2) }}
+                </a>
+                <a href="{{ route('admin.activities.business-deals.index', array_merge(request()->query(), ['member_type' => 'team_member'])) }}" 
+                   class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 no-underline {{ ($filters['member_type'] ?? 'peer') === 'team_member' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200' }}">
+                    <i class="bi bi-shield-lock-fill"></i> Team Members ({{ number_format($dealBreakdown['team_count'] ?? 0) }}) • ₹{{ number_format($dealBreakdown['team_total'] ?? 0, 2) }}
+                </a>
+                <a href="{{ route('admin.activities.business-deals.index', array_merge(request()->query(), ['member_type' => 'all'])) }}" 
+                   class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 no-underline {{ ($filters['member_type'] ?? 'peer') === 'all' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200' }}">
+                    <i class="bi bi-grid-fill"></i> All Deals ({{ number_format($dealBreakdown['combined_count'] ?? 0) }}) • ₹{{ number_format($dealBreakdown['combined_total'] ?? 0, 2) }}
+                </a>
+            </div>
+            <button type="button" onclick="openDealValueBreakdownModal()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition flex items-center gap-1.5 shadow-sm">
+                <i class="bi bi-pie-chart-fill text-indigo-500"></i> View 2-Section Breakdown Popup
+            </button>
+        </div>
+
         <!-- Filters Section -->
         <form id="businessDealsFiltersForm" method="GET" action="{{ route('admin.activities.business-deals.index') }}" class="space-y-4">
+            <input type="hidden" name="member_type" value="{{ $filters['member_type'] ?? 'peer' }}">
             @include('admin.components.activity-filter-bar-v2', [
                 'actionUrl' => route('admin.activities.business-deals.index'),
                 'resetUrl' => route('admin.activities.business-deals.index'),
@@ -234,7 +279,7 @@
                 </div>
 
                 <!-- All Logs Grid -->
-                <div class="rounded-xl border bs surface overflow-hidden">
+                <div id="dealsLogGrid" class="rounded-xl border bs surface overflow-hidden">
                     <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
                         <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Business Deals Log</span>
                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Business Deals count: {{ number_format($items->total()) }}</span>
@@ -525,5 +570,6 @@
     </script>
     @include('admin.activities.partials.peer-modal')
     @include('admin.activities.business_deals.partials.detail-modal')
+    @include('admin.activities.business_deals.partials.breakdown-modal')
 @endsection
 
