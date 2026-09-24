@@ -16,6 +16,99 @@ use Illuminate\Support\Facades\Schema;
 class CoinMilestoneController extends Controller
 {
     /**
+     * Get list of all milestones, user progress, and badges.
+     */
+    public function index(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $currentCoins = (int) ($user?->coins_balance ?? 0);
+        $milestones = CoinMilestoneResolver::getMilestones();
+
+        $items = [];
+        $currentMilestoneData = null;
+        $nextMilestoneData = null;
+
+        $resolvedCurrent = CoinMilestoneResolver::resolve($currentCoins);
+
+        foreach ($milestones as $milestone) {
+            $isAchieved = $currentCoins >= (int) $milestone['threshold'];
+            $items[] = [
+                'threshold' => (int) $milestone['threshold'],
+                'medal_rank' => $milestone['medal_rank'],
+                'title' => $milestone['title'],
+                'meaning' => $milestone['meaning'],
+                'achieved' => $isAchieved,
+            ];
+
+            if ($isAchieved) {
+                $currentMilestoneData = [
+                    'medal_rank' => $milestone['medal_rank'],
+                    'title' => $milestone['title'],
+                    'meaning' => $milestone['meaning'],
+                    'threshold' => (int) $milestone['threshold'],
+                ];
+            } elseif ($nextMilestoneData === null) {
+                $nextMilestoneData = [
+                    'medal_rank' => $milestone['medal_rank'],
+                    'title' => $milestone['title'],
+                    'meaning' => $milestone['meaning'],
+                    'threshold' => (int) $milestone['threshold'],
+                    'coins_needed' => max(0, (int) $milestone['threshold'] - $currentCoins),
+                ];
+            }
+        }
+
+        $dynamicBadges = $user ? $this->getLatestDynamicBadges($user) : [
+            'life_impact' => [],
+            'coins' => [],
+            'member_introduction' => [],
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Milestones fetched successfully',
+            'data' => [
+                'items' => $items,
+                'milestones' => $items,
+                'current_coins' => $currentCoins,
+                'coins_balance' => $currentCoins,
+                'total_life_impacted' => (int) ($user?->life_impacted_count ?? 0),
+                'life_impacted_count' => (int) ($user?->life_impacted_count ?? 0),
+                'members_introduced_count' => (int) ($user?->members_introduced_count ?? 0),
+                'current_milestone' => $currentMilestoneData,
+                'next_milestone' => $nextMilestoneData,
+                'badges' => $dynamicBadges,
+            ],
+        ]);
+    }
+
+    /**
+     * Get the latest/highest milestone rank for the authenticated user.
+     */
+    public function myLatest(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        return $this->latest((string) $user->id);
+    }
+
+    /**
+     * Get full milestones history for the authenticated user.
+     */
+    public function myHistory(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        return $this->history((string) $user->id);
+    }
+
+    /**
      * Get the latest/highest milestone rank and progress toward the next one.
      */
     public function latest(string $userId): JsonResponse
