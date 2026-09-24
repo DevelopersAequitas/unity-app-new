@@ -272,27 +272,10 @@
 @endphp
 
 <div class="space-y-4">
-
-    {{-- ── PAGE HEADER ── --}}
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            <div class="d-flex align-items-center gap-2">
-                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(13,148,136,0.12); color: #0d9488; display: flex; align-items: center; justify-content: center; font-size: 18px;">
-                    <i class="bi bi-chat-dots-fill"></i>
-                </div>
-                <div>
-                    <h4 class="fw-bold mb-0" style="color: #0f172a; font-size: 1.25rem;">Message Analytics & Reporting</h4>
-                    <p class="text-muted mb-0" style="font-size: 0.82rem;">Volume, member conversations, and message inspection dashboard</p>
-                </div>
-            </div>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ route('admin.activities.messages.export', request()->except(['page'])) }}"
-               class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 px-3 py-2 fw-semibold" style="border-radius: 10px;">
-                <i class="bi bi-file-earmark-arrow-down"></i> Export CSV
-            </a>
-        </div>
-    </div>
+    @include('admin.activities.partials.header', [
+        'title' => 'Messages',
+        'actionButton' => '<a href="' . route('admin.activities.messages.export', request()->except(['page'])) . '" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 px-3 py-2 fw-semibold" style="border-radius: 10px;"><i class="bi bi-file-earmark-arrow-down"></i> Export CSV</a>'
+    ])
 
     {{-- Privacy & Inspection Notice --}}
     <div class="privacy-banner">
@@ -592,7 +575,15 @@
                                     </span>
                                 </td>
                                 <td class="py-2">
-                                    <div class="fw-bold text-dark truncate" style="max-width: 130px;">{{ $m->member_name }}</div>
+                                    <div class="fw-bold text-dark truncate" style="max-width: 130px;">
+                                        @if(!empty($m->member_id))
+                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); openActivityPeerModal('{{ $m->member_id }}', event);">
+                                                {{ $m->member_name }}
+                                            </a>
+                                        @else
+                                            {{ $m->member_name }}
+                                        @endif
+                                    </div>
                                     <div class="text-muted truncate" style="font-size: 10.5px;">{{ $m->member_city ?? '—' }}</div>
                                 </td>
                                 <td class="text-end py-2 fw-bold" style="color: #0d9488;">{{ number_format($m->total_sent) }}</td>
@@ -634,7 +625,15 @@
                                     </span>
                                 </td>
                                 <td class="py-2">
-                                    <div class="fw-bold text-dark truncate" style="max-width: 140px;">{{ $m->member_name }}</div>
+                                    <div class="fw-bold text-dark truncate" style="max-width: 140px;">
+                                        @if(!empty($m->member_id))
+                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); openActivityPeerModal('{{ $m->member_id }}', event);">
+                                                {{ $m->member_name }}
+                                            </a>
+                                        @else
+                                            {{ $m->member_name }}
+                                        @endif
+                                    </div>
                                     <div class="text-muted truncate" style="font-size: 10.5px;">{{ $m->member_city ?? '—' }}</div>
                                 </td>
                                 <td class="text-end pe-3 py-2 fw-bold" style="color: #8b5cf6;">{{ number_format($m->total_received) }}</td>

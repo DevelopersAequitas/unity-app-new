@@ -40,7 +40,13 @@ class LifeImpactController extends Controller
 
         $dateFilterActive = $this->hasDateFilter($filters);
 
-        $members = $this->membersQuery($filters)
+        $membersQuery = $this->membersQuery($filters);
+
+        if (!empty($filters['category']) && !in_array($filters['category'], ['all', 'total_life_impacted'], true)) {
+            $membersQuery->orderByDesc('category_sort');
+        }
+
+        $members = $membersQuery
             ->orderByDesc('total_life_impacted_sort')
             ->orderBy('users.display_name')
             ->paginate($perPage)
@@ -55,6 +61,7 @@ class LifeImpactController extends Controller
             'summary' => $this->summaryStats($filters),
             'dateFilterActive' => $dateFilterActive,
             'quickDateRanges' => $this->quickDateRanges(),
+            'activeCategory' => $filters['category'] ?? 'all',
         ]);
     }
 
@@ -207,6 +214,76 @@ class LifeImpactController extends Controller
             });
         }
 
+        $category = (string) ($filters['category'] ?? 'all');
+        if ($category !== '' && $category !== 'all') {
+            if ($category === 'total_life_impacted') {
+                if ($this->hasDateFilter($filters)) {
+                    $query->whereExists(function ($historySubQuery) use ($filters) {
+                        $historySubQuery->select(DB::raw(1))
+                            ->from('life_impact_histories')
+                            ->whereColumn('life_impact_histories.user_id', 'users.id');
+                        $this->applyDateFiltersToHistoryQuery($historySubQuery, $filters);
+                    });
+                } else {
+                    $query->where(function ($q) {
+                        $q->where('users.life_impacted_count', '>', 0)
+                            ->orWhereExists(function ($historySubQuery) {
+                                $historySubQuery->select(DB::raw(1))
+                                    ->from('life_impact_histories')
+                                    ->whereColumn('life_impact_histories.user_id', 'users.id');
+                            });
+                    });
+                }
+            } elseif ($category === 'other' || $category === 'other_impact_activities') {
+                $otherKeys = array_values(array_diff(array_keys(self::CATEGORIES), ['business_deals', 'referrals', 'testimonials']));
+                $query->whereExists(function ($historySubQuery) use ($otherKeys, $filters) {
+                    $historySubQuery->select(DB::raw(1))
+                        ->from('life_impact_histories')
+                        ->whereColumn('life_impact_histories.user_id', 'users.id')
+                        ->where(function ($q): void {
+                            $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                        });
+                    $this->applyMultipleCategoriesFilter($historySubQuery, $otherKeys);
+                    $this->applyDateFiltersToHistoryQuery($historySubQuery, $filters);
+                });
+                $query->addSelect([
+                    'category_sort' => DB::table('life_impact_histories')
+                        ->selectRaw('COALESCE(SUM(COALESCE(impact_value, life_impacted, 1)), 0)')
+                        ->whereColumn('life_impact_histories.user_id', 'users.id')
+                        ->where(function ($q): void {
+                            $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                        })
+                        ->where(function ($sub) use ($otherKeys, $filters) {
+                            $this->applyMultipleCategoriesFilter($sub, $otherKeys);
+                            $this->applyDateFiltersToHistoryQuery($sub, $filters);
+                        }),
+                ]);
+            } elseif (array_key_exists($category, self::CATEGORIES)) {
+                $query->whereExists(function ($historySubQuery) use ($category, $filters) {
+                    $historySubQuery->select(DB::raw(1))
+                        ->from('life_impact_histories')
+                        ->whereColumn('life_impact_histories.user_id', 'users.id')
+                        ->where(function ($q): void {
+                            $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                        });
+                    $this->applyHistoryCategoryFilter($historySubQuery, $category);
+                    $this->applyDateFiltersToHistoryQuery($historySubQuery, $filters);
+                });
+                $query->addSelect([
+                    'category_sort' => DB::table('life_impact_histories')
+                        ->selectRaw('COALESCE(SUM(COALESCE(impact_value, life_impacted, 1)), 0)')
+                        ->whereColumn('life_impact_histories.user_id', 'users.id')
+                        ->where(function ($q): void {
+                            $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                        })
+                        ->where(function ($sub) use ($category, $filters) {
+                            $this->applyHistoryCategoryFilter($sub, $category);
+                            $this->applyDateFiltersToHistoryQuery($sub, $filters);
+                        }),
+                ]);
+            }
+        }
+
         return $query;
     }
 
@@ -254,7 +331,8 @@ class LifeImpactController extends Controller
 
     private function summaryStats(array $filters): array
     {
-        $memberIds = $this->membersQuery($filters)->pluck('users.id')->all();
+        $unfilteredCategoryFilters = array_merge($filters, ['category' => 'all']);
+        $memberIds = $this->membersQuery($unfilteredCategoryFilters)->pluck('users.id')->all();
         $summary = [
             'total_life_impacted' => 0,
             'business_deals' => 0,
@@ -279,7 +357,7 @@ class LifeImpactController extends Controller
             return $summary;
         }
 
-        $summary['total_life_impacted'] = (int) $this->membersQuery($filters)->sum(DB::raw('COALESCE(users.life_impacted_count, 0)'));
+        $summary['total_life_impacted'] = (int) $this->membersQuery($unfilteredCategoryFilters)->sum(DB::raw('COALESCE(users.life_impacted_count, 0)'));
 
         foreach ($this->impactStatsByUserId($memberIds, $filters) as $stats) {
             $summary['business_deals'] += (int) ($stats['business_deals'] ?? 0);
@@ -489,6 +567,43 @@ class LifeImpactController extends Controller
         });
     }
 
+    private function applyMultipleCategoriesFilter($query, array $categoryKeys): void
+    {
+        $aliases = [];
+        foreach ($categoryKeys as $catKey) {
+            $catAliases = self::CATEGORIES[$catKey]['aliases'] ?? [];
+            $catAliases[] = $catKey;
+            $aliases = array_merge($aliases, $catAliases);
+        }
+
+        $aliases = collect($aliases)
+            ->map(fn ($alias) => $this->normalizeCategoryToken((string) $alias))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $columns = ['action_key', 'impact_category', 'activity_type', 'action_label', 'title'];
+
+        $query->where(function ($categoryQuery) use ($aliases, $columns): void {
+            foreach ($columns as $column) {
+                foreach ($aliases as $alias) {
+                    $categoryQuery->orWhereRaw(
+                        "TRIM(BOTH '_' FROM REGEXP_REPLACE(LOWER(COALESCE({$column}, '')), '[^a-z0-9]+', '_', 'g')) = ?",
+                        [$alias]
+                    );
+
+                    if (mb_strlen($alias) > 2) {
+                        $categoryQuery->orWhereRaw(
+                            "TRIM(BOTH '_' FROM REGEXP_REPLACE(LOWER(COALESCE({$column}, '')), '[^a-z0-9]+', '_', 'g')) LIKE ?",
+                            ['%'.$alias.'%']
+                        );
+                    }
+                }
+            }
+        });
+    }
+
     private function circleOptions($admin)
     {
         $query = Circle::query()->orderBy('name');
@@ -535,10 +650,13 @@ class LifeImpactController extends Controller
             $to = $quickRanges[$quick]['to'];
         }
 
+        $category = trim((string) $request->query('category', $request->query('tab', 'all')));
+
         return [
             'q' => trim((string) $request->query('q', $request->query('search', ''))),
             'search' => trim((string) $request->query('q', $request->query('search', ''))),
             'circle_id' => (string) $request->query('circle_id', 'all'),
+            'category' => $category !== '' ? $category : 'all',
             'from' => $from,
             'to' => $to,
             'quick_date' => isset($quickRanges[$quick]) ? $quick : '',

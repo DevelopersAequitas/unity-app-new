@@ -46,9 +46,9 @@
                 <button type="button" id="coinsExportBtn" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition">
                     Export
                 </button>
-                    <a href="{{ route('admin.coins.create') }}" class="chip px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white border-0 no-underline flex items-center gap-1.5">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add Coins
-                    </a>
+                <a href="{{ route('admin.coins.create') }}" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border border-indigo-600 no-underline inline-flex items-center gap-1.5 transition" style="background-color: #6366f1 !important; color: #ffffff !important;">
+                    <i class="bi bi-plus-lg text-white" aria-hidden="true"></i> Add Coins
+                </a>
             </div>
         </div>
 

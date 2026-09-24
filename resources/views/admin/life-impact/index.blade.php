@@ -4,6 +4,60 @@
 
 @include('admin.partials.grid-head')
 
+@push('styles')
+<style>
+.life-impact-kpi-card {
+    border-radius: 16px;
+    padding: 16px 18px;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    cursor: pointer;
+    text-decoration: none !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 104px;
+    overflow: hidden;
+}
+
+.life-impact-kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    transition: all 0.2s ease;
+}
+
+.life-impact-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* Card Themes & Active States */
+.card-theme-indigo:hover::before, .card-theme-indigo.active-filter::before { background: #6366f1; }
+.card-theme-indigo.active-filter { border-color: #6366f1 !important; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3); background: linear-gradient(180deg, rgba(99, 102, 241, 0.06) 0%, #ffffff 100%); }
+
+.card-theme-emerald:hover::before, .card-theme-emerald.active-filter::before { background: #10b981; }
+.card-theme-emerald.active-filter { border-color: #10b981 !important; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3); background: linear-gradient(180deg, rgba(16, 185, 129, 0.06) 0%, #ffffff 100%); }
+
+.card-theme-sky:hover::before, .card-theme-sky.active-filter::before { background: #0ea5e9; }
+.card-theme-sky.active-filter { border-color: #0ea5e9 !important; box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3); background: linear-gradient(180deg, rgba(14, 165, 233, 0.06) 0%, #ffffff 100%); }
+
+.card-theme-amber:hover::before, .card-theme-amber.active-filter::before { background: #f59e0b; }
+.card-theme-amber.active-filter { border-color: #f59e0b !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3); background: linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, #ffffff 100%); }
+
+.card-theme-purple:hover::before, .card-theme-purple.active-filter::before { background: #a855f7; }
+.card-theme-purple.active-filter { border-color: #a855f7 !important; box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3); background: linear-gradient(180deg, rgba(168, 85, 247, 0.06) 0%, #ffffff 100%); }
+
+.active-column-highlight {
+    background-color: rgba(99, 102, 241, 0.04) !important;
+}
+</style>
+@endpush
+
 @section('content')
     @if(session('success'))
         <div class="alert alert-success mb-4">{{ session('success') }}</div>
@@ -32,13 +86,60 @@
             'to' => $filters['to'] ?? '',
         ], fn ($value) => filled($value));
         $historyQueryString = $historyDateParams ? '?' . http_build_query($historyDateParams) : '';
+
+        $activeCategory = $filters['category'] ?? 'all';
+
         $summaryCards = [
-            ['label' => 'Total Life Impacted', 'value' => $summary['total_life_impacted'] ?? 0, 'color' => 'indigo'],
-            ['label' => 'Business Deals', 'value' => $summary['business_deals'] ?? 0, 'color' => 'emerald'],
-            ['label' => 'Referrals', 'value' => $summary['referrals'] ?? 0, 'color' => 'blue'],
-            ['label' => 'Testimonials', 'value' => $summary['testimonials'] ?? 0, 'color' => 'amber'],
-            ['label' => 'Other Impact Activities', 'value' => $summary['other_impact_activities'] ?? 0, 'color' => 'purple'],
+            [
+                'key' => 'all',
+                'label' => 'Total Life Impacted',
+                'value' => $summary['total_life_impacted'] ?? 0,
+                'color' => 'indigo',
+                'theme' => 'card-theme-indigo',
+                'text_color' => 'text-indigo-600',
+                'icon' => 'bi-heart-pulse-fill',
+            ],
+            [
+                'key' => 'business_deals',
+                'label' => 'Business Deals',
+                'value' => $summary['business_deals'] ?? 0,
+                'color' => 'emerald',
+                'theme' => 'card-theme-emerald',
+                'text_color' => 'text-emerald-600',
+                'icon' => 'bi-briefcase-fill',
+            ],
+            [
+                'key' => 'referrals',
+                'label' => 'Referrals',
+                'value' => $summary['referrals'] ?? 0,
+                'color' => 'sky',
+                'theme' => 'card-theme-sky',
+                'text_color' => 'text-sky-600',
+                'icon' => 'bi-people-fill',
+            ],
+            [
+                'key' => 'testimonials',
+                'label' => 'Testimonials',
+                'value' => $summary['testimonials'] ?? 0,
+                'color' => 'amber',
+                'theme' => 'card-theme-amber',
+                'text_color' => 'text-amber-600',
+                'icon' => 'bi-chat-square-quote-fill',
+            ],
+            [
+                'key' => 'other',
+                'label' => 'Other Impact Activities',
+                'value' => $summary['other_impact_activities'] ?? 0,
+                'color' => 'purple',
+                'theme' => 'card-theme-purple',
+                'text_color' => 'text-purple-600',
+                'icon' => 'bi-grid-fill',
+            ],
         ];
+
+        $currentActiveCard = collect($summaryCards)->first(function ($card) use ($activeCategory) {
+            return ($activeCategory === $card['key']) || ($card['key'] === 'all' && in_array($activeCategory, ['all', 'total_life_impacted'], true));
+        });
     @endphp
 
     {{-- Page Top Header & Tab Navigation --}}
@@ -64,17 +165,45 @@
 
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-6">
 
-        {{-- Summary Cards Grid --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {{-- Interactive Summary Cards Grid (Click to filter) --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
             @foreach ($summaryCards as $card)
-                <div class="rounded-xl border bs surface p-3.5 space-y-1">
-                    <div class="text-[11px] t3 uppercase font-semibold tracking-wider">{{ $card['label'] }}</div>
-                    <div class="text-xl font-bold font-display text-{{ $card['color'] }}-600">{{ number_format((int) $card['value']) }}</div>
-                </div>
+                @php
+                    $isCardActive = ($activeCategory === $card['key']) || ($card['key'] === 'all' && in_array($activeCategory, ['all', 'total_life_impacted'], true));
+                    $targetCategory = ($isCardActive && $card['key'] !== 'all') ? 'all' : $card['key'];
+                    $filterParams = array_filter(array_merge($filters, [
+                        'category' => $targetCategory,
+                    ]), fn ($value) => filled($value) && $value !== 'all');
+                @endphp
+                <a
+                    href="{{ route('admin.life-impact.index', $filterParams) }}"
+                    class="life-impact-kpi-card {{ $card['theme'] }} {{ $isCardActive ? 'active-filter' : 'border bs surface' }} group"
+                    title="Click to filter by {{ $card['label'] }}"
+                >
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] t3 uppercase font-bold tracking-wider group-hover:t1 transition-colors">
+                            {{ $card['label'] }}
+                        </span>
+                        @if($isCardActive && $card['key'] !== 'all')
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-white shadow-sm">
+                                <i class="bi bi-check2"></i> Active
+                            </span>
+                        @endif
+                    </div>
+                    <div class="text-2xl font-black font-display {{ $card['text_color'] }} my-1 tracking-tight">
+                        {{ number_format((int) $card['value']) }}
+                    </div>
+                    <div class="text-[11px] t3 flex items-center gap-1.5 font-medium">
+                        <i class="bi {{ $card['icon'] }} {{ $card['text_color'] }}"></i>
+                        <span>{{ $isCardActive ? 'Viewing ' . strtolower($card['label']) : 'Click to filter' }}</span>
+                    </div>
+                </a>
             @endforeach
         </div>
 
         <form id="lifeImpactFiltersForm" method="GET" action="{{ route('admin.life-impact.index') }}" class="admin-filter-form space-y-4">
+            <input type="hidden" name="category" value="{{ $filters['category'] ?? 'all' }}">
+
             <div class="border bs rounded-xl p-3.5 surface-2">
                 <div class="flex flex-wrap justify-between items-center gap-3">
                     <div class="flex flex-wrap items-center gap-2">
@@ -93,8 +222,13 @@
                         </div>
                         <div class="flex flex-wrap gap-1">
                             @foreach ($quickDateRanges as $key => $range)
+                                @php
+                                    $quickParams = array_filter(array_merge($filters, [
+                                        'quick_date' => $key,
+                                    ]), fn ($value) => filled($value) && $value !== 'all');
+                                @endphp
                                 <a
-                                    href="{{ route('admin.life-impact.index', array_filter(['q' => $filters['q'] ?? '', 'circle_id' => $filters['circle_id'] ?? 'all', 'per_page' => $filters['per_page'] ?? 20, 'quick_date' => $key])) }}"
+                                    href="{{ route('admin.life-impact.index', $quickParams) }}"
                                     class="px-2.5 py-1 rounded-lg text-xs font-semibold no-underline transition {{ ($filters['quick_date'] ?? '') === $key ? 'bg-indigo-600 text-white' : 'border bs surface t2 hover:t1' }}"
                                 >{{ $range['label'] }}</a>
                             @endforeach
@@ -104,14 +238,26 @@
                             <button type="button" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition js-life-impact-export">Export</button>
                         </div>
                     </div>
-                    <div class="text-xs t3">
+                    <div class="text-xs t3 flex items-center gap-2 flex-wrap">
+                        @if(!empty($activeCategory) && !in_array($activeCategory, ['all', 'total_life_impacted'], true))
+                            @php
+                                $clearCatParams = array_filter(array_merge($filters, ['category' => 'all']), fn ($v) => filled($v) && $v !== 'all');
+                            @endphp
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <span>Filter: <strong>{{ $currentActiveCard['label'] ?? ucfirst($activeCategory) }}</strong></span>
+                                <a href="{{ route('admin.life-impact.index', $clearCatParams) }}" class="text-indigo-600 hover:text-indigo-900 transition-colors" title="Remove category filter">
+                                    <i class="bi bi-x-circle-fill"></i>
+                                </a>
+                            </span>
+                        @endif
+
                         @if($members->total() > 0)
-                            Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records
+                            <span>Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records</span>
                         @else
-                            No records found
+                            <span>No records found</span>
                         @endif
                         @if($dateFilterActive)
-                            <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border-amber-200 ml-1">Date filtered</span>
+                            <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border-amber-200">Date filtered</span>
                         @endif
                     </div>
                 </div>
@@ -126,9 +272,14 @@
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 160px;">Company</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 110px;">City</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">Circle</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 130px;">Total Life Impacted</th>
-                                @foreach ($categories as $category)
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 100px;">
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center {{ in_array($activeCategory, ['all', 'total_life_impacted'], true) ? 'active-column-highlight' : '' }}" style="min-width: 130px;">
+                                    Total Life Impacted
+                                </th>
+                                @foreach ($categories as $catKey => $category)
+                                    @php
+                                        $isThisCatActive = ($activeCategory === $catKey);
+                                    @endphp
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-center {{ $isThisCatActive ? 'active-column-highlight font-bold text-indigo-600' : '' }}" style="min-width: 100px;">
                                         {{ $category['label'] }}
                                     </th>
                                 @endforeach
@@ -155,13 +306,13 @@
                                         @endforeach
                                     </select>
                                 </th>
-                                <th class="text-center t3 text-xs" style="min-width: 130px;">-</th>
-                                @foreach (range(1, count($categories) - 1) as $index)
-                                    <th class="text-center t3 text-xs" style="min-width: 100px;">-</th>
+                                <th class="text-center t3 text-xs {{ in_array($activeCategory, ['all', 'total_life_impacted'], true) ? 'active-column-highlight' : '' }}" style="min-width: 130px;">-</th>
+                                @foreach (array_keys($categories) as $catKey)
+                                    @php
+                                        $isThisCatActive = ($activeCategory === $catKey);
+                                    @endphp
+                                    <th class="text-center t3 text-xs {{ $isThisCatActive ? 'active-column-highlight' : '' }}" style="min-width: 100px;">-</th>
                                 @endforeach
-                                <th class="px-3 py-2 text-center" style="min-width: 90px;">
-                                    <button type="button" onclick="clearAdminFilters(event, 'lifeImpactFiltersForm')" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition">Clear</button>
-                                </th>
                             </tr>
                         </thead>
 
@@ -196,18 +347,24 @@
                                     <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width: 160px;"><x-admin-grid-text :text="$company" :lines="2" /></td>
                                     <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width: 110px;"><x-admin-grid-text :text="$city" :lines="2" /></td>
                                     <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width: 140px;"><x-admin-grid-text :text="$circleName" :lines="2" /></td>
-                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 130px;">
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap {{ in_array($activeCategory, ['all', 'total_life_impacted'], true) ? 'active-column-highlight' : '' }}" style="min-width: 130px;">
                                         <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
                                     </td>
                                     @foreach (array_keys($categories) as $key)
-                                        <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap" style="min-width: 100px;">
-                                            <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
+                                        @php
+                                            $isThisCatActive = ($activeCategory === $key);
+                                            $val = (int) ($stats[$key] ?? 0);
+                                        @endphp
+                                        <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap {{ $isThisCatActive ? 'active-column-highlight' : '' }}" style="min-width: 100px;">
+                                            <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold {{ $isThisCatActive ? 'text-indigo-700 font-bold bg-indigo-50 border-indigo-200' : 't2 hover:t1' }} no-underline inline-block" target="_blank" rel="noopener">
+                                                {{ number_format($val) }}
+                                            </a>
                                         </td>
                                     @endforeach
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ count($categories) + 5 }}" class="text-center py-8 text-xs t3">No members found.</td>
+                                    <td colspan="{{ count($categories) + 5 }}" class="text-center py-8 text-xs t3">No members found matching this filter criteria.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -264,15 +421,16 @@
                 if (exportBtns.length && exportForm) {
                     exportBtns.forEach(function (exportBtn) {
                         exportBtn.addEventListener('click', function (event) {
-                        event.preventDefault();
-                        exportForm.innerHTML = '';
+                            event.preventDefault();
+                            exportForm.innerHTML = '';
 
-                        appendHiddenInput(exportForm, 'q', document.getElementById('lifeImpactQ')?.value ?? '');
-                        appendHiddenInput(exportForm, 'circle_id', document.getElementById('lifeImpactCircle')?.value ?? 'all');
-                        appendHiddenInput(exportForm, 'from', document.getElementById('lifeImpactFrom')?.value ?? '');
-                        appendHiddenInput(exportForm, 'to', document.getElementById('lifeImpactTo')?.value ?? '');
+                            appendHiddenInput(exportForm, 'q', document.getElementById('lifeImpactQ')?.value ?? '');
+                            appendHiddenInput(exportForm, 'circle_id', document.getElementById('lifeImpactCircle')?.value ?? 'all');
+                            appendHiddenInput(exportForm, 'category', form?.querySelector('input[name="category"]')?.value ?? 'all');
+                            appendHiddenInput(exportForm, 'from', document.getElementById('lifeImpactFrom')?.value ?? '');
+                            appendHiddenInput(exportForm, 'to', document.getElementById('lifeImpactTo')?.value ?? '');
 
-                        exportForm.submit();
+                            exportForm.submit();
                         });
                     });
                 }
@@ -280,4 +438,3 @@
         </script>
     @endpush
 @endsection
-

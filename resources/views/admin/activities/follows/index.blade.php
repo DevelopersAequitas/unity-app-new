@@ -101,27 +101,10 @@
 @endphp
 
 <div class="space-y-4">
-
-    {{-- ── PAGE HEADER ── --}}
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            <div class="d-flex align-items-center gap-2">
-                <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,0.12);color:#8b5cf6;display:flex;align-items:center;justify-content:center;font-size:18px;">
-                    <i class="bi bi-person-heart-fill"></i>
-                </div>
-                <div>
-                    <h4 class="fw-bold mb-0" style="color:#0f172a;font-size:1.25rem;">Follow Activity Analytics</h4>
-                    <p class="text-muted mb-0" style="font-size:0.82rem;">Visibility into who follows whom and follower activity across the platform</p>
-                </div>
-            </div>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ route('admin.activities.follows.export', request()->except(['page'])) }}"
-               class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 px-3 py-2 fw-semibold" style="border-radius:10px;">
-                <i class="bi bi-file-earmark-arrow-down"></i> Export CSV
-            </a>
-        </div>
-    </div>
+    @include('admin.activities.partials.header', [
+        'title' => 'Follows',
+        'actionButton' => '<a href="' . route('admin.activities.follows.export', request()->except(['page'])) . '" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 px-3 py-2 fw-semibold" style="border-radius:10px;"><i class="bi bi-file-earmark-arrow-down"></i> Export CSV</a>'
+    ])
 
     {{-- ── FILTERS ── --}}
     <div class="filter-section">
@@ -351,7 +334,15 @@
                             <tr>
                                 <td class="ps-3 py-2"><span class="rank-badge {{ $i===0?'rank-1':($i===1?'rank-2':($i===2?'rank-3':'rank-other')) }}">{{ $i+1 }}</span></td>
                                 <td class="py-2">
-                                    <div class="fw-bold text-dark" style="max-width:200px;">{{ $m->member_name }}</div>
+                                    <div class="fw-bold text-dark" style="max-width:200px;">
+                                        @if(!empty($m->member_id))
+                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); openActivityPeerModal('{{ $m->member_id }}', event);">
+                                                {{ $m->member_name }}
+                                            </a>
+                                        @else
+                                            {{ $m->member_name }}
+                                        @endif
+                                    </div>
                                     <div class="text-muted" style="font-size:10.5px;">{{ $m->member_city ?? '—' }}</div>
                                 </td>
                                 <td class="text-end pe-3 py-2 fw-bold" style="color:#f43f5e;">{{ number_format($m->total_followers) }}</td>
@@ -387,7 +378,15 @@
                             <tr>
                                 <td class="ps-3 py-2"><span class="rank-badge {{ $i===0?'rank-1':($i===1?'rank-2':($i===2?'rank-3':'rank-other')) }}">{{ $i+1 }}</span></td>
                                 <td class="py-2">
-                                    <div class="fw-bold text-dark" style="max-width:200px;">{{ $m->member_name }}</div>
+                                    <div class="fw-bold text-dark" style="max-width:200px;">
+                                        @if(!empty($m->member_id))
+                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); openActivityPeerModal('{{ $m->member_id }}', event);">
+                                                {{ $m->member_name }}
+                                            </a>
+                                        @else
+                                            {{ $m->member_name }}
+                                        @endif
+                                    </div>
                                     <div class="text-muted" style="font-size:10.5px;">{{ $m->member_city ?? '—' }}</div>
                                 </td>
                                 <td class="text-end pe-3 py-2 fw-bold" style="color:#6366f1;">{{ number_format($m->total_following) }}</td>

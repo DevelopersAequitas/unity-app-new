@@ -32,6 +32,7 @@ class ActivitiesBusinessDealsController extends Controller
                 'activity.created_at',
                 DB::raw($this->hasMediaSelectExpression().' as has_media'),
                 DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
+                'actor.id as actor_id',
                 'actor.display_name as actor_display_name',
                 'actor.first_name as actor_first_name',
                 'actor.last_name as actor_last_name',
@@ -39,6 +40,7 @@ class ActivitiesBusinessDealsController extends Controller
                 DB::raw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '—') as from_user_name"),
                 DB::raw("coalesce(actor.company_name, '') as from_company"),
                 DB::raw("coalesce(actor.city, '') as from_city"),
+                'peer.id as peer_id',
                 'peer.display_name as peer_display_name',
                 'peer.first_name as peer_first_name',
                 'peer.last_name as peer_last_name',
@@ -53,6 +55,7 @@ class ActivitiesBusinessDealsController extends Controller
             ->withQueryString();
 
         $topMembers = $this->enrichTopMembers($this->topMembers($request));
+        $dealBreakdown = $this->dealBreakdownStats($request, $filters);
 
         return view('admin.activities.business_deals.index', [
             'items' => $items,
@@ -60,6 +63,7 @@ class ActivitiesBusinessDealsController extends Controller
             'topMembers' => $topMembers,
             'total' => $total,
             'circles' => $this->circleOptions(),
+            'dealBreakdown' => $dealBreakdown,
         ]);
     }
 
@@ -181,6 +185,7 @@ class ActivitiesBusinessDealsController extends Controller
             'from_at' => $this->parseDayBoundary($from, false),
             'to_at' => $this->parseDayBoundary($to, true),
             'circle_id' => (string) $request->query('circle_id', ''),
+            'member_type' => trim((string) $request->query('member_type', 'peer')),
             'from_user' => trim((string) $request->query('from_user', '')),
             'from_company' => trim((string) $request->query('from_company', '')),
             'from_city' => trim((string) $request->query('from_city', '')),
@@ -292,9 +297,142 @@ class ActivitiesBusinessDealsController extends Controller
             $this->applyHasMediaFilter($query, false);
         }
 
-        $this->applyScopeToActivityQuery($query, 'activity.from_user_id', 'activity.to_user_id');
+        $admin = auth('admin')->user();
+        if (($filters['member_type'] ?? 'peer') === 'team_member') {
+            $teamMemberIds = DB::table('user_tag_assignments')
+                ->join('user_tags', 'user_tags.id', '=', 'user_tag_assignments.tag_id')
+                ->where('user_tags.slug', \App\Models\UserTag::SLUG_TEAM_MEMBER)
+                ->where('user_tags.is_active', true)
+                ->pluck('user_tag_assignments.user_id')
+                ->all();
+            $query->whereIn('activity.from_user_id', $teamMemberIds);
+            AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.from_user_id', 'activity.to_user_id');
+            app(IndustryScopeService::class)->applyToActivityQuery($query, $admin, array_filter(['activity.from_user_id', 'activity.to_user_id']));
+        } elseif (($filters['member_type'] ?? 'peer') === 'all') {
+            AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.from_user_id', 'activity.to_user_id');
+            app(IndustryScopeService::class)->applyToActivityQuery($query, $admin, array_filter(['activity.from_user_id', 'activity.to_user_id']));
+        } else {
+            // Default: regular peers only (non-team members)
+            $this->applyScopeToActivityQuery($query, 'activity.from_user_id', 'activity.to_user_id');
+        }
 
         return $query;
+    }
+
+    private function dealBreakdownStats(Request $request, array $filters): array
+    {
+        $admin = auth('admin')->user();
+
+        $baseScopeQuery = DB::table('business_deals as activity')
+            ->leftJoin('users as actor', 'actor.id', '=', 'activity.from_user_id')
+            ->leftJoin('users as peer', 'peer.id', '=', 'activity.to_user_id')
+            ->whereNull('activity.deleted_at')
+            ->where('activity.is_deleted', false);
+
+        if ($filters['from_at']) {
+            $baseScopeQuery->where('activity.created_at', '>=', $filters['from_at']);
+        }
+        if ($filters['to_at']) {
+            $baseScopeQuery->where('activity.created_at', '<=', $filters['to_at']);
+        }
+        if (! empty($filters['circle_id'])) {
+            $baseScopeQuery->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'actor.id')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
+        }
+
+        AdminCircleScope::applyToActivityQuery($baseScopeQuery, $admin, 'activity.from_user_id', 'activity.to_user_id');
+        app(IndustryScopeService::class)->applyToActivityQuery($baseScopeQuery, $admin, array_filter(['activity.from_user_id', 'activity.to_user_id']));
+
+        $teamMemberIds = DB::table('user_tag_assignments')
+            ->join('user_tags', 'user_tags.id', '=', 'user_tag_assignments.tag_id')
+            ->where('user_tags.slug', \App\Models\UserTag::SLUG_TEAM_MEMBER)
+            ->where('user_tags.is_active', true)
+            ->pluck('user_tag_assignments.user_id')
+            ->all();
+
+        // Non-Team Member (Regular Peers) Deals Query
+        $peerDealsQuery = (clone $baseScopeQuery)->whereNotIn('activity.from_user_id', $teamMemberIds);
+        $peerCount = (int) (clone $peerDealsQuery)->count();
+        $peerTotal = (float) (clone $peerDealsQuery)->sum('activity.deal_amount');
+        $peerAvg = $peerCount > 0 ? ($peerTotal / $peerCount) : 0.0;
+
+        // Team Member Deals Query
+        $teamDealsQuery = (clone $baseScopeQuery)->whereIn('activity.from_user_id', $teamMemberIds);
+        $teamCount = (int) (clone $teamDealsQuery)->count();
+        $teamTotal = (float) (clone $teamDealsQuery)->sum('activity.deal_amount');
+        $teamAvg = $teamCount > 0 ? ($teamTotal / $teamCount) : 0.0;
+
+        // Combined Total
+        $combinedCount = $peerCount + $teamCount;
+        $combinedTotal = $peerTotal + $teamTotal;
+
+        // Top team member deals
+        $topTeamDeals = (clone $baseScopeQuery)
+            ->whereIn('activity.from_user_id', $teamMemberIds)
+            ->select([
+                'activity.id',
+                'activity.deal_date',
+                'activity.deal_amount',
+                'activity.business_type',
+                'activity.comment',
+                'activity.created_at',
+                'actor.id as actor_id',
+                'actor.display_name as actor_display_name',
+                'actor.first_name as actor_first_name',
+                'actor.last_name as actor_last_name',
+                'actor.company_name as from_company',
+                'peer.id as peer_id',
+                'peer.display_name as peer_display_name',
+                'peer.first_name as peer_first_name',
+                'peer.last_name as peer_last_name',
+                'peer.company_name as to_company',
+            ])
+            ->orderByDesc('activity.deal_amount')
+            ->limit(8)
+            ->get();
+
+        // Top peer deals
+        $topPeerDeals = (clone $baseScopeQuery)
+            ->whereNotIn('activity.from_user_id', $teamMemberIds)
+            ->select([
+                'activity.id',
+                'activity.deal_date',
+                'activity.deal_amount',
+                'activity.business_type',
+                'activity.comment',
+                'activity.created_at',
+                'actor.id as actor_id',
+                'actor.display_name as actor_display_name',
+                'actor.first_name as actor_first_name',
+                'actor.last_name as actor_last_name',
+                'actor.company_name as from_company',
+                'peer.id as peer_id',
+                'peer.display_name as peer_display_name',
+                'peer.first_name as peer_first_name',
+                'peer.last_name as peer_last_name',
+                'peer.company_name as to_company',
+            ])
+            ->orderByDesc('activity.deal_amount')
+            ->limit(8)
+            ->get();
+
+        return [
+            'peer_count' => $peerCount,
+            'peer_total' => $peerTotal,
+            'peer_avg' => $peerAvg,
+            'team_count' => $teamCount,
+            'team_total' => $teamTotal,
+            'team_avg' => $teamAvg,
+            'combined_count' => $combinedCount,
+            'combined_total' => $combinedTotal,
+            'top_team_deals' => $topTeamDeals,
+            'top_peer_deals' => $topPeerDeals,
+            'team_member_count' => count($teamMemberIds),
+        ];
     }
 
     private function topMembers(Request $request)
