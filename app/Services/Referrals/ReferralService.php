@@ -401,7 +401,7 @@ class ReferralService
         $perPage = max(1, min($perPage, 100));
 
         return ReferralData::query()
-            ->with(['referredUser:id,first_name,last_name,display_name,email,company_name,designation,created_at'])
+            ->with(['referredUser', 'referredUser.city', 'referredUser.level4Category'])
             ->where('referrer_user_id', $user->id)
             ->whereNotNull('referred_user_id')
             ->orderByRaw('used_at DESC NULLS LAST')
