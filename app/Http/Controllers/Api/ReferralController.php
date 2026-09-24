@@ -6,6 +6,7 @@ use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\Api\V1\ActivityReferralResource;
+use App\Http\Resources\Ask\PeerResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\CircleMember;
 use App\Models\Referral;
@@ -207,6 +208,7 @@ class ReferralController extends BaseApiController
         return $this->success([
             'valid' => $row !== null,
             'referrer_name' => $row['referrer_name'] ?? null,
+            'referrer' => $row && $row['referrer_user'] ? new PeerResource($row['referrer_user']) : null,
         ]);
     }
 

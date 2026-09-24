@@ -143,12 +143,17 @@ class ReferralService
             return null;
         }
 
+        $referrerUser = User::query()
+            ->with(['city'])
+            ->find((string) $row->user_id);
+
         return [
             'referrer_user_id' => (string) $row->user_id,
             'referral_code' => (string) $row->referral_code,
             'referral_link' => $this->buildReferralLinkFromToken((string) $row->referral_code),
             'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '').' '.($row->last_name ?? '')))),
             'referrer_email' => (string) ($row->email ?? ''),
+            'referrer_user' => $referrerUser,
         ];
     }
 
