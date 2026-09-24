@@ -37,12 +37,43 @@ class GlobalPeerCertificateController extends Controller
      *
      * Response (403):
      * { "message": "Certificate is only available for paid Global Peers." }
+    /**
+     * GET /api/v1/my/global-peer-certificate or /api/v1/users/{userId}/global-peer-certificate
+     *
+     * Returns the certificate image URL for the requested peer (or authenticated peer).
      */
     public function show(Request $request): JsonResponse
     {
-        /** @var User $user */
-        $user = $request->user();
+        $targetUserId = $request->query('user_id') ?? $request->query('peer_id');
+        $user = $targetUserId ? User::find($targetUserId) : $request->user();
 
+        if (! $user) {
+            return response()->json([
+                'message' => $targetUserId ? 'User not found.' : 'Unauthenticated.',
+            ], $targetUserId ? 404 : 401);
+        }
+
+        return $this->resolveCertificateResponse($user);
+    }
+
+    /**
+     * GET /api/v1/users/{userId}/global-peer-certificate
+     */
+    public function showUser(string $userId, Request $request): JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'message' => 'User not found.',
+            ], 404);
+        }
+
+        return $this->resolveCertificateResponse($user);
+    }
+
+    private function resolveCertificateResponse(User $user): JsonResponse
+    {
         // Guard: only paid-tier peers may access the certificate
         if (! $this->isPaidPeer($user)) {
             return response()->json([
