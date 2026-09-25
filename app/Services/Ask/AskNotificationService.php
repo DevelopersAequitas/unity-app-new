@@ -77,14 +77,18 @@ class AskNotificationService
             return;
         }
 
-        $responderName = $responder->display_name ?: $responder->name ?: 'A peer';
+        $responderName = $responder->display_name ?: trim(($responder->first_name ?? '').' '.($responder->last_name ?? '')) ?: 'A peer';
         $title = 'New Response to your Ask';
-        $body = "{$responderName} responded to your request: {$ask->title}";
 
         if ($response->response_type === AskResponse::TYPE_CAN_INTRODUCE_PEER) {
-            $body = "{$responderName} wants to introduce a peer for your request: {$ask->title}";
+            $peer = $response->introducedUser;
+            $peerName = $peer ? ($peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''))) : 'a peer';
+            $body = "{$responderName} introduced {$peerName} for your ask: {$ask->title}";
         } elseif ($response->response_type === AskResponse::TYPE_KNOW_SOMEONE) {
-            $body = "{$responderName} shared a contact for your request: {$ask->title}";
+            $contactName = $response->contact?->full_name ?: 'a contact';
+            $body = "{$responderName} referred an external contact ({$contactName}) for your ask: {$ask->title}";
+        } else {
+            $body = "{$responderName} offered to help on your ask: {$ask->title}";
         }
 
         try {
@@ -102,10 +106,42 @@ class AskNotificationService
                 notifiable: $response
             );
         } catch (Throwable $e) {
-            Log::warning('Failed sending ask response notification', [
+            Log::warning('Failed sending ask response notification to author', [
                 'response_id' => $response->id,
                 'error' => $e->getMessage(),
             ]);
+        }
+
+        // Branch 3: Notify Introduced Peer
+        if ($response->response_type === AskResponse::TYPE_CAN_INTRODUCE_PEER && $response->introducedUser) {
+            $introducedPeer = $response->introducedUser;
+            if ($introducedPeer->id !== $responder->id && $introducedPeer->id !== $creator->id) {
+                $authorName = $creator->display_name ?: trim(($creator->first_name ?? '').' '.($creator->last_name ?? '')) ?: 'A peer';
+                $peerTitle = 'You were recommended for an Ask';
+                $peerBody = "{$responderName} recommended you for an ask: {$ask->title} posted by {$authorName}";
+
+                try {
+                    $this->notifyUserService->notifyUser(
+                        to: $introducedPeer,
+                        from: $responder,
+                        type: 'ask_peer_recommended',
+                        data: [
+                            'title' => $peerTitle,
+                            'body' => $peerBody,
+                            'ask_id' => (string) $ask->id,
+                            'response_id' => (string) $response->id,
+                            'response_type' => $response->response_type,
+                        ],
+                        notifiable: $response
+                    );
+                } catch (Throwable $e) {
+                    Log::warning('Failed sending ask recommendation notification to introduced peer', [
+                        'response_id' => $response->id,
+                        'introduced_peer_id' => $introducedPeer->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
     }
 

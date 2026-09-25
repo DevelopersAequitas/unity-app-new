@@ -46,6 +46,20 @@ Route::middleware('auth:sanctum')->prefix('v1/asks')->group(function (): void {
         Route::post('close', [AskController::class, 'closeWithFeedback']);
         Route::get('history', [AskController::class, 'history']);
         Route::post('referral-link', [AskController::class, 'linkReferral']);
+
+        // Peer Response System
+        Route::get('respond', [AskResponseController::class, 'respondView']);
+        Route::prefix('responses')->group(function (): void {
+            Route::post('/', [AskResponseController::class, 'store']);
+            Route::get('/', [AskResponseController::class, 'index']);
+
+            Route::prefix('{response}')->whereUuid('response')->group(function (): void {
+                Route::get('/', [AskResponseController::class, 'show']);
+                Route::patch('/', [AskResponseController::class, 'update']);
+                Route::get('history', [AskResponseController::class, 'history']);
+                Route::patch('contact', [AskResponseController::class, 'updateContact']);
+            });
+        });
     });
 });
 

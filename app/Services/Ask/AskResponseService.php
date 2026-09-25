@@ -51,7 +51,8 @@ class AskResponseService
         return DB::transaction(function () use ($ask, $responder, $data): AskResponse {
             $responseType = (string) $data['response_type'];
             $introducedUserId = ! empty($data['introduced_user_id']) ? (string) $data['introduced_user_id'] : null;
-            $message = ! empty($data['message']) ? (string) $data['message'] : null;
+            $message = ! empty($data['message']) ? (string) $data['message'] : (! empty($data['note']) ? (string) $data['note'] : null);
+            $timeline = ! empty($data['timeline']) ? (string) $data['timeline'] : 'immediate';
 
             $response = AskResponse::query()->updateOrCreate(
                 [
@@ -61,6 +62,7 @@ class AskResponseService
                 [
                     'response_type' => $responseType,
                     'message' => $message,
+                    'timeline' => $timeline,
                     'introduced_user_id' => $introducedUserId,
                     'status' => AskResponse::STATUS_PENDING,
                     'responded_at' => now(),
@@ -70,6 +72,8 @@ class AskResponseService
             // Handle "I know someone" contact payload
             if ($responseType === AskResponse::TYPE_KNOW_SOMEONE && ! empty($data['contact']) && is_array($data['contact'])) {
                 $contactData = $data['contact'];
+                $contactNotes = $contactData['note'] ?? $contactData['notes'] ?? null;
+
                 AskResponseContact::query()->updateOrCreate(
                     ['response_id' => $response->id],
                     [
@@ -79,7 +83,7 @@ class AskResponseService
                         'email' => $contactData['email'] ?? null,
                         'phone' => $contactData['phone'] ?? null,
                         'alternate_phone' => $contactData['alternate_phone'] ?? null,
-                        'notes' => $contactData['notes'] ?? null,
+                        'notes' => $contactNotes,
                         'metadata' => $contactData['metadata'] ?? [],
                     ]
                 );
