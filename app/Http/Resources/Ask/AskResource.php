@@ -60,6 +60,7 @@ class AskResource extends JsonResource
                 'circle_id' => $this->resource->visibility_circle_id ? (string) $this->resource->visibility_circle_id : null,
             ],
             'publish_to_timeline' => (bool) $this->resource->publish_to_timeline,
+            'post_to_timeline' => (bool) $this->resource->publish_to_timeline,
             'published_at' => $this->resource->published_at?->toISOString(),
             'expires_at' => $this->resource->expires_at?->toISOString(),
             'closed_at' => $this->resource->closed_at?->toISOString(),

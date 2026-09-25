@@ -19,7 +19,17 @@ class SetTimelinePreferenceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'publish_to_timeline' => ['required', 'boolean'],
+            'publish_to_timeline' => ['nullable', 'boolean'],
+            'post_to_timeline' => ['nullable', 'boolean'],
         ];
+    }
+
+    public function wantsTimeline(): bool
+    {
+        if ($this->has('post_to_timeline')) {
+            return (bool) $this->input('post_to_timeline');
+        }
+
+        return (bool) $this->input('publish_to_timeline', true);
     }
 }

@@ -63,7 +63,7 @@ class AskService
                 'title' => $title,
                 'status' => Ask::STATUS_DRAFT,
                 'visibility_type' => Ask::VISIBILITY_ALL_PEERS,
-                'publish_to_timeline' => false,
+                'publish_to_timeline' => true,
             ]);
 
             AskStatusHistory::create([
@@ -289,6 +289,8 @@ class AskService
                     'source_id' => $ask->id,
                     'post_type' => 'ask',
                     'active' => true,
+                    'is_deleted' => false,
+                    'moderation_status' => 'approved',
                 ]);
 
                 AskTimelineLink::query()->updateOrCreate(

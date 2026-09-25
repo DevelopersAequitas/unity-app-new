@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Ask;
 
 use App\Models\Ask\Ask;
+use App\Models\Ask\AskAnswer;
 use App\Models\Ask\AskFlow;
 use App\Models\Ask\AskOption;
 use App\Models\Ask\AskOptionGroup;
@@ -186,13 +187,22 @@ class AskSystemTest extends TestCase
         $previewResponse = $this->getJson("/api/asks/{$askId}/preview");
         $previewResponse->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.title', 'Looking for Co-founder');
+            ->assertJsonPath('data.title', 'Looking for Co-founder')
+            ->assertJsonPath('data.post_to_timeline', true)
+            ->assertJsonPath('data.post_to_timeline_default', true);
 
         // 7. Publish
         $publishResponse = $this->postJson("/api/asks/{$askId}/publish");
         $publishResponse->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'published');
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('data.post_to_timeline', true);
+
+        $this->assertDatabaseHas('posts', [
+            'user_id' => $this->user->id,
+            'source_type' => 'ask',
+            'source_id' => $askId,
+        ]);
 
         // 8. Generate and Get Matches
         $generateResponse = $this->postJson("/api/asks/{$askId}/matches/generate");
@@ -300,5 +310,42 @@ class AskSystemTest extends TestCase
         $updateContact->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.designation', 'Executive Director');
+    }
+
+    public function test_publish_ask_with_timeline_unchecked_does_not_post_to_timeline(): void
+    {
+        Sanctum::actingAs($this->user);
+
+        $ask = Ask::create([
+            'user_id' => $this->user->id,
+            'flow_id' => $this->flow->id,
+            'type_id' => $this->type->id,
+            'title' => 'Private Ask Only For Matches',
+            'status' => 'draft',
+            'visibility_type' => 'all_peers',
+            'publish_to_timeline' => false,
+        ]);
+
+        AskAnswer::create([
+            'ask_id' => $ask->id,
+            'field_key' => 'goal',
+            'value_text' => 'Private Goal',
+            'display_order' => 1,
+        ]);
+
+        // Publish with post_to_timeline = false
+        $response = $this->postJson("/api/asks/{$ask->id}/publish", [
+            'post_to_timeline' => false,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('data.post_to_timeline', false);
+
+        $this->assertDatabaseMissing('posts', [
+            'source_type' => 'ask',
+            'source_id' => $ask->id,
+        ]);
     }
 }

@@ -71,6 +71,8 @@ class AskPreviewResource extends JsonResource
                 'circle' => $this->resource->circle?->name,
             ],
             'publish_to_timeline' => (bool) $this->resource->publish_to_timeline,
+            'post_to_timeline' => (bool) $this->resource->publish_to_timeline,
+            'post_to_timeline_default' => true,
             'creator' => $this->resource->user ? new PeerResource($this->resource->user) : null,
         ];
     }

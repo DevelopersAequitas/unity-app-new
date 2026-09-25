@@ -118,8 +118,7 @@ class AskController extends Controller
     {
         $this->authorizeOwner($request->user(), $ask);
 
-        $validated = $request->validated();
-        $updatedAsk = $this->askService->setTimelinePreference($ask, (bool) $validated['publish_to_timeline']);
+        $updatedAsk = $this->askService->setTimelinePreference($ask, $request->wantsTimeline());
 
         return response()->json([
             'success' => true,
@@ -151,6 +150,14 @@ class AskController extends Controller
     public function publish(Request $request, Ask $ask): JsonResponse
     {
         $this->authorizeOwner($request->user(), $ask);
+
+        if ($request->has('post_to_timeline') || $request->has('publish_to_timeline')) {
+            $timelinePref = $request->has('post_to_timeline')
+                ? $request->boolean('post_to_timeline')
+                : $request->boolean('publish_to_timeline');
+            $ask->update(['publish_to_timeline' => $timelinePref]);
+            $ask->refresh();
+        }
 
         /** @var User $user */
         $user = $request->user();
