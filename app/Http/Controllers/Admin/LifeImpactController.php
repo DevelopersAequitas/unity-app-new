@@ -42,7 +42,7 @@ class LifeImpactController extends Controller
 
         $membersQuery = $this->membersQuery($filters);
 
-        if (!empty($filters['category']) && !in_array($filters['category'], ['all', 'total_life_impacted'], true)) {
+        if (! empty($filters['category']) && ! in_array($filters['category'], ['all', 'total_life_impacted'], true)) {
             $membersQuery->orderByDesc('category_sort');
         }
 

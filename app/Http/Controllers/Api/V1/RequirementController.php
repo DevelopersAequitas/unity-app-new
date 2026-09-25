@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Requirement\IncompleteRequirementResource;
 use App\Http\Resources\Requirement\RequirementDetailResource;
+use App\Models\BusinessDeal;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
 use App\Models\User;
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class RequirementController extends Controller
@@ -292,13 +295,25 @@ class RequirementController extends Controller
     public function close(Request $request, $id): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', 'in:closed,completed'],
+            'status' => ['nullable', 'string', 'in:closed,completed'],
+            'outcome' => ['nullable', 'string', 'in:deal_closed,met_no_deal,contact_did_not_respond'],
+            'business_value' => ['nullable', 'string', 'in:under_1_lakh,1_to_10_lakh,above_10_lakh'],
+            'add_to_facilitated_total' => ['nullable', 'boolean'],
+            'thank_you_note' => ['nullable', 'string', 'max:2000'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+            'story' => ['nullable', 'string', 'max:2000'],
+            'share_on_feed' => ['nullable', 'boolean'],
+            'giver_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'giver_id' => ['nullable', 'uuid', 'exists:users,id'],
         ]);
 
         try {
             $requirement = Requirement::query()->findOrFail($id);
 
-            if ((string) $requirement->user_id !== (string) auth()->id()) {
+            /** @var User $currentUser */
+            $currentUser = $request->user() ?? auth()->user();
+
+            if ((string) $requirement->user_id !== (string) $currentUser->id) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Forbidden',
@@ -307,25 +322,145 @@ class RequirementController extends Controller
                 ], 403);
             }
 
-            $requirement->status = $validated['status'];
+            $outcome = (string) ($validated['outcome'] ?? ($validated['status'] === 'completed' ? 'deal_closed' : 'met_no_deal'));
+            $finalStatus = $outcome === 'deal_closed' ? 'completed' : ($validated['status'] ?? 'closed');
+            $businessValue = $validated['business_value'] ?? null;
+            $addToFacilitated = (bool) ($validated['add_to_facilitated_total'] ?? false);
+            $thankYouNote = trim((string) ($validated['thank_you_note'] ?? $validated['story'] ?? $validated['notes'] ?? ''));
+            $shareOnFeed = (bool) ($validated['share_on_feed'] ?? ($outcome === 'deal_closed'));
+
+            // Resolve Giver
+            $giverId = $validated['giver_user_id'] ?? $validated['giver_id'] ?? null;
+            $giver = null;
+            if ($giverId) {
+                $giver = User::query()->find($giverId);
+            }
+            if (! $giver && Schema::hasTable('requirement_interests')) {
+                try {
+                    $giver = $requirement->interests()->latest('created_at')->first()?->user;
+                } catch (Throwable) {
+                    $giver = null;
+                }
+            }
+
+            // Save status on requirement
+            $requirement->status = $finalStatus;
             $requirement->save();
 
-            try {
-                // Placeholder for future close notification/event hooks.
-            } catch (Throwable $notificationException) {
-                Log::warning('Requirement close notification failed.', [
-                    'requirement_id' => (string) $requirement->id,
-                    'error' => $notificationException->getMessage(),
-                ]);
+            // Store Business Deal if anonymous total or deal closed
+            if ($outcome === 'deal_closed' && $giver && $addToFacilitated) {
+                $amountMap = [
+                    'under_1_lakh' => 50000,
+                    '1_to_10_lakh' => 500000,
+                    'above_10_lakh' => 1500000,
+                ];
+                $dealAmount = $amountMap[$businessValue] ?? 100000;
+
+                try {
+                    BusinessDeal::create([
+                        'from_user_id' => $giver->id,
+                        'to_user_id' => $currentUser->id,
+                        'deal_date' => now()->toDateString(),
+                        'deal_amount' => $dealAmount,
+                        'business_type' => 'new',
+                        'comment' => $thankYouNote !== '' ? $thankYouNote : "Deal closed for requirement: {$requirement->subject}",
+                        'is_deleted' => false,
+                    ]);
+                } catch (Throwable $dealException) {
+                    Log::warning('BusinessDeal creation failed on requirement close.', [
+                        'error' => $dealException->getMessage(),
+                    ]);
+                }
             }
+
+            $congratsPost = null;
+
+            // Create congratulations timeline post if share_on_feed is true
+            if ($shareOnFeed && $outcome === 'deal_closed') {
+                $authorName = $currentUser->display_name ?: trim(($currentUser->first_name ?? '').' '.($currentUser->last_name ?? ''));
+                $giverName = $giver ? ($giver->display_name ?: trim(($giver->first_name ?? '').' '.($giver->last_name ?? ''))) : 'Peer Member';
+
+                $postContent = "🎉 Congratulations!\n\n";
+                if ($giver) {
+                    $postContent .= "A deal has been closed between @[{$authorName}]({$currentUser->id}) and @[{$giverName}]({$giver->id}) for requirement: \"{$requirement->subject}\".";
+                } else {
+                    $postContent .= "A deal has been closed by @[{$authorName}]({$currentUser->id}) for requirement: \"{$requirement->subject}\".";
+                }
+
+                if ($thankYouNote !== '') {
+                    $postContent .= "\n\n\"{$thankYouNote}\"";
+                }
+
+                try {
+                    $congratsPost = Post::create([
+                        'user_id' => $currentUser->id,
+                        'title' => "Deal Closed: {$requirement->subject}",
+                        'content_text' => $postContent,
+                        'media' => [],
+                        'tags' => ['deal_closed', 'congratulations', 'requirement'],
+                        'visibility' => 'public',
+                        'moderation_status' => 'approved',
+                        'sponsored' => false,
+                        'is_deleted' => false,
+                        'active' => true,
+                        'source_type' => 'requirement',
+                        'source_id' => $requirement->id,
+                        'source_event' => 'completed',
+                        'post_type' => 'deal_closed',
+                    ]);
+
+                    if ($giver) {
+                        PostMention::create([
+                            'post_id' => $congratsPost->id,
+                            'peer_id' => $giver->id,
+                        ]);
+                    }
+                } catch (Throwable $postException) {
+                    Log::warning('Congratulations post creation failed on requirement close.', [
+                        'error' => $postException->getMessage(),
+                    ]);
+                }
+            }
+
+            // Notify Giver
+            if ($giver) {
+                try {
+                    $this->requirementNotificationService->notifyRequirementCompleted($requirement, $giver, $thankYouNote !== '' ? $thankYouNote : null);
+                } catch (Throwable $notificationException) {
+                    Log::warning('Requirement close notification failed.', [
+                        'requirement_id' => (string) $requirement->id,
+                        'error' => $notificationException->getMessage(),
+                    ]);
+                }
+            }
+
+            $postId = $congratsPost?->id ?? $this->resolveTimelinePostId('requirement', (string) $requirement->id);
 
             return response()->json([
                 'status' => true,
-                'message' => 'Requirement updated successfully',
+                'message' => 'Requirement closed and thank you story posted to timeline.',
                 'data' => [
                     'id' => (string) $requirement->id,
                     'status' => $requirement->status,
-                    'post_id' => $this->resolveTimelinePostId('requirement', (string) $requirement->id),
+                    'outcome' => $outcome,
+                    'business_value' => $businessValue,
+                    'add_to_facilitated_total' => $addToFacilitated,
+                    'thank_you_note' => $thankYouNote !== '' ? $thankYouNote : null,
+                    'share_on_feed' => $shareOnFeed,
+                    'post_id' => $postId ? (string) $postId : null,
+                    'giver' => $giver ? [
+                        'id' => (string) $giver->id,
+                        'name' => $giver->display_name ?: trim(($giver->first_name ?? '').' '.($giver->last_name ?? '')),
+                        'company_name' => $giver->company_name,
+                        'city' => $giver->city,
+                        'profile_photo_image' => $giver->profile_photo_file_id ? url('/api/v1/files/'.$giver->profile_photo_file_id) : $giver->profile_photo_url,
+                    ] : null,
+                    'congratulations_post' => $congratsPost ? [
+                        'id' => (string) $congratsPost->id,
+                        'content_text' => $congratsPost->content_text,
+                        'visibility' => $congratsPost->visibility,
+                        'created_at' => $congratsPost->created_at?->toISOString(),
+                    ] : null,
                 ],
                 'meta' => null,
             ], 200);

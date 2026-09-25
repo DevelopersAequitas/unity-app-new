@@ -1067,6 +1067,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/requirements/summary/{userId}', [V1RequirementController::class, 'summary'])->whereUuid('userId');
         Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
         Route::patch('/requirements/{id}/close', [V1RequirementController::class, 'close']);
+        Route::post('/requirements/{id}/close', [V1RequirementController::class, 'close']);
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
         Route::get('/my/requirements', [V1RequirementController::class, 'myIndex']);
 

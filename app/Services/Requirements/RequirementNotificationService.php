@@ -125,6 +125,45 @@ class RequirementNotificationService
         }
     }
 
+    public function notifyRequirementCompleted(Requirement $requirement, User $giver, ?string $thankYouNote): void
+    {
+        $creator = $requirement->user;
+
+        if (! $creator || (string) $creator->id === (string) $giver->id) {
+            return;
+        }
+
+        try {
+            $creatorName = $this->resolveUserName($creator);
+            $this->notifyUserService->notifyUser(
+                $giver,
+                $creator,
+                'requirement_completed',
+                [
+                    'notification_type' => 'requirement_completed',
+                    'requirement_id' => (string) $requirement->id,
+                    'requirement_subject' => (string) $requirement->subject,
+                    'from_user_id' => (string) $creator->id,
+                    'from_user_name' => $creatorName,
+                    'from_company' => $this->resolveUserCompany($creator),
+                    'from_city' => $creator->city,
+                    'from_profile_photo_url' => $creator->profile_photo_url,
+                    'thank_you_note' => $thankYouNote,
+                    'to_user_id' => (string) $giver->id,
+                    'title' => 'Deal closed & Thank you!',
+                    'body' => $creatorName.' closed a deal and thanked you for requirement: '.$requirement->subject,
+                ],
+                $requirement
+            );
+        } catch (Throwable $exception) {
+            Log::warning('Requirement completed notification failed.', [
+                'requirement_id' => (string) $requirement->id,
+                'giver_id' => (string) $giver->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     private function resolveUserName(User $user): string
     {
         return (string) ($user->display_name

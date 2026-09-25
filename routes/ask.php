@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->prefix('asks')->group(function (): void {
         Route::get('preview', [AskController::class, 'preview']);
         Route::post('publish', [AskController::class, 'publish']);
         Route::patch('status', [AskController::class, 'updateStatus']);
+        Route::post('close', [AskController::class, 'closeWithFeedback']);
         Route::get('history', [AskController::class, 'history']);
         Route::post('referral-link', [AskController::class, 'linkReferral']);
 

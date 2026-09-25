@@ -17,10 +17,15 @@ use App\Http\Resources\Ask\AskPreviewResource;
 use App\Http\Resources\Ask\AskResource;
 use App\Http\Resources\Ask\AskStatusHistoryResource;
 use App\Models\Ask\Ask;
+use App\Models\BusinessDeal;
+use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Ask\AskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AskController extends Controller
 {
@@ -245,6 +250,154 @@ class AskController extends Controller
             'success' => true,
             'message' => 'Ask status updated successfully.',
             'data' => new AskResource($updatedAsk),
+        ]);
+    }
+
+    /**
+     * API 14b — Close and Thank Giver (Deal Closed & Feed Story)
+     * POST /api/asks/{ask}/close
+     */
+    public function closeWithFeedback(Request $request, Ask $ask): JsonResponse
+    {
+        $this->authorizeOwner($request->user(), $ask);
+
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', 'in:closed,completed'],
+            'outcome' => ['nullable', 'string', 'in:deal_closed,met_no_deal,contact_did_not_respond'],
+            'business_value' => ['nullable', 'string', 'in:under_1_lakh,1_to_10_lakh,above_10_lakh'],
+            'add_to_facilitated_total' => ['nullable', 'boolean'],
+            'thank_you_note' => ['nullable', 'string', 'max:2000'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+            'story' => ['nullable', 'string', 'max:2000'],
+            'share_on_feed' => ['nullable', 'boolean'],
+            'giver_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'giver_id' => ['nullable', 'uuid', 'exists:users,id'],
+        ]);
+
+        /** @var User $currentUser */
+        $currentUser = $request->user();
+
+        $outcome = (string) ($validated['outcome'] ?? ($validated['status'] === 'completed' ? 'deal_closed' : 'met_no_deal'));
+        $businessValue = $validated['business_value'] ?? null;
+        $addToFacilitated = (bool) ($validated['add_to_facilitated_total'] ?? false);
+        $thankYouNote = trim((string) ($validated['thank_you_note'] ?? $validated['story'] ?? $validated['notes'] ?? ''));
+        $shareOnFeed = (bool) ($validated['share_on_feed'] ?? ($outcome === 'deal_closed'));
+
+        // Update Ask to closed status
+        $updatedAsk = $this->askService->updateStatus(
+            $ask,
+            $currentUser,
+            Ask::STATUS_CLOSED,
+            "Closed with outcome: {$outcome}"
+        );
+
+        // Resolve Giver
+        $giverId = $validated['giver_user_id'] ?? $validated['giver_id'] ?? null;
+        $giver = null;
+        if ($giverId) {
+            $giver = User::query()->find($giverId);
+        }
+        if (! $giver) {
+            $response = $ask->responses()->with('responder')->latest('responded_at')->first();
+            $giver = $response?->responder;
+        }
+
+        // Store BusinessDeal if anonymous total or deal closed
+        if ($outcome === 'deal_closed' && $giver && $addToFacilitated) {
+            $amountMap = [
+                'under_1_lakh' => 50000,
+                '1_to_10_lakh' => 500000,
+                'above_10_lakh' => 1500000,
+            ];
+            $dealAmount = $amountMap[$businessValue] ?? 100000;
+
+            try {
+                BusinessDeal::create([
+                    'from_user_id' => $giver->id,
+                    'to_user_id' => $currentUser->id,
+                    'deal_date' => now()->toDateString(),
+                    'deal_amount' => $dealAmount,
+                    'business_type' => 'new',
+                    'comment' => $thankYouNote !== '' ? $thankYouNote : "Deal closed for Ask: {$ask->title}",
+                    'is_deleted' => false,
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('BusinessDeal creation failed on ask close', ['error' => $e->getMessage()]);
+            }
+        }
+
+        $congratsPost = null;
+
+        // Post congratulations story on timeline if requested
+        if ($shareOnFeed && $outcome === 'deal_closed') {
+            $authorName = $currentUser->display_name ?: trim(($currentUser->first_name ?? '').' '.($currentUser->last_name ?? ''));
+            $giverName = $giver ? ($giver->display_name ?: trim(($giver->first_name ?? '').' '.($giver->last_name ?? ''))) : 'Peer Member';
+
+            $postContent = "🎉 Congratulations!\n\n";
+            if ($giver) {
+                $postContent .= "A deal has been closed between @[{$authorName}]({$currentUser->id}) and @[{$giverName}]({$giver->id}) for: \"{$ask->title}\".";
+            } else {
+                $postContent .= "A deal has been closed by @[{$authorName}]({$currentUser->id}) for: \"{$ask->title}\".";
+            }
+
+            if ($thankYouNote !== '') {
+                $postContent .= "\n\n\"{$thankYouNote}\"";
+            }
+
+            try {
+                $congratsPost = Post::create([
+                    'user_id' => $currentUser->id,
+                    'title' => "Deal Closed: {$ask->title}",
+                    'content_text' => $postContent,
+                    'media' => [],
+                    'tags' => ['deal_closed', 'congratulations', 'ask'],
+                    'visibility' => 'public',
+                    'moderation_status' => 'approved',
+                    'sponsored' => false,
+                    'is_deleted' => false,
+                    'active' => true,
+                    'source_type' => 'ask',
+                    'source_id' => $ask->id,
+                    'source_event' => 'completed',
+                    'post_type' => 'deal_closed',
+                ]);
+
+                if ($giver) {
+                    PostMention::create([
+                        'post_id' => $congratsPost->id,
+                        'peer_id' => $giver->id,
+                    ]);
+                }
+            } catch (Throwable $e) {
+                Log::warning('Congratulations post creation failed on ask close', ['error' => $e->getMessage()]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ask closed and thank you story posted to timeline.',
+            'data' => [
+                'id' => (string) $updatedAsk->id,
+                'status' => $updatedAsk->status,
+                'outcome' => $outcome,
+                'business_value' => $businessValue,
+                'add_to_facilitated_total' => $addToFacilitated,
+                'thank_you_note' => $thankYouNote !== '' ? $thankYouNote : null,
+                'share_on_feed' => $shareOnFeed,
+                'giver' => $giver ? [
+                    'id' => (string) $giver->id,
+                    'name' => $giver->display_name ?: trim(($giver->first_name ?? '').' '.($giver->last_name ?? '')),
+                    'company_name' => $giver->company_name,
+                    'city' => $giver->city,
+                    'profile_photo_image' => $giver->profile_photo_file_id ? url('/api/v1/files/'.$giver->profile_photo_file_id) : $giver->profile_photo_url,
+                ] : null,
+                'congratulations_post' => $congratsPost ? [
+                    'id' => (string) $congratsPost->id,
+                    'content_text' => $congratsPost->content_text,
+                    'visibility' => $congratsPost->visibility,
+                    'created_at' => $congratsPost->created_at?->toISOString(),
+                ] : null,
+            ],
         ]);
     }
 

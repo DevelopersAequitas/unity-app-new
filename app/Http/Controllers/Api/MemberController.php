@@ -890,6 +890,7 @@ class MemberController extends BaseApiController
 
             if ($already) {
                 $already->load(['requester', 'addressee']);
+
                 return $this->success(new ConnectionResource($already), 'Connection request accepted');
             }
 

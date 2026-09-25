@@ -588,6 +588,7 @@ class ActivitiesMessagesController extends Controller
                     'message' => 'Conversation not found.',
                 ], 404);
             }
+
             return redirect()->route('admin.activities.messages.index')->with('error', 'Conversation not found.');
         }
 
@@ -629,53 +630,53 @@ class ActivitiesMessagesController extends Controller
             $isUser1 = ((string) $msg->sender_id === (string) $chat->user1_id);
 
             return [
-                'id'                   => $msg->id,
-                'chat_id'              => $msg->chat_id,
-                'sender_id'            => $msg->sender_id,
-                'sender_name'          => $msg->sender_name,
-                'sender_email'         => $msg->sender_email ?? '',
-                'sender_city'          => $msg->sender_city ?? '',
-                'sender_membership'    => $msg->sender_membership ?? 'Peer',
-                'is_user1'             => $isUser1,
-                'sender_type'          => $isUser1 ? 'user1' : 'user2',
-                'content'              => $msg->content ?? '',
-                'attachments'          => $atts,
-                'is_media'             => $isMedia,
-                'is_read'              => (bool) $msg->is_read,
-                'created_at'           => $at ? $at->toIso8601String() : null,
+                'id' => $msg->id,
+                'chat_id' => $msg->chat_id,
+                'sender_id' => $msg->sender_id,
+                'sender_name' => $msg->sender_name,
+                'sender_email' => $msg->sender_email ?? '',
+                'sender_city' => $msg->sender_city ?? '',
+                'sender_membership' => $msg->sender_membership ?? 'Peer',
+                'is_user1' => $isUser1,
+                'sender_type' => $isUser1 ? 'user1' : 'user2',
+                'content' => $msg->content ?? '',
+                'attachments' => $atts,
+                'is_media' => $isMedia,
+                'is_read' => (bool) $msg->is_read,
+                'created_at' => $at ? $at->toIso8601String() : null,
                 'created_at_formatted' => $at ? $at->format('M d, Y h:i A') : '—',
-                'date_formatted'       => $at ? $at->format('M d, Y') : '—',
-                'time_formatted'       => $at ? $at->format('h:i A') : '—',
+                'date_formatted' => $at ? $at->format('M d, Y') : '—',
+                'time_formatted' => $at ? $at->format('h:i A') : '—',
             ];
         });
 
         $responseData = [
             'success' => true,
-            'data'    => [
-                'chat_id'         => $chat->chat_id,
-                'total_messages'  => $messages->count(),
+            'data' => [
+                'chat_id' => $chat->chat_id,
+                'total_messages' => $messages->count(),
                 'last_message_at' => $chat->last_message_at ? Carbon::parse($chat->last_message_at)->format('M d, Y h:i A') : null,
-                'user1'           => [
-                    'id'          => $chat->user1_id,
-                    'name'        => $chat->u1_name,
-                    'email'       => $chat->u1_email,
-                    'phone'       => $chat->u1_phone,
-                    'city'        => $chat->u1_city,
-                    'company'     => $chat->u1_company,
+                'user1' => [
+                    'id' => $chat->user1_id,
+                    'name' => $chat->u1_name,
+                    'email' => $chat->u1_email,
+                    'phone' => $chat->u1_phone,
+                    'city' => $chat->u1_city,
+                    'company' => $chat->u1_company,
                     'designation' => $chat->u1_designation,
-                    'membership'  => $chat->u1_membership ?? 'Peer',
+                    'membership' => $chat->u1_membership ?? 'Peer',
                 ],
-                'user2'           => [
-                    'id'          => $chat->user2_id,
-                    'name'        => $chat->u2_name,
-                    'email'       => $chat->u2_email,
-                    'phone'       => $chat->u2_phone,
-                    'city'        => $chat->u2_city,
-                    'company'     => $chat->u2_company,
+                'user2' => [
+                    'id' => $chat->user2_id,
+                    'name' => $chat->u2_name,
+                    'email' => $chat->u2_email,
+                    'phone' => $chat->u2_phone,
+                    'city' => $chat->u2_city,
+                    'company' => $chat->u2_company,
                     'designation' => $chat->u2_designation,
-                    'membership'  => $chat->u2_membership ?? 'Peer',
+                    'membership' => $chat->u2_membership ?? 'Peer',
                 ],
-                'messages'        => $messages,
+                'messages' => $messages,
             ],
         ];
 

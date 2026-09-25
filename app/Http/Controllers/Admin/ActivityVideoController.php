@@ -9,7 +9,6 @@ use App\Models\ActivityVideo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -36,16 +35,16 @@ class ActivityVideoController extends Controller
         $stats = [
             'total_activities' => $totalActivities,
             'configured_count' => $configuredCount,
-            'active_count'     => $activeCount,
-            'youtube_count'    => $youtubeCount,
-            'file_count'       => $fileCount,
-            'missing_count'    => $missingCount,
+            'active_count' => $activeCount,
+            'youtube_count' => $youtubeCount,
+            'file_count' => $fileCount,
+            'missing_count' => $missingCount,
         ];
 
         return view('admin.activities.videos.index', [
             'activities' => $activities,
             'configured' => $configured,
-            'stats'      => $stats,
+            'stats' => $stats,
         ]);
     }
 
@@ -62,10 +61,10 @@ class ActivityVideoController extends Controller
 
         $validated = $request->validate([
             'activity_key' => ['required', 'string', Rule::in($validKeys)],
-            'video_type'   => ['required', 'string', Rule::in(['youtube', 'file'])],
-            'youtube_url'  => ['nullable', 'url', 'max:500'],
-            'video_file'   => ['nullable', 'file', 'mimes:mp4,mov,avi,webm,mkv,3gp,m4v', 'max:51200'], // 50MB
-            'is_active'    => ['nullable', 'boolean'],
+            'video_type' => ['required', 'string', Rule::in(['youtube', 'file'])],
+            'youtube_url' => ['nullable', 'url', 'max:500'],
+            'video_file' => ['nullable', 'file', 'mimes:mp4,mov,avi,webm,mkv,3gp,m4v', 'max:51200'], // 50MB
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
         $activityKey = $validated['activity_key'];
@@ -106,9 +105,9 @@ class ActivityVideoController extends Controller
             ['activity_key' => $activityKey],
             [
                 'activity_name' => $activityName,
-                'video_type'    => $videoType,
-                'video_url'     => $videoUrl,
-                'is_active'     => $isActive,
+                'video_type' => $videoType,
+                'video_url' => $videoUrl,
+                'is_active' => $isActive,
             ]
         );
 

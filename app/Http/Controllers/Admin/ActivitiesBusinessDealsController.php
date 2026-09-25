@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserTag;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\ActivityUserFilter;
 use App\Support\AdminCircleScope;
@@ -301,7 +302,7 @@ class ActivitiesBusinessDealsController extends Controller
         if (($filters['member_type'] ?? 'peer') === 'team_member') {
             $teamMemberIds = DB::table('user_tag_assignments')
                 ->join('user_tags', 'user_tags.id', '=', 'user_tag_assignments.tag_id')
-                ->where('user_tags.slug', \App\Models\UserTag::SLUG_TEAM_MEMBER)
+                ->where('user_tags.slug', UserTag::SLUG_TEAM_MEMBER)
                 ->where('user_tags.is_active', true)
                 ->pluck('user_tag_assignments.user_id')
                 ->all();
@@ -349,7 +350,7 @@ class ActivitiesBusinessDealsController extends Controller
 
         $teamMemberIds = DB::table('user_tag_assignments')
             ->join('user_tags', 'user_tags.id', '=', 'user_tag_assignments.tag_id')
-            ->where('user_tags.slug', \App\Models\UserTag::SLUG_TEAM_MEMBER)
+            ->where('user_tags.slug', UserTag::SLUG_TEAM_MEMBER)
             ->where('user_tags.is_active', true)
             ->pluck('user_tag_assignments.user_id')
             ->all();

@@ -34,13 +34,13 @@ class NotificationMonitoringController extends Controller
 
         if (! $hasTable) {
             return view('admin.notifications.monitoring.index', [
-                'items'              => collect(),
-                'filters'            => $filters,
-                'summary'            => $this->emptySummary(),
-                'notificationTypes'  => [],
-                'channels'           => $this->availableChannels(),
-                'statuses'           => $this->availableStatuses(),
-                'total'              => 0,
+                'items' => collect(),
+                'filters' => $filters,
+                'summary' => $this->emptySummary(),
+                'notificationTypes' => [],
+                'channels' => $this->availableChannels(),
+                'statuses' => $this->availableStatuses(),
+                'total' => 0,
             ]);
         }
 
@@ -60,13 +60,13 @@ class NotificationMonitoringController extends Controller
         $notificationTypes = $this->resolveNotificationTypes();
 
         return view('admin.notifications.monitoring.index', [
-            'items'             => $items,
-            'filters'           => $filters,
-            'summary'           => $summary,
+            'items' => $items,
+            'filters' => $filters,
+            'summary' => $summary,
             'notificationTypes' => $notificationTypes,
-            'channels'          => $this->availableChannels(),
-            'statuses'          => $this->availableStatuses(),
-            'total'             => $items->total(),
+            'channels' => $this->availableChannels(),
+            'statuses' => $this->availableStatuses(),
+            'total' => $items->total(),
         ]);
     }
 
@@ -114,43 +114,43 @@ class NotificationMonitoringController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'id'                 => $notification->id,
-                'type'               => $notification->type,
-                'category'           => $notification->category ?? 'General',
-                'channel'            => $notification->channel ?? 'push',
-                'priority'           => $notification->priority ?? 'medium',
-                'title'              => $notification->title ?? '—',
-                'body'               => $notification->body ?? $notification->message ?? '—',
-                'screen'             => $notification->screen ?? $notification->navigation_screen ?? '—',
-                'status'             => $notification->status ?? 'sent',
-                'failure_reason'     => $notification->failure_reason,
-                'raw_payload'        => $notification->data ?? [],
-                'created_at'         => $notification->created_at ? $notification->created_at->format('M d, Y h:i:s A') : '—',
-                'sent_at'            => $notification->sent_at ? $notification->sent_at->format('M d, Y h:i:s A') : null,
-                'read_at'            => $notification->read_at ? $notification->read_at->format('M d, Y h:i:s A') : null,
-                'clicked_at'         => $notification->clicked_at ? $notification->clicked_at->format('M d, Y h:i:s A') : null,
-                'failed_at'          => $notification->failed_at ? $notification->failed_at->format('M d, Y h:i:s A') : null,
-                'user'               => [
-                    'id'               => $user?->id,
-                    'name'             => $userName,
-                    'email'            => $user?->email ?? '—',
-                    'phone'            => $user?->phone ?? '—',
-                    'city'             => $user?->city ?? '—',
-                    'membership'       => $user?->membership_status ?? 'Peer',
-                    'active_tokens'    => $pushTokenCount,
+            'data' => [
+                'id' => $notification->id,
+                'type' => $notification->type,
+                'category' => $notification->category ?? 'General',
+                'channel' => $notification->channel ?? 'push',
+                'priority' => $notification->priority ?? 'medium',
+                'title' => $notification->title ?? '—',
+                'body' => $notification->body ?? $notification->message ?? '—',
+                'screen' => $notification->screen ?? $notification->navigation_screen ?? '—',
+                'status' => $notification->status ?? 'sent',
+                'failure_reason' => $notification->failure_reason,
+                'raw_payload' => $notification->data ?? [],
+                'created_at' => $notification->created_at ? $notification->created_at->format('M d, Y h:i:s A') : '—',
+                'sent_at' => $notification->sent_at ? $notification->sent_at->format('M d, Y h:i:s A') : null,
+                'read_at' => $notification->read_at ? $notification->read_at->format('M d, Y h:i:s A') : null,
+                'clicked_at' => $notification->clicked_at ? $notification->clicked_at->format('M d, Y h:i:s A') : null,
+                'failed_at' => $notification->failed_at ? $notification->failed_at->format('M d, Y h:i:s A') : null,
+                'user' => [
+                    'id' => $user?->id,
+                    'name' => $userName,
+                    'email' => $user?->email ?? '—',
+                    'phone' => $user?->phone ?? '—',
+                    'city' => $user?->city ?? '—',
+                    'membership' => $user?->membership_status ?? 'Peer',
+                    'active_tokens' => $pushTokenCount,
                 ],
-                'delivery_logs'      => $deliveryLogs->map(fn ($log) => [
-                    'id'                  => $log->id,
-                    'channel'             => $log->channel,
-                    'provider'            => $log->provider,
+                'delivery_logs' => $deliveryLogs->map(fn ($log) => [
+                    'id' => $log->id,
+                    'channel' => $log->channel,
+                    'provider' => $log->provider,
                     'provider_message_id' => $log->provider_message_id,
-                    'status'              => $log->status,
-                    'error_message'       => $log->error_message,
-                    'request_payload'     => $log->request_payload,
-                    'response_payload'    => $log->response_payload,
-                    'attempted_at'        => $log->attempted_at ? $log->attempted_at->format('M d, Y h:i:s A') : null,
-                    'delivered_at'        => $log->delivered_at ? $log->delivered_at->format('M d, Y h:i:s A') : null,
+                    'status' => $log->status,
+                    'error_message' => $log->error_message,
+                    'request_payload' => $log->request_payload,
+                    'response_payload' => $log->response_payload,
+                    'attempted_at' => $log->attempted_at ? $log->attempted_at->format('M d, Y h:i:s A') : null,
+                    'delivered_at' => $log->delivered_at ? $log->delivered_at->format('M d, Y h:i:s A') : null,
                 ]),
             ],
         ]);
@@ -162,7 +162,7 @@ class NotificationMonitoringController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->buildFilters($request);
-        $filename = 'notification_monitoring_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'notification_monitoring_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
@@ -225,7 +225,7 @@ class NotificationMonitoringController extends Controller
                 fclose($handle);
             }
         }, $filename, [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
@@ -250,17 +250,17 @@ class NotificationMonitoringController extends Controller
         }
 
         return [
-            'date_preset'       => $preset,
-            'from_date'         => $fromDate,
-            'to_date'           => $toDate,
-            'status'            => $request->input('status', ''),
+            'date_preset' => $preset,
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
+            'status' => $request->input('status', ''),
             'notification_type' => $request->input('notification_type', ''),
-            'channel'           => $request->input('channel', ''),
-            'user_query'        => $request->input('user_query', ''),
-            'q'                 => $request->input('q', ''),
-            'sort'              => $request->input('sort', 'created_at'),
-            'direction'         => $request->input('direction', 'desc'),
-            'per_page'          => (int) $request->input('per_page', 20),
+            'channel' => $request->input('channel', ''),
+            'user_query' => $request->input('user_query', ''),
+            'q' => $request->input('q', ''),
+            'sort' => $request->input('sort', 'created_at'),
+            'direction' => $request->input('direction', 'desc'),
+            'per_page' => (int) $request->input('per_page', 20),
         ];
     }
 
@@ -318,7 +318,7 @@ class NotificationMonitoringController extends Controller
 
         // 5. User / Recipient filter
         if (! empty($filters['user_query'])) {
-            $uq = '%' . strtolower(trim($filters['user_query'])) . '%';
+            $uq = '%'.strtolower(trim($filters['user_query'])).'%';
             $query->whereHas('user', function ($uqQuery) use ($uq) {
                 $uqQuery->whereRaw('LOWER(display_name) LIKE ?', [$uq])
                     ->orWhereRaw('LOWER(first_name) LIKE ?', [$uq])
@@ -330,7 +330,7 @@ class NotificationMonitoringController extends Controller
 
         // 6. Global search
         if (! empty($filters['q'])) {
-            $term = '%' . strtolower(trim($filters['q'])) . '%';
+            $term = '%'.strtolower(trim($filters['q'])).'%';
             $query->where(function ($q) use ($term) {
                 $q->whereRaw('LOWER(title) LIKE ?', [$term])
                     ->orWhereRaw('LOWER(body) LIKE ?', [$term])
@@ -371,7 +371,7 @@ class NotificationMonitoringController extends Controller
             $summaryQuery->where('channel', $filters['channel']);
         }
         if (! empty($filters['user_query'])) {
-            $uq = '%' . strtolower(trim($filters['user_query'])) . '%';
+            $uq = '%'.strtolower(trim($filters['user_query'])).'%';
             $summaryQuery->whereHas('user', function ($uqQuery) use ($uq) {
                 $uqQuery->whereRaw('LOWER(display_name) LIKE ?', [$uq])
                     ->orWhereRaw('LOWER(first_name) LIKE ?', [$uq])
@@ -399,15 +399,15 @@ class NotificationMonitoringController extends Controller
         $failureRate = $total > 0 ? round(($failed / $total) * 100, 1) : 0;
 
         return [
-            'total'        => $total,
-            'sent'         => $sent,
-            'failed'       => $failed,
-            'pending'      => $pending,
-            'processing'   => $processing,
-            'partial'      => $partial,
-            'skipped'      => $skipped,
-            'read_count'   => $readCount,
-            'clicked_count'=> $clickedCount,
+            'total' => $total,
+            'sent' => $sent,
+            'failed' => $failed,
+            'pending' => $pending,
+            'processing' => $processing,
+            'partial' => $partial,
+            'skipped' => $skipped,
+            'read_count' => $readCount,
+            'clicked_count' => $clickedCount,
             'success_rate' => $successRate,
             'failure_rate' => $failureRate,
         ];
@@ -415,34 +415,34 @@ class NotificationMonitoringController extends Controller
 
     private function resolveDateRange(string $preset, string $from, string $to): array
     {
-        $tz  = config('app.timezone', 'UTC');
+        $tz = config('app.timezone', 'UTC');
         $now = Carbon::now($tz);
 
         return match ($preset) {
-            'today'          => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
-            'yesterday'      => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
-            'last_7_days'    => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
-            'last_30_days'   => [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()],
-            'this_month'     => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
-            'last_month'     => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
-            'custom'         => [
+            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
+            'last_7_days' => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
+            'last_30_days' => [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()],
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+            'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
+            'custom' => [
                 $from !== '' ? Carbon::parse($from, $tz)->startOfDay() : null,
-                $to   !== '' ? Carbon::parse($to, $tz)->endOfDay()   : null,
+                $to !== '' ? Carbon::parse($to, $tz)->endOfDay() : null,
             ],
-            'all'            => [null, null],
-            default          => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'all' => [null, null],
+            default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
         };
     }
 
     private function resolveSortColumn(string $sort): string
     {
         return match ($sort) {
-            'sent_at'    => 'sent_at',
-            'failed_at'  => 'failed_at',
-            'status'     => 'status',
-            'type'       => 'type',
-            'channel'    => 'channel',
-            default      => 'created_at',
+            'sent_at' => 'sent_at',
+            'failed_at' => 'failed_at',
+            'status' => 'status',
+            'type' => 'type',
+            'channel' => 'channel',
+            default => 'created_at',
         };
     }
 
@@ -457,7 +457,8 @@ class NotificationMonitoringController extends Controller
                     $catalogTypes[$k] = $item['name'] ?? ucwords(str_replace('_', ' ', $k));
                 }
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         // Also query distinct types from app_notifications table
         if (Schema::hasTable('app_notifications')) {
@@ -482,38 +483,38 @@ class NotificationMonitoringController extends Controller
     private function availableChannels(): array
     {
         return [
-            'push'        => 'Push Notification (Firebase)',
-            'email'       => 'Email Notification',
-            'push_email'  => 'Push & Email Combined',
+            'push' => 'Push Notification (Firebase)',
+            'email' => 'Email Notification',
+            'push_email' => 'Push & Email Combined',
             'in_app_only' => 'In-App Only',
-            'whatsapp'    => 'WhatsApp Message',
+            'whatsapp' => 'WhatsApp Message',
         ];
     }
 
     private function availableStatuses(): array
     {
         return [
-            'sent'       => 'Sent / Delivered',
-            'failed'     => 'Failed',
-            'pending'    => 'Pending / Queued',
+            'sent' => 'Sent / Delivered',
+            'failed' => 'Failed',
+            'pending' => 'Pending / Queued',
             'processing' => 'Processing',
-            'partial'    => 'Partial (Push/Email)',
-            'skipped'    => 'Skipped / Suppressed',
+            'partial' => 'Partial (Push/Email)',
+            'skipped' => 'Skipped / Suppressed',
         ];
     }
 
     private function emptySummary(): array
     {
         return [
-            'total'        => 0,
-            'sent'         => 0,
-            'failed'       => 0,
-            'pending'      => 0,
-            'processing'   => 0,
-            'partial'      => 0,
-            'skipped'      => 0,
-            'read_count'   => 0,
-            'clicked_count'=> 0,
+            'total' => 0,
+            'sent' => 0,
+            'failed' => 0,
+            'pending' => 0,
+            'processing' => 0,
+            'partial' => 0,
+            'skipped' => 0,
+            'read_count' => 0,
+            'clicked_count' => 0,
             'success_rate' => 0,
             'failure_rate' => 0,
         ];
