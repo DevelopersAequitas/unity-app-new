@@ -181,6 +181,10 @@ class AskController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        if ($request->query('view') === 'hub' || $request->has('status')) {
+            return app(AskFeedController::class)->myAsks($request);
+        }
+
         /** @var User $user */
         $user = $request->user();
         $asks = $this->askService->listUserAsks($user, $request->all());

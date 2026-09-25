@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Admin\AskAdminController;
 use App\Http\Controllers\Api\V1\Ask\AskConfigController;
 use App\Http\Controllers\Api\V1\Ask\AskController;
+use App\Http\Controllers\Api\V1\Ask\AskFeedController;
 use App\Http\Controllers\Api\V1\Ask\AskMatchController;
 use App\Http\Controllers\Api\V1\Ask\AskResponseController;
 use Illuminate\Support\Facades\Route;
@@ -14,11 +15,47 @@ use Illuminate\Support\Facades\Route;
 | Ask / Requirement Discovery System Routes
 |--------------------------------------------------------------------------
 |
-| 26 Core APIs for Collaboration, Referral, and Help flows.
+| Core APIs for Collaboration, Referral, Feed, and Help flows.
 |
 */
 
+// V1 Peers Asks & Community Feed API Routes (matching Flutter PeersAsksHubScreen)
+Route::middleware('auth:sanctum')->prefix('v1/asks')->group(function (): void {
+    Route::get('feed', [AskFeedController::class, 'feed']);
+    Route::get('/', [AskFeedController::class, 'myAsks']);
+    Route::post('{id}/congratulate', [AskFeedController::class, 'congratulate'])->whereUuid('id');
+    Route::post('{id}/save', [AskFeedController::class, 'save'])->whereUuid('id');
+    Route::post('{id}/close-and-thank', [AskFeedController::class, 'closeAndThank'])->whereUuid('id');
+
+    // Supporting configurations & creation under v1
+    Route::get('flows', [AskConfigController::class, 'getFlows']);
+    Route::get('flows/{flow}/types', [AskConfigController::class, 'getTypes']);
+    Route::get('form-config', [AskConfigController::class, 'getFormConfig']);
+    Route::post('/', [AskController::class, 'storeDraft']);
+
+    Route::prefix('{ask}')->whereUuid('ask')->group(function (): void {
+        Route::put('/', [AskController::class, 'saveDetails']);
+        Route::get('/', [AskController::class, 'show']);
+        Route::patch('/', [AskController::class, 'update']);
+        Route::put('filters', [AskController::class, 'saveFilters']);
+        Route::put('visibility', [AskController::class, 'setVisibility']);
+        Route::put('timeline-preference', [AskController::class, 'setTimelinePreference']);
+        Route::get('preview', [AskController::class, 'preview']);
+        Route::post('publish', [AskController::class, 'publish']);
+        Route::patch('status', [AskController::class, 'updateStatus']);
+        Route::post('close', [AskController::class, 'closeWithFeedback']);
+        Route::get('history', [AskController::class, 'history']);
+        Route::post('referral-link', [AskController::class, 'linkReferral']);
+    });
+});
+
 Route::middleware('auth:sanctum')->prefix('asks')->group(function (): void {
+    // Peers Community Feed & Actions
+    Route::get('feed', [AskFeedController::class, 'feed']);
+    Route::post('{id}/congratulate', [AskFeedController::class, 'congratulate'])->whereUuid('id');
+    Route::post('{id}/save', [AskFeedController::class, 'save'])->whereUuid('id');
+    Route::post('{id}/close-and-thank', [AskFeedController::class, 'closeAndThank'])->whereUuid('id');
+
     // Part 1 — Dynamic Configuration (APIs 1-3)
     Route::get('flows', [AskConfigController::class, 'getFlows']);
     Route::get('flows/{flow}/types', [AskConfigController::class, 'getTypes']);
