@@ -58,7 +58,7 @@ class MembershipUpgradeService
             }
 
             $anchorDate = $this->parseDate($latestMembershipEnd);
-            if (! $anchorDate && $lockedUser->membership_ends_at && Carbon::parse($lockedUser->membership_ends_at)->isFuture()) {
+            if (! $anchorDate && ! $payment && $lockedUser->membership_ends_at && Carbon::parse($lockedUser->membership_ends_at)->isFuture()) {
                 $anchorDate = Carbon::parse($lockedUser->membership_ends_at);
             }
 

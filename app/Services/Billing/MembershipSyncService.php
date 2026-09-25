@@ -42,6 +42,7 @@ class MembershipSyncService
             'duration_months' => $this->calculateDurationMonths($subscription),
             'membership_starts_at' => $startAt,
             'membership_ends_at' => $endAt,
+            'force_dates' => true,
             'last_payment_at' => now(),
         ]);
 

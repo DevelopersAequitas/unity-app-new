@@ -550,13 +550,82 @@ class ZohoBillingService
         $response = $this->client->request('GET', '/hostedpages/'.$hostedpageId);
         $normalized = $this->normalizeHostedPageResponse($response);
 
+        $hostedPage = $normalized['hostedpage'] ?? [];
+
         Log::info('Zoho hosted page response shape', [
             'hostedpage_id' => $hostedpageId,
             'response_keys' => array_keys($response),
-            'hostedpage_keys' => array_keys($normalized['hostedpage'] ?? []),
+            'hostedpage_keys' => array_keys($hostedPage),
+            'detected_status' => $hostedPage['status'] ?? null,
+            'subscription_id' => $hostedPage['subscription_id'] ?? null,
+            'customer_id' => $hostedPage['customer_id'] ?? null,
+            'plan_code' => $hostedPage['plan_code'] ?? null,
+            'invoice_id' => $hostedPage['invoice_id'] ?? null,
         ]);
 
         return $normalized;
+    }
+
+    public function resolveCustomerActiveSubscription(string $customerId, ?string $preferredPlanCode = null): ?array
+    {
+        $customerId = trim($customerId);
+        if ($customerId === '') {
+            return null;
+        }
+
+        try {
+            $list = $this->listSubscriptionsByCustomer($customerId);
+            $subscriptions = data_get($list, 'subscriptions', []);
+
+            if (! is_array($subscriptions) || empty($subscriptions)) {
+                return null;
+            }
+
+            $activeStatuses = ['live', 'active', 'non_renewing', 'trial', 'future', 'paid', 'success', 'completed', 'acknowledged'];
+
+            $matchingSub = null;
+            foreach ($subscriptions as $sub) {
+                if (! is_array($sub)) {
+                    continue;
+                }
+
+                $status = strtolower((string) ($sub['status'] ?? ''));
+                if (! in_array($status, $activeStatuses, true)) {
+                    continue;
+                }
+
+                $subPlanCode = (string) (data_get($sub, 'plan.plan_code') ?? $sub['plan_code'] ?? '');
+
+                if ($preferredPlanCode !== null && $preferredPlanCode !== '' && $subPlanCode === $preferredPlanCode) {
+                    $matchingSub = $sub;
+                    break;
+                }
+
+                if ($matchingSub === null) {
+                    $matchingSub = $sub;
+                }
+            }
+
+            if ($matchingSub !== null && ! empty($matchingSub['subscription_id'])) {
+                try {
+                    $full = $this->getSubscription((string) $matchingSub['subscription_id']);
+                    if (is_array($full['subscription'] ?? null)) {
+                        return $full['subscription'];
+                    }
+                } catch (Throwable) {
+                    // Fall back to summary subscription
+                }
+
+                return $matchingSub;
+            }
+        } catch (Throwable $t) {
+            Log::warning('Zoho failed to resolve customer active subscription', [
+                'customer_id' => $customerId,
+                'error' => $t->getMessage(),
+            ]);
+        }
+
+        return null;
     }
 
     public function getSubscription(string $subscriptionId): array
@@ -668,41 +737,58 @@ class ZohoBillingService
 
     public function parseHostedPageForMembership(array $hostedPageResponse): array
     {
-        $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
-        $subscription = $hostedPage['subscription'] ?? [];
+        $hostedPage = $hostedPageResponse['hostedpage'] ?? $hostedPageResponse;
+        $subscription = data_get($hostedPage, 'data.subscription')
+            ?? data_get($hostedPage, 'subscription')
+            ?? data_get($hostedPageResponse, 'raw.hostedpage.data.subscription')
+            ?? data_get($hostedPageResponse, 'raw.data.subscription')
+            ?? data_get($hostedPage, 'subscriptions.0')
+            ?? [];
+        $subscription = is_array($subscription) ? $subscription : [];
 
         $status = strtolower((string) (
-            $hostedPage['payment_status']
-            ?? $hostedPage['status']
-            ?? $subscription['status']
+            data_get($hostedPage, 'status')
+            ?? data_get($hostedPage, 'payment_status')
+            ?? data_get($hostedPage, 'hostedpage_status')
+            ?? data_get($subscription, 'status')
+            ?? data_get($hostedPage, 'data.status')
+            ?? data_get($hostedPageResponse, 'status')
             ?? ''
         ));
 
-        $isPaid = in_array($status, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
+        $isPaid = in_array($status, ['paid', 'success', 'completed', 'active', 'live', 'payment_success', 'payment_succeeded', 'acknowledged'], true);
 
-        $planCode = $subscription['plan']['plan_code']
+        $planCode = data_get($subscription, 'plan.plan_code')
+            ?? data_get($subscription, 'plan_code')
+            ?? data_get($hostedPage, 'subscription.plan.plan_code')
             ?? data_get($hostedPage, 'plan.plan_code')
-            ?? data_get($hostedPage, 'plan_code');
+            ?? data_get($hostedPage, 'plan_code')
+            ?? data_get($hostedPage, 'data.plan_code');
 
-        $startsAt = $subscription['start_date']
-            ?? $subscription['activated_at']
-            ?? $subscription['created_time']
+        $startsAt = data_get($subscription, 'current_term_starts_at')
+            ?? data_get($subscription, 'start_date')
+            ?? data_get($subscription, 'activated_at')
+            ?? data_get($subscription, 'created_time')
             ?? now()->toDateTimeString();
 
-        $endsAt = $subscription['next_billing_at']
-            ?? $subscription['current_term_ends_at']
-            ?? $subscription['current_term_end']
+        $endsAt = data_get($subscription, 'current_term_ends_at')
+            ?? data_get($subscription, 'next_billing_at')
+            ?? data_get($subscription, 'expires_at')
+            ?? data_get($subscription, 'current_term_end')
             ?? data_get($hostedPage, 'subscription.next_billing_at')
             ?? $this->calculateMembershipEndAt(
-                (string) ($subscription['interval'] ?? data_get($hostedPage, 'plan.interval') ?? ''),
+                (string) (data_get($subscription, 'interval') ?? data_get($hostedPage, 'plan.interval') ?? ''),
                 $startsAt,
             );
 
         return [
             'status' => $status,
             'is_paid' => $isPaid,
-            'subscription_id' => $subscription['subscription_id'] ?? data_get($hostedPage, 'subscription_id'),
+            'subscription_id' => data_get($subscription, 'subscription_id') ?? data_get($hostedPage, 'subscription_id') ?? data_get($hostedPage, 'data.subscription.subscription_id'),
             'invoice_id' => data_get($hostedPage, 'invoice.invoice_id')
+                ?? data_get($hostedPage, 'data.invoice.invoice_id')
+                ?? data_get($hostedPage, 'data.subscription.invoice.invoice_id')
+                ?? data_get($subscription, 'invoice.invoice_id')
                 ?? data_get($subscription, 'invoice_id')
                 ?? data_get($hostedPage, 'invoice_id'),
             'plan_code' => $planCode,
@@ -713,29 +799,47 @@ class ZohoBillingService
 
     public function syncMembershipFromHostedPage(User $user, array $hostedPageResponse): bool
     {
-        $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
-        $subscription = $hostedPage['subscription'] ?? [];
+        $parsed = $this->parseHostedPageForMembership($hostedPageResponse);
+        $hostedPage = $hostedPageResponse['hostedpage'] ?? $hostedPageResponse;
+        $subscription = data_get($hostedPage, 'data.subscription')
+            ?? data_get($hostedPage, 'subscription')
+            ?? [];
+        $subscription = is_array($subscription) ? $subscription : [];
 
-        $status = strtolower((string) ($subscription['status'] ?? $hostedPage['status'] ?? ''));
-        $isPaid = in_array($status, ['active', 'live', 'paid', 'payment_success', 'success'], true);
+        $isPaid = (bool) ($parsed['is_paid'] ?? false);
+        $subscriptionId = $parsed['subscription_id'] ?? null;
+        $customerId = $user->zoho_customer_id ?? data_get($hostedPage, 'customer_id') ?? data_get($subscription, 'customer_id');
 
-        if (! $isPaid && ! isset($subscription['subscription_id'])) {
+        if (! $subscriptionId && $customerId) {
+            $resolvedSub = $this->resolveCustomerActiveSubscription((string) $customerId, $parsed['plan_code'] ?? $user->zoho_plan_code);
+            if ($resolvedSub) {
+                $subscription = $resolvedSub;
+                $subscriptionId = $resolvedSub['subscription_id'] ?? null;
+                $parsed['subscription_id'] = $subscriptionId;
+                $parsed['plan_code'] = data_get($resolvedSub, 'plan.plan_code') ?? $resolvedSub['plan_code'] ?? $parsed['plan_code'];
+                $parsed['starts_at'] = $resolvedSub['current_term_starts_at'] ?? $resolvedSub['start_date'] ?? $parsed['starts_at'];
+                $parsed['ends_at'] = $resolvedSub['current_term_ends_at'] ?? $resolvedSub['next_billing_at'] ?? $resolvedSub['expires_at'] ?? $parsed['ends_at'];
+                $parsed['invoice_id'] = $parsed['invoice_id'] ?? data_get($resolvedSub, 'invoice.invoice_id') ?? $resolvedSub['invoice_id'] ?? null;
+                $isPaid = true;
+            }
+        }
+
+        if (! $isPaid && ! $subscriptionId) {
             return false;
         }
 
         $applied = $this->membershipUpdater->applyPaidMembership($user, [
-            'zoho_customer_id' => $user->zoho_customer_id ?? data_get($hostedPage, 'customer_id') ?? data_get($subscription, 'customer_id'),
-            'zoho_subscription_id' => $subscription['subscription_id'] ?? null,
-            'zoho_plan_code' => $subscription['plan']['plan_code'] ?? $subscription['plan_code'] ?? data_get($subscription, 'plan_code') ?? data_get($hostedPage, 'plan.plan_code') ?? null,
-            'zoho_last_invoice_id' => $hostedPage['invoice']['invoice_id'] ?? ($subscription['invoice_id'] ?? null),
-            'membership_starts_at' => $subscription['start_date'] ?? $subscription['created_time'] ?? null,
-            'membership_ends_at' => $subscription['next_billing_at'] ?? $subscription['expires_at'] ?? null,
+            'zoho_customer_id' => $customerId,
+            'zoho_subscription_id' => $subscriptionId,
+            'zoho_plan_code' => $parsed['plan_code'],
+            'zoho_last_invoice_id' => $parsed['invoice_id'],
+            'membership_starts_at' => $parsed['starts_at'],
+            'membership_ends_at' => $parsed['ends_at'],
             'last_payment_at' => now(),
         ]);
 
         try {
             $hostedPageId = data_get($hostedPage, 'hostedpage_id');
-            $subscriptionId = $subscription['subscription_id'] ?? null;
             $payment = null;
 
             if (Schema::hasTable('payments')) {
@@ -748,12 +852,12 @@ class ZohoBillingService
 
             app(MembershipUpgradeService::class)->markAsOnlyUnityPeerAfterPayment($user, [
                 'payment_id' => $payment?->id,
-                'zoho_customer_id' => $user->zoho_customer_id ?? data_get($hostedPage, 'customer_id') ?? data_get($subscription, 'customer_id'),
+                'zoho_customer_id' => $customerId,
                 'zoho_subscription_id' => $subscriptionId,
-                'zoho_plan_code' => $subscription['plan']['plan_code'] ?? $subscription['plan_code'] ?? data_get($subscription, 'plan_code') ?? data_get($hostedPage, 'plan.plan_code') ?? null,
-                'zoho_invoice_id' => $hostedPage['invoice']['invoice_id'] ?? ($subscription['invoice_id'] ?? null),
-                'membership_starts_at' => $subscription['start_date'] ?? $subscription['created_time'] ?? null,
-                'membership_ends_at' => $subscription['next_billing_at'] ?? $subscription['expires_at'] ?? null,
+                'zoho_plan_code' => $parsed['plan_code'],
+                'zoho_invoice_id' => $parsed['invoice_id'],
+                'membership_starts_at' => $parsed['starts_at'],
+                'membership_ends_at' => $parsed['ends_at'],
                 'last_payment_at' => now(),
             ]);
         } catch (Throwable $t) {
@@ -1235,12 +1339,92 @@ class ZohoBillingService
         $data = $resp['data'] ?? [];
         $hostedPage = $resp['hostedpage']
             ?? ($data['hostedpage'] ?? null)
-            ?? $data
+            ?? (isset($resp['hostedpage_id']) ? $resp : null)
+            ?? (is_array($data) ? $data : [])
             ?? [];
+
+        if (! is_array($hostedPage)) {
+            $hostedPage = [];
+        }
+
+        // Extract subscription if present anywhere
+        $subscription = data_get($hostedPage, 'data.subscription')
+            ?? data_get($hostedPage, 'subscription')
+            ?? data_get($resp, 'data.subscription')
+            ?? data_get($resp, 'subscription')
+            ?? data_get($hostedPage, 'subscriptions.0')
+            ?? data_get($resp, 'data.subscriptions.0')
+            ?? (isset($hostedPage['subscription_id']) ? $hostedPage : (isset($data['subscription_id']) ? $data : []));
+
+        $subscription = is_array($subscription) ? $subscription : [];
+
+        // Extract invoice if present anywhere
+        $invoice = data_get($hostedPage, 'data.subscription.invoice')
+            ?? data_get($hostedPage, 'data.invoice')
+            ?? data_get($hostedPage, 'invoice')
+            ?? data_get($subscription, 'invoice')
+            ?? data_get($resp, 'data.invoice')
+            ?? data_get($resp, 'invoice')
+            ?? (isset($hostedPage['invoice_id']) ? ['invoice_id' => $hostedPage['invoice_id']] : (isset($data['invoice_id']) ? ['invoice_id' => $data['invoice_id']] : []));
+
+        $invoice = is_array($invoice) ? $invoice : [];
+
+        // Extract status
+        $status = data_get($hostedPage, 'status')
+            ?? data_get($hostedPage, 'hostedpage_status')
+            ?? data_get($hostedPage, 'payment_status')
+            ?? data_get($subscription, 'status')
+            ?? data_get($hostedPage, 'data.status')
+            ?? data_get($resp, 'status')
+            ?? data_get($resp, 'payment_status')
+            ?? null;
+
+        // Extract customer_id
+        $customerId = data_get($subscription, 'customer_id')
+            ?? data_get($hostedPage, 'customer_id')
+            ?? data_get($hostedPage, 'data.customer_id')
+            ?? data_get($resp, 'customer_id')
+            ?? data_get($resp, 'data.customer_id')
+            ?? null;
+
+        // Extract plan_code
+        $planCode = data_get($subscription, 'plan.plan_code')
+            ?? data_get($subscription, 'plan_code')
+            ?? data_get($hostedPage, 'subscription.plan.plan_code')
+            ?? data_get($hostedPage, 'plan.plan_code')
+            ?? data_get($hostedPage, 'plan_code')
+            ?? data_get($resp, 'plan_code')
+            ?? null;
+
+        // Ensure key fields are set directly on $hostedPage
+        if (! empty($subscription) && ! isset($hostedPage['subscription'])) {
+            $hostedPage['subscription'] = $subscription;
+        }
+        if (! empty($invoice) && ! isset($hostedPage['invoice'])) {
+            $hostedPage['invoice'] = $invoice;
+        }
+        if ($status !== null && ! isset($hostedPage['status'])) {
+            $hostedPage['status'] = $status;
+        }
+        if ($status !== null && ! isset($hostedPage['hostedpage_status'])) {
+            $hostedPage['hostedpage_status'] = $status;
+        }
+        if ($customerId !== null && ! isset($hostedPage['customer_id'])) {
+            $hostedPage['customer_id'] = $customerId;
+        }
+        if ($planCode !== null && ! isset($hostedPage['plan_code'])) {
+            $hostedPage['plan_code'] = $planCode;
+        }
+        if (! isset($hostedPage['subscription_id']) && ! empty($subscription['subscription_id'])) {
+            $hostedPage['subscription_id'] = $subscription['subscription_id'];
+        }
+        if (! isset($hostedPage['invoice_id']) && ! empty($invoice['invoice_id'])) {
+            $hostedPage['invoice_id'] = $invoice['invoice_id'];
+        }
 
         return [
             'raw' => $resp,
-            'hostedpage' => is_array($hostedPage) ? $hostedPage : [],
+            'hostedpage' => $hostedPage,
         ];
     }
 
