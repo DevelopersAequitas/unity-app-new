@@ -22,7 +22,7 @@ class UpdateResponseStatusRequest extends FormRequest
             'status' => [
                 'required',
                 'string',
-                'in:pending,accepted,declined,in_progress,completed,closed,withdrawn',
+                'in:pending,accepted,rejected,declined,archived,in_progress,completed,closed,withdrawn',
             ],
             'note' => ['nullable', 'string', 'max:1000'],
         ];

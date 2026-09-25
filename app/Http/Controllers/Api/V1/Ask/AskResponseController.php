@@ -81,9 +81,15 @@ class AskResponseController extends Controller
         $user = $request->user();
         $response = $this->responseService->submitResponse($ask, $user, $request->validated());
 
+        $message = match ($response->response_type) {
+            AskResponse::TYPE_KNOW_SOMEONE => 'Referral submitted successfully.',
+            AskResponse::TYPE_CAN_INTRODUCE_PEER => 'Peer introduced successfully.',
+            default => 'Response submitted successfully.',
+        };
+
         return response()->json([
             'success' => true,
-            'message' => 'Response submitted successfully.',
+            'message' => $message,
             'data' => new AskResponseResource($response),
         ], 201);
     }

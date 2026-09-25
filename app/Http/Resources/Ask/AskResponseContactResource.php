@@ -27,6 +27,7 @@ class AskResponseContactResource extends JsonResource
             'email' => $this->resource->email,
             'phone' => $this->resource->phone,
             'alternate_phone' => $this->resource->alternate_phone,
+            'note' => $this->resource->notes,
             'notes' => $this->resource->notes,
             'metadata' => $this->resource->metadata ?? (object) [],
             'created_at' => $this->resource->created_at?->toISOString(),

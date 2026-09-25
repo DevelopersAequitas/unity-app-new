@@ -52,6 +52,7 @@ class AskResponse extends Model
         'responder_user_id',
         'response_type',
         'message',
+        'timeline',
         'introduced_user_id',
         'status',
         'responded_at',
