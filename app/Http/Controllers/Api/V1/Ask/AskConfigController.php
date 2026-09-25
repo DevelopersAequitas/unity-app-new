@@ -22,10 +22,12 @@ class AskConfigController extends Controller
      * API 1 — Get Ask Flows
      * GET /api/asks/flows
      */
-    public function getFlows(): JsonResponse
+    public function getFlows(Request $request): JsonResponse
     {
+        $includeInactive = $request->boolean('include_inactive');
+
         $flows = AskFlow::query()
-            ->where('is_active', true)
+            ->when(! $includeInactive, fn ($q) => $q->where('is_active', true))
             ->orderBy('sort_order')
             ->get();
 
@@ -39,9 +41,12 @@ class AskConfigController extends Controller
      * API 2 — Get Ask Types for a Flow
      * GET /api/asks/flows/{flow}/types
      */
-    public function getTypes(string $flow): JsonResponse
+    public function getTypes(Request $request, string $flow): JsonResponse
     {
+        $includeInactive = $request->boolean('include_inactive');
+
         $askFlow = AskFlow::query()
+            ->when(! $includeInactive, fn ($q) => $q->where('is_active', true))
             ->where(function (Builder $q) use ($flow): void {
                 $q->where('code', $flow);
                 if (Str::isUuid($flow)) {
@@ -53,8 +58,8 @@ class AskConfigController extends Controller
         $types = AskType::query()
             ->where('flow_id', $askFlow->id)
             ->whereNull('parent_id')
-            ->where('is_active', true)
-            ->with(['children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
+            ->when(! $includeInactive, fn ($q) => $q->where('is_active', true))
+            ->with(['children' => fn ($q) => $q->when(! $includeInactive, fn ($sq) => $sq->where('is_active', true))->orderBy('sort_order')])
             ->orderBy('sort_order')
             ->get();
 
@@ -72,8 +77,10 @@ class AskConfigController extends Controller
     {
         $flowParam = (string) ($request->query('flow') ?? '');
         $typeParam = (string) ($request->query('type') ?? '');
+        $includeInactive = $request->boolean('include_inactive');
 
         $flow = AskFlow::query()
+            ->when(! $includeInactive, fn ($q) => $q->where('is_active', true))
             ->when($flowParam !== '', function (Builder $q) use ($flowParam): void {
                 $q->where('code', $flowParam);
                 if (Str::isUuid($flowParam)) {
@@ -86,6 +93,7 @@ class AskConfigController extends Controller
         if ($flow && $typeParam !== '') {
             $type = AskType::query()
                 ->where('flow_id', $flow->id)
+                ->when(! $includeInactive, fn ($q) => $q->where('is_active', true))
                 ->where(function (Builder $q) use ($typeParam): void {
                     $q->where('code', $typeParam);
                     if (Str::isUuid($typeParam)) {
@@ -97,9 +105,9 @@ class AskConfigController extends Controller
 
         // Fetch option groups with options relevant to flow / type
         $groups = AskOptionGroup::query()
-            ->where('is_active', true)
-            ->with(['options' => function ($q) use ($flow, $type): void {
-                $q->where('is_active', true)
+            ->when(! $includeInactive, fn ($q) => $q->where('is_active', true))
+            ->with(['options' => function ($q) use ($flow, $type, $includeInactive): void {
+                $q->when(! $includeInactive, fn ($oq) => $oq->where('is_active', true))
                     ->where(function (Builder $oq) use ($flow, $type): void {
                         $oq->where(function (Builder $sq): void {
                             $sq->whereNull('flow_id')->whereNull('ask_type_id');
@@ -119,7 +127,7 @@ class AskConfigController extends Controller
         // Organize configuration into sections
         $flowCode = $flow?->code;
         $sections = match ($flowCode) {
-            'collaboration' => [
+            'collaboration', 'collaborate' => [
                 'details' => ['goal', 'collaboration_bring', 'collaboration_need'],
                 'filters' => ['industry', 'geography', 'business_stage', 'timeline', 'expected_outcome'],
             ],
@@ -136,6 +144,19 @@ class AskConfigController extends Controller
                 'filters' => ['industry', 'geography', 'business_stage', 'timeline'],
             ],
         };
+
+        // If a flow was requested, filter groups to only include groups relevant to that flow
+        if ($flow) {
+            $relevantGroupCodes = array_unique(array_merge($sections['details'] ?? [], $sections['filters'] ?? []));
+            $groups = $groups->filter(fn ($g) => in_array($g->code, $relevantGroupCodes, true))->values();
+        }
+
+        // Allow explicit group filtering via query parameter: ?groups=industry,geography,business_stage
+        $groupsParam = (string) ($request->query('groups') ?? $request->query('group') ?? '');
+        if ($groupsParam !== '') {
+            $selectedGroupCodes = array_map('trim', explode(',', $groupsParam));
+            $groups = $groups->filter(fn ($g) => in_array($g->code, $selectedGroupCodes, true))->values();
+        }
 
         return response()->json([
             'success' => true,

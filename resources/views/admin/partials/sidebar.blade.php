@@ -130,6 +130,7 @@
     }
 
     $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
+    $asksActive = request()->routeIs('admin.asks*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
@@ -839,6 +840,35 @@
                 <a class="nav-link {{ request()->routeIs('admin.commissions.*') ? 'active' : '' }}" href="{{ route('admin.commissions.index') }}" title="Commission Management">
                     <i class="bi bi-percent me-2"></i><span class="menu-text">Commission Management</span>
                 </a>
+            </li>
+            @endif
+
+            {{-- Asks & Discovery Dropdown Menu --}}
+            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Asks') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities'))
+            <li class="nav-item menu-parent {{ $asksActive ? 'open' : '' }}">
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $asksActive ? 'active' : '' }}" href="javascript:void(0)" title="Asks & Discovery">
+                    <i class="bi bi-search-heart me-2"></i><span class="menu-text me-auto text-start">Asks &amp; Discovery</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                </a>
+                <div class="collapse {{ $asksActive ? 'show' : '' }}" id="asksSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.asks.index') ? 'active' : '' }}" href="{{ route('admin.asks.index') }}">
+                                <i class="bi bi-collection me-1.5"></i> All Asks
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.asks.config') ? 'active' : '' }}" href="{{ route('admin.asks.config') }}">
+                                <i class="bi bi-sliders2 me-1.5"></i> Flow &amp; Option Config
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.asks.export') ? 'active' : '' }}" href="{{ route('admin.asks.export') }}">
+                                <i class="bi bi-download me-1.5"></i> Export Asks
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
             @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))

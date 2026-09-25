@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AskAdminController;
 use App\Http\Controllers\Api\V1\Ask\AskConfigController;
 use App\Http\Controllers\Api\V1\Ask\AskController;
 use App\Http\Controllers\Api\V1\Ask\AskMatchController;
@@ -60,5 +61,24 @@ Route::middleware('auth:sanctum')->prefix('asks')->group(function (): void {
                 Route::patch('contact', [AskResponseController::class, 'updateContact']);
             });
         });
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Ask Admin API Routes
+|--------------------------------------------------------------------------
+|
+| Management & statistics endpoints for Admin applications.
+|
+*/
+Route::middleware(['auth:sanctum'])->prefix('admin/asks')->group(function (): void {
+    Route::get('/', [AskAdminController::class, 'index']);
+    Route::get('stats', [AskAdminController::class, 'stats']);
+
+    Route::prefix('{ask}')->whereUuid('ask')->group(function (): void {
+        Route::get('/', [AskAdminController::class, 'show']);
+        Route::patch('status', [AskAdminController::class, 'updateStatus']);
+        Route::delete('/', [AskAdminController::class, 'destroy']);
     });
 });
