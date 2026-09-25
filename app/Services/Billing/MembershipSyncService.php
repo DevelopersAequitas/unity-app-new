@@ -226,8 +226,21 @@ class MembershipSyncService
         $interval = (int) ($subscription['interval'] ?? 1);
         $unit = strtolower((string) ($subscription['interval_unit'] ?? ''));
         $planName = strtolower((string) ($subscription['name'] ?? data_get($subscription, 'plan.name') ?? ''));
+        $planCode = (string) (data_get($subscription, 'plan.plan_code') ?? $subscription['plan_code'] ?? '');
 
-        if ($unit === 'years' || str_contains($planName, 'annual')) {
+        if ($planCode === '014' || str_contains($planName, '2-year') || str_contains($planName, '2 year') || str_contains($planName, '2 years')) {
+            return 24;
+        }
+
+        if ($planCode === '013' || $planCode === '015' || str_contains($planName, '1-year') || str_contains($planName, '1 year') || str_contains($planName, 'annual')) {
+            return 12;
+        }
+
+        if ($planCode === '012' || str_contains($planName, '1-month') || str_contains($planName, '1 month')) {
+            return 1;
+        }
+
+        if ($unit === 'years' || $unit === 'year' || str_contains($planName, 'annual')) {
             return max(1, $interval) * 12;
         }
 
@@ -245,8 +258,21 @@ class MembershipSyncService
         $interval = (int) ($subscription['interval'] ?? 1);
         $unit = strtolower((string) ($subscription['interval_unit'] ?? ''));
         $planName = strtolower((string) ($subscription['name'] ?? data_get($subscription, 'plan.name') ?? ''));
+        $planCode = (string) (data_get($subscription, 'plan.plan_code') ?? $subscription['plan_code'] ?? '');
 
-        if ($unit === 'years' || str_contains($planName, 'annual')) {
+        if ($planCode === '014' || str_contains($planName, '2-year') || str_contains($planName, '2 year') || str_contains($planName, '2 years')) {
+            return $start->copy()->addMonths(24)->toDateTimeString();
+        }
+
+        if ($planCode === '013' || $planCode === '015' || str_contains($planName, '1-year') || str_contains($planName, '1 year') || str_contains($planName, 'annual')) {
+            return $start->copy()->addMonths(12)->toDateTimeString();
+        }
+
+        if ($planCode === '012' || str_contains($planName, '1-month') || str_contains($planName, '1 month')) {
+            return $start->copy()->addMonths(1)->toDateTimeString();
+        }
+
+        if ($unit === 'years' || $unit === 'year' || str_contains($planName, 'annual')) {
             return $start->copy()->addYears(max(1, $interval))->toDateTimeString();
         }
 

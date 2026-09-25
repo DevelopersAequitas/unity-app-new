@@ -119,12 +119,66 @@ class BillingCheckoutController extends Controller
 
             $hostedPageResponse = $this->zohoBillingService->getHostedPage($hostedpageId);
             $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
+
+            $hostedPageStatus =
+                data_get($hostedPage, 'status')
+                ?? data_get($hostedPage, 'hostedpage_status')
+                ?? data_get($hostedPageResponse, 'status')
+                ?? null;
+
+            $normalizedStatus = strtolower(trim((string) $hostedPageStatus));
+            $isCompleted = in_array($normalizedStatus, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
+
+            if (! $isCompleted) {
+                Log::info('Zoho hosted page sync skipped: payment not confirmed', [
+                    'hostedpage_id' => $hostedpageId,
+                    'user_id' => $user->id,
+                    'hostedpage_status' => $hostedPageStatus,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment pending finalization',
+                    'data' => [
+                        'handled' => false,
+                        'hostedpage_id' => $hostedpageId,
+                        'hostedpage_status' => $hostedPageStatus,
+                        'is_completed' => false,
+                        'zoho_customer_id' => $user->zoho_customer_id,
+                        'zoho_subscription_id' => $user->zoho_subscription_id,
+                        'zoho_plan_code' => $user->zoho_plan_code,
+                    ],
+                ]);
+            }
+
             $subscriptionBlock = data_get($hostedPage, 'subscription') ?? data_get($hostedPage, 'subscriptions.0') ?? [];
 
             $subscriptionId = data_get($subscriptionBlock, 'subscription_id')
                 ?? data_get($hostedPage, 'subscription_id')
                 ?? data_get($hostedPage, 'data.subscription.subscription_id')
                 ?? null;
+
+            if (! $subscriptionId) {
+                Log::warning('Zoho hosted page completed but missing subscription_id', [
+                    'hostedpage_id' => $hostedpageId,
+                    'user_id' => $user->id,
+                    'hostedpage_status' => $hostedPageStatus,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment completed but subscription details pending',
+                    'data' => [
+                        'handled' => false,
+                        'hostedpage_id' => $hostedpageId,
+                        'hostedpage_status' => $hostedPageStatus,
+                        'is_completed' => true,
+                        'zoho_customer_id' => $user->zoho_customer_id,
+                        'zoho_subscription_id' => $user->zoho_subscription_id,
+                        'zoho_plan_code' => $user->zoho_plan_code,
+                    ],
+                ]);
+            }
 
             $invoiceId = data_get($hostedPage, 'invoice.invoice_id')
                 ?? data_get($hostedPage, 'invoice_id')
@@ -145,19 +199,6 @@ class BillingCheckoutController extends Controller
                 ?? null;
 
             $customerId = $user->zoho_customer_id ?: (data_get($hostedPage, 'customer_id') ?: data_get($subscriptionBlock, 'customer_id'));
-
-            if (! $subscriptionId && $customerId) {
-                $subscriptionList = $this->zohoBillingService->listSubscriptionsByCustomer((string) $customerId);
-                $latestSubscription = data_get($subscriptionList, 'subscriptions.0', []);
-
-                if (is_array($latestSubscription) && $latestSubscription !== []) {
-                    $subscriptionId = data_get($latestSubscription, 'subscription_id');
-                    $planCode = $planCode ?? data_get($latestSubscription, 'plan.plan_code') ?? data_get($latestSubscription, 'plan_code');
-                    $termStart = data_get($latestSubscription, 'current_term_starts_at') ?? data_get($latestSubscription, 'created_time') ?? $termStart;
-                    $termEnd = data_get($latestSubscription, 'current_term_ends_at') ?? data_get($latestSubscription, 'expires_at') ?? $termEnd;
-                    $subscriptionBlock = $latestSubscription;
-                }
-            }
 
             if (! $payment && Schema::hasTable('payments')) {
                 $payment = new Payment;
@@ -211,6 +252,8 @@ class BillingCheckoutController extends Controller
             $this->membershipSyncService->ensureUserMembershipsSynced($freshUser, $this->zohoBillingService);
             $freshUser->refresh();
 
+            $this->membershipWelcomeEmailService->sendIfEligible($freshUser);
+
             $profileResource = new UserProfileResource($freshUser);
             $profileData = $profileResource->toArray($request);
 
@@ -219,6 +262,8 @@ class BillingCheckoutController extends Controller
                 'message' => 'Hosted page membership sync completed.',
                 'data' => [
                     'handled' => true,
+                    'hostedpage_status' => $hostedPageStatus,
+                    'is_completed' => true,
                     'zoho_customer_id' => $freshUser->zoho_customer_id,
                     'zoho_subscription_id' => $freshUser->zoho_subscription_id,
                     'zoho_plan_code' => $freshUser->zoho_plan_code,
@@ -298,6 +343,21 @@ class BillingCheckoutController extends Controller
                 ?? data_get($zohoResponse, 'status')
                 ?? null;
 
+            $normalizedStatus = strtolower(trim((string) $hostedPageStatus));
+            $isCompleted = in_array($normalizedStatus, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
+
+            if (! $isCompleted) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment pending finalization',
+                    'data' => [
+                        'hostedpage_id' => $hostedpage_id,
+                        'hostedpage_status' => $hostedPageStatus,
+                        'has_subscription' => false,
+                    ],
+                ]);
+            }
+
             $subscriptionBlock =
                 data_get($hostedPage, 'subscription')
                 ?? data_get($hostedPage, 'subscriptions.0')
@@ -331,29 +391,6 @@ class BillingCheckoutController extends Controller
                 ?? data_get($subscriptionBlock, 'expires_at')
                 ?? null;
 
-            if (strtolower((string) $hostedPageStatus) === 'success' && $subscriptionId === null) {
-                $customerId = $user->zoho_customer_id ?: data_get($hostedPage, 'customer_id');
-
-                if ($customerId) {
-                    $subscriptionList = $this->zohoBillingService->listSubscriptionsByCustomer((string) $customerId);
-                    $latestSubscription = data_get($subscriptionList, 'subscriptions.0', []);
-
-                    if (is_array($latestSubscription) && $latestSubscription !== []) {
-                        $subscriptionId = data_get($latestSubscription, 'subscription_id');
-                        $planCode = $planCode
-                            ?? data_get($latestSubscription, 'plan.plan_code')
-                            ?? data_get($latestSubscription, 'plan_code');
-                        $termStart = data_get($latestSubscription, 'current_term_starts_at')
-                            ?? data_get($latestSubscription, 'created_time')
-                            ?? $termStart;
-                        $termEnd = data_get($latestSubscription, 'current_term_ends_at')
-                            ?? data_get($latestSubscription, 'expires_at')
-                            ?? $termEnd;
-                        $subscriptionBlock = $latestSubscription;
-                    }
-                }
-            }
-
             Log::info('Zoho checkout status parsed', [
                 'hostedpage_id' => $hostedpage_id,
                 'user_id' => $user->id,
@@ -372,21 +409,6 @@ class BillingCheckoutController extends Controller
                         'hostedpage_id' => $hostedpage_id,
                         'hostedpage_status' => $hostedPageStatus,
                         'has_subscription' => false,
-                    ],
-                ]);
-            }
-
-            $normalizedStatus = strtolower((string) $hostedPageStatus);
-            $isCompleted = in_array($normalizedStatus, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
-
-            if (! $isCompleted) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Payment pending finalization',
-                    'data' => [
-                        'hostedpage_id' => $hostedpage_id,
-                        'hostedpage_status' => $hostedPageStatus,
-                        'has_subscription' => true,
                     ],
                 ]);
             }

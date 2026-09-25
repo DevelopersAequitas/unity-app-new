@@ -192,12 +192,16 @@ class MembershipUpgradeService
             $data['zoho_plan_code'] ?? $data['plan_code'] ?? null,
         ], static fn ($value) => is_scalar($value) && trim((string) $value) !== ''))));
 
-        if (str_contains($text, 'leader') || str_contains($text, '2 year') || str_contains($text, '24')) {
+        if (str_contains($text, 'leader') || str_contains($text, '2 year') || str_contains($text, '24') || str_contains($text, '014')) {
             return 24;
         }
 
-        if (str_contains($text, 'starter') || str_contains($text, '1 month') || str_contains($text, 'monthly')) {
+        if (str_contains($text, 'starter') || str_contains($text, '1 month') || str_contains($text, 'monthly') || str_contains($text, '012')) {
             return 1;
+        }
+
+        if (str_contains($text, '1 year') || str_contains($text, 'annual') || str_contains($text, '013') || str_contains($text, '015')) {
+            return 12;
         }
 
         return 12;
