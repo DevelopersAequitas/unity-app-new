@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
+use App\Http\Resources\Ask\AskPreviewResource;
 use App\Http\Resources\PostCommentResource;
 use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
+use App\Models\Ask\Ask;
+use App\Models\Ask\AskTimelineLink;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\File;
@@ -291,6 +294,57 @@ class PostController extends BaseApiController
             }
         }
 
+        $askSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $askPostIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $asksByPostId = collect();
+        $asksById = collect();
+
+        if (! empty($askPostIds) || ! empty($askSourceIds)) {
+            $timelineLinks = AskTimelineLink::query()
+                ->whereIn('post_id', $askPostIds)
+                ->get(['ask_id', 'post_id'])
+                ->keyBy('post_id');
+
+            $allAskIds = collect($askSourceIds)
+                ->merge($timelineLinks->pluck('ask_id'))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (! empty($allAskIds)) {
+                $asks = Ask::query()
+                    ->whereIn('id', $allAskIds)
+                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
+                    ->withCount(['responses', 'matches'])
+                    ->get();
+
+                $asksById = $asks->keyBy(fn (Ask $ask) => (string) $ask->id);
+
+                foreach ($timelineLinks as $postId => $link) {
+                    if ($asksById->has((string) $link->ask_id)) {
+                        $asksByPostId->put((string) $postId, $asksById->get((string) $link->ask_id));
+                    }
+                }
+            }
+        }
+
         $isDownloadable = CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
@@ -302,7 +356,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $request) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -429,6 +483,9 @@ class PostController extends BaseApiController
                     'profile_photo_url' => $author->profile_photo_file_id
                         ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
+                    'profile_photo_image' => $author->profile_photo_file_id
+                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
+                        : null,
                 ] : null,
                 'circle' => $circle ? [
                     'id' => (string) $circle->id,
@@ -478,6 +535,19 @@ class PostController extends BaseApiController
                         'last_name' => $impactedPeer->last_name,
                     ] : null,
                 ];
+            }
+
+            if (
+                (string) $row->source_type === 'post'
+                && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask')
+            ) {
+                /** @var Ask|null $ask */
+                $ask = (! empty($row->post_source_id) ? $asksById->get((string) $row->post_source_id) : null)
+                    ?? $asksByPostId->get((string) $row->id);
+
+                if ($ask) {
+                    $item['ask'] = (new AskPreviewResource($ask))->toArray($request);
+                }
             }
 
             return $item;
@@ -886,7 +956,7 @@ class PostController extends BaseApiController
             return $this->error('Post not found', 404);
         }
 
-        return $this->success([
+        $responseData = [
             'id' => $post->id,
             'content_text' => $post->content_text,
             'media' => $post->media ?? [],
@@ -910,6 +980,7 @@ class PostController extends BaseApiController
                     ?? $post->user->business_sub_category
                     ?? null,
                 'profile_photo_url' => $post->user->profile_photo_url,
+                'profile_photo_image' => $post->user->profile_photo_url,
             ] : null,
             'circle' => $post->relationLoaded('circle') && $post->circle ? [
                 'id' => $post->circle->id,
@@ -922,7 +993,26 @@ class PostController extends BaseApiController
             'is_saved' => (bool) ($post->is_saved_by_me ?? false),
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
-        ]);
+        ];
+
+        if ($post->source_type === 'ask' || $post->post_type === 'ask') {
+            $askId = $post->source_id;
+            if (! $askId) {
+                $link = AskTimelineLink::query()->where('post_id', $post->id)->first();
+                $askId = $link?->ask_id;
+            }
+            if ($askId) {
+                $ask = Ask::query()
+                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
+                    ->withCount(['responses', 'matches'])
+                    ->find($askId);
+                if ($ask) {
+                    $responseData['ask'] = (new AskPreviewResource($ask))->toArray($request);
+                }
+            }
+        }
+
+        return $this->success($responseData);
     }
 
     public function destroy(Request $request, string $id)

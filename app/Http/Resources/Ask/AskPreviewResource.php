@@ -20,6 +20,7 @@ class AskPreviewResource extends JsonResource
     {
         $details = [];
         $filters = [];
+        $answersGrouped = [];
 
         if ($this->resource->relationLoaded('answers')) {
             foreach ($this->resource->answers as $answer) {
@@ -46,6 +47,25 @@ class AskPreviewResource extends JsonResource
                         'value' => $answer->value_text,
                     ];
                 }
+
+                if ($answer->option_id) {
+                    if (! isset($answersGrouped[$key])) {
+                        $answersGrouped[$key] = [];
+                    }
+                    $answersGrouped[$key][] = [
+                        'option_id' => (string) $answer->option_id,
+                        'code' => $answer->option?->code,
+                        'label' => $answer->option?->label,
+                    ];
+                } elseif ($answer->value_text !== null) {
+                    $answersGrouped[$key] = $answer->value_text;
+                } elseif ($answer->value_number !== null) {
+                    $answersGrouped[$key] = (float) $answer->value_number;
+                } elseif ($answer->value_boolean !== null) {
+                    $answersGrouped[$key] = (bool) $answer->value_boolean;
+                } elseif ($answer->value_json !== null) {
+                    $answersGrouped[$key] = $answer->value_json;
+                }
             }
         }
 
@@ -65,6 +85,7 @@ class AskPreviewResource extends JsonResource
             'status' => $this->resource->status,
             'details' => $details,
             'filters' => $filters,
+            'answers_by_key' => $answersGrouped,
             'visibility' => [
                 'visibility_type' => $this->resource->visibility_type,
                 'district' => $this->resource->district?->name,
@@ -73,6 +94,10 @@ class AskPreviewResource extends JsonResource
             'publish_to_timeline' => (bool) $this->resource->publish_to_timeline,
             'post_to_timeline' => (bool) $this->resource->publish_to_timeline,
             'post_to_timeline_default' => true,
+            'response_count' => (int) ($this->resource->responses_count ?? ($this->resource->relationLoaded('responses') ? $this->resource->responses->count() : 0)),
+            'match_count' => (int) ($this->resource->matches_count ?? ($this->resource->relationLoaded('matches') ? $this->resource->matches->count() : 0)),
+            'published_at' => $this->resource->published_at?->toISOString(),
+            'expires_at' => $this->resource->expires_at?->toISOString(),
             'creator' => $this->resource->user ? new PeerResource($this->resource->user) : null,
         ];
     }

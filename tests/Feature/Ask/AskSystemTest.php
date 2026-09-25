@@ -204,6 +204,18 @@ class AskSystemTest extends TestCase
             'source_id' => $askId,
         ]);
 
+        // Verify Ask appears on Timeline Feed with all ask details
+        $feedResponse = $this->getJson('/api/v1/posts/feed');
+        $feedResponse->assertOk();
+        $feedItems = collect($feedResponse->json('data.items') ?? $feedResponse->json('data'));
+        $askFeedItem = $feedItems->firstWhere('ask.id', $askId);
+        $this->assertNotNull($askFeedItem, 'Ask post should be present in timeline feed');
+        $this->assertSame('ask', $askFeedItem['post_type']);
+        $this->assertSame('Looking for Co-founder', $askFeedItem['ask']['title']);
+        $this->assertSame($this->flow->code, $askFeedItem['ask']['flow']['code']);
+        $this->assertSame($this->type->code, $askFeedItem['ask']['type']['code']);
+        $this->assertSame('Build a SaaS platform together', $askFeedItem['ask']['details']['goal'][0]['value']);
+
         // 8. Generate and Get Matches
         $generateResponse = $this->postJson("/api/asks/{$askId}/matches/generate");
         $generateResponse->assertOk()
