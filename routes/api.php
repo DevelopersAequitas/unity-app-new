@@ -1459,5 +1459,11 @@ Route::prefix('v1')->group(function () {
 // Top-level alias for Flutter app
 Route::get('/activities/videos', [ActivityVideoApiController::class, 'index']);
 
+// Forms aliases (for clients calling without /v1 prefix)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/forms/recommend-peer', [PeerRecommendationController::class, 'store']);
+    Route::get('/forms/recommend-peer/my', [PeerRecommendationController::class, 'myIndex']);
+});
+
 // Ask / Requirement Discovery System
 require __DIR__.'/ask.php';

@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Event;
 
-use App\Models\EventRegistration;
 use App\Models\User;
 use App\Services\Events\EventService;
 use Carbon\Carbon;
@@ -191,4 +190,3 @@ class EventDetailResource extends JsonResource
         return is_array($metadata) ? $metadata : [];
     }
 }
-

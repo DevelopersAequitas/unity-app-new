@@ -6,16 +6,26 @@ namespace App\Services\Ask;
 
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskResponse;
+use App\Models\Ask\AskResponseStatusHistory;
 use App\Models\Ask\AskType;
 use App\Models\BusinessDeal;
 use App\Models\PostSave;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Notifications\NotifyUserService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AskFlowHubService
 {
+    public function __construct(
+        protected NotifyUserService $notifyUserService,
+        protected AskService $askService
+    ) {}
+
     /**
      * Resolve standard user details for ask feeds and cards.
      *
@@ -951,6 +961,245 @@ class AskFlowHubService
             'referral', 'referrals', 'ask_for_referral' => 'referral',
             'help', 'get_help' => 'help',
             default => strtolower(trim($flow)),
+        };
+    }
+
+    /**
+     * Update the status of an item within a flow (Referral, Ask, or AskResponse).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function updateFlowItemStatus(User $user, string $flow, string $id, array $data): array
+    {
+        $normalizedFlow = $this->normalizeFlowCode($flow);
+
+        // 1. Try finding Referral
+        $referral = Referral::query()->where('id', $id)->first();
+        if ($referral) {
+            return $this->updateReferralItem($user, $referral, $data);
+        }
+
+        // 2. Try finding Ask
+        $ask = Ask::query()->where('id', $id)->first();
+        if ($ask) {
+            return $this->updateAskItem($user, $ask, $normalizedFlow, $data);
+        }
+
+        // 3. Try finding AskResponse
+        $response = AskResponse::query()->where('id', $id)->first();
+        if ($response) {
+            return $this->updateResponseItem($user, $response, $data);
+        }
+
+        throw new ModelNotFoundException("Item not found for ID: {$id}");
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function updateReferralItem(User $user, Referral $referral, array $data): array
+    {
+        $statusId = $data['status_id'] ?? null;
+        $statusLabel = $data['status_label'] ?? $data['status'] ?? null;
+        $remarks = $data['remarks'] ?? $data['note'] ?? $data['reason'] ?? null;
+
+        if (! $statusId && $statusLabel) {
+            $statusId = $this->mapLabelToReferralStatusId((string) $statusLabel);
+        }
+
+        $resolvedStatusId = (int) ($statusId ?: 1);
+        $referral->status_id = $resolvedStatusId;
+        if ($remarks !== null && (string) $remarks !== '') {
+            $referral->remarks = (string) $remarks;
+        }
+        $referral->save();
+
+        $referral->load(['status', 'fromUser', 'toUser']);
+        $statusName = $referral->status ? $referral->status->name : 'Updated';
+
+        // Notify counterparty
+        $recipient = null;
+        if ($user->id === $referral->from_user_id) {
+            $recipient = $referral->toUser;
+        } elseif ($user->id === $referral->to_user_id) {
+            $recipient = $referral->fromUser;
+        }
+
+        if ($recipient) {
+            $updaterName = $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: 'A member';
+            try {
+                $this->notifyUserService->notifyUser(
+                    $recipient,
+                    $user,
+                    'activity_referral_status_updated',
+                    [
+                        'activity_type' => 'referral',
+                        'activity_id' => (string) $referral->id,
+                        'title' => 'Referral Status Updated',
+                        'body' => "{$updaterName} updated the status of the referral to \"{$statusName}\".",
+                    ],
+                    $referral
+                );
+            } catch (Throwable $e) {
+                Log::warning('Failed sending referral status notification', [
+                    'referral_id' => (string) $referral->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $mappedStatus = in_array($resolvedStatusId, [4, 5], true)
+            ? 'fulfilled'
+            : (in_array($resolvedStatusId, [6, 7], true) ? 'closed' : 'open');
+
+        return [
+            'id' => (string) $referral->id,
+            'status' => $mappedStatus,
+            'status_id' => $resolvedStatusId,
+            'status_label' => $statusName,
+            'remarks' => $referral->remarks,
+            'flow_code' => 'referral',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function updateAskItem(User $user, Ask $ask, string $flow, array $data): array
+    {
+        $statusId = $data['status_id'] ?? null;
+        $statusLabel = $data['status_label'] ?? null;
+        $status = $data['status'] ?? null;
+        $remarks = $data['remarks'] ?? $data['note'] ?? $data['reason'] ?? null;
+        $outcomeStatus = $data['outcome_status'] ?? null;
+        $approxValue = $data['approx_value'] ?? null;
+
+        if ($statusId !== null) {
+            $status = match ((string) $statusId) {
+                '4', '5' => Ask::STATUS_FULFILLED,
+                '6', '7' => Ask::STATUS_CLOSED,
+                default => Ask::STATUS_PUBLISHED,
+            };
+            if ((string) $statusId === '4' && ! $outcomeStatus) {
+                $outcomeStatus = 'deal_closed';
+            } elseif ((string) $statusId === '5' && ! $outcomeStatus) {
+                $outcomeStatus = 'yes_fully';
+            }
+        } elseif ($statusLabel) {
+            $statusIdInt = $this->mapLabelToReferralStatusId((string) $statusLabel);
+            $status = match ($statusIdInt) {
+                4, 5 => Ask::STATUS_FULFILLED,
+                6, 7 => Ask::STATUS_CLOSED,
+                default => Ask::STATUS_PUBLISHED,
+            };
+        }
+
+        $validStatuses = [
+            Ask::STATUS_DRAFT,
+            Ask::STATUS_PUBLISHED,
+            Ask::STATUS_IN_PROGRESS,
+            Ask::STATUS_FULFILLED,
+            Ask::STATUS_CLOSED,
+            Ask::STATUS_CANCELLED,
+            Ask::STATUS_EXPIRED,
+        ];
+
+        $targetStatus = in_array((string) $status, $validStatuses, true) ? (string) $status : Ask::STATUS_FULFILLED;
+
+        $options = [
+            'outcome_status' => $outcomeStatus,
+            'approx_value' => $approxValue,
+            'remarks' => $remarks,
+            'note' => $remarks,
+        ];
+
+        $updatedAsk = $this->askService->updateStatus(
+            $ask,
+            $user,
+            $targetStatus,
+            $remarks ? (string) $remarks : null,
+            $options
+        );
+
+        return [
+            'id' => (string) $updatedAsk->id,
+            'status' => (string) $updatedAsk->status,
+            'status_id' => $statusId !== null ? (int) $statusId : null,
+            'status_label' => (string) ($statusLabel ?: ucfirst((string) $updatedAsk->status)),
+            'outcome_status' => $updatedAsk->outcome_status,
+            'flow_code' => $flow,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function updateResponseItem(User $user, AskResponse $response, array $data): array
+    {
+        $statusId = $data['status_id'] ?? null;
+        $statusLabel = $data['status_label'] ?? $data['status'] ?? null;
+        $remarks = $data['remarks'] ?? $data['note'] ?? $data['reason'] ?? null;
+
+        $mappedStatus = match ((string) $statusId) {
+            '1' => AskResponse::STATUS_PENDING,
+            '2', '3' => 'connected',
+            '4' => AskResponse::STATUS_COMPLETED,
+            '5' => AskResponse::STATUS_COMPLETED,
+            '6', '7' => AskResponse::STATUS_DECLINED,
+            default => ($statusLabel ? strtolower(str_replace(' ', '_', (string) $statusLabel)) : AskResponse::STATUS_ACCEPTED),
+        };
+
+        $response->update([
+            'status' => $mappedStatus,
+        ]);
+
+        AskResponseStatusHistory::query()->create([
+            'response_id' => $response->id,
+            'changed_by_user_id' => $user->id,
+            'old_status' => $response->getOriginal('status') ?? AskResponse::STATUS_PENDING,
+            'new_status' => $mappedStatus,
+            'note' => $remarks ?: ($statusLabel ? 'Status updated to '.$statusLabel : null),
+        ]);
+
+        if (in_array((string) $statusId, ['4', '5'], true) && $response->ask) {
+            $response->ask->update([
+                'status' => Ask::STATUS_FULFILLED,
+                'fulfilled_at' => now(),
+                'outcome_status' => (string) $statusId === '4' ? 'got_the_business' : 'testimonial_given',
+                'outcome_notes' => $remarks,
+            ]);
+        }
+
+        return [
+            'id' => (string) $response->id,
+            'status' => $response->status,
+            'status_id' => $statusId !== null ? (int) $statusId : null,
+            'status_label' => $statusLabel,
+            'remarks' => $remarks,
+        ];
+    }
+
+    /**
+     * Map text label to ReferralStatus ID (1-8)
+     */
+    public function mapLabelToReferralStatusId(string $label): int
+    {
+        $normalized = strtolower(trim(str_replace(['_', '-'], ' ', $label)));
+
+        return match ($normalized) {
+            'not contacted yet', 'not contacted', 'open', 'pending', '1' => 1,
+            'contacted', 'in discussion', 'in progress', '2' => 2,
+            'no response', '3' => 3,
+            'got the business', 'deal closed', 'fulfilled', '4' => 4,
+            'got things done', 'completed', '5' => 5,
+            'did not get the business', 'declined', 'closed', 'cancelled', 'rejected', '6' => 6,
+            'not a good fit', '7' => 7,
+            'confidential', '8' => 8,
+            default => 1,
         };
     }
 }

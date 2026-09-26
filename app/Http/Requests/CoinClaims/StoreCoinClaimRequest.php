@@ -6,6 +6,7 @@ use App\Support\CoinClaims\CoinClaimActivityRegistry;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Validator;
 
 class StoreCoinClaimRequest extends FormRequest
@@ -102,7 +103,7 @@ class StoreCoinClaimRequest extends FormRequest
                 $file = $files[$key] ?? ($files['file'] ?? ($this->file($key) ?? null));
 
                 if ($type === 'file') {
-                    $hasFileRecord = $file instanceof \Illuminate\Http\UploadedFile
+                    $hasFileRecord = $file instanceof UploadedFile
                         || (! empty($value) && (is_string($value) || is_numeric($value)));
 
                     if ($required && ! $hasFileRecord) {

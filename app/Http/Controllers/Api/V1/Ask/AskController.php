@@ -19,10 +19,13 @@ use App\Http\Resources\Ask\AskPreviewResource;
 use App\Http\Resources\Ask\AskResource;
 use App\Http\Resources\Ask\AskStatusHistoryResource;
 use App\Models\Ask\Ask;
+use App\Models\Ask\AskResponse;
 use App\Models\BusinessDeal;
 use App\Models\Post;
 use App\Models\PostMention;
+use App\Models\Referral;
 use App\Models\User;
+use App\Services\Ask\AskFlowHubService;
 use App\Services\Ask\AskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +35,8 @@ use Throwable;
 class AskController extends Controller
 {
     public function __construct(
-        protected AskService $askService
+        protected AskService $askService,
+        protected AskFlowHubService $flowHubService
     ) {}
 
     /**
@@ -241,17 +245,51 @@ class AskController extends Controller
      * API 14 — Cancel / Close / Fulfill Ask
      * PATCH /api/asks/{ask}/status
      */
-    public function updateStatus(UpdateAskStatusRequest $request, Ask $ask): JsonResponse
+    public function updateStatus(UpdateAskStatusRequest $request, string $ask): JsonResponse
     {
-        $this->authorizeOwner($request->user(), $ask);
-
         /** @var User $user */
         $user = $request->user();
+
+        $askModel = Ask::find($ask);
+        if (! $askModel) {
+            // Check if it's a Referral!
+            $referral = Referral::find($ask);
+            if ($referral) {
+                $data = $this->flowHubService->updateReferralItem($user, $referral, $request->all());
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Referral status updated successfully.',
+                    'data' => $data,
+                ]);
+            }
+
+            // Check if it's an AskResponse!
+            $response = AskResponse::find($ask);
+            if ($response) {
+                $data = $this->flowHubService->updateResponseItem($user, $response, $request->all());
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Response status updated successfully.',
+                    'data' => $data,
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "No query results for model [App\\Models\\Ask\\Ask] {$ask}",
+            ], 404);
+        }
+
+        $this->authorizeOwner($user, $askModel);
+
         $validated = $request->validated();
+        $targetStatus = (string) ($validated['status'] ?? Ask::STATUS_FULFILLED);
         $updatedAsk = $this->askService->updateStatus(
-            $ask,
+            $askModel,
             $user,
-            (string) $validated['status'],
+            $targetStatus,
             isset($validated['reason']) ? (string) $validated['reason'] : (isset($validated['note']) ? (string) $validated['note'] : null),
             $validated
         );

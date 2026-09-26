@@ -29,21 +29,37 @@ class PeerRecommendation extends Model
         'why_valuable',
         'category',
         'category_id',
+        'main_business_category_id',
+        'main_business_category',
+        'business_subcategory_id',
+        'business_subcategory',
         'circle_id',
         'circle_name',
         'how_well_known',
         'is_aware',
         'note',
+        'status',
         'coins_awarded',
         'coins_awarded_at',
     ];
 
     protected $casts = [
         'category_id' => 'integer',
+        'main_business_category_id' => 'integer',
         'is_aware' => 'boolean',
         'coins_awarded' => 'boolean',
         'coins_awarded_at' => 'datetime',
     ];
+
+    public function getPeerCityCountryAttribute(): ?string
+    {
+        return $this->peer_city;
+    }
+
+    public function getSubmittedAtAttribute(): ?string
+    {
+        return $this->created_at?->toISOString() ?? ($this->created_at ? (string) $this->created_at : null);
+    }
 
     protected static function booted(): void
     {

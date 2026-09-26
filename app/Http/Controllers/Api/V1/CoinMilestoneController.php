@@ -11,6 +11,7 @@ use App\Models\UserMilestoneBadge;
 use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
 class CoinMilestoneController extends Controller
@@ -18,7 +19,7 @@ class CoinMilestoneController extends Controller
     /**
      * Get list of all milestones, user progress, and badges.
      */
-    public function index(\Illuminate\Http\Request $request): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $user = $request->user();
         $currentCoins = (int) ($user?->coins_balance ?? 0);
@@ -85,7 +86,7 @@ class CoinMilestoneController extends Controller
     /**
      * Get the latest/highest milestone rank for the authenticated user.
      */
-    public function myLatest(\Illuminate\Http\Request $request): JsonResponse
+    public function myLatest(Request $request): JsonResponse
     {
         $user = $request->user();
         if (! $user) {
@@ -98,7 +99,7 @@ class CoinMilestoneController extends Controller
     /**
      * Get full milestones history for the authenticated user.
      */
-    public function myHistory(\Illuminate\Http\Request $request): JsonResponse
+    public function myHistory(Request $request): JsonResponse
     {
         $user = $request->user();
         if (! $user) {

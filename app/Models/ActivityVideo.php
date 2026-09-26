@@ -41,19 +41,19 @@ class ActivityVideo extends Model
      * Standard list of activities supported across the app.
      */
     public const ACTIVITIES = [
-        'testimonials'        => 'Testimonials',
-        'business_deals'      => 'Business Deals',
-        'requirements'        => 'Requirements',
-        'referrals'           => 'Referrals',
-        'p2p_meetings'        => 'P2P Meetings',
-        'connections'         => 'Connections',
-        'follows'             => 'Follows',
-        'messages'            => 'Messages',
-        'become_a_leader'     => 'Become a Leader',
-        'recommend_peer'      => 'Recommend Peer',
-        'register_visitor'    => 'Register Visitor',
-        'stories'             => 'Story Submissions',
-        'collaborations'      => 'Collaborations',
+        'testimonials' => 'Testimonials',
+        'business_deals' => 'Business Deals',
+        'requirements' => 'Requirements',
+        'referrals' => 'Referrals',
+        'p2p_meetings' => 'P2P Meetings',
+        'connections' => 'Connections',
+        'follows' => 'Follows',
+        'messages' => 'Messages',
+        'become_a_leader' => 'Become a Leader',
+        'recommend_peer' => 'Recommend Peer',
+        'register_visitor' => 'Register Visitor',
+        'stories' => 'Story Submissions',
+        'collaborations' => 'Collaborations',
     ];
 
     public function file(): BelongsTo

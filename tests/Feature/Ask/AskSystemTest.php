@@ -10,6 +10,8 @@ use App\Models\Ask\AskFlow;
 use App\Models\Ask\AskOption;
 use App\Models\Ask\AskOptionGroup;
 use App\Models\Ask\AskType;
+use App\Models\Referral;
+use App\Models\ReferralStatus;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
@@ -407,5 +409,62 @@ class AskSystemTest extends TestCase
         $v1Response = $this->getJson('/api/v1/asks/feed');
         $v1Response->assertOk()
             ->assertJsonPath('success', true);
+    }
+
+    public function test_update_referral_status_via_flow_route(): void
+    {
+        Sanctum::actingAs($this->user);
+
+        ReferralStatus::firstOrCreate(['id' => 1], ['name' => 'Not Contacted Yet']);
+        ReferralStatus::firstOrCreate(['id' => 4], ['name' => 'Got The Business']);
+
+        $referral = Referral::create([
+            'from_user_id' => $this->user->id,
+            'to_user_id' => $this->peer->id,
+            'referral_of' => 'Tech Services',
+            'referral_type' => 'b2b_referral',
+            'status_id' => 1,
+            'remarks' => 'Initial inquiry',
+            'referral_date' => now()->toDateString(),
+            'phone' => '9876543210',
+            'email' => 'client@example.com',
+            'hot_value' => 3,
+            'is_deleted' => false,
+        ]);
+
+        // 1. Test primary route: PATCH /api/asks/referral/{id}/status
+        $response = $this->patchJson("/api/asks/referral/{$referral->id}/status", [
+            'status_id' => 4,
+            'status_label' => 'Got The Business',
+            'remarks' => 'Deal closed successfully!',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status_id', 4)
+            ->assertJsonPath('data.status_label', 'Got The Business');
+
+        $this->assertDatabaseHas('referrals', [
+            'id' => $referral->id,
+            'status_id' => 4,
+            'remarks' => 'Deal closed successfully!',
+        ]);
+
+        // 2. Test fallback route: PATCH /api/asks/{id}/status
+        $fallbackResponse = $this->patchJson("/api/asks/{$referral->id}/status", [
+            'status_id' => 1,
+            'status_label' => 'Not Contacted Yet',
+            'remarks' => 'Reopened',
+        ]);
+
+        $fallbackResponse->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status_id', 1);
+
+        $this->assertDatabaseHas('referrals', [
+            'id' => $referral->id,
+            'status_id' => 1,
+            'remarks' => 'Reopened',
+        ]);
     }
 }

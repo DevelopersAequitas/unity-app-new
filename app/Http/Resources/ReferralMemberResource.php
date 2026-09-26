@@ -15,16 +15,16 @@ class ReferralMemberResource extends JsonResource
         $referredUser = $this->referredUser;
 
         return [
-            'id'            => (string) ($referredUser?->id ?? ''),
-            'name'          => (string) ($referredUser?->display_name ?? trim((string) (($referredUser?->first_name ?? '').' '.($referredUser?->last_name ?? '')))),
-            'email'         => $referredUser?->email,
+            'id' => (string) ($referredUser?->id ?? ''),
+            'name' => (string) ($referredUser?->display_name ?? trim((string) (($referredUser?->first_name ?? '').' '.($referredUser?->last_name ?? '')))),
+            'email' => $referredUser?->email,
             'business_name' => $referredUser?->company_name,
-            'position'      => $referredUser?->designation,
+            'position' => $referredUser?->designation,
             'registered_at' => optional($referredUser?->created_at)->toISOString(),
             'referral_code' => $this->referral_code,
-            'coins'         => (int) ($this->coins ?? 0),
+            'coins' => (int) ($this->coins ?? 0),
             'reward_status' => (string) ($this->reward_status ?? 'pending'),
-            'peer'          => $referredUser ? new PeerResource($referredUser) : null,
+            'peer' => $referredUser ? new PeerResource($referredUser) : null,
         ];
     }
 }
