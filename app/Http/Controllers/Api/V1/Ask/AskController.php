@@ -181,24 +181,24 @@ class AskController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        if ($request->query('view') === 'hub' || $request->has('status')) {
-            return app(AskFeedController::class)->myAsks($request);
+        if ($request->query('view') === 'legacy') {
+            /** @var User $user */
+            $user = $request->user();
+            $asks = $this->askService->listUserAsks($user, $request->all());
+
+            return response()->json([
+                'success' => true,
+                'data' => AskResource::collection($asks->items()),
+                'meta' => [
+                    'current_page' => $asks->currentPage(),
+                    'per_page' => $asks->perPage(),
+                    'total' => $asks->total(),
+                    'last_page' => $asks->lastPage(),
+                ],
+            ]);
         }
 
-        /** @var User $user */
-        $user = $request->user();
-        $asks = $this->askService->listUserAsks($user, $request->all());
-
-        return response()->json([
-            'success' => true,
-            'data' => AskResource::collection($asks->items()),
-            'meta' => [
-                'current_page' => $asks->currentPage(),
-                'per_page' => $asks->perPage(),
-                'total' => $asks->total(),
-                'last_page' => $asks->lastPage(),
-            ],
-        ]);
+        return app(AskFeedController::class)->myAsks($request);
     }
 
     /**
@@ -233,7 +233,7 @@ class AskController extends Controller
     }
 
     /**
-     * API 14 — Cancel / Close Ask
+     * API 14 — Cancel / Close / Fulfill Ask
      * PATCH /api/asks/{ask}/status
      */
     public function updateStatus(UpdateAskStatusRequest $request, Ask $ask): JsonResponse
@@ -247,13 +247,29 @@ class AskController extends Controller
             $ask,
             $user,
             (string) $validated['status'],
-            isset($validated['reason']) ? (string) $validated['reason'] : null
+            isset($validated['reason']) ? (string) $validated['reason'] : (isset($validated['note']) ? (string) $validated['note'] : null),
+            $validated
         );
+
+        $status = (string) $updatedAsk->status;
+        $message = $status === Ask::STATUS_FULFILLED
+            ? 'Ask fulfilled and outcome recorded successfully'
+            : (! empty($validated['outcome_status']) || ! empty($validated['approx_value'])
+                ? 'Ask status and outcome recorded successfully'
+                : 'Ask status updated successfully.');
+
+        $resourceData = (new AskResource($updatedAsk))->resolve($request);
 
         return response()->json([
             'success' => true,
-            'message' => 'Ask status updated successfully.',
-            'data' => new AskResource($updatedAsk),
+            'message' => $message,
+            'data' => array_merge($resourceData, [
+                'id' => (string) $updatedAsk->id,
+                'status' => (string) $updatedAsk->status,
+                'outcome_status' => $updatedAsk->outcome_status ?? ($updatedAsk->metadata['outcome_status'] ?? null),
+                'approx_value' => $updatedAsk->approx_deal_value ?? ($updatedAsk->metadata['approx_value'] ?? null),
+                'fulfilled_at' => $updatedAsk->fulfilled_at?->toISOString() ?? ($updatedAsk->metadata['fulfilled_at'] ?? null),
+            ]),
         ]);
     }
 

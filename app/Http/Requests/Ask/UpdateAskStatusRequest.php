@@ -19,8 +19,13 @@ class UpdateAskStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'string', 'in:draft,published,closed,cancelled,expired'],
-            'reason' => ['nullable', 'string', 'max:500'],
+            'status' => ['required', 'string', 'in:fulfilled,closed,cancelled,in_progress,draft,published,expired'],
+            'outcome_status' => ['nullable', 'string', 'in:formalised,in_discussion,parted_ways,no_response,deal_closed,yes_fully'],
+            'approx_value' => ['nullable', 'string', 'max:100'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'reason' => ['nullable', 'string', 'max:2000'],
+            'share_story' => ['nullable', 'boolean'],
+            'anonymous_total' => ['nullable', 'boolean'],
         ];
     }
 }

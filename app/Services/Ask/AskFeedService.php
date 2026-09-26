@@ -35,12 +35,13 @@ class AskFeedService
     {
         $scope = (string) ($filters['scope'] ?? 'for_you');
         $page = max(1, (int) ($filters['page'] ?? 1));
-        $perPage = max(1, min(50, (int) ($filters['per_page'] ?? 20)));
+        $perPage = max(1, min(50, (int) ($filters['per_page'] ?? 15)));
 
-        // 1. Gather other peers' asks
+        // 1. Gather other peers' asks (Open Status Only)
         $asksQuery = Ask::query()
             ->where('user_id', '!=', $user->id)
-            ->whereIn('status', [Ask::STATUS_PUBLISHED, 'open'])
+            ->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active'])
+            ->whereNotIn('status', ['fulfilled', Ask::STATUS_CLOSED, 'completed', Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, Ask::STATUS_DRAFT])
             ->with(['user', 'type', 'flow', 'answers.option', 'timelineLink'])
             ->orderByDesc('created_at');
 
@@ -53,9 +54,11 @@ class AskFeedService
         $storiesQuery = Post::query()
             ->where(function (Builder $q): void {
                 $q->where('post_type', 'deal_closed')
+                    ->orWhere('post_type', 'story')
                     ->orWhere('source_type', 'ask')
                     ->orWhereJsonContains('tags', 'deal_closed')
-                    ->orWhereJsonContains('tags', 'ask_fulfilled');
+                    ->orWhereJsonContains('tags', 'ask_fulfilled')
+                    ->orWhereJsonContains('tags', 'story');
             })
             ->where('is_deleted', false)
             ->where('active', true)
@@ -133,12 +136,24 @@ class AskFeedService
         foreach ($stories as $story) {
             $isSaved = isset($savedPostIds[$story->id]);
             $isCongratulated = isset($congratulatedPostIds[$story->id]);
+            $storyAuthor = $story->user;
+            $storyAuthorName = $storyAuthor ? ($storyAuthor->display_name ?: trim(($storyAuthor->first_name ?? '').' '.($storyAuthor->last_name ?? ''))) : 'Peer Member';
+            $storyAvatarUrl = $storyAuthor?->profile_photo_file_id
+                ? url('/api/v1/files/'.$storyAuthor->profile_photo_file_id)
+                : ($storyAuthor?->profile_photo_url ?? null);
 
             $feedItems[] = [
                 'id' => (string) $story->id,
                 'item_type' => 'story',
                 'badge_text' => 'Ask Fulfilled',
-                'title' => (string) ($story->title ?: Str::limit($story->content_text, 120)),
+                'title' => (string) ($story->title ?: Str::limit((string) $story->content_text, 120)),
+                'content_text' => (string) ($story->content_text ?? ''),
+                'author_id' => (string) ($story->user_id ?? ''),
+                'author' => [
+                    'id' => (string) ($storyAuthor?->id ?? $story->user_id),
+                    'name' => $storyAuthorName,
+                    'avatar_url' => $storyAvatarUrl,
+                ],
                 'is_saved' => $isSaved,
                 'is_congratulated' => $isCongratulated,
                 'created_at' => $story->created_at?->toISOString() ?? now()->toISOString(),
@@ -190,13 +205,14 @@ class AskFeedService
     /**
      * Retrieve all asks created by the authenticated peer.
      *
-     * @param  array{status?: string, page?: int, per_page?: int}  $filters
+     * @param  array{status?: string, flow?: string, page?: int, per_page?: int}  $filters
      * @return array{items: array<int, array<string, mixed>>, meta: array{current_page: int, last_page: int, total: int}}
      */
     public function getMyAsks(User $user, array $filters = []): array
     {
-        $statusFilter = strtolower(trim((string) ($filters['status'] ?? '')));
-        $perPage = max(1, min(50, (int) ($filters['per_page'] ?? 20)));
+        $statusFilter = strtolower(trim((string) ($filters['status'] ?? 'all')));
+        $flowFilter = trim((string) ($filters['flow'] ?? ''));
+        $perPage = max(1, min(50, (int) ($filters['per_page'] ?? 15)));
 
         $query = Ask::query()
             ->where('user_id', $user->id)
@@ -204,12 +220,22 @@ class AskFeedService
             ->withCount(['matches', 'responses'])
             ->orderByDesc('created_at');
 
-        if ($statusFilter !== '') {
+        if ($flowFilter !== '') {
+            $query->whereHas('flow', function (Builder $fq) use ($flowFilter): void {
+                $fq->where('code', $flowFilter);
+                if (Str::isUuid($flowFilter)) {
+                    $fq->orWhere('id', $flowFilter);
+                }
+            });
+        }
+
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
             match ($statusFilter) {
-                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', Ask::STATUS_DRAFT]),
-                'in_progress' => $query->where('status', 'in_progress'),
-                'fulfilled' => $query->whereIn('status', [Ask::STATUS_CLOSED, 'fulfilled', 'completed']),
-                'expired' => $query->where('status', Ask::STATUS_EXPIRED),
+                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
+                    ->whereNotIn('status', ['fulfilled', Ask::STATUS_CLOSED, 'completed']),
+                'in_progress' => $query->whereIn('status', ['in_progress', 'review', 'pending']),
+                'fulfilled' => $query->where('status', 'fulfilled'),
+                'expired', 'closed' => $query->whereIn('status', [Ask::STATUS_EXPIRED, Ask::STATUS_CLOSED, 'archived']),
                 default => $query->where('status', $statusFilter),
             };
         }
@@ -221,8 +247,10 @@ class AskFeedService
         foreach ($paginator->items() as $ask) {
             /** @var Ask $ask */
             $status = match ($ask->status) {
-                Ask::STATUS_PUBLISHED => 'open',
-                Ask::STATUS_CLOSED, 'completed' => 'fulfilled',
+                Ask::STATUS_PUBLISHED, 'active' => 'open',
+                'fulfilled' => 'fulfilled',
+                Ask::STATUS_CLOSED, 'archived' => 'closed',
+                'in_progress', 'review', 'pending' => 'in_progress',
                 default => (string) $ask->status,
             };
 
@@ -236,6 +264,9 @@ class AskFeedService
                 'type' => $ask->type ? (new AskTypeResource($ask->type))->resolve() : ($ask->flow ? (new AskFlowResource($ask->flow))->resolve() : null),
                 'title' => (string) $ask->title,
                 'status' => $status,
+                'outcome_status' => $ask->outcome_status ?? ($ask->metadata['outcome_status'] ?? null),
+                'approx_value' => $ask->approx_deal_value ?? ($ask->metadata['approx_value'] ?? null),
+                'fulfilled_at' => $ask->fulfilled_at?->toISOString() ?? ($ask->metadata['fulfilled_at'] ?? null),
                 'responses_count' => (int) $ask->responses_count,
                 'activity_subtitle' => $activitySubtitle,
                 'match_count' => (int) $ask->matches_count,
@@ -332,6 +363,7 @@ class AskFeedService
         // 1. Update Ask status to fulfilled
         $ask->update([
             'status' => 'fulfilled',
+            'fulfilled_at' => now(),
             'closed_at' => now(),
         ]);
 
@@ -514,16 +546,15 @@ class AskFeedService
                 ->filter()
                 ->all();
 
-            if (! empty($user->circle_id)) {
-                $userCircleIds[] = $user->circle_id;
-            }
-            $userCircleIds = array_unique($userCircleIds);
+            $userCircleIds = array_values(array_unique(array_filter($userCircleIds)));
 
             if (! empty($userCircleIds)) {
                 $query->where(function (Builder $q) use ($userCircleIds): void {
                     $q->whereIn('visibility_circle_id', $userCircleIds)
-                        ->orWhereHas('user', fn (Builder $uq) => $uq->whereIn('circle_id', $userCircleIds));
+                        ->orWhereIn('user_id', CircleMember::query()->whereIn('circle_id', $userCircleIds)->whereNull('deleted_at')->select('user_id'));
                 });
+            } else {
+                $query->whereRaw('1 = 0');
             }
 
             return;
@@ -531,24 +562,58 @@ class AskFeedService
 
         if ($scope === 'city') {
             $city = trim((string) ($user->city ?? ''));
-            if ($city !== '') {
-                $query->whereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
-            }
+            $cityId = $user->city_id;
+
+            $query->where(function (Builder $q) use ($city, $cityId): void {
+                $hasCityFilter = false;
+                if ($cityId) {
+                    $q->whereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+                    $hasCityFilter = true;
+                }
+                if ($city !== '') {
+                    if ($hasCityFilter) {
+                        $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+                    } else {
+                        $q->whereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+                        $hasCityFilter = true;
+                    }
+                }
+                if (! $hasCityFilter) {
+                    $q->whereRaw('1 = 0');
+                }
+            });
 
             return;
         }
 
-        // 'for_you' (default): match user's circle or city or general open asks
+        // 'for_you' (default): algorithmic match combining relevant peer asks in user's industry, location, and connections
         $city = trim((string) ($user->city ?? ''));
-        $circleId = $user->circle_id;
+        $cityId = $user->city_id;
+        $businessCategoryId = $user->business_category_id;
 
-        $query->where(function (Builder $q) use ($city, $circleId): void {
+        $userCircleIds = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('circle_id')
+            ->filter()
+            ->all();
+
+        $userCircleIds = array_values(array_unique(array_filter($userCircleIds)));
+
+        $query->where(function (Builder $q) use ($city, $cityId, $userCircleIds, $businessCategoryId): void {
             $q->where('visibility_type', Ask::VISIBILITY_ALL_PEERS);
-            if ($circleId) {
-                $q->orWhere('visibility_circle_id', $circleId);
+            if (! empty($userCircleIds)) {
+                $q->orWhereIn('visibility_circle_id', $userCircleIds)
+                    ->orWhereIn('user_id', CircleMember::query()->whereIn('circle_id', $userCircleIds)->whereNull('deleted_at')->select('user_id'));
+            }
+            if ($cityId) {
+                $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
             }
             if ($city !== '') {
                 $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+            }
+            if ($businessCategoryId) {
+                $q->orWhereHas('user', fn (Builder $uq) => $uq->where('business_category_id', $businessCategoryId));
             }
         });
     }

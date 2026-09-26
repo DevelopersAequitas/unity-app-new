@@ -32,6 +32,10 @@ class Ask extends Model
 
     public const STATUS_PUBLISHED = 'published';
 
+    public const STATUS_FULFILLED = 'fulfilled';
+
+    public const STATUS_IN_PROGRESS = 'in_progress';
+
     public const STATUS_CLOSED = 'closed';
 
     public const STATUS_CANCELLED = 'cancelled';
@@ -58,6 +62,10 @@ class Ask extends Model
         'published_at',
         'expires_at',
         'closed_at',
+        'fulfilled_at',
+        'outcome_status',
+        'approx_deal_value',
+        'outcome_notes',
         'metadata',
     ];
 
@@ -66,8 +74,14 @@ class Ask extends Model
         'published_at' => 'datetime',
         'expires_at' => 'datetime',
         'closed_at' => 'datetime',
+        'fulfilled_at' => 'datetime',
         'metadata' => 'array',
     ];
+
+    public function getApproxValueAttribute(): ?string
+    {
+        return $this->approx_deal_value ?? ($this->metadata['approx_value'] ?? null);
+    }
 
     protected static function booted(): void
     {

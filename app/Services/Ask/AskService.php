@@ -11,16 +11,20 @@ use App\Models\Ask\AskOptionGroup;
 use App\Models\Ask\AskStatusHistory;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\Ask\AskType;
+use App\Models\BusinessDeal;
 use App\Models\Post;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AskService
 {
@@ -322,7 +326,7 @@ class AskService
     {
         $perPage = (int) ($filters['per_page'] ?? 15);
 
-        return Ask::query()
+        $query = Ask::query()
             ->where('user_id', $user->id)
             ->when(! empty($filters['flow']), function (Builder $q) use ($filters) {
                 $q->whereHas('flow', function (Builder $fq) use ($filters): void {
@@ -340,12 +344,24 @@ class AskService
                     }
                 });
             })
-            ->when(! empty($filters['status']), fn (Builder $q) => $q->where('status', $filters['status']))
             ->when(! empty($filters['date']), fn (Builder $q) => $q->whereDate('created_at', $filters['date']))
             ->with(['flow', 'type', 'answers.option'])
             ->withCount(['matches', 'responses'])
-            ->orderByDesc('created_at')
-            ->paginate($perPage);
+            ->orderByDesc('created_at');
+
+        $statusFilter = strtolower(trim((string) ($filters['status'] ?? 'all')));
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
+            match ($statusFilter) {
+                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
+                    ->whereNotIn('status', ['fulfilled', Ask::STATUS_CLOSED, 'completed']),
+                'in_progress' => $query->whereIn('status', ['in_progress', 'review', 'pending']),
+                'fulfilled' => $query->where('status', 'fulfilled'),
+                'expired', 'closed' => $query->whereIn('status', [Ask::STATUS_EXPIRED, Ask::STATUS_CLOSED, 'archived']),
+                default => $query->where('status', $statusFilter),
+            };
+        }
+
+        return $query->paginate($perPage);
     }
 
     /**
@@ -384,16 +400,68 @@ class AskService
     }
 
     /**
-     * Update status (e.g. close, cancel) of an Ask.
+     * Update status (e.g. fulfill, close, cancel) of an Ask.
+     *
+     * @param  array<string, mixed>  $options
      */
-    public function updateStatus(Ask $ask, User $user, string $status, ?string $reason): Ask
-    {
+    public function updateStatus(
+        Ask $ask,
+        User $user,
+        string $status,
+        ?string $reason = null,
+        array $options = []
+    ): Ask {
         $oldStatus = $ask->status;
-
         $updates = ['status' => $status];
+
+        $outcomeStatus = $options['outcome_status'] ?? null;
+        $approxValue = $options['approx_value'] ?? $options['approx_deal_value'] ?? null;
+        $note = $options['note'] ?? $reason ?? null;
+        $shareStory = (bool) ($options['share_story'] ?? false);
+        $anonymousTotal = (bool) ($options['anonymous_total'] ?? false);
+
+        if ($status === Ask::STATUS_FULFILLED) {
+            $updates['fulfilled_at'] = now();
+        }
+
         if ($status === Ask::STATUS_CLOSED) {
             $updates['closed_at'] = now();
         }
+
+        if ($outcomeStatus !== null) {
+            $updates['outcome_status'] = (string) $outcomeStatus;
+        }
+
+        if ($approxValue !== null) {
+            $updates['approx_deal_value'] = (string) $approxValue;
+        }
+
+        if ($note !== null) {
+            $updates['outcome_notes'] = (string) $note;
+        }
+
+        $metadata = (array) ($ask->metadata ?? []);
+        if ($outcomeStatus !== null) {
+            $metadata['outcome_status'] = $outcomeStatus;
+        }
+        if ($approxValue !== null) {
+            $metadata['approx_value'] = $approxValue;
+            $metadata['approx_deal_value'] = $approxValue;
+        }
+        if ($note !== null) {
+            $metadata['outcome_notes'] = $note;
+            $metadata['note'] = $note;
+        }
+        if (isset($options['anonymous_total'])) {
+            $metadata['anonymous_total'] = $anonymousTotal;
+        }
+        if (isset($options['share_story'])) {
+            $metadata['share_story'] = $shareStory;
+        }
+        if ($status === Ask::STATUS_FULFILLED) {
+            $metadata['fulfilled_at'] = now()->toISOString();
+        }
+        $updates['metadata'] = $metadata;
 
         $ask->update($updates);
 
@@ -402,10 +470,121 @@ class AskService
             'changed_by_user_id' => $user->id,
             'old_status' => $oldStatus,
             'new_status' => $status,
-            'reason' => $reason,
+            'reason' => $reason ?? $note,
         ]);
 
-        return $ask;
+        // 2. Timeline Story Generation (if share_story == true)
+        if ($shareStory) {
+            $this->generateCelebrationStory($ask, $user, $note);
+        }
+
+        // 3. Business Value Aggregation (if approx_value is present)
+        if ($approxValue !== null && $approxValue !== '') {
+            $this->aggregateBusinessValue($ask, $user, (string) $approxValue, $outcomeStatus, $note, $anonymousTotal);
+        }
+
+        return $ask->fresh(['flow', 'type', 'answers.option', 'matches', 'timelineLink']);
+    }
+
+    /**
+     * Generate celebration timeline story for a fulfilled ask.
+     */
+    protected function generateCelebrationStory(Ask $ask, User $user, ?string $note): void
+    {
+        try {
+            $content = 'Successfully fulfilled: '.$ask->title;
+            if ($note !== null && trim($note) !== '') {
+                $content .= "\n\n".trim($note);
+            }
+
+            $storyPost = Post::create([
+                'id' => (string) Str::uuid(),
+                'user_id' => $user->id,
+                'title' => (string) $ask->title,
+                'content_text' => $content,
+                'media' => [],
+                'tags' => ['ask_fulfilled', 'story', 'deal_closed'],
+                'visibility' => 'public',
+                'moderation_status' => 'approved',
+                'sponsored' => false,
+                'is_deleted' => false,
+                'active' => true,
+                'source_type' => 'ask',
+                'source_id' => $ask->id,
+                'source_event' => 'fulfilled',
+                'post_type' => 'story',
+            ]);
+
+            AskTimelineLink::query()->updateOrCreate(
+                ['ask_id' => $ask->id],
+                ['post_id' => $storyPost->id]
+            );
+        } catch (Throwable $e) {
+            Log::warning('Failed to generate celebration timeline story', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Aggregate business deal metrics and life impact for fulfilled ask.
+     */
+    protected function aggregateBusinessValue(
+        Ask $ask,
+        User $user,
+        string $approxValue,
+        ?string $outcomeStatus,
+        ?string $note,
+        bool $anonymousTotal
+    ): void {
+        $amountMap = [
+            '<5_lakh' => 250000,
+            'under_1_lakh' => 50000,
+            '5_to_25_lakh' => 1500000,
+            '1_to_10_lakh' => 500000,
+            '25_lakh_to_1_cr' => 5000000,
+            'above_10_lakh' => 1500000,
+            '>1_cr' => 10000000,
+        ];
+        $dealAmount = $amountMap[$approxValue] ?? 500000;
+
+        $latestResponse = $ask->responses()->with('responder')->latest('created_at')->first();
+        $giver = $latestResponse?->responder;
+
+        $fromUserId = $giver ? $giver->id : $user->id;
+        $toUserId = $giver ? $user->id : $user->id;
+
+        try {
+            BusinessDeal::create([
+                'from_user_id' => $fromUserId,
+                'to_user_id' => $toUserId,
+                'deal_date' => now()->toDateString(),
+                'deal_amount' => $dealAmount,
+                'business_type' => 'new',
+                'comment' => $note !== null && trim($note) !== '' ? trim($note) : "Fulfilled Ask: {$ask->title}",
+                'is_deleted' => false,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('BusinessDeal creation skipped during status update', ['error' => $e->getMessage()]);
+        }
+
+        try {
+            app(LifeImpactService::class)->addLifeImpact(
+                userId: (string) $user->id,
+                triggeredByUserId: (string) $fromUserId,
+                activityType: 'business_deal',
+                activityId: (string) $ask->id,
+                impactValue: 1,
+                title: "Ask Fulfilled: {$ask->title}",
+                description: $note !== null && trim($note) !== '' ? trim($note) : "Business value unlocked for Ask: {$ask->title}",
+                meta: [
+                    'ask_id' => (string) $ask->id,
+                    'approx_value' => $approxValue,
+                    'outcome_status' => $outcomeStatus,
+                    'anonymous_total' => $anonymousTotal,
+                ]
+            );
+        } catch (Throwable $e) {
+            Log::warning('Life impact logging failed during ask fulfillment', ['error' => $e->getMessage()]);
+        }
     }
 
     /**

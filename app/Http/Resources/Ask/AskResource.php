@@ -64,6 +64,11 @@ class AskResource extends JsonResource
             'published_at' => $this->resource->published_at?->toISOString(),
             'expires_at' => $this->resource->expires_at?->toISOString(),
             'closed_at' => $this->resource->closed_at?->toISOString(),
+            'fulfilled_at' => $this->resource->fulfilled_at?->toISOString() ?? ($this->resource->metadata['fulfilled_at'] ?? null),
+            'outcome_status' => $this->resource->outcome_status ?? ($this->resource->metadata['outcome_status'] ?? null),
+            'approx_value' => $this->resource->approx_deal_value ?? ($this->resource->metadata['approx_value'] ?? null),
+            'approx_deal_value' => $this->resource->approx_deal_value ?? ($this->resource->metadata['approx_value'] ?? null),
+            'outcome_notes' => $this->resource->outcome_notes ?? ($this->resource->metadata['outcome_notes'] ?? null),
             'answers' => $this->whenLoaded('answers', function () {
                 return AskAnswerResource::collection($this->resource->answers);
             }),

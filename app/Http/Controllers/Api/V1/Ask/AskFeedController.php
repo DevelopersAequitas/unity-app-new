@@ -48,6 +48,7 @@ class AskFeedController extends Controller
     {
         $validated = $request->validate([
             'status' => ['nullable', 'string'],
+            'flow' => ['nullable', 'string'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
