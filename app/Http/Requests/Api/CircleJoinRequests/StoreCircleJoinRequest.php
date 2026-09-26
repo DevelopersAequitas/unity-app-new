@@ -46,7 +46,8 @@ class StoreCircleJoinRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_id' => ['required_without:level4_category_id', 'nullable', 'integer', 'exists:circle_categories,id'],
+            'circle_id' => ['nullable', 'required_without_all:category_id,level1_category_id,level4_category_id', 'uuid', 'exists:circles,id'],
+            'category_id' => ['nullable', 'required_without_all:circle_id,level4_category_id', 'integer', 'exists:circle_categories,id'],
             'level1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
             'level4_category_id' => ['nullable', 'integer'],
             'reason_for_joining' => ['nullable', 'string', 'max:2000'],

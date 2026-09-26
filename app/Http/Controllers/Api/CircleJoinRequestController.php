@@ -26,6 +26,7 @@ class CircleJoinRequestController extends BaseApiController
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
+        $circleId = $request->validated('circle_id') ?? $request->input('circle_id');
         $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
 
         if (! $categoryId && $request->validated('level4_category_id')) {
@@ -38,8 +39,7 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
-        $circleId = null;
-        if ($categoryId && Schema::hasTable('circle_category_mappings')) {
+        if (! $circleId && $categoryId && Schema::hasTable('circle_category_mappings')) {
             $circleId = DB::table('circle_category_mappings')
                 ->where('category_id', $categoryId)
                 ->value('circle_id');
@@ -85,11 +85,14 @@ class CircleJoinRequestController extends BaseApiController
 
         try {
             $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
-            $categoryId = $request->validated('category_id');
-            if (! $categoryId) {
+            $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
+            if (! $categoryId && Schema::hasTable('circle_category_mappings')) {
                 $categoryId = DB::table('circle_category_mappings')
                     ->where('circle_id', $circle->id)
                     ->value('category_id');
+            }
+            if (! $categoryId && method_exists($circle, 'categories')) {
+                $categoryId = $circle->categories()->value('circle_categories.id');
             }
 
             $otherCategoryName = trim((string) ($request->validated('other_category_name') ?? $request->validated('custom_category_name') ?? ''));
