@@ -360,4 +360,52 @@ class AskSystemTest extends TestCase
             'source_id' => $ask->id,
         ]);
     }
+
+    public function test_ask_feed_returns_flow_and_type_details(): void
+    {
+        // Create an ask by $peer
+        $ask = Ask::create([
+            'user_id' => $this->peer->id,
+            'flow_id' => $this->flow->id,
+            'type_id' => $this->type->id,
+            'title' => 'Peer Collaboration Ask',
+            'status' => 'published',
+            'visibility_type' => 'all_peers',
+            'publish_to_timeline' => true,
+            'published_at' => now(),
+        ]);
+
+        AskAnswer::create([
+            'ask_id' => $ask->id,
+            'field_key' => 'goal',
+            'value_text' => 'Need co-founder',
+            'display_order' => 1,
+        ]);
+
+        // Act as $user to view feed
+        Sanctum::actingAs($this->user);
+
+        $response = $this->getJson('/api/asks/feed');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        $items = collect($response->json('data.items'));
+        $feedItem = $items->firstWhere('id', (string) $ask->id);
+
+        $this->assertNotNull($feedItem, 'Ask should be present in feed');
+        $this->assertSame('ask', $feedItem['item_type']);
+        $this->assertArrayHasKey('flow', $feedItem);
+        $this->assertArrayHasKey('type', $feedItem);
+        $this->assertSame($this->flow->code, $feedItem['flow']['code']);
+        $this->assertSame('Find a Collaborator', $feedItem['flow']['name']);
+        $this->assertSame($this->flow->id, $feedItem['flow']['id']);
+        $this->assertSame($this->type->code, $feedItem['type']['code']);
+        $this->assertSame('Joint Venture', $feedItem['type']['name']);
+
+        // Also test /api/v1/asks/feed
+        $v1Response = $this->getJson('/api/v1/asks/feed');
+        $v1Response->assertOk()
+            ->assertJsonPath('success', true);
+    }
 }

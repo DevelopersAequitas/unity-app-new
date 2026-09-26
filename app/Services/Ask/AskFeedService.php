@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Ask;
 
+use App\Http\Resources\Ask\AskFlowResource;
+use App\Http\Resources\Ask\AskTypeResource;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\BusinessDeal;
@@ -108,6 +110,8 @@ class AskFeedService
                 'id' => (string) $ask->id,
                 'item_type' => 'ask',
                 'category_title' => $ask->type?->name ?? $ask->flow?->name ?? 'Funding Support',
+                'flow' => $ask->flow ? (new AskFlowResource($ask->flow))->resolve() : null,
+                'type' => $ask->type ? (new AskTypeResource($ask->type))->resolve() : ($ask->flow ? (new AskFlowResource($ask->flow))->resolve() : null),
                 'title' => (string) $ask->title,
                 'description' => (string) $description,
                 'urgency' => (string) $urgency,
@@ -228,6 +232,8 @@ class AskFeedService
             $items[] = [
                 'id' => (string) $ask->id,
                 'category_title' => $ask->type?->name ?? $ask->flow?->name ?? 'Business Referrals',
+                'flow' => $ask->flow ? (new AskFlowResource($ask->flow))->resolve() : null,
+                'type' => $ask->type ? (new AskTypeResource($ask->type))->resolve() : ($ask->flow ? (new AskFlowResource($ask->flow))->resolve() : null),
                 'title' => (string) $ask->title,
                 'status' => $status,
                 'responses_count' => (int) $ask->responses_count,
