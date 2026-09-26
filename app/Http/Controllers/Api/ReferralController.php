@@ -562,11 +562,16 @@ class ReferralController extends BaseApiController
         }
 
         $request->validate([
-            'status_id' => 'required|exists:referral_status,id',
+            'status_id' => 'required',
+            'status_label' => 'nullable|string|max:255',
+            'remarks' => 'nullable|string|max:2000',
         ]);
 
-        $statusId = $request->input('status_id');
+        $statusId = (int) $request->input('status_id');
         $referral->status_id = $statusId;
+        if ($request->filled('remarks')) {
+            $referral->remarks = (string) $request->input('remarks');
+        }
         $referral->save();
 
         // Load status and users for notification context

@@ -73,6 +73,9 @@ use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\Ask\AskController;
+use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
+use App\Http\Controllers\Api\V1\Ask\AskResponseController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -90,7 +93,6 @@ use App\Http\Controllers\Api\V1\CoinGuidelineController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
-use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\ContactPostController;
@@ -144,8 +146,6 @@ use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\RbacUserPermissionController;
-use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
-use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\SendTestNotificationController;
@@ -153,7 +153,6 @@ use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\SystemAppConfigController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
-use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileDetailController;
@@ -605,12 +604,17 @@ Route::prefix('v1')->group(function () {
         Route::post('follows/{follow}/reject', [FollowController::class, 'reject'])->whereUuid('follow');
         Route::delete('follows/{follow}/cancel', [FollowController::class, 'cancel'])->whereUuid('follow');
 
-        // Collaborations
-        Route::get('/collaborations/history', [CollaborationPostController::class, 'history']);
-        Route::get('/collaborations/my-history', [CollaborationPostController::class, 'myHistory']);
-        Route::patch('/collaborations/{id}/complete', [CollaborationPostController::class, 'complete'])->whereUuid('id');
-        Route::patch('/collaborations/{id}/accept', [CollaborationPostController::class, 'accept'])->whereUuid('id');
-        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
+        // Collaborations (Replaced & Migrated to 3 Asks Flows Engine: Collaboration Flow)
+        Route::get('/collaborations', [AskFlowHubController::class, 'globalFeed'])->defaults('flow', 'collaboration');
+        Route::get('/collaborations/my', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'collaboration');
+        Route::get('/collaborations/categories', [AskFlowHubController::class, 'categories'])->defaults('flow', 'collaboration');
+        Route::get('/collaborations/history', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'collaboration');
+        Route::get('/collaborations/my-history', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'collaboration');
+        Route::get('/collaborations/{id}', [AskController::class, 'show'])->whereUuid('id');
+        Route::post('/collaborations/{id}/interest', [AskResponseController::class, 'store'])->whereUuid('id');
+        Route::patch('/collaborations/{id}/complete', [AskController::class, 'closeWithFeedback'])->whereUuid('id');
+        Route::patch('/collaborations/{id}/accept', [AskController::class, 'updateStatus'])->whereUuid('id');
+        Route::post('/collaborations', [AskController::class, 'storeDraft']);
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
@@ -1009,6 +1013,7 @@ Route::prefix('v1')->group(function () {
             Route::get('requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
             Route::get('referrals', [ReferralHistoryController::class, 'index']);
+            Route::get('referrals/leaderboard', [AskFlowHubController::class, 'referralLeaderboardAlias']);
             Route::get('referrals/statuses', [ReferralController::class, 'statuses']);
             Route::patch('referrals/{id}/status', [ReferralController::class, 'updateStatus'])->whereUuid('id');
             Route::post('referrals', [ReferralController::class, 'store']);
@@ -1032,10 +1037,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/business-deals', [BusinessDealHistoryController::class, 'index']);
         Route::post('/business-deals', [BusinessDealController::class, 'store']);
         Route::get('/business-deals/{id}', [BusinessDealHistoryController::class, 'show']);
-
-        Route::get('/requirements', [RequirementHistoryController::class, 'index']);
-        Route::post('/requirements', [ActivitiesRequirementController::class, 'store']);
-        Route::get('/requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
         // P2P Meeting Requests
         Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
@@ -1061,17 +1062,18 @@ Route::prefix('v1')->group(function () {
         Route::get('/wallet/transactions', [WalletController::class, 'myTransactions']);
         Route::post('/wallet/topup', [WalletController::class, 'topup']);
 
-        // Requirements
-        Route::get('/timeline/requirements', [TimelineRequirementController::class, 'index']);
-        Route::post('/requirements', [V1RequirementController::class, 'store']);
-        Route::get('/requirements/incompleted', [V1RequirementController::class, 'incompleted']);
-        Route::get('/requirements/summary', [V1RequirementController::class, 'summary']);
-        Route::get('/requirements/summary/{userId}', [V1RequirementController::class, 'summary'])->whereUuid('userId');
-        Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
-        Route::patch('/requirements/{id}/close', [V1RequirementController::class, 'close']);
-        Route::post('/requirements/{id}/close', [V1RequirementController::class, 'close']);
-        Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
-        Route::get('/my/requirements', [V1RequirementController::class, 'myIndex']);
+        // Requirements (Replaced & Migrated to 3 Asks Flows Engine: Help Flow)
+        Route::get('/requirements', [AskFlowHubController::class, 'globalFeed'])->defaults('flow', 'help');
+        Route::get('/requirements/my', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'help');
+        Route::get('/my/requirements', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'help');
+        Route::post('/requirements', [AskController::class, 'storeDraft']);
+        Route::get('/requirements/incompleted', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'help');
+        Route::get('/requirements/{id}', [AskController::class, 'show'])->whereUuid('id');
+        Route::patch('/requirements/{id}/status', [AskController::class, 'updateStatus'])->whereUuid('id');
+        Route::patch('/requirements/{id}/close', [AskController::class, 'closeWithFeedback'])->whereUuid('id');
+        Route::post('/requirements/{id}/close', [AskController::class, 'closeWithFeedback'])->whereUuid('id');
+        Route::post('/requirements/{requirement}/interest', [AskResponseController::class, 'store'])->whereUuid('requirement');
+        Route::get('/timeline/requirements', [AskFlowHubController::class, 'globalFeed'])->defaults('flow', 'help');
 
         // Support Tickets
         Route::post('/support', [SupportTicketController::class, 'store']);

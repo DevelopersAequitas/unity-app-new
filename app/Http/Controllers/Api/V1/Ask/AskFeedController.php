@@ -10,6 +10,7 @@ use App\Http\Requests\Ask\MyAsksFilterRequest;
 use App\Models\Ask\Ask;
 use App\Models\User;
 use App\Services\Ask\AskFeedService;
+use App\Services\Ask\AskFlowHubService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -28,6 +29,17 @@ class AskFeedController extends Controller
         /** @var User $user */
         $user = $request->user();
 
+        if ($request->filled('flow')) {
+            $flow = (string) $request->input('flow');
+            $hubService = app(AskFlowHubService::class);
+            $result = $hubService->getGlobalFeed($user, $flow, $request->all());
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+        }
+
         $result = $this->askFeedService->getFeed($user, $request->validated());
 
         return response()->json([
@@ -44,6 +56,17 @@ class AskFeedController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+
+        if ($request->filled('flow')) {
+            $flow = (string) $request->input('flow');
+            $hubService = app(AskFlowHubService::class);
+            $result = $hubService->getMyAsks($user, $flow, $request->all());
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+        }
 
         $result = $this->askFeedService->getMyAsks($user, $request->validated());
 
