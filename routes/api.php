@@ -758,6 +758,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/circle-join-requests/{id}/id-approve', [AdminOpsController::class, 'joinIdApprove'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/id-reject', [AdminOpsController::class, 'joinIdReject'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/mark-paid', [AdminOpsController::class, 'joinMarkPaid'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/mark-unpaid', [AdminOpsController::class, 'joinMarkUnpaid'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/cancel', [AdminOpsController::class, 'joinCancel'])->whereUuid('id');
 
             Route::get('/impacts', [AdminOpsController::class, 'impacts']);

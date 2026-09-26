@@ -81,6 +81,17 @@ class AdminOpsController extends BaseApiController
         return $this->success($x);
     }
 
+    public function joinMarkUnpaid(string $id): JsonResponse
+    {
+        $x = CircleJoinRequest::findOrFail($id);
+        $x->status = CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE;
+        $x->fee_marked_at = null;
+        $x->fee_paid_at = null;
+        $x->save();
+
+        return $this->success($x);
+    }
+
     public function joinCancel(string $id): JsonResponse
     {
         $x = CircleJoinRequest::findOrFail($id);
