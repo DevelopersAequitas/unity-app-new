@@ -1596,7 +1596,6 @@ class UsersController extends Controller
         $circleId = $member->circle_id;
 
         $member->forceFill([
-            'status' => 'inactive',
             'left_at' => now(),
         ])->save();
 

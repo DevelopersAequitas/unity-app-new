@@ -451,7 +451,6 @@ class CircleController extends BaseApiController
         }
 
         $member->forceFill([
-            'status' => 'inactive',
             'left_at' => now(),
         ])->save();
 
