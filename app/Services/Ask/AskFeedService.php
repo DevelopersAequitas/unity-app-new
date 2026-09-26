@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -48,25 +49,26 @@ class AskFeedService
         // Apply Scope Filter
         $this->applyScopeFilter($asksQuery, $user, $scope);
 
-        $asks = $asksQuery->limit(50)->get();
+        $asks = $asksQuery->limit(max(100, $page * $perPage * 2))->get();
 
         // 2. Gather Stories (Fulfilled / Deal Closed Posts)
         $storiesQuery = Post::query()
             ->where(function (Builder $q): void {
                 $q->where('post_type', 'deal_closed')
                     ->orWhere('post_type', 'story')
-                    ->orWhere('source_type', 'ask')
+                    ->orWhere('source_event', 'fulfilled')
+                    ->orWhere('source_event', 'completed')
                     ->orWhereJsonContains('tags', 'deal_closed')
-                    ->orWhereJsonContains('tags', 'ask_fulfilled')
-                    ->orWhereJsonContains('tags', 'story');
+                    ->orWhereJsonContains('tags', 'ask_fulfilled');
             })
             ->where('is_deleted', false)
             ->where('active', true)
             ->with(['user'])
-            ->orderByDesc('created_at')
-            ->limit(30);
+            ->orderByDesc('created_at');
 
-        $stories = $storiesQuery->get();
+        $this->applyScopeFilterToStories($storiesQuery, $user, $scope);
+
+        $stories = $storiesQuery->limit(max(50, $page * $perPage))->get();
 
         // 3. User engagement lookups (saves & likes)
         $relevantPostIds = $stories->pluck('id')->all();
@@ -211,7 +213,8 @@ class AskFeedService
     public function getMyAsks(User $user, array $filters = []): array
     {
         $statusFilter = strtolower(trim((string) ($filters['status'] ?? 'all')));
-        $flowFilter = trim((string) ($filters['flow'] ?? ''));
+        $flowFilter = strtolower(trim((string) ($filters['flow'] ?? '')));
+        $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = max(1, min(50, (int) ($filters['per_page'] ?? 15)));
 
         $query = Ask::query()
@@ -220,9 +223,17 @@ class AskFeedService
             ->withCount(['matches', 'responses'])
             ->orderByDesc('created_at');
 
-        if ($flowFilter !== '') {
-            $query->whereHas('flow', function (Builder $fq) use ($flowFilter): void {
-                $fq->where('code', $flowFilter);
+        if ($flowFilter !== '' && $flowFilter !== 'all') {
+            $flowCode = match ($flowFilter) {
+                'collaboration', 'collaborator', 'find_a_collaborator', 'collab' => 'collaboration',
+                'referral', 'referrals', 'ask_for_referral' => 'referral',
+                'help', 'get_help' => 'help',
+                default => $flowFilter,
+            };
+
+            $query->whereHas('flow', function (Builder $fq) use ($flowCode, $flowFilter): void {
+                $fq->where('code', $flowCode)
+                    ->orWhere('code', $flowFilter);
                 if (Str::isUuid($flowFilter)) {
                     $fq->orWhere('id', $flowFilter);
                 }
@@ -232,7 +243,7 @@ class AskFeedService
         if ($statusFilter !== '' && $statusFilter !== 'all') {
             match ($statusFilter) {
                 'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
-                    ->whereNotIn('status', ['fulfilled', Ask::STATUS_CLOSED, 'completed']),
+                    ->whereNotIn('status', ['fulfilled', Ask::STATUS_CLOSED, 'completed', Ask::STATUS_CANCELLED]),
                 'in_progress' => $query->whereIn('status', ['in_progress', 'review', 'pending']),
                 'fulfilled' => $query->where('status', 'fulfilled'),
                 'expired', 'closed' => $query->whereIn('status', [Ask::STATUS_EXPIRED, Ask::STATUS_CLOSED, 'archived']),
@@ -241,7 +252,7 @@ class AskFeedService
         }
 
         /** @var LengthAwarePaginator $paginator */
-        $paginator = $query->paginate($perPage);
+        $paginator = $query->paginate(perPage: $perPage, page: $page);
 
         $items = [];
         foreach ($paginator->items() as $ask) {
@@ -600,10 +611,118 @@ class AskFeedService
 
         $userCircleIds = array_values(array_unique(array_filter($userCircleIds)));
 
-        $query->where(function (Builder $q) use ($city, $cityId, $userCircleIds, $businessCategoryId): void {
+        $connectionPeerIds = [];
+        if (Schema::hasTable('connections')) {
+            $connectionPeerIds = DB::table('connections')
+                ->where('is_approved', true)
+                ->where(function ($q) use ($user): void {
+                    $q->where('requester_id', $user->id)
+                        ->orWhere('addressee_id', $user->id);
+                })
+                ->get()
+                ->map(fn ($c) => (string) ($c->requester_id === $user->id ? $c->addressee_id : $c->requester_id))
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        $query->where(function (Builder $q) use ($city, $cityId, $userCircleIds, $businessCategoryId, $connectionPeerIds): void {
             $q->where('visibility_type', Ask::VISIBILITY_ALL_PEERS);
             if (! empty($userCircleIds)) {
                 $q->orWhereIn('visibility_circle_id', $userCircleIds)
+                    ->orWhereIn('user_id', CircleMember::query()->whereIn('circle_id', $userCircleIds)->whereNull('deleted_at')->select('user_id'));
+            }
+            if (! empty($connectionPeerIds)) {
+                $q->orWhereIn('user_id', $connectionPeerIds);
+            }
+            if ($cityId) {
+                $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+            }
+            if ($city !== '') {
+                $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+            }
+            if ($businessCategoryId) {
+                $q->orWhereHas('user', fn (Builder $uq) => $uq->where('business_category_id', $businessCategoryId));
+            }
+        });
+    }
+
+    /**
+     * Apply scope filter to stories query.
+     */
+    protected function applyScopeFilterToStories(Builder $query, User $user, string $scope): void
+    {
+        if ($scope === 'all') {
+            return;
+        }
+
+        if ($scope === 'circle') {
+            $userCircleIds = CircleMember::query()
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->pluck('circle_id')
+                ->filter()
+                ->all();
+
+            $userCircleIds = array_values(array_unique(array_filter($userCircleIds)));
+
+            if (! empty($userCircleIds)) {
+                $query->where(function (Builder $q) use ($userCircleIds): void {
+                    $q->whereIn('circle_id', $userCircleIds)
+                        ->orWhereIn('user_id', CircleMember::query()->whereIn('circle_id', $userCircleIds)->whereNull('deleted_at')->select('user_id'));
+                });
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+
+            return;
+        }
+
+        if ($scope === 'city') {
+            $city = trim((string) ($user->city ?? ''));
+            $cityId = $user->city_id;
+
+            $query->where(function (Builder $q) use ($city, $cityId): void {
+                $hasCityFilter = false;
+                if ($cityId) {
+                    $q->whereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+                    $hasCityFilter = true;
+                }
+                if ($city !== '') {
+                    if ($hasCityFilter) {
+                        $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+                    } else {
+                        $q->whereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+                        $hasCityFilter = true;
+                    }
+                }
+                if (! $hasCityFilter) {
+                    $q->whereRaw('1 = 0');
+                }
+            });
+
+            return;
+        }
+
+        // 'for_you'
+        $city = trim((string) ($user->city ?? ''));
+        $cityId = $user->city_id;
+        $businessCategoryId = $user->business_category_id;
+
+        $userCircleIds = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('circle_id')
+            ->filter()
+            ->all();
+
+        $userCircleIds = array_values(array_unique(array_filter($userCircleIds)));
+
+        $query->where(function (Builder $q) use ($city, $cityId, $userCircleIds, $businessCategoryId): void {
+            $q->where('visibility', 'public')
+                ->orWhere('visibility', 'global');
+            if (! empty($userCircleIds)) {
+                $q->orWhereIn('circle_id', $userCircleIds)
                     ->orWhereIn('user_id', CircleMember::query()->whereIn('circle_id', $userCircleIds)->whereNull('deleted_at')->select('user_id'));
             }
             if ($cityId) {

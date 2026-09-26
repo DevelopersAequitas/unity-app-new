@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Ask;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Ask\AskFeedRequest;
+use App\Http\Requests\Ask\MyAsksFilterRequest;
 use App\Models\Ask\Ask;
 use App\Models\User;
 use App\Services\Ask\AskFeedService;
@@ -21,18 +23,12 @@ class AskFeedController extends Controller
      * 1. Peers Feed (Other Peers' Posts & Stories)
      * GET /api/v1/asks/feed
      */
-    public function feed(Request $request): JsonResponse
+    public function feed(AskFeedRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'scope' => ['nullable', 'string', 'in:for_you,circle,city,all'],
-            'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
-        ]);
-
         /** @var User $user */
         $user = $request->user();
 
-        $result = $this->askFeedService->getFeed($user, $validated);
+        $result = $this->askFeedService->getFeed($user, $request->validated());
 
         return response()->json([
             'success' => true,
@@ -44,19 +40,12 @@ class AskFeedController extends Controller
      * 2. My Asks (Authenticated User's Posts)
      * GET /api/v1/asks
      */
-    public function myAsks(Request $request): JsonResponse
+    public function myAsks(MyAsksFilterRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'status' => ['nullable', 'string'],
-            'flow' => ['nullable', 'string'],
-            'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
-        ]);
-
         /** @var User $user */
         $user = $request->user();
 
-        $result = $this->askFeedService->getMyAsks($user, $validated);
+        $result = $this->askFeedService->getMyAsks($user, $request->validated());
 
         return response()->json([
             'success' => true,

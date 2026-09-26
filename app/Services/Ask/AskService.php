@@ -251,8 +251,10 @@ class AskService
 
     /**
      * Publish an Ask and trigger matching, timeline, and notification events.
+     *
+     * @param  array<string, mixed>  $options
      */
-    public function publish(Ask $ask, User $user): Ask
+    public function publish(Ask $ask, User $user, array $options = []): Ask
     {
         if ($ask->status === Ask::STATUS_PUBLISHED) {
             return $ask;
@@ -265,13 +267,29 @@ class AskService
             ]);
         }
 
-        return DB::transaction(function () use ($ask, $user): Ask {
+        return DB::transaction(function () use ($ask, $user, $options): Ask {
             $oldStatus = $ask->status;
 
-            $ask->update([
-                'status' => Ask::STATUS_PUBLISHED,
-                'published_at' => now(),
-            ]);
+            // Handle visibility parameter if provided (global, district, circle)
+            $visibilityParam = $options['visibility'] ?? null;
+            if ($visibilityParam !== null) {
+                $mappedVisibility = match ($visibilityParam) {
+                    'district' => Ask::VISIBILITY_DISTRICT,
+                    'circle' => Ask::VISIBILITY_CIRCLE,
+                    'global', 'all_peers' => Ask::VISIBILITY_ALL_PEERS,
+                    default => $visibilityParam,
+                };
+                $ask->visibility_type = $mappedVisibility;
+            }
+
+            // Handle timeline preference
+            if (isset($options['post_to_timeline']) || isset($options['publish_to_timeline'])) {
+                $ask->publish_to_timeline = (bool) ($options['post_to_timeline'] ?? $options['publish_to_timeline']);
+            }
+
+            $ask->status = Ask::STATUS_PUBLISHED;
+            $ask->published_at = now();
+            $ask->save();
 
             AskStatusHistory::create([
                 'ask_id' => $ask->id,
@@ -283,14 +301,23 @@ class AskService
 
             // Handle Timeline post creation if preference enabled
             if ($ask->publish_to_timeline && Schema::hasTable('posts')) {
+                $contentText = ! empty($options['content_text'])
+                    ? (string) $options['content_text']
+                    : ($ask->title."\n\n".($ask->flow?->name ?? 'Ask').': '.($ask->type?->name ?? ''));
+
+                $postVisibility = (string) ($options['visibility'] ?? ($ask->visibility_type === Ask::VISIBILITY_CIRCLE ? 'circle' : ($ask->visibility_type === Ask::VISIBILITY_DISTRICT ? 'district' : 'public')));
+                $dbVisibility = $postVisibility === 'circle' ? 'circle' : 'public';
+
                 $post = Post::create([
+                    'id' => (string) Str::uuid(),
                     'user_id' => $user->id,
                     'title' => $ask->title,
-                    'content_text' => $ask->title."\n\n".($ask->flow?->name ?? 'Ask').': '.($ask->type?->name ?? ''),
-                    'visibility' => $ask->visibility_type === Ask::VISIBILITY_CIRCLE ? 'circle' : 'public',
+                    'content_text' => $contentText,
+                    'visibility' => $dbVisibility,
                     'circle_id' => $ask->visibility_circle_id,
                     'source_type' => 'ask',
                     'source_id' => $ask->id,
+                    'source_event' => 'published',
                     'post_type' => 'ask',
                     'active' => true,
                     'is_deleted' => false,
@@ -306,11 +333,30 @@ class AskService
             // Generate Matches
             $matches = $this->matchingService->generateMatches($ask);
 
-            // Trigger Notifications to top matches
+            // Trigger Notifications to top matches or peers in circle/district
             $matchedUserIds = $matches->pluck('matched_user_id')->filter()->unique();
             if ($matchedUserIds->isNotEmpty()) {
                 $matchedPeers = User::query()->whereIn('id', $matchedUserIds->take(20))->get();
                 $this->notificationService->notifyAskPublished($ask, $matchedPeers);
+            } elseif ($ask->visibility_type === Ask::VISIBILITY_CIRCLE && $ask->visibility_circle_id) {
+                $circleUserIds = CircleMember::query()
+                    ->where('circle_id', $ask->visibility_circle_id)
+                    ->where('user_id', '!=', $user->id)
+                    ->whereNull('deleted_at')
+                    ->pluck('user_id');
+                $peers = User::query()->whereIn('id', $circleUserIds->take(20))->get();
+                if ($peers->isNotEmpty()) {
+                    $this->notificationService->notifyAskPublished($ask, $peers);
+                }
+            } elseif ($ask->visibility_type === Ask::VISIBILITY_DISTRICT && $ask->visibility_district_id) {
+                $districtPeers = User::query()
+                    ->where('district_id', $ask->visibility_district_id)
+                    ->where('id', '!=', $user->id)
+                    ->take(20)
+                    ->get();
+                if ($districtPeers->isNotEmpty()) {
+                    $this->notificationService->notifyAskPublished($ask, $districtPeers);
+                }
             }
 
             return $ask->fresh(['flow', 'type', 'answers.option', 'matches', 'timelineLink']);
@@ -420,11 +466,10 @@ class AskService
         $shareStory = (bool) ($options['share_story'] ?? false);
         $anonymousTotal = (bool) ($options['anonymous_total'] ?? false);
 
-        if ($status === Ask::STATUS_FULFILLED) {
+        if ($status === Ask::STATUS_FULFILLED || (! empty($outcomeStatus) && in_array($outcomeStatus, ['deal_closed', 'formalised', 'yes_fully'], true))) {
             $updates['fulfilled_at'] = now();
-        }
-
-        if ($status === Ask::STATUS_CLOSED) {
+            $updates['closed_at'] = now();
+        } elseif ($status === Ask::STATUS_CLOSED || $status === Ask::STATUS_CANCELLED) {
             $updates['closed_at'] = now();
         }
 

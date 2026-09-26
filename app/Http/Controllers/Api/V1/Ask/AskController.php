@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api\V1\Ask;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ask\CreateAskDraftRequest;
 use App\Http\Requests\Ask\LinkReferralRequest;
+use App\Http\Requests\Ask\MyAsksFilterRequest;
+use App\Http\Requests\Ask\PublishAskRequest;
 use App\Http\Requests\Ask\SaveAskDetailsRequest;
 use App\Http\Requests\Ask\SaveAskFiltersRequest;
 use App\Http\Requests\Ask\SetAskVisibilityRequest;
@@ -152,21 +154,21 @@ class AskController extends Controller
      * API 10 — Publish Ask
      * POST /api/asks/{ask}/publish
      */
-    public function publish(Request $request, Ask $ask): JsonResponse
+    public function publish(PublishAskRequest $request, Ask $ask): JsonResponse
     {
         $this->authorizeOwner($request->user(), $ask);
 
-        if ($request->has('post_to_timeline') || $request->has('publish_to_timeline')) {
-            $timelinePref = $request->has('post_to_timeline')
-                ? $request->boolean('post_to_timeline')
-                : $request->boolean('publish_to_timeline');
+        $validated = $request->validated();
+
+        if (isset($validated['post_to_timeline']) || isset($validated['publish_to_timeline'])) {
+            $timelinePref = (bool) ($validated['post_to_timeline'] ?? $validated['publish_to_timeline']);
             $ask->update(['publish_to_timeline' => $timelinePref]);
             $ask->refresh();
         }
 
         /** @var User $user */
         $user = $request->user();
-        $publishedAsk = $this->askService->publish($ask, $user);
+        $publishedAsk = $this->askService->publish($ask, $user, $validated);
 
         return response()->json([
             'success' => true,
@@ -179,7 +181,7 @@ class AskController extends Controller
      * API 11 — My Asks (Listing)
      * GET /api/asks
      */
-    public function index(Request $request): JsonResponse
+    public function index(MyAsksFilterRequest $request): JsonResponse
     {
         if ($request->query('view') === 'legacy') {
             /** @var User $user */
