@@ -103,6 +103,141 @@ class AskFlowHubService
             });
         }
 
+        if ($normalizedFlow === 'referral') {
+            // Also retrieve peer referrals from referrals table
+            $refQuery = Referral::query()
+                ->where('is_deleted', false)
+                ->whereNull('deleted_at')
+                ->with(['fromUser', 'toUser', 'status'])
+                ->orderByDesc('created_at');
+
+            if ($search !== null) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $refQuery->where(function (Builder $sq) use ($like): void {
+                    $sq->where('referral_of', 'ILIKE', $like)
+                        ->orWhere('remarks', 'ILIKE', $like)
+                        ->orWhere('referral_type', 'ILIKE', $like)
+                        ->orWhereHas('fromUser', function (Builder $uq) use ($like): void {
+                            $uq->where('display_name', 'ILIKE', $like)
+                                ->orWhere('first_name', 'ILIKE', $like)
+                                ->orWhere('last_name', 'ILIKE', $like)
+                                ->orWhere('company_name', 'ILIKE', $like);
+                        })
+                        ->orWhereHas('toUser', function (Builder $uq) use ($like): void {
+                            $uq->where('display_name', 'ILIKE', $like)
+                                ->orWhere('first_name', 'ILIKE', $like)
+                                ->orWhere('last_name', 'ILIKE', $like)
+                                ->orWhere('company_name', 'ILIKE', $like);
+                        });
+                });
+            }
+
+            $referralRecords = $refQuery->get();
+            $askRecords = $query->get();
+
+            // Lookup bookmarks/saves
+            $postIds = [];
+            foreach ($askRecords as $ask) {
+                if ($ask->timelineLink?->post_id) {
+                    $postIds[] = $ask->timelineLink->post_id;
+                }
+            }
+            $savedPostIds = [];
+            if (! empty($postIds)) {
+                $savedPostIds = PostSave::query()
+                    ->where('user_id', $user->id)
+                    ->whereIn('post_id', $postIds)
+                    ->pluck('post_id')
+                    ->flip()
+                    ->all();
+            }
+
+            $combinedItems = [];
+
+            foreach ($askRecords as $ask) {
+                /** @var Ask $ask */
+                $author = $this->formatAuthor($ask->user);
+                $description = $ask->answers->firstWhere('field_key', 'details')?->value_text
+                    ?? $ask->answers->firstWhere('field_key', 'description')?->value_text
+                    ?? $ask->title;
+
+                $offeringInReturn = $ask->answers->firstWhere('field_key', 'what_i_offer')?->value_text
+                    ?? $ask->answers->firstWhere('field_key', 'offering_in_return')?->value_text
+                    ?? ($ask->metadata['offering_in_return'] ?? null);
+
+                $postId = $ask->timelineLink?->post_id;
+                $isSaved = $postId ? isset($savedPostIds[$postId]) : false;
+
+                $combinedItems[] = [
+                    'id' => (string) $ask->id,
+                    'flow_code' => 'referral',
+                    'title' => (string) $ask->title,
+                    'referral_of' => (string) $ask->title,
+                    'description' => (string) $description,
+                    'remarks' => (string) $description,
+                    'offering_in_return' => $offeringInReturn ? (string) $offeringInReturn : 'Direct business referrals in reciprocal networks.',
+                    'referral_type' => 'b2b_referral',
+                    'status' => 'open',
+                    'status_id' => 1,
+                    'status_label' => 'Open',
+                    'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
+                    'author' => $author,
+                    'from_user' => $author,
+                    'responses_count' => (int) $ask->responses_count,
+                    'is_saved' => $isSaved,
+                ];
+            }
+
+            foreach ($referralRecords as $ref) {
+                /** @var Referral $ref */
+                $author = $this->formatAuthor($ref->fromUser);
+                $recipient = $this->formatAuthor($ref->toUser);
+
+                $statusName = $ref->status?->name ?? 'Open';
+
+                $combinedItems[] = [
+                    'id' => (string) $ref->id,
+                    'flow_code' => 'referral',
+                    'title' => (string) ($ref->referral_of ?: 'Business Referral'),
+                    'referral_of' => (string) ($ref->referral_of ?: 'Business Referral'),
+                    'description' => (string) ($ref->remarks ?: ('Referral for '.$ref->referral_of)),
+                    'remarks' => (string) ($ref->remarks ?? ''),
+                    'offering_in_return' => (string) ($ref->referral_type === 'b2b_referral' ? 'B2B Referral' : ($ref->referral_type ?: 'Direct business referral')),
+                    'referral_type' => (string) ($ref->referral_type ?? 'b2b_referral'),
+                    'status' => strtolower($statusName) === 'deal_closed' ? 'fulfilled' : 'open',
+                    'status_id' => (int) ($ref->status_id ?? 1),
+                    'status_label' => (string) $statusName,
+                    'hot_value' => (int) ($ref->hot_value ?? 1),
+                    'phone' => (string) ($ref->phone ?? ''),
+                    'email' => (string) ($ref->email ?? ''),
+                    'address' => (string) ($ref->address ?? ''),
+                    'created_at' => $ref->created_at?->toISOString() ?? now()->toISOString(),
+                    'author' => $author,
+                    'from_user' => $author,
+                    'to_user' => $recipient,
+                    'recipient' => $recipient,
+                    'responses_count' => $ref->to_user_id ? 1 : 0,
+                    'is_saved' => false,
+                ];
+            }
+
+            usort($combinedItems, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+            $total = count($combinedItems);
+            $pagedItems = array_slice($combinedItems, ($page - 1) * $limit, $limit);
+            $hasMore = ($page * $limit) < $total;
+
+            return [
+                'items' => $pagedItems,
+                'data' => $pagedItems,
+                'pagination' => [
+                    'current_page' => $page,
+                    'has_more' => $hasMore,
+                    'total' => $total,
+                ],
+            ];
+        }
+
         $paginator = $query->paginate(perPage: $limit, page: $page);
 
         // Batch lookup bookmarks/saves for current user
@@ -146,22 +281,6 @@ class AskFlowHubService
                     'responses_count' => (int) $ask->responses_count,
                     'is_saved' => $isSaved,
                 ];
-            } elseif ($normalizedFlow === 'referral') {
-                $offeringInReturn = $ask->answers->firstWhere('field_key', 'what_i_offer')?->value_text
-                    ?? $ask->answers->firstWhere('field_key', 'offering_in_return')?->value_text
-                    ?? ($ask->metadata['offering_in_return'] ?? null);
-
-                $items[] = [
-                    'id' => (string) $ask->id,
-                    'flow_code' => 'referral',
-                    'title' => (string) $ask->title,
-                    'description' => (string) $description,
-                    'offering_in_return' => $offeringInReturn ? (string) $offeringInReturn : 'Direct business referrals in reciprocal networks.',
-                    'status' => 'open',
-                    'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
-                    'author' => $author,
-                    'responses_count' => (int) $ask->responses_count,
-                ];
             } else {
                 // help flow
                 $items[] = [
@@ -179,6 +298,7 @@ class AskFlowHubService
 
         return [
             'items' => $items,
+            'data' => $items,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'has_more' => $paginator->hasMorePages(),
@@ -279,10 +399,10 @@ class AskFlowHubService
     }
 
     /**
-     * Referral: My Referral Asks & Received Introductions
+     * Referral: My Referral Asks, Given Referrals & Received Introductions
      *
      * @param  array{page?: int, limit?: int}  $params
-     * @return array{my_asks: array<int, mixed>, received_introductions: array<int, mixed>}
+     * @return array<string, mixed>
      */
     protected function getMyReferralAsks(User $user, array $params = []): array
     {
@@ -321,13 +441,86 @@ class AskFlowHubService
 
             $myAsks[] = [
                 'id' => (string) $ask->id,
+                'flow_code' => 'referral',
                 'title' => (string) $ask->title,
+                'referral_of' => (string) $ask->title,
                 'status' => $ask->status === Ask::STATUS_FULFILLED ? 'fulfilled' : (count($responsesList) > 0 ? 'in_progress' : 'open'),
                 'responses' => $responsesList,
+                'responses_count' => count($responsesList),
+                'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
             ];
         }
 
-        // Received Introductions from referrals table
+        // Given Referrals from referrals table (where from_user_id = auth user)
+        $givenReferralsQuery = Referral::query()
+            ->where('from_user_id', $user->id)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->with(['toUser', 'status'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        $givenReferrals = [];
+        foreach ($givenReferralsQuery as $ref) {
+            /** @var Referral $ref */
+            $toUser = $ref->toUser;
+            $recipientName = $toUser ? ($toUser->display_name ?: trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? ''))) : 'Peer Member';
+            $recipientAvatar = $toUser?->profile_photo_file_id
+                ? url('/api/v1/files/'.$toUser->profile_photo_file_id)
+                : ($toUser?->profile_photo_url ?? null);
+
+            $statusName = $ref->status?->name ?? 'Contacted';
+            $responseObj = [
+                'response_id' => (string) $ref->id,
+                'responder' => [
+                    'id' => (string) ($toUser?->id ?? ''),
+                    'display_name' => $recipientName,
+                    'avatar_url' => $recipientAvatar,
+                    'company_name' => (string) ($toUser?->company_name ?? ''),
+                ],
+                'contact_name' => (string) ($ref->referral_of ?: 'Contact Person'),
+                'contact_phone' => (string) ($ref->phone ?? ''),
+                'contact_email' => (string) ($ref->email ?? ''),
+                'contact_designation' => (string) ($ref->referral_type ?? 'Referral Contact'),
+                'status' => in_array(strtolower($statusName), ['accepted', 'completed', 'deal_closed', 'connected'], true) ? 'connected' : strtolower($statusName),
+                'status_id' => (int) ($ref->status_id ?? 1),
+                'status_label' => (string) $statusName,
+            ];
+
+            $item = [
+                'id' => (string) $ref->id,
+                'flow_code' => 'referral',
+                'title' => (string) ($ref->referral_of ?: 'Business Referral'),
+                'referral_of' => (string) ($ref->referral_of ?: 'Business Referral'),
+                'description' => (string) ($ref->remarks ?: ('Referral for '.$ref->referral_of)),
+                'remarks' => (string) ($ref->remarks ?? ''),
+                'referral_type' => (string) ($ref->referral_type ?? 'b2b_referral'),
+                'phone' => (string) ($ref->phone ?? ''),
+                'email' => (string) ($ref->email ?? ''),
+                'address' => (string) ($ref->address ?? ''),
+                'hot_value' => (int) ($ref->hot_value ?? 1),
+                'status' => strtolower($statusName) === 'deal_closed' ? 'fulfilled' : 'in_progress',
+                'status_id' => (int) ($ref->status_id ?? 1),
+                'status_label' => (string) $statusName,
+                'responses' => [$responseObj],
+                'responses_count' => 1,
+                'created_at' => $ref->created_at?->toISOString() ?? now()->toISOString(),
+                'to_user' => [
+                    'id' => (string) ($toUser?->id ?? ''),
+                    'display_name' => $recipientName,
+                    'avatar_url' => $recipientAvatar,
+                ],
+                'recipient' => [
+                    'id' => (string) ($toUser?->id ?? ''),
+                    'display_name' => $recipientName,
+                    'avatar_url' => $recipientAvatar,
+                ],
+            ];
+
+            $givenReferrals[] = $item;
+        }
+
+        // Received Introductions from referrals table (where to_user_id = auth user)
         $referrals = Referral::query()
             ->where('to_user_id', $user->id)
             ->where('is_deleted', false)
@@ -345,19 +538,38 @@ class AskFlowHubService
 
             $receivedIntroductions[] = [
                 'id' => (string) $ref->id,
+                'flow_code' => 'referral',
                 'referral_of' => (string) ($ref->referral_of ?? 'Business Referral'),
+                'title' => (string) ($ref->referral_of ?? 'Business Referral'),
+                'remarks' => (string) ($ref->remarks ?? ''),
+                'phone' => (string) ($ref->phone ?? ''),
+                'email' => (string) ($ref->email ?? ''),
+                'address' => (string) ($ref->address ?? ''),
+                'hot_value' => (int) ($ref->hot_value ?? 1),
                 'introduced_by' => [
                     'id' => (string) ($introducedBy?->id ?? ''),
                     'display_name' => $introducedBy ? ($introducedBy->display_name ?: trim(($introducedBy->first_name ?? '').' '.($introducedBy->last_name ?? ''))) : 'Peer Member',
+                    'avatar_url' => $introducedBy?->profile_photo_file_id
+                        ? url('/api/v1/files/'.$introducedBy->profile_photo_file_id)
+                        : ($introducedBy?->profile_photo_url ?? null),
                 ],
                 'status_id' => (int) ($ref->status_id ?? 1),
                 'status_label' => (string) $statusName,
+                'status' => strtolower($statusName),
+                'created_at' => $ref->created_at?->toISOString() ?? now()->toISOString(),
             ];
         }
 
+        $allMyAsks = array_merge($myAsks, $givenReferrals);
+        usort($allMyAsks, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
         return [
-            'my_asks' => $myAsks,
+            'items' => $allMyAsks,
+            'my_asks' => $allMyAsks,
+            'data' => $allMyAsks,
+            'given_referrals' => $givenReferrals,
             'received_introductions' => $receivedIntroductions,
+            'referrals' => $allMyAsks,
         ];
     }
 
@@ -471,15 +683,34 @@ class AskFlowHubService
         foreach ($users as $u) {
             /** @var User $u */
             $collabCount = (int) ($collabCounts[$u->id] ?? 0);
+            $displayName = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+            if ($displayName === '') {
+                $displayName = 'Peer Member';
+            }
+            $avatarUrl = $u->profile_photo_file_id
+                ? url('/api/v1/files/'.$u->profile_photo_file_id)
+                : ($u->profile_photo_url ?? null);
+            $city = $u->city_of_residence ?: (is_string($u->city) ? $u->city : data_get($u, 'city.name', ''));
 
             $leaderboard[] = [
+                'id' => (string) $u->id,
                 'user_id' => (string) $u->id,
-                'display_name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
-                'avatar_url' => $u->profile_photo_file_id
-                    ? url('/api/v1/files/'.$u->profile_photo_file_id)
-                    : ($u->profile_photo_url ?? null),
+                'display_name' => $displayName,
+                'name' => $displayName,
+                'company_name' => (string) ($u->company_name ?? ''),
+                'city' => (string) $city,
+                'avatar_url' => $avatarUrl,
+                'profile_photo_url' => $avatarUrl,
                 'collaborations_count' => $collabCount,
                 'life_impacted' => (int) ($u->life_impact_points ?? 0),
+                'score' => $collabCount,
+                'user' => [
+                    'id' => (string) $u->id,
+                    'display_name' => $displayName,
+                    'name' => $displayName,
+                    'avatar_url' => $avatarUrl,
+                    'company_name' => (string) ($u->company_name ?? ''),
+                ],
             ];
         }
 
@@ -494,13 +725,15 @@ class AskFlowHubService
 
         return [
             'leaderboard' => $result,
+            'items' => $result,
+            'data' => $result,
         ];
     }
 
     /**
      * Referral Leaderboard
      *
-     * @return array{leaderboard: array<int, mixed>}
+     * @return array{leaderboard: array<int, mixed>, items: array<int, mixed>, data: array<int, mixed>}
      */
     protected function getReferralLeaderboard(int $limit = 20): array
     {
@@ -549,16 +782,35 @@ class AskFlowHubService
             $given = (int) ($givenCounts[$u->id] ?? 0);
             $received = (int) ($receivedCounts[$u->id] ?? 0);
             $deals = (int) ($dealsByUser[$u->id] ?? 0);
+            $displayName = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+            if ($displayName === '') {
+                $displayName = 'Peer Member';
+            }
+            $avatarUrl = $u->profile_photo_file_id
+                ? url('/api/v1/files/'.$u->profile_photo_file_id)
+                : ($u->profile_photo_url ?? null);
+            $city = $u->city_of_residence ?: (is_string($u->city) ? $u->city : data_get($u, 'city.name', ''));
 
             $leaderboard[] = [
+                'id' => (string) $u->id,
                 'user_id' => (string) $u->id,
-                'display_name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
-                'avatar_url' => $u->profile_photo_file_id
-                    ? url('/api/v1/files/'.$u->profile_photo_file_id)
-                    : ($u->profile_photo_url ?? null),
+                'display_name' => $displayName,
+                'name' => $displayName,
+                'company_name' => (string) ($u->company_name ?? ''),
+                'city' => (string) $city,
+                'avatar_url' => $avatarUrl,
+                'profile_photo_url' => $avatarUrl,
                 'referrals_given' => $given,
                 'referrals_received' => $received,
                 'deals_closed' => $deals,
+                'score' => $given + $deals,
+                'user' => [
+                    'id' => (string) $u->id,
+                    'display_name' => $displayName,
+                    'name' => $displayName,
+                    'avatar_url' => $avatarUrl,
+                    'company_name' => (string) ($u->company_name ?? ''),
+                ],
             ];
         }
 
@@ -573,13 +825,15 @@ class AskFlowHubService
 
         return [
             'leaderboard' => $result,
+            'items' => $result,
+            'data' => $result,
         ];
     }
 
     /**
      * Help / Givers Leaderboard
      *
-     * @return array{leaderboard: array<int, mixed>}
+     * @return array{leaderboard: array<int, mixed>, items: array<int, mixed>, data: array<int, mixed>}
      */
     protected function getHelpLeaderboard(int $limit = 20): array
     {
@@ -606,6 +860,14 @@ class AskFlowHubService
         foreach ($users as $u) {
             /** @var User $u */
             $rendered = (int) ($helpCounts[$u->id] ?? 0);
+            $displayName = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+            if ($displayName === '') {
+                $displayName = 'Peer Member';
+            }
+            $avatarUrl = $u->profile_photo_file_id
+                ? url('/api/v1/files/'.$u->profile_photo_file_id)
+                : ($u->profile_photo_url ?? null);
+            $city = $u->city_of_residence ?: (is_string($u->city) ? $u->city : data_get($u, 'city.name', ''));
 
             $badge = match (true) {
                 $rendered >= 20 => 'Top Giver of the Month',
@@ -615,13 +877,24 @@ class AskFlowHubService
             };
 
             $leaderboard[] = [
+                'id' => (string) $u->id,
                 'user_id' => (string) $u->id,
-                'display_name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
-                'avatar_url' => $u->profile_photo_file_id
-                    ? url('/api/v1/files/'.$u->profile_photo_file_id)
-                    : ($u->profile_photo_url ?? null),
+                'display_name' => $displayName,
+                'name' => $displayName,
+                'company_name' => (string) ($u->company_name ?? ''),
+                'city' => (string) $city,
+                'avatar_url' => $avatarUrl,
+                'profile_photo_url' => $avatarUrl,
                 'help_rendered_count' => $rendered,
                 'giver_badge' => $badge,
+                'score' => $rendered,
+                'user' => [
+                    'id' => (string) $u->id,
+                    'display_name' => $displayName,
+                    'name' => $displayName,
+                    'avatar_url' => $avatarUrl,
+                    'company_name' => (string) ($u->company_name ?? ''),
+                ],
             ];
         }
 
@@ -636,6 +909,8 @@ class AskFlowHubService
 
         return [
             'leaderboard' => $result,
+            'items' => $result,
+            'data' => $result,
         ];
     }
 

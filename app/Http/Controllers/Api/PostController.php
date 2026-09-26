@@ -19,6 +19,7 @@ use App\Models\Post;
 use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\PostMention;
+use App\Models\Referral;
 use App\Models\User;
 use App\Services\AdFeedService;
 use App\Services\Notifications\NotificationDispatchService;
@@ -119,7 +120,49 @@ class PostController extends BaseApiController
             ->where('impacts.status', 'approved')
             ->whereNotNull('impacts.timeline_posted_at');
 
-        $union = $postRows->unionAll($impactRows);
+        $referralRows = DB::table('referrals')
+            ->leftJoin('users as to_users', 'to_users.id', '=', 'referrals.to_user_id')
+            ->selectRaw('referrals.id as id')
+            ->selectRaw('referrals.from_user_id as author_id')
+            ->selectRaw('NULL::uuid as circle_id')
+            ->selectRaw("COALESCE(referrals.remarks, 'Shared a referral for ' || referrals.referral_of) as content_text")
+            ->selectRaw("'[]'::jsonb as media")
+            ->selectRaw("'[\"referral\"]'::jsonb as tags")
+            ->selectRaw("'public' as visibility")
+            ->selectRaw("'approved' as moderation_status")
+            ->selectRaw('0 as likes_count')
+            ->selectRaw('0 as comments_count')
+            ->selectRaw('0 as saves_count')
+            ->selectRaw('false as is_liked_by_me')
+            ->selectRaw('false as is_saved_by_me')
+            ->selectRaw('referrals.created_at as created_at')
+            ->selectRaw('referrals.updated_at as updated_at')
+            ->selectRaw('referrals.created_at as sort_at')
+            ->selectRaw("'post' as source_type")
+            ->selectRaw("'referral' as post_source_type")
+            ->selectRaw('referrals.id as post_source_id')
+            ->selectRaw("'referral_created' as post_source_event")
+            ->selectRaw('to_users.id as accepted_by_id')
+            ->selectRaw('to_users.display_name as accepted_by_display_name')
+            ->selectRaw('to_users.first_name as accepted_by_first_name')
+            ->selectRaw('to_users.last_name as accepted_by_last_name')
+            ->selectRaw('to_users.company_name as accepted_by_company_name')
+            ->selectRaw('to_users.city as accepted_by_city')
+            ->selectRaw('referrals.to_user_id as impacted_peer_id')
+            ->selectRaw('referrals.referral_date as impact_date')
+            ->selectRaw('referrals.referral_of as impact_action')
+            ->selectRaw('1 as life_impacted')
+            ->selectRaw("'standard' as post_type")
+            ->where('referrals.is_deleted', false)
+            ->whereNull('referrals.deleted_at')
+            ->whereNotExists(function ($q): void {
+                $q->select(DB::raw(1))
+                    ->from('posts')
+                    ->whereColumn('posts.source_id', 'referrals.id')
+                    ->where('posts.source_type', 'referral');
+            });
+
+        $union = $postRows->unionAll($impactRows)->unionAll($referralRows);
         $orderedRows = DB::query()->fromSub($union, 'feed_rows')->orderByDesc('sort_at');
 
         $total = (clone $orderedRows)->count();
@@ -345,6 +388,22 @@ class PostController extends BaseApiController
             }
         }
 
+        $referralSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
+            ->map(fn ($row) => (string) ($row->post_source_id ?? $row->id))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $referralsById = $referralSourceIds !== []
+            ? Referral::query()
+                ->whereIn('id', $referralSourceIds)
+                ->with(['status', 'toUser'])
+                ->get()
+                ->keyBy(fn (Referral $r) => (string) $r->id)
+            : collect();
+
         $isDownloadable = CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
@@ -356,7 +415,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $request) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -420,6 +479,22 @@ class PostController extends BaseApiController
                 (string) $row->source_type === 'post'
                 && (string) ($row->post_source_type ?? '') === 'collaboration_post'
                 && (string) ($row->post_source_event ?? '') === 'completed'
+                && ! empty($row->accepted_by_id)
+            ) {
+                $accPeer = $mentionedPeers->get((string) $row->accepted_by_id);
+                if (! collect($mentions)->contains('id', (string) $row->accepted_by_id)) {
+                    $acceptedByName = trim((string) ($row->accepted_by_display_name
+                        ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
+                    $mentions[] = [
+                        'id' => (string) $row->accepted_by_id,
+                        'name' => $acceptedByName !== '' ? $acceptedByName : ($accPeer ? ($accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''))) : 'Peer Member'),
+                        'profile_photo_url' => $accPeer?->profile_photo_file_id
+                            ? url('/api/v1/files/'.$accPeer->profile_photo_file_id)
+                            : null,
+                    ];
+                }
+            } elseif (
+                ((string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
                 && ! empty($row->accepted_by_id)
             ) {
                 $accPeer = $mentionedPeers->get((string) $row->accepted_by_id);
@@ -548,6 +623,45 @@ class PostController extends BaseApiController
                 if ($ask) {
                     $item['ask'] = (new AskPreviewResource($ask))->toArray($request);
                 }
+            }
+
+            if (
+                (string) ($row->post_source_type ?? '') === 'referral'
+                || (string) ($row->source_type ?? '') === 'referral'
+            ) {
+                $ref = $referralsById->get((string) ($row->post_source_id ?? $row->id));
+                $toUser = $ref?->toUser;
+                $recipientId = (string) ($row->accepted_by_id ?? $ref?->to_user_id ?? '');
+                $accPeer = $recipientId !== '' ? $mentionedPeers->get($recipientId) : null;
+
+                $acceptedByName = trim((string) ($row->accepted_by_display_name
+                    ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
+                if ($acceptedByName === '' && $toUser) {
+                    $acceptedByName = $toUser->display_name ?: trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? ''));
+                }
+                if ($acceptedByName === '' && $accPeer) {
+                    $acceptedByName = $accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''));
+                }
+                $photoFileId = $toUser?->profile_photo_file_id ?? $accPeer?->profile_photo_file_id;
+
+                $item['referral'] = [
+                    'id' => (string) ($row->post_source_id ?? $row->id),
+                    'referral_of' => (string) ($ref?->referral_of ?? $row->impact_action ?? 'Business Referral'),
+                    'referral_type' => (string) ($ref?->referral_type ?? 'b2b_referral'),
+                    'referral_date' => $row->impact_date ?? $ref?->referral_date,
+                    'remarks' => (string) ($ref?->remarks ?? $row->content_text ?? ''),
+                    'status_id' => (int) ($ref?->status_id ?? 1),
+                    'status_label' => (string) ($ref?->status?->name ?? 'Contacted'),
+                    'recipient' => $recipientId !== '' ? [
+                        'id' => $recipientId,
+                        'name' => $acceptedByName !== '' ? $acceptedByName : 'Peer Member',
+                        'company_name' => (string) ($row->accepted_by_company_name ?? $toUser?->company_name ?? ''),
+                        'city' => (string) ($row->accepted_by_city ?? $toUser?->city_of_residence ?? $toUser?->city ?? ''),
+                        'profile_photo_url' => $photoFileId
+                            ? url('/api/v1/files/'.$photoFileId)
+                            : null,
+                    ] : null,
+                ];
             }
 
             return $item;
