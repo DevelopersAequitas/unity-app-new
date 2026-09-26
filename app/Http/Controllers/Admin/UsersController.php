@@ -13,7 +13,9 @@ use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
+use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
+use App\Models\CircleMemberCategorySelection;
 use App\Models\City;
 use App\Models\Event;
 use App\Models\Industry;
@@ -1591,7 +1593,10 @@ class UsersController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
+        $circleId = $member->circle_id;
+
         $member->forceFill([
+            'status' => 'inactive',
             'left_at' => now(),
         ])->save();
 
@@ -1601,7 +1606,26 @@ class UsersController extends Controller
                 ->delete();
         }
 
+        if (Schema::hasTable('circle_member_category_selections')) {
+            CircleMemberCategorySelection::query()
+                ->where('circle_member_id', $member->id)
+                ->delete();
+        }
+
         $member->delete();
+
+        if ($circleId) {
+            CircleJoinRequest::query()
+                ->where('user_id', $user->id)
+                ->where('circle_id', $circleId)
+                ->whereIn('status', [CircleJoinRequest::STATUS_PAID, CircleJoinRequest::STATUS_CIRCLE_MEMBER, CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE])
+                ->update(['status' => CircleJoinRequest::STATUS_CANCELLED]);
+
+            if ($user->active_circle_id === $circleId) {
+                $user->active_circle_id = null;
+                $user->save();
+            }
+        }
 
         app(CircleJoinRequestPaymentSyncService::class)->updateUserCircleMembershipTier($user->fresh() ?? $user);
 

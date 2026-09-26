@@ -621,6 +621,7 @@ Route::prefix('v1')->group(function () {
         Route::put('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
         Route::patch('/circles/{id}', [CircleController::class, 'update'])->whereUuid('id');
         Route::post('/circles/{id}/join', [CircleController::class, 'join'])->whereUuid('id');
+        Route::post('/circles/{id}/leave', [CircleController::class, 'leave'])->whereUuid('id');
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
