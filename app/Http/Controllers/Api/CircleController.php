@@ -7,7 +7,9 @@ use App\Http\Requests\Circle\UpdateCircleMemberRequest;
 use App\Http\Resources\CircleMemberResource;
 use App\Http\Resources\CircleResource;
 use App\Models\Circle;
+use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Shared\Services\UserRoleResolverService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -405,6 +407,33 @@ class CircleController extends BaseApiController
     {
         $user = $request->user();
         $userName = $user->name ?? $this->resolveDisplayName($user);
+
+        // Auto-sync any approved/paid join requests into circle_members
+        $paidRequests = CircleJoinRequest::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', [CircleJoinRequest::STATUS_PAID, CircleJoinRequest::STATUS_CIRCLE_MEMBER])
+            ->whereNotNull('circle_id')
+            ->get();
+
+        if ($paidRequests->isNotEmpty()) {
+            $syncService = app(CircleJoinRequestPaymentSyncService::class);
+            foreach ($paidRequests as $paidReq) {
+                $hasMember = CircleMember::query()
+                    ->where('user_id', $user->id)
+                    ->where('circle_id', $paidReq->circle_id)
+                    ->whereNull('deleted_at')
+                    ->whereNull('left_at')
+                    ->exists();
+
+                if (! $hasMember) {
+                    $syncService->markRequestPaid(
+                        $user,
+                        (string) $paidReq->circle_id,
+                        $paidReq->fee_paid_at ?: $paidReq->fee_marked_at ?: $paidReq->updated_at
+                    );
+                }
+            }
+        }
 
         $memberships = CircleMember::query()
             ->where('user_id', $user->id)

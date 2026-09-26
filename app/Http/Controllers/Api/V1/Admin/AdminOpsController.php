@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleMember;
 use App\Models\Circular;
 use App\Models\CoinClaimRequest;
 use App\Models\Event;
@@ -20,6 +21,7 @@ use App\Models\PostReport;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Services\Admin\AdminAuditService;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +35,7 @@ class AdminOpsController extends BaseApiController
 {
     public function __construct(
         private readonly CircleJoinRequestService $joinService,
+        private readonly CircleJoinRequestPaymentSyncService $paymentSyncService,
         private readonly ImpactService $impactService,
         private readonly AdminAuditService $audit,
     ) {}
@@ -74,11 +77,20 @@ class AdminOpsController extends BaseApiController
 
     public function joinMarkPaid(string $id): JsonResponse
     {
-        $x = CircleJoinRequest::findOrFail($id);
-        $x->status = 'paid';
-        $x->save();
+        $x = CircleJoinRequest::query()->with(['user', 'circle'])->findOrFail($id);
 
-        return $this->success($x);
+        $user = $x->user ?? User::query()->find($x->user_id);
+        if ($user && $x->circle_id) {
+            $this->paymentSyncService->markRequestPaid($user, (string) $x->circle_id);
+            $x->refresh();
+        } else {
+            $x->status = CircleJoinRequest::STATUS_PAID;
+            $x->fee_marked_at = now();
+            $x->fee_paid_at = $x->fee_paid_at ?: now();
+            $x->save();
+        }
+
+        return $this->success($x, 'Circle join request marked as paid and user joined circle successfully.');
     }
 
     public function joinMarkUnpaid(string $id): JsonResponse
@@ -89,7 +101,14 @@ class AdminOpsController extends BaseApiController
         $x->fee_paid_at = null;
         $x->save();
 
-        return $this->success($x);
+        if ($x->user_id && $x->circle_id) {
+            CircleMember::query()
+                ->where('user_id', $x->user_id)
+                ->where('circle_id', $x->circle_id)
+                ->delete();
+        }
+
+        return $this->success($x, 'Circle join request status reset to pending_circle_fee.');
     }
 
     public function joinCancel(string $id): JsonResponse
