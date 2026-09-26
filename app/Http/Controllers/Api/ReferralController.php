@@ -628,9 +628,11 @@ class ReferralController extends BaseApiController
                 $contentText .= "\nNote: ".$referral->remarks;
             }
 
+            $circleId = $fromUser?->active_circle_id ?? $fromUser?->circle_id ?? null;
+
             $post = Post::create([
                 'user_id' => $referral->from_user_id,
-                'circle_id' => null,
+                'circle_id' => $circleId,
                 'content_text' => $contentText,
                 'media' => [],
                 'tags' => ['referral'],
@@ -643,7 +645,7 @@ class ReferralController extends BaseApiController
                 'source_event' => 'referral_created',
                 'active' => 1,
                 'status' => 'active',
-                'post_type' => 'standard',
+                'post_type' => 'referral',
             ]);
 
             if ($toUser && $post) {

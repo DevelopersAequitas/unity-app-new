@@ -164,6 +164,9 @@ class AskController extends Controller
             $timelinePref = (bool) ($validated['post_to_timeline'] ?? $validated['publish_to_timeline']);
             $ask->update(['publish_to_timeline' => $timelinePref]);
             $ask->refresh();
+        } elseif ($ask->publish_to_timeline === null) {
+            $ask->update(['publish_to_timeline' => true]);
+            $ask->refresh();
         }
 
         /** @var User $user */

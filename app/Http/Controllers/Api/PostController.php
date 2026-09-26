@@ -22,6 +22,7 @@ use App\Models\PostMention;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\AdFeedService;
+use App\Services\Ask\AskService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationService;
 use App\Services\Notifications\NotifyUserService;
@@ -42,6 +43,37 @@ class PostController extends BaseApiController
         $user = $request->user();
         $perPage = max(1, min((int) $request->integer('per_page', 20), 50));
         $page = LengthAwarePaginator::resolveCurrentPage();
+
+        try {
+            $unlinkedAsks = Ask::query()
+                ->where('status', Ask::STATUS_PUBLISHED)
+                ->where(function ($q) {
+                    $q->whereNull('publish_to_timeline')
+                        ->orWhere('publish_to_timeline', true);
+                })
+                ->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('ask_timeline_links')
+                        ->whereColumn('ask_timeline_links.ask_id', 'asks.id');
+                })
+                ->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('posts')
+                        ->where('posts.source_type', 'ask')
+                        ->whereColumn('posts.source_id', 'asks.id');
+                })
+                ->limit(10)
+                ->get();
+
+            if ($unlinkedAsks->isNotEmpty()) {
+                $askService = app(AskService::class);
+                foreach ($unlinkedAsks as $unlinkedAsk) {
+                    $askService->ensureTimelinePost($unlinkedAsk);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Failed auto-healing unlinked asks in feed: '.$e->getMessage());
+        }
 
         $postRows = DB::table('posts')
             ->leftJoin('collaboration_posts as feed_collaboration_posts', function ($join): void {
@@ -152,7 +184,7 @@ class PostController extends BaseApiController
             ->selectRaw('referrals.referral_date as impact_date')
             ->selectRaw('referrals.referral_of as impact_action')
             ->selectRaw('1 as life_impacted')
-            ->selectRaw("'standard' as post_type")
+            ->selectRaw("'referral' as post_type")
             ->where('referrals.is_deleted', false)
             ->whereNull('referrals.deleted_at')
             ->whereNotExists(function ($q): void {
@@ -628,7 +660,12 @@ class PostController extends BaseApiController
             if (
                 (string) ($row->post_source_type ?? '') === 'referral'
                 || (string) ($row->source_type ?? '') === 'referral'
+                || (string) ($row->post_type ?? '') === 'referral'
             ) {
+                if (empty($item['post_type']) || $item['post_type'] === 'standard') {
+                    $item['post_type'] = 'referral';
+                }
+
                 $ref = $referralsById->get((string) ($row->post_source_id ?? $row->id));
                 $toUser = $ref?->toUser;
                 $recipientId = (string) ($row->accepted_by_id ?? $ref?->to_user_id ?? '');

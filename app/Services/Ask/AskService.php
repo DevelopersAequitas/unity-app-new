@@ -256,7 +256,18 @@ class AskService
      */
     public function publish(Ask $ask, User $user, array $options = []): Ask
     {
+        // Handle timeline preference (default to true unless explicitly false)
+        if (isset($options['post_to_timeline']) || isset($options['publish_to_timeline'])) {
+            $ask->publish_to_timeline = (bool) ($options['post_to_timeline'] ?? $options['publish_to_timeline']);
+        } elseif ($ask->publish_to_timeline === null) {
+            $ask->publish_to_timeline = true;
+        }
+
         if ($ask->status === Ask::STATUS_PUBLISHED) {
+            if ($ask->publish_to_timeline) {
+                $this->ensureTimelinePost($ask, $user, $options);
+            }
+
             return $ask;
         }
 
@@ -282,9 +293,10 @@ class AskService
                 $ask->visibility_type = $mappedVisibility;
             }
 
-            // Handle timeline preference
             if (isset($options['post_to_timeline']) || isset($options['publish_to_timeline'])) {
                 $ask->publish_to_timeline = (bool) ($options['post_to_timeline'] ?? $options['publish_to_timeline']);
+            } elseif ($ask->publish_to_timeline === null) {
+                $ask->publish_to_timeline = true;
             }
 
             $ask->status = Ask::STATUS_PUBLISHED;
@@ -301,33 +313,7 @@ class AskService
 
             // Handle Timeline post creation if preference enabled
             if ($ask->publish_to_timeline && Schema::hasTable('posts')) {
-                $contentText = ! empty($options['content_text'])
-                    ? (string) $options['content_text']
-                    : ($ask->title."\n\n".($ask->flow?->name ?? 'Ask').': '.($ask->type?->name ?? ''));
-
-                $postVisibility = (string) ($options['visibility'] ?? ($ask->visibility_type === Ask::VISIBILITY_CIRCLE ? 'circle' : ($ask->visibility_type === Ask::VISIBILITY_DISTRICT ? 'district' : 'public')));
-                $dbVisibility = $postVisibility === 'circle' ? 'circle' : 'public';
-
-                $post = Post::create([
-                    'id' => (string) Str::uuid(),
-                    'user_id' => $user->id,
-                    'title' => $ask->title,
-                    'content_text' => $contentText,
-                    'visibility' => $dbVisibility,
-                    'circle_id' => $ask->visibility_circle_id,
-                    'source_type' => 'ask',
-                    'source_id' => $ask->id,
-                    'source_event' => 'published',
-                    'post_type' => 'ask',
-                    'active' => true,
-                    'is_deleted' => false,
-                    'moderation_status' => 'approved',
-                ]);
-
-                AskTimelineLink::query()->updateOrCreate(
-                    ['ask_id' => $ask->id],
-                    ['post_id' => $post->id]
-                );
+                $this->ensureTimelinePost($ask, $user, $options);
             }
 
             // Generate Matches
@@ -659,5 +645,86 @@ class AskService
         }
 
         $this->notificationService->notifyReferralCreated($ask, $referral);
+    }
+
+    /**
+     * Ensure a timeline post exists for the given Ask.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public function ensureTimelinePost(Ask $ask, ?User $user = null, array $options = []): ?Post
+    {
+        try {
+            $user = $user ?? $ask->user ?? User::find($ask->user_id);
+            if (! $user) {
+                return null;
+            }
+
+            // Check if timeline post already exists via AskTimelineLink
+            $existingLink = AskTimelineLink::query()->where('ask_id', $ask->id)->first();
+            if ($existingLink && $existingLink->post_id) {
+                $existingPost = Post::find($existingLink->post_id);
+                if ($existingPost) {
+                    return $existingPost;
+                }
+            }
+
+            // Check if post exists with source_type = 'ask' and source_id = $ask->id
+            $existingPost = Post::query()
+                ->where('source_type', 'ask')
+                ->where('source_id', $ask->id)
+                ->first();
+
+            if ($existingPost) {
+                AskTimelineLink::query()->updateOrCreate(
+                    ['ask_id' => $ask->id],
+                    ['post_id' => $existingPost->id]
+                );
+
+                return $existingPost;
+            }
+
+            $ask->loadMissing(['flow', 'type']);
+            $flowName = $ask->flow?->name ?? 'Ask';
+            $typeName = $ask->type?->name ?? '';
+
+            $contentText = ! empty($options['content_text'])
+                ? (string) $options['content_text']
+                : ($ask->title."\n\n".$flowName.($typeName !== '' ? ": {$typeName}" : ''));
+
+            $tags = array_values(array_filter(['ask', strtolower((string) ($ask->flow?->code ?? ''))]));
+
+            $post = Post::create([
+                'user_id' => $user->id,
+                'circle_id' => $ask->visibility_circle_id,
+                'title' => $ask->title,
+                'content_text' => $contentText,
+                'media' => [],
+                'tags' => $tags,
+                'visibility' => 'public',
+                'moderation_status' => 'approved',
+                'sponsored' => false,
+                'is_deleted' => false,
+                'active' => true,
+                'source_type' => 'ask',
+                'source_id' => $ask->id,
+                'source_event' => 'published',
+                'post_type' => 'ask',
+            ]);
+
+            AskTimelineLink::query()->updateOrCreate(
+                ['ask_id' => $ask->id],
+                ['post_id' => $post->id]
+            );
+
+            return $post;
+        } catch (Throwable $e) {
+            Log::warning('Failed to ensure timeline post for ask', [
+                'ask_id' => (string) $ask->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }
