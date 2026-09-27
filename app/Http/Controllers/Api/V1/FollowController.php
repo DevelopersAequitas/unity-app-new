@@ -42,11 +42,11 @@ class FollowController extends Controller
             ->first();
 
         if ($follow && $follow->status === 'accepted') {
-            return $this->successResponse('Already following this user.', new FollowResource($follow->load(['follower', 'following'])));
+            return $this->successResponse('Already following this user.', new FollowResource($follow->load($this->followRelations())));
         }
 
         if ($follow && $follow->status === 'pending') {
-            return $this->successResponse('Follow request already sent.', new FollowResource($follow->load(['follower', 'following'])));
+            return $this->successResponse('Follow request already sent.', new FollowResource($follow->load($this->followRelations())));
         }
 
         if ($follow && $follow->status === 'rejected') {
@@ -58,7 +58,7 @@ class FollowController extends Controller
                 'blocked_at' => null,
             ])->save();
 
-            $this->notifyFollowRequested($authUser, $user, $follow->load(['follower', 'following']));
+            $this->notifyFollowRequested($authUser, $user, $follow->load($this->followRelations()));
 
             return $this->successResponse('Follow request sent successfully.', new FollowResource($follow));
         }
@@ -71,7 +71,7 @@ class FollowController extends Controller
             'accepted_at' => null,
             'rejected_at' => null,
             'blocked_at' => null,
-        ])->load(['follower', 'following']);
+        ])->load($this->followRelations());
 
         $this->notifyFollowRequested($authUser, $user, $follow);
 
@@ -96,7 +96,7 @@ class FollowController extends Controller
             'rejected_at' => null,
         ])->save();
 
-        $follow->load(['follower', 'following']);
+        $follow->load($this->followRelations());
 
         $notification = new FollowAcceptedNotification($authUser, $follow);
         $payload = $notification->toArray($follow->follower);
@@ -134,7 +134,7 @@ class FollowController extends Controller
             'accepted_at' => null,
         ])->save();
 
-        return $this->successResponse('Follow request rejected.', new FollowResource($follow->load(['follower', 'following'])));
+        return $this->successResponse('Follow request rejected.', new FollowResource($follow->load($this->followRelations())));
     }
 
     public function unfollow(Request $request, User $user): JsonResponse
@@ -203,7 +203,11 @@ class FollowController extends Controller
     public function incomingRequests(Request $request): JsonResponse
     {
         $requests = UserFollow::query()
-            ->with('follower')
+            ->with([
+                'follower.city',
+                'follower.level4Category',
+                'follower.profilePhotoFile',
+            ])
             ->where('following_id', $request->user()->id)
             ->where('status', 'pending')
             ->orderByDesc('requested_at')
@@ -214,14 +218,16 @@ class FollowController extends Controller
 
     public function myFollowing(Request $request): JsonResponse
     {
+        $perPage = max(1, min((int) $request->input('per_page', 20), 100));
+
         $following = UserFollow::query()
-            ->with(['follower', 'following'])
+            ->with($this->followRelations())
             ->where('follower_id', $request->user()->id)
             ->whereNull('rejected_at')
             ->whereNull('blocked_at')
             ->whereIn('status', ['pending', 'accepted'])
             ->orderByDesc('requested_at')
-            ->simplePaginate(20);
+            ->simplePaginate($perPage);
 
         return $this->successResponse('Following list fetched successfully.', [
             'items' => FollowResource::collection($following->getCollection()),
@@ -236,12 +242,16 @@ class FollowController extends Controller
 
     public function myFollowers(Request $request): JsonResponse
     {
+        $perPage = max(1, min((int) $request->input('per_page', 20), 100));
+
         $followers = UserFollow::query()
-            ->with(['follower', 'following'])
+            ->with($this->followRelations())
             ->where('following_id', $request->user()->id)
-            ->where('status', 'accepted')
-            ->orderByDesc('accepted_at')
-            ->simplePaginate(20);
+            ->whereNull('rejected_at')
+            ->whereNull('blocked_at')
+            ->whereIn('status', ['pending', 'accepted'])
+            ->orderByDesc('requested_at')
+            ->simplePaginate($perPage);
 
         return $this->successResponse('Followers list fetched successfully.', [
             'items' => FollowResource::collection($followers->getCollection()),
@@ -329,6 +339,21 @@ class FollowController extends Controller
     private function isUuid(string $value): bool
     {
         return (bool) preg_match('/^[0-9a-fA-F-]{36}$/', $value);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function followRelations(): array
+    {
+        return [
+            'follower.city',
+            'follower.level4Category',
+            'follower.profilePhotoFile',
+            'following.city',
+            'following.level4Category',
+            'following.profilePhotoFile',
+        ];
     }
 }
 
