@@ -13,8 +13,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Razorpay\Api\Api;
-use Razorpay\Api\Errors\SignatureVerificationError;
-use Razorpay\Api\Utility;
 
 class PaymentController extends Controller
 {
@@ -40,14 +38,27 @@ class PaymentController extends Controller
 
         $amounts = $this->membershipService->calculateAmounts($plan);
         $paymentId = (string) Str::uuid();
+        $gstNumber = trim((string) ($request->validated('gst_number') ?: $user->gst_number ?: ''));
+
+        if ($request->filled('gst_number') && $gstNumber !== '') {
+            $user->update(['gst_number' => $gstNumber]);
+        }
+
+        $orderPayload = [
+            'amount' => (int) round($amounts['total_amount'] * 100),
+            'currency' => config('razorpay.currency', 'INR'),
+            'receipt' => $paymentId,
+        ];
+
+        if ($gstNumber !== '') {
+            $orderPayload['notes'] = [
+                'gstin' => $gstNumber,
+            ];
+        }
 
         try {
             $api = new Api(config('razorpay.key_id'), config('razorpay.key_secret'));
-            $order = $api->order->create([
-                'amount' => (int) round($amounts['total_amount'] * 100),
-                'currency' => config('razorpay.currency', 'INR'),
-                'receipt' => $paymentId,
-            ]);
+            $order = $api->order->create($orderPayload);
         } catch (\Throwable $exception) {
             Log::error('Razorpay order creation failed', [
                 'user_id' => $user?->id,
@@ -68,6 +79,7 @@ class PaymentController extends Controller
             'total_amount' => $amounts['total_amount'],
             'razorpay_order_id' => $order['id'],
             'status' => Payment::STATUS_CREATED,
+            'gst_number' => $gstNumber ?: null,
         ]);
 
         return response()->json([
@@ -104,23 +116,25 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Payment order not found.'], 404);
         }
 
-        try {
-            Utility::verifyPaymentSignature([
-                'razorpay_order_id' => $payload['razorpay_order_id'],
-                'razorpay_payment_id' => $payload['razorpay_payment_id'],
-                'razorpay_signature' => $payload['razorpay_signature'],
-            ]);
-        } catch (SignatureVerificationError $exception) {
+        $expectedSignature = hash_hmac('sha256', $payload['razorpay_order_id'].'|'.$payload['razorpay_payment_id'], (string) config('razorpay.key_secret'));
+        if (! hash_equals($expectedSignature, (string) $payload['razorpay_signature'])) {
             Log::warning('Razorpay signature verification failed', [
                 'user_id' => $user?->id,
                 'order_id' => $payload['razorpay_order_id'],
-                'error' => $exception->getMessage(),
             ]);
 
             return response()->json(['message' => 'Invalid payment signature.'], 422);
         }
 
-        $updatedUser = DB::transaction(function () use ($payment, $payload, $user) {
+        $gstNumber = trim((string) (($payload['gst_number'] ?? '') ?: $payment->gst_number ?: $user->gst_number ?: ''));
+        if ($gstNumber !== '' && $user->gst_number !== $gstNumber) {
+            $user->update(['gst_number' => $gstNumber]);
+        }
+
+        $planToSync = null;
+        $lockedPaymentToSync = null;
+
+        $updatedUser = DB::transaction(function () use ($payment, $payload, $user, $gstNumber, &$planToSync, &$lockedPaymentToSync) {
             $lockedPayment = Payment::query()->where('id', $payment->id)->lockForUpdate()->first();
             if ($lockedPayment->status === Payment::STATUS_SUCCESS) {
                 return $user->fresh();
@@ -131,6 +145,8 @@ class PaymentController extends Controller
                 'razorpay_signature' => $payload['razorpay_signature'],
                 'status' => Payment::STATUS_SUCCESS,
                 'paid_at' => now(),
+                'provider' => 'razorpay',
+                'gst_number' => $gstNumber ?: $lockedPayment->gst_number,
             ]);
 
             $plan = MembershipPlan::query()->where('id', $lockedPayment->membership_plan_id)->first();
@@ -142,12 +158,31 @@ class PaymentController extends Controller
                 return $user->fresh();
             }
 
+            $planToSync = $plan;
+            $lockedPaymentToSync = $lockedPayment;
+
             return $this->membershipService->activateMembership($user, $plan, $lockedPayment);
         });
 
+        if ($planToSync instanceof MembershipPlan && $lockedPaymentToSync instanceof Payment) {
+            try {
+                $this->membershipService->syncZohoInvoice($updatedUser, $planToSync, $lockedPaymentToSync);
+            } catch (\Throwable $e) {
+                Log::error('Zoho invoice sync error on verify', [
+                    'payment_id' => $lockedPaymentToSync->id,
+                    'user_id' => $updatedUser->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $freshUser = $updatedUser->fresh();
+
         return response()->json([
-            'membership_status' => $updatedUser->membership_status,
-            'membership_expiry' => $updatedUser->membership_ends_at,
+            'membership_status' => $freshUser->membership_status,
+            'membership_expiry' => $freshUser->membership_ends_at,
+            'zoho_invoice_id' => $freshUser->zoho_last_invoice_id,
+            'gst_number' => $freshUser->gst_number ?: $lockedPaymentToSync?->gst_number,
         ]);
     }
 }

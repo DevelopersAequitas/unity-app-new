@@ -8,6 +8,9 @@
     @if(session('success'))
         <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">{{ session('success') }}</div>
     @endif
+    @if(session('error'))
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">{{ session('error') }}</div>
+    @endif
 
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-3">
@@ -19,6 +22,9 @@
                 @if (! $canEdit)
                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200">View only</span>
                 @endif
+                <a href="{{ route('admin.unity-peers-plans.test-checkout') }}" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
+                    <i class="bi bi-credit-card-2-front admin-icon me-1" aria-hidden="true"></i>Test Checkout &amp; Zoho
+                </a>
                 @if ($canEdit)
                     <a href="{{ route('admin.unity-peers-plans.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
                         <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Create Plan
@@ -82,7 +88,16 @@
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $plan->created_at?->format('Y-m-d H:i') ?? '—' }}</td>
                                 @if ($canEdit)
                                     <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
-                                        <a class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" href="{{ route('admin.unity-peers-plans.edit', $plan) }}">Edit</a>
+                                        <div class="inline-flex items-center gap-1.5">
+                                            <a class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" href="{{ route('admin.unity-peers-plans.edit', $plan) }}">Edit</a>
+                                            <form action="{{ route('admin.unity-peers-plans.destroy', $plan) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete the plan &quot;{{ addslashes($plan->name) }}&quot;?');" class="inline m-0">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 @endif
                             </tr>

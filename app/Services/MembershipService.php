@@ -6,11 +6,15 @@ use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\Membership\MembershipUpgradeService;
+use App\Services\Membership\MembershipZohoInvoiceService;
 use Illuminate\Support\Str;
 
 class MembershipService
 {
-    public function __construct(private readonly MembershipUpgradeService $membershipUpgradeService) {}
+    public function __construct(
+        private readonly MembershipUpgradeService $membershipUpgradeService,
+        private readonly MembershipZohoInvoiceService $membershipZohoInvoiceService,
+    ) {}
 
     public function calculateAmounts(MembershipPlan $plan): array
     {
@@ -76,5 +80,10 @@ class MembershipService
             'membership_ends_at' => $endsAt,
             'paid_at' => $payment->paid_at ?? $now,
         ]);
+    }
+
+    public function syncZohoInvoice(User $user, MembershipPlan $plan, Payment $payment): ?array
+    {
+        return $this->membershipZohoInvoiceService->createPaidInvoiceForMembership($user, $plan, $payment);
     }
 }

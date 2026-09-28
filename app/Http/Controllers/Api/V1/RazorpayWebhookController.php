@@ -107,7 +107,11 @@ class RazorpayWebhookController extends Controller
             return;
         }
 
-        DB::transaction(function () use ($payment, $paymentEntity): void {
+        $planToSync = null;
+        $lockedPaymentToSync = null;
+        $updatedUser = null;
+
+        DB::transaction(function () use ($payment, $paymentEntity, &$planToSync, &$lockedPaymentToSync, &$updatedUser): void {
             $lockedPayment = Payment::query()->where('id', $payment->id)->lockForUpdate()->first();
             if ($lockedPayment->status === Payment::STATUS_SUCCESS) {
                 return;
@@ -117,6 +121,7 @@ class RazorpayWebhookController extends Controller
                 'razorpay_payment_id' => $paymentEntity['id'] ?? null,
                 'status' => Payment::STATUS_SUCCESS,
                 'paid_at' => now(),
+                'provider' => 'razorpay',
             ]);
 
             $user = User::query()->find($lockedPayment->user_id);
@@ -132,8 +137,22 @@ class RazorpayWebhookController extends Controller
                 return;
             }
 
-            $this->membershipService->activateMembership($user, $plan, $lockedPayment);
+            $planToSync = $plan;
+            $lockedPaymentToSync = $lockedPayment;
+            $updatedUser = $this->membershipService->activateMembership($user, $plan, $lockedPayment);
         });
+
+        if ($planToSync instanceof MembershipPlan && $lockedPaymentToSync instanceof Payment && $updatedUser instanceof User) {
+            try {
+                $this->membershipService->syncZohoInvoice($updatedUser, $planToSync, $lockedPaymentToSync);
+            } catch (\Throwable $e) {
+                Log::error('Zoho invoice sync error on Razorpay webhook', [
+                    'payment_id' => $lockedPaymentToSync->id,
+                    'user_id' => $updatedUser->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function handlePaymentFailed(array $payload): void

@@ -32,6 +32,8 @@ class Payment extends Model
         'razorpay_signature',
         'status',
         'paid_at',
+        'gst_number',
+        'zoho_invoice_id',
     ];
 
     protected $casts = [

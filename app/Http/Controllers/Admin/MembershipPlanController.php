@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -65,6 +67,24 @@ class MembershipPlanController extends Controller
         return redirect()
             ->route('admin.unity-peers-plans.index')
             ->with('success', 'Membership plan updated successfully.');
+    }
+
+    public function destroy(Request $request, MembershipPlan $plan): RedirectResponse
+    {
+        $this->authorizeGlobalAdmin($request);
+
+        if ($plan->payments()->exists() || $plan->memberships()->exists()) {
+            return redirect()
+                ->route('admin.unity-peers-plans.index')
+                ->with('error', 'Cannot delete "'.$plan->name.'" because it has existing payments or member subscriptions. Please deactivate the plan instead.');
+        }
+
+        $planName = $plan->name;
+        $plan->delete();
+
+        return redirect()
+            ->route('admin.unity-peers-plans.index')
+            ->with('success', 'Membership plan "'.$planName.'" deleted successfully.');
     }
 
     private function authorizeGlobalAdmin(Request $request): void
