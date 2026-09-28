@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Ask\Ask;
 use App\Models\BusinessDeal;
 use App\Models\P2pMeeting;
+use App\Models\PeerRecommendation;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\SmeBusinessStorySubmission;
@@ -260,76 +262,129 @@ class LastMonthActivityService
 
         $visitorItems = $visitors->map(function (VisitorRegistration $visitor): array {
             $visitDate = $visitor->event_date
-                ? $visitor->event_date->format('Y-m-d')
-                : ($visitor->created_at ? $visitor->created_at->format('Y-m-d') : '');
+                ? Carbon::parse($visitor->event_date)->format('Y-m-d')
+                : ($visitor->created_at ? Carbon::parse($visitor->created_at)->format('Y-m-d') : '');
 
             return [
                 'id' => (string) $visitor->id,
                 'activity_date' => $visitDate,
-                'visitor_name' => $visitor->visitor_full_name,
-                'company_name' => $visitor->visitor_business,
+                'visitor_name' => (string) ($visitor->visitor_full_name ?? ''),
+                'company_name' => (string) ($visitor->visitor_business ?? ''),
                 'visit_date' => $visitDate,
             ];
         })->values()->all();
 
         // 6. Recommended Peers
-        $recommendedPeersQuery = DB::table('referraldata as rd')
-            ->join('users as u', 'u.id', '=', 'rd.referred_user_id')
-            ->where('rd.referrer_user_id', $user->id)
-            ->whereBetween('rd.created_at', [$startDate, $endDate]);
+        $recommendedPeersItems = [];
 
-        if (Schema::hasColumn('referraldata', 'id')) {
-            $recommendedPeersQuery->select([
-                'rd.id as id',
-                'u.display_name as friend_name',
-                'u.email',
-                'rd.created_at as invite_date',
-            ]);
-        } else {
-            $recommendedPeersQuery->select([
-                'u.display_name as friend_name',
-                'u.email',
-                'rd.created_at as invite_date',
-            ]);
-        }
+        if (Schema::hasTable('peer_recommendations')) {
+            $peerRecs = PeerRecommendation::query()
+                ->where('user_id', (string) $user->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->orderByDesc('created_at')
+                ->get();
 
-        $recommendedPeersItems = $recommendedPeersQuery
-            ->orderByDesc('rd.created_at')
-            ->get()
-            ->map(function (\stdClass $row): array {
-                $inviteDate = Carbon::parse($row->invite_date)->format('Y-m-d');
-
-                return [
-                    'id' => isset($row->id) ? (string) $row->id : '',
+            foreach ($peerRecs as $rec) {
+                $inviteDate = $rec->created_at ? Carbon::parse($rec->created_at)->format('Y-m-d') : '';
+                $recommendedPeersItems[] = [
+                    'id' => (string) $rec->id,
                     'activity_date' => $inviteDate,
-                    'friend_name' => $row->friend_name ?? '',
-                    'email' => $row->email ?? '',
-                    'status' => 'Joined',
+                    'friend_name' => (string) ($rec->peer_name ?? ''),
+                    'email' => (string) ($rec->peer_email ?? ''),
+                    'status' => (string) ($rec->status ?? 'Recommended'),
                     'invite_date' => $inviteDate,
                 ];
-            })
-            ->values()
-            ->all();
+            }
+        }
+
+        if (Schema::hasTable('referraldata')) {
+            $recommendedPeersQuery = DB::table('referraldata as rd')
+                ->join('users as u', 'u.id', '=', 'rd.referred_user_id')
+                ->where('rd.referrer_user_id', $user->id)
+                ->whereBetween('rd.created_at', [$startDate, $endDate]);
+
+            if (Schema::hasColumn('referraldata', 'id')) {
+                $recommendedPeersQuery->select([
+                    'rd.id as id',
+                    'u.display_name as friend_name',
+                    'u.email',
+                    'rd.created_at as invite_date',
+                ]);
+            } else {
+                $recommendedPeersQuery->select([
+                    'u.display_name as friend_name',
+                    'u.email',
+                    'rd.created_at as invite_date',
+                ]);
+            }
+
+            $referralDataItems = $recommendedPeersQuery
+                ->orderByDesc('rd.created_at')
+                ->get()
+                ->map(function (\stdClass $row): array {
+                    $inviteDate = Carbon::parse($row->invite_date)->format('Y-m-d');
+
+                    return [
+                        'id' => isset($row->id) ? (string) $row->id : '',
+                        'activity_date' => $inviteDate,
+                        'friend_name' => (string) ($row->friend_name ?? ''),
+                        'email' => (string) ($row->email ?? ''),
+                        'status' => 'Joined',
+                        'invite_date' => $inviteDate,
+                    ];
+                })
+                ->values()
+                ->all();
+
+            $recommendedPeersItems = array_merge($recommendedPeersItems, $referralDataItems);
+        }
 
         // 7. Listed Requirements
-        $requirements = Requirement::query()
-            ->where('user_id', $user->id)
-            ->whereNull('deleted_at')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->orderByDesc('created_at')
-            ->get();
+        $requirementItems = [];
 
-        $requirementItems = $requirements->map(function (Requirement $req): array {
-            $actDate = $req->created_at ? $req->created_at->format('Y-m-d') : '';
+        if (Schema::hasTable('requirements')) {
+            $requirements = Requirement::query()
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->orderByDesc('created_at')
+                ->get();
 
-            return [
-                'id' => (string) $req->id,
-                'activity_date' => $actDate,
-                'requirement_id' => (string) $req->id,
-                'requirement_title' => $req->subject,
-                'created_at' => $actDate,
-            ];
-        })->values()->all();
+            $requirementItems = $requirements->map(function (Requirement $req): array {
+                $actDate = $req->created_at ? $req->created_at->format('Y-m-d') : '';
+
+                return [
+                    'id' => (string) $req->id,
+                    'activity_date' => $actDate,
+                    'requirement_id' => (string) $req->id,
+                    'requirement_title' => (string) ($req->subject ?? ''),
+                    'created_at' => $actDate,
+                ];
+            })->values()->all();
+        }
+
+        if (Schema::hasTable('asks')) {
+            $asks = Ask::query()
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->orderByDesc('created_at')
+                ->get();
+
+            $askItems = $asks->map(function (Ask $ask): array {
+                $actDate = $ask->created_at ? $ask->created_at->format('Y-m-d') : '';
+
+                return [
+                    'id' => (string) $ask->id,
+                    'activity_date' => $actDate,
+                    'requirement_id' => (string) $ask->id,
+                    'requirement_title' => (string) ($ask->title ?? ''),
+                    'created_at' => $actDate,
+                ];
+            })->values()->all();
+
+            $requirementItems = array_merge($requirementItems, $askItems);
+        }
 
         // 8. Success Story
         $story = null;
@@ -346,8 +401,8 @@ class LastMonthActivityService
             'id' => (string) $story->id,
             'activity_date' => $story->created_at ? $story->created_at->format('Y-m-d') : '',
             'story_id' => (string) $story->id,
-            'title' => $story->title,
-            'description' => $story->short_description ?? $story->story,
+            'title' => (string) ($story->title ?? ''),
+            'description' => (string) ($story->short_description ?? $story->story ?? ''),
             'shared_date' => $story->created_at ? $story->created_at->format('Y-m-d') : '',
         ] : null;
 
@@ -365,10 +420,12 @@ class LastMonthActivityService
         $friendNames = collect($recommendedPeersItems)->pluck('friend_name')->toArray();
         $reqTitles = collect($requirementItems)->pluck('requirement_title')->toArray();
 
+        $userDisplayName = $user->display_name ?: (trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: (string) $user->email);
+
         return [
             'user' => [
                 'user_id' => $user->id,
-                'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?? $user->email,
+                'display_name' => $userDisplayName,
                 'business_name' => $user->company_name,
                 'profile_photo_url' => $user->profile_photo_file_id
                     ? url("/api/v1/files/{$user->profile_photo_file_id}")

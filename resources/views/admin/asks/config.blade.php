@@ -185,10 +185,10 @@
                     🤝 1. Find a Collaborator (Collaboration)
                 </button>
                 <button type="button" onclick="filterOptionGroups('referral', this)" id="tab-referral" class="flow-tab-btn px-3 py-1 rounded-full text-xs font-semibold border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition">
-                    📢 2. Ask for a Referral (Referral)
+                    📢 2. Help me make the right connection (Referral)
                 </button>
                 <button type="button" onclick="filterOptionGroups('help', this)" id="tab-help" class="flow-tab-btn px-3 py-1 rounded-full text-xs font-semibold border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition">
-                    🆘 3. Get Help (Help)
+                    🆘 3. Guidance & Support (Help)
                 </button>
             </div>
 

@@ -166,10 +166,8 @@ class WebsiteFormsController extends BaseApiController
                     $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $targetUser->email)]);
                 }
             });
-        } else {
-            $user = Auth::guard('admin')->user() ?? $request->user();
-
-            if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
+        } elseif ($user = (Auth::guard('admin')->user() ?? $request->user())) {
+            if ($onlyMy || ! $this->isUserAdmin($request)) {
                 $query->where(function ($q) use ($user) {
                     if (! empty($user->email)) {
                         $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
@@ -177,6 +175,8 @@ class WebsiteFormsController extends BaseApiController
                     $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
                 });
             }
+        } else {
+            $query->whereRaw('1 = 0');
         }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -249,10 +249,8 @@ class WebsiteFormsController extends BaseApiController
                     $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $targetUser->email)]);
                 }
             });
-        } else {
-            $user = Auth::guard('admin')->user() ?? $request->user();
-
-            if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
+        } elseif ($user = (Auth::guard('admin')->user() ?? $request->user())) {
+            if ($onlyMy || ! $this->isUserAdmin($request)) {
                 $query->where(function ($q) use ($user) {
                     if (! empty($user->email)) {
                         $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
@@ -260,6 +258,8 @@ class WebsiteFormsController extends BaseApiController
                     $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
                 });
             }
+        } else {
+            $query->whereRaw('1 = 0');
         }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
