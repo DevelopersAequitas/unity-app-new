@@ -69,6 +69,24 @@ class AskResource extends JsonResource
             'approx_value' => $this->resource->approx_deal_value ?? ($this->resource->metadata['approx_value'] ?? null),
             'approx_deal_value' => $this->resource->approx_deal_value ?? ($this->resource->metadata['approx_value'] ?? null),
             'outcome_notes' => $this->resource->outcome_notes ?? ($this->resource->metadata['outcome_notes'] ?? null),
+            'helped_by' => (function () use ($request) {
+                $status = strtolower((string) $this->resource->status);
+                if ($status === 'fulfilled' || $status === 'completed') {
+                    $completedResponse = $this->resource->responses()
+                        ->whereIn('status', ['completed', 'accepted'])
+                        ->with(['responder', 'introducedUser', 'contact'])
+                        ->latest('responded_at')
+                        ->first();
+                    if ($completedResponse) {
+                        $helper = $completedResponse->introducedUser ?: $completedResponse->responder;
+                        if ($helper) {
+                            return (new PeerResource($helper))->toArray($request);
+                        }
+                    }
+                }
+
+                return null;
+            })(),
             'answers' => $this->whenLoaded('answers', function () {
                 return AskAnswerResource::collection($this->resource->answers);
             }),
