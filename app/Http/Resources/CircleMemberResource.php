@@ -146,6 +146,7 @@ class CircleMemberResource extends JsonResource
                     'is_active' => $user?->is_active ?? null,
                     'is_following' => $isFollowing,
                     'is_pro' => $isPro,
+                    'is_online' => (bool) ($user?->is_online ?? false),
                     'is_connected' => $isConnected,
                     'is_bookmark' => $isBookmark,
                     'connection_status' => $connectionStatus,

@@ -53,6 +53,7 @@ class CollaborationPostResource extends JsonResource
                 'designation' => $acceptedBy->designation,
                 'city' => $acceptedBy->city,
                 'profile_photo_url' => $acceptedByPhotoFileId ? url('/api/v1/files/'.$acceptedByPhotoFileId) : $acceptedBy->profile_photo_url,
+                'is_online' => (bool) ($acceptedBy->is_online ?? false),
             ] : null,
             'posted_at' => optional($this->posted_at)->toIso8601String(),
             'posted_days_ago' => $this->posted_at ? $this->posted_at->diffInDays(now()) : null,
@@ -64,6 +65,7 @@ class CollaborationPostResource extends JsonResource
                 'name' => $name,
                 'city' => $user?->city,
                 'profile_photo_url' => $photoFileId ? url('/api/v1/files/'.$photoFileId) : null,
+                'is_online' => (bool) ($user?->is_online ?? false),
             ],
         ];
     }

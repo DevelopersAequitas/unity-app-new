@@ -24,6 +24,7 @@ class EventRsvpResource extends JsonResource
                     'first_name' => $this->user->first_name,
                     'last_name' => $this->user->last_name,
                     'profile_photo_url' => $this->user->profile_photo_url,
+                    'is_online' => (bool) ($this->user->is_online ?? false),
                 ];
             }),
         ];

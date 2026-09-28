@@ -29,6 +29,7 @@ class LeadershipMessageResource extends JsonResource
                     'id' => optional($replyTo->sender)->id,
                     'display_name' => optional($replyTo->sender)->display_name,
                     'profile_photo_url' => optional($replyTo->sender)->profile_photo_url,
+                    'is_online' => (bool) (optional($replyTo->sender)->is_online ?? false),
                 ],
             ] : null,
             'is_read' => (string) $this->sender_user_id === $authUserId
@@ -38,6 +39,7 @@ class LeadershipMessageResource extends JsonResource
                 'id' => optional($this->sender)->id,
                 'display_name' => optional($this->sender)->display_name,
                 'profile_photo_url' => optional($this->sender)->profile_photo_url,
+                'is_online' => (bool) (optional($this->sender)->is_online ?? false),
             ],
         ];
     }

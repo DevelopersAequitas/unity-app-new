@@ -274,6 +274,7 @@ class UserResource extends JsonResource
             'is_connected' => (bool) $isConnected,
             'is_following' => (bool) $isFollowing,
             'is_pro' => (bool) $isPro,
+            'is_online' => (bool) ($this->is_online ?? false),
             'connection_status' => $connectionStatus,
             'is_requested' => (bool) $isRequested,
             'is_other_category' => (bool) $isOtherCategory,

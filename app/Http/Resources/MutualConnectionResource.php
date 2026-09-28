@@ -96,6 +96,7 @@ class MutualConnectionResource extends JsonResource
             'life_impacted_count' => (int) ($this->life_impacted_count ?? $this->coins_balance ?? 0),
             'is_following' => $isFollowing,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($this->is_online ?? false),
             'is_verified' => $isVerified,
             'is_connected' => true,
             'connection_status' => 'connected',

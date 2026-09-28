@@ -71,6 +71,7 @@ class OtherUserDetailsResolver
             'level4_category' => $level4Category,
             'life_impacted_count' => $lifeImpactedCount,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($user->is_online ?? false),
         ];
     }
 

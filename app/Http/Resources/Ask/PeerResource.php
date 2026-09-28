@@ -134,6 +134,10 @@ class PeerResource extends JsonResource
             ?? $user->profile_photo_image
             ?? null;
 
+        $level4Category = $user->relationLoaded('level4Category') && $user->level4Category
+            ? $user->level4Category->name
+            : ($user->level4Category?->name ?? $user->business_sub_category ?? $user->getAttribute('level4_category') ?? null);
+
         return [
             'id' => (string) $user->id,
             'name' => $name !== '' ? trim((string) $name) : null,
@@ -145,13 +149,16 @@ class PeerResource extends JsonResource
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
             'introduced_count' => (int) ($user->introduced_count ?? ($user->relationLoaded('introducedPeers') ? $user->introducedPeers->count() : ($user->members_introduced_count ?? 0))),
             'profile_photo_image' => $profilePhotoUrl,
+            'profile_photo_url' => $profilePhotoUrl,
+            'avatar_url' => $profilePhotoUrl,
             'membership_status' => $user->effective_membership_status ?? $user->membership_status,
             'designation' => $user->designation,
-            'level4_category' => $user->level4Category ? $user->level4Category->name : null,
+            'level4_category' => $level4Category,
             'is_bookmark' => $isBookmark,
             'is_following' => $isFollowing,
             'is_verified' => $isVerified,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($user->is_online ?? false),
             'is_connected' => $isConnected,
             'connection_status' => $connectionStatus,
             'is_requested' => $isRequested,

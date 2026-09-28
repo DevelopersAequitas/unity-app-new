@@ -23,6 +23,7 @@ class BlockedPeerResource extends JsonResource
             'company_name' => $this->blockedUser?->company_name,
             'designation' => $this->blockedUser?->designation,
             'profile_photo_url' => $profilePhotoUrl,
+            'is_online' => (bool) ($this->blockedUser?->is_online ?? false),
             'blocked_at' => optional($this->created_at)?->toISOString(),
             'reason' => $this->reason,
         ];

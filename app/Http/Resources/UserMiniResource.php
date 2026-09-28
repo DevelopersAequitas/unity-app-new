@@ -71,6 +71,7 @@ class UserMiniResource extends JsonResource
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
             'is_following' => $isFollowing,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($user?->is_online ?? false),
         ];
     }
 

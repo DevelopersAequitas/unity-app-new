@@ -25,6 +25,7 @@ class CircleChatMessageResource extends JsonResource
                 'name' => trim((string) (optional($sender)->display_name ?: ((optional($sender)->first_name ?? '').' '.(optional($sender)->last_name ?? '')))),
                 'company_name' => optional($sender)->company_name,
                 'profile_photo_url' => optional($sender)->profile_photo_url,
+                'is_online' => (bool) (optional($sender)->is_online ?? false),
             ],
             'is_mine' => (string) $this->sender_id === $authUserId,
             'read_count' => (int) ($this->read_count ?? ($this->relationLoaded('reads') ? $this->reads->count() : 0)),
