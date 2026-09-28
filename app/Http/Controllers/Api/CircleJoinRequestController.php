@@ -10,11 +10,15 @@ use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
+use App\Models\CircleSubscription;
 use App\Models\CustomCategoryRequest;
+use App\Models\Payment;
 use App\Models\User;
 use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\CircleJoinRequestService;
+use App\Services\Circles\PaidCircleMembershipFinalizer;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +32,8 @@ class CircleJoinRequestController extends BaseApiController
     public function __construct(
         private readonly CircleJoinRequestService $service,
         private readonly CircleJoinRequestPaymentSyncService $paymentSyncService,
+        private readonly ZohoBillingService $zohoBillingService,
+        private readonly PaidCircleMembershipFinalizer $paidCircleMembershipFinalizer,
     ) {}
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
@@ -222,10 +228,7 @@ class CircleJoinRequestController extends BaseApiController
         $userId = (string) $request->user()->id;
 
         /** @var CircleJoinRequest|null $record */
-        $record = CircleJoinRequest::query()
-            ->where('id', $id)
-            ->where('user_id', $userId)
-            ->first();
+        $record = CircleJoinRequest::query()->find($id);
 
         if (! $record) {
             return response()->json([
@@ -237,9 +240,19 @@ class CircleJoinRequestController extends BaseApiController
             ], 404);
         }
 
+        if ((string) $record->user_id !== $userId && ! $request->user()->tokenCan('admin')) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Unauthorized. You can only verify your own join request.',
+                'data' => null,
+                'meta' => null,
+            ], 403);
+        }
+
         $currentStatus = (string) $record->status;
 
-        // Already paid/member — just return the current state.
+        // Already paid/member — just return current confirmed state.
         if (in_array($currentStatus, [
             CircleJoinRequest::STATUS_PAID,
             CircleJoinRequest::STATUS_CIRCLE_MEMBER,
@@ -268,8 +281,27 @@ class CircleJoinRequestController extends BaseApiController
             ]);
         }
 
-        // Check if a CircleMember record with approved status already exists
-        // (created by Zoho webhook before this endpoint was called).
+        // Dev / test mode support: allow instant simulation of payment confirmation.
+        if (($request->boolean('test_payment') || $request->boolean('simulate_paid')) && app()->environment(['local', 'testing', 'staging', 'dev'])) {
+            $this->paymentSyncService->markRequestPaid(
+                $request->user(),
+                (string) $record->circle_id
+            );
+
+            $record->refresh();
+            $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Payment marked as confirmed (Test/Dev mode). You have joined the circle.',
+                'payment_confirmed' => true,
+                'data' => $this->transformJoinRequest($record),
+                'meta' => null,
+            ]);
+        }
+
+        // 1. Check if a CircleMember record already exists (e.g. from Zoho webhook).
         $memberExists = CircleMember::query()
             ->where('user_id', $userId)
             ->where('circle_id', $record->circle_id)
@@ -278,20 +310,12 @@ class CircleJoinRequestController extends BaseApiController
             ->exists();
 
         if ($memberExists) {
-            // Webhook already created the member; sync the join request status.
             try {
                 $this->paymentSyncService->markRequestPaid(
                     $request->user(),
                     (string) $record->circle_id,
                 );
                 $record->refresh();
-
-                Log::info('circle_join_request.payment_verified_via_member_record', [
-                    'request_id' => $record->id,
-                    'user_id' => $userId,
-                    'circle_id' => $record->circle_id,
-                ]);
-
                 $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
 
                 return response()->json([
@@ -310,7 +334,125 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
-        // Payment not yet confirmed — return current pending state.
+        // 2. Direct Zoho verification (same pattern as membership checkout sync).
+        $hostedPageId = $request->input('hostedpage_id')
+            ?? $request->input('hosted_page_id')
+            ?? $this->resolveHostedPageId($record);
+
+        $subscription = CircleSubscription::query()
+            ->where('user_id', $userId)
+            ->where('circle_id', $record->circle_id)
+            ->latest('created_at')
+            ->first();
+
+        $isCompleted = false;
+        $zohoSubscriptionId = null;
+
+        if ($hostedPageId) {
+            try {
+                $hpResponse = $this->zohoBillingService->getHostedPage($hostedPageId);
+                $hostedPage = $hpResponse['hostedpage'] ?? [];
+
+                $hostedPageStatus =
+                    data_get($hostedPage, 'status')
+                    ?? data_get($hostedPage, 'payment_status')
+                    ?? data_get($hostedPage, 'hostedpage_status')
+                    ?? data_get($hostedPage, 'data.subscription.status')
+                    ?? data_get($hostedPage, 'subscription.status')
+                    ?? data_get($hostedPage, 'data.status')
+                    ?? data_get($hpResponse, 'status')
+                    ?? null;
+
+                $normalizedStatus = strtolower(trim((string) $hostedPageStatus));
+                $isCompleted = in_array($normalizedStatus, [
+                    'paid', 'success', 'completed', 'active', 'live',
+                    'payment_success', 'payment_succeeded', 'acknowledged',
+                ], true);
+
+                $subscriptionBlock =
+                    data_get($hostedPage, 'data.subscription')
+                    ?? data_get($hostedPage, 'subscription')
+                    ?? data_get($hostedPage, 'subscriptions.0')
+                    ?? [];
+                $subscriptionBlock = is_array($subscriptionBlock) ? $subscriptionBlock : [];
+
+                $zohoSubscriptionId =
+                    data_get($subscriptionBlock, 'subscription_id')
+                    ?? data_get($hostedPage, 'subscription_id')
+                    ?? data_get($hostedPage, 'data.subscription.subscription_id')
+                    ?? null;
+
+                $customerId = $request->user()->zoho_customer_id
+                    ?: (data_get($hostedPage, 'customer_id')
+                    ?: (data_get($subscriptionBlock, 'customer_id')
+                    ?: data_get($hostedPage, 'data.customer_id')));
+
+                if ((! $zohoSubscriptionId || ! $isCompleted) && $customerId) {
+                    $resolvedSubscription = $this->zohoBillingService->resolveCustomerActiveSubscription((string) $customerId);
+                    if ($resolvedSubscription) {
+                        $isCompleted = true;
+                        $zohoSubscriptionId = $resolvedSubscription['subscription_id'] ?? $zohoSubscriptionId;
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Zoho hosted page verification failed in verifyPayment', [
+                    'request_id' => $record->id,
+                    'hostedpage_id' => $hostedPageId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 3. Fallback: check if the user has an active Zoho subscription (e.g. membership paid).
+        if (! $isCompleted && $request->user()->zoho_customer_id) {
+            try {
+                $resolved = $this->zohoBillingService->resolveCustomerActiveSubscription((string) $request->user()->zoho_customer_id);
+                if ($resolved) {
+                    $isCompleted = true;
+                    $zohoSubscriptionId = $resolved['subscription_id'] ?? null;
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        if ($isCompleted) {
+            if ($subscription) {
+                $subscription->forceFill([
+                    'status' => 'active',
+                    'paid_at' => $subscription->paid_at ?: now(),
+                    'zoho_subscription_id' => $zohoSubscriptionId ?: $subscription->zoho_subscription_id,
+                    'zoho_hosted_page_id' => $hostedPageId ?: $subscription->zoho_hosted_page_id,
+                ])->save();
+
+                $this->paidCircleMembershipFinalizer->finalize(
+                    $request->user(),
+                    $subscription,
+                    now(),
+                    now(),
+                    null
+                );
+            }
+
+            $this->paymentSyncService->markRequestPaid(
+                $request->user(),
+                (string) $record->circle_id,
+            );
+
+            $record->refresh();
+            $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Payment verified successfully with Zoho! You have joined the circle.',
+                'payment_confirmed' => true,
+                'data' => $this->transformJoinRequest($record),
+                'meta' => null,
+            ]);
+        }
+
+        // 4. Payment not yet confirmed.
         $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
 
         return response()->json([
@@ -426,6 +568,8 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
+        $hostedPageId = $this->resolveHostedPageId($request, $paymentUrl);
+
         return [
             'id' => (string) $request->id,
             'user_id' => (string) $request->user_id,
@@ -447,6 +591,7 @@ class CircleJoinRequestController extends BaseApiController
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'payment_status' => $paymentStatus,
             'payment_url' => $paymentUrl,
+            'hostedpage_id' => $hostedPageId,
             'can_pay' => $canPay,
             'payment' => [
                 'required' => true,
@@ -454,6 +599,7 @@ class CircleJoinRequestController extends BaseApiController
                 'amount' => (int) ($request->circle?->circle_price_amount ?: 5000),
                 'currency' => $request->circle?->circle_price_currency ?: 'INR',
                 'payment_url' => $paymentUrl,
+                'hostedpage_id' => $hostedPageId,
                 'button_label' => 'Pay Now',
                 'paid_at' => $paidAt,
             ],
@@ -679,6 +825,8 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
+        $hostedPageId = $this->resolveHostedPageId($record, $paymentUrl);
+
         $data = [
             'id' => (string) $record->id,
             'user_id' => (string) $record->user_id,
@@ -687,6 +835,9 @@ class CircleJoinRequestController extends BaseApiController
             'status' => (string) $record->status,
             'status_label' => $this->statusLabel($record->status),
             'display_status' => $this->statusLabel($record->status),
+            'payment_status' => $paymentStatus,
+            'payment_url' => $paymentUrl,
+            'hostedpage_id' => $hostedPageId,
             'reason' => (string) ($record->reason_for_joining ?? ''),
             'level1_category' => $level1Category,
             'level4_category' => $level4Category,
@@ -714,6 +865,7 @@ class CircleJoinRequestController extends BaseApiController
                 'amount' => (int) ($record->circle?->circle_price_amount ?: 5000),
                 'currency' => $record->circle?->circle_price_currency ?: 'INR',
                 'payment_url' => $paymentUrl,
+                'hostedpage_id' => $hostedPageId,
                 'button_label' => 'Pay Now',
                 'paid_at' => $paidAt,
             ],
@@ -729,6 +881,40 @@ class CircleJoinRequestController extends BaseApiController
             'data' => $data,
             'meta' => null,
         ], 200);
+    }
+
+    private function resolveHostedPageId(CircleJoinRequest $record, ?string $paymentUrl = null): ?string
+    {
+        // hostedpage_id only belongs to requests in payment stage or already paid.
+        if (! in_array((string) $record->status, [
+            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
+            CircleJoinRequest::STATUS_PAID,
+            CircleJoinRequest::STATUS_CIRCLE_MEMBER,
+        ], true) && $record->fee_paid_at === null) {
+            return null;
+        }
+
+        if ($paymentUrl && preg_match('#/hostedpage/([^/?]+)#', (string) $paymentUrl, $m)) {
+            return (string) $m[1];
+        }
+
+        $subscription = CircleSubscription::query()
+            ->where('user_id', $record->user_id)
+            ->where('circle_id', $record->circle_id)
+            ->latest('created_at')
+            ->first();
+
+        if ($subscription && $subscription->zoho_hosted_page_id) {
+            return (string) $subscription->zoho_hosted_page_id;
+        }
+
+        if ($subscription && $subscription->zoho_checkout_url) {
+            if (preg_match('#/hostedpage/([^/?]+)#', (string) $subscription->zoho_checkout_url, $m)) {
+                return (string) $m[1];
+            }
+        }
+
+        return null;
     }
 
     private function statusLabel(string $status): string

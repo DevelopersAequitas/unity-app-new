@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         $this->call(DailyNotificationReminderSeeder::class);
         $this->call(GreenpreneurAppConfigSeeder::class);
         $this->call(Track1GrowthHonoursSeeder::class);
+        $this->call(AskSystemSeeder::class);
 
         User::query()->updateOrCreate(
             ['id' => 'b5d96183-2278-4dfb-b450-ff8896347fe4'],

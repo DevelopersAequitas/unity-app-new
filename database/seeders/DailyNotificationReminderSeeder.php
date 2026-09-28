@@ -54,9 +54,9 @@ class DailyNotificationReminderSeeder extends Seeder
             ],
             [
                 'feature' => 'Referral Report',
-                'activity' => 'Encouragement to refer more peers',
-                'notification_title' => 'Know Someone Who\'d Love This?',
-                'notification_body' => 'Refer a peer today and earn bonus coins instantly!',
+                'activity' => 'Encouragement to help connect peers',
+                'notification_title' => 'Help a Peer Make the Right Connection',
+                'notification_body' => 'Open a meaningful door for a peer today and strengthen your community relationships.',
                 'action_trigger_timing' => 'Once every 2 days if no referral sent in 7 days',
             ],
             [
@@ -97,8 +97,8 @@ class DailyNotificationReminderSeeder extends Seeder
             [
                 'feature' => 'Find & Build Collaboration',
                 'activity' => 'Highlight open collaboration opportunities',
-                'notification_title' => 'New Collaboration Opportunities Await',
-                'notification_body' => '{X} peers are looking to collaborate in your industry. Tap to explore.',
+                'notification_title' => 'How Can Your Peers Support You Today?',
+                'notification_body' => 'Share your requirement or offer your support to peers ready to build together.',
                 'action_trigger_timing' => 'Daily, midday slot',
             ],
             [
@@ -181,9 +181,16 @@ class DailyNotificationReminderSeeder extends Seeder
             [
                 'feature' => 'Recommend A Peer',
                 'activity' => 'Prompt to recommend someone',
-                'notification_title' => 'Know a Great Peer to Recommend?',
-                'notification_body' => 'Help grow the community — recommend someone today and earn rewards.',
+                'notification_title' => 'Recognise & Recommend a Peer',
+                'notification_body' => 'Help grow the community — recognise and introduce a peer who brings real value.',
                 'action_trigger_timing' => 'Once every 5 days',
+            ],
+            [
+                'feature' => 'Daily Pulse',
+                'activity' => 'Today\'s Gratitude — Recognise a peer who helped you',
+                'notification_title' => 'Recognise Your Peer Today',
+                'notification_body' => 'What did this person make possible for you? Close the loop and recognise a peer who supported your journey.',
+                'action_trigger_timing' => 'Daily, evening slot',
             ],
         ];
 
