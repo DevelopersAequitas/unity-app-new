@@ -885,6 +885,19 @@ class CircleJoinRequestController extends BaseApiController
 
     private function resolveHostedPageId(CircleJoinRequest $record, ?string $paymentUrl = null): ?string
     {
+        // hostedpage_id only belongs to requests in payment stage or already paid.
+        if (! in_array((string) $record->status, [
+            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
+            CircleJoinRequest::STATUS_PAID,
+            CircleJoinRequest::STATUS_CIRCLE_MEMBER,
+        ], true) && $record->fee_paid_at === null) {
+            return null;
+        }
+
+        if ($paymentUrl && preg_match('#/hostedpage/([^/?]+)#', (string) $paymentUrl, $m)) {
+            return (string) $m[1];
+        }
+
         $subscription = CircleSubscription::query()
             ->where('user_id', $record->user_id)
             ->where('circle_id', $record->circle_id)
@@ -898,22 +911,6 @@ class CircleJoinRequestController extends BaseApiController
         if ($subscription && $subscription->zoho_checkout_url) {
             if (preg_match('#/hostedpage/([^/?]+)#', (string) $subscription->zoho_checkout_url, $m)) {
                 return (string) $m[1];
-            }
-        }
-
-        if ($paymentUrl && preg_match('#/hostedpage/([^/?]+)#', (string) $paymentUrl, $m)) {
-            return (string) $m[1];
-        }
-
-        if (Schema::hasTable('payments')) {
-            $paymentToken = Payment::query()
-                ->where('user_id', $record->user_id)
-                ->whereNotNull('zoho_hostedpage_id')
-                ->latest('created_at')
-                ->value('zoho_hostedpage_id');
-
-            if ($paymentToken) {
-                return (string) $paymentToken;
             }
         }
 
