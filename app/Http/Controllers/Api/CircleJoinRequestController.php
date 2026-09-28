@@ -335,38 +335,15 @@ class CircleJoinRequestController extends BaseApiController
         }
 
         // 2. Direct Zoho verification (same pattern as membership checkout sync).
-        $hostedPageId = $request->input('hostedpage_id') ?? $request->input('hosted_page_id');
+        $hostedPageId = $request->input('hostedpage_id')
+            ?? $request->input('hosted_page_id')
+            ?? $this->resolveHostedPageId($record);
 
         $subscription = CircleSubscription::query()
             ->where('user_id', $userId)
             ->where('circle_id', $record->circle_id)
             ->latest('created_at')
             ->first();
-
-        if (! $hostedPageId && $subscription?->zoho_hosted_page_id) {
-            $hostedPageId = $subscription->zoho_hosted_page_id;
-        }
-
-        if (! $hostedPageId && $subscription?->zoho_checkout_url) {
-            if (preg_match('#/hostedpage/([^/?]+)#', (string) $subscription->zoho_checkout_url, $matches)) {
-                $hostedPageId = $matches[1];
-            }
-        }
-
-        if (! $hostedPageId) {
-            $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
-            if ($paymentUrl && preg_match('#/hostedpage/([^/?]+)#', (string) $paymentUrl, $matches)) {
-                $hostedPageId = $matches[1];
-            }
-        }
-
-        if (! $hostedPageId && Schema::hasTable('payments')) {
-            $hostedPageId = Payment::query()
-                ->where('user_id', $userId)
-                ->whereNotNull('zoho_hostedpage_id')
-                ->latest('created_at')
-                ->value('zoho_hostedpage_id');
-        }
 
         $isCompleted = false;
         $zohoSubscriptionId = null;
@@ -591,6 +568,8 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
+        $hostedPageId = $this->resolveHostedPageId($request, $paymentUrl);
+
         return [
             'id' => (string) $request->id,
             'user_id' => (string) $request->user_id,
@@ -612,6 +591,7 @@ class CircleJoinRequestController extends BaseApiController
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'payment_status' => $paymentStatus,
             'payment_url' => $paymentUrl,
+            'hostedpage_id' => $hostedPageId,
             'can_pay' => $canPay,
             'payment' => [
                 'required' => true,
@@ -619,6 +599,7 @@ class CircleJoinRequestController extends BaseApiController
                 'amount' => (int) ($request->circle?->circle_price_amount ?: 5000),
                 'currency' => $request->circle?->circle_price_currency ?: 'INR',
                 'payment_url' => $paymentUrl,
+                'hostedpage_id' => $hostedPageId,
                 'button_label' => 'Pay Now',
                 'paid_at' => $paidAt,
             ],
@@ -844,6 +825,8 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
+        $hostedPageId = $this->resolveHostedPageId($record, $paymentUrl);
+
         $data = [
             'id' => (string) $record->id,
             'user_id' => (string) $record->user_id,
@@ -852,6 +835,9 @@ class CircleJoinRequestController extends BaseApiController
             'status' => (string) $record->status,
             'status_label' => $this->statusLabel($record->status),
             'display_status' => $this->statusLabel($record->status),
+            'payment_status' => $paymentStatus,
+            'payment_url' => $paymentUrl,
+            'hostedpage_id' => $hostedPageId,
             'reason' => (string) ($record->reason_for_joining ?? ''),
             'level1_category' => $level1Category,
             'level4_category' => $level4Category,
@@ -879,6 +865,7 @@ class CircleJoinRequestController extends BaseApiController
                 'amount' => (int) ($record->circle?->circle_price_amount ?: 5000),
                 'currency' => $record->circle?->circle_price_currency ?: 'INR',
                 'payment_url' => $paymentUrl,
+                'hostedpage_id' => $hostedPageId,
                 'button_label' => 'Pay Now',
                 'paid_at' => $paidAt,
             ],
@@ -894,6 +881,43 @@ class CircleJoinRequestController extends BaseApiController
             'data' => $data,
             'meta' => null,
         ], 200);
+    }
+
+    private function resolveHostedPageId(CircleJoinRequest $record, ?string $paymentUrl = null): ?string
+    {
+        $subscription = CircleSubscription::query()
+            ->where('user_id', $record->user_id)
+            ->where('circle_id', $record->circle_id)
+            ->latest('created_at')
+            ->first();
+
+        if ($subscription && $subscription->zoho_hosted_page_id) {
+            return (string) $subscription->zoho_hosted_page_id;
+        }
+
+        if ($subscription && $subscription->zoho_checkout_url) {
+            if (preg_match('#/hostedpage/([^/?]+)#', (string) $subscription->zoho_checkout_url, $m)) {
+                return (string) $m[1];
+            }
+        }
+
+        if ($paymentUrl && preg_match('#/hostedpage/([^/?]+)#', (string) $paymentUrl, $m)) {
+            return (string) $m[1];
+        }
+
+        if (Schema::hasTable('payments')) {
+            $paymentToken = Payment::query()
+                ->where('user_id', $record->user_id)
+                ->whereNotNull('zoho_hostedpage_id')
+                ->latest('created_at')
+                ->value('zoho_hostedpage_id');
+
+            if ($paymentToken) {
+                return (string) $paymentToken;
+            }
+        }
+
+        return null;
     }
 
     private function statusLabel(string $status): string
