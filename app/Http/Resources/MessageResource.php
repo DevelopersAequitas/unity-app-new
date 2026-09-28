@@ -2,11 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Ask\PeerResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class MessageResource extends JsonResource
 {
-    public function toArray($request): array
+    public function toArray($request): ?array
     {
         if (! $this->resource) {
             return null;
@@ -23,13 +24,7 @@ class MessageResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'sender' => $this->whenLoaded('sender', function () {
-                return [
-                    'id' => (string) $this->sender->id,
-                    'display_name' => $this->sender->display_name,
-                    'first_name' => $this->sender->first_name,
-                    'last_name' => $this->sender->last_name,
-                    'profile_photo_url' => $this->sender->profile_photo_url,
-                ];
+                return $this->sender ? new PeerResource($this->sender) : null;
             }),
         ];
     }

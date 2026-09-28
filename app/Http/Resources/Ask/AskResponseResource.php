@@ -26,6 +26,7 @@ class AskResponseResource extends JsonResource
                 'display_name' => (string) ($peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''))),
                 'company_name' => (string) ($peer->company_name ?? ''),
                 'profile_photo_url' => (string) ($peer->profile_photo_file_id ? url('/api/v1/files/'.$peer->profile_photo_file_id) : ($peer->profile_photo_url ?? '')),
+                'is_online' => (bool) ($peer->is_online ?? false),
             ];
         }
 

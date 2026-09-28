@@ -20,6 +20,7 @@ class RequirementInterestResource extends JsonResource
             'company' => data_get($user, 'company') ?: data_get($user, 'company_name', ''),
             'city' => data_get($user, 'city', ''),
             'profile_photo_url' => $this->resolveProfilePhotoUrl($user),
+            'is_online' => (bool) data_get($user, 'is_online', false),
             'source' => $this->source,
             'comment' => $this->comment,
             'created_at' => optional($this->created_at)?->toISOString(),

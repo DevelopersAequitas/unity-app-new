@@ -1169,6 +1169,7 @@ class User extends Authenticatable
             'category' => $level4Name ?: null,
             'industry' => $industry,
             'profile_photo_url' => $profilePhotoUrl,
+            'is_online' => (bool) ($this->is_online ?? false),
         ];
     }
 

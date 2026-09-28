@@ -68,6 +68,7 @@ class ConnectionUserResource extends JsonResource
             'is_bookmark' => $isBookmark,
             'is_following' => $isFollowing,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($this->is_online ?? false),
             'is_connected' => true,
         ];
     }

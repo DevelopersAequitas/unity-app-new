@@ -62,6 +62,7 @@ class GeoNearbyPeerResource extends JsonResource
             'last_seen_at' => $this->geo_last_seen_at,
             'is_following' => $isFollowing,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($this->is_online ?? false),
             'is_connected' => $isConnected,
             'is_requested' => $isRequested,
             'connection_status' => $this->connection_status,

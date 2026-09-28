@@ -76,6 +76,7 @@ class EventResource extends JsonResource
                     'first_name' => $this->createdByUser->first_name,
                     'last_name' => $this->createdByUser->last_name,
                     'profile_photo_url' => $this->createdByUser->profile_photo_url,
+                    'is_online' => (bool) ($this->createdByUser->is_online ?? false),
                 ];
             }),
             'rsvp_status_for_me' => $this->when($authUser, $rsvpForMe),

@@ -60,6 +60,7 @@ class RequirementTimelineResource extends JsonResource
             'connection_status' => $connectionStatus,
             'is_requested' => $isRequested,
             'can_send_connection_request' => $canSendConnectionRequest,
+            'is_online' => (bool) data_get($creator, 'is_online', false),
         ];
 
         return [
@@ -79,6 +80,7 @@ class RequirementTimelineResource extends JsonResource
             'connection_status' => $connectionStatus,
             'is_requested' => $isRequested,
             'can_send_connection_request' => $canSendConnectionRequest,
+            'is_online' => (bool) data_get($creator, 'is_online', false),
             'user' => $userData,
             'subject' => $this->subject,
             'description' => $this->description,

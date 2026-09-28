@@ -26,7 +26,7 @@ class MessageController extends BaseApiController
         $perPage = max(1, min((int) $request->integer('per_page', 50), 100));
 
         $messages = $chat->messages()
-            ->with('sender:id,display_name,first_name,last_name,profile_photo_url')
+            ->with('sender')
             ->whereNull('deleted_at')
             ->orderByDesc('created_at')
             ->paginate($perPage);
@@ -83,7 +83,7 @@ class MessageController extends BaseApiController
             'last_message_id' => $message->id,
         ])->save();
 
-        $message->load('sender:id,display_name,first_name,last_name,profile_photo_url');
+        $message->load('sender');
 
         broadcast(new NewChatMessage($chat, $message))->toOthers();
 
