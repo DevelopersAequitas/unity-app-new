@@ -9,23 +9,30 @@ use App\Http\Requests\Api\CircleJoinRequests\StoreCircleJoinRequest;
 use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleMember;
 use App\Models\CustomCategoryRequest;
 use App\Models\User;
 use App\Services\Circles\CircleJoinRequestNotificationService;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
 {
-    public function __construct(private readonly CircleJoinRequestService $service) {}
+    public function __construct(
+        private readonly CircleJoinRequestService $service,
+        private readonly CircleJoinRequestPaymentSyncService $paymentSyncService,
+    ) {}
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
+        $circleId = $request->validated('circle_id') ?? $request->input('circle_id');
         $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
 
         if (! $categoryId && $request->validated('level4_category_id')) {
@@ -38,8 +45,7 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
-        $circleId = null;
-        if ($categoryId && Schema::hasTable('circle_category_mappings')) {
+        if (! $circleId && $categoryId && Schema::hasTable('circle_category_mappings')) {
             $circleId = DB::table('circle_category_mappings')
                 ->where('category_id', $categoryId)
                 ->value('circle_id');
@@ -85,11 +91,14 @@ class CircleJoinRequestController extends BaseApiController
 
         try {
             $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
-            $categoryId = $request->validated('category_id');
-            if (! $categoryId) {
+            $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
+            if (! $categoryId && Schema::hasTable('circle_category_mappings')) {
                 $categoryId = DB::table('circle_category_mappings')
                     ->where('circle_id', $circle->id)
                     ->value('category_id');
+            }
+            if (! $categoryId && method_exists($circle, 'categories')) {
+                $categoryId = $circle->categories()->value('circle_categories.id');
             }
 
             $otherCategoryName = trim((string) ($request->validated('other_category_name') ?? $request->validated('custom_category_name') ?? ''));
@@ -199,6 +208,119 @@ class CircleJoinRequestController extends BaseApiController
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
+    }
+
+    /**
+     * Called by the frontend/mobile app when the user returns from the payment page.
+     * Checks if payment was completed externally (via Zoho webhook or CircleMember record)
+     * and syncs the join request status accordingly.
+     *
+     * POST /api/circle-join-requests/{id}/verify-payment
+     */
+    public function verifyPayment(Request $request, string $id): JsonResponse
+    {
+        $userId = (string) $request->user()->id;
+
+        /** @var CircleJoinRequest|null $record */
+        $record = CircleJoinRequest::query()
+            ->where('id', $id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (! $record) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Circle join request not found.',
+                'data' => null,
+                'meta' => null,
+            ], 404);
+        }
+
+        $currentStatus = (string) $record->status;
+
+        // Already paid/member — just return the current state.
+        if (in_array($currentStatus, [
+            CircleJoinRequest::STATUS_PAID,
+            CircleJoinRequest::STATUS_CIRCLE_MEMBER,
+        ], true) || $record->fee_paid_at !== null) {
+            $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Payment already confirmed. You are a circle member.',
+                'payment_confirmed' => true,
+                'data' => $this->transformJoinRequest($record),
+                'meta' => null,
+            ]);
+        }
+
+        // Only attempt sync when status is pending_circle_fee.
+        if ($currentStatus !== CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Payment verification is not applicable for this request status.',
+                'payment_confirmed' => false,
+                'data' => $this->transformJoinRequest($record),
+                'meta' => null,
+            ]);
+        }
+
+        // Check if a CircleMember record with approved status already exists
+        // (created by Zoho webhook before this endpoint was called).
+        $memberExists = CircleMember::query()
+            ->where('user_id', $userId)
+            ->where('circle_id', $record->circle_id)
+            ->whereNull('deleted_at')
+            ->where('status', 'approved')
+            ->exists();
+
+        if ($memberExists) {
+            // Webhook already created the member; sync the join request status.
+            try {
+                $this->paymentSyncService->markRequestPaid(
+                    $request->user(),
+                    (string) $record->circle_id,
+                );
+                $record->refresh();
+
+                Log::info('circle_join_request.payment_verified_via_member_record', [
+                    'request_id' => $record->id,
+                    'user_id' => $userId,
+                    'circle_id' => $record->circle_id,
+                ]);
+
+                $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+                return response()->json([
+                    'success' => true,
+                    'status' => true,
+                    'message' => 'Payment confirmed! You have successfully joined the circle.',
+                    'payment_confirmed' => true,
+                    'data' => $this->transformJoinRequest($record),
+                    'meta' => null,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('circle_join_request.payment_verify_sync_failed', [
+                    'request_id' => $record->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Payment not yet confirmed — return current pending state.
+        $record->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Payment not yet confirmed. Please complete payment or wait for confirmation.',
+            'payment_confirmed' => false,
+            'data' => $this->transformJoinRequest($record),
+            'meta' => null,
+        ]);
     }
 
     private function transformJoinRequest(CircleJoinRequest $request): array

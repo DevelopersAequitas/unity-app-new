@@ -97,9 +97,14 @@ class MyConnectionsController extends BaseApiController
 
     public function cancelSent(string $addresseeId)
     {
+        $authUser = auth()->user();
+
         $connection = Connection::query()
-            ->where('requester_id', auth()->id())
-            ->where('addressee_id', $addresseeId)
+            ->where('requester_id', $authUser->id)
+            ->where(function ($query) use ($addresseeId) {
+                $query->where('addressee_id', $addresseeId)
+                    ->orWhere('id', $addresseeId);
+            })
             ->first();
 
         if (! $connection) {

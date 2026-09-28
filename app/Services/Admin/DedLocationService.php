@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -27,41 +28,43 @@ class DedLocationService
             return collect();
         }
 
-        $usedStateKeys = $this->usedLocationPairs()
-            ->pluck('state_key')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        return Cache::remember('ded_available_states_v2', 300, function (): Collection {
+            $usedStateKeys = $this->usedLocationPairs()
+                ->pluck('state_key')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
 
-        if ($usedStateKeys === []) {
-            return collect();
-        }
+            if ($usedStateKeys === []) {
+                return collect();
+            }
 
-        $unique = collect();
+            $unique = collect();
 
-        DB::table('states')
-            ->when(Schema::hasColumn('states', 'status'), fn (Builder $query) => $query->where('status', 'active'))
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->each(function (object $state) use ($unique, $usedStateKeys): void {
-                $name = $this->districtSyncService->normalizeStateName($state->name ?? null);
-                $key = $this->districtSyncService->stateKey($name);
+            DB::table('states')
+                ->when(Schema::hasColumn('states', 'status'), fn (Builder $query) => $query->where('status', 'active'))
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->each(function (object $state) use ($unique, $usedStateKeys): void {
+                    $name = $this->districtSyncService->normalizeStateName($state->name ?? null);
+                    $key = $this->districtSyncService->stateKey($name);
 
-                if (! $name || ! $this->isUsableStateKey($key, $name) || ! in_array($key, $usedStateKeys, true) || $unique->has($key)) {
-                    return;
-                }
+                    if (! $name || ! $this->isUsableStateKey($key, $name) || ! in_array($key, $usedStateKeys, true) || $unique->has($key)) {
+                        return;
+                    }
 
-                $unique->put($key, (object) [
-                    'id' => (string) $state->id,
-                    'name' => $name,
-                ]);
-            });
+                    $unique->put($key, (object) [
+                        'id' => (string) $state->id,
+                        'name' => $name,
+                    ]);
+                });
 
-        return $unique
-            ->values()
-            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
-            ->values();
+            return $unique
+                ->values()
+                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
+        });
     }
 
     public function getAvailableDistrictsByState(?string $stateId): Collection

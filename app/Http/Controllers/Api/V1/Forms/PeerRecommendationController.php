@@ -7,123 +7,92 @@ namespace App\Http\Controllers\Api\V1\Forms;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Forms\StorePeerRecommendationRequest;
 use App\Models\PeerRecommendation;
-use App\Services\Coins\CoinsService;
+use App\Services\Forms\PeerRecommendationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class PeerRecommendationController extends BaseApiController
 {
-    public function store(StorePeerRecommendationRequest $request, CoinsService $coinsService): JsonResponse
+    public function __construct(
+        protected PeerRecommendationService $recommendationService
+    ) {}
+
+    /**
+     * Submit a new peer recommendation.
+     */
+    public function store(StorePeerRecommendationRequest $request): JsonResponse
     {
         $authUser = $request->user();
         $data = $request->validated();
 
-        $result = DB::transaction(function () use ($authUser, $data, $coinsService) {
-            $category = $data['category'] ?? $data['peer_category'] ?? null;
-            $peerCity = $data['peer_city'] ?? $data['peer_city_country'] ?? null;
-
-            $recommendation = PeerRecommendation::create([
-                'user_id' => $authUser->id,
-                'peer_name' => $data['peer_name'],
-                'peer_mobile' => $data['peer_mobile'] ?? null,
-                'peer_email' => $data['peer_email'] ?? null,
-                'peer_city' => $peerCity,
-                'peer_business' => $data['peer_business'] ?? null,
-                'peer_industry' => $data['peer_industry'] ?? null,
-                'why_valuable' => $data['why_valuable'] ?? null,
-                'category' => $category,
-                'category_id' => isset($data['category_id']) ? (int) $data['category_id'] : null,
-                'circle_id' => $data['circle_id'] ?? null,
-                'circle_name' => $data['circle_name'] ?? null,
-                'how_well_known' => $data['how_well_known'],
-                'is_aware' => (bool) $data['is_aware'],
-                'note' => $data['note'] ?? null,
-                'coins_awarded' => false,
-            ]);
-
-            $coinsEarned = 0;
-            $currentBalance = (int) ($authUser->coins_balance ?? 0);
-
-            if (! $recommendation->coins_awarded) {
-                $amount = $this->getActivityCoinReward('recommend_peer') ?: (int) config('coins.recommend_peer', 1000);
-                $ledger = $coinsService->reward($authUser, $amount, 'Recommend a Peer');
-
-                if ($ledger) {
-                    $recommendation->coins_awarded = true;
-                    $recommendation->coins_awarded_at = now();
-                    $recommendation->save();
-                    $coinsEarned = (int) $ledger->amount;
-                    $currentBalance = (int) $ledger->balance_after;
-                }
-            }
-
-            $impactPoints = $this->getActivityImpactReward('recommend_peer');
-            $updatedLifeImpact = $this->increaseLifeImpact(
-                (string) $authUser->id,
-                $impactPoints,
-                'recommend_peer',
-                'Recommended a peer to the community',
-                (string) $authUser->id,
-                (string) $recommendation->id,
-                'Life impact added for peer recommendation activity.',
-                [
-                    'peer_name' => $recommendation->peer_name,
-                    'category' => $recommendation->category,
-                ]
-            );
-
-            return [$recommendation, $coinsEarned, $currentBalance, $impactPoints, $updatedLifeImpact];
-        });
+        $result = $this->recommendationService->submit($authUser, $data);
 
         /** @var PeerRecommendation $recommendation */
-        [$recommendation, $coinsEarned, $currentBalance, $impactPoints, $updatedLifeImpact] = $result;
+        $recommendation = $result['recommendation'];
 
         $rewardData = $this->formatActivityRewardPayload(
-            $coinsEarned,
-            $currentBalance,
-            $impactPoints,
-            $updatedLifeImpact
+            $result['coins_earned'],
+            $result['current_balance'],
+            $result['impact_points'],
+            $result['updated_life_impact']
         );
 
         $payload = array_merge([
-            'id' => $recommendation->id,
+            'id' => (string) $recommendation->id,
+            'peer_name' => $recommendation->peer_name,
+            'peer_mobile' => $recommendation->peer_mobile,
+            'created_at' => $recommendation->created_at?->toISOString() ?? (string) $recommendation->created_at,
             'coins_awarded' => (bool) $recommendation->coins_awarded,
-            'current_coins_balance' => (int) $currentBalance,
+            'current_coins_balance' => (int) $result['current_balance'],
         ], $rewardData);
 
-        return $this->success($payload, 'Peer recommendation submitted successfully.', 201);
+        return $this->success($payload, 'Peer recommendation submitted successfully!', 201);
     }
 
+    /**
+     * Get past peer recommendations submitted by the authenticated user.
+     */
     public function myIndex(Request $request): JsonResponse
     {
         $authUser = $request->user();
 
-        $items = PeerRecommendation::query()
-            ->where('user_id', $authUser->id)
-            ->orderByDesc('created_at')
-            ->select([
-                'id',
-                'peer_name',
-                'peer_mobile',
-                'peer_email',
-                'peer_city',
-                'peer_business',
-                'peer_industry',
-                'why_valuable',
-                'category',
-                'category_id',
-                'circle_id',
-                'circle_name',
-                'how_well_known',
-                'is_aware',
-                'note',
-                'created_at',
-            ])
-            ->get();
+        $perPage = (int) ($request->query('per_page') ?? $request->query('limit') ?? 20);
+        $page = (int) ($request->query('page') ?? 1);
+
+        $paginator = $this->recommendationService->getMyRecommendations($authUser, $perPage, $page);
+
+        $items = $paginator->getCollection()->map(function (PeerRecommendation $item): array {
+            $formattedDate = $item->created_at?->toISOString() ?? ($item->created_at ? (string) $item->created_at : null);
+
+            return [
+                'id' => (string) $item->id,
+                'peer_name' => $item->peer_name,
+                'peer_mobile' => $item->peer_mobile,
+                'peer_email' => $item->peer_email,
+                'peer_city' => $item->peer_city,
+                'peer_city_country' => $item->peer_city,
+                'peer_business' => $item->peer_business,
+                'main_business_category_id' => $item->main_business_category_id ?? $item->category_id,
+                'main_business_category' => $item->main_business_category ?? $item->category,
+                'business_subcategory_id' => $item->business_subcategory_id,
+                'business_subcategory' => $item->business_subcategory,
+                'how_well_known' => $item->how_well_known,
+                'is_aware' => (bool) $item->is_aware,
+                'why_valuable' => $item->why_valuable,
+                'note' => $item->note,
+                'circle_id' => $item->circle_id,
+                'circle_name' => $item->circle_name,
+                'status' => $item->status ?? 'pending',
+                'created_at' => $formattedDate,
+                'submitted_at' => $formattedDate,
+            ];
+        })->values();
 
         return $this->success([
             'items' => $items,
-        ], 'Peer recommendations fetched successfully.');
+            'total' => $paginator->total(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+        ], 'Peer recommendations retrieved successfully.');
     }
 }

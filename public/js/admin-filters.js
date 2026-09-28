@@ -743,6 +743,29 @@
         });
     }
 
+    function bindTabSwitchListeners() {
+        document.addEventListener('shown.bs.tab', function (e) {
+            initGlobalTableTopScrollbars();
+            window.dispatchEvent(new Event('resize'));
+            if (e.target && e.target.getAttribute('data-bs-target')) {
+                const targetPane = document.querySelector(e.target.getAttribute('data-bs-target'));
+                if (targetPane) {
+                    targetPane.querySelectorAll('.overflow-x-auto, .table-responsive').forEach(function (container) {
+                        const table = container.querySelector('table');
+                        const prev = container.previousElementSibling;
+                        if (table && prev && (prev.id === 'top-scroll-wrapper' || prev.classList.contains('table-top-scroll-wrapper'))) {
+                            const topContent = prev.querySelector('div');
+                            if (topContent) {
+                                topContent.style.width = table.scrollWidth + 'px';
+                                prev.style.display = table.scrollWidth > container.clientWidth + 15 ? 'block' : 'none';
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    }
+
     function boot() {
         injectGlobalOverflowFix();
         markAdminFilterForms();
@@ -752,6 +775,7 @@
         bindSelect2ClearHandler();
         observeDynamicFilters();
         initGlobalTableTopScrollbars();
+        bindTabSwitchListeners();
     }
 
     if (document.readyState === 'loading') {

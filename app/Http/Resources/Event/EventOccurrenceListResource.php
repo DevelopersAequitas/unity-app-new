@@ -42,12 +42,23 @@ class EventOccurrenceListResource extends JsonResource
         $startLocal = $startAtParsed;
         $endLocal = $endAtParsed;
 
+        $now = Carbon::now($timezone);
+        $groupStatus = 'upcoming';
+        if ($startLocal && $endLocal && $startLocal->lessThanOrEqualTo($now) && $endLocal->greaterThanOrEqualTo($now)) {
+            $groupStatus = 'live';
+        } elseif ($startLocal && $startLocal->toDateString() === $now->toDateString()) {
+            $groupStatus = 'today';
+        } elseif ($endLocal && $endLocal->lessThan($now)) {
+            $groupStatus = 'past';
+        }
+
         $circles = [];
         if (Schema::hasTable('event_circles') && $event->relationLoaded('circles')) {
             try {
                 $circles = $event->circles->map(fn ($circle) => [
                     'id' => $circle->id,
                     'name' => $circle->name,
+                    'slug' => $circle->slug ?? null,
                     'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
                 ])->values()->all();
             } catch (\Throwable) {
@@ -55,7 +66,12 @@ class EventOccurrenceListResource extends JsonResource
             }
         }
         if ($circles === [] && $event->circle) {
-            $circles = [['id' => $event->circle->id, 'name' => $event->circle->name, 'state_name' => $event->circle->state_name ?? $event->circle->state ?? null]];
+            $circles = [[
+                'id' => $event->circle->id,
+                'name' => $event->circle->name,
+                'slug' => $event->circle->slug ?? null,
+                'state_name' => $event->circle->state_name ?? $event->circle->state ?? $event->circle->cityRef?->state_name ?? $event->circle->cityRef?->state ?? null,
+            ]];
         }
 
         return [
@@ -78,12 +94,14 @@ class EventOccurrenceListResource extends JsonResource
                 'interval' => $event->recurrence_interval,
                 'ends_at' => optional($event->recurrence_ends_at)->toISOString(),
             ],
-            'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null] : null,
+            'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null, 'state_name' => $event->circle->state_name ?? $event->circle->state ?? $event->circle->cityRef?->state_name ?? $event->circle->cityRef?->state ?? null] : null,
             'start_at' => optional($startAtParsed)->format('Y-m-d\TH:i:s'),
             'start_date' => optional($startLocal)->toDateString(),
             'start_time' => optional($startLocal)->format('H:i:s'),
             'end_at' => optional($endAtParsed)->format('Y-m-d\TH:i:s'),
+            'formatted_start_at' => optional($startLocal)->format('d M Y h:i A'),
             'status' => $this->status ?? $event->status ?? 'scheduled',
+            'group_status' => $groupStatus,
             'display_date' => optional($startLocal)->format('M d, Y'),
             'display_time' => trim(optional($startLocal)->format('h:i A').' - '.optional($endLocal)->format('h:i A'), ' -'),
             'location_text' => $event->location_text,
@@ -97,6 +115,7 @@ class EventOccurrenceListResource extends JsonResource
             ],
             'online_meeting_url' => $showOnlineUrl ? ($event->online_meeting_url ?? null) : null,
             'banner_url' => $event->banner_url,
+            'image_url' => $event->banner_url,
             'agenda' => $event->agenda,
             'speakers' => $event->speakers,
             'what_youll_gain' => array_values((array) data_get($metadata, 'what_youll_gain', [])),
@@ -120,7 +139,6 @@ class EventOccurrenceListResource extends JsonResource
                 'registration_id' => $registration?->id,
                 'status' => $registration?->status,
                 'checkin_status' => $registration?->checkin_status,
-                'payment_gateway' => ($registration?->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
                 'payment_gateway' => ($registration?->payment_required ?? false) ? (in_array(strtolower((string) ($registration->payment_gateway ?: config('services.event_payment_gateway', 'zoho_billing_payment_link'))), ['none', 'not_required', 'null', ''], true) ? 'zoho_billing_payment_link' : ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link'))) : null,
                 'payment_status' => $registration?->payment_status,
                 'razorpay_order_id' => $registration?->razorpay_order_id,

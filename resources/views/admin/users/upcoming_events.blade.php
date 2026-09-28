@@ -114,31 +114,31 @@
 
   <!-- Summary KPI Cards -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-    <div class="p-3 rounded-lg surface-2 border bs">
+    <div class="p-3 rounded-lg surface-2 border bs cursor-pointer hover:shadow-md transition" onclick="document.getElementById('eventsListSection')?.scrollIntoView({behavior: 'smooth'})" title="Click to scroll to upcoming events list">
       <div class="flex items-center justify-between">
         <span class="text-xs t3 font-semibold uppercase tracking-wider">Total Upcoming Events</span>
         <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-100 text-indigo-700">Next {{ $filters['period'] }} Days</span>
       </div>
       <div class="text-2xl font-bold font-display t1 mt-1">{{ $totalUpcomingCount }}</div>
-      <div class="text-[11px] t3 mt-0.5">Combined birthdays &amp; anniversaries</div>
+      <div class="text-[11px] t3 mt-0.5">Combined birthdays &amp; anniversaries <i class="bi bi-arrow-down-short text-muted"></i></div>
     </div>
 
-    <div class="p-3 rounded-lg surface-2 border bs">
+    <div class="p-3 rounded-lg surface-2 border bs cursor-pointer hover:shadow-md transition" onclick="switchEventTabAndScroll('birthdays')" title="Click to view upcoming birthdays">
       <div class="flex items-center justify-between">
         <span class="text-xs t3 font-semibold uppercase tracking-wider">Upcoming Birthdays</span>
         <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-pink-100 text-pink-700 flex items-center gap-1"><i class="bi bi-cake2-fill" aria-hidden="true"></i>Birthdays</span>
       </div>
       <div class="text-2xl font-bold font-display t1 mt-1">{{ $birthdaysCount }}</div>
-      <div class="text-[11px] t3 mt-0.5">Peers celebrating birthday</div>
+      <div class="text-[11px] t3 mt-0.5">Peers celebrating birthday <i class="bi bi-arrow-down-short text-muted"></i></div>
     </div>
 
-    <div class="p-3 rounded-lg surface-2 border bs">
+    <div class="p-3 rounded-lg surface-2 border bs cursor-pointer hover:shadow-md transition" onclick="switchEventTabAndScroll('anniversaries')" title="Click to view upcoming wedding anniversaries">
       <div class="flex items-center justify-between">
         <span class="text-xs t3 font-semibold uppercase tracking-wider">Upcoming Anniversaries</span>
         <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700 flex items-center gap-1"><i class="bi bi-heart-fill" aria-hidden="true"></i>Anniversaries</span>
       </div>
       <div class="text-2xl font-bold font-display t1 mt-1">{{ $anniversariesCount }}</div>
-      <div class="text-[11px] t3 mt-0.5">Peers celebrating wedding anniversary</div>
+      <div class="text-[11px] t3 mt-0.5">Peers celebrating wedding anniversary <i class="bi bi-arrow-down-short text-muted"></i></div>
     </div>
   </div>
 
@@ -193,15 +193,16 @@
     </div>
   </form>
 
-  <!-- Section Tabs -->
-  <div class="flex items-center gap-2 mb-4 border-b bs pb-3">
-    <a href="{{ route('admin.users.upcoming-events', array_merge(request()->except('page'), ['tab' => 'birthdays'])) }}" class="tab-pill {{ $activeTab === 'birthdays' ? 'active' : '' }}">
-      <i class="bi bi-cake2-fill me-1" aria-hidden="true"></i>Upcoming Birthdays ({{ $birthdaysCount }})
-    </a>
-    <a href="{{ route('admin.users.upcoming-events', array_merge(request()->except('page'), ['tab' => 'anniversaries'])) }}" class="tab-pill {{ $activeTab === 'anniversaries' ? 'active' : '' }}">
-      <i class="bi bi-heart-fill me-1" aria-hidden="true"></i>Upcoming Anniversaries ({{ $anniversariesCount }})
-    </a>
-  </div>
+  <!-- Section Tabs & Content Container -->
+  <div id="eventsListSection">
+    <div class="flex items-center gap-2 mb-4 border-b bs pb-3">
+      <a href="{{ route('admin.users.upcoming-events', array_merge(request()->except('page'), ['tab' => 'birthdays'])) }}" class="tab-pill {{ $activeTab === 'birthdays' ? 'active' : '' }}">
+        <i class="bi bi-cake2-fill me-1" aria-hidden="true"></i>Upcoming Birthdays ({{ $birthdaysCount }})
+      </a>
+      <a href="{{ route('admin.users.upcoming-events', array_merge(request()->except('page'), ['tab' => 'anniversaries'])) }}" class="tab-pill {{ $activeTab === 'anniversaries' ? 'active' : '' }}">
+        <i class="bi bi-heart-fill me-1" aria-hidden="true"></i>Upcoming Anniversaries ({{ $anniversariesCount }})
+      </a>
+    </div>
 
   <!-- Content List / Grid -->
   @if($paginatedRecords->isEmpty())
@@ -378,11 +379,31 @@
     </div>
   @endif
 
+  </div> {{-- Close #eventsListSection --}}
+
 </div>
 
 @push('scripts')
 <script>
+function switchEventTabAndScroll(tab) {
+    const currentTab = '{{ $activeTab }}';
+    if (currentTab === tab) {
+        document.getElementById('eventsListSection')?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        url.hash = 'eventsListSection';
+        window.location.href = url.toString();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
+    if (window.location.hash === '#eventsListSection') {
+        setTimeout(function() {
+            document.getElementById('eventsListSection')?.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+    }
+
     const form = document.getElementById('upcomingEventsFilterForm');
     if (!form) return;
 

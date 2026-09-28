@@ -7,7 +7,11 @@ use App\Http\Requests\Circle\UpdateCircleMemberRequest;
 use App\Http\Resources\CircleMemberResource;
 use App\Http\Resources\CircleResource;
 use App\Models\Circle;
+use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
+use App\Models\CircleMemberCategorySelection;
+use App\Models\JoinedCircleCategory;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Shared\Services\UserRoleResolverService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -408,6 +412,7 @@ class CircleController extends BaseApiController
 
         $memberships = CircleMember::query()
             ->where('user_id', $user->id)
+            ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->whereNull('left_at')
             ->with('circle:id,name')
@@ -424,5 +429,58 @@ class CircleController extends BaseApiController
             ->all();
 
         return $this->success($memberships, 'Joined circles fetched successfully.');
+    }
+
+    public function leave(Request $request, string $circleId)
+    {
+        $user = $request->user();
+
+        if (! Str::isUuid($circleId)) {
+            return $this->error('Invalid circle id format', 422);
+        }
+
+        $member = CircleMember::query()
+            ->where('circle_id', $circleId)
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->first();
+
+        if (! $member) {
+            return $this->error('You are not an active member of this circle', 404);
+        }
+
+        $member->forceFill([
+            'left_at' => now(),
+        ])->save();
+
+        if (Schema::hasTable('joined_circle_categories')) {
+            JoinedCircleCategory::query()
+                ->where('circle_member_id', $member->id)
+                ->delete();
+        }
+
+        if (Schema::hasTable('circle_member_category_selections')) {
+            CircleMemberCategorySelection::query()
+                ->where('circle_member_id', $member->id)
+                ->delete();
+        }
+
+        $member->delete();
+
+        CircleJoinRequest::query()
+            ->where('user_id', $user->id)
+            ->where('circle_id', $circleId)
+            ->whereIn('status', [CircleJoinRequest::STATUS_PAID, CircleJoinRequest::STATUS_CIRCLE_MEMBER, CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE])
+            ->update(['status' => CircleJoinRequest::STATUS_CANCELLED]);
+
+        if ($user->active_circle_id === $circleId) {
+            $user->active_circle_id = null;
+            $user->save();
+        }
+
+        app(CircleJoinRequestPaymentSyncService::class)->updateUserCircleMembershipTier($user->fresh() ?? $user);
+
+        return $this->success(null, 'Successfully left the circle');
     }
 }

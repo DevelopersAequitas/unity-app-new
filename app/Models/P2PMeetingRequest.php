@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -27,11 +29,17 @@ class P2PMeetingRequest extends Model
         'message',
         'status',
         'responded_at',
+        'is_logged',
+        'logged_at',
+        'logged_by_user_id',
+        'p2p_meeting_id',
     ];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
         'responded_at' => 'datetime',
+        'is_logged' => 'boolean',
+        'logged_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -44,6 +52,16 @@ class P2PMeetingRequest extends Model
     public function invitee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invitee_id');
+    }
+
+    public function loggedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'logged_by_user_id');
+    }
+
+    public function p2pMeeting(): BelongsTo
+    {
+        return $this->belongsTo(P2pMeeting::class, 'p2p_meeting_id');
     }
 
     public function rescheduleRequests(): HasMany

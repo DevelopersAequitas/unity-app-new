@@ -1429,7 +1429,7 @@ window.switchTab = function(tabId) {
             'level4' => $membership->level_4_category_id ?? 0,
         ];
         $memCircleId = (string) $membership->circle_id;
-        $memCircleOptions = $circleCategoryOptionsByCircle[$memCircleId] ?? ['level1' => [], 'level2' => [], 'level3' => [], 'level4' => []];
+        $memCircleOptions = $circleCategoryOptionsByCircle[$memCircleId] ?? $circleCategoryOptionsByCircle['default'] ?? ['level1' => [], 'level2' => [], 'level3' => [], 'level4' => []];
         $firstL1 = $memCircleOptions['level1'][0] ?? null;
         $memLevel1Name = $membershipTree['selected_category_path']['level1']->name ?? ($firstL1['name'] ?? '—');
         $memLevel1Id = $memSelectedIds['level1'] ?: ($firstL1['id'] ?? '');
@@ -2121,7 +2121,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const getCircleData = () => {
             const circleId = circleSelect?.value || '';
-            return circleCategoryOptionsByCircle[String(circleId)] || { level1: [], level2: [], level3: [], level4: [] };
+            return circleCategoryOptionsByCircle[String(circleId)] || circleCategoryOptionsByCircle['default'] || { level1: [], level2: [], level3: [], level4: [] };
         };
 
         const syncHiddenLevelsFromLevel4 = () => {
@@ -2183,7 +2183,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const level2Input = document.getElementById(`modal_level2_${memberId}`);
             const level3Input = document.getElementById(`modal_level3_${memberId}`);
 
-            const circleData = circleCategoryOptionsByCircle[String(circleId)] || { level1: [], level2: [], level3: [], level4: [] };
+            const circleData = circleCategoryOptionsByCircle[String(circleId)] || circleCategoryOptionsByCircle['default'] || { level1: [], level2: [], level3: [], level4: [] };
 
             const syncModalHiddenLevels = () => {
                 const selectedOption = modalL4Select.options[modalL4Select.selectedIndex];

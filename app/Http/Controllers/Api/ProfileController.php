@@ -225,10 +225,14 @@ class ProfileController extends BaseApiController
             'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
         ]);
 
-        if (Schema::hasTable('followers')) {
+        if (Schema::hasTable('user_follows')) {
             $user->loadCount([
-                'followers as followers_count',
-                'following as following_count',
+                'followers as followers_count' => function ($query) {
+                    $query->whereIn('status', ['accepted', 'pending']);
+                },
+                'following as following_count' => function ($query) {
+                    $query->whereIn('status', ['accepted', 'pending']);
+                },
             ]);
         }
 

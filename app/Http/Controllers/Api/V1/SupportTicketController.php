@@ -18,22 +18,87 @@ class SupportTicketController extends BaseApiController
 {
     public function __construct(private readonly EmailLogService $emailLogService) {}
 
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $query = SupportTicket::query()
+            ->where(function ($q) use ($user): void {
+                $q->where('user_id', $user->id);
+                if (! empty($user->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+            });
+
+        if ($request->filled('status') && $request->input('status') !== 'all') {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        if ($request->filled('search')) {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()).'%';
+            $query->where(function ($q) use ($term): void {
+                $q->where('ticket_number', 'ILIKE', $term)
+                    ->orWhere('subject', 'ILIKE', $term)
+                    ->orWhere('description', 'ILIKE', $term);
+            });
+        }
+
+        $perPage = (int) $request->input('per_page', 20);
+        $paginator = $query->orderByDesc('created_at')->paginate($perPage);
+
+        return $this->success([
+            'items' => $paginator->items(),
+            'tickets' => $paginator->items(),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ], 'Support tickets fetched successfully.');
+    }
+
+    public function show(string $id, Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $ticket = SupportTicket::query()
+            ->where('id', $id)
+            ->where(function ($q) use ($user): void {
+                $q->where('user_id', $user->id);
+                if (! empty($user->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+            })
+            ->firstOrFail();
+
+        return $this->success($ticket, 'Support ticket fetched successfully.');
+    }
+
     public function store(Request $request): JsonResponse
     {
+        $user = $request->user();
+        if ($user) {
+            $userName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+            $request->merge([
+                'contact_name' => $request->input('contact_name') ?: ($userName !== '' ? $userName : 'Peer Member'),
+                'email' => $request->input('email') ?: $user->email,
+            ]);
+        }
+
         $validated = $request->validate([
             'contact_name' => ['required', 'string', 'max:150'],
             'email' => ['required', 'email', 'max:150'],
             'subject' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'media' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,mp4,mov,avi,webm', 'max:51200'],
+            'priority' => ['nullable', 'string', 'in:low,normal,high,urgent'],
         ]);
 
         $mediaPayload = $this->uploadSupportMedia($request);
 
         $ticket = new SupportTicket($validated);
-        $ticket->user_id = optional($request->user())->id;
+        $ticket->user_id = $user?->id;
         $ticket->status = 'open';
-        $ticket->priority = 'normal';
+        $ticket->priority = $validated['priority'] ?? 'normal';
         $ticket->ticket_number = $this->generateTicketNumber();
         $ticket->media_file_id = $mediaPayload['file_id'] ?? null;
         $ticket->media_type = $mediaPayload['type'] ?? null;
@@ -47,12 +112,7 @@ class SupportTicketController extends BaseApiController
 
     public function myTickets(Request $request): JsonResponse
     {
-        $tickets = SupportTicket::query()
-            ->where('user_id', $request->user()->id)
-            ->orderByDesc('created_at')
-            ->get();
-
-        return $this->success($tickets, 'My support tickets fetched successfully.');
+        return $this->index($request);
     }
 
     public function adminIndex(Request $request): JsonResponse

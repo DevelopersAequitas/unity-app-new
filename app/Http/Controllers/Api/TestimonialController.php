@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreTestimonialRequest;
+use App\Models\Ask\Ask;
 use App\Models\Post;
+use App\Models\Referral;
 use App\Models\Testimonial;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -156,6 +158,38 @@ class TestimonialController extends BaseApiController
                 (string) $authUser->id,
                 $testimonial->to_user_id ? (string) $testimonial->to_user_id : null
             ));
+
+            $referralId = $request->input('referral_id');
+            $askId = $request->input('ask_id');
+
+            if (filled($referralId)) {
+                $referral = Referral::find($referralId);
+                if ($referral) {
+                    $referral->status_id = 5; // Got things done
+                    $referral->save();
+                }
+            }
+
+            if (filled($askId)) {
+                $ask = Ask::find($askId);
+                if ($ask) {
+                    $ask->update([
+                        'status' => Ask::STATUS_FULFILLED,
+                        'fulfilled_at' => now(),
+                        'outcome_status' => 'testimonial_given',
+                        'outcome_notes' => $request->input('content'),
+                    ]);
+                }
+            }
+
+            // Award 1,500 coins upon testimonial handoff
+            if (filled($referralId) || filled($askId)) {
+                try {
+                    app(CoinsService::class)->reward($authUser, 1500, 'Testimonial fulfillment reward', ['testimonial_id' => (string) $testimonial->id]);
+                } catch (Throwable $coinEx) {
+                    Log::warning('Testimonial fulfillment coin reward failed: '.$coinEx->getMessage());
+                }
+            }
 
             $targetUser = User::find($testimonial->to_user_id);
 

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
+use App\Http\Resources\Ask\AskPreviewResource;
 use App\Http\Resources\PostCommentResource;
 use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
+use App\Models\Ask\Ask;
+use App\Models\Ask\AskTimelineLink;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\File;
@@ -16,8 +19,10 @@ use App\Models\Post;
 use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\PostMention;
+use App\Models\Referral;
 use App\Models\User;
 use App\Services\AdFeedService;
+use App\Services\Ask\AskService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationService;
 use App\Services\Notifications\NotifyUserService;
@@ -38,6 +43,37 @@ class PostController extends BaseApiController
         $user = $request->user();
         $perPage = max(1, min((int) $request->integer('per_page', 20), 50));
         $page = LengthAwarePaginator::resolveCurrentPage();
+
+        try {
+            $unlinkedAsks = Ask::query()
+                ->where('status', Ask::STATUS_PUBLISHED)
+                ->where(function ($q) {
+                    $q->whereNull('publish_to_timeline')
+                        ->orWhere('publish_to_timeline', true);
+                })
+                ->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('ask_timeline_links')
+                        ->whereColumn('ask_timeline_links.ask_id', 'asks.id');
+                })
+                ->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('posts')
+                        ->where('posts.source_type', 'ask')
+                        ->whereColumn('posts.source_id', 'asks.id');
+                })
+                ->limit(10)
+                ->get();
+
+            if ($unlinkedAsks->isNotEmpty()) {
+                $askService = app(AskService::class);
+                foreach ($unlinkedAsks as $unlinkedAsk) {
+                    $askService->ensureTimelinePost($unlinkedAsk);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Failed auto-healing unlinked asks in feed: '.$e->getMessage());
+        }
 
         $postRows = DB::table('posts')
             ->leftJoin('collaboration_posts as feed_collaboration_posts', function ($join): void {
@@ -116,7 +152,49 @@ class PostController extends BaseApiController
             ->where('impacts.status', 'approved')
             ->whereNotNull('impacts.timeline_posted_at');
 
-        $union = $postRows->unionAll($impactRows);
+        $referralRows = DB::table('referrals')
+            ->leftJoin('users as to_users', 'to_users.id', '=', 'referrals.to_user_id')
+            ->selectRaw('referrals.id as id')
+            ->selectRaw('referrals.from_user_id as author_id')
+            ->selectRaw('NULL::uuid as circle_id')
+            ->selectRaw("COALESCE(referrals.remarks, 'Shared a referral for ' || referrals.referral_of) as content_text")
+            ->selectRaw("'[]'::jsonb as media")
+            ->selectRaw("'[\"referral\"]'::jsonb as tags")
+            ->selectRaw("'public' as visibility")
+            ->selectRaw("'approved' as moderation_status")
+            ->selectRaw('0 as likes_count')
+            ->selectRaw('0 as comments_count')
+            ->selectRaw('0 as saves_count')
+            ->selectRaw('false as is_liked_by_me')
+            ->selectRaw('false as is_saved_by_me')
+            ->selectRaw('referrals.created_at as created_at')
+            ->selectRaw('referrals.updated_at as updated_at')
+            ->selectRaw('referrals.created_at as sort_at')
+            ->selectRaw("'post' as source_type")
+            ->selectRaw("'referral' as post_source_type")
+            ->selectRaw('referrals.id as post_source_id')
+            ->selectRaw("'referral_created' as post_source_event")
+            ->selectRaw('to_users.id as accepted_by_id')
+            ->selectRaw('to_users.display_name as accepted_by_display_name')
+            ->selectRaw('to_users.first_name as accepted_by_first_name')
+            ->selectRaw('to_users.last_name as accepted_by_last_name')
+            ->selectRaw('to_users.company_name as accepted_by_company_name')
+            ->selectRaw('to_users.city as accepted_by_city')
+            ->selectRaw('referrals.to_user_id as impacted_peer_id')
+            ->selectRaw('referrals.referral_date as impact_date')
+            ->selectRaw('referrals.referral_of as impact_action')
+            ->selectRaw('1 as life_impacted')
+            ->selectRaw("'referral' as post_type")
+            ->where('referrals.is_deleted', false)
+            ->whereNull('referrals.deleted_at')
+            ->whereNotExists(function ($q): void {
+                $q->select(DB::raw(1))
+                    ->from('posts')
+                    ->whereColumn('posts.source_id', 'referrals.id')
+                    ->where('posts.source_type', 'referral');
+            });
+
+        $union = $postRows->unionAll($impactRows)->unionAll($referralRows);
         $orderedRows = DB::query()->fromSub($union, 'feed_rows')->orderByDesc('sort_at');
 
         $total = (clone $orderedRows)->count();
@@ -291,6 +369,73 @@ class PostController extends BaseApiController
             }
         }
 
+        $askSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $askPostIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $asksByPostId = collect();
+        $asksById = collect();
+
+        if (! empty($askPostIds) || ! empty($askSourceIds)) {
+            $timelineLinks = AskTimelineLink::query()
+                ->whereIn('post_id', $askPostIds)
+                ->get(['ask_id', 'post_id'])
+                ->keyBy('post_id');
+
+            $allAskIds = collect($askSourceIds)
+                ->merge($timelineLinks->pluck('ask_id'))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (! empty($allAskIds)) {
+                $asks = Ask::query()
+                    ->whereIn('id', $allAskIds)
+                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
+                    ->withCount(['responses', 'matches'])
+                    ->get();
+
+                $asksById = $asks->keyBy(fn (Ask $ask) => (string) $ask->id);
+
+                foreach ($timelineLinks as $postId => $link) {
+                    if ($asksById->has((string) $link->ask_id)) {
+                        $asksByPostId->put((string) $postId, $asksById->get((string) $link->ask_id));
+                    }
+                }
+            }
+        }
+
+        $referralSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
+            ->map(fn ($row) => (string) ($row->post_source_id ?? $row->id))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $referralsById = $referralSourceIds !== []
+            ? Referral::query()
+                ->whereIn('id', $referralSourceIds)
+                ->with(['status', 'toUser'])
+                ->get()
+                ->keyBy(fn (Referral $r) => (string) $r->id)
+            : collect();
+
         $isDownloadable = CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
@@ -302,7 +447,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -380,6 +525,22 @@ class PostController extends BaseApiController
                             : null,
                     ];
                 }
+            } elseif (
+                ((string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
+                && ! empty($row->accepted_by_id)
+            ) {
+                $accPeer = $mentionedPeers->get((string) $row->accepted_by_id);
+                if (! collect($mentions)->contains('id', (string) $row->accepted_by_id)) {
+                    $acceptedByName = trim((string) ($row->accepted_by_display_name
+                        ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
+                    $mentions[] = [
+                        'id' => (string) $row->accepted_by_id,
+                        'name' => $acceptedByName !== '' ? $acceptedByName : ($accPeer ? ($accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''))) : 'Peer Member'),
+                        'profile_photo_url' => $accPeer?->profile_photo_file_id
+                            ? url('/api/v1/files/'.$accPeer->profile_photo_file_id)
+                            : null,
+                    ];
+                }
             }
 
             // 3. Inline markdown mentions @[Name](uuid)
@@ -429,6 +590,9 @@ class PostController extends BaseApiController
                     'profile_photo_url' => $author->profile_photo_file_id
                         ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
+                    'profile_photo_image' => $author->profile_photo_file_id
+                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
+                        : null,
                 ] : null,
                 'circle' => $circle ? [
                     'id' => (string) $circle->id,
@@ -476,6 +640,63 @@ class PostController extends BaseApiController
                         'display_name' => $impactedPeer->display_name,
                         'first_name' => $impactedPeer->first_name,
                         'last_name' => $impactedPeer->last_name,
+                    ] : null,
+                ];
+            }
+
+            if (
+                (string) $row->source_type === 'post'
+                && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask')
+            ) {
+                /** @var Ask|null $ask */
+                $ask = (! empty($row->post_source_id) ? $asksById->get((string) $row->post_source_id) : null)
+                    ?? $asksByPostId->get((string) $row->id);
+
+                if ($ask) {
+                    $item['ask'] = (new AskPreviewResource($ask))->toArray($request);
+                }
+            }
+
+            if (
+                (string) ($row->post_source_type ?? '') === 'referral'
+                || (string) ($row->source_type ?? '') === 'referral'
+                || (string) ($row->post_type ?? '') === 'referral'
+            ) {
+                if (empty($item['post_type']) || $item['post_type'] === 'standard') {
+                    $item['post_type'] = 'referral';
+                }
+
+                $ref = $referralsById->get((string) ($row->post_source_id ?? $row->id));
+                $toUser = $ref?->toUser;
+                $recipientId = (string) ($row->accepted_by_id ?? $ref?->to_user_id ?? '');
+                $accPeer = $recipientId !== '' ? $mentionedPeers->get($recipientId) : null;
+
+                $acceptedByName = trim((string) ($row->accepted_by_display_name
+                    ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
+                if ($acceptedByName === '' && $toUser) {
+                    $acceptedByName = $toUser->display_name ?: trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? ''));
+                }
+                if ($acceptedByName === '' && $accPeer) {
+                    $acceptedByName = $accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''));
+                }
+                $photoFileId = $toUser?->profile_photo_file_id ?? $accPeer?->profile_photo_file_id;
+
+                $item['referral'] = [
+                    'id' => (string) ($row->post_source_id ?? $row->id),
+                    'referral_of' => (string) ($ref?->referral_of ?? $row->impact_action ?? 'Business Referral'),
+                    'referral_type' => (string) ($ref?->referral_type ?? 'b2b_referral'),
+                    'referral_date' => $row->impact_date ?? $ref?->referral_date,
+                    'remarks' => (string) ($ref?->remarks ?? $row->content_text ?? ''),
+                    'status_id' => (int) ($ref?->status_id ?? 1),
+                    'status_label' => (string) ($ref?->status?->name ?? 'Contacted'),
+                    'recipient' => $recipientId !== '' ? [
+                        'id' => $recipientId,
+                        'name' => $acceptedByName !== '' ? $acceptedByName : 'Peer Member',
+                        'company_name' => (string) ($row->accepted_by_company_name ?? $toUser?->company_name ?? ''),
+                        'city' => (string) ($row->accepted_by_city ?? $toUser?->city_of_residence ?? $toUser?->city ?? ''),
+                        'profile_photo_url' => $photoFileId
+                            ? url('/api/v1/files/'.$photoFileId)
+                            : null,
                     ] : null,
                 ];
             }
@@ -886,7 +1107,7 @@ class PostController extends BaseApiController
             return $this->error('Post not found', 404);
         }
 
-        return $this->success([
+        $responseData = [
             'id' => $post->id,
             'content_text' => $post->content_text,
             'media' => $post->media ?? [],
@@ -910,6 +1131,7 @@ class PostController extends BaseApiController
                     ?? $post->user->business_sub_category
                     ?? null,
                 'profile_photo_url' => $post->user->profile_photo_url,
+                'profile_photo_image' => $post->user->profile_photo_url,
             ] : null,
             'circle' => $post->relationLoaded('circle') && $post->circle ? [
                 'id' => $post->circle->id,
@@ -922,7 +1144,26 @@ class PostController extends BaseApiController
             'is_saved' => (bool) ($post->is_saved_by_me ?? false),
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
-        ]);
+        ];
+
+        if ($post->source_type === 'ask' || $post->post_type === 'ask') {
+            $askId = $post->source_id;
+            if (! $askId) {
+                $link = AskTimelineLink::query()->where('post_id', $post->id)->first();
+                $askId = $link?->ask_id;
+            }
+            if ($askId) {
+                $ask = Ask::query()
+                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
+                    ->withCount(['responses', 'matches'])
+                    ->find($askId);
+                if ($ask) {
+                    $responseData['ask'] = (new AskPreviewResource($ask))->toArray($request);
+                }
+            }
+        }
+
+        return $this->success($responseData);
     }
 
     public function destroy(Request $request, string $id)

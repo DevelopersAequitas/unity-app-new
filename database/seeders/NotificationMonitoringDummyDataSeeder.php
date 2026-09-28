@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Notifications\AppNotification;
-use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -20,6 +18,7 @@ class NotificationMonitoringDummyDataSeeder extends Seeder
     {
         if (! Schema::hasTable('app_notifications')) {
             $this->command?->error('Table app_notifications does not exist.');
+
             return;
         }
 

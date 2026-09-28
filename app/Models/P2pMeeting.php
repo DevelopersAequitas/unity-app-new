@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,6 +26,7 @@ class P2pMeeting extends Model
     protected $fillable = [
         'initiator_user_id',
         'peer_user_id',
+        'p2p_meeting_request_id',
         'meeting_date',
         'meeting_place',
         'remarks',
@@ -54,5 +57,10 @@ class P2pMeeting extends Model
     public function peer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'peer_user_id');
+    }
+
+    public function meetingRequest(): BelongsTo
+    {
+        return $this->belongsTo(P2PMeetingRequest::class, 'p2p_meeting_request_id');
     }
 }

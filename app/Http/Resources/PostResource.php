@@ -2,6 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Ask\AskPreviewResource;
+use App\Models\Ask\Ask;
+use App\Models\Ask\AskTimelineLink;
 use App\Models\File;
 use App\Models\PostMention;
 use App\Models\User;
@@ -174,6 +177,7 @@ class PostResource extends JsonResource
                                 ?? null,
                             'business_sub_category' => $subCategory,
                             'profile_photo_url' => $author?->profile_photo_url,
+                            'profile_photo_image' => $author?->profile_photo_url,
                         ];
                     }
                 ),
@@ -198,6 +202,23 @@ class PostResource extends JsonResource
             'created_at' => $this->formatToDefaultDateTime($this->created_at),
             'updated_at' => $this->formatToDefaultDateTime($this->updated_at),
         ];
+
+        if ($this->source_type === 'ask' || $this->post_type === 'ask') {
+            $askId = $this->source_id;
+            if (! $askId) {
+                $link = AskTimelineLink::query()->where('post_id', $this->id)->first();
+                $askId = $link?->ask_id;
+            }
+            if ($askId) {
+                $ask = Ask::query()
+                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
+                    ->withCount(['responses', 'matches'])
+                    ->find($askId);
+                if ($ask) {
+                    $response['ask'] = (new AskPreviewResource($ask))->toArray($request);
+                }
+            }
+        }
 
         if ($isAnniversary) {
             $response['user'] = [

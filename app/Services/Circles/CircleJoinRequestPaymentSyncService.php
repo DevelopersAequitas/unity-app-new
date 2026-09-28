@@ -175,36 +175,66 @@ class CircleJoinRequestPaymentSyncService
 
     private function syncMemberCategorySelection(CircleMember $member, CircleJoinRequest $request, array $selection): void
     {
-        if (Schema::hasTable('circle_member_category_selections')) {
-            CircleMemberCategorySelection::query()->updateOrCreate(
-                [
-                    'circle_member_id' => $member->id,
-                ],
-                [
-                    'user_id' => $request->user_id,
-                    'circle_id' => $request->circle_id,
-                    'level1_category_id' => $selection['level1_category_id'],
-                    'level2_category_id' => $selection['level2_category_id'],
-                    'level3_category_id' => $selection['level3_category_id'],
-                    'level4_category_id' => $selection['level4_category_id'],
-                ]
-            );
-        }
+        try {
+            $level4Id = $selection['level4_category_id'] ?? null;
+            if ($level4Id) {
+                $level4Table = Schema::hasTable('circle_category_level4')
+                    ? 'circle_category_level4'
+                    : (Schema::hasTable('level4_categories') ? 'level4_categories' : null);
 
-        if (Schema::hasTable('joined_circle_categories')) {
-            JoinedCircleCategory::query()->updateOrCreate(
-                [
-                    'circle_member_id' => $member->id,
-                ],
-                [
-                    'user_id' => $request->user_id,
-                    'circle_id' => $request->circle_id,
-                    'level1_category_id' => $selection['level1_category_id'],
-                    'level2_category_id' => $selection['level2_category_id'],
-                    'level3_category_id' => $selection['level3_category_id'],
-                    'level4_category_id' => $selection['level4_category_id'],
-                ]
-            );
+                if ($level4Table && ! DB::table($level4Table)->where('id', $level4Id)->exists()) {
+                    Log::warning('syncMemberCategorySelection: level4 category not found, skipping foreign key', [
+                        'level4_category_id' => $level4Id,
+                        'circle_member_id' => $member->id,
+                    ]);
+                    $level4Id = null;
+                }
+            }
+
+            $level1Id = $selection['level1_category_id'] ?? null;
+            if ($level1Id && Schema::hasTable('circle_categories')) {
+                if (! DB::table('circle_categories')->where('id', $level1Id)->exists()) {
+                    $level1Id = null;
+                }
+            }
+
+            if (Schema::hasTable('circle_member_category_selections')) {
+                CircleMemberCategorySelection::query()->updateOrCreate(
+                    [
+                        'circle_member_id' => $member->id,
+                    ],
+                    [
+                        'user_id' => $request->user_id,
+                        'circle_id' => $request->circle_id,
+                        'level1_category_id' => $level1Id,
+                        'level2_category_id' => $selection['level2_category_id'],
+                        'level3_category_id' => $selection['level3_category_id'],
+                        'level4_category_id' => $level4Id,
+                    ]
+                );
+            }
+
+            if (Schema::hasTable('joined_circle_categories')) {
+                JoinedCircleCategory::query()->updateOrCreate(
+                    [
+                        'circle_member_id' => $member->id,
+                    ],
+                    [
+                        'user_id' => $request->user_id,
+                        'circle_id' => $request->circle_id,
+                        'level1_category_id' => $level1Id,
+                        'level2_category_id' => $selection['level2_category_id'],
+                        'level3_category_id' => $selection['level3_category_id'],
+                        'level4_category_id' => $level4Id,
+                    ]
+                );
+            }
+        } catch (Throwable $e) {
+            Log::warning('syncMemberCategorySelection failed', [
+                'error' => $e->getMessage(),
+                'circle_member_id' => $member->id,
+                'request_id' => $request->id,
+            ]);
         }
     }
 

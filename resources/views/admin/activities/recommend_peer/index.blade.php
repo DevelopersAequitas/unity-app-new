@@ -39,17 +39,17 @@
 
         <!-- Metrics Cards -->
         <div class="activities-stats-grid">
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition" onclick="document.getElementById('recsGrid')?.scrollIntoView({behavior: 'smooth'})" title="Click to view all recommendations">
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-hand-thumbs-up-fill"></i>
                 </div>
                 <div>
                     <div class="metric-val">{{ number_format($items->total()) }}</div>
-                    <div class="metric-label">Total Recommendations</div>
+                    <div class="metric-label">Total Recommendations <i class="bi bi-arrow-down-short text-muted"></i></div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition" onclick="document.getElementById('recsGrid')?.scrollIntoView({behavior: 'smooth'})" title="Click to view recommendations table">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-person-fill-check"></i>
                 </div>
@@ -57,7 +57,7 @@
                     <div class="metric-val">
                         {{ number_format($items->filter(fn($item) => $item->is_aware)->count()) }}
                     </div>
-                    <div class="metric-label">Peers Aware (Page)</div>
+                    <div class="metric-label">Peers Aware (Page) <i class="bi bi-arrow-down-short text-muted"></i></div>
                 </div>
             </div>
         </div>
@@ -75,7 +75,7 @@
             ])
 
             <!-- Table Card -->
-            <div class="rounded-xl border bs surface overflow-hidden">
+            <div id="recsGrid" class="rounded-xl border bs surface overflow-hidden">
                 <div class="overflow-x-auto relative">
                     <table class="min-w-full border-collapse text-[13px]">
                         <thead>

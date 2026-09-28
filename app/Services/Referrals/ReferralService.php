@@ -143,12 +143,17 @@ class ReferralService
             return null;
         }
 
+        $referrerUser = User::query()
+            ->with(['city'])
+            ->find((string) $row->user_id);
+
         return [
             'referrer_user_id' => (string) $row->user_id,
             'referral_code' => (string) $row->referral_code,
             'referral_link' => $this->buildReferralLinkFromToken((string) $row->referral_code),
             'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '').' '.($row->last_name ?? '')))),
             'referrer_email' => (string) ($row->email ?? ''),
+            'referrer_user' => $referrerUser,
         ];
     }
 
@@ -396,7 +401,7 @@ class ReferralService
         $perPage = max(1, min($perPage, 100));
 
         return ReferralData::query()
-            ->with(['referredUser:id,first_name,last_name,display_name,email,company_name,designation,created_at'])
+            ->with(['referredUser', 'referredUser.city', 'referredUser.level4Category'])
             ->where('referrer_user_id', $user->id)
             ->whereNotNull('referred_user_id')
             ->orderByRaw('used_at DESC NULLS LAST')

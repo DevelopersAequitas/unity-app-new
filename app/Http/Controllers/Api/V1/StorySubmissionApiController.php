@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class StorySubmissionApiController extends BaseApiController
@@ -280,8 +281,7 @@ class StorySubmissionApiController extends BaseApiController
             $phone = $user->phone ?? '—';
             $userId = $request->input('user_id') ?: ($user ? $user->id : null);
 
-            // Map and Save to SmeBusinessStorySubmission
-            $submission = SmeBusinessStorySubmission::create([
+            $data = [
                 'user_id' => $userId,
                 'full_name' => $request->input('full_name'),
                 'designation' => $request->input('designation'),
@@ -313,7 +313,16 @@ class StorySubmissionApiController extends BaseApiController
                 'story' => $request->input('entrepreneurial_journey'),
                 'short_description' => $request->input('business_description'),
                 'cover_image' => $profilePhotoUuid,
-            ]);
+            ];
+
+            $validData = [];
+            foreach ($data as $column => $value) {
+                if (Schema::hasColumn('sme_business_story_submissions', $column)) {
+                    $validData[$column] = $value;
+                }
+            }
+
+            $submission = SmeBusinessStorySubmission::create($validData);
 
             // Notify global admins
             $this->notifyAdmins($submission, $user);

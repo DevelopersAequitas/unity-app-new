@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Ask\Ask;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -77,6 +78,11 @@ class Post extends Model
     public function collaborationPost(): BelongsTo
     {
         return $this->belongsTo(CollaborationPost::class, 'source_id');
+    }
+
+    public function ask(): BelongsTo
+    {
+        return $this->belongsTo(Ask::class, 'source_id');
     }
 
     public function comments(): HasMany

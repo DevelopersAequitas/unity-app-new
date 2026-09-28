@@ -20,6 +20,7 @@ class StoreBusinessDealRequest extends FormRequest
             'business_type' => ['required', 'in:new,repeat'],
             'comment' => ['nullable', 'string'],
             'referral_id' => ['nullable', 'uuid', 'exists:referrals,id'],
+            'ask_id' => ['nullable', 'uuid', 'exists:asks,id'],
         ];
     }
 }

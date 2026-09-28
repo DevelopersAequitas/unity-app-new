@@ -13,8 +13,6 @@ class ActivityVideoApiController extends BaseApiController
 {
     /**
      * Retrieve all active activity video configurations for Flutter/Mobile app.
-     *
-     * @return JsonResponse
      */
     public function index(Request $request): JsonResponse
     {
@@ -31,18 +29,18 @@ class ActivityVideoApiController extends BaseApiController
 
         $data = $videos->map(function (ActivityVideo $video) {
             return [
-                'activity_id'   => $video->activity_key,
+                'activity_id' => $video->activity_key,
                 'activity_name' => $video->activity_name,
-                'video_type'    => $video->video_type,
-                'video_url'     => $video->video_url,
-                'is_active'     => (bool) $video->is_active,
+                'video_type' => $video->video_type,
+                'video_url' => $video->video_url,
+                'is_active' => (bool) $video->is_active,
             ];
         })->values();
 
         return response()->json([
             'success' => true,
             'message' => 'Activity videos retrieved successfully',
-            'data'    => $data,
+            'data' => $data,
         ]);
     }
 }

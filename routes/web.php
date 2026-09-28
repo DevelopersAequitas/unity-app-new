@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
+use App\Http\Controllers\Admin\AskManagementController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BirthdayCreativeController;
 use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
@@ -395,6 +396,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/testimonials/export', [ActivitiesTestimonialsController::class, 'export'])->name('activities.testimonials.export');
         Route::get('/activities/requirements', [ActivitiesRequirementsController::class, 'index'])->name('activities.requirements.index');
         Route::get('/activities/requirements/export', [ActivitiesRequirementsController::class, 'export'])->name('activities.requirements.export');
+
+        // ── Ask & Requirement Discovery Management ─────────────
+        Route::prefix('asks')->name('asks.')->group(function () {
+            Route::get('/', [AskManagementController::class, 'index'])->name('index');
+            Route::get('/export', [AskManagementController::class, 'export'])->name('export');
+            Route::get('/config', [AskManagementController::class, 'config'])->name('config');
+            Route::post('/config/toggle', [AskManagementController::class, 'toggleConfigStatus'])->name('config.toggle');
+            Route::get('/{ask}', [AskManagementController::class, 'show'])->name('show')->whereUuid('ask');
+            Route::patch('/{ask}/status', [AskManagementController::class, 'updateStatus'])->name('status')->whereUuid('ask');
+            Route::delete('/{ask}', [AskManagementController::class, 'destroy'])->name('destroy')->whereUuid('ask');
+        });
         Route::get('/activities/referrals', [ActivitiesReferralsController::class, 'index'])->name('activities.referrals.index');
         Route::get('/activities/referrals/export', [ActivitiesReferralsController::class, 'export'])->name('activities.referrals.export');
         Route::get('/referral-report', [ReferralReportController::class, 'index'])->name('referral-report.index');

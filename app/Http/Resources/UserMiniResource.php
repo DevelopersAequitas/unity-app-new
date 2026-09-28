@@ -54,13 +54,18 @@ class UserMiniResource extends JsonResource
             }
         }
 
+        $photoUrl = $this->buildProfileImageUrl();
+
         return [
             'id' => $user->id,
             'name' => $name !== '' ? trim((string) $name) : null,
-            'profile_image_url' => $this->buildProfileImageUrl(),
-            'profile_photo_url' => $this->buildProfileImageUrl(),
+            'display_name' => $user->display_name ?: ($name !== '' ? trim((string) $name) : null),
+            'first_name' => $user->first_name ?? null,
+            'last_name' => $user->last_name ?? null,
+            'profile_image_url' => $photoUrl,
             'company_name' => $user->company_name,
             'city' => $user->city,
+            'membership_status' => $user->effective_membership_status ?? $user->membership_status ?? null,
             'designation' => $user->designation ?? $user->job_title ?? null,
             'level4_category' => $subCategory,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),

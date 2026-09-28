@@ -52,17 +52,17 @@
 
         <!-- Metrics Cards -->
         <div class="activities-stats-grid">
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition" onclick="document.getElementById('leaderGrid')?.scrollIntoView({behavior: 'smooth'})" title="Click to view all submissions">
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-award-fill"></i>
                 </div>
                 <div>
                     <div class="metric-val">{{ number_format($items->total()) }}</div>
-                    <div class="metric-label">Total Submissions</div>
+                    <div class="metric-label">Total Submissions <i class="bi bi-arrow-down-short text-muted"></i></div>
                 </div>
             </div>
 
-            <div class="activity-metric-card">
+            <div class="activity-metric-card cursor-pointer hover:shadow-md transition" onclick="document.getElementById('leaderGrid')?.scrollIntoView({behavior: 'smooth'})" title="Click to view recent submissions table">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-calendar-check"></i>
                 </div>
@@ -70,7 +70,7 @@
                     <div class="metric-val">
                         {{ number_format($items->filter(fn($item) => $item->created_at >= now()->subDays(30))->count()) }}
                     </div>
-                    <div class="metric-label">Recent Submissions (30 Days)</div>
+                    <div class="metric-label">Recent Submissions (30 Days) <i class="bi bi-arrow-down-short text-muted"></i></div>
                 </div>
             </div>
         </div>
@@ -88,7 +88,7 @@
             ])
 
             <!-- Table Card -->
-            <div class="rounded-xl border bs surface overflow-hidden">
+            <div id="leaderGrid" class="rounded-xl border bs surface overflow-hidden">
                 <div class="overflow-x-auto relative">
                     <table class="min-w-full border-collapse text-[13px]">
                         <thead>

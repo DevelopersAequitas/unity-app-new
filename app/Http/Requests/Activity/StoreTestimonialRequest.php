@@ -18,6 +18,7 @@ class StoreTestimonialRequest extends FormRequest
             'content' => ['required', 'string'],
             'media_id' => ['nullable', 'uuid'],
             'referral_id' => ['nullable', 'uuid', 'exists:referrals,id'],
+            'ask_id' => ['nullable', 'uuid', 'exists:asks,id'],
         ];
     }
 }

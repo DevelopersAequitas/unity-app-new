@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreBusinessDealRequest;
+use App\Models\Ask\Ask;
 use App\Models\BusinessDeal;
 use App\Models\Post;
+use App\Models\Referral;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
@@ -165,7 +167,48 @@ class BusinessDealController extends BaseApiController
                 $businessDeal->to_user_id ? (string) $businessDeal->to_user_id : null
             ));
 
+            $referralId = $request->input('referral_id');
+            $askId = $request->input('ask_id');
+
+            if (filled($referralId)) {
+                $referral = Referral::find($referralId);
+                if ($referral) {
+                    $referral->status_id = 4; // Got The Business
+                    if ($request->filled('comment')) {
+                        $referral->remarks = (string) $request->input('comment');
+                    }
+                    $referral->save();
+                }
+            }
+
+            if (filled($askId)) {
+                $ask = Ask::find($askId);
+                if ($ask) {
+                    $ask->update([
+                        'status' => Ask::STATUS_FULFILLED,
+                        'fulfilled_at' => now(),
+                        'outcome_status' => 'got_the_business',
+                        'outcome_notes' => $request->input('comment'),
+                        'approx_deal_value' => $request->input('deal_amount'),
+                    ]);
+                }
+            }
+
             $targetUser = User::find($businessDeal->to_user_id);
+
+            // Award 2,000 Coins + 1 Life Impact to both parties upon referral/ask fulfillment handoff
+            if (filled($referralId) || filled($askId)) {
+                try {
+                    $coinsService = app(CoinsService::class);
+                    $coinsService->reward($authUser, 2000, 'Got The Business deal closed reward', ['deal_id' => (string) $businessDeal->id]);
+                    if ($targetUser) {
+                        $coinsService->reward($targetUser, 2000, 'Got The Business deal closed reward', ['deal_id' => (string) $businessDeal->id]);
+                        $this->increaseLifeImpact((string) $targetUser->id, 1, 'business_deal', 'Closed a deal from referral/ask handoff', (string) $authUser->id, (string) $businessDeal->id);
+                    }
+                } catch (Throwable $rewardEx) {
+                    Log::warning('Deal handoff reward failed: '.$rewardEx->getMessage());
+                }
+            }
 
             if ($targetUser) {
                 $notifyUserService->notifyUser(
