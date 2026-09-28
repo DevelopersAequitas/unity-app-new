@@ -27,28 +27,52 @@ class MembershipZohoInvoiceService
     {
         $existingCustomerId = trim((string) ($user->zoho_customer_id ?? ''));
         $gstNumber = trim((string) ($gstNumber ?: $user->gst_number ?: ''));
+        $email = trim((string) ($user->email ?? ''));
+
+        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
+        if ($name === '') {
+            $name = $user->company_name ?: ($email !== '' ? $email : 'Customer');
+        }
+
+        $phone = trim((string) ($user->phone ?? ''));
+        $companyName = trim((string) ($user->company_name ?: ($gstNumber !== '' ? $name : '')));
+
+        $syncPayload = [
+            'display_name' => $name,
+            'first_name' => (string) ($user->first_name ?: $name),
+            'last_name' => (string) ($user->last_name ?? ''),
+        ];
+        if ($companyName !== '') {
+            $syncPayload['company_name'] = $companyName;
+        }
+        if ($phone !== '') {
+            $syncPayload['phone'] = $phone;
+            $syncPayload['mobile'] = $phone;
+        }
+        if ($gstNumber !== '') {
+            $syncPayload['gst_no'] = $gstNumber;
+            $syncPayload['gst_treatment'] = 'business_gst';
+        }
 
         if ($existingCustomerId !== '') {
-            // If GST number is provided and valid, update the customer in Zoho so invoices reflect the GSTIN
-            if ($gstNumber !== '') {
-                try {
-                    $this->zohoBillingClient->request('PUT', '/customers/'.$existingCustomerId, [
-                        'gst_no' => $gstNumber,
-                        'gst_treatment' => 'business_gst',
-                    ]);
-                    Log::info('Updated Zoho customer GSTIN', ['customer_id' => $existingCustomerId, 'gst_no' => $gstNumber]);
-                } catch (Throwable $e) {
-                    Log::warning('Could not update GSTIN on existing Zoho customer', [
-                        'customer_id' => $existingCustomerId,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+            // Always keep customer display name and GST updated to match database
+            try {
+                $this->zohoBillingClient->request('PUT', '/customers/'.$existingCustomerId, $syncPayload);
+                Log::info('Updated Zoho customer details', [
+                    'customer_id' => $existingCustomerId,
+                    'display_name' => $name,
+                    'gst_no' => $gstNumber,
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('Could not update details on existing Zoho customer', [
+                    'customer_id' => $existingCustomerId,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             return $existingCustomerId;
         }
 
-        $email = trim((string) ($user->email ?? ''));
         if ($email === '') {
             Log::warning('Cannot find or create Zoho customer: User email is empty', ['user_id' => $user->id]);
 
@@ -67,15 +91,18 @@ class MembershipZohoInvoiceService
                         $user->forceFill(['zoho_customer_id' => $foundId])->save();
                         Log::info('Found existing Zoho customer by email', ['user_id' => $user->id, 'customer_id' => $foundId]);
 
-                        if ($gstNumber !== '') {
-                            try {
-                                $this->zohoBillingClient->request('PUT', '/customers/'.$foundId, [
-                                    'gst_no' => $gstNumber,
-                                    'gst_treatment' => 'business_gst',
-                                ]);
-                            } catch (Throwable $e) {
-                                Log::warning('Could not update GSTIN on found Zoho customer', ['customer_id' => $foundId, 'error' => $e->getMessage()]);
-                            }
+                        try {
+                            $this->zohoBillingClient->request('PUT', '/customers/'.$foundId, $syncPayload);
+                            Log::info('Updated Zoho customer details for found customer', [
+                                'customer_id' => $foundId,
+                                'display_name' => $name,
+                                'gst_no' => $gstNumber,
+                            ]);
+                        } catch (Throwable $e) {
+                            Log::warning('Could not update details on found Zoho customer', [
+                                'customer_id' => $foundId,
+                                'error' => $e->getMessage(),
+                            ]);
                         }
 
                         return $foundId;
@@ -84,32 +111,22 @@ class MembershipZohoInvoiceService
             }
 
             // Customer does not exist in Zoho, create new customer
-            $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
-            if ($name === '') {
-                $name = $user->company_name ?: $email;
-            }
-
-            $phone = trim((string) ($user->phone ?? ''));
-            $payload = [
-                'display_name' => $name,
-                'company_name' => (string) ($user->company_name ?: ($gstNumber !== '' ? $name : '')),
+            $createPayload = array_merge($syncPayload, [
                 'email' => $email,
-                'phone' => $phone,
-                'mobile' => $phone,
                 'billing_address' => [
                     'city' => (string) ($user->city ?? ''),
                     'state' => '',
                 ],
-            ];
+            ]);
 
             if ($gstNumber !== '') {
-                $payload['gst_no'] = $gstNumber;
-                $payload['gst_treatment'] = 'business_gst';
+                $createPayload['gst_no'] = $gstNumber;
+                $createPayload['gst_treatment'] = 'business_gst';
             } else {
-                $payload['gst_treatment'] = 'business_none';
+                $createPayload['gst_treatment'] = 'business_none';
             }
 
-            $createResponse = $this->zohoBillingClient->request('POST', '/customers', $payload);
+            $createResponse = $this->zohoBillingClient->request('POST', '/customers', $createPayload);
             $newCustomerId = (string) (data_get($createResponse, 'customer.customer_id') ?? data_get($createResponse, 'customer_id') ?? '');
 
             if ($newCustomerId !== '') {
