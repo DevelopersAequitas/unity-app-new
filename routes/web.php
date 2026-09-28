@@ -48,6 +48,7 @@ use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Admin\ContactController;
+use App\Http\Controllers\Admin\ContactInvitationController;
 use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -443,6 +444,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/contacts/user/{user_id}/export-selected', [ContactController::class, 'exportSelected'])->name('contacts.user-details.export-selected');
         Route::get('/contacts/user/{user_id}', [ContactController::class, 'userDetails'])->name('contacts.user-details');
         Route::get('/contacts/{id}', [ContactController::class, 'show'])->name('contacts.show');
+
+        // Referral Contact Invitations Admin Routes
+        Route::get('/contact-invitations', [ContactInvitationController::class, 'index'])->name('contact-invitations.index');
+        Route::get('/contact-invitations/export', [ContactInvitationController::class, 'export'])->name('contact-invitations.export');
+        Route::get('/contact-invitations/{id}', [ContactInvitationController::class, 'show'])->name('contact-invitations.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
             ->name('activities.become-a-leader.show');
