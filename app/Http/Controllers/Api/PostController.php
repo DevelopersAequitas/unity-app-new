@@ -154,18 +154,20 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::integer as life_impacted')
             ->selectRaw('posts.post_type as post_type')
             ->where(function ($q) use ($user, $userCircleIds, $userDistrictIds, $cityId, $cityName): void {
-                $q->where('posts.visibility', 'public')
+                $visibilityCol = DB::raw('CAST(posts.visibility AS TEXT)');
+
+                $q->where($visibilityCol, 'public')
                     ->orWhere('posts.user_id', $user->id);
 
                 if (! empty($userCircleIds)) {
-                    $q->orWhere(function ($cq) use ($userCircleIds): void {
-                        $cq->where('posts.visibility', 'circle')
+                    $q->orWhere(function ($cq) use ($visibilityCol, $userCircleIds): void {
+                        $cq->where($visibilityCol, 'circle')
                             ->whereIn('posts.circle_id', $userCircleIds);
                     });
                 }
 
-                $q->orWhere(function ($dq) use ($userDistrictIds, $cityId, $cityName): void {
-                    $dq->where('posts.visibility', 'district');
+                $q->orWhere(function ($dq) use ($visibilityCol, $userDistrictIds, $cityId, $cityName): void {
+                    $dq->where($visibilityCol, 'district');
                     $dq->where(function ($subDq) use ($userDistrictIds, $cityId, $cityName): void {
                         $hasDistrictCondition = false;
                         if (! empty($userDistrictIds) && Schema::hasTable('asks')) {
@@ -1026,7 +1028,7 @@ class PostController extends BaseApiController
             'media.*.type' => ['required_with:media', 'string', 'max:50'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:100'],
-            'visibility' => ['required', 'in:public,connections,members,circle,private'],
+            'visibility' => ['required', 'in:public,connections,members,circle,private,district,global'],
             'circle_id' => ['nullable', 'uuid'],
         ]);
 
@@ -1125,7 +1127,7 @@ class PostController extends BaseApiController
             'media.*.type' => ['required_with:media', 'string', 'max:50'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:100'],
-            'visibility' => ['sometimes', 'required', 'in:public,connections,members,circle,private'],
+            'visibility' => ['sometimes', 'required', 'in:public,connections,members,circle,private,district,global'],
             'circle_id' => ['nullable', 'uuid'],
         ]);
 
