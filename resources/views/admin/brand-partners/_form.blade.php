@@ -118,11 +118,13 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Valid From</label>
-                        <input type="datetime-local" name="valid_from" class="form-control" value="{{ old('valid_from', $partner->valid_from ? $partner->valid_from->timezone(config('app.timezone', 'UTC'))->format('Y-m-d\TH:i') : '') }}">
+                        <input type="datetime-local" name="valid_from" class="form-control" data-utc="{{ $partner->valid_from?->toIso8601String() }}" value="{{ old('valid_from', $partner->valid_from ? $partner->valid_from->timezone(config('app.timezone', 'UTC'))->format('Y-m-d\TH:i') : '') }}">
+                        <div class="form-text text-muted small"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Valid To</label>
-                        <input type="datetime-local" name="valid_to" class="form-control" value="{{ old('valid_to', $partner->valid_to ? $partner->valid_to->timezone(config('app.timezone', 'UTC'))->format('Y-m-d\TH:i') : '') }}">
+                        <input type="datetime-local" name="valid_to" class="form-control" data-utc="{{ $partner->valid_to?->toIso8601String() }}" value="{{ old('valid_to', $partner->valid_to ? $partner->valid_to->timezone(config('app.timezone', 'UTC'))->format('Y-m-d\TH:i') : '') }}">
+                        <div class="form-text text-muted small"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</div>
                     </div>
                     <div class="col-md-12">
                         <label class="form-label">Offer Description</label>

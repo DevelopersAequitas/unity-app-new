@@ -162,14 +162,16 @@ class AdController extends Controller
 
         $data['is_active'] = $request->boolean('is_active');
 
+        $browserTz = $request->input('_browser_timezone') ?: config('app.timezone', 'UTC');
+
         if (! empty($data['starts_at'])) {
-            $data['starts_at'] = Carbon::parse($data['starts_at'], config('app.timezone', 'UTC'))->utc();
+            $data['starts_at'] = Carbon::parse($data['starts_at'], $browserTz)->utc();
         } else {
             $data['starts_at'] = null;
         }
 
         if (! empty($data['ends_at'])) {
-            $data['ends_at'] = Carbon::parse($data['ends_at'], config('app.timezone', 'UTC'))->utc();
+            $data['ends_at'] = Carbon::parse($data['ends_at'], $browserTz)->utc();
         } else {
             $data['ends_at'] = null;
         }

@@ -34,6 +34,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="{{ asset('js/admin-filters.js') }}?v={{ @file_exists(public_path('js/admin-filters.js')) ? @filemtime(public_path('js/admin-filters.js')) : '1.0' }}"></script>
     <script src="{{ asset('js/admin-grid-clamp.js') }}?v={{ @file_exists(public_path('js/admin-grid-clamp.js')) ? @filemtime(public_path('js/admin-grid-clamp.js')) : '1.0' }}"></script>
+    <script src="{{ asset('js/admin-datetime-utc.js') }}?v={{ @file_exists(public_path('js/admin-datetime-utc.js')) ? @filemtime(public_path('js/admin-datetime-utc.js')) : '1.0' }}"></script>
     @stack('scripts')
 
     <!-- Media Preview Modal -->

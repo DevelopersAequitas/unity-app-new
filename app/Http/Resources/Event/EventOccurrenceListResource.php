@@ -37,10 +37,10 @@ class EventOccurrenceListResource extends JsonResource
             $timezone = 'Asia/Kolkata';
         }
 
-        $startAtParsed = $this->start_at ? Carbon::parse($this->start_at) : null;
-        $endAtParsed = $this->end_at ? Carbon::parse($this->end_at) : null;
-        $startLocal = $startAtParsed;
-        $endLocal = $endAtParsed;
+        $startAtParsed = $this->start_at ? Carbon::parse($this->start_at)->utc() : null;
+        $endAtParsed = $this->end_at ? Carbon::parse($this->end_at)->utc() : null;
+        $startLocal = $startAtParsed ? $startAtParsed->copy()->setTimezone($timezone) : null;
+        $endLocal = $endAtParsed ? $endAtParsed->copy()->setTimezone($timezone) : null;
 
         $now = Carbon::now($timezone);
         $groupStatus = 'upcoming';
@@ -95,10 +95,10 @@ class EventOccurrenceListResource extends JsonResource
                 'ends_at' => optional($event->recurrence_ends_at)->toISOString(),
             ],
             'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null, 'state_name' => $event->circle->state_name ?? $event->circle->state ?? $event->circle->cityRef?->state_name ?? $event->circle->cityRef?->state ?? null] : null,
-            'start_at' => optional($startAtParsed)->format('Y-m-d\TH:i:s'),
+            'start_at' => optional($startAtParsed)->toISOString(),
             'start_date' => optional($startLocal)->toDateString(),
             'start_time' => optional($startLocal)->format('H:i:s'),
-            'end_at' => optional($endAtParsed)->format('Y-m-d\TH:i:s'),
+            'end_at' => optional($endAtParsed)->toISOString(),
             'formatted_start_at' => optional($startLocal)->format('d M Y h:i A'),
             'status' => $this->status ?? $event->status ?? 'scheduled',
             'group_status' => $groupStatus,

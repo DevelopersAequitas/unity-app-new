@@ -50,16 +50,16 @@ class EventDetailResource extends JsonResource
         $status = $this->status ?? 'scheduled';
 
         if ($activeOccurrence) {
-            $startAtParsed = $activeOccurrence->start_at ? Carbon::parse($activeOccurrence->start_at) : null;
-            $endAtParsed = ($activeOccurrence->end_at ?? $activeOccurrence->start_at) ? Carbon::parse($activeOccurrence->end_at ?? $activeOccurrence->start_at) : null;
+            $startAtParsed = $activeOccurrence->start_at ? Carbon::parse($activeOccurrence->start_at)->utc() : null;
+            $endAtParsed = ($activeOccurrence->end_at ?? $activeOccurrence->start_at) ? Carbon::parse($activeOccurrence->end_at ?? $activeOccurrence->start_at)->utc() : null;
             $status = $activeOccurrence->status ?? $status;
         } elseif ($this->start_at) {
-            $startAtParsed = Carbon::parse($this->start_at);
-            $endAtParsed = $this->end_at ? Carbon::parse($this->end_at) : null;
+            $startAtParsed = Carbon::parse($this->start_at)->utc();
+            $endAtParsed = $this->end_at ? Carbon::parse($this->end_at)->utc() : null;
         }
 
-        $startLocal = $startAtParsed;
-        $endLocal = $endAtParsed;
+        $startLocal = $startAtParsed ? $startAtParsed->copy()->setTimezone($timezone) : null;
+        $endLocal = $endAtParsed ? $endAtParsed->copy()->setTimezone($timezone) : null;
 
         $groupStatus = 'upcoming';
         if ($startLocal && $endLocal && $startLocal->lessThanOrEqualTo($now) && $endLocal->greaterThanOrEqualTo($now)) {
@@ -113,10 +113,10 @@ class EventDetailResource extends JsonResource
             'circle_ids' => collect($circles)->pluck('id')->values()->all(),
             'circles' => $circles,
             'circle' => $this->circle ? ['id' => $this->circle->id, 'name' => $this->circle->name, 'slug' => $this->circle->slug ?? null, 'state_name' => $this->circle->state_name ?? $this->circle->state ?? $this->circle->cityRef?->state_name ?? $this->circle->cityRef?->state ?? null] : null,
-            'start_at' => optional($startAtParsed)->format('Y-m-d\TH:i:s'),
+            'start_at' => optional($startAtParsed)->toISOString(),
             'start_date' => optional($startLocal)->toDateString(),
             'start_time' => optional($startLocal)->format('H:i:s'),
-            'end_at' => optional($endAtParsed)->format('Y-m-d\TH:i:s'),
+            'end_at' => optional($endAtParsed)->toISOString(),
             'formatted_start_at' => optional($startLocal)->format('d M Y h:i A'),
             'status' => $status,
             'group_status' => $groupStatus,

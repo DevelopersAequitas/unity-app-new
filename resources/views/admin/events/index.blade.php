@@ -176,7 +176,7 @@
                   @endif
                 </td>
                 <td class="px-3 py-3 text-xs t3 whitespace-nowrap font-mono">
-                  {{ optional($event->start_at)->format('d M Y, h:i A') ?? '-' }}
+                  <span class="utc-to-local" data-utc="{{ optional($event->start_at)->toIso8601String() }}">{{ optional($event->start_at)->format('d M Y, h:i A') ?? '-' }}</span>
                 </td>
                 <td class="px-3 py-3 text-xs font-mono t2 capitalize whitespace-nowrap">
                   {{ $event->recurrence_type ?? 'none' }}

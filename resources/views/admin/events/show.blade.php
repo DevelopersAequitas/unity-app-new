@@ -46,8 +46,8 @@
             @endphp
             <tr>
                 <td>{{ optional($occurrence->occurrence_date)->format('d M Y') }}</td>
-                <td>{{ optional($occurrence->start_at)->format('d M Y h:i A') }}</td>
-                <td>{{ optional($occurrence->end_at)->format('d M Y h:i A') }}</td>
+                <td><span class="utc-to-local" data-utc="{{ optional($occurrence->start_at)->toIso8601String() }}">{{ optional($occurrence->start_at)->format('d M Y h:i A') }}</span></td>
+                <td><span class="utc-to-local" data-utc="{{ optional($occurrence->end_at)->toIso8601String() }}">{{ optional($occurrence->end_at)->format('d M Y h:i A') }}</span></td>
                 <td>
                     <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id, 'occurrence_id' => $occurrence->id]) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline">
                         {{ $occurrence->registered_count ?? 0 }}
