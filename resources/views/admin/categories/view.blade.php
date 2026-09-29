@@ -214,13 +214,22 @@
                         @foreach($directLevel4Categories as $level4Category)
                             <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
                                 <span class="text-muted item-name">• Level 4: <span class="category-name-text">{{ $level4Category->name }}</span></span>
-                                <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
-                                        <i class="bi bi-trash"></i>
+                                <div class="d-flex align-items-center gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
+                                        data-name="{{ $level4Category->name }}" 
+                                        data-level="Level 4" 
+                                        data-url="{{ route('admin.categories.level4.update', $level4Category) }}" 
+                                        title="Edit Level 4 Category">
+                                        <i class="bi bi-pencil"></i>
                                     </button>
-                                </form>
+                                    <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </li>
                         @endforeach
                     </ul>
@@ -231,13 +240,22 @@
                 <div class="border rounded p-3 mb-3 tree-section tree-level2-section" data-name="{{ strtolower($level2Node['category']->name) }}">
                     <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
                         <span class="fw-semibold text-dark item-name">Level 2: <span class="category-name-text">{{ $level2Node['category']->name }}</span></span>
-                        <form method="POST" action="{{ route('admin.categories.level2.destroy', $level2Node['category']) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 2 category and all its children?')">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 2 Category">
-                                <i class="bi bi-trash"></i>
+                        <div class="d-flex align-items-center gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
+                                data-name="{{ $level2Node['category']->name }}" 
+                                data-level="Level 2" 
+                                data-url="{{ route('admin.categories.level2.update', $level2Node['category']) }}" 
+                                title="Edit Level 2 Category">
+                                <i class="bi bi-pencil"></i>
                             </button>
-                        </form>
+                            <form method="POST" action="{{ route('admin.categories.level2.destroy', $level2Node['category']) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 2 category and all its children?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 2 Category">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
 
                     @if(!empty($level2Node['direct_level4']))
@@ -247,13 +265,22 @@
                                 @foreach($level2Node['direct_level4'] as $level4Category)
                                     <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
                                         <span class="text-muted item-name">• Level 4: <span class="category-name-text">{{ $level4Category->name }}</span></span>
-                                        <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
-                                                <i class="bi bi-trash"></i>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
+                                                data-name="{{ $level4Category->name }}" 
+                                                data-level="Level 4" 
+                                                data-url="{{ route('admin.categories.level4.update', $level4Category) }}" 
+                                                title="Edit Level 4 Category">
+                                                <i class="bi bi-pencil"></i>
                                             </button>
-                                        </form>
+                                            <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </li>
                                 @endforeach
                             </ul>
@@ -269,13 +296,22 @@
                             <div class="ms-3 border-start ps-3 mb-2 tree-level3-section" data-name="{{ strtolower($level3Node['category']->name) }}">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <span class="fw-medium text-secondary item-name">Level 3: <span class="category-name-text">{{ $level3Node['category']->name }}</span></span>
-                                    <form method="POST" action="{{ route('admin.categories.level3.destroy', $level3Node['category']) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 3 category and all its children?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 3 Category">
-                                            <i class="bi bi-trash"></i>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
+                                            data-name="{{ $level3Node['category']->name }}" 
+                                            data-level="Level 3" 
+                                            data-url="{{ route('admin.categories.level3.update', $level3Node['category']) }}" 
+                                            title="Edit Level 3 Category">
+                                            <i class="bi bi-pencil"></i>
                                         </button>
-                                    </form>
+                                        <form method="POST" action="{{ route('admin.categories.level3.destroy', $level3Node['category']) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 3 category and all its children?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 3 Category">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
 
                                 @if(empty($level3Node['children']))
@@ -285,13 +321,22 @@
                                         @foreach($level3Node['children'] as $level4Category)
                                             <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
                                                 <span class="text-muted item-name">• Level 4: <span class="category-name-text">{{ $level4Category->name }}</span></span>
-                                                <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
-                                                        <i class="bi bi-trash"></i>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
+                                                        data-name="{{ $level4Category->name }}" 
+                                                        data-level="Level 4" 
+                                                        data-url="{{ route('admin.categories.level4.update', $level4Category) }}" 
+                                                        title="Edit Level 4 Category">
+                                                        <i class="bi bi-pencil"></i>
                                                     </button>
-                                                </form>
+                                                    <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
                                             </li>
                                         @endforeach
                                     </ul>
@@ -302,6 +347,36 @@
                 </div>
             @endforeach
         @endif
+    </div>
+</div>
+
+{{-- Edit Child Category Modal --}}
+<div class="modal fade" id="editChildCategoryModal" tabindex="-1" aria-labelledby="editChildCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <form id="editChildCategoryForm" method="POST" action="">
+                @csrf
+                @method('PUT')
+                <div class="modal-header">
+                    <h5 class="modal-title h6 mb-0" id="editChildCategoryModalLabel">
+                        <i class="bi bi-pencil-square text-primary me-1"></i> Edit <span id="editChildCategoryLevelBadge"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="editChildCategoryNameInput" class="form-label small fw-semibold">Category Name</label>
+                        <input type="text" name="name" id="editChildCategoryNameInput" class="form-control" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-check-lg me-1"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -578,6 +653,40 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+
+    // -------------------------------------------------------------
+    // Edit Child Category Modal Handler
+    // -------------------------------------------------------------
+    const editModalEl = document.getElementById('editChildCategoryModal');
+    const editForm = document.getElementById('editChildCategoryForm');
+    const editNameInput = document.getElementById('editChildCategoryNameInput');
+    const editLevelBadge = document.getElementById('editChildCategoryLevelBadge');
+
+    document.querySelectorAll('.edit-category-btn').forEach((btn) => {
+        btn.addEventListener('click', function () {
+            const url = this.dataset.url;
+            const name = this.dataset.name;
+            const level = this.dataset.level || 'Category';
+
+            if (editForm && editNameInput && editLevelBadge && editModalEl) {
+                editForm.action = url;
+                editNameInput.value = name;
+                editLevelBadge.textContent = level;
+
+                if (window.bootstrap && typeof bootstrap.Modal !== 'undefined') {
+                    const modal = bootstrap.Modal.getOrCreateInstance(editModalEl);
+                    modal.show();
+                } else if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+                    $(editModalEl).modal('show');
+                } else {
+                    editModalEl.classList.add('show');
+                    editModalEl.style.display = 'block';
+                }
+
+                setTimeout(() => editNameInput.focus(), 400);
+            }
+        });
+    });
 });
 </script>
 @endpush
