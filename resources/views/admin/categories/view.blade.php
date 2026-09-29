@@ -2,6 +2,23 @@
 
 @section('title', 'View Circle Category')
 
+@push('styles')
+<style>
+.tree-category-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.tree-category-item.search-hidden,
+.tree-section.search-hidden,
+.tree-direct-l4-group.search-hidden,
+.tree-level3-section.search-hidden,
+.tree-category-item.d-none {
+    display: none !important;
+}
+</style>
+@endpush
+
 @section('content')
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
@@ -242,12 +259,12 @@
                             <button type="button" class="btn btn-link p-0 text-decoration-none select-section-toggle-btn small text-muted" data-target="#directL4Section" style="font-size: 0.75rem;">
                                 Select Section
                             </button>
-                            <span class="badge bg-secondary-subtle text-secondary border">{{ count($directLevel4Categories) }}</span>
+                            <span class="badge bg-secondary-subtle text-secondary border section-count-badge" data-total-count="{{ count($directLevel4Categories) }}">{{ count($directLevel4Categories) }}</span>
                         </div>
                     </div>
                     <ul class="list-unstyled mb-0">
                         @foreach($directLevel4Categories as $level4Category)
-                            <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
+                            <li class="justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
                                 <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
                                     <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
                                     <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
@@ -308,7 +325,7 @@
                             <div class="small fw-semibold text-muted mb-1">Direct Level 4 Subcategories:</div>
                             <ul class="list-unstyled mb-0">
                                 @foreach($level2Node['direct_level4'] as $level4Category)
-                                    <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
+                                    <li class="justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
                                         <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
                                             <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
                                             <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
@@ -374,7 +391,7 @@
                                 @else
                                     <ul class="list-unstyled mb-0 mt-1">
                                         @foreach($level3Node['children'] as $level4Category)
-                                            <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
+                                            <li class="justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
                                                 <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
                                                     <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
                                                     <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
@@ -558,6 +575,33 @@ document.addEventListener('DOMContentLoaded', function () {
     const noSearchQueryText = document.getElementById('noSearchQuery');
     const dismissCountBtn = document.getElementById('searchCountDismiss');
 
+    const hideTreeElement = (el) => {
+        if (!el) return;
+        el.classList.add('search-hidden', 'd-none');
+        el.style.setProperty('display', 'none', 'important');
+    };
+
+    const showTreeElement = (el, displayType = 'block') => {
+        if (!el) return;
+        el.classList.remove('search-hidden', 'd-none');
+        el.style.setProperty('display', displayType, 'important');
+    };
+
+    const resetTreeElement = (el) => {
+        if (!el) return;
+        el.classList.remove('search-hidden', 'd-none');
+        el.style.removeProperty('display');
+    };
+
+    function isItemVisible(el) {
+        if (!el) return false;
+        if (el.classList.contains('search-hidden') || el.classList.contains('d-none')) return false;
+        if (el.style.display === 'none') return false;
+        const hiddenAncestor = el.closest('.search-hidden, .d-none, [style*="display: none"]');
+        if (hiddenAncestor) return false;
+        return el.offsetParent !== null;
+    }
+
     if (searchInput) {
         // Store original text content for highlights
         const textNodes = document.querySelectorAll('.category-name-text');
@@ -585,22 +629,32 @@ document.addEventListener('DOMContentLoaded', function () {
                     const textSpan = item.querySelector('.category-name-text');
                     const originalText = textSpan ? textSpan.dataset.originalText : item.dataset.name;
                     if (originalText.toLowerCase().includes(query)) {
-                        item.style.display = 'flex';
+                        showTreeElement(item, 'flex');
                         highlightText(textSpan, originalText, query);
                         directMatchCount++;
                         matchCount++;
                     } else {
-                        item.style.display = 'none';
+                        hideTreeElement(item);
                         if (textSpan) textSpan.textContent = originalText;
                     }
                 });
-                directSection.style.display = directMatchCount > 0 ? 'block' : 'none';
+
+                if (directMatchCount > 0) {
+                    showTreeElement(directSection, 'block');
+                } else {
+                    hideTreeElement(directSection);
+                }
+
+                const directBadge = directSection.querySelector('.section-count-badge');
+                if (directBadge) {
+                    directBadge.textContent = directMatchCount;
+                }
             }
 
             // 2. Filter Level 2 sections
             const level2Sections = document.querySelectorAll('.tree-level2-section');
             level2Sections.forEach((l2Sec) => {
-                const l2TextSpan = l2Sec.querySelector('.category-name-text');
+                const l2TextSpan = l2Sec.querySelector('label[for^="cat_l2_"] .category-name-text') || l2Sec.querySelector('.category-name-text');
                 const l2OriginalText = l2TextSpan ? l2TextSpan.dataset.originalText : l2Sec.dataset.name;
                 const l2Matches = l2OriginalText.toLowerCase().includes(query);
                 let l2HasChildMatch = false;
@@ -620,27 +674,30 @@ document.addEventListener('DOMContentLoaded', function () {
                     items.forEach((item) => {
                         const span = item.querySelector('.category-name-text');
                         const orig = span ? span.dataset.originalText : item.dataset.name;
-                        if (l2Matches || orig.toLowerCase().includes(query)) {
-                            item.style.display = 'flex';
-                            if (orig.toLowerCase().includes(query)) {
-                                highlightText(span, orig, query);
-                                matchCount++;
-                            }
+                        const itemMatches = orig.toLowerCase().includes(query);
+                        if (itemMatches) {
+                            showTreeElement(item, 'flex');
+                            highlightText(span, orig, query);
+                            matchCount++;
                             directL4GroupMatch++;
                             l2HasChildMatch = true;
                         } else {
-                            item.style.display = 'none';
+                            hideTreeElement(item);
                             if (span) span.textContent = orig;
                         }
                     });
-                    directL4Group.style.display = (l2Matches || directL4GroupMatch > 0) ? 'block' : 'none';
+
+                    if (directL4GroupMatch > 0) {
+                        showTreeElement(directL4Group, 'block');
+                    } else {
+                        hideTreeElement(directL4Group);
+                    }
                 }
 
-                // Check Level 3 sections
+                // Check Level 3 sections inside this Level 2
                 const level3Sections = l2Sec.querySelectorAll('.tree-level3-section');
-                let l3AnyMatch = false;
                 level3Sections.forEach((l3Sec) => {
-                    const l3TextSpan = l3Sec.querySelector('.category-name-text');
+                    const l3TextSpan = l3Sec.querySelector('label[for^="cat_l3_"] .category-name-text') || l3Sec.querySelector('.category-name-text');
                     const l3OriginalText = l3TextSpan ? l3TextSpan.dataset.originalText : l3Sec.dataset.name;
                     const l3Matches = l3OriginalText.toLowerCase().includes(query);
                     let l4MatchesInL3 = 0;
@@ -656,32 +713,40 @@ document.addEventListener('DOMContentLoaded', function () {
                     l4Items.forEach((l4Item) => {
                         const l4Span = l4Item.querySelector('.category-name-text');
                         const l4Orig = l4Span ? l4Span.dataset.originalText : l4Item.dataset.name;
-                        if (l2Matches || l3Matches || l4Orig.toLowerCase().includes(query)) {
-                            l4Item.style.display = 'flex';
-                            if (l4Orig.toLowerCase().includes(query)) {
-                                highlightText(l4Span, l4Orig, query);
-                                matchCount++;
-                            }
+                        const l4Matches = l4Orig.toLowerCase().includes(query);
+                        if (l4Matches) {
+                            showTreeElement(l4Item, 'flex');
+                            highlightText(l4Span, l4Orig, query);
+                            matchCount++;
                             l4MatchesInL3++;
                         } else {
-                            l4Item.style.display = 'none';
+                            hideTreeElement(l4Item);
                             if (l4Span) l4Span.textContent = l4Orig;
                         }
                     });
 
-                    if (l2Matches || l3Matches || l4MatchesInL3 > 0) {
-                        l3Sec.style.display = 'block';
-                        l3AnyMatch = true;
+                    const noSubsNote = l3Sec.querySelector('.no-subs-note');
+                    if (noSubsNote) {
+                        noSubsNote.style.display = (l3Matches && l4Items.length === 0) ? '' : 'none';
+                    }
+
+                    if (l3Matches || l4MatchesInL3 > 0) {
+                        showTreeElement(l3Sec, 'block');
                         l2HasChildMatch = true;
                     } else {
-                        l3Sec.style.display = 'none';
+                        hideTreeElement(l3Sec);
                     }
                 });
 
+                const l2NoSubsNote = l2Sec.querySelector('.no-subs-note');
+                if (l2NoSubsNote) {
+                    l2NoSubsNote.style.display = 'none';
+                }
+
                 if (l2Matches || l2HasChildMatch) {
-                    l2Sec.style.display = 'block';
+                    showTreeElement(l2Sec, 'block');
                 } else {
-                    l2Sec.style.display = 'none';
+                    hideTreeElement(l2Sec);
                 }
             });
 
@@ -695,6 +760,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 noSearchQueryText.textContent = searchInput.value.trim();
                 noResultsBox.style.display = 'block';
             }
+
+            if (typeof updateBulkUi === 'function') {
+                updateBulkUi();
+            }
         };
 
         const resetSearch = () => {
@@ -704,10 +773,18 @@ document.addEventListener('DOMContentLoaded', function () {
             noResultsBox.style.display = 'none';
 
             // Restore all items
-            document.querySelectorAll('.tree-section').forEach((sec) => sec.style.display = 'block');
-            document.querySelectorAll('.tree-direct-l4-group').forEach((g) => g.style.display = 'block');
-            document.querySelectorAll('.tree-level3-section').forEach((s) => s.style.display = 'block');
-            document.querySelectorAll('.tree-category-item').forEach((i) => i.style.display = 'flex');
+            document.querySelectorAll('.tree-section').forEach(resetTreeElement);
+            document.querySelectorAll('.tree-direct-l4-group').forEach(resetTreeElement);
+            document.querySelectorAll('.tree-level3-section').forEach(resetTreeElement);
+            document.querySelectorAll('.tree-category-item').forEach(resetTreeElement);
+            document.querySelectorAll('.no-subs-note').forEach(el => el.style.display = '');
+
+            // Restore badges
+            document.querySelectorAll('.section-count-badge').forEach(b => {
+                if (b.dataset.totalCount) {
+                    b.textContent = b.dataset.totalCount;
+                }
+            });
 
             // Restore text
             textNodes.forEach((node) => {
@@ -715,6 +792,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     node.textContent = node.dataset.originalText;
                 }
             });
+
+            if (typeof updateBulkUi === 'function') {
+                updateBulkUi();
+            }
         };
 
         const highlightText = (el, text, term) => {
@@ -804,7 +885,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return checkboxes.filter(cb => {
             const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
             if (!item) return true;
-            return item.offsetParent !== null && item.style.display !== 'none';
+            return isItemVisible(item) && isItemVisible(cb);
         });
     }
 
@@ -866,15 +947,20 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!container) return;
 
             const sectionCheckboxes = Array.from(container.querySelectorAll('.category-select-checkbox'));
-            if (sectionCheckboxes.length === 0) {
+            const visibleSectionCheckboxes = sectionCheckboxes.filter(cb => {
+                const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
+                return !item || (isItemVisible(item) && isItemVisible(cb));
+            });
+
+            if (visibleSectionCheckboxes.length === 0) {
                 sectionCb.checked = false;
                 sectionCb.indeterminate = false;
                 return;
             }
 
-            const checkedInSection = sectionCheckboxes.filter(cb => cb.checked).length;
-            sectionCb.checked = checkedInSection === sectionCheckboxes.length;
-            sectionCb.indeterminate = checkedInSection > 0 && checkedInSection < sectionCheckboxes.length;
+            const checkedInSection = visibleSectionCheckboxes.filter(cb => cb.checked).length;
+            sectionCb.checked = checkedInSection === visibleSectionCheckboxes.length;
+            sectionCb.indeterminate = checkedInSection > 0 && checkedInSection < visibleSectionCheckboxes.length;
         });
     }
 
@@ -925,7 +1011,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const isChecked = this.checked;
             container.querySelectorAll('.category-select-checkbox').forEach(cb => {
                 const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
-                if (!item || (item.offsetParent !== null && item.style.display !== 'none')) {
+                if (!item || (isItemVisible(item) && isItemVisible(cb))) {
                     cb.checked = isChecked;
                 }
             });
@@ -943,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const checkboxes = Array.from(container.querySelectorAll('.category-select-checkbox')).filter(cb => {
                 const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
-                return !item || (item.offsetParent !== null && item.style.display !== 'none');
+                return !item || (isItemVisible(item) && isItemVisible(cb));
             });
 
             const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
