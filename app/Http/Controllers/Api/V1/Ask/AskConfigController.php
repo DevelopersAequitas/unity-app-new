@@ -129,7 +129,7 @@ class AskConfigController extends Controller
         $sections = match ($flowCode) {
             'collaboration', 'collaborate' => [
                 'details' => ['goal', 'collaboration_bring', 'collaboration_need'],
-                'filters' => ['industry', 'geography', 'business_stage', 'timeline', 'expected_outcome'],
+                'filters' => [],
             ],
             'referral' => [
                 'details' => ['who_to_meet', 'ideal_profile', 'referral_reason', 'what_i_offer'],

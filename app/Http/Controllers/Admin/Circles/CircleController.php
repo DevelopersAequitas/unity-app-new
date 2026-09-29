@@ -270,7 +270,7 @@ class CircleController extends Controller
 
         $countryOptions = Schema::hasColumn('circles', 'country')
             ? Circle::query()->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
-            : City::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country');
+            : collect();
 
         $typeOptions = Schema::hasColumn('circles', 'type')
             ? Circle::query()->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))->whereNotNull('type')->select('type')->distinct()->orderBy('type')->pluck('type')

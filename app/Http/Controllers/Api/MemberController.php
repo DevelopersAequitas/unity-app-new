@@ -437,14 +437,15 @@ class MemberController extends BaseApiController
 
         $search = trim((string) ($request->query('search') ?: $request->query('q', '')));
         if ($search !== '') {
-            $query->where(function ($q) use ($search): void {
+            $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($q) use ($search, $operator): void {
                 $term = "%{$search}%";
-                $q->where('users.first_name', 'ilike', $term)
-                    ->orWhere('users.last_name', 'ilike', $term)
-                    ->orWhere('users.display_name', 'ilike', $term)
-                    ->orWhere('users.company_name', 'ilike', $term);
+                $q->where('users.first_name', $operator, $term)
+                    ->orWhere('users.last_name', $operator, $term)
+                    ->orWhere('users.display_name', $operator, $term)
+                    ->orWhere('users.company_name', $operator, $term);
                 if (Schema::hasColumn('users', 'business_name')) {
-                    $q->orWhere('users.business_name', 'ilike', $term);
+                    $q->orWhere('users.business_name', $operator, $term);
                 }
             });
         }
@@ -1039,27 +1040,114 @@ class MemberController extends BaseApiController
             return $this->error('Unauthenticated.', 401);
         }
 
+        $page = max(1, (int) ($request->query('page') ?: $request->input('page', 1)));
+        $perPageInput = $request->query('per_page') ?: $request->query('limit') ?: $request->input('per_page') ?: $request->input('limit', 15);
+        $perPage = min(100, max(1, (int) $perPageInput));
+
         $bookmarks = $authUser->bookmarks ?? [];
         if (! is_array($bookmarks) || empty($bookmarks)) {
-            return $this->success([], 'Bookmarked peers fetched successfully.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Bookmarked peers fetched successfully.',
+                'data' => [],
+                'meta' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'pagination' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'links' => [
+                    'first' => null,
+                    'last' => null,
+                    'prev' => null,
+                    'next' => null,
+                ],
+                'total_users' => 0,
+                'total_user' => 0,
+                'total' => 0,
+            ]);
         }
 
         $bookmarkIds = array_values(array_unique(array_filter(array_map('strval', $bookmarks))));
         if (empty($bookmarkIds)) {
-            return $this->success([], 'Bookmarked peers fetched successfully.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Bookmarked peers fetched successfully.',
+                'data' => [],
+                'meta' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'pagination' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'links' => [
+                    'first' => null,
+                    'last' => null,
+                    'prev' => null,
+                    'next' => null,
+                ],
+                'total_users' => 0,
+                'total_user' => 0,
+                'total' => 0,
+            ]);
         }
 
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService)
             ->whereIn('users.id', $bookmarkIds);
 
-        $users = $query->get();
+        $reversedBookmarkIds = array_values(array_reverse($bookmarkIds));
+        $orderCases = [];
+        $bindings = [];
+        foreach ($reversedBookmarkIds as $index => $id) {
+            $orderCases[] = 'WHEN ? THEN '.(int) $index;
+            $bindings[] = (string) $id;
+        }
+        $orderSql = 'CASE CAST(users.id AS text) '.implode(' ', $orderCases).' ELSE '.count($reversedBookmarkIds).' END';
+        $query->orderByRaw($orderSql, $bindings);
 
-        $this->attachConnectionStatuses($authUser, $users);
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $pageItems = collect($paginator->items());
 
-        return $this->success(
-            LimitedUserResource::collection($users),
-            'Bookmarked peers fetched successfully.'
-        );
+        $this->attachConnectionStatuses($authUser, $pageItems);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Bookmarked peers fetched successfully.',
+            'data' => LimitedUserResource::collection($pageItems),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'total_users' => $paginator->total(),
+            'total_user' => $paginator->total(),
+            'total' => $paginator->total(),
+        ]);
     }
 
     public function unbookmark(Request $request, string $id): JsonResponse

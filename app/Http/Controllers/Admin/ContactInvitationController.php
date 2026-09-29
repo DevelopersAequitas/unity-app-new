@@ -36,17 +36,17 @@ class ContactInvitationController extends Controller
         $filters['date_preset'] = $activePreset;
 
         $presets = [
-            'today'        => 'Today',
-            'yesterday'    => 'Yesterday',
-            'this_week'    => 'This Week',
-            'last_week'    => 'Last Week',
-            'this_month'   => 'This Month',
-            'last_month'   => 'Last Month',
+            'today' => 'Today',
+            'yesterday' => 'Yesterday',
+            'this_week' => 'This Week',
+            'last_week' => 'Last Week',
+            'this_month' => 'This Month',
+            'last_month' => 'Last Month',
             'this_quarter' => 'This Quarter',
             'last_quarter' => 'Last Quarter',
-            'this_year'    => 'This Year',
-            'last_year'    => 'Last Year',
-            'last_7_days'  => 'Last 7 Days',
+            'this_year' => 'This Year',
+            'last_year' => 'Last Year',
+            'last_7_days' => 'Last 7 Days',
             'last_30_days' => 'Last 30 Days',
             'last_90_days' => 'Last 90 Days',
         ];

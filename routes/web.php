@@ -405,6 +405,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/export', [AskManagementController::class, 'export'])->name('export');
             Route::get('/config', [AskManagementController::class, 'config'])->name('config');
             Route::post('/config/toggle', [AskManagementController::class, 'toggleConfigStatus'])->name('config.toggle');
+            Route::post('/config/group', [AskManagementController::class, 'storeOptionGroup'])->name('config.group.store');
+            Route::post('/config/option', [AskManagementController::class, 'storeOption'])->name('config.option.store');
             Route::get('/{ask}', [AskManagementController::class, 'show'])->name('show')->whereUuid('ask');
             Route::patch('/{ask}/status', [AskManagementController::class, 'updateStatus'])->name('status')->whereUuid('ask');
             Route::delete('/{ask}', [AskManagementController::class, 'destroy'])->name('destroy')->whereUuid('ask');
@@ -540,6 +542,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/delete-stats', [CircleController::class, 'deleteStats'])->name('circles.delete-stats');
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
+        Route::patch('/circles/{circle}/members/{circleMember}/category', [CircleMemberController::class, 'updateCategory'])->name('circles.members.update-category');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
         Route::get('/event-scan-credentials', [EventScanCredentialController::class, 'index'])->name('event-scan-credentials.index');
         Route::get('/event-scan-credentials/create', [EventScanCredentialController::class, 'create'])->name('event-scan-credentials.create');
@@ -576,9 +579,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/categories/{category}/level2', [CategoryController::class, 'storeLevel2'])->name('categories.level2.store');
         Route::post('/categories/{category}/level3', [CategoryController::class, 'storeLevel3'])->name('categories.level3.store');
         Route::post('/categories/{category}/level4', [CategoryController::class, 'storeLevel4'])->name('categories.level4.store');
+        Route::put('/categories/level2/{level2}', [CategoryController::class, 'updateLevel2'])->name('categories.level2.update');
+        Route::put('/categories/level3/{level3}', [CategoryController::class, 'updateLevel3'])->name('categories.level3.update');
+        Route::put('/categories/level4/{level4}', [CategoryController::class, 'updateLevel4'])->name('categories.level4.update');
         Route::delete('/categories/level2/{level2}', [CategoryController::class, 'destroyLevel2'])->name('categories.level2.destroy');
         Route::delete('/categories/level3/{level3}', [CategoryController::class, 'destroyLevel3'])->name('categories.level3.destroy');
         Route::delete('/categories/level4/{level4}', [CategoryController::class, 'destroyLevel4'])->name('categories.level4.destroy');
+        Route::post('/categories/{category}/bulk-destroy', [CategoryController::class, 'bulkDestroy'])->name('categories.bulk-destroy');
         Route::resource('categories', CategoryController::class)->except(['show']);
         Route::get('/ads/dashboard', [AdAnalyticsController::class, 'index'])->name('ads.dashboard');
         Route::get('/ads/analytics', [AdAnalyticsController::class, 'detailedReport'])->name('ads.analytics');

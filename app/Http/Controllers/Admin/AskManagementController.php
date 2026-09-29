@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreAskOptionGroupRequest;
+use App\Http\Requests\Admin\StoreAskOptionRequest;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskFlow;
 use App\Models\Ask\AskOption;
@@ -12,6 +14,7 @@ use App\Models\Ask\AskOptionGroup;
 use App\Models\Ask\AskStatusHistory;
 use App\Models\Ask\AskType;
 use App\Models\User;
+use App\Services\Ask\AskOptionManagementService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +26,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AskManagementController extends Controller
 {
+    public function __construct(
+        protected AskOptionManagementService $optionService,
+    ) {}
+
     /**
      * Display a listing of Asks.
      */
@@ -299,5 +306,54 @@ class AskManagementController extends Controller
                 'is_active' => (bool) $model->is_active,
             ],
         ]);
+    }
+
+    /**
+     * Store a new Ask Option Group (Section).
+     */
+    public function storeOptionGroup(StoreAskOptionGroupRequest $request): JsonResponse
+    {
+        $group = $this->optionService->createOptionGroup($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Option section/group created successfully.',
+            'data' => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'code' => $group->code,
+                'input_type' => $group->input_type,
+                'is_active' => (bool) $group->is_active,
+                'flows' => $group->metadata['flows'] ?? ['collaboration'],
+                'options_count' => $group->options->count(),
+                'options' => $group->options->map(fn ($opt) => [
+                    'id' => $opt->id,
+                    'code' => $opt->code,
+                    'label' => $opt->label,
+                    'is_active' => (bool) $opt->is_active,
+                ]),
+            ],
+        ], 201);
+    }
+
+    /**
+     * Store a new Option inside a Group.
+     */
+    public function storeOption(StoreAskOptionRequest $request): JsonResponse
+    {
+        $option = $this->optionService->createOption($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Option created successfully.',
+            'data' => [
+                'id' => $option->id,
+                'option_group_id' => $option->option_group_id,
+                'label' => $option->label,
+                'code' => $option->code,
+                'is_active' => (bool) $option->is_active,
+                'sort_order' => $option->sort_order,
+            ],
+        ], 201);
     }
 }

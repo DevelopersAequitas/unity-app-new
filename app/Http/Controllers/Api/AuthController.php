@@ -18,6 +18,7 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
+use App\Models\CoinsLedger;
 use App\Models\CustomCategoryRequest;
 use App\Models\EmailLog;
 use App\Models\FileModel;
@@ -29,6 +30,7 @@ use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
 use App\Services\Auth\OtpService;
 use App\Services\Auth\SocialAuthService;
+use App\Services\Coins\CoinsService;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\Notifications\DailyHabitLoopService;
@@ -662,6 +664,71 @@ class AuthController extends BaseApiController
 
         if ($dirty) {
             $user->save();
+        }
+
+        $referrer = User::find($referrerUserId);
+        if ($referrer) {
+            $count = User::query()
+                ->where(function ($q) use ($referrerUserId): void {
+                    $q->where('introduced_by', $referrerUserId);
+                    if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                        $q->orWhere('referred_by_user_id', $referrerUserId);
+                    }
+                    if (Schema::hasTable('referraldata')) {
+                        $q->orWhereIn('id', function ($sub) use ($referrerUserId): void {
+                            $sub->select('referred_user_id')
+                                ->from('referraldata')
+                                ->where('referrer_user_id', $referrerUserId)
+                                ->whereNotNull('referred_user_id');
+                        });
+                    }
+                })
+                ->where('id', '!=', $referrerUserId)
+                ->whereNull('deleted_at')
+                ->count();
+
+            if (Schema::hasColumn('users', 'members_introduced_count')) {
+                $referrer->members_introduced_count = $count;
+                $referrer->saveQuietly();
+            }
+
+            if (Schema::hasTable('coins_ledger')) {
+                $alreadyRewarded = CoinsLedger::query()
+                    ->where('user_id', $referrerUserId)
+                    ->where(function ($q) use ($user): void {
+                        $q->where('reference', 'referral_signup:'.$user->id)
+                            ->orWhere('reference', 'like', '%'.$user->id.'%');
+                        if (Schema::hasColumn('coins_ledger', 'source_id')) {
+                            $q->orWhere('source_id', (string) $user->id);
+                        }
+                    })
+                    ->exists();
+
+                if (! $alreadyRewarded) {
+                    $amount = (int) (config('coins.activity_rewards.referral_signup') ?? config('coins.recommend_peer') ?? 1000);
+                    if ($amount > 0) {
+                        try {
+                            app(CoinsService::class)->reward(
+                                $referrer,
+                                $amount,
+                                'referral_signup:'.$user->id,
+                                [
+                                    'source' => 'referral_signup',
+                                    'referred_user_id' => (string) $user->id,
+                                    'referrer_user_id' => $referrerUserId,
+                                    'coins' => $amount,
+                                ],
+                                (string) $user->id
+                            );
+                        } catch (\Throwable $e) {
+                            Log::error('[AuthController] Failed awarding referral coins: '.$e->getMessage(), [
+                                'referrer_id' => $referrerUserId,
+                                'referred_id' => (string) $user->id,
+                            ]);
+                        }
+                    }
+                }
+            }
         }
     }
 

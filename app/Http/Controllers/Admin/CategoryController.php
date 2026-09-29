@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Categories\BulkDestroyCategoryRequest;
 use App\Http\Requests\Admin\Categories\StoreCategoryRequest;
 use App\Http\Requests\Admin\Categories\UpdateCategoryRequest;
 use App\Imports\CategoriesImport;
@@ -10,6 +11,7 @@ use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
+use App\Services\Admin\CategoryBulkActionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -367,6 +369,112 @@ class CategoryController extends Controller
     public function export(Request $request)
     {
         try {
+            $categoryId = $request->query('category_id');
+
+            if ($categoryId) {
+                $category = CircleCategory::query()->findOrFail($categoryId);
+
+                $level2Categories = CircleCategoryLevel2::query()
+                    ->where('circle_category_id', $category->id)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get();
+
+                $level3Categories = CircleCategoryLevel3::query()
+                    ->where('circle_category_id', $category->id)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get();
+
+                $level4Categories = CircleCategoryLevel4::query()
+                    ->where('circle_category_id', $category->id)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get();
+
+                $level2Map = $level2Categories->keyBy('id');
+                $level3Map = $level3Categories->keyBy('id');
+
+                $fileName = Str::slug($category->name).'_categories_'.now()->format('Ymd_His').'.csv';
+
+                return response()->streamDownload(
+                    function () use ($category, $level2Categories, $level3Categories, $level4Categories, $level2Map, $level3Map): void {
+                        $handle = fopen('php://output', 'w');
+
+                        if ($handle === false) {
+                            throw new \RuntimeException('Could not open output stream for CSV export.');
+                        }
+
+                        fwrite($handle, "\xEF\xBB\xBF");
+                        fputcsv($handle, ['ID', 'Level', 'Category Name', 'Parent Name', 'Slug', 'Sort Order', 'Is Active']);
+
+                        // Level 1 (Main)
+                        fputcsv($handle, [
+                            $category->id,
+                            'Level 1',
+                            (string) ($category->name ?? ''),
+                            '—',
+                            (string) ($category->slug ?? ''),
+                            (string) ($category->sort_order ?? ''),
+                            $category->is_active ? 'true' : 'false',
+                        ]);
+
+                        // Level 2
+                        foreach ($level2Categories as $l2) {
+                            fputcsv($handle, [
+                                $l2->id,
+                                'Level 2',
+                                (string) ($l2->name ?? ''),
+                                (string) ($category->name ?? ''),
+                                (string) ($l2->slug ?? ''),
+                                (string) ($l2->sort_order ?? ''),
+                                $l2->is_active ? 'true' : 'false',
+                            ]);
+                        }
+
+                        // Level 3
+                        foreach ($level3Categories as $l3) {
+                            $parentL2Id = $l3->level2_id ?? $l3->circle_category_level2_id ?? null;
+                            $parentL2 = $parentL2Id ? $level2Map->get($parentL2Id) : null;
+                            fputcsv($handle, [
+                                $l3->id,
+                                'Level 3',
+                                (string) ($l3->name ?? ''),
+                                (string) ($parentL2 ? $parentL2->name : $category->name),
+                                (string) ($l3->slug ?? ''),
+                                (string) ($l3->sort_order ?? ''),
+                                $l3->is_active ? 'true' : 'false',
+                            ]);
+                        }
+
+                        // Level 4
+                        foreach ($level4Categories as $l4) {
+                            $parentL3Id = $l4->level3_id ?? $l4->circle_category_level3_id ?? null;
+                            $parentL2Id = $l4->level2_id ?? $l4->circle_category_level2_id ?? null;
+                            $parentL3 = $parentL3Id ? $level3Map->get($parentL3Id) : null;
+                            $parentL2 = $parentL2Id ? $level2Map->get($parentL2Id) : null;
+                            $parentName = $parentL3 ? $parentL3->name : ($parentL2 ? $parentL2->name : $category->name);
+
+                            fputcsv($handle, [
+                                $l4->id,
+                                'Level 4',
+                                (string) ($l4->name ?? ''),
+                                (string) $parentName,
+                                (string) ($l4->slug ?? ''),
+                                (string) ($l4->sort_order ?? ''),
+                                $l4->is_active ? 'true' : 'false',
+                            ]);
+                        }
+
+                        fclose($handle);
+                    },
+                    $fileName,
+                    [
+                        'Content-Type' => 'text/csv; charset=UTF-8',
+                    ]
+                );
+            }
+
             $search = trim((string) $request->query('q', ''));
 
             $categories = CircleCategory::query()
@@ -449,6 +557,86 @@ class CategoryController extends Controller
             ->with('imported_count', $result['imported_count'])
             ->with('skipped_duplicate_count', $result['skipped_duplicate_count'])
             ->with('skipped_empty_count', $result['skipped_empty_count']);
+    }
+
+    public function updateLevel2(Request $request, CircleCategoryLevel2 $level2): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('circle_category_level2', 'name')
+                    ->where(fn ($query) => $query->where('circle_category_id', $level2->circle_category_id))
+                    ->ignore($level2->id),
+            ],
+        ]);
+
+        $level2->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Level 2 category \"{$validated['name']}\" updated successfully.");
+    }
+
+    public function updateLevel3(Request $request, CircleCategoryLevel3 $level3): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('circle_category_level3', 'name')
+                    ->where(fn ($query) => $query->where('level2_id', $level3->level2_id))
+                    ->ignore($level3->id),
+            ],
+        ]);
+
+        $level3->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Level 3 category \"{$validated['name']}\" updated successfully.");
+    }
+
+    public function updateLevel4(Request $request, CircleCategoryLevel4 $level4): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('circle_category_level4', 'name')
+                    ->where(function ($query) use ($level4) {
+                        $query->where('circle_category_id', $level4->circle_category_id);
+                        if ($level4->level3_id !== null) {
+                            $query->where('level3_id', $level4->level3_id);
+                        } else {
+                            $query->whereNull('level3_id');
+                            if ($level4->level2_id !== null) {
+                                $query->where('level2_id', $level4->level2_id);
+                            } else {
+                                $query->whereNull('level2_id');
+                            }
+                        }
+
+                        return $query;
+                    })
+                    ->ignore($level4->id),
+            ],
+        ]);
+
+        $level4->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Level 4 category \"{$validated['name']}\" updated successfully.");
     }
 
     public function destroyLevel2(CircleCategoryLevel2 $level2): RedirectResponse
@@ -546,6 +734,37 @@ class CategoryController extends Controller
             return redirect()
                 ->back()
                 ->with('error', 'Something went wrong: '.$e->getMessage());
+        }
+    }
+
+    public function bulkDestroy(BulkDestroyCategoryRequest $request, CircleCategory $category, CategoryBulkActionService $bulkActionService): RedirectResponse
+    {
+        $level2Ids = array_filter(array_map('intval', (array) $request->input('level2_ids', [])));
+        $level3Ids = array_filter(array_map('intval', (array) $request->input('level3_ids', [])));
+        $level4Ids = array_filter(array_map('intval', (array) $request->input('level4_ids', [])));
+
+        if (empty($level2Ids) && empty($level3Ids) && empty($level4Ids)) {
+            return redirect()
+                ->route('admin.categories.view', $category)
+                ->with('error', 'No categories were selected for deletion.');
+        }
+
+        try {
+            $result = $bulkActionService->bulkDestroyChildren($category, $level2Ids, $level3Ids, $level4Ids);
+            $totalDeleted = $result['total_deleted'];
+
+            return redirect()
+                ->route('admin.categories.view', $category)
+                ->with('success', "{$totalDeleted} category item(s) deleted successfully.");
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.bulk_destroy_failed', [
+                'category_id' => (int) $category->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('admin.categories.view', $category)
+                ->with('error', 'Something went wrong while deleting categories: '.$e->getMessage());
         }
     }
 }
