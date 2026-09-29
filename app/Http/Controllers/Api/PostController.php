@@ -44,6 +44,45 @@ class PostController extends BaseApiController
         $perPage = max(1, min((int) $request->integer('per_page', 20), 50));
         $page = LengthAwarePaginator::resolveCurrentPage();
 
+        $userCircleIds = DB::table('circle_members')
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('circle_id')
+            ->filter()
+            ->all();
+
+        $userDistrictIds = [];
+        if (! empty($userCircleIds) && Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+            $userDistrictIds = DB::table('circles')
+                ->whereIn('id', $userCircleIds)
+                ->whereNotNull('district_id')
+                ->pluck('district_id')
+                ->filter()
+                ->all();
+        }
+
+        if (Schema::hasColumn('users', 'district_id') && ! empty($user->district_id)) {
+            $userDistrictIds[] = (string) $user->district_id;
+        }
+
+        if ($user->city_id && Schema::hasTable('cities') && Schema::hasColumn('cities', 'district_id')) {
+            $cityDistrictId = DB::table('cities')->where('id', $user->city_id)->value('district_id');
+            if ($cityDistrictId) {
+                $userDistrictIds[] = (string) $cityDistrictId;
+            }
+        }
+
+        $cityName = trim((string) ($user->city_of_residence ?: (is_string($user->city) ? $user->city : '')));
+        if ($cityName !== '' && Schema::hasTable('districts')) {
+            $districtId = DB::table('districts')->where('name', 'ILIKE', "%{$cityName}%")->value('id');
+            if ($districtId) {
+                $userDistrictIds[] = (string) $districtId;
+            }
+        }
+
+        $userDistrictIds = array_values(array_unique(array_filter($userDistrictIds)));
+        $cityId = $user->city_id;
+
         try {
             $unlinkedAsks = Ask::query()
                 ->where('status', Ask::STATUS_PUBLISHED)
@@ -113,7 +152,73 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
             ->selectRaw('posts.post_type as post_type')
-            ->where('posts.visibility', 'public')
+            ->where(function ($q) use ($user, $userCircleIds, $userDistrictIds, $cityId, $cityName): void {
+                $q->where('posts.visibility', 'public')
+                    ->orWhere('posts.user_id', $user->id);
+
+                if (! empty($userCircleIds)) {
+                    $q->orWhere(function ($cq) use ($userCircleIds): void {
+                        $cq->where('posts.visibility', 'circle')
+                            ->whereIn('posts.circle_id', $userCircleIds);
+                    });
+                }
+
+                $q->orWhere(function ($dq) use ($userDistrictIds, $cityId, $cityName): void {
+                    $dq->where('posts.visibility', 'district');
+                    $dq->where(function ($subDq) use ($userDistrictIds, $cityId, $cityName): void {
+                        $hasDistrictCondition = false;
+                        if (! empty($userDistrictIds) && Schema::hasTable('asks')) {
+                            $subDq->whereExists(function ($askQuery) use ($userDistrictIds): void {
+                                $askQuery->select(DB::raw(1))
+                                    ->from('asks')
+                                    ->whereColumn('asks.id', 'posts.source_id')
+                                    ->where('posts.source_type', 'ask')
+                                    ->whereIn('asks.visibility_district_id', $userDistrictIds);
+                            });
+                            $hasDistrictCondition = true;
+                        }
+                        if ($cityId) {
+                            if ($hasDistrictCondition) {
+                                $subDq->orWhereExists(function ($authorQuery) use ($cityId): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city_id', $cityId);
+                                });
+                            } else {
+                                $subDq->whereExists(function ($authorQuery) use ($cityId): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city_id', $cityId);
+                                });
+                                $hasDistrictCondition = true;
+                            }
+                        }
+                        if ($cityName !== '') {
+                            if ($hasDistrictCondition) {
+                                $subDq->orWhereExists(function ($authorQuery) use ($cityName): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city', 'ILIKE', "%{$cityName}%");
+                                });
+                            } else {
+                                $subDq->whereExists(function ($authorQuery) use ($cityName): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city', 'ILIKE', "%{$cityName}%");
+                                });
+                                $hasDistrictCondition = true;
+                            }
+                        }
+                        if (! $hasDistrictCondition) {
+                            $subDq->whereRaw('1 = 0');
+                        }
+                    });
+                });
+            })
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at');
 

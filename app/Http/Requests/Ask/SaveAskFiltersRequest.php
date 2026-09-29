@@ -25,6 +25,12 @@ class SaveAskFiltersRequest extends FormRequest
             'timeline' => ['nullable'],
             'expected_outcome' => ['nullable', 'string'],
             'filters' => ['nullable', 'array'],
+            'visibility' => ['nullable', 'string'],
+            'visibility_type' => ['nullable', 'string'],
+            'district_id' => ['nullable', 'string'],
+            'circle_id' => ['nullable', 'string'],
+            'post_to_timeline' => ['nullable', 'boolean'],
+            'publish_to_timeline' => ['nullable', 'boolean'],
         ];
     }
 }

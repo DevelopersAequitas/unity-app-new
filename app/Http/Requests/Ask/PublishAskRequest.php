@@ -21,7 +21,10 @@ class PublishAskRequest extends FormRequest
         return [
             'post_to_timeline' => ['nullable', 'boolean'],
             'publish_to_timeline' => ['nullable', 'boolean'],
-            'visibility' => ['nullable', 'string', 'in:global,district,circle,all_peers'],
+            'visibility' => ['nullable', 'string'],
+            'visibility_type' => ['nullable', 'string'],
+            'district_id' => ['nullable', 'string'],
+            'circle_id' => ['nullable', 'string'],
             'content_text' => ['nullable', 'string', 'max:5000'],
         ];
     }
