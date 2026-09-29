@@ -12,9 +12,7 @@ use App\Services\Notifications\ReferralInvitationWhatsappService;
 use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Throwable;
 
 class ContactInvitationApiController extends BaseApiController
 {
@@ -100,6 +98,7 @@ class ContactInvitationApiController extends BaseApiController
 
             if ($phone === '') {
                 $failedCount++;
+
                 continue;
             }
 

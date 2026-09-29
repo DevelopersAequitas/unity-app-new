@@ -482,7 +482,9 @@ class MemberController extends BaseApiController
         if ($authUser instanceof User) {
             $paginator = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
         } else {
-            $paginator = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
+            $paginator = $query->orderByRaw(
+                "CASE WHEN (is_verified = true OR (membership_status IS NOT NULL AND LOWER(membership_status) NOT IN ('free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'))) THEN 0 ELSE 1 END"
+            )->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
         }
 
         $pageItems = collect($paginator->items());
