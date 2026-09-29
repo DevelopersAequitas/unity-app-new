@@ -11,11 +11,13 @@ use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserMiniResource;
 use App\Http\Resources\UserProfileResource;
 use App\Http\Resources\V1\LimitedUserResource;
+use App\Models\CoinsLedger;
 use App\Models\CustomCategoryRequest;
 use App\Models\ProfileView;
 use App\Models\User;
 use App\Notifications\ProfileViewedNotification;
 use App\Services\Blocks\PeerBlockService;
+use App\Services\Coins\CoinsService;
 use App\Services\ProfileVisibilityService;
 use App\Services\PushNotificationService;
 use App\Services\Users\IntroducedPeerService;
@@ -32,7 +34,12 @@ class ProfileController extends BaseApiController
 {
     public function show(Request $request)
     {
-        $user = $this->loadProfileRelations($request->user());
+        $user = $request->user();
+        if ($user) {
+            $this->ensureReferralCoinsCredited($user);
+            $user->refresh();
+        }
+        $user = $this->loadProfileRelations($user);
 
         return $this->success(new UserProfileResource($user), 'Profile fetched successfully');
     }
@@ -549,9 +556,25 @@ class ProfileController extends BaseApiController
             return $this->error('Profile is restricted.', 403);
         }
 
-        // Real count from the database: COUNT users WHERE introduced_by = selected member ID
+        // Real count from the database: COUNT users WHERE introduced or referred by selected member ID
         $introducedPeersCount = User::query()
-            ->where('introduced_by', $member->id)
+            ->where(function ($query) use ($member): void {
+                $query->where('introduced_by', $member->id);
+
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $query->orWhere('referred_by_user_id', $member->id);
+                }
+
+                if (Schema::hasTable('referraldata')) {
+                    $query->orWhereIn('id', function ($sub) use ($member): void {
+                        $sub->select('referred_user_id')
+                            ->from('referraldata')
+                            ->where('referrer_user_id', $member->id)
+                            ->whereNotNull('referred_user_id');
+                    });
+                }
+            })
+            ->where('id', '!=', $member->id)
             ->whereNull('deleted_at')
             ->count();
 
@@ -562,7 +585,23 @@ class ProfileController extends BaseApiController
         ))));
 
         $peersQuery = User::query()
-            ->where('introduced_by', $member->id)
+            ->where(function ($query) use ($member): void {
+                $query->where('introduced_by', $member->id);
+
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $query->orWhere('referred_by_user_id', $member->id);
+                }
+
+                if (Schema::hasTable('referraldata')) {
+                    $query->orWhereIn('id', function ($sub) use ($member): void {
+                        $sub->select('referred_user_id')
+                            ->from('referraldata')
+                            ->where('referrer_user_id', $member->id)
+                            ->whereNotNull('referred_user_id');
+                    });
+                }
+            })
+            ->where('id', '!=', $member->id)
             ->whereNull('deleted_at');
 
         if ($authUser) {
@@ -729,5 +768,71 @@ class ProfileController extends BaseApiController
             'per_page' => $paginator->perPage(),
             'total' => $paginator->total(),
         ], 'Profile views retrieved successfully.');
+    }
+
+    private function ensureReferralCoinsCredited(User $user): void
+    {
+        if (! Schema::hasTable('coins_ledger')) {
+            return;
+        }
+
+        $introducedPeerIds = User::query()
+            ->where(function ($q) use ($user): void {
+                $q->where('introduced_by', $user->id);
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $q->orWhere('referred_by_user_id', $user->id);
+                }
+            })
+            ->where('id', '!=', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->toArray();
+
+        if (Schema::hasTable('referraldata')) {
+            $referralDataIds = DB::table('referraldata')
+                ->where('referrer_user_id', $user->id)
+                ->whereNotNull('referred_user_id')
+                ->pluck('referred_user_id')
+                ->toArray();
+            $introducedPeerIds = array_values(array_unique(array_merge($introducedPeerIds, $referralDataIds)));
+        }
+
+        foreach ($introducedPeerIds as $peerId) {
+            $peerIdStr = (string) $peerId;
+            $alreadyRewarded = CoinsLedger::query()
+                ->where('user_id', $user->id)
+                ->where(function ($q) use ($peerIdStr): void {
+                    $q->where('reference', 'referral_signup:'.$peerIdStr)
+                        ->orWhere('reference', 'like', '%'.$peerIdStr.'%');
+                    if (Schema::hasColumn('coins_ledger', 'source_id')) {
+                        $q->orWhere('source_id', $peerIdStr);
+                    }
+                })
+                ->exists();
+
+            if (! $alreadyRewarded) {
+                $amount = (int) (config('coins.activity_rewards.recommend_peer') ?? config('coins.recommend_peer') ?? 1000);
+                if ($amount > 0) {
+                    try {
+                        app(CoinsService::class)->reward(
+                            $user,
+                            $amount,
+                            'referral_signup:'.$peerIdStr,
+                            [
+                                'source' => 'introduce_peer',
+                                'peer_id' => $peerIdStr,
+                                'coins' => $amount,
+                            ],
+                            $user->id
+                        );
+                    } catch (\Throwable $e) {
+                        Log::error('[ProfileController] Failed auto-crediting referral coins: '.$e->getMessage(), [
+                            'user_id' => $user->id,
+                            'peer_id' => $peerIdStr,
+                        ]);
+                    }
+                }
+            }
+        }
     }
 }
