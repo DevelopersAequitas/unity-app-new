@@ -557,6 +557,86 @@ class CategoryController extends Controller
             ->with('skipped_empty_count', $result['skipped_empty_count']);
     }
 
+    public function updateLevel2(Request $request, CircleCategoryLevel2 $level2): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('circle_category_level2', 'name')
+                    ->where(fn ($query) => $query->where('circle_category_id', $level2->circle_category_id))
+                    ->ignore($level2->id),
+            ],
+        ]);
+
+        $level2->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Level 2 category \"{$validated['name']}\" updated successfully.");
+    }
+
+    public function updateLevel3(Request $request, CircleCategoryLevel3 $level3): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('circle_category_level3', 'name')
+                    ->where(fn ($query) => $query->where('level2_id', $level3->level2_id))
+                    ->ignore($level3->id),
+            ],
+        ]);
+
+        $level3->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Level 3 category \"{$validated['name']}\" updated successfully.");
+    }
+
+    public function updateLevel4(Request $request, CircleCategoryLevel4 $level4): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('circle_category_level4', 'name')
+                    ->where(function ($query) use ($level4) {
+                        $query->where('circle_category_id', $level4->circle_category_id);
+                        if ($level4->level3_id !== null) {
+                            $query->where('level3_id', $level4->level3_id);
+                        } else {
+                            $query->whereNull('level3_id');
+                            if ($level4->level2_id !== null) {
+                                $query->where('level2_id', $level4->level2_id);
+                            } else {
+                                $query->whereNull('level2_id');
+                            }
+                        }
+
+                        return $query;
+                    })
+                    ->ignore($level4->id),
+            ],
+        ]);
+
+        $level4->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Level 4 category \"{$validated['name']}\" updated successfully.");
+    }
+
     public function destroyLevel2(CircleCategoryLevel2 $level2): RedirectResponse
     {
         try {
