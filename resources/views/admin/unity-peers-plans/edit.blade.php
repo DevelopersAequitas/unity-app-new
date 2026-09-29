@@ -87,10 +87,19 @@
                     </div>
                 </div>
 
-                <div class="mt-4 d-flex justify-content-end gap-2">
-                    <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                <div class="mt-4 d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Are you sure you want to delete this plan ({{ addslashes($plan->name) }})? This action cannot be undone.')) document.getElementById('deletePlanForm').submit();">
+                        <i class="bi bi-trash"></i> Delete Plan
+                    </button>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
                 </div>
+            </form>
+            <form id="deletePlanForm" action="{{ route('admin.unity-peers-plans.destroy', $plan) }}" method="POST" class="d-none">
+                @csrf
+                @method('DELETE')
             </form>
         </div>
     </div>

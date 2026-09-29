@@ -161,7 +161,7 @@ class UserResource extends JsonResource
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
                 'free_peer' => 'Free Peer',
-                'only_unity_peer' => 'Global Peer',
+                'only_unity_peer', 'global_peer' => 'Global Peer',
                 'unity_peer' => 'Green Member',
                 'chartered_peer' => 'Premium Green Member',
                 'charter_investor' => 'Green Investor',

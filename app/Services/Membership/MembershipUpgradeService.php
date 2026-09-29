@@ -85,8 +85,16 @@ class MembershipUpgradeService
                 ? Carbon::parse($lockedUser->membership_ends_at)
                 : $expiresAt;
 
+            $currentStatus = (string) ($lockedUser->membership_status ?? '');
+            $normalizedCurrent = strtolower(trim(str_replace(' ', '_', $currentStatus)));
+
+            $targetMembershipStatus = self::ONLY_GREEN_PEER_STATUS;
+            if (! in_array($normalizedCurrent, ['free_trial_peer', 'free_peer', 'free_trial', 'free', 'visitor', ''], true)) {
+                $targetMembershipStatus = $lockedUser->membership_status;
+            }
+
             $userUpdates = $this->filterColumns('users', [
-                'membership_status' => self::ONLY_GREEN_PEER_STATUS,
+                'membership_status' => $targetMembershipStatus,
                 'membership_starts_at' => $userStartsAt,
                 'membership_ends_at' => $userEndsAt,
                 'membership_start_date' => Carbon::parse($userStartsAt)->toDateString(),
