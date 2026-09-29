@@ -94,6 +94,7 @@ class PostResource extends JsonResource
                                 'profile_photo_url' => $peer->profile_photo_file_id
                                     ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                                     : null,
+                                'is_online' => (bool) ($peer->is_online ?? false),
                             ];
                         }
                     }
@@ -111,6 +112,7 @@ class PostResource extends JsonResource
                                 'profile_photo_url' => $peer->profile_photo_file_id
                                     ? url('/api/v1/files/'.$peer->profile_photo_file_id)
                                     : null,
+                                'is_online' => (bool) ($peer->is_online ?? false),
                             ];
                         }
                     }
@@ -131,6 +133,7 @@ class PostResource extends JsonResource
                                 'profile_photo_url' => $recognizedPeer->profile_photo_file_id
                                     ? url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id)
                                     : null,
+                                'is_online' => (bool) ($recognizedPeer->is_online ?? false),
                             ];
                         }
                     }
@@ -178,6 +181,7 @@ class PostResource extends JsonResource
                             'business_sub_category' => $subCategory,
                             'profile_photo_url' => $author?->profile_photo_url,
                             'profile_photo_image' => $author?->profile_photo_url,
+                            'is_online' => (bool) ($author?->is_online ?? false),
                         ];
                     }
                 ),

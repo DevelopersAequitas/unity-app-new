@@ -51,6 +51,7 @@ class CircleResource extends JsonResource
                 'phone' => $user->phone ?? null,
                 'city' => $resolveUserCity($user),
                 'company_name' => $user->company_name,
+                'is_online' => (bool) ($user->is_online ?? false),
             ];
         };
 
@@ -130,6 +131,7 @@ class CircleResource extends JsonResource
                 'phone' => $founder->phone ?? null,
                 'city' => $resolveUserCity($founder),
                 'company_name' => $founder->company_name,
+                'is_online' => (bool) ($founder->is_online ?? false),
             ] : null,
             'director' => $userMini($director),
             'industry_director' => $userMini($industryDirector),
@@ -187,6 +189,7 @@ class CircleResource extends JsonResource
                     'profile_photo_url' => data_get($data, 'profile_photo_url'),
                     'company_name' => data_get($data, 'company_name'),
                     'designation' => data_get($data, 'designation') ?? $defaultDesignation,
+                    'is_online' => (bool) data_get($data, 'is_online', false),
                 ];
             }
 
@@ -214,6 +217,7 @@ class CircleResource extends JsonResource
                         'email' => $user->email,
                         'phone' => $user->phone ?? null,
                         'company_name' => $user->company_name,
+                        'is_online' => (bool) ($user->is_online ?? false),
                     ];
                 }
             }
@@ -271,6 +275,7 @@ class CircleResource extends JsonResource
                     'phone' => $user->phone ?? null,
                     'company_name' => $user->company_name,
                     'designation' => data_get($member->meta, 'designation') ?? 'Chair',
+                    'is_online' => (bool) ($user->is_online ?? false),
                 ] : null;
 
                 if (! $chairData && in_array($role, ['chair', 'committee_leader', 'chair_leader'], true)) {
@@ -377,6 +382,7 @@ class CircleResource extends JsonResource
                 'role' => $roleLabel,
                 'designation' => $roleLabel,
                 'region' => data_get($user, 'city'),
+                'is_online' => (bool) data_get($user, 'is_online', false),
             ];
         };
 

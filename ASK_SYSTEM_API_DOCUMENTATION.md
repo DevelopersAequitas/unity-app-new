@@ -71,22 +71,22 @@ Whenever an endpoint returns peer/member information, it strictly follows the ca
 
 | Canva Screen | Description | Primary API Endpoint |
 | :--- | :--- | :--- |
-| **Slide 1** | Home / Ask Entry Screen (*Find Collaborator, Ask Referral, Get Help*) | `GET /api/asks/flows` |
+| **Slide 1** | Home / Ask Entry Screen (*Find Collaborator, Help me make the right connection, Seek Guidance & Support*) | `GET /api/asks/flows` |
 | **Slide 3, 14, 23** | Category / Type Picker (*Joint Venture, Co-Founder, etc.*) | `GET /api/asks/flows/{flow}/types` |
-| **Slide 4, 15, 24** | Step 1: Brief (*Goal, What I Bring, What I Need*) | `POST /api/asks`<br>`PUT /api/asks/{id}` |
+| **Slide 4, 15, 24** | Step 1: Brief (*Goal, What I can contribute, Where I could use support*) | `POST /api/asks`<br>`PUT /api/asks/{id}` |
 | **Slide 5, 16** | Step 2: Filters (*Industry, Geography, Stage, Timeline*) | `PUT /api/asks/{id}/filters` |
-| **Slide 6, 17, 25** | Step 3: Preview Request, Visibility Pill & Post | `GET /api/asks/{id}/preview`<br>`PUT /api/asks/{id}/visibility`<br>`POST /api/asks/{id}/publish` |
-| **Slide 7, 18, 26** | Match Screen (*"6 Peers match your request"*) | `GET /api/asks/{id}/matches` |
-| **Slide 8, 20, 27** | Express Interest / Responder Screen (4 options) | `GET /api/asks/{id}/respond`<br>`POST /api/asks/{id}/responses` |
-| **Slide 10, 29** | Outcome & Close Ask | `PATCH /api/asks/{id}/status` |
-| **Slide 30, 31** | My Asks Dashboard (*Open, In Progress, Fulfilled, Expired*) | `GET /api/asks` |
+| **Slide 6, 17, 25** | Step 3: Preview Requirement, Visibility Pill & Share Requirement | `GET /api/asks/{id}/preview`<br>`PUT /api/asks/{id}/visibility`<br>`POST /api/asks/{id}/publish` |
+| **Slide 7, 18, 26** | Match Screen (*"6 Peers who can support your journey"*) | `GET /api/asks/{id}/matches` |
+| **Slide 8, 20, 27** | Express Interest / Offer Support Screen | `GET /api/asks/{id}/respond`<br>`POST /api/asks/{id}/responses` |
+| **Slide 10, 29** | Outcome & Close Ask (*"What did this connection make possible?" & "Recognise your Peer"*) | `PATCH /api/asks/{id}/status` |
+| **Slide 30, 31** | My Requirements Dashboard (*Open, In Progress, Fulfilled, Expired*) | `GET /api/asks` |
 
 ---
 
 # PART 1: Dynamic Configuration APIs
 
 ### API 1: Get Ask Flows
-Loads the 3 primary flow modules.
+Loads the 3 primary flow modules with relationship-oriented framing.
 
 - **Method:** `GET`
 - **URL:** `/api/asks/flows`
@@ -99,7 +99,7 @@ Loads the 3 primary flow modules.
       "id": "b5f14d54-01df-4b59-9d93-6c40df8c107a",
       "code": "collaboration",
       "name": "Find a Collaborator",
-      "description": "Find the right peer for collaboration.",
+      "description": "Find the right peer to build and create together.",
       "icon": null,
       "sort_order": 1,
       "is_active": true,
@@ -108,8 +108,8 @@ Loads the 3 primary flow modules.
     {
       "id": "c6a23e54-02ef-4c60-8e12-7d51ef9d208b",
       "code": "referral",
-      "name": "Ask for a Referral",
-      "description": "Ask peers for a relevant introduction.",
+      "name": "Help me make the right connection",
+      "description": "Connect with the right peer for meaningful relationships and opportunities.",
       "icon": null,
       "sort_order": 2,
       "is_active": true,
@@ -118,8 +118,8 @@ Loads the 3 primary flow modules.
     {
       "id": "d7b34f65-03fa-4d71-9f23-8e62fa0e319c",
       "code": "help",
-      "name": "Get Help",
-      "description": "Ask peers for advice, mentorship, tasks, introductions and support.",
+      "name": "Seek Guidance & Support",
+      "description": "How can your Peers support you today? Guidance, advice, and community backing.",
       "icon": null,
       "sort_order": 3,
       "is_active": true,

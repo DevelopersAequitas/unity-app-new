@@ -95,6 +95,7 @@ use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
+use App\Http\Controllers\Api\V1\ContactInvitationApiController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\CountryController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
@@ -415,6 +416,13 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
+
+    // Referral Contact Invitations APIs
+    Route::post('/referrals/send-invitations', [ContactInvitationApiController::class, 'sendInvitations']);
+    Route::post('/contact-invitations/send', [ContactInvitationApiController::class, 'sendInvitations']);
+    Route::get('/referrals/invitation-history', [ContactInvitationApiController::class, 'getInvitationHistory']);
+    Route::get('/contact-invitations/history', [ContactInvitationApiController::class, 'getInvitationHistory']);
+    Route::get('/referrals/invitation-stats', [ContactInvitationApiController::class, 'getStats']);
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 

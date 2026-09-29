@@ -48,6 +48,7 @@ use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\CommissionManagementController;
 use App\Http\Controllers\Admin\ContactController;
+use App\Http\Controllers\Admin\ContactInvitationController;
 use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -76,6 +77,7 @@ use App\Http\Controllers\Admin\PeerReferralsController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\RazorpayTestCheckoutController;
 use App\Http\Controllers\Admin\Rbac\AdminModuleController;
 use App\Http\Controllers\Admin\Rbac\AdminPageController;
 use App\Http\Controllers\Admin\Rbac\PageGroupController;
@@ -443,6 +445,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/contacts/user/{user_id}/export-selected', [ContactController::class, 'exportSelected'])->name('contacts.user-details.export-selected');
         Route::get('/contacts/user/{user_id}', [ContactController::class, 'userDetails'])->name('contacts.user-details');
         Route::get('/contacts/{id}', [ContactController::class, 'show'])->name('contacts.show');
+
+        // Referral Contact Invitations Admin Routes
+        Route::get('/contact-invitations', [ContactInvitationController::class, 'index'])->name('contact-invitations.index');
+        Route::get('/contact-invitations/export', [ContactInvitationController::class, 'export'])->name('contact-invitations.export');
+        Route::get('/contact-invitations/{id}', [ContactInvitationController::class, 'show'])->name('contact-invitations.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
             ->name('activities.become-a-leader.show');
@@ -498,9 +505,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/unity-peers-plans', [MembershipPlanController::class, 'index'])->name('unity-peers-plans.index');
         Route::get('/unity-peers-plans/create', [MembershipPlanController::class, 'create'])->name('unity-peers-plans.create');
         Route::post('/unity-peers-plans', [MembershipPlanController::class, 'store'])->name('unity-peers-plans.store');
+        Route::get('/unity-peers-plans/test-checkout', [RazorpayTestCheckoutController::class, 'index'])->name('unity-peers-plans.test-checkout');
+        Route::post('/razorpay-test-checkout/create-order', [RazorpayTestCheckoutController::class, 'createOrder'])->name('razorpay-test-checkout.create-order');
+        Route::post('/razorpay-test-checkout/verify', [RazorpayTestCheckoutController::class, 'verify'])->name('razorpay-test-checkout.verify');
+        Route::post('/razorpay-test-checkout/generate-signature', [RazorpayTestCheckoutController::class, 'generateSignature'])->name('razorpay-test-checkout.generate-signature');
         Route::get('/unity-peers-plans/{plan}/edit', [MembershipPlanController::class, 'edit'])->name('unity-peers-plans.edit');
         Route::get('/login-history', [LoginHistoryController::class, 'index'])->name('login-history.index');
         Route::put('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'update'])->name('unity-peers-plans.update');
+        Route::delete('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'destroy'])->name('unity-peers-plans.destroy');
         Route::post('/files/upload', [AdminFileUploadController::class, 'upload'])->name('files.upload');
 
         Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');

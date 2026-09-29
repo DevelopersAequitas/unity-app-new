@@ -56,6 +56,7 @@ class EventRegistrationResource extends JsonResource
                 'company_name' => $this->invitedByUser->company_name,
                 'designation' => $this->invitedByUser->designation,
                 'profile_photo_url' => $this->invitedByUser->profile_photo_url ?? null,
+                'is_online' => (bool) ($this->invitedByUser->is_online ?? false),
             ] : null,
             'qr_code_url' => ($this->payment_required ?? false) && ($this->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($this->resource),
             'event' => $this->whenLoaded('event', fn () => [
@@ -78,6 +79,7 @@ class EventRegistrationResource extends JsonResource
                 'phone' => $this->user->phone ?? null,
                 'company_name' => $this->user->company_name ?? null,
                 'city' => $this->user->city ?? $this->user->business_city ?? null,
+                'is_online' => (bool) ($this->user->is_online ?? false),
             ] : [
                 'type' => 'visitor',
                 'name' => $this->visitor_name,

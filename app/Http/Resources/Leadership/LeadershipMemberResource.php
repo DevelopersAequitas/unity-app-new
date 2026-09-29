@@ -25,6 +25,7 @@ class LeadershipMemberResource extends JsonResource
                 'company_name' => data_get($user, 'company_name'),
                 'designation' => data_get($user, 'designation'),
                 'profile_photo_url' => data_get($user, 'profile_photo_url'),
+                'is_online' => (bool) data_get($user, 'is_online', false),
             ] : null,
         ];
     }

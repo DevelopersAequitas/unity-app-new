@@ -24,4 +24,3 @@ class FollowRequestResource extends JsonResource
         ];
     }
 }
-

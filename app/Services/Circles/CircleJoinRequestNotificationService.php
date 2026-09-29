@@ -281,11 +281,12 @@ class CircleJoinRequestNotificationService
             return null;
         }
 
-        // Try to find a pending/existing circle subscription first
+        // Try to find a recent pending circle subscription first (valid within 45 mins)
         $existing = CircleSubscription::query()
             ->where('user_id', $user->id)
             ->where('circle_id', $circle->id)
             ->where('status', 'pending')
+            ->where('created_at', '>=', now()->subMinutes(45))
             ->latest('created_at')
             ->first();
 

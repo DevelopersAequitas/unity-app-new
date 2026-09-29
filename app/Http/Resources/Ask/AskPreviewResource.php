@@ -98,6 +98,26 @@ class AskPreviewResource extends JsonResource
             'match_count' => (int) ($this->resource->matches_count ?? ($this->resource->relationLoaded('matches') ? $this->resource->matches->count() : 0)),
             'published_at' => $this->resource->published_at?->toISOString(),
             'expires_at' => $this->resource->expires_at?->toISOString(),
+            'fulfilled_at' => $this->resource->fulfilled_at?->toISOString() ?? ($this->resource->metadata['fulfilled_at'] ?? null),
+            'outcome_status' => $this->resource->outcome_status ?? ($this->resource->metadata['outcome_status'] ?? null),
+            'helped_by' => (function () use ($request) {
+                $status = strtolower((string) $this->resource->status);
+                if ($status === 'fulfilled' || $status === 'completed') {
+                    $completedResponse = $this->resource->responses()
+                        ->whereIn('status', ['completed', 'accepted'])
+                        ->with(['responder', 'introducedUser', 'contact'])
+                        ->latest('responded_at')
+                        ->first();
+                    if ($completedResponse) {
+                        $helper = $completedResponse->introducedUser ?: $completedResponse->responder;
+                        if ($helper) {
+                            return (new PeerResource($helper))->toArray($request);
+                        }
+                    }
+                }
+
+                return null;
+            })(),
             'creator' => $this->resource->user ? new PeerResource($this->resource->user) : null,
         ];
     }

@@ -55,6 +55,7 @@ class SentConnectionResource extends JsonResource
             'is_following' => $isFollowing,
             'is_pro' => $isPro,
             'is_connected' => (bool) $this->is_approved,
+            'is_online' => (bool) ($addressee->is_online ?? false),
             'connection_status' => $this->is_approved ? 'connected' : 'pending_sent',
         ] : null;
 

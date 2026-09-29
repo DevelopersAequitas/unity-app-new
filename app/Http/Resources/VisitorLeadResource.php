@@ -34,6 +34,7 @@ class VisitorLeadResource extends JsonResource
                     'first_name' => $this->convertedUser->first_name,
                     'last_name' => $this->convertedUser->last_name,
                     'profile_photo_url' => $this->convertedUser->profile_photo_url,
+                    'is_online' => (bool) ($this->convertedUser->is_online ?? false),
                 ];
             }),
         ];

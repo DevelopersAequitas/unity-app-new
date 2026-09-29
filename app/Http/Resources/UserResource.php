@@ -161,7 +161,7 @@ class UserResource extends JsonResource
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
                 'free_peer' => 'Free Peer',
-                'only_unity_peer' => 'Global Peer',
+                'only_unity_peer', 'global_peer' => 'Global Peer',
                 'unity_peer' => 'Green Member',
                 'chartered_peer' => 'Premium Green Member',
                 'charter_investor' => 'Green Investor',
@@ -274,6 +274,7 @@ class UserResource extends JsonResource
             'is_connected' => (bool) $isConnected,
             'is_following' => (bool) $isFollowing,
             'is_pro' => (bool) $isPro,
+            'is_online' => (bool) ($this->is_online ?? false),
             'connection_status' => $connectionStatus,
             'is_requested' => (bool) $isRequested,
             'is_other_category' => (bool) $isOtherCategory,

@@ -42,6 +42,7 @@ class PostCommentResource extends JsonResource
                     'designation' => $designation,
                     'company_name' => $companyName,
                     'level4_category' => $subCategory,
+                    'is_online' => (bool) ($user->is_online ?? false),
                 ];
             }),
         ];

@@ -149,6 +149,7 @@ class LimitedUserResource extends JsonResource
             'is_following' => $isFollowing,
             'is_verified' => $isVerified,
             'is_pro' => $isPro,
+            'is_online' => (bool) ($user->is_online ?? false),
             'is_connected' => $isConnected,
             'connection_status' => $connectionStatus,
             'is_requested' => $isRequested,

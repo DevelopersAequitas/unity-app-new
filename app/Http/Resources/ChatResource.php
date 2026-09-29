@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Ask\PeerResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
 
@@ -44,11 +45,7 @@ class ChatResource extends JsonResource
             'last_message_at' => $this->last_message_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'other_user' => $otherUser ? [
-                'id' => $otherUser->id,
-                'display_name' => $otherUser->display_name,
-                'avatar_url' => $otherUser->profile_photo_url,
-            ] : null,
+            'other_user' => $otherUser ? new PeerResource($otherUser) : null,
             'last_message' => $lastMessage,
             'unread_count' => $unreadCount,
         ];
