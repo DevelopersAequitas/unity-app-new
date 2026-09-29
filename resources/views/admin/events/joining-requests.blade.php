@@ -204,7 +204,7 @@
                             {{ $event?->circle?->name ?? 'Global Circle' }}
                         </td>
                         <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
-                            {{ optional($occurrence?->start_at)->format('d M Y, h:i A') }} @if($occurrence?->end_at) - {{ optional($occurrence?->end_at)->format('h:i A') }} @endif
+                            <span class="utc-to-local" data-utc="{{ optional($occurrence?->start_at)->toIso8601String() }}">{{ optional($occurrence?->start_at)->format('d M Y, h:i A') }}</span>
                         </td>
                         <td class="px-3 py-2.5 text-xs t2">
                             @if($event?->mode || $rawLoc)
@@ -382,7 +382,7 @@
                                     <dd class="col-span-2 text-slate-800">{{ $event?->circle?->name ?? 'Global Circle' }}</dd>
 
                                     <dt class="text-slate-500 font-medium">Date & Time:</dt>
-                                    <dd class="col-span-2 text-slate-800">{{ optional($occurrence?->start_at)->format('d M Y h:i A') }}</dd>
+                                    <dd class="col-span-2 text-slate-800"><span class="utc-to-local" data-utc="{{ optional($occurrence?->start_at)->toIso8601String() }}">{{ optional($occurrence?->start_at)->format('d M Y h:i A') }}</span></dd>
 
                                     <dt class="text-slate-500 font-medium">Mode & Venue:</dt>
                                     <dd class="col-span-2 text-slate-800">{{ ucfirst((string) ($event?->mode ?? 'offline')) }} @if($event?->location_text) &bull; {{ $event->location_text }} @endif</dd>

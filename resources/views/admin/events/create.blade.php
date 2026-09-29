@@ -150,8 +150,8 @@
     $selectedCircleIds = collect(old('circle_ids', $isEdit ? $event->circles->pluck('id')->all() : []))->map(fn ($id) => (string) $id)->all();
     $stateOptions = $circles->map(fn ($circle) => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null)->filter()->unique()->sort()->values();
     $eventTimezone = old('timezone', data_get($metadata, 'timezone') ?: 'Asia/Kolkata');
-    $startAtFormatted = old('start_at', $isEdit && $event->start_at ? \Carbon\Carbon::parse($event->start_at)->format('Y-m-d\TH:i') : null);
-    $endAtFormatted = old('end_at', $isEdit && $event->end_at ? \Carbon\Carbon::parse($event->end_at)->format('Y-m-d\TH:i') : null);
+    $startAtFormatted = old('start_at', $isEdit && $event->start_at ? \Carbon\Carbon::parse($event->start_at)->toIso8601String() : null);
+    $endAtFormatted = old('end_at', $isEdit && $event->end_at ? \Carbon\Carbon::parse($event->end_at)->toIso8601String() : null);
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -390,7 +390,12 @@
                         <input type="hidden" name="timezone" id="timezoneInput" value="{{ $eventTimezone }}">
                         <input type="hidden" name="start_at" id="startAtHidden" value="{{ $startAtFormatted }}">
                         <input type="hidden" name="end_at" id="endAtHidden" value="{{ $endAtFormatted }}">
-                        <div class="col-12"><div class="text-danger small d-none" id="dateTimeError">Please select valid start date and start time.</div></div>
+                        <div class="col-12">
+                            <div class="text-muted small mt-1">
+                                <i class="bi bi-globe me-1 text-primary"></i>Times are displayed in your browser time (<span class="fw-semibold user-local-tz"></span>). Saved automatically in UTC for Flutter app.
+                            </div>
+                            <div class="text-danger small d-none" id="dateTimeError">Please select valid start date and start time.</div>
+                        </div>
                     </div>
 
                     <h5 class="form-section-title"><i class="bi bi-arrow-repeat text-primary me-2"></i>Recurrence Settings</h5>
@@ -702,13 +707,34 @@
             const startAt = document.getElementById('startAtHidden').value;
             const endAt = document.getElementById('endAtHidden').value;
             if (startAt) { 
-                const [d, t] = startAt.split('T'); 
-                document.getElementById('startDate').value = d || ''; 
-                document.getElementById('startTime').value = (t || '').slice(0,5); 
+                let normalized = String(startAt).trim();
+                if (!normalized.endsWith('Z') && !normalized.endsWith('z') && !/[+-]\d{2}(:?\d{2})?$/.test(normalized)) {
+                    normalized = normalized.replace(' ', 'T') + 'Z';
+                }
+                const sDate = new Date(normalized);
+                if (!isNaN(sDate.getTime())) {
+                    const year = sDate.getFullYear();
+                    const month = String(sDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(sDate.getDate()).padStart(2, '0');
+                    const hours = String(sDate.getHours()).padStart(2, '0');
+                    const minutes = String(sDate.getMinutes()).padStart(2, '0');
+
+                    document.getElementById('startDate').value = `${year}-${month}-${day}`; 
+                    document.getElementById('startTime').value = `${hours}:${minutes}`; 
+                } else if (startAt.includes('T')) {
+                    const [d, t] = startAt.split('T'); 
+                    document.getElementById('startDate').value = d || ''; 
+                    document.getElementById('startTime').value = (t || '').slice(0, 5); 
+                }
             }
             if (startAt && endAt) {
-                const sTime = new Date(startAt).getTime();
-                const eTime = new Date(endAt).getTime();
+                let startNorm = String(startAt).trim();
+                if (!startNorm.endsWith('Z') && !startNorm.endsWith('z') && !/[+-]\d{2}(:?\d{2})?$/.test(startNorm)) startNorm = startNorm.replace(' ', 'T') + 'Z';
+                let endNorm = String(endAt).trim();
+                if (!endNorm.endsWith('Z') && !endNorm.endsWith('z') && !/[+-]\d{2}(:?\d{2})?$/.test(endNorm)) endNorm = endNorm.replace(' ', 'T') + 'Z';
+
+                const sTime = new Date(startNorm).getTime();
+                const eTime = new Date(endNorm).getTime();
                 if (!isNaN(sTime) && !isNaN(eTime) && eTime > sTime) {
                     const diffMins = Math.round((eTime - sTime) / 60000);
                     const durSelect = document.getElementById('eventDuration');
@@ -775,16 +801,15 @@
             }
 
             if (sd && st) {
-                document.getElementById('startAtHidden').value = `${sd}T${st}`;
-                const startDateObj = new Date(`${sd}T${st}`);
+                const [year, month, day] = sd.split('-').map(Number);
+                const [hours, minutes] = st.split(':').map(Number);
+                // Create local date object in user's browser timezone
+                const startDateObj = new Date(year, month - 1, day, hours, minutes, 0);
                 if (!isNaN(startDateObj.getTime())) {
                     const endDateObj = new Date(startDateObj.getTime() + (durationMinutes || 60) * 60 * 1000);
-                    const year = endDateObj.getFullYear();
-                    const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
-                    const day = String(endDateObj.getDate()).padStart(2, '0');
-                    const hours = String(endDateObj.getHours()).padStart(2, '0');
-                    const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
-                    document.getElementById('endAtHidden').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+                    // Store as ISO 8601 UTC string for backend storage
+                    document.getElementById('startAtHidden').value = startDateObj.toISOString();
+                    document.getElementById('endAtHidden').value = endDateObj.toISOString();
                 }
             } else {
                 document.getElementById('startAtHidden').value = '';
@@ -1010,12 +1035,16 @@
         });
 
         const tzEl = document.getElementById('timezoneInput');
-        if (tzEl && !tzEl.value) {
-            try {
-                tzEl.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
-            } catch (e) {
-                tzEl.value = 'Asia/Kolkata';
+        try {
+            const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+            if (tzEl) {
+                tzEl.value = browserTz;
             }
+            document.querySelectorAll('.user-local-tz').forEach(el => {
+                el.textContent = browserTz;
+            });
+        } catch (e) {
+            if (tzEl && !tzEl.value) tzEl.value = 'Asia/Kolkata';
         }
 
         initDateTimeFields();

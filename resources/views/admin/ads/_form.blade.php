@@ -117,11 +117,13 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Starts At</label>
-                            <input type="datetime-local" name="starts_at" class="form-control" value="{{ old('starts_at', optional($ad->starts_at)->format('Y-m-d\TH:i')) }}">
+                            <input type="datetime-local" name="starts_at" class="form-control" data-utc="{{ optional($ad->starts_at)?->toIso8601String() }}" value="{{ old('starts_at', optional($ad->starts_at)->format('Y-m-d\TH:i')) }}">
+                            <div class="form-text text-muted small"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Ends At</label>
-                            <input type="datetime-local" name="ends_at" class="form-control" value="{{ old('ends_at', optional($ad->ends_at)->format('Y-m-d\TH:i')) }}">
+                            <input type="datetime-local" name="ends_at" class="form-control" data-utc="{{ optional($ad->ends_at)?->toIso8601String() }}" value="{{ old('ends_at', optional($ad->ends_at)->format('Y-m-d\TH:i')) }}">
+                            <div class="form-text text-muted small"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</div>
                         </div>
                     </div>
 

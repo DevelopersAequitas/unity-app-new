@@ -569,20 +569,24 @@ class EventManagementController extends Controller
 
     private function prepareEventData(Request $request, array $data, ?Event $event = null): array
     {
-        $timezone = $request->input('timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
-        if ($timezone === 'UTC' && ! $request->has('timezone')) {
+        $timezone = $request->input('timezone')
+            ?: $request->input('_browser_timezone')
+            ?: (config('app.timezone') ?: 'Asia/Kolkata');
+        if ($timezone === 'UTC' && ! $request->has('timezone') && ! $request->has('_browser_timezone')) {
             $timezone = 'Asia/Kolkata';
         }
 
         if (! empty($data['start_at'])) {
-            $localStart = Carbon::parse($data['start_at']);
-            $data['start_at'] = $localStart->copy()->toDateTimeString();
+            $utcStart = Carbon::parse($data['start_at'])->utc();
+            $data['start_at'] = $utcStart->toDateTimeString();
+            $localStart = $utcStart->copy()->setTimezone($timezone);
         } else {
+            $utcStart = null;
             $localStart = null;
         }
 
         if (! empty($data['end_at'])) {
-            $data['end_at'] = Carbon::parse($data['end_at'])->toDateTimeString();
+            $data['end_at'] = Carbon::parse($data['end_at'])->utc()->toDateTimeString();
         }
 
         $data['event_type'] = match ($data['event_type'] ?? null) {

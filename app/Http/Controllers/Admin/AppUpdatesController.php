@@ -224,9 +224,9 @@ class AppUpdatesController extends Controller
         $startTimeInput = $request->input('start_time');
         $endTimeInput = $request->input('end_time');
 
-        // Store exact literal time entered in Admin Panel without timezone shifting
-        $maintenance->start_time = $startTimeInput ? Carbon::parse($startTimeInput) : null;
-        $maintenance->end_time = $endTimeInput ? Carbon::parse($endTimeInput) : null;
+        // Store start_time and end_time in UTC for consistency with mobile app
+        $maintenance->start_time = $startTimeInput ? Carbon::parse($startTimeInput)->utc() : null;
+        $maintenance->end_time = $endTimeInput ? Carbon::parse($endTimeInput)->utc() : null;
 
         if ($maintenance->start_time && $maintenance->end_time) {
             $maintenance->duration_minutes = (int) $maintenance->start_time->diffInMinutes($maintenance->end_time);
