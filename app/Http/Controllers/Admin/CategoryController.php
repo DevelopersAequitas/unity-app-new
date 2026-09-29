@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Categories\BulkDestroyCategoryRequest;
 use App\Http\Requests\Admin\Categories\StoreCategoryRequest;
 use App\Http\Requests\Admin\Categories\UpdateCategoryRequest;
 use App\Imports\CategoriesImport;
@@ -10,6 +11,7 @@ use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
+use App\Services\Admin\CategoryBulkActionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -732,6 +734,37 @@ class CategoryController extends Controller
             return redirect()
                 ->back()
                 ->with('error', 'Something went wrong: '.$e->getMessage());
+        }
+    }
+
+    public function bulkDestroy(BulkDestroyCategoryRequest $request, CircleCategory $category, CategoryBulkActionService $bulkActionService): RedirectResponse
+    {
+        $level2Ids = array_filter(array_map('intval', (array) $request->input('level2_ids', [])));
+        $level3Ids = array_filter(array_map('intval', (array) $request->input('level3_ids', [])));
+        $level4Ids = array_filter(array_map('intval', (array) $request->input('level4_ids', [])));
+
+        if (empty($level2Ids) && empty($level3Ids) && empty($level4Ids)) {
+            return redirect()
+                ->route('admin.categories.view', $category)
+                ->with('error', 'No categories were selected for deletion.');
+        }
+
+        try {
+            $result = $bulkActionService->bulkDestroyChildren($category, $level2Ids, $level3Ids, $level4Ids);
+            $totalDeleted = $result['total_deleted'];
+
+            return redirect()
+                ->route('admin.categories.view', $category)
+                ->with('success', "{$totalDeleted} category item(s) deleted successfully.");
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.bulk_destroy_failed', [
+                'category_id' => (int) $category->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('admin.categories.view', $category)
+                ->with('error', 'Something went wrong while deleting categories: '.$e->getMessage());
         }
     }
 }

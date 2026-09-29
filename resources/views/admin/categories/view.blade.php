@@ -177,8 +177,14 @@
 <div class="card shadow-sm">
     <div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span>Hierarchical Category Tree</span>
-        <div class="d-flex align-items-center gap-2">
-            <div class="input-group input-group-sm" style="max-width: 320px;">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" id="btnSelectAllCategories" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-check2-square"></i> <span id="selectAllBtnText">Select All</span>
+            </button>
+            <button type="button" id="btnBulkDeleteCategories" class="btn btn-sm btn-danger d-none align-items-center gap-1 shadow-sm">
+                <i class="bi bi-trash"></i> Delete Selected (<span id="headerSelectedCount">0</span>)
+            </button>
+            <div class="input-group input-group-sm" style="max-width: 300px;">
                 <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
                 <input type="text" id="categoryTreeSearch" class="form-control" placeholder="Search subcategories..." autocomplete="off">
                 <button class="btn btn-primary" type="button" id="categoryTreeSearchBtn">
@@ -190,7 +196,28 @@
             </div>
         </div>
     </div>
-    <div class="card-body">
+    <div class="card-body position-relative">
+        {{-- Sticky Bulk Actions Notification Bar --}}
+        <div id="bulkActionBar" class="alert alert-primary py-2 px-3 small mb-3 d-none align-items-center justify-content-between shadow-sm border-primary-subtle" style="position: sticky; top: 10px; z-index: 100;">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-semibold text-primary">
+                    <i class="bi bi-check-circle-fill me-1"></i>
+                    <span id="bulkSelectedText">0 categories selected</span>
+                </span>
+                <button type="button" class="btn btn-outline-primary py-0 px-2" id="bulkSelectAllVisibleBtn" style="font-size: 0.75rem;">
+                    Select All Visible
+                </button>
+                <button type="button" class="btn btn-outline-secondary py-0 px-2" id="bulkClearSelectionBtn" style="font-size: 0.75rem;">
+                    Clear Selection
+                </button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1 shadow-sm" id="bulkActionBarDeleteBtn">
+                    <i class="bi bi-trash-fill"></i> Delete Selected (<span id="bulkBarCount">0</span>)
+                </button>
+            </div>
+        </div>
+
         <div id="searchResultsCount" class="alert alert-info py-2 px-3 small mb-3 align-items-center justify-content-between" style="display: none !important;">
             <span><i class="bi bi-info-circle me-1"></i> <span id="searchResultsCountText"></span></span>
             <button type="button" class="btn-close btn-close-sm" id="searchCountDismiss" aria-label="Close"></button>
@@ -206,15 +233,28 @@
 
             @if(!empty($directLevel4Categories))
                 <div class="border rounded p-3 mb-3 bg-light tree-section" id="directL4Section">
-                    <div class="fw-semibold text-dark mb-2 pb-2 border-bottom d-flex justify-content-between align-items-center">
-                        <span>Direct Subcategories (Level 4)</span>
-                        <span class="badge bg-secondary-subtle text-secondary border">{{ count($directLevel4Categories) }}</span>
+                    <div class="fw-semibold text-dark mb-2 pb-2 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <input class="form-check-input section-select-all m-0" type="checkbox" id="selectAllDirectL4" data-target="#directL4Section" title="Select all Direct Level 4 categories">
+                            <label for="selectAllDirectL4" class="mb-0 cursor-pointer user-select-none">Direct Subcategories (Level 4)</label>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-link p-0 text-decoration-none select-section-toggle-btn small text-muted" data-target="#directL4Section" style="font-size: 0.75rem;">
+                                Select Section
+                            </button>
+                            <span class="badge bg-secondary-subtle text-secondary border">{{ count($directLevel4Categories) }}</span>
+                        </div>
                     </div>
                     <ul class="list-unstyled mb-0">
                         @foreach($directLevel4Categories as $level4Category)
                             <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
-                                <span class="text-muted item-name">• Level 4: <span class="category-name-text">{{ $level4Category->name }}</span></span>
-                                <div class="d-flex align-items-center gap-1">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
+                                    <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
+                                    <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
+                                        • Level 4: <span class="category-name-text">{{ $level4Category->name }}</span>
+                                    </label>
+                                </div>
+                                <div class="d-flex align-items-center gap-1 flex-shrink-0">
                                     <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
                                         data-name="{{ $level4Category->name }}" 
                                         data-level="Level 4" 
@@ -237,9 +277,14 @@
             @endif
 
             @foreach($children as $level2Node)
-                <div class="border rounded p-3 mb-3 tree-section tree-level2-section" data-name="{{ strtolower($level2Node['category']->name) }}">
-                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                        <span class="fw-semibold text-dark item-name">Level 2: <span class="category-name-text">{{ $level2Node['category']->name }}</span></span>
+                <div class="border rounded p-3 mb-3 tree-section tree-level2-section" id="l2Section_{{ $level2Node['category']->id }}" data-name="{{ strtolower($level2Node['category']->name) }}">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level2_ids[]" value="{{ $level2Node['category']->id }}" id="cat_l2_{{ $level2Node['category']->id }}" form="bulkDeleteCategoriesForm">
+                            <label class="fw-semibold text-dark item-name mb-0 cursor-pointer user-select-none" for="cat_l2_{{ $level2Node['category']->id }}">
+                                Level 2: <span class="category-name-text">{{ $level2Node['category']->name }}</span>
+                            </label>
+                        </div>
                         <div class="d-flex align-items-center gap-1">
                             <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
                                 data-name="{{ $level2Node['category']->name }}" 
@@ -264,8 +309,13 @@
                             <ul class="list-unstyled mb-0">
                                 @foreach($level2Node['direct_level4'] as $level4Category)
                                     <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
-                                        <span class="text-muted item-name">• Level 4: <span class="category-name-text">{{ $level4Category->name }}</span></span>
-                                        <div class="d-flex align-items-center gap-1">
+                                        <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
+                                            <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
+                                            <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
+                                                • Level 4: <span class="category-name-text">{{ $level4Category->name }}</span>
+                                            </label>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-1 flex-shrink-0">
                                             <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
                                                 data-name="{{ $level4Category->name }}" 
                                                 data-level="Level 4" 
@@ -293,9 +343,14 @@
                         @endif
                     @else
                         @foreach($level2Node['children'] as $level3Node)
-                            <div class="ms-3 border-start ps-3 mb-2 tree-level3-section" data-name="{{ strtolower($level3Node['category']->name) }}">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="fw-medium text-secondary item-name">Level 3: <span class="category-name-text">{{ $level3Node['category']->name }}</span></span>
+                            <div class="ms-3 border-start ps-3 mb-2 tree-level3-section" id="l3Section_{{ $level3Node['category']->id }}" data-name="{{ strtolower($level3Node['category']->name) }}">
+                                <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level3_ids[]" value="{{ $level3Node['category']->id }}" id="cat_l3_{{ $level3Node['category']->id }}" form="bulkDeleteCategoriesForm">
+                                        <label class="fw-medium text-secondary item-name mb-0 cursor-pointer user-select-none" for="cat_l3_{{ $level3Node['category']->id }}">
+                                            Level 3: <span class="category-name-text">{{ $level3Node['category']->name }}</span>
+                                        </label>
+                                    </div>
                                     <div class="d-flex align-items-center gap-1">
                                         <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
                                             data-name="{{ $level3Node['category']->name }}" 
@@ -320,8 +375,13 @@
                                     <ul class="list-unstyled mb-0 mt-1">
                                         @foreach($level3Node['children'] as $level4Category)
                                             <li class="d-flex justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
-                                                <span class="text-muted item-name">• Level 4: <span class="category-name-text">{{ $level4Category->name }}</span></span>
-                                                <div class="d-flex align-items-center gap-1">
+                                                <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
+                                                    <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
+                                                    <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
+                                                        • Level 4: <span class="category-name-text">{{ $level4Category->name }}</span>
+                                                    </label>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-1 flex-shrink-0">
                                                     <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
                                                         data-name="{{ $level4Category->name }}" 
                                                         data-level="Level 4" 
@@ -409,6 +469,37 @@
         </div>
     </div>
 </div>
+
+{{-- Bulk Delete Categories Modal --}}
+<div class="modal fade" id="bulkDeleteCategoriesModal" tabindex="-1" aria-labelledby="bulkDeleteCategoriesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-danger-subtle">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title h6 mb-0 text-danger" id="bulkDeleteCategoriesModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Confirm Bulk Delete
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Are you sure you want to delete the selected <strong id="bulkModalCount" class="text-danger">0</strong> categories?</p>
+                <div class="alert alert-warning py-2 px-3 small mb-0">
+                    <i class="bi bi-info-circle me-1"></i> Any child subcategories under the selected categories will also be deactivated.
+                </div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="bulkModalSubmitBtn">
+                    <i class="bi bi-trash-fill me-1"></i> Yes, Delete Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Standalone Bulk Delete Form --}}
+<form id="bulkDeleteCategoriesForm" method="POST" action="{{ route('admin.categories.bulk-destroy', $category) }}" class="d-none">
+    @csrf
+</form>
 @endsection
 
 @push('scripts')
@@ -687,6 +778,246 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    // -------------------------------------------------------------
+    // Bulk Select & Delete Categories Handler
+    // -------------------------------------------------------------
+    const selectAllBtn = document.getElementById('btnSelectAllCategories');
+    const selectAllBtnText = document.getElementById('selectAllBtnText');
+    const headerDeleteBtn = document.getElementById('btnBulkDeleteCategories');
+    const headerSelectedCount = document.getElementById('headerSelectedCount');
+    
+    const bulkActionBar = document.getElementById('bulkActionBar');
+    const bulkSelectedText = document.getElementById('bulkSelectedText');
+    const bulkBarCount = document.getElementById('bulkBarCount');
+    const bulkActionBarDeleteBtn = document.getElementById('bulkActionBarDeleteBtn');
+    const bulkSelectAllVisibleBtn = document.getElementById('bulkSelectAllVisibleBtn');
+    const bulkClearSelectionBtn = document.getElementById('bulkClearSelectionBtn');
+    
+    const bulkDeleteModalEl = document.getElementById('bulkDeleteCategoriesModal');
+    const bulkModalCount = document.getElementById('bulkModalCount');
+    const bulkModalSubmitBtn = document.getElementById('bulkModalSubmitBtn');
+    const bulkForm = document.getElementById('bulkDeleteCategoriesForm');
+
+    function getVisibleCategoryCheckboxes() {
+        const checkboxes = Array.from(document.querySelectorAll('.category-select-checkbox'));
+        return checkboxes.filter(cb => {
+            const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
+            if (!item) return true;
+            return item.offsetParent !== null && item.style.display !== 'none';
+        });
+    }
+
+    function getAllCategoryCheckboxes() {
+        return Array.from(document.querySelectorAll('.category-select-checkbox'));
+    }
+
+    function getCheckedCategoryCheckboxes() {
+        return Array.from(document.querySelectorAll('.category-select-checkbox:checked'));
+    }
+
+    function updateBulkUi() {
+        const checkedList = getCheckedCategoryCheckboxes();
+        const count = checkedList.length;
+        const visibleCheckboxes = getVisibleCategoryCheckboxes();
+        const allVisibleChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
+
+        // Update header button text
+        if (selectAllBtnText) {
+            selectAllBtnText.textContent = allVisibleChecked ? 'Deselect All' : 'Select All';
+        }
+
+        if (headerSelectedCount) {
+            headerSelectedCount.textContent = count;
+        }
+
+        if (headerDeleteBtn) {
+            if (count > 0) {
+                headerDeleteBtn.classList.remove('d-none');
+                headerDeleteBtn.classList.add('d-inline-flex');
+            } else {
+                headerDeleteBtn.classList.add('d-none');
+                headerDeleteBtn.classList.remove('d-inline-flex');
+            }
+        }
+
+        // Update sticky action bar
+        if (bulkActionBar) {
+            if (count > 0) {
+                bulkActionBar.classList.remove('d-none');
+                bulkActionBar.classList.add('d-flex');
+                if (bulkSelectedText) {
+                    bulkSelectedText.textContent = `${count} categor${count === 1 ? 'y' : 'ies'} selected`;
+                }
+                if (bulkBarCount) {
+                    bulkBarCount.textContent = count;
+                }
+            } else {
+                bulkActionBar.classList.add('d-none');
+                bulkActionBar.classList.remove('d-flex');
+            }
+        }
+
+        // Update section-level select all checkboxes
+        document.querySelectorAll('.section-select-all').forEach(sectionCb => {
+            const targetSelector = sectionCb.dataset.target;
+            if (!targetSelector) return;
+            const container = document.querySelector(targetSelector);
+            if (!container) return;
+
+            const sectionCheckboxes = Array.from(container.querySelectorAll('.category-select-checkbox'));
+            if (sectionCheckboxes.length === 0) {
+                sectionCb.checked = false;
+                sectionCb.indeterminate = false;
+                return;
+            }
+
+            const checkedInSection = sectionCheckboxes.filter(cb => cb.checked).length;
+            sectionCb.checked = checkedInSection === sectionCheckboxes.length;
+            sectionCb.indeterminate = checkedInSection > 0 && checkedInSection < sectionCheckboxes.length;
+        });
+    }
+
+    // Individual checkbox change
+    document.querySelectorAll('.category-select-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateBulkUi);
+    });
+
+    // Toggle Select All Visible
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function () {
+            const visible = getVisibleCategoryCheckboxes();
+            const allVisibleChecked = visible.length > 0 && visible.every(cb => cb.checked);
+            visible.forEach(cb => {
+                cb.checked = !allVisibleChecked;
+            });
+            updateBulkUi();
+        });
+    }
+
+    if (bulkSelectAllVisibleBtn) {
+        bulkSelectAllVisibleBtn.addEventListener('click', function () {
+            const visible = getVisibleCategoryCheckboxes();
+            visible.forEach(cb => {
+                cb.checked = true;
+            });
+            updateBulkUi();
+        });
+    }
+
+    if (bulkClearSelectionBtn) {
+        bulkClearSelectionBtn.addEventListener('click', function () {
+            getAllCategoryCheckboxes().forEach(cb => {
+                cb.checked = false;
+            });
+            updateBulkUi();
+        });
+    }
+
+    // Section checkboxes and buttons
+    document.querySelectorAll('.section-select-all').forEach(sectionCb => {
+        sectionCb.addEventListener('change', function () {
+            const targetSelector = this.dataset.target;
+            if (!targetSelector) return;
+            const container = document.querySelector(targetSelector);
+            if (!container) return;
+
+            const isChecked = this.checked;
+            container.querySelectorAll('.category-select-checkbox').forEach(cb => {
+                const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
+                if (!item || (item.offsetParent !== null && item.style.display !== 'none')) {
+                    cb.checked = isChecked;
+                }
+            });
+            updateBulkUi();
+        });
+    });
+
+    document.querySelectorAll('.select-section-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const targetSelector = this.dataset.target;
+            if (!targetSelector) return;
+            const container = document.querySelector(targetSelector);
+            if (!container) return;
+
+            const checkboxes = Array.from(container.querySelectorAll('.category-select-checkbox')).filter(cb => {
+                const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
+                return !item || (item.offsetParent !== null && item.style.display !== 'none');
+            });
+
+            const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+            });
+            updateBulkUi();
+        });
+    });
+
+    // Open confirmation modal
+    const openBulkDeleteModal = () => {
+        const checkedList = getCheckedCategoryCheckboxes();
+        if (checkedList.length === 0) {
+            alert('Please select at least one category to delete.');
+            return;
+        }
+
+        if (bulkModalCount) {
+            bulkModalCount.textContent = checkedList.length;
+        }
+
+        if (bulkDeleteModalEl) {
+            if (window.bootstrap && typeof bootstrap.Modal !== 'undefined') {
+                const modal = bootstrap.Modal.getOrCreateInstance(bulkDeleteModalEl);
+                modal.show();
+            } else if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+                $(bulkDeleteModalEl).modal('show');
+            } else {
+                if (confirm(`Are you sure you want to delete the ${checkedList.length} selected categories?`)) {
+                    submitBulkDelete();
+                }
+            }
+        } else {
+            if (confirm(`Are you sure you want to delete the ${checkedList.length} selected categories?`)) {
+                submitBulkDelete();
+            }
+        }
+    };
+
+    if (headerDeleteBtn) {
+        headerDeleteBtn.addEventListener('click', openBulkDeleteModal);
+    }
+
+    if (bulkActionBarDeleteBtn) {
+        bulkActionBarDeleteBtn.addEventListener('click', openBulkDeleteModal);
+    }
+
+    function submitBulkDelete() {
+        if (!bulkForm) return;
+
+        // Clear existing dynamically generated inputs in form
+        bulkForm.querySelectorAll('input[type="hidden"]:not([name="_token"])').forEach(el => el.remove());
+
+        // Append inputs for all checked items
+        getCheckedCategoryCheckboxes().forEach(cb => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = cb.name;
+            input.value = cb.value;
+            bulkForm.appendChild(input);
+        });
+
+        if (bulkModalSubmitBtn) {
+            bulkModalSubmitBtn.disabled = true;
+            bulkModalSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Deleting...';
+        }
+
+        bulkForm.submit();
+    }
+
+    if (bulkModalSubmitBtn) {
+        bulkModalSubmitBtn.addEventListener('click', submitBulkDelete);
+    }
 });
 </script>
 @endpush

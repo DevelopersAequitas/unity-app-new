@@ -585,6 +585,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/categories/level2/{level2}', [CategoryController::class, 'destroyLevel2'])->name('categories.level2.destroy');
         Route::delete('/categories/level3/{level3}', [CategoryController::class, 'destroyLevel3'])->name('categories.level3.destroy');
         Route::delete('/categories/level4/{level4}', [CategoryController::class, 'destroyLevel4'])->name('categories.level4.destroy');
+        Route::post('/categories/{category}/bulk-destroy', [CategoryController::class, 'bulkDestroy'])->name('categories.bulk-destroy');
         Route::resource('categories', CategoryController::class)->except(['show']);
         Route::get('/ads/dashboard', [AdAnalyticsController::class, 'index'])->name('ads.dashboard');
         Route::get('/ads/analytics', [AdAnalyticsController::class, 'detailedReport'])->name('ads.analytics');
