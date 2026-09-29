@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Ask;
 
+use App\Models\AdminUser;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskAnswer;
 use App\Models\Ask\AskFlow;
@@ -12,8 +13,11 @@ use App\Models\Ask\AskOptionGroup;
 use App\Models\Ask\AskType;
 use App\Models\Referral;
 use App\Models\ReferralStatus;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -72,18 +76,18 @@ class AskSystemTest extends TestCase
         );
 
         $this->optionGroup = AskOptionGroup::firstOrCreate(
-            ['code' => 'industry'],
+            ['code' => 'collaboration_bring'],
             [
-                'name' => 'Industry',
-                'input_type' => 'single_select',
-                'is_multi_select' => false,
+                'name' => 'What I Bring',
+                'input_type' => 'multi_select',
+                'is_multi_select' => true,
                 'is_active' => true,
                 'sort_order' => 1,
             ]
         );
 
         $this->option = AskOption::firstOrCreate(
-            ['option_group_id' => $this->optionGroup->id, 'code' => 'tech'],
+            ['option_group_id' => $this->optionGroup->id, 'code' => 'technology'],
             [
                 'label' => 'Technology',
                 'sort_order' => 1,
@@ -122,7 +126,8 @@ class AskSystemTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonFragment(['code' => 'industry']);
+            ->assertJsonFragment(['code' => 'collaboration_bring'])
+            ->assertJsonPath('sections.filters', []);
     }
 
     public function test_create_ask_draft_and_save_details(): void
@@ -465,6 +470,70 @@ class AskSystemTest extends TestCase
             'id' => $referral->id,
             'status_id' => 1,
             'remarks' => 'Reopened',
+        ]);
+    }
+
+    public function test_admin_can_store_option_group_and_option(): void
+    {
+        $role = Role::firstOrCreate(
+            ['key' => 'global_admin'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'Global Admin',
+            ]
+        );
+
+        $admin = AdminUser::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Admin Test',
+            'email' => 'admin_'.Str::random(6).'@example.com',
+            'role' => 'global_admin',
+            'is_active' => true,
+        ]);
+
+        DB::table('admin_user_roles')->insert([
+            'user_id' => $admin->id,
+            'role_id' => $role->id,
+        ]);
+
+        $this->actingAs($admin, 'admin');
+
+        // 1. Create a new option group
+        $groupResponse = $this->postJson('/admin/asks/config/group', [
+            'name' => 'Assets Offered',
+            'code' => 'assets_offered',
+            'description' => 'Assets you can bring',
+            'input_type' => 'multi_select',
+            'flows' => ['collaboration'],
+            'initial_options' => 'Patents, Equipment',
+        ]);
+
+        $groupResponse->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.code', 'assets_offered');
+
+        $this->assertDatabaseHas('ask_option_groups', [
+            'code' => 'assets_offered',
+            'name' => 'Assets Offered',
+        ]);
+
+        $groupId = $groupResponse->json('data.id');
+
+        // 2. Add an option to the group
+        $optionResponse = $this->postJson('/admin/asks/config/option', [
+            'option_group_id' => $groupId,
+            'label' => 'Warehouse Facility',
+            'code' => 'warehouse_facility',
+        ]);
+
+        $optionResponse->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.code', 'warehouse_facility');
+
+        $this->assertDatabaseHas('ask_options', [
+            'option_group_id' => $groupId,
+            'code' => 'warehouse_facility',
+            'label' => 'Warehouse Facility',
         ]);
     }
 }

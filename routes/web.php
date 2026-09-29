@@ -404,6 +404,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/export', [AskManagementController::class, 'export'])->name('export');
             Route::get('/config', [AskManagementController::class, 'config'])->name('config');
             Route::post('/config/toggle', [AskManagementController::class, 'toggleConfigStatus'])->name('config.toggle');
+            Route::post('/config/group', [AskManagementController::class, 'storeOptionGroup'])->name('config.group.store');
+            Route::post('/config/option', [AskManagementController::class, 'storeOption'])->name('config.option.store');
             Route::get('/{ask}', [AskManagementController::class, 'show'])->name('show')->whereUuid('ask');
             Route::patch('/{ask}/status', [AskManagementController::class, 'updateStatus'])->name('status')->whereUuid('ask');
             Route::delete('/{ask}', [AskManagementController::class, 'destroy'])->name('destroy')->whereUuid('ask');

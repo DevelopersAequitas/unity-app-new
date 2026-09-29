@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\ContactInvitation;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class ContactInvitationSeeder extends Seeder
 {
@@ -13,6 +13,7 @@ class ContactInvitationSeeder extends Seeder
         $users = User::limit(3)->get();
         if ($users->count() === 0) {
             $this->command->warn('No users found! Please seed users first.');
+
             return;
         }
 
@@ -35,16 +36,16 @@ class ContactInvitationSeeder extends Seeder
         foreach ($sampleContacts as $i => $c) {
             $user = $users[$i % $users->count()];
             ContactInvitation::create([
-                'user_id'            => $user->id,
-                'contact_name'       => $c['name'],
-                'contact_phone'      => $c['phone'],
-                'contact_email'      => $c['email'],
-                'mobile_normalized'  => preg_replace('/\D/', '', $c['phone']),
-                'status'             => $c['status'],
-                'whatsapp_status'    => $c['wa_status'],
-                'whatsapp_sent_at'   => $c['wa_status'] === 'completed' ? now()->subMinutes(rand(5, 2880)) : null,
-                'invitation_message' => 'Hello ' . $c['name'] . '! I am using Unity App — a platform to connect with like-minded people. Join me using my referral link and get bonus coins!',
-                'error_message'      => $c['wa_status'] === 'not_completed' ? 'WhatsApp delivery failed: Number not registered on WhatsApp.' : null,
+                'user_id' => $user->id,
+                'contact_name' => $c['name'],
+                'contact_phone' => $c['phone'],
+                'contact_email' => $c['email'],
+                'mobile_normalized' => preg_replace('/\D/', '', $c['phone']),
+                'status' => $c['status'],
+                'whatsapp_status' => $c['wa_status'],
+                'whatsapp_sent_at' => $c['wa_status'] === 'completed' ? now()->subMinutes(rand(5, 2880)) : null,
+                'invitation_message' => 'Hello '.$c['name'].'! I am using Unity App — a platform to connect with like-minded people. Join me using my referral link and get bonus coins!',
+                'error_message' => $c['wa_status'] === 'not_completed' ? 'WhatsApp delivery failed: Number not registered on WhatsApp.' : null,
             ]);
             $count++;
         }

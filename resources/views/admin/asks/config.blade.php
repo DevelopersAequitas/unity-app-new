@@ -140,12 +140,12 @@
 
         @php
             $groupFlowMap = [
-                'industry' => ['collaboration', 'help'],
-                'geography' => ['collaboration', 'help'],
-                'business_stage' => ['collaboration'],
-                'timeline' => ['collaboration'],
                 'collaboration_bring' => ['collaboration'],
                 'collaboration_need' => ['collaboration'],
+                'industry' => ['help'],
+                'geography' => ['help'],
+                'business_stage' => ['collaboration'],
+                'timeline' => ['collaboration'],
                 'expected_outcome' => ['collaboration'],
                 'referral_industry' => ['referral'],
                 'referral_geography' => ['referral'],
@@ -164,13 +164,20 @@
 
         <!-- Section 2: Option Groups & Options Matrix -->
         <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3" id="optionsSection">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
                     <h2 class="text-sm font-bold text-slate-800 m-0">Dynamic Form Option Groups &amp; Options</h2>
                 </div>
-                <div class="text-[11px] text-slate-400">
-                    Governs <code class="bg-slate-100 px-1 py-0.5 rounded text-[11px]">GET /api/asks/form-config</code>
+                <div class="flex items-center gap-3">
+                    <button type="button" 
+                            onclick="openAddGroupModal()" 
+                            class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs cursor-pointer">
+                        <i class="bi bi-plus-circle-fill"></i> Add Section / Group
+                    </button>
+                    <div class="text-[11px] text-slate-400">
+                        Governs <code class="bg-slate-100 px-1 py-0.5 rounded text-[11px]">GET /api/asks/form-config</code>
+                    </div>
                 </div>
             </div>
             <p class="text-xs text-slate-500 m-0">Filter option groups by flow below, or turn option groups and individual options ON or OFF. Options marked <strong>OFF</strong> are immediately excluded from API responses.</p>
@@ -195,7 +202,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2" id="optionGroupsGrid">
                 @forelse($optionGroups as $group)
                     @php
-                        $flowsForGroup = $groupFlowMap[$group->code] ?? ['all'];
+                        $flowsForGroup = $group->metadata['flows'] ?? $groupFlowMap[$group->code] ?? ['all'];
                         $flowsAttr = implode(',', $flowsForGroup);
                     @endphp
                     <div class="option-group-card rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs flex flex-col justify-between transition" id="group-card-{{ $group->id }}" data-flows="{{ $flowsAttr }}">
@@ -207,19 +214,28 @@
                                     <div class="text-[10px] text-slate-400 font-mono mt-0.5">code: {{ $group->code }}</div>
                                 </div>
 
-                                <!-- Group Toggle Button -->
-                                <button type="button"
-                                        onclick="toggleEntity('group', '{{ $group->id }}', this)"
-                                        class="toggle-switch-btn px-2.5 py-0.5 rounded-full text-[10px] font-semibold border flex items-center gap-1 transition {{ $group->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-400 border-slate-200' }}"
-                                        data-active="{{ $group->is_active ? '1' : '0' }}"
-                                        title="Click to toggle group active state">
-                                    <span class="w-1.5 h-1.5 rounded-full {{ $group->is_active ? 'bg-emerald-500' : 'bg-slate-400' }}"></span>
-                                    <span class="label-text">{{ $group->is_active ? 'Group ON' : 'Group OFF' }}</span>
-                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button type="button"
+                                            onclick="openAddOptionModal('{{ $group->id }}', '{{ addslashes($group->name) }}')"
+                                            class="px-2 py-0.5 rounded text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition flex items-center gap-0.5 cursor-pointer"
+                                            title="Add new option to this section">
+                                        <i class="bi bi-plus"></i> Add Option
+                                    </button>
+
+                                    <!-- Group Toggle Button -->
+                                    <button type="button"
+                                            onclick="toggleEntity('group', '{{ $group->id }}', this)"
+                                            class="toggle-switch-btn px-2.5 py-0.5 rounded-full text-[10px] font-semibold border flex items-center gap-1 transition {{ $group->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-400 border-slate-200' }}"
+                                            data-active="{{ $group->is_active ? '1' : '0' }}"
+                                            title="Click to toggle group active state">
+                                        <span class="w-1.5 h-1.5 rounded-full {{ $group->is_active ? 'bg-emerald-500' : 'bg-slate-400' }}"></span>
+                                        <span class="label-text">{{ $group->is_active ? 'Group ON' : 'Group OFF' }}</span>
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Options List with Individual Toggles -->
-                            <div class="pt-2 space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                            <div class="pt-2 space-y-1.5 max-h-72 overflow-y-auto pr-1" id="options-list-{{ $group->id }}">
                                 @forelse($group->options as $option)
                                     <div class="flex items-center justify-between p-2 rounded-lg border text-xs transition {{ $option->is_active ? 'bg-slate-50/80 border-slate-200 text-slate-800' : 'bg-slate-100/50 border-slate-200 text-slate-400' }}" id="option-row-{{ $option->id }}">
                                         <div class="overflow-hidden pr-2">
@@ -240,14 +256,14 @@
                                         </button>
                                     </div>
                                 @empty
-                                    <div class="text-xs text-slate-400 italic py-2">No options in this group.</div>
+                                    <div class="text-xs text-slate-400 italic py-2">No options in this group. Click &ldquo;+ Add Option&rdquo; to create one.</div>
                                 @endforelse
                             </div>
                         </div>
 
                         <div class="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex justify-between items-center">
-                            <span>Total Options: {{ $group->options->count() }}</span>
-                            <span class="text-emerald-600 font-medium">Active: {{ $group->options->where('is_active', true)->count() }}</span>
+                            <span id="group-total-{{ $group->id }}">Total Options: {{ $group->options->count() }}</span>
+                            <span class="text-emerald-600 font-medium" id="group-active-{{ $group->id }}">Active: {{ $group->options->where('is_active', true)->count() }}</span>
                         </div>
                     </div>
                 @empty
@@ -257,18 +273,316 @@
                 @endforelse
             </div>
         </div>
+
+        <!-- Add Section / Group Modal -->
+        <div id="addGroupModal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden transition-all">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                        <h3 class="text-sm font-bold text-slate-800 m-0">Add Dynamic Option Group (Section)</h3>
+                    </div>
+                    <button type="button" onclick="closeAddGroupModal()" class="text-slate-400 hover:text-slate-600 transition cursor-pointer">
+                        <i class="bi bi-x-lg text-sm"></i>
+                    </button>
+                </div>
+
+                <form id="addGroupForm" onsubmit="submitAddGroup(event)" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Section Name <span class="text-rose-500">*</span></label>
+                        <input type="text" id="groupName" name="name" required placeholder="e.g. What I Bring, Assets Offered..." 
+                               oninput="autoGenerateGroupCode(this.value)"
+                               class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">System Code <span class="text-rose-500">*</span></label>
+                        <input type="text" id="groupCode" name="code" required placeholder="e.g. collaboration_bring" 
+                               class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                        <span class="text-[10px] text-slate-400">Unique identifier used by API endpoints.</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Description (Optional)</label>
+                        <textarea id="groupDescription" name="description" rows="2" placeholder="Briefly describe what this option section collects..."
+                                  class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Input Selection Type</label>
+                            <select id="groupInputType" name="input_type" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500">
+                                <option value="multi_select">Multi-Select (Pills / Checkboxes)</option>
+                                <option value="single_select">Single-Select (Radio)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Target Flow(s)</label>
+                            <div class="space-y-1 pt-1 text-xs">
+                                <label class="inline-flex items-center gap-1.5 mr-2 cursor-pointer">
+                                    <input type="checkbox" name="flows[]" value="collaboration" checked class="rounded border-slate-300 text-indigo-600 focus:ring-0">
+                                    <span>Collaborator</span>
+                                </label>
+                                <label class="inline-flex items-center gap-1.5 mr-2 cursor-pointer">
+                                    <input type="checkbox" name="flows[]" value="referral" class="rounded border-slate-300 text-indigo-600 focus:ring-0">
+                                    <span>Referral</span>
+                                </label>
+                                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" name="flows[]" value="help" class="rounded border-slate-300 text-indigo-600 focus:ring-0">
+                                    <span>Help</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Initial Options (Optional)</label>
+                        <textarea id="groupInitialOptions" name="initial_options" rows="2" placeholder="Customers, Capital, Technology, Manufacturing... (separated by commas or new lines)"
+                                  class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500"></textarea>
+                        <span class="text-[10px] text-slate-400">Options will automatically be created and activated for this group.</span>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                        <button type="button" onclick="closeAddGroupModal()" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="submit" id="saveGroupBtn" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 cursor-pointer">
+                            <i class="bi bi-check2"></i> Create Section
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Option Modal -->
+        <div id="addOptionModal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden transition-all">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                        <h3 class="text-sm font-bold text-slate-800 m-0">Add Option to <span id="modalGroupNameBadge" class="text-indigo-600"></span></h3>
+                    </div>
+                    <button type="button" onclick="closeAddOptionModal()" class="text-slate-400 hover:text-slate-600 transition cursor-pointer">
+                        <i class="bi bi-x-lg text-sm"></i>
+                    </button>
+                </div>
+
+                <form id="addOptionForm" onsubmit="submitAddOption(event)" class="p-6 space-y-4">
+                    <input type="hidden" id="optionGroupId" name="option_group_id">
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Option Label <span class="text-rose-500">*</span></label>
+                        <input type="text" id="optionLabel" name="label" required placeholder="e.g. Market access, IP, Customers..." 
+                               oninput="autoGenerateOptionCode(this.value)"
+                               class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Option Code <span class="text-rose-500">*</span></label>
+                        <input type="text" id="optionCode" name="code" required placeholder="e.g. market_access" 
+                               class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                        <span class="text-[10px] text-slate-400">Machine code used in mobile payloads and responses.</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Description (Optional)</label>
+                        <input type="text" id="optionDescription" name="description" placeholder="Brief tooltip or description..." 
+                               class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                        <button type="button" onclick="closeAddOptionModal()" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="submit" id="saveOptionBtn" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1.5 cursor-pointer">
+                            <i class="bi bi-plus-lg"></i> Add Option
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     @push('scripts')
     <script>
         const CSRF_TOKEN = '{{ csrf_token() }}';
         const TOGGLE_URL = '{{ route("admin.asks.config.toggle") }}';
+        const STORE_GROUP_URL = '{{ route("admin.asks.config.group.store") }}';
+        const STORE_OPTION_URL = '{{ route("admin.asks.config.option.store") }}';
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function openAddGroupModal() {
+            document.getElementById('addGroupForm').reset();
+            document.getElementById('addGroupModal').classList.remove('hidden');
+        }
+
+        function closeAddGroupModal() {
+            document.getElementById('addGroupModal').classList.add('hidden');
+        }
+
+        function autoGenerateGroupCode(val) {
+            const codeInput = document.getElementById('groupCode');
+            codeInput.value = val.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        }
+
+        function openAddOptionModal(groupId, groupName) {
+            document.getElementById('addOptionForm').reset();
+            document.getElementById('optionGroupId').value = groupId;
+            document.getElementById('modalGroupNameBadge').textContent = groupName;
+            document.getElementById('addOptionModal').classList.remove('hidden');
+        }
+
+        function closeAddOptionModal() {
+            document.getElementById('addOptionModal').classList.add('hidden');
+        }
+
+        function autoGenerateOptionCode(val) {
+            const codeInput = document.getElementById('optionCode');
+            codeInput.value = val.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        }
+
+        async function submitAddGroup(e) {
+            e.preventDefault();
+            const btn = document.getElementById('saveGroupBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split animate-spin"></i> Creating...';
+
+            const form = document.getElementById('addGroupForm');
+            const formData = new FormData(form);
+            const flows = [];
+            form.querySelectorAll('input[name="flows[]"]:checked').forEach(cb => flows.push(cb.value));
+
+            const payload = {
+                name: formData.get('name'),
+                code: formData.get('code'),
+                description: formData.get('description'),
+                input_type: formData.get('input_type'),
+                flows: flows.length ? flows : ['collaboration'],
+                initial_options: formData.get('initial_options')
+            };
+
+            try {
+                const res = await fetch(STORE_GROUP_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    closeAddGroupModal();
+                    showToast('success', data.message || 'Section created successfully.');
+                    setTimeout(() => window.location.reload(), 600);
+                } else {
+                    showToast('error', data.message || 'Failed to create section.');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('error', 'Network error occurred while creating section.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check2"></i> Create Section';
+            }
+        }
+
+        async function submitAddOption(e) {
+            e.preventDefault();
+            const btn = document.getElementById('saveOptionBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split animate-spin"></i> Saving...';
+
+            const groupId = document.getElementById('optionGroupId').value;
+            const label = document.getElementById('optionLabel').value.trim();
+            const code = document.getElementById('optionCode').value.trim();
+            const desc = document.getElementById('optionDescription').value.trim();
+
+            try {
+                const res = await fetch(STORE_OPTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        option_group_id: groupId,
+                        label: label,
+                        code: code,
+                        description: desc || null
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    closeAddOptionModal();
+                    showToast('success', data.message || 'Option created successfully.');
+                    appendOptionRow(groupId, data.data);
+                } else {
+                    showToast('error', data.message || 'Failed to save option.');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('error', 'Network error occurred while saving option.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-plus-lg"></i> Add Option';
+            }
+        }
+
+        function appendOptionRow(groupId, opt) {
+            const list = document.getElementById('options-list-' + groupId);
+            if (!list) {
+                window.location.reload();
+                return;
+            }
+
+            const emptyNotice = list.querySelector('.text-slate-400.italic');
+            if (emptyNotice) emptyNotice.remove();
+
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between p-2 rounded-lg border text-xs transition bg-slate-50/80 border-slate-200 text-slate-800';
+            row.id = 'option-row-' + opt.id;
+            row.innerHTML = `
+                <div class="overflow-hidden pr-2">
+                    <div class="font-medium text-slate-800">${escapeHtml(opt.label)}</div>
+                    <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(opt.code)}</span>
+                </div>
+                <button type="button"
+                        onclick="toggleEntity('option', '${opt.id}', this)"
+                        class="toggle-switch-btn px-2 py-0.5 rounded text-[10px] font-semibold border flex items-center gap-1 transition flex-none bg-white text-emerald-700 border-emerald-200 shadow-2xs hover:bg-emerald-50"
+                        data-active="1"
+                        title="Visible in API. Click to turn OFF">
+                    <i class="bi bi-toggle-on text-emerald-600"></i>
+                    <span class="label-text">ON</span>
+                </button>
+            `;
+            list.appendChild(row);
+
+            const totalEl = document.getElementById('group-total-' + groupId);
+            const activeEl = document.getElementById('group-active-' + groupId);
+            if (totalEl) {
+                const currentTotal = parseInt(totalEl.textContent.replace(/\D/g, '')) || 0;
+                totalEl.textContent = 'Total Options: ' + (currentTotal + 1);
+            }
+            if (activeEl) {
+                const currentActive = parseInt(activeEl.textContent.replace(/\D/g, '')) || 0;
+                activeEl.textContent = 'Active: ' + (currentActive + 1);
+            }
+        }
 
         async function toggleEntity(type, id, btnElement) {
             const currentActive = btnElement.getAttribute('data-active') === '1';
             const targetActive = !currentActive;
 
-            // Optimistic UI state or disabled during request
             btnElement.disabled = true;
             btnElement.style.opacity = '0.6';
 
@@ -293,9 +607,7 @@
                     const isActive = data.data.is_active;
                     btnElement.setAttribute('data-active', isActive ? '1' : '0');
 
-                    // Update UI appearance based on entity type
                     if (type === 'type') {
-                        // Category pill
                         if (isActive) {
                             btnElement.className = 'toggle-switch-btn px-2.5 py-1 rounded-md text-[11px] font-medium border flex items-center gap-1 transition pill-active';
                             btnElement.querySelector('i').className = 'bi bi-check-circle-fill text-emerald-600 text-[10px]';
@@ -306,7 +618,6 @@
                             btnElement.title = 'Hidden in API. Click to turn ON';
                         }
                     } else if (type === 'flow') {
-                        // Flow button
                         const dot = btnElement.querySelector('span:first-child');
                         const label = btnElement.querySelector('.label-text');
                         if (isActive) {
@@ -319,7 +630,6 @@
                             label.textContent = 'Flow Inactive';
                         }
                     } else if (type === 'group') {
-                        // Option Group switch
                         const dot = btnElement.querySelector('span:first-child');
                         const label = btnElement.querySelector('.label-text');
                         if (isActive) {
@@ -332,7 +642,6 @@
                             label.textContent = 'Group OFF';
                         }
                     } else if (type === 'option') {
-                        // Individual option toggle
                         const icon = btnElement.querySelector('i');
                         const label = btnElement.querySelector('.label-text');
                         const row = document.getElementById('option-row-' + id);
