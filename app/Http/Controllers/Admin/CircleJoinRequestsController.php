@@ -259,8 +259,12 @@ class CircleJoinRequestsController extends Controller
         DB::transaction(function () use ($record, $admin, $actor): void {
             $request = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
             $oldStatus = (string) $request->status;
-            $actorUserId = $actor?->id ?? $admin?->id;
-            $adminUserId = $admin?->id ?? $actor?->id;
+            $actorUserId = $actor?->id;
+            if (! $actorUserId && $admin) {
+                $exists = DB::table('users')->where('id', $admin->id)->exists();
+                $actorUserId = $exists ? $admin->id : null;
+            }
+            $adminUserId = $actorUserId;
 
             if ($oldStatus === CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
                 $request->status = CircleJoinRequest::STATUS_PENDING_ID_APPROVAL;
@@ -333,7 +337,11 @@ class CircleJoinRequestsController extends Controller
                 ]);
             }
 
-            $approverId = $admin?->id ?? $actor?->id;
+            $approverId = $actor?->id;
+            if (! $approverId && $admin) {
+                $exists = DB::table('users')->where('id', $admin->id)->exists();
+                $approverId = $exists ? $admin->id : null;
+            }
             $request->ded_approval_status = 'approved';
             $request->ded_approved_by = $approverId;
             $request->ded_approved_at = now();
@@ -461,7 +469,7 @@ class CircleJoinRequestsController extends Controller
             return in_array((string) $record->circle_id, $this->industryScope->circleIdsForAdmin($admin), true);
         }
 
-        if (AdminAccess::isGlobalAdmin($admin)) {
+        if (AdminAccess::isGlobalAdmin($admin) || AdminAccess::isSuper($admin)) {
             return true;
         }
 
@@ -491,20 +499,20 @@ class CircleJoinRequestsController extends Controller
 
     private function canApproveCd($admin, $actor, CircleJoinRequest $record): bool
     {
+        if ($record->status !== CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+            return false;
+        }
+
+        if (AdminAccess::isGlobalAdmin($admin) || AdminAccess::isSuper($admin)) {
+            return true;
+        }
+
         if (! $actor) {
             return false;
         }
 
         if (! $this->canAccessRecord($admin, $actor, $record)) {
             return false;
-        }
-
-        if ($record->status !== CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
-            return false;
-        }
-
-        if (AdminAccess::isGlobalAdmin($admin)) {
-            return true;
         }
 
         if ($this->industryScope->isIndustryDirector($admin)) {
@@ -516,20 +524,20 @@ class CircleJoinRequestsController extends Controller
 
     private function canApproveId($admin, $actor, CircleJoinRequest $record): bool
     {
+        if ($record->status !== CircleJoinRequest::STATUS_PENDING_ID_APPROVAL) {
+            return false;
+        }
+
+        if (AdminAccess::isGlobalAdmin($admin) || AdminAccess::isSuper($admin)) {
+            return true;
+        }
+
         if (! $actor) {
             return false;
         }
 
         if (! $this->canAccessRecord($admin, $actor, $record)) {
             return false;
-        }
-
-        if ($record->status !== CircleJoinRequest::STATUS_PENDING_ID_APPROVAL) {
-            return false;
-        }
-
-        if (AdminAccess::isGlobalAdmin($admin)) {
-            return true;
         }
 
         if ($this->industryScope->isIndustryDirector($admin)) {
@@ -541,7 +549,8 @@ class CircleJoinRequestsController extends Controller
 
     private function canApproveDed($admin, $actor, CircleJoinRequest $record): bool
     {
-        if (! AdminAccess::isDed($admin)) {
+        $isGlobal = AdminAccess::isGlobalAdmin($admin) || AdminAccess::isSuper($admin);
+        if (! AdminAccess::isDed($admin) && ! $isGlobal) {
             return false;
         }
 
@@ -549,7 +558,7 @@ class CircleJoinRequestsController extends Controller
             return false;
         }
 
-        if (! $this->canAccessRecord($admin, $actor, $record)) {
+        if (! $isGlobal && ! $this->canAccessRecord($admin, $actor, $record)) {
             return false;
         }
 
