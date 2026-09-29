@@ -870,6 +870,14 @@
             </li>
             @endif
 
+            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.unity-peers-plans.*') ? 'active' : '' }}" href="{{ route('admin.unity-peers-plans.index') }}" title="Membership Plans">
+                    <i class="bi bi-card-checklist me-2"></i><span class="menu-text">Membership Plans</span>
+                </a>
+            </li>
+            @endif
+
             {{-- Asks & Discovery Dropdown Menu --}}
             @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Asks') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities'))
             <li class="nav-item menu-parent {{ $asksActive ? 'open' : '' }}">
