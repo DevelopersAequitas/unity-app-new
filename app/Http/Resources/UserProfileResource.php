@@ -92,6 +92,13 @@ class UserProfileResource extends MemberDetailResource
         }
 
         $data['life_impacted_count'] = (int) ($this->life_impacted_count ?? 0);
+        $data['coins_balance'] = $this->resolveCoinsBalance();
+        $introducedCount = $this->resolveIntroducedPeersCount();
+        $data['introduced_count'] = $introducedCount;
+        $data['members_introduced_count'] = $introducedCount;
+        $data['referred_peers_count'] = $introducedCount;
+        $data['referral_count'] = $introducedCount;
+        $data['peer_referrals_count'] = $introducedCount;
 
         return $data;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\CoinsLedger;
 use App\Models\Connection;
 use App\Models\User;
 use App\Models\UserFollow;
@@ -150,7 +151,9 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'introduced_by' => $this->introduced_by,
-            'introduced_count' => (int) ($this->introduced_count ?? ($this->relationLoaded('introducedPeers') ? $this->introducedPeers->count() : ($this->members_introduced_count ?? 0))),
+            'introduced_count' => $this->resolveIntroducedPeersCount(),
+            'members_introduced_count' => $this->resolveIntroducedPeersCount(),
+            'referred_peers_count' => $this->resolveIntroducedPeersCount(),
             'introduced_by_user' => $this->relationLoaded('introducedBy') && $this->introducedBy ? [
                 'id' => $this->introducedBy->id,
                 'name' => $this->introducedBy->display_name ?: trim(($this->introducedBy->first_name ?? '').' '.($this->introducedBy->last_name ?? '')),
@@ -215,12 +218,14 @@ class UserResource extends JsonResource
             'bookmark_count' => $this->resolveBookmarksCount(),
             'bookmarks_count' => $this->resolveBookmarksCount(),
             'posts_count' => $this->resolvePostsCount(),
-            'coins_balance' => $this->coins_balance,
+            'coins_balance' => $this->resolveCoinsBalance(),
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'badges_count' => $this->resolveBadgesCount(),
             'my_badges_count' => $this->resolveBadgesCount(),
             'p2p_meetings_count' => $this->resolveP2pMeetingsCount(),
             'p2p_count' => $this->resolveP2pMeetingsCount(),
+            'referral_count' => $this->resolveIntroducedPeersCount(),
+            'peer_referrals_count' => $this->resolveIntroducedPeersCount(),
             'referrals_count' => $this->resolveReferralsCount(),
             'given_referrals_count' => $this->resolveGivenReferralsCount(),
             'received_referrals_count' => $this->resolveReceivedReferralsCount(),
@@ -634,6 +639,87 @@ class UserResource extends JsonResource
         }
 
         return (int) $query->count();
+    }
+
+    protected function resolveCoinsBalance(): int
+    {
+        $currentBalance = (int) ($this->coins_balance ?? 0);
+
+        if (Schema::hasTable('coins_ledger')) {
+            $latestLedgerBalance = CoinsLedger::query()
+                ->where('user_id', $this->id)
+                ->orderByDesc('created_at')
+                ->value('balance_after');
+
+            if ($latestLedgerBalance !== null && (int) $latestLedgerBalance > $currentBalance) {
+                $currentBalance = (int) $latestLedgerBalance;
+                if ($this->resource instanceof User && Schema::hasColumn('users', 'coins_balance')) {
+                    $this->resource->coins_balance = $currentBalance;
+                    $this->resource->saveQuietly();
+                }
+            }
+        }
+
+        return $currentBalance;
+    }
+
+    public function resolveIntroducedPeersCount(): int
+    {
+        $count = null;
+
+        if (isset($this->introduced_count) && is_numeric($this->introduced_count)) {
+            $count = (int) $this->introduced_count;
+        }
+
+        if (($count === null || $count === 0) && $this->relationLoaded('introducedPeers')) {
+            $count = $this->introducedPeers->count();
+        }
+
+        if (($count === null || $count === 0) && isset($this->members_introduced_count) && (int) $this->members_introduced_count > 0) {
+            $count = (int) $this->members_introduced_count;
+        }
+
+        if ($count === null || $count === 0) {
+            $query = User::query()
+                ->where(function ($q): void {
+                    $q->where('introduced_by', $this->id);
+
+                    if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                        $q->orWhere('referred_by_user_id', $this->id);
+                    }
+
+                    if (Schema::hasTable('referraldata')) {
+                        $q->orWhereIn('id', function ($sub): void {
+                            $sub->select('referred_user_id')
+                                ->from('referraldata')
+                                ->where('referrer_user_id', $this->id)
+                                ->whereNotNull('referred_user_id');
+                        });
+                    }
+
+                    if (Schema::hasTable('peer_recommendations')) {
+                        $q->orWhereIn('phone', function ($sub): void {
+                            $sub->select('peer_mobile')
+                                ->from('peer_recommendations')
+                                ->where('user_id', $this->id)
+                                ->whereNotNull('peer_mobile');
+                        });
+                    }
+                })
+                ->where('id', '!=', $this->id)
+                ->whereNull('deleted_at');
+
+            $count = (int) $query->count();
+
+            if ($count > 0 && $this->resource instanceof User && Schema::hasColumn('users', 'members_introduced_count')) {
+                if ((int) ($this->resource->members_introduced_count ?? 0) !== $count) {
+                    $this->resource->members_introduced_count = $count;
+                    $this->resource->saveQuietly();
+                }
+            }
+        }
+
+        return (int) $count;
     }
 
     protected function resolveReferralsCount(): int
