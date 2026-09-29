@@ -1021,17 +1021,77 @@ use Carbon\Carbon;
                                 </td>
 
                                 <td class="px-3 py-2.5 text-right whitespace-nowrap" onclick="event.stopPropagation()">
-                                    <form method="POST" action="{{ route('admin.circles.members.destroy', [$circle, $membership]) }}"
-                                          onsubmit="return confirm('Remove this peer from the circle?');" onclick="event.stopPropagation()">
-                                        @csrf
-                                        @method('DELETE')
+                                    <div class="flex items-center justify-end gap-2">
 
-                                        <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
-                                        <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
-                                        <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+                                        {{-- Add Category Button --}}
+                                        <button type="button"
+                                            onclick="event.stopPropagation(); openCategoryModal('{{ $membership->id }}', '{{ $membership->joinedCircleCategory?->level4_category_id ?? '' }}')"
+                                            class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold hover:bg-indigo-100 transition cursor-pointer">
+                                            <i class="bi bi-tag me-1"></i>{{ $membership->joinedCircleCategory?->level4Category ? 'Change Category' : 'Add Category' }}
+                                        </button>
 
-                                        <button class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer" onclick="event.stopPropagation()">Remove</button>
-                                    </form>
+                                        {{-- Remove Button --}}
+                                        <form method="POST" action="{{ route('admin.circles.members.destroy', [$circle, $membership]) }}"
+                                              onsubmit="return confirm('Remove this peer from the circle?');" onclick="event.stopPropagation()">
+                                            @csrf
+                                            @method('DELETE')
+
+                                            <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
+                                            <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                            <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+
+                                            <button class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer" onclick="event.stopPropagation()">Remove</button>
+                                        </form>
+                                    </div>
+
+                                    {{-- Category Modal (per-row) --}}
+                                    <div id="cat-modal-{{ $membership->id }}"
+                                         class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+                                         onclick="if(event.target===this) closeCategoryModal('{{ $membership->id }}')">
+                                        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+                                        <div class="relative bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-sm p-5 z-10" onclick="event.stopPropagation()">
+                                            <div class="flex items-center justify-between mb-4">
+                                                <h3 class="font-semibold text-slate-900 text-sm">Assign Category</h3>
+                                                <button type="button" onclick="closeCategoryModal('{{ $membership->id }}')"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 text-xs cursor-pointer bg-transparent border-0">✕</button>
+                                            </div>
+
+                                            <form method="POST"
+                                                  action="{{ route('admin.circles.members.update-category', [$circle, $membership]) }}"
+                                                  onclick="event.stopPropagation()">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
+                                                <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                                <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+
+                                                <div class="mb-4">
+                                                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Sub Category</label>
+                                                    <select name="level4_category_id" id="cat-select-{{ $membership->id }}"
+                                                            class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 text-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" required>
+                                                        <option value="">— Select sub category —</option>
+                                                        @foreach ($circleSubCategories as $subCat)
+                                                            <option value="{{ $subCat->id }}"
+                                                                @selected((int)($membership->joinedCircleCategory?->level4_category_id) === (int)$subCat->id)>
+                                                                {{ $subCat->name }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="flex gap-2 justify-end">
+                                                    <button type="button" onclick="closeCategoryModal('{{ $membership->id }}')"
+                                                        class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer bg-white">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="submit"
+                                                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer border-0">
+                                                        <i class="bi bi-check-lg me-1"></i>Save Category
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -1180,6 +1240,28 @@ use Carbon\Carbon;
         document.getElementById('drawer').classList.add('drawer-hidden');
         document.getElementById('drawer-scrim').classList.add('hidden');
     }
+
+    function openCategoryModal(membershipId, currentCategoryId) {
+        document.getElementById('cat-modal-' + membershipId).classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeCategoryModal(membershipId) {
+        document.getElementById('cat-modal-' + membershipId).classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    // Close category modal on Escape key
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('[id^="cat-modal-"]').forEach(function (el) {
+                if (!el.classList.contains('hidden')) {
+                    el.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', function () {
         const CIRCLE_ID = @json($circle->id ?? null);

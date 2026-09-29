@@ -542,6 +542,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/delete-stats', [CircleController::class, 'deleteStats'])->name('circles.delete-stats');
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
+        Route::patch('/circles/{circle}/members/{circleMember}/category', [CircleMemberController::class, 'updateCategory'])->name('circles.members.update-category');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
         Route::get('/event-scan-credentials', [EventScanCredentialController::class, 'index'])->name('event-scan-credentials.index');
         Route::get('/event-scan-credentials/create', [EventScanCredentialController::class, 'create'])->name('event-scan-credentials.create');

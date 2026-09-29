@@ -367,6 +367,112 @@ class CategoryController extends Controller
     public function export(Request $request)
     {
         try {
+            $categoryId = $request->query('category_id');
+
+            if ($categoryId) {
+                $category = CircleCategory::query()->findOrFail($categoryId);
+
+                $level2Categories = CircleCategoryLevel2::query()
+                    ->where('circle_category_id', $category->id)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get();
+
+                $level3Categories = CircleCategoryLevel3::query()
+                    ->where('circle_category_id', $category->id)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get();
+
+                $level4Categories = CircleCategoryLevel4::query()
+                    ->where('circle_category_id', $category->id)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get();
+
+                $level2Map = $level2Categories->keyBy('id');
+                $level3Map = $level3Categories->keyBy('id');
+
+                $fileName = Str::slug($category->name).'_categories_'.now()->format('Ymd_His').'.csv';
+
+                return response()->streamDownload(
+                    function () use ($category, $level2Categories, $level3Categories, $level4Categories, $level2Map, $level3Map): void {
+                        $handle = fopen('php://output', 'w');
+
+                        if ($handle === false) {
+                            throw new \RuntimeException('Could not open output stream for CSV export.');
+                        }
+
+                        fwrite($handle, "\xEF\xBB\xBF");
+                        fputcsv($handle, ['ID', 'Level', 'Category Name', 'Parent Name', 'Slug', 'Sort Order', 'Is Active']);
+
+                        // Level 1 (Main)
+                        fputcsv($handle, [
+                            $category->id,
+                            'Level 1',
+                            (string) ($category->name ?? ''),
+                            '—',
+                            (string) ($category->slug ?? ''),
+                            (string) ($category->sort_order ?? ''),
+                            $category->is_active ? 'true' : 'false',
+                        ]);
+
+                        // Level 2
+                        foreach ($level2Categories as $l2) {
+                            fputcsv($handle, [
+                                $l2->id,
+                                'Level 2',
+                                (string) ($l2->name ?? ''),
+                                (string) ($category->name ?? ''),
+                                (string) ($l2->slug ?? ''),
+                                (string) ($l2->sort_order ?? ''),
+                                $l2->is_active ? 'true' : 'false',
+                            ]);
+                        }
+
+                        // Level 3
+                        foreach ($level3Categories as $l3) {
+                            $parentL2Id = $l3->level2_id ?? $l3->circle_category_level2_id ?? null;
+                            $parentL2 = $parentL2Id ? $level2Map->get($parentL2Id) : null;
+                            fputcsv($handle, [
+                                $l3->id,
+                                'Level 3',
+                                (string) ($l3->name ?? ''),
+                                (string) ($parentL2 ? $parentL2->name : $category->name),
+                                (string) ($l3->slug ?? ''),
+                                (string) ($l3->sort_order ?? ''),
+                                $l3->is_active ? 'true' : 'false',
+                            ]);
+                        }
+
+                        // Level 4
+                        foreach ($level4Categories as $l4) {
+                            $parentL3Id = $l4->level3_id ?? $l4->circle_category_level3_id ?? null;
+                            $parentL2Id = $l4->level2_id ?? $l4->circle_category_level2_id ?? null;
+                            $parentL3 = $parentL3Id ? $level3Map->get($parentL3Id) : null;
+                            $parentL2 = $parentL2Id ? $level2Map->get($parentL2Id) : null;
+                            $parentName = $parentL3 ? $parentL3->name : ($parentL2 ? $parentL2->name : $category->name);
+
+                            fputcsv($handle, [
+                                $l4->id,
+                                'Level 4',
+                                (string) ($l4->name ?? ''),
+                                (string) $parentName,
+                                (string) ($l4->slug ?? ''),
+                                (string) ($l4->sort_order ?? ''),
+                                $l4->is_active ? 'true' : 'false',
+                            ]);
+                        }
+
+                        fclose($handle);
+                    },
+                    $fileName,
+                    [
+                        'Content-Type' => 'text/csv; charset=UTF-8',
+                    ]
+                );
+            }
+
             $search = trim((string) $request->query('q', ''));
 
             $categories = CircleCategory::query()

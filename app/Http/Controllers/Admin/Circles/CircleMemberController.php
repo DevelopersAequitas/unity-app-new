@@ -171,6 +171,44 @@ class CircleMemberController extends Controller
         Circle::syncLeadershipFromMembers($circle);
     }
 
+    public function updateCategory(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse
+    {
+        if ($circleMember->circle_id !== $circle->id) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'level4_category_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $redirectQuery = $this->peerFilterQuery($request);
+
+        $level4Id = (int) $data['level4_category_id'];
+        $level4 = CircleCategoryLevel4::find($level4Id);
+
+        if (! $level4) {
+            return redirect()
+                ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
+                ->with('error', 'Selected category not found.');
+        }
+
+        JoinedCircleCategory::query()->updateOrCreate(
+            ['circle_member_id' => $circleMember->id],
+            [
+                'user_id' => $circleMember->user_id,
+                'circle_id' => $circle->id,
+                'level1_category_id' => $level4->circle_category_id ?? null,
+                'level2_category_id' => $level4->level2_id ?? null,
+                'level3_category_id' => $level4->level3_id ?? null,
+                'level4_category_id' => $level4Id,
+            ]
+        );
+
+        return redirect()
+            ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
+            ->with('success', 'Category assigned successfully.');
+    }
+
     public function destroy(Request $request, Circle $circle, CircleMember $circleMember): RedirectResponse
     {
         if ($circleMember->circle_id !== $circle->id) {

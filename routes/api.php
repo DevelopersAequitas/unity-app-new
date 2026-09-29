@@ -612,17 +612,7 @@ Route::prefix('v1')->group(function () {
         Route::post('follows/{follow}/reject', [FollowController::class, 'reject'])->whereUuid('follow');
         Route::delete('follows/{follow}/cancel', [FollowController::class, 'cancel'])->whereUuid('follow');
 
-        // Collaborations (Replaced & Migrated to 3 Asks Flows Engine: Collaboration Flow)
-        Route::get('/collaborations', [AskFlowHubController::class, 'globalFeed'])->defaults('flow', 'collaboration');
-        Route::get('/collaborations/my', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'collaboration');
-        Route::get('/collaborations/categories', [AskFlowHubController::class, 'categories'])->defaults('flow', 'collaboration');
-        Route::get('/collaborations/history', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'collaboration');
-        Route::get('/collaborations/my-history', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'collaboration');
-        Route::get('/collaborations/{id}', [AskController::class, 'show'])->whereUuid('id');
-        Route::post('/collaborations/{id}/interest', [AskResponseController::class, 'store'])->whereUuid('id');
-        Route::patch('/collaborations/{id}/complete', [AskController::class, 'closeWithFeedback'])->whereUuid('id');
-        Route::patch('/collaborations/{id}/accept', [AskController::class, 'updateStatus'])->whereUuid('id');
-        Route::post('/collaborations', [AskController::class, 'storeDraft']);
+        // Collaborations — migrated to Ask Flow Engine. Use /asks or /v1/asks routes instead.
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
@@ -1071,18 +1061,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/wallet/transactions', [WalletController::class, 'myTransactions']);
         Route::post('/wallet/topup', [WalletController::class, 'topup']);
 
-        // Requirements (Replaced & Migrated to 3 Asks Flows Engine: Help Flow)
-        Route::get('/requirements', [AskFlowHubController::class, 'globalFeed'])->defaults('flow', 'help');
-        Route::get('/requirements/my', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'help');
-        Route::get('/my/requirements', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'help');
-        Route::post('/requirements', [AskController::class, 'storeDraft']);
-        Route::get('/requirements/incompleted', [AskFlowHubController::class, 'myAsks'])->defaults('flow', 'help');
-        Route::get('/requirements/{id}', [AskController::class, 'show'])->whereUuid('id');
-        Route::patch('/requirements/{id}/status', [AskController::class, 'updateStatus'])->whereUuid('id');
-        Route::patch('/requirements/{id}/close', [AskController::class, 'closeWithFeedback'])->whereUuid('id');
-        Route::post('/requirements/{id}/close', [AskController::class, 'closeWithFeedback'])->whereUuid('id');
-        Route::post('/requirements/{requirement}/interest', [AskResponseController::class, 'store'])->whereUuid('requirement');
-        Route::get('/timeline/requirements', [AskFlowHubController::class, 'globalFeed'])->defaults('flow', 'help');
+        // Requirements — migrated to Ask Flow Engine. Use /asks or /v1/asks routes instead.
 
         // Support Tickets
         Route::post('/support', [SupportTicketController::class, 'store']);
