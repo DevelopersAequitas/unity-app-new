@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Circles;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
@@ -147,17 +148,18 @@ class CircleJoinRequestService
         return $selection;
     }
 
-    public function approveByCd(CircleJoinRequest $request, User $admin): CircleJoinRequest
+    public function approveByCd(CircleJoinRequest $request, User|AdminUser $admin): CircleJoinRequest
     {
         $updated = DB::transaction(function () use ($request, $admin) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
             $oldStatus = (string) $locked->status;
+            $approverUserId = $this->resolveApproverUserId($admin);
 
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
-                'cd_approved_by' => $admin->id,
+                'cd_approved_by' => $approverUserId,
                 'cd_approved_at' => now(),
                 'cd_rejected_by' => null,
                 'cd_rejected_at' => null,
@@ -189,15 +191,17 @@ class CircleJoinRequestService
         return $updated;
     }
 
-    public function rejectByCd(CircleJoinRequest $request, User $admin, string $reason): CircleJoinRequest
+    public function rejectByCd(CircleJoinRequest $request, User|AdminUser $admin, string $reason): CircleJoinRequest
     {
         $updated = DB::transaction(function () use ($request, $admin, $reason) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
+            $approverUserId = $this->resolveApproverUserId($admin);
+
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_REJECTED_BY_CD,
-                'cd_rejected_by' => $admin->id,
+                'cd_rejected_by' => $approverUserId,
                 'cd_rejected_at' => now(),
                 'cd_rejection_reason' => $reason,
             ])->save();
@@ -213,17 +217,18 @@ class CircleJoinRequestService
         return $updated;
     }
 
-    public function approveById(CircleJoinRequest $request, User $admin): CircleJoinRequest
+    public function approveById(CircleJoinRequest $request, User|AdminUser $admin): CircleJoinRequest
     {
         $updated = DB::transaction(function () use ($request, $admin) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
             $oldStatus = (string) $locked->status;
+            $approverUserId = $this->resolveApproverUserId($admin);
 
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
-                'id_approved_by' => $admin->id,
+                'id_approved_by' => $approverUserId,
                 'id_approved_at' => now(),
                 'id_rejected_by' => null,
                 'id_rejected_at' => null,
@@ -255,17 +260,18 @@ class CircleJoinRequestService
         return $updated;
     }
 
-    public function rejectById(CircleJoinRequest $request, User $admin, string $reason): CircleJoinRequest
+    public function rejectById(CircleJoinRequest $request, User|AdminUser $admin, string $reason): CircleJoinRequest
     {
         $updated = DB::transaction(function () use ($request, $admin, $reason) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
             $oldStatus = (string) $locked->status;
+            $approverUserId = $this->resolveApproverUserId($admin);
 
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_REJECTED_BY_ID,
-                'id_rejected_by' => $admin->id,
+                'id_rejected_by' => $approverUserId,
                 'id_rejected_at' => now(),
                 'id_rejection_reason' => $reason,
             ])->save();
@@ -279,6 +285,15 @@ class CircleJoinRequestService
         );
 
         return $updated;
+    }
+
+    private function resolveApproverUserId(User|AdminUser $admin): ?string
+    {
+        if ($admin instanceof User) {
+            return $admin->id;
+        }
+
+        return DB::table('users')->where('id', $admin->id)->exists() ? $admin->id : null;
     }
 
     public function cancelByUser(CircleJoinRequest $request, User $user): CircleJoinRequest

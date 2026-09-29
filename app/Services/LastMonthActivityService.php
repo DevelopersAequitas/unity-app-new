@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Ask\Ask;
 use App\Models\BusinessDeal;
+use App\Models\EventRegistration;
 use App\Models\P2pMeeting;
 use App\Models\PeerRecommendation;
 use App\Models\Referral;
@@ -25,15 +26,23 @@ class LastMonthActivityService
      *
      * @return array<string, mixed>
      */
-    public function getActivityData(User $user, ?string $timezone = null): array
+    public function getActivityData(User $user, ?string $timezone = null, ?int $month = null, ?int $year = null): array
     {
         $tz = $timezone ?? ($user->timezone ?? config('app.timezone'));
         if (! $tz || ! is_string($tz) || ! in_array($tz, \DateTimeZone::listIdentifiers(), true)) {
             $tz = (string) (config('app.timezone') ?: 'UTC');
         }
 
-        $endDate = now($tz)->endOfDay();
-        $startDate = now($tz)->subDays(29)->startOfDay();
+        if ($month !== null && $year !== null) {
+            $startDate = Carbon::createFromDate($year, $month, 1, $tz)->startOfDay();
+            $endDate = $startDate->copy()->endOfMonth()->endOfDay();
+            $totalDays = (int) $startDate->daysInMonth;
+        } else {
+            $endDate = now($tz)->endOfDay();
+            $startDate = now($tz)->subDays(29)->startOfDay();
+            $totalDays = 30;
+        }
+
         $startStr = $startDate->format('Y-m-d');
         $endStr = $endDate->format('Y-m-d');
 
@@ -242,37 +251,142 @@ class LastMonthActivityService
             ];
         })->values()->all();
 
-        // 5. Registered Visitors
-        $visitors = VisitorRegistration::query()
-            ->where('user_id', $user->id)
-            ->where('status', '!=', 'rejected')
-            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
-                $q->where(function ($q2) use ($startStr, $endStr): void {
-                    $q2->whereNotNull('event_date')
-                        ->whereDate('event_date', '>=', $startStr)
-                        ->whereDate('event_date', '<=', $endStr);
-                })->orWhere(function ($q2) use ($startDate, $endDate): void {
-                    $q2->whereNull('event_date')
-                        ->whereBetween('created_at', [$startDate, $endDate]);
+        // 5. Registered Visitors / Visitor Registrations
+        $visitorItems = [];
+        if (Schema::hasTable('visitor_registrations')) {
+            $visitorQuery = VisitorRegistration::query()
+                ->where(function ($q) use ($user): void {
+                    $q->where('user_id', $user->id);
+                    if (Schema::hasColumn('visitor_registrations', 'invited_by_user_id')) {
+                        $q->orWhere('invited_by_user_id', $user->id);
+                    }
+                    if (Schema::hasColumn('visitor_registrations', 'created_by')) {
+                        $q->orWhere('created_by', $user->id);
+                    }
+                })
+                ->where(function ($sq): void {
+                    $sq->whereNull('status')
+                        ->orWhereRaw('LOWER(status) != ?', ['rejected']);
+                })
+                ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                    $q->whereBetween('created_at', [$startDate, $endDate])
+                        ->orWhere(function ($q2) use ($startStr, $endStr): void {
+                            $q2->whereNotNull('event_date')
+                                ->whereDate('event_date', '>=', $startStr)
+                                ->whereDate('event_date', '<=', $endStr);
+                        });
                 });
-            })
-            ->orderByDesc('event_date')
-            ->orderByDesc('created_at')
-            ->get();
 
-        $visitorItems = $visitors->map(function (VisitorRegistration $visitor): array {
-            $visitDate = $visitor->event_date
-                ? Carbon::parse($visitor->event_date)->format('Y-m-d')
-                : ($visitor->created_at ? Carbon::parse($visitor->created_at)->format('Y-m-d') : '');
+            if (Schema::hasColumn('visitor_registrations', 'is_deleted')) {
+                $visitorQuery->where(function ($q): void {
+                    $q->where('is_deleted', false)->orWhereNull('is_deleted');
+                });
+            }
 
-            return [
-                'id' => (string) $visitor->id,
-                'activity_date' => $visitDate,
-                'visitor_name' => (string) ($visitor->visitor_full_name ?? ''),
-                'company_name' => (string) ($visitor->visitor_business ?? ''),
-                'visit_date' => $visitDate,
-            ];
-        })->values()->all();
+            if (Schema::hasColumn('visitor_registrations', 'deleted_at')) {
+                $visitorQuery->whereNull('deleted_at');
+            }
+
+            $visitors = $visitorQuery
+                ->orderByDesc('event_date')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $visitorItems = $visitors->map(function (VisitorRegistration $visitor): array {
+                $actDate = $visitor->created_at ? Carbon::parse($visitor->created_at)->format('Y-m-d') : '';
+                $eventDate = $visitor->event_date ? Carbon::parse($visitor->event_date)->format('Y-m-d') : '';
+                $visitDate = $eventDate !== '' ? $eventDate : $actDate;
+
+                return [
+                    'id' => (string) $visitor->id,
+                    'activity_date' => $actDate !== '' ? $actDate : $visitDate,
+                    'visitor_name' => (string) ($visitor->visitor_full_name ?? ''),
+                    'visitor_full_name' => (string) ($visitor->visitor_full_name ?? ''),
+                    'company_name' => (string) ($visitor->visitor_business ?? ''),
+                    'visitor_business' => (string) ($visitor->visitor_business ?? ''),
+                    'visitor_mobile' => (string) ($visitor->visitor_mobile ?? ''),
+                    'visitor_city' => (string) ($visitor->visitor_city ?? ''),
+                    'event_name' => (string) ($visitor->event_name ?? ''),
+                    'event_date' => $eventDate,
+                    'visit_date' => $visitDate,
+                    'status' => (string) ($visitor->status ?? 'pending'),
+                ];
+            })->values()->all();
+        }
+
+        if (Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'visitor_name')) {
+            $eventVisitorQuery = EventRegistration::query()
+                ->where(function ($q) use ($user): void {
+                    $hasCol = false;
+                    if (Schema::hasColumn('event_registrations', 'invited_by_user_id')) {
+                        $q->where('invited_by_user_id', $user->id);
+                        $hasCol = true;
+                    }
+                    if (Schema::hasColumn('event_registrations', 'user_id')) {
+                        $method = $hasCol ? 'orWhere' : 'where';
+                        $q->{$method}(function ($uq) use ($user): void {
+                            $uq->where('user_id', $user->id)
+                                ->where(function ($vt): void {
+                                    $vt->where('registration_type', 'visitor')
+                                        ->orWhereNotNull('visitor_name');
+                                });
+                        });
+                        $hasCol = true;
+                    }
+                    if (! $hasCol) {
+                        $q->whereRaw('1=0');
+                    }
+                })
+                ->whereNotNull('visitor_name')
+                ->where('visitor_name', '!=', '')
+                ->where(function ($sq): void {
+                    $sq->whereNull('status')
+                        ->orWhereNotIn(DB::raw('LOWER(status)'), ['rejected', 'cancelled']);
+                })
+                ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                    $q->whereBetween('created_at', [$startDate, $endDate])
+                        ->orWhere(function ($q2) use ($startStr, $endStr): void {
+                            if (Schema::hasColumn('event_registrations', 'registered_at')) {
+                                $q2->whereNotNull('registered_at')
+                                    ->whereDate('registered_at', '>=', $startStr)
+                                    ->whereDate('registered_at', '<=', $endStr);
+                            }
+                        });
+                });
+
+            if (Schema::hasColumn('event_registrations', 'deleted_at')) {
+                $eventVisitorQuery->whereNull('deleted_at');
+            }
+
+            $eventVisitors = $eventVisitorQuery->with(['event'])->get();
+            $existingVisitorNames = collect($visitorItems)->pluck('visitor_name')->map(fn ($n) => strtolower(trim((string) $n)))->all();
+
+            foreach ($eventVisitors as $ev) {
+                $vName = (string) ($ev->visitor_name ?? '');
+                if ($vName !== '' && in_array(strtolower(trim($vName)), $existingVisitorNames, true)) {
+                    continue;
+                }
+
+                $regDate = $ev->registered_at
+                    ? Carbon::parse($ev->registered_at)->format('Y-m-d')
+                    : ($ev->created_at ? Carbon::parse($ev->created_at)->format('Y-m-d') : '');
+
+                $visitorItems[] = [
+                    'id' => (string) $ev->id,
+                    'activity_date' => $regDate,
+                    'visitor_name' => $vName,
+                    'visitor_full_name' => $vName,
+                    'company_name' => (string) ($ev->visitor_company ?? ''),
+                    'visitor_business' => (string) ($ev->visitor_company ?? ''),
+                    'visitor_mobile' => (string) ($ev->visitor_phone ?? ''),
+                    'visitor_city' => (string) ($ev->visitor_city ?? ''),
+                    'event_name' => (string) ($ev->event?->name ?? 'Event'),
+                    'event_date' => $regDate,
+                    'visit_date' => $regDate,
+                    'status' => (string) ($ev->status ?? 'pending'),
+                ];
+            }
+        }
 
         // 6. Recommended Peers
         $recommendedPeersItems = [];
@@ -416,11 +530,17 @@ class LastMonthActivityService
                 : $item['peer_name'];
         })->toArray();
         $testimonialNames = collect($testimonialItems)->pluck('peer_name')->toArray();
-        $visitorNames = collect($visitorItems)->pluck('visitor_name')->toArray();
+        $visitorNames = collect($visitorItems)->pluck('visitor_name')->filter()->unique()->values()->toArray();
         $friendNames = collect($recommendedPeersItems)->pluck('friend_name')->toArray();
         $reqTitles = collect($requirementItems)->pluck('requirement_title')->toArray();
 
         $userDisplayName = $user->display_name ?: (trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: (string) $user->email);
+
+        $visitorActivityPayload = [
+            'count' => count($visitorItems),
+            'items' => $visitorItems,
+            'display_text' => $this->buildDisplayText($visitorNames),
+        ];
 
         return [
             'user' => [
@@ -434,7 +554,7 @@ class LastMonthActivityService
             'period' => [
                 'start_date' => $startStr,
                 'end_date' => $endStr,
-                'total_days' => 30,
+                'total_days' => $totalDays,
             ],
             'activities' => [
                 'p2p_meetings' => [
@@ -462,11 +582,8 @@ class LastMonthActivityService
                     'items' => $testimonialItems,
                     'display_text' => $this->buildDisplayText($testimonialNames),
                 ],
-                'registered_visitors' => [
-                    'count' => count($visitorItems),
-                    'items' => $visitorItems,
-                    'display_text' => $this->buildDisplayText($visitorNames),
-                ],
+                'visitor_registrations' => $visitorActivityPayload,
+                'registered_visitors' => $visitorActivityPayload,
                 'recommended_peers' => [
                     'count' => count($recommendedPeersItems),
                     'items' => $recommendedPeersItems,
