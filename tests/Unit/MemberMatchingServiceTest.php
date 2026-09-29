@@ -105,4 +105,41 @@ class MemberMatchingServiceTest extends TestCase
         // Interests + Goals match = 5 pts
         $this->assertGreaterThanOrEqual(5, $result['breakdown']['interests_score']);
     }
+
+    public function test_determine_is_pro_correctly_identifies_pro_members(): void
+    {
+        $verifiedUser = new User(['is_verified' => true]);
+        $circlePeer = new User(['membership_status' => 'Circle Peer']);
+        $onlyUnity = new User(['membership_status' => 'Only Unity Peer']);
+        $freePeer = new User(['membership_status' => 'free_peer', 'is_verified' => false]);
+        $freeTrial = new User(['membership_status' => 'free_trial_peer', 'is_verified' => false]);
+
+        $this->assertTrue($this->service->determineIsPro($verifiedUser));
+        $this->assertTrue($this->service->determineIsPro($circlePeer));
+        $this->assertTrue($this->service->determineIsPro($onlyUnity));
+        $this->assertFalse($this->service->determineIsPro($freePeer));
+        $this->assertFalse($this->service->determineIsPro($freeTrial));
+    }
+
+    public function test_determine_tier_priority_levels(): void
+    {
+        // Tier 1: Pro & Not Connected (can connect)
+        $this->assertSame(1, $this->service->determineTier(isPro: true, isConnected: false, isRequested: false, connectionStatus: null));
+
+        // Tier 2: Pro & Requested (pending)
+        $this->assertSame(2, $this->service->determineTier(isPro: true, isConnected: false, isRequested: true, connectionStatus: 'pending_sent'));
+        $this->assertSame(2, $this->service->determineTier(isPro: true, isConnected: false, isRequested: false, connectionStatus: 'pending_received'));
+
+        // Tier 3: Pro & Connected
+        $this->assertSame(3, $this->service->determineTier(isPro: true, isConnected: true, isRequested: false, connectionStatus: 'connected'));
+
+        // Tier 4: Non-Pro & Not Connected
+        $this->assertSame(4, $this->service->determineTier(isPro: false, isConnected: false, isRequested: false, connectionStatus: null));
+
+        // Tier 5: Non-Pro & Requested
+        $this->assertSame(5, $this->service->determineTier(isPro: false, isConnected: false, isRequested: true, connectionStatus: 'pending_sent'));
+
+        // Tier 6: Non-Pro & Connected
+        $this->assertSame(6, $this->service->determineTier(isPro: false, isConnected: true, isRequested: false, connectionStatus: 'connected'));
+    }
 }
