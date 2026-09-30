@@ -68,10 +68,12 @@ class CircleController extends BaseApiController
             ])
             ->withCount([
                 'members as members_count' => function ($q) {
-                    $q->where('status', 'approved');
+                    $q->where('status', 'approved')
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                 },
                 'members as peers_count' => function ($q) {
-                    $q->where('status', 'approved');
+                    $q->where('status', 'approved')
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                 },
             ]);
 
@@ -137,10 +139,12 @@ class CircleController extends BaseApiController
         ])
             ->withCount([
                 'members as members_count' => function ($q) {
-                    $q->where('status', 'approved');
+                    $q->where('status', 'approved')
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                 },
                 'members as peers_count' => function ($q) {
-                    $q->where('status', 'approved');
+                    $q->where('status', 'approved')
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                 },
             ])
             ->find($id);
@@ -269,10 +273,12 @@ class CircleController extends BaseApiController
             ])
             ->withCount([
                 'members as members_count' => function ($q) {
-                    $q->where('status', 'approved');
+                    $q->where('status', 'approved')
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                 },
                 'members as peers_count' => function ($q) {
-                    $q->where('status', 'approved');
+                    $q->where('status', 'approved')
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                 },
             ])
             ->orderBy('name')
