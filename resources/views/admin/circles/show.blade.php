@@ -1030,9 +1030,9 @@ use Carbon\Carbon;
             </div>
         </form>
 
-        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}" class="d-none"></form>
+        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}#peers-section" class="d-none"></form>
 
-        <div class="rounded-xl border bs surface overflow-hidden">
+        <div id="peers-section" class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
@@ -1072,7 +1072,7 @@ use Carbon\Carbon;
                             <th class="px-2 py-1"></th>
                             <th class="px-2 py-1 text-right">
                                 <div class="flex justify-end">
-                                    <a href="{{ route('admin.circles.show', $circle) }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                                    <a href="{{ route('admin.circles.show', $circle) }}#peers-section" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                                 </div>
                             </th>
                         </tr>
@@ -1552,6 +1552,21 @@ use Carbon\Carbon;
         const peerFilterForm = document.getElementById('peerFilterForm');
         const peerNameInput  = document.getElementById('peer_name');
         const peerEmailInput = document.getElementById('peer_email');
+
+        // Auto-scroll to peers section if a filter is active in the URL
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            const hasPeerFilter = params.get('peer_name') || params.get('peer_email');
+            const hash = window.location.hash;
+            if (hasPeerFilter && !hash) {
+                const section = document.getElementById('peers-section');
+                if (section) {
+                    setTimeout(function () {
+                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 150);
+                }
+            }
+        })();
 
         if (peerFilterForm && (peerNameInput || peerEmailInput)) {
             let searchTimer = null;
