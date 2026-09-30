@@ -1030,9 +1030,9 @@ use Carbon\Carbon;
             </div>
         </form>
 
-        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}" class="d-none"></form>
+        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}#peers-section" class="d-none"></form>
 
-        <div class="rounded-xl border bs surface overflow-hidden">
+        <div id="peers-section" class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
@@ -1072,7 +1072,7 @@ use Carbon\Carbon;
                             <th class="px-2 py-1"></th>
                             <th class="px-2 py-1 text-right">
                                 <div class="flex justify-end">
-                                    <a href="{{ route('admin.circles.show', $circle) }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                                    <a href="{{ route('admin.circles.show', $circle) }}#peers-section" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                                 </div>
                             </th>
                         </tr>
@@ -1092,7 +1092,10 @@ use Carbon\Carbon;
                                 $memberCity = $safeStr(data_get($member, 'city.name') ?: data_get($member, 'city_name') ?: data_get($member, 'city'), 'No City');
                             @endphp
 
-                            <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openPeerDrawer('{{ $member ? $member->id : '' }}')">
+                            <tr class="peer-row hover:surface-2 transition border-b bs cursor-pointer"
+                                data-name="{{ strtolower($memberName) }}"
+                                data-email="{{ strtolower($member->email ?? '') }}"
+                                onclick="openPeerDrawer('{{ $member ? $member->id : '' }}')">
                                 <td class="px-3 py-2.5">
                                     <div class="font-medium t1 text-[12.5px]">{{ $memberName }}</div>
                                     <div class="t3 text-[11px] mt-0.5">{{ $memberCompany }}</div>
@@ -1547,6 +1550,70 @@ use Carbon\Carbon;
                     .replace(/'/g, "&#039;");
             }
         }
+
+        // ── Peer Search (client-side, no reload) ─────────────────────────────
+        (function () {
+            const nameInput  = document.getElementById('peer_name');
+            const emailInput = document.getElementById('peer_email');
+            const tbody      = document.getElementById('grid-body');
+
+            if (!tbody) return;
+
+            // Pre-fill inputs from URL params (for bookmarked/shared URLs)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (nameInput  && urlParams.get('peer_name'))  nameInput.value  = urlParams.get('peer_name');
+            if (emailInput && urlParams.get('peer_email')) emailInput.value = urlParams.get('peer_email');
+
+            // Insert a hidden "no results" row
+            const noResultRow = document.createElement('tr');
+            noResultRow.id = 'peer-no-result-row';
+            noResultRow.style.display = 'none';
+            noResultRow.innerHTML = '<td colspan="6" class="text-center py-8 text-xs t3 italic">No peers match your search.</td>';
+            tbody.appendChild(noResultRow);
+
+            function filterRows() {
+                const name  = nameInput  ? nameInput.value.trim().toLowerCase()  : '';
+                const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+
+                let visibleCount = 0;
+                const rows = tbody.querySelectorAll('tr.peer-row');
+
+                rows.forEach(function (row) {
+                    const rowName  = (row.dataset.name  || '').toLowerCase();
+                    const rowEmail = (row.dataset.email || '').toLowerCase();
+
+                    const matchName  = !name  || rowName.includes(name);
+                    const matchEmail = !email || rowEmail.includes(email);
+
+                    if (matchName && matchEmail) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                // Show/hide the "no results" row
+                noResultRow.style.display = visibleCount === 0 ? '' : 'none';
+            }
+
+            // Attach listeners
+            [nameInput, emailInput].forEach(function (input) {
+                if (!input) return;
+                input.addEventListener('input', filterRows);
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        input.value = '';
+                        filterRows();
+                    }
+                });
+            });
+
+            // Run on load in case URL params pre-filled the inputs
+            filterRows();
+        })();
+        // ─────────────────────────────────────────────────────────────────────
     });
+
 </script>
 @endpush
