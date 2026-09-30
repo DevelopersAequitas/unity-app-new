@@ -1,14 +1,14 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Edit Membership Plan')
+@section('title', 'Edit Circle Plan')
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h4 mb-1 text-dark fw-bold">Edit Membership Plan</h1>
-        <p class="text-muted small mb-0">Update pricing and duration details</p>
+        <h1 class="h4 mb-1 text-dark fw-bold">Edit Circle Plan</h1>
+        <p class="text-muted small mb-0">Update pricing, tax, and duration details for Circle plans</p>
     </div>
-    <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+    <a href="{{ route('admin.circle-plans.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
         <i class="bi bi-arrow-left"></i> Back
     </a>
 </div>
@@ -23,9 +23,18 @@
         </div>
     @endif
 
+    @if ($plan->slug === 'circle_peer')
+        <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+            <i class="bi bi-info-circle-fill fs-5"></i>
+            <div>
+                <strong>Circle Peer Fallback Plan:</strong> This plan defines the default base price and GST percentage for all Circle membership payments when no Circle-specific price override is set.
+            </div>
+        </div>
+    @endif
+
     <div class="card shadow-sm">
         <div class="card-body">
-            <form id="editMembershipPlanForm" method="POST" action="{{ route('admin.unity-peers-plans.update', $plan) }}">
+            <form id="editCirclePlanForm" method="POST" action="{{ route('admin.circle-plans.update', $plan) }}">
                 @csrf
                 @method('PUT')
 
@@ -37,7 +46,7 @@
                     <div class="col-md-6">
                         <label class="form-label">Slug</label>
                         <input type="text" class="form-control font-monospace" value="{{ $plan->slug }}" disabled readonly>
-                        <small class="text-muted">System identifier used for pricing &amp; membership rules.</small>
+                        <small class="text-muted">Unique system identifier used for Circle pricing &amp; payment fallback.</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Price (Base)</label>
@@ -93,19 +102,25 @@
                 </div>
 
                 <div class="mt-4 d-flex justify-content-between align-items-center">
-                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Are you sure you want to delete this plan ({{ addslashes($plan->name) }})? This action cannot be undone.')) document.getElementById('deletePlanForm').submit();">
-                        <i class="bi bi-trash"></i> Delete Plan
-                    </button>
+                    @if ($plan->slug !== 'circle_peer')
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Are you sure you want to delete this circle plan ({{ addslashes($plan->name) }})? This action cannot be undone.')) document.getElementById('deleteCirclePlanForm').submit();">
+                            <i class="bi bi-trash"></i> Delete Plan
+                        </button>
+                    @else
+                        <span class="text-muted small"><i class="bi bi-shield-lock me-1"></i> Core plan protected from deletion</span>
+                    @endif
                     <div class="d-flex gap-2">
-                        <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <a href="{{ route('admin.circle-plans.index') }}" class="btn btn-outline-secondary">Cancel</a>
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                     </div>
                 </div>
             </form>
-            <form id="deletePlanForm" action="{{ route('admin.unity-peers-plans.destroy', $plan) }}" method="POST" class="d-none">
-                @csrf
-                @method('DELETE')
-            </form>
+            @if ($plan->slug !== 'circle_peer')
+                <form id="deleteCirclePlanForm" action="{{ route('admin.circle-plans.destroy', $plan) }}" method="POST" class="d-none">
+                    @csrf
+                    @method('DELETE')
+                </form>
+            @endif
         </div>
     </div>
 

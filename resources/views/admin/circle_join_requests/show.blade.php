@@ -34,8 +34,9 @@
         </div>
         <div class="flex items-center gap-2 flex-wrap">
             @if($canApproveCd)
-                <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $record->id) }}" class="inline">
+                <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $record->id) }}" class="inline" onsubmit="const sel = document.getElementById('membership_plan_select'); if (sel && sel.value) { this.querySelector('input[name=membership_plan_id]').value = sel.value; }">
                     @csrf
+                    <input type="hidden" name="membership_plan_id" value="{{ $assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '') }}">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm">
                         Approve CD
                     </button>
@@ -50,8 +51,9 @@
             @endif
 
             @if($canApproveId)
-                <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $record->id) }}" class="inline">
+                <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $record->id) }}" class="inline" onsubmit="const sel = document.getElementById('membership_plan_select'); if (sel && sel.value) { this.querySelector('input[name=membership_plan_id]').value = sel.value; }">
                     @csrf
+                    <input type="hidden" name="membership_plan_id" value="{{ $assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '') }}">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm">
                         Approve ID
                     </button>
@@ -156,6 +158,60 @@
 
         <!-- Right Column: Circle Details & DED Actions -->
         <div class="space-y-6">
+            <!-- Membership Package Assignment Card -->
+            <div class="p-5 rounded-xl border bs surface space-y-4">
+                <div class="flex items-center justify-between border-b bs pb-3">
+                    <h4 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Membership Package</h4>
+                    @if($assignedPlan)
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">Package Assigned</span>
+                    @else
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200">No Package Assigned</span>
+                    @endif
+                </div>
+
+                @if($assignedPlan)
+                    @php($plan = $assignedPlan)
+                    @php($basePrice = (float) $plan->price)
+                    @php($gstAmount = round($basePrice * ($plan->gst_percent / 100), 2))
+                    @php($totalAmount = round($basePrice + $gstAmount, 2))
+                    <div class="p-3.5 rounded-lg border bs bg-gray-50/80 space-y-2 text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="font-semibold text-gray-800 text-sm">{{ $plan->name }}</span>
+                            <span class="font-bold text-indigo-600 text-sm">₹{{ number_format($totalAmount, 2) }}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-500 pt-1 border-t border-gray-200">
+                            <div>Base Price: <span class="font-medium text-gray-700">₹{{ number_format($basePrice, 2) }}</span></div>
+                            <div>GST ({{ (float)$plan->gst_percent }}%): <span class="font-medium text-gray-700">₹{{ number_format($gstAmount, 2) }}</span></div>
+                            <div>Duration: <span class="font-medium text-gray-700">{{ $plan->duration_months ? $plan->duration_months . ' Months' : ($plan->duration_days ? $plan->duration_days . ' Days' : '—') }}</span></div>
+                            <div>Plan ID: <span class="font-mono text-[10px] text-gray-600">{{ substr($plan->id, 0, 13) }}...</span></div>
+                        </div>
+                    </div>
+                @endif
+
+                <form method="POST" action="{{ route('admin.circle-joining-requests.assign-package', $record->id) }}" class="space-y-3 pt-1">
+                    @csrf
+                    <div>
+                        <label for="membership_plan_select" class="block text-[11px] uppercase tracking-wider font-semibold text-gray-700 mb-1">
+                            {{ $assignedPlan ? 'Change Membership Package' : 'Select Membership Package' }}
+                        </label>
+                        <select name="membership_plan_id" id="membership_plan_select" class="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" required>
+                            <option value="">-- Choose Membership Package --</option>
+                            @foreach($membershipPlans ?? [] as $mPlan)
+                                @php($mBase = (float) $mPlan->price)
+                                @php($mGst = round($mBase * ($mPlan->gst_percent / 100), 2))
+                                @php($mTotal = round($mBase + $mGst, 2))
+                                <option value="{{ $mPlan->id }}" {{ ($assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '')) === $mPlan->id ? 'selected' : '' }}>
+                                    {{ $mPlan->name }} — ₹{{ number_format($mTotal, 2) }} (Base: ₹{{ number_format($mBase, 2) }} + {{ (float)$mPlan->gst_percent }}% GST)
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition cursor-pointer shadow-sm">
+                        {{ $assignedPlan ? 'Update Assigned Package' : 'Assign Package to Request' }}
+                    </button>
+                </form>
+            </div>
+
             <!-- Circle Info Card -->
             <div class="p-5 rounded-xl border bs surface space-y-4">
                 <h4 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Circle Information</h4>
@@ -231,6 +287,22 @@
 
                     <form id="ded-decision-form" method="POST" action="">
                         @csrf
+                        <div class="mb-3">
+                            <label for="ded_membership_plan_id" class="block text-[11px] uppercase tracking-wider font-semibold text-gray-700 mb-1">
+                                Membership Package <span class="text-indigo-600 font-semibold">*</span>
+                            </label>
+                            <select name="membership_plan_id" id="ded_membership_plan_id" class="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500">
+                                <option value="">-- Keep Current / Select Package --</option>
+                                @foreach($membershipPlans ?? [] as $mPlan)
+                                    @php($mBase = (float) $mPlan->price)
+                                    @php($mGst = round($mBase * ($mPlan->gst_percent / 100), 2))
+                                    @php($mTotal = round($mBase + $mGst, 2))
+                                    <option value="{{ $mPlan->id }}" {{ ($assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '')) === $mPlan->id ? 'selected' : '' }}>
+                                        {{ $mPlan->name }} — ₹{{ number_format($mTotal, 2) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="mb-3">
                             <label for="ded_remarks" class="block text-[11px] uppercase tracking-wider font-semibold text-gray-700 mb-1">
                                 Remarks / Notes <span class="text-rose-600 text-xs">(Required for Rejection)</span>

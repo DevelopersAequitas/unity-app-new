@@ -73,9 +73,7 @@ use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
-use App\Http\Controllers\Api\V1\Ask\AskController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
-use App\Http\Controllers\Api\V1\Ask\AskResponseController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -86,6 +84,7 @@ use App\Http\Controllers\Api\V1\BrandPartnerApiController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
+use App\Http\Controllers\Api\V1\CircleJoinRequestPaymentController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
@@ -644,6 +643,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/circle-join-requests/my', [CircleJoinRequestController::class, 'myRequests']);
         Route::get('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'show'])->whereUuid('id');
         Route::get('/circle-join-requests/{id}/status', [CircleJoinRequestController::class, 'status'])->whereUuid('id');
+        Route::post('/circle-join-requests/{id}/payment/order', [CircleJoinRequestPaymentController::class, 'createOrder'])->whereUuid('id');
+        Route::post('/circle-join-requests/{id}/payment/verify', [CircleJoinRequestPaymentController::class, 'verify'])->whereUuid('id');
         Route::post('/circle-join-requests/{id}/verify-payment', [CircleJoinRequestController::class, 'verifyPayment'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
@@ -696,10 +697,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
             Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);
             Route::get('/circle-join-requests/{id}', [CircleJoinRequestAdminController::class, 'show'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
 
@@ -760,10 +761,10 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/circle-join-requests', [AdminOpsController::class, 'joinRequests']);
             Route::get('/circle-join-requests/{id}', [AdminOpsController::class, 'joinRequestShow'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/cd-approve', [AdminOpsController::class, 'joinCdApprove'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/cd-reject', [AdminOpsController::class, 'joinCdReject'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/id-approve', [AdminOpsController::class, 'joinIdApprove'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/id-reject', [AdminOpsController::class, 'joinIdReject'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/cd-approve', [AdminOpsController::class, 'joinCdApprove'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/cd-reject', [AdminOpsController::class, 'joinCdReject'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/id-approve', [AdminOpsController::class, 'joinIdApprove'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/id-reject', [AdminOpsController::class, 'joinIdReject'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/mark-paid', [AdminOpsController::class, 'joinMarkPaid'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/mark-unpaid', [AdminOpsController::class, 'joinMarkUnpaid'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/cancel', [AdminOpsController::class, 'joinCancel'])->whereUuid('id');

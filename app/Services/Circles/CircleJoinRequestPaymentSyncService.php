@@ -35,22 +35,52 @@ class CircleJoinRequestPaymentSyncService
         $this->markRequestPaid($freshUser, $activeCircleId);
     }
 
-    public function markRequestPaid(User $user, string $circleId, $paidAt = null): void
+    public function finalizeJoinRequest(CircleJoinRequest $joinRequest, $paidAt = null): CircleJoinRequest
+    {
+        $user = $joinRequest->user ?? User::query()->find($joinRequest->user_id);
+        if ($user && $joinRequest->circle_id) {
+            $updated = $this->markRequestPaid($user, (string) $joinRequest->circle_id, $paidAt, (string) $joinRequest->id);
+            if ($updated instanceof CircleJoinRequest) {
+                return $updated;
+            }
+
+            return $joinRequest->fresh(['user', 'circle']);
+        }
+
+        $joinRequest->status = CircleJoinRequest::STATUS_PAID;
+        $joinRequest->fee_marked_at = $joinRequest->fee_marked_at ?: ($paidAt ?: now());
+        $joinRequest->fee_paid_at = $joinRequest->fee_paid_at ?: ($paidAt ?: now());
+        $joinRequest->save();
+
+        return $joinRequest->fresh(['user', 'circle']);
+    }
+
+    public function markRequestPaid(User $user, string $circleId, $paidAt = null, ?string $specificJoinRequestId = null): ?CircleJoinRequest
     {
         if (trim($circleId) === '') {
-            return;
+            return null;
         }
 
         $paidAtTimestamp = $paidAt ?: now();
 
-        $joinRequest = DB::transaction(function () use ($user, $circleId, $paidAtTimestamp) {
-            $joinRequest = CircleJoinRequest::query()
-                ->where('user_id', $user->id)
-                ->where('circle_id', $circleId)
-                ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
-                ->latest('created_at')
-                ->lockForUpdate()
-                ->first();
+        $joinRequest = DB::transaction(function () use ($user, $circleId, $paidAtTimestamp, $specificJoinRequestId) {
+            $joinRequest = null;
+            if ($specificJoinRequestId) {
+                $joinRequest = CircleJoinRequest::query()
+                    ->where('id', $specificJoinRequestId)
+                    ->lockForUpdate()
+                    ->first();
+            }
+
+            if (! $joinRequest) {
+                $joinRequest = CircleJoinRequest::query()
+                    ->where('user_id', $user->id)
+                    ->where('circle_id', $circleId)
+                    ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+                    ->latest('created_at')
+                    ->lockForUpdate()
+                    ->first();
+            }
 
             if (! $joinRequest) {
                 $joinRequest = CircleJoinRequest::query()
@@ -131,7 +161,7 @@ class CircleJoinRequestPaymentSyncService
                 'circle_id' => $circleId,
             ]);
 
-            return;
+            return null;
         }
 
         $this->updateUserCircleMembershipTier($user->fresh() ?? $user);
@@ -145,6 +175,8 @@ class CircleJoinRequestPaymentSyncService
                 'error' => $exception->getMessage(),
             ]);
         }
+
+        return $joinRequest->fresh(['user', 'circle']);
     }
 
     private function resolveSelectionFromRequest(CircleJoinRequest $request): array

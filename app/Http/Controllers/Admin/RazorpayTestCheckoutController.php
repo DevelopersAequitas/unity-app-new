@@ -29,6 +29,7 @@ class RazorpayTestCheckoutController extends Controller
     public function index(): View
     {
         $plans = MembershipPlan::query()
+            ->membershipOnly()
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')

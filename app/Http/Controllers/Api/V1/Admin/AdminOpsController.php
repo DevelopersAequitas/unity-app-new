@@ -43,12 +43,32 @@ class AdminOpsController extends BaseApiController
     // Join requests
     public function joinRequests(Request $request): JsonResponse
     {
-        return $this->success(CircleJoinRequest::query()->with('circle.categories')->latest('created_at')->paginate(20));
+        return $this->success(CircleJoinRequest::query()->with([
+            'user',
+            'circle.categories',
+            'level1Category',
+            'level2Category',
+            'level3Category',
+            'level4Category',
+            'cdApprovedBy',
+            'idApprovedBy',
+            'dedApprovedBy',
+        ])->latest('created_at')->paginate(20));
     }
 
     public function joinRequestShow(string $id): JsonResponse
     {
-        return $this->success(CircleJoinRequest::query()->with('circle.categories')->findOrFail($id));
+        return $this->success(CircleJoinRequest::query()->with([
+            'user',
+            'circle.categories',
+            'level1Category',
+            'level2Category',
+            'level3Category',
+            'level4Category',
+            'cdApprovedBy',
+            'idApprovedBy',
+            'dedApprovedBy',
+        ])->findOrFail($id));
     }
 
     public function joinCdApprove(Request $request, string $id): JsonResponse
@@ -58,9 +78,13 @@ class AdminOpsController extends BaseApiController
 
     public function joinCdReject(Request $request, string $id): JsonResponse
     {
-        $v = $request->validate(['rejection_reason' => 'required|string|max:500']);
+        $v = $request->validate([
+            'rejection_reason' => 'nullable|string|max:500',
+            'reason' => 'nullable|string|max:500',
+        ]);
+        $reason = (string) ($v['rejection_reason'] ?? ($v['reason'] ?? 'Rejected by CD'));
 
-        return $this->success($this->joinService->rejectByCd(CircleJoinRequest::findOrFail($id), $request->user(), $v['rejection_reason']));
+        return $this->success($this->joinService->rejectByCd(CircleJoinRequest::findOrFail($id), $request->user(), $reason));
     }
 
     public function joinIdApprove(Request $request, string $id): JsonResponse
@@ -70,25 +94,20 @@ class AdminOpsController extends BaseApiController
 
     public function joinIdReject(Request $request, string $id): JsonResponse
     {
-        $v = $request->validate(['rejection_reason' => 'required|string|max:500']);
+        $v = $request->validate([
+            'rejection_reason' => 'nullable|string|max:500',
+            'reason' => 'nullable|string|max:500',
+        ]);
+        $reason = (string) ($v['rejection_reason'] ?? ($v['reason'] ?? 'Rejected by ID'));
 
-        return $this->success($this->joinService->rejectById(CircleJoinRequest::findOrFail($id), $request->user(), $v['rejection_reason']));
+        return $this->success($this->joinService->rejectById(CircleJoinRequest::findOrFail($id), $request->user(), $reason));
     }
 
     public function joinMarkPaid(string $id): JsonResponse
     {
         $x = CircleJoinRequest::query()->with(['user', 'circle'])->findOrFail($id);
 
-        $user = $x->user ?? User::query()->find($x->user_id);
-        if ($user && $x->circle_id) {
-            $this->paymentSyncService->markRequestPaid($user, (string) $x->circle_id);
-            $x->refresh();
-        } else {
-            $x->status = CircleJoinRequest::STATUS_PAID;
-            $x->fee_marked_at = now();
-            $x->fee_paid_at = $x->fee_paid_at ?: now();
-            $x->save();
-        }
+        $x = $this->paymentSyncService->finalizeJoinRequest($x);
 
         return $this->success($x, 'Circle join request marked as paid and user joined circle successfully.');
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Membership;
 
+use App\Models\Circle;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
@@ -340,6 +341,215 @@ class MembershipZohoInvoiceService
                 'user_id' => $user->id,
                 'payment_id' => $payment->id,
                 'plan_id' => $plan->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'synced' => false,
+                'status' => 'pending',
+                'invoice_id' => null,
+                'invoice_number' => null,
+                'invoice_url' => null,
+                'invoice_pdf_url' => null,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Create an invoice in Zoho Billing for a Circle Join fee and mark it as PAID.
+     */
+    public function createPaidInvoiceForCircle(User $user, Circle $circle, ?MembershipPlan $plan, Payment $payment): ?array
+    {
+        $gstNumber = trim((string) ($payment->gst_number ?: $user->gst_number ?: ''));
+        $customerId = $this->findOrCreateZohoCustomer($user, $gstNumber);
+        if (! $customerId) {
+            Log::warning('Zoho invoice creation skipped for circle: Could not resolve Zoho customer ID', [
+                'user_id' => $user->id,
+                'payment_id' => $payment->id,
+                'circle_id' => $circle->id,
+            ]);
+
+            return [
+                'synced' => false,
+                'status' => 'pending',
+                'invoice_id' => null,
+                'invoice_number' => null,
+                'invoice_url' => null,
+                'invoice_pdf_url' => null,
+                'error' => 'Failed to find or create customer in Zoho Billing.',
+            ];
+        }
+
+        $existingInvoiceId = trim((string) ($payment->zoho_invoice_id ?? ''));
+        if ($existingInvoiceId !== '') {
+            Log::info('Zoho invoice already exists for circle payment', [
+                'payment_id' => $payment->id,
+                'invoice_id' => $existingInvoiceId,
+            ]);
+
+            return ['invoice_id' => $existingInvoiceId];
+        }
+
+        $amount = (float) ($payment->total_amount > 0 ? $payment->total_amount : ($payment->amount > 0 ? $payment->amount : ($plan?->price ?: ($circle->circle_price_amount ?: 15000.00))));
+        $currency = strtoupper((string) ($payment->currency ?: ($circle->circle_price_currency ?: 'INR')));
+        $referenceNumber = (string) ($payment->razorpay_payment_id ?: $payment->id);
+        $planTitle = $plan ? ' | Plan: '.$plan->name : '';
+        $description = 'Circle Join Fee: '.$circle->name.$planTitle;
+
+        $notes = 'Paid via Razorpay: '.$referenceNumber;
+        if ($gstNumber !== '') {
+            $notes .= ' | GSTIN: '.$gstNumber;
+        }
+
+        $invoicePayload = [
+            'customer_id' => $customerId,
+            'date' => now()->toDateString(),
+            'due_date' => now()->addDay()->toDateString(),
+            'currency_code' => $currency,
+            'reference_number' => $referenceNumber,
+            'invoice_items' => [[
+                'name' => 'Circle Join - '.$circle->name,
+                'description' => $description,
+                'rate' => $amount,
+                'price' => $amount,
+                'quantity' => 1,
+            ]],
+            'notes' => $notes,
+            'terms' => 'Thank you for joining the circle.',
+        ];
+
+        if ($gstNumber !== '') {
+            $invoicePayload['gst_no'] = $gstNumber;
+            $invoicePayload['gst_treatment'] = 'business_gst';
+        } else {
+            $invoicePayload['gst_treatment'] = 'business_none';
+        }
+
+        try {
+            Log::info('Creating Zoho invoice for circle join payment', [
+                'user_id' => $user->id,
+                'payment_id' => $payment->id,
+                'circle_id' => $circle->id,
+                'payload' => $invoicePayload,
+            ]);
+
+            $response = $this->zohoBillingClient->request('POST', '/invoices', $invoicePayload);
+            $invoice = is_array($response['invoice'] ?? null) ? $response['invoice'] : $response;
+            $invoiceId = (string) data_get($invoice, 'invoice_id', '');
+
+            if ($invoiceId === '') {
+                Log::error('Zoho invoice creation returned empty invoice ID for circle join', [
+                    'payment_id' => $payment->id,
+                    'response' => $response,
+                ]);
+
+                return [
+                    'synced' => false,
+                    'status' => 'pending',
+                    'invoice_id' => null,
+                    'invoice_number' => null,
+                    'invoice_url' => null,
+                    'invoice_pdf_url' => null,
+                    'error' => 'Zoho returned an empty invoice ID.',
+                ];
+            }
+
+            $invoiceNumber = (string) (data_get($invoice, 'invoice_number') ?? data_get($invoice, 'number') ?? '');
+            $invoiceUrl = data_get($invoice, 'invoice_url') ?? data_get($invoice, 'url');
+            $invoicePdfUrl = data_get($invoice, 'invoice_pdf_url') ?? data_get($invoice, 'pdf_url');
+            $invoiceStatus = strtolower((string) data_get($invoice, 'status', ''));
+
+            Log::info('Zoho invoice created successfully for circle join', [
+                'invoice_id' => $invoiceId,
+                'invoice_number' => $invoiceNumber,
+                'initial_status' => $invoiceStatus,
+            ]);
+
+            // Convert to open if draft
+            if ($invoiceStatus === 'draft') {
+                try {
+                    $this->zohoBillingClient->postZohoAction('/invoices/'.$invoiceId.'/converttoopen', []);
+                    Log::info('Zoho invoice converted to open for circle join', ['invoice_id' => $invoiceId]);
+                } catch (Throwable $e) {
+                    Log::warning('Zoho convert to open notice for circle join', [
+                        'invoice_id' => $invoiceId,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Determine exact balance to apply
+            $balanceToPay = (float) (data_get($invoice, 'balance') ?? data_get($invoice, 'total') ?? $amount);
+            if ($balanceToPay <= 0) {
+                try {
+                    $refreshed = $this->zohoBillingClient->request('GET', '/invoices/'.$invoiceId);
+                    $balanceToPay = (float) data_get($refreshed, 'invoice.balance', $amount);
+                } catch (Throwable $e) {
+                    $balanceToPay = $amount;
+                }
+            }
+
+            // Apply payment to make invoice status 'paid'
+            $paymentPayload = [
+                'customer_id' => $customerId,
+                'payment_mode' => 'others',
+                'amount' => $balanceToPay,
+                'date' => now()->toDateString(),
+                'reference_number' => $referenceNumber,
+                'description' => 'Razorpay payment for Circle Join '.$circle->name.' | ref: '.$referenceNumber,
+                'invoices' => [[
+                    'invoice_id' => $invoiceId,
+                    'amount_applied' => $balanceToPay,
+                ]],
+            ];
+
+            try {
+                $this->zohoBillingService->createPaymentForInvoice($paymentPayload);
+                Log::info('Payment recorded in Zoho for circle invoice', [
+                    'invoice_id' => $invoiceId,
+                    'amount' => $amount,
+                ]);
+            } catch (Throwable $e) {
+                Log::error('Failed to apply payment to Zoho circle invoice', [
+                    'invoice_id' => $invoiceId,
+                    'customer_id' => $customerId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Update Payment record
+            $paymentUpdates = [
+                'zoho_invoice_id' => $invoiceId,
+                'provider' => 'razorpay',
+            ];
+            if (Schema::hasColumn('payments', 'zoho_payment_id')) {
+                $paymentUpdates['zoho_payment_id'] = $referenceNumber;
+            }
+            $payment->update($paymentUpdates);
+
+            // Update User record
+            $userUpdates = [
+                'zoho_customer_id' => $customerId,
+                'zoho_last_invoice_id' => $invoiceId,
+            ];
+            if ($gstNumber !== '' && empty($user->gst_number)) {
+                $userUpdates['gst_number'] = $gstNumber;
+            }
+            $user->forceFill($userUpdates)->save();
+
+            return [
+                'invoice_id' => $invoiceId,
+                'invoice_number' => $invoiceNumber,
+                'invoice_url' => $invoiceUrl,
+                'invoice_pdf_url' => $invoicePdfUrl,
+                'status' => 'paid',
+            ];
+        } catch (Throwable $e) {
+            Log::error('Failed to create paid Zoho invoice for circle join', [
+                'user_id' => $user->id,
+                'payment_id' => $payment->id,
+                'circle_id' => $circle->id,
                 'error' => $e->getMessage(),
             ]);
 
