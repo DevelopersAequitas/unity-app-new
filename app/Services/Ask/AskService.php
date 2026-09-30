@@ -824,10 +824,21 @@ class AskService
 
             if ($existingPost) {
                 if ($existingPost->visibility !== $postVisibility || (empty($existingPost->circle_id) && $postCircleId)) {
-                    $existingPost->update([
-                        'visibility' => $postVisibility,
-                        'circle_id' => $postCircleId ?: $existingPost->circle_id,
-                    ]);
+                    try {
+                        $existingPost->update([
+                            'visibility' => $postVisibility,
+                            'circle_id' => $postCircleId ?: $existingPost->circle_id,
+                        ]);
+                    } catch (Throwable $e) {
+                        if ($postVisibility === 'district') {
+                            $existingPost->update([
+                                'visibility' => 'public',
+                                'circle_id' => $postCircleId ?: $existingPost->circle_id,
+                            ]);
+                        } else {
+                            throw $e;
+                        }
+                    }
                 }
 
                 AskTimelineLink::query()->updateOrCreate(
@@ -848,7 +859,7 @@ class AskService
 
             $tags = array_values(array_filter(['ask', strtolower((string) ($ask->flow?->code ?? ''))]));
 
-            $post = Post::create([
+            $postAttributes = [
                 'user_id' => $user->id,
                 'circle_id' => $postCircleId,
                 'title' => $ask->title,
@@ -864,7 +875,18 @@ class AskService
                 'source_id' => $ask->id,
                 'source_event' => 'published',
                 'post_type' => 'ask',
-            ]);
+            ];
+
+            try {
+                $post = Post::create($postAttributes);
+            } catch (Throwable $e) {
+                if ($postVisibility === 'district') {
+                    $postAttributes['visibility'] = 'public';
+                    $post = Post::create($postAttributes);
+                } else {
+                    throw $e;
+                }
+            }
 
             AskTimelineLink::query()->updateOrCreate(
                 ['ask_id' => $ask->id],

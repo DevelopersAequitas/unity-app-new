@@ -17,7 +17,7 @@ class StorePostRequest extends FormRequest
             'content_text' => 'nullable|string|max:5000',
             'image_id' => ['nullable', 'uuid'],
             'circle_id' => 'nullable|uuid|exists:circles,id',
-            'visibility' => 'required|in:public,connections,members,circle,private',
+            'visibility' => 'required|in:public,connections,members,circle,private,district,global',
             'tags' => 'nullable|array',
             'tags.*' => 'string|max:100',
             'media' => 'nullable|array',
