@@ -192,7 +192,14 @@ class CircleLeadershipController extends BaseApiController
                     ?? data_get($calendar, 'leadership.'.$slot['calendar_path'])
                     ?? data_get($calendar, $slot['calendar_path']);
 
-                $userId = $slot['user_id'] ?: (is_string($calendarData) && Str::isUuid($calendarData) ? $calendarData : data_get($calendarData, 'id') ?: data_get($calendarData, 'user_id'));
+                $userId = $slot['user_id'];
+                if (empty($userId)) {
+                    if (is_string($calendarData) && Str::isUuid($calendarData)) {
+                        $userId = $calendarData;
+                    } elseif (is_array($calendarData)) {
+                        $userId = data_get($calendarData, 'id') ?: data_get($calendarData, 'user_id');
+                    }
+                }
                 $user = null;
 
                 if (! empty($userId) && is_string($userId) && Str::isUuid($userId)) {
