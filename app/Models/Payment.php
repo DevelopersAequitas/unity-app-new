@@ -23,10 +23,12 @@ class Payment extends Model
         'id',
         'user_id',
         'membership_plan_id',
+        'amount',
         'base_amount',
         'gst_percent',
         'gst_amount',
         'total_amount',
+        'currency',
         'razorpay_order_id',
         'razorpay_payment_id',
         'razorpay_signature',
@@ -34,6 +36,7 @@ class Payment extends Model
         'paid_at',
         'gst_number',
         'zoho_invoice_id',
+        'provider',
     ];
 
     protected $casts = [

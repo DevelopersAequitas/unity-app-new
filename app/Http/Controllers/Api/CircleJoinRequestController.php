@@ -12,12 +12,16 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CircleSubscription;
 use App\Models\CustomCategoryRequest;
+use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Circles\CircleJoinPaymentService;
 use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\CircleJoinRequestService;
+use App\Services\Circles\CirclePriceResolver;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
+use App\Services\MembershipService;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -279,6 +283,40 @@ class CircleJoinRequestController extends BaseApiController
                 'data' => $this->transformJoinRequest($record),
                 'meta' => null,
             ]);
+        }
+
+        // Razorpay payment verification
+        if ($request->filled('razorpay_payment_id') && $request->filled('razorpay_order_id') && $request->filled('razorpay_signature')) {
+            try {
+                $updated = app(CircleJoinPaymentService::class)->verifyPayment(
+                    $record,
+                    $request->user(),
+                    (string) $request->input('razorpay_order_id'),
+                    (string) $request->input('razorpay_payment_id'),
+                    (string) $request->input('razorpay_signature')
+                );
+
+                $updated->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+                return response()->json([
+                    'success' => true,
+                    'status' => true,
+                    'message' => 'Payment verified successfully! You have joined the circle.',
+                    'payment_confirmed' => true,
+                    'data' => $this->transformJoinRequest($updated),
+                    'meta' => null,
+                ]);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'status' => false,
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                    'payment_confirmed' => false,
+                    'data' => $this->transformJoinRequest($record),
+                    'meta' => null,
+                ], 422);
+            }
         }
 
         // Dev / test mode support: allow instant simulation of payment confirmation.
@@ -568,6 +606,48 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
+        $plan = null;
+        if (is_array($request->notes) && ! empty($request->notes['membership_plan_id'])) {
+            $plan = MembershipPlan::query()->find($request->notes['membership_plan_id']);
+        }
+
+        $planAmounts = null;
+        if ($plan) {
+            $planAmounts = app(MembershipService::class)->calculateAmounts($plan);
+        }
+
+        if (! $plan) {
+            try {
+                $resolved = app(CirclePriceResolver::class)->resolve($request->circle, $request);
+                $baseAmount = $resolved['amount'];
+                if ($resolved['plan'] instanceof MembershipPlan) {
+                    $plan = $resolved['plan'];
+                    $planAmounts = app(MembershipService::class)->calculateAmounts($plan);
+                }
+            } catch (\Throwable) {
+                $baseAmount = (float) ($request->circle?->circle_price_amount ?: 15000.00);
+            }
+        } else {
+            $baseAmount = (float) $plan->price;
+        }
+        $gstPercent = $plan ? (float) $plan->gst_percent : 18.0;
+        $gstAmount = $planAmounts ? (float) $planAmounts['gst_amount'] : round($baseAmount * ($gstPercent / 100), 2);
+        $totalAmount = $planAmounts ? (float) $planAmounts['total_amount'] : round($baseAmount + $gstAmount, 2);
+        $amountInPaise = (int) round($totalAmount * 100);
+
+        $planData = $plan ? [
+            'id' => (string) $plan->id,
+            'name' => (string) $plan->name,
+            'slug' => (string) $plan->slug,
+            'price' => (float) $plan->price,
+            'gst_percent' => (float) $plan->gst_percent,
+            'gst_amount' => (float) $planAmounts['gst_amount'],
+            'total_amount' => (float) $planAmounts['total_amount'],
+            'duration_days' => (int) $plan->duration_days,
+            'duration_months' => $plan->duration_months ? (int) $plan->duration_months : null,
+            'is_free' => (bool) $plan->is_free,
+        ] : null;
+
         $hostedPageId = $this->resolveHostedPageId($request, $paymentUrl);
 
         return [
@@ -575,6 +655,9 @@ class CircleJoinRequestController extends BaseApiController
             'user_id' => (string) $request->user_id,
             'is_pro' => $isPro,
             'circle_id' => (string) $request->circle_id,
+            'membership_plan_id' => $plan?->id,
+            'membership_plan' => $planData,
+            'package' => $planData,
             'circle' => $request->circle ? [
                 'id' => (string) $request->circle->id,
                 'name' => (string) $request->circle->name,
@@ -596,7 +679,15 @@ class CircleJoinRequestController extends BaseApiController
             'payment' => [
                 'required' => true,
                 'status' => $paymentStatus,
-                'amount' => (int) ($request->circle?->circle_price_amount ?: 5000),
+                'membership_plan_id' => $plan?->id,
+                'membership_plan' => $planData,
+                'package' => $planData,
+                'amount' => (int) round($totalAmount),
+                'base_amount' => $baseAmount,
+                'gst_percent' => $gstPercent,
+                'gst_amount' => $gstAmount,
+                'total_amount' => $totalAmount,
+                'amount_in_paise' => $amountInPaise,
                 'currency' => $request->circle?->circle_price_currency ?: 'INR',
                 'payment_url' => $paymentUrl,
                 'hostedpage_id' => $hostedPageId,
@@ -655,6 +746,7 @@ class CircleJoinRequestController extends BaseApiController
         $record = CircleJoinRequest::query()
             ->with([
                 'user',
+                'circle',
                 'cdApprovedBy',
                 'idApprovedBy',
                 'cdRejectedBy',
@@ -797,7 +889,7 @@ class CircleJoinRequestController extends BaseApiController
 
         if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
             $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
-            $canPay = $paymentUrl !== null;
+            $canPay = true;
         }
 
         $paidAt = null;
@@ -827,11 +919,26 @@ class CircleJoinRequestController extends BaseApiController
 
         $hostedPageId = $this->resolveHostedPageId($record, $paymentUrl);
 
+        try {
+            $resolvedPricing = app(CirclePriceResolver::class)->resolve($record->circle, $record);
+            $paymentAmount = (int) round($resolvedPricing['amount']);
+            $paymentCurrency = $resolvedPricing['currency'];
+        } catch (\Throwable) {
+            $resolvedPricing = null;
+            $paymentAmount = (int) round((float) ($record->circle?->circle_price_amount ?: 15000));
+            $paymentCurrency = $record->circle?->circle_price_currency ?: 'INR';
+        }
+
         $data = [
             'id' => (string) $record->id,
             'user_id' => (string) $record->user_id,
             'is_pro' => $isPro,
             'circle_id' => (string) $record->circle_id,
+            'circle' => $record->circle ? [
+                'id' => (string) $record->circle->id,
+                'name' => (string) $record->circle->name,
+                'slug' => (string) $record->circle->slug,
+            ] : null,
             'status' => (string) $record->status,
             'status_label' => $this->statusLabel($record->status),
             'display_status' => $this->statusLabel($record->status),
@@ -862,8 +969,10 @@ class CircleJoinRequestController extends BaseApiController
             'payment' => [
                 'required' => true,
                 'status' => $paymentStatus,
-                'amount' => (int) ($record->circle?->circle_price_amount ?: 5000),
-                'currency' => $record->circle?->circle_price_currency ?: 'INR',
+                'amount' => $paymentAmount,
+                'currency' => $paymentCurrency,
+                'plan_name' => ($resolvedPricing['plan'] ?? null)?->name ?? ($record->circle?->name ? $record->circle->name.' Circle Plan' : 'Circle Package'),
+                'plan_id' => ($resolvedPricing['plan'] ?? null)?->id ?? null,
                 'payment_url' => $paymentUrl,
                 'hostedpage_id' => $hostedPageId,
                 'button_label' => 'Pay Now',

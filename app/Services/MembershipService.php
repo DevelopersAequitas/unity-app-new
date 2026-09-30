@@ -70,6 +70,7 @@ class MembershipService
 
         return $this->membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, [
             'payment_id' => $payment->id,
+            'payment_status' => Payment::STATUS_SUCCESS,
             'membership_plan_id' => $plan->id,
             'plan_name' => $plan->name,
             'plan' => $plan->slug,

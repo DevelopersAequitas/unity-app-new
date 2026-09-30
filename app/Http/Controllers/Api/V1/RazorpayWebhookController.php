@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CircleJoinRequest;
 use App\Models\EventRegistration;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Circles\CircleJoinPaymentService;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\MembershipService;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +23,8 @@ class RazorpayWebhookController extends Controller
     public function __construct(
         private readonly MembershipService $membershipService,
         private readonly EventRazorpayPaymentFinalizer $eventPaymentFinalizer,
+        private readonly CircleJoinRequestPaymentSyncService $circlePaymentSyncService,
+        private readonly CircleJoinPaymentService $circleJoinPaymentService,
     ) {}
 
     public function handle(Request $request): JsonResponse
@@ -97,6 +102,17 @@ class RazorpayWebhookController extends Controller
             return;
         }
 
+        $circleJoinRequest = CircleJoinRequest::query()->where('notes->razorpay_order_id', $orderId)->first();
+        if ($circleJoinRequest) {
+            $this->circleJoinPaymentService->finalizeFromWebhook(
+                $circleJoinRequest,
+                $orderId,
+                (string) ($paymentEntity['id'] ?? '')
+            );
+
+            return;
+        }
+
         $payment = Payment::query()->where('razorpay_order_id', $orderId)->first();
 
         if (! $payment) {
@@ -143,6 +159,30 @@ class RazorpayWebhookController extends Controller
         });
 
         if ($planToSync instanceof MembershipPlan && $lockedPaymentToSync instanceof Payment && $updatedUser instanceof User) {
+            // Resolve and sync circle membership if user has a pending fee circle request
+            $circleToSync = CircleJoinRequest::query()
+                ->where('user_id', $updatedUser->id)
+                ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+                ->latest('created_at')
+                ->value('circle_id');
+
+            if ($circleToSync) {
+                try {
+                    $this->circlePaymentSyncService->markRequestPaid(
+                        $updatedUser,
+                        (string) $circleToSync,
+                        $lockedPaymentToSync->paid_at ?? now()
+                    );
+                } catch (\Throwable $e) {
+                    Log::error('Circle membership sync error on Razorpay webhook', [
+                        'payment_id' => $lockedPaymentToSync->id,
+                        'user_id' => $updatedUser->id,
+                        'circle_id' => $circleToSync,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             try {
                 $this->membershipService->syncZohoInvoice($updatedUser, $planToSync, $lockedPaymentToSync);
             } catch (\Throwable $e) {
@@ -186,5 +226,13 @@ class RazorpayWebhookController extends Controller
                 'razorpay_payment_id' => $paymentEntity['id'] ?? null,
                 'status' => Payment::STATUS_FAILED,
             ]);
+
+        $circleJoinRequest = CircleJoinRequest::query()->where('notes->razorpay_order_id', $orderId)->first();
+        if ($circleJoinRequest) {
+            $notes = is_array($circleJoinRequest->notes) ? $circleJoinRequest->notes : [];
+            $notes['payment_failed_at'] = now()->toIso8601String();
+            $notes['payment_failed_reason'] = $paymentEntity['error_description'] ?? 'Payment failed';
+            $circleJoinRequest->update(['notes' => $notes]);
+        }
     }
 }

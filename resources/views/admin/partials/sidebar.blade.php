@@ -878,6 +878,14 @@
             </li>
             @endif
 
+            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.circle-plans.*') ? 'active' : '' }}" href="{{ route('admin.circle-plans.index') }}" title="Circle Plans">
+                    <i class="bi bi-layers me-2"></i><span class="menu-text">Circle Plans</span>
+                </a>
+            </li>
+            @endif
+
             {{-- Asks & Discovery Dropdown Menu --}}
             @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Asks') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities'))
             <li class="nav-item menu-parent {{ $asksActive ? 'open' : '' }}">
