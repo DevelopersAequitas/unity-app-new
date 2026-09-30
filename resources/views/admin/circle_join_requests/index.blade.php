@@ -259,14 +259,10 @@
                                     @if($row->can_approve_cd)
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
-                                    @endif
-
-                                    @if($row->can_approve_id)
+                                    @elseif($row->can_approve_id)
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
-                                    @endif
-
-                                    @if($row->can_approve_ded)
+                                    @elseif($row->can_approve_ded)
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
@@ -417,19 +413,29 @@
         let rejectField = 'reason';
         let canAct = false;
 
-        if (data.canApproveDed) {
-            approveUrl = data.approveDedUrl;
-            rejectUrl = data.rejectDedUrl;
-            rejectField = 'remarks';
+        if (data.statusRaw === 'pending_cd_approval' && data.canApproveCd) {
+            approveUrl = data.approveCdUrl;
+            rejectUrl = data.rejectCdUrl;
+            rejectField = 'reason';
             canAct = true;
-        } else if (data.canApproveId) {
+        } else if (data.statusRaw === 'pending_id_approval' && data.canApproveId) {
             approveUrl = data.approveIdUrl;
             rejectUrl = data.rejectIdUrl;
             rejectField = 'reason';
             canAct = true;
+        } else if (data.canApproveDed) {
+            approveUrl = data.approveDedUrl;
+            rejectUrl = data.rejectDedUrl;
+            rejectField = 'remarks';
+            canAct = true;
         } else if (data.canApproveCd) {
             approveUrl = data.approveCdUrl;
             rejectUrl = data.rejectCdUrl;
+            rejectField = 'reason';
+            canAct = true;
+        } else if (data.canApproveId) {
+            approveUrl = data.approveIdUrl;
+            rejectUrl = data.rejectIdUrl;
             rejectField = 'reason';
             canAct = true;
         }

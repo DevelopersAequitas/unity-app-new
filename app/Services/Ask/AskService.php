@@ -7,11 +7,15 @@ namespace App\Services\Ask;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskAnswer;
 use App\Models\Ask\AskFlow;
+use App\Models\Ask\AskOption;
 use App\Models\Ask\AskOptionGroup;
 use App\Models\Ask\AskStatusHistory;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\Ask\AskType;
 use App\Models\BusinessDeal;
+use App\Models\Circle;
+use App\Models\CircleMember;
+use App\Models\District;
 use App\Models\Post;
 use App\Models\Referral;
 use App\Models\User;
@@ -178,12 +182,27 @@ class AskService
      *
      * @param  array<string, mixed>  $filters
      */
-    public function saveFilters(Ask $ask, array $filters): Ask
+    public function saveFilters(Ask $ask, array $filters, ?User $user = null): Ask
     {
+        // Extract visibility or timeline preferences if passed in filters payload
+        $visibility = $filters['visibility_type'] ?? $filters['visibility'] ?? null;
+        if ($visibility !== null) {
+            $districtId = isset($filters['district_id']) ? (string) $filters['district_id'] : null;
+            $circleId = isset($filters['circle_id']) ? (string) $filters['circle_id'] : null;
+            $this->setVisibility($ask, (string) $visibility, $districtId, $circleId, $user ?? $ask->user);
+        }
+
+        if (isset($filters['post_to_timeline']) || isset($filters['publish_to_timeline'])) {
+            $timelinePref = (bool) ($filters['post_to_timeline'] ?? $filters['publish_to_timeline']);
+            $this->setTimelinePreference($ask, $timelinePref);
+        }
+
+        $nonFilterKeys = ['visibility', 'visibility_type', 'district_id', 'circle_id', 'post_to_timeline', 'publish_to_timeline'];
+
         $answersPayload = [];
 
         foreach ($filters as $key => $val) {
-            if ($val === null || $val === '') {
+            if (in_array($key, $nonFilterKeys, true) || $val === null || $val === '') {
                 continue;
             }
 
@@ -204,21 +223,121 @@ class AskService
             $this->saveDetails($ask, $answersPayload);
         }
 
-        return $ask->fresh(['answers.option', 'flow', 'type']);
+        return $ask->fresh(['answers.option', 'flow', 'type', 'district', 'circle']);
     }
 
     /**
      * Set Ask visibility.
      */
-    public function setVisibility(Ask $ask, string $visibilityType, ?string $districtId, ?string $circleId): Ask
+    public function setVisibility(Ask $ask, string $visibilityType, ?string $districtId = null, ?string $circleId = null, ?User $user = null): Ask
     {
+        $normalizedVisibility = match (strtolower(trim($visibilityType))) {
+            'district', 'my_district' => Ask::VISIBILITY_DISTRICT,
+            'circle', 'my_circle' => Ask::VISIBILITY_CIRCLE,
+            default => Ask::VISIBILITY_ALL_PEERS,
+        };
+
+        $user = $user ?? $ask->user ?? User::find($ask->user_id);
+
+        if ($normalizedVisibility === Ask::VISIBILITY_DISTRICT) {
+            $districtId = $this->resolveUserDistrictId($user, $districtId);
+            $circleId = null;
+        } elseif ($normalizedVisibility === Ask::VISIBILITY_CIRCLE) {
+            $circleId = $this->resolveUserCircleId($user, $circleId);
+            $districtId = null;
+        } else {
+            $districtId = null;
+            $circleId = null;
+        }
+
         $ask->update([
-            'visibility_type' => $visibilityType,
-            'visibility_district_id' => $visibilityType === Ask::VISIBILITY_DISTRICT ? $districtId : null,
-            'visibility_circle_id' => $visibilityType === Ask::VISIBILITY_CIRCLE ? $circleId : null,
+            'visibility_type' => $normalizedVisibility,
+            'visibility_district_id' => $districtId,
+            'visibility_circle_id' => $circleId,
         ]);
 
         return $ask;
+    }
+
+    /**
+     * Resolve the primary circle ID for a user.
+     */
+    public function resolveUserCircleId(?User $user, ?string $providedCircleId = null): ?string
+    {
+        if (! empty($providedCircleId) && Str::isUuid((string) $providedCircleId)) {
+            return (string) $providedCircleId;
+        }
+
+        if (! $user) {
+            return null;
+        }
+
+        $circleId = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->value('circle_id');
+
+        return $circleId ? (string) $circleId : null;
+    }
+
+    /**
+     * Resolve the district ID for a user.
+     */
+    public function resolveUserDistrictId(?User $user, ?string $providedDistrictId = null): ?string
+    {
+        if (! empty($providedDistrictId) && Str::isUuid((string) $providedDistrictId)) {
+            return (string) $providedDistrictId;
+        }
+
+        if (! $user) {
+            return null;
+        }
+
+        // 1. Direct district_id on user if available
+        if (Schema::hasColumn('users', 'district_id') && ! empty($user->district_id)) {
+            return (string) $user->district_id;
+        }
+
+        // 2. District from user's circle
+        $userCircleIds = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('circle_id')
+            ->filter()
+            ->all();
+
+        if (! empty($userCircleIds) && Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+            $districtId = Circle::query()
+                ->whereIn('id', $userCircleIds)
+                ->whereNotNull('district_id')
+                ->value('district_id');
+
+            if ($districtId) {
+                return (string) $districtId;
+            }
+        }
+
+        // 3. District from user's city
+        if ($user->city_id && Schema::hasTable('cities') && Schema::hasColumn('cities', 'district_id')) {
+            $districtId = DB::table('cities')->where('id', $user->city_id)->value('district_id');
+            if ($districtId) {
+                return (string) $districtId;
+            }
+        }
+
+        // 4. Match district by city name or residence
+        $cityName = trim((string) ($user->city_of_residence ?: (is_string($user->city) ? $user->city : '')));
+        if ($cityName !== '' && Schema::hasTable('districts')) {
+            $districtId = District::query()
+                ->where('name', 'ILIKE', "%{$cityName}%")
+                ->value('id');
+
+            if ($districtId) {
+                return (string) $districtId;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -281,16 +400,21 @@ class AskService
         return DB::transaction(function () use ($ask, $user, $options): Ask {
             $oldStatus = $ask->status;
 
-            // Handle visibility parameter if provided (global, district, circle)
-            $visibilityParam = $options['visibility'] ?? null;
+            // Handle visibility parameter if provided (global, district, circle, all_peers, my_district, my_circle)
+            $visibilityParam = $options['visibility'] ?? $options['visibility_type'] ?? null;
             if ($visibilityParam !== null) {
-                $mappedVisibility = match ($visibilityParam) {
-                    'district' => Ask::VISIBILITY_DISTRICT,
-                    'circle' => Ask::VISIBILITY_CIRCLE,
-                    'global', 'all_peers' => Ask::VISIBILITY_ALL_PEERS,
-                    default => $visibilityParam,
-                };
-                $ask->visibility_type = $mappedVisibility;
+                $districtId = isset($options['district_id']) ? (string) $options['district_id'] : null;
+                $circleId = isset($options['circle_id']) ? (string) $options['circle_id'] : null;
+                $this->setVisibility($ask, (string) $visibilityParam, $districtId, $circleId, $user);
+                $ask->refresh();
+            } else {
+                if ($ask->visibility_type === Ask::VISIBILITY_DISTRICT && empty($ask->visibility_district_id)) {
+                    $ask->visibility_district_id = $this->resolveUserDistrictId($user);
+                    $ask->save();
+                } elseif ($ask->visibility_type === Ask::VISIBILITY_CIRCLE && empty($ask->visibility_circle_id)) {
+                    $ask->visibility_circle_id = $this->resolveUserCircleId($user);
+                    $ask->save();
+                }
             }
 
             if (isset($options['post_to_timeline']) || isset($options['publish_to_timeline'])) {
@@ -336,8 +460,24 @@ class AskService
                 }
             } elseif ($ask->visibility_type === Ask::VISIBILITY_DISTRICT && $ask->visibility_district_id) {
                 $districtPeers = User::query()
-                    ->where('district_id', $ask->visibility_district_id)
                     ->where('id', '!=', $user->id)
+                    ->where(function (Builder $dq) use ($ask): void {
+                        if (Schema::hasColumn('users', 'district_id')) {
+                            $dq->where('district_id', $ask->visibility_district_id);
+                        }
+                        if (Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+                            $dq->orWhereIn('id', CircleMember::query()
+                                ->whereIn('circle_id', Circle::query()->where('district_id', $ask->visibility_district_id)->select('id'))
+                                ->whereNull('deleted_at')
+                                ->select('user_id')
+                            );
+                        }
+                        $district = District::find($ask->visibility_district_id);
+                        if ($district) {
+                            $dq->orWhere('city', 'ILIKE', "%{$district->name}%");
+                            $dq->orWhereHas('city', fn (Builder $cq) => $cq->where('name', 'ILIKE', "%{$district->name}%"));
+                        }
+                    })
                     ->take(20)
                     ->get();
                 if ($districtPeers->isNotEmpty()) {
@@ -675,7 +815,32 @@ class AskService
                 ->where('source_id', $ask->id)
                 ->first();
 
+            $postVisibility = match ($ask->visibility_type) {
+                Ask::VISIBILITY_CIRCLE => 'circle',
+                Ask::VISIBILITY_DISTRICT => 'district',
+                default => 'public',
+            };
+            $postCircleId = $ask->visibility_circle_id ?: $this->resolveUserCircleId($user);
+
             if ($existingPost) {
+                if ($existingPost->visibility !== $postVisibility || (empty($existingPost->circle_id) && $postCircleId)) {
+                    try {
+                        $existingPost->update([
+                            'visibility' => $postVisibility,
+                            'circle_id' => $postCircleId ?: $existingPost->circle_id,
+                        ]);
+                    } catch (Throwable $e) {
+                        if ($postVisibility === 'district') {
+                            $existingPost->update([
+                                'visibility' => 'public',
+                                'circle_id' => $postCircleId ?: $existingPost->circle_id,
+                            ]);
+                        } else {
+                            throw $e;
+                        }
+                    }
+                }
+
                 AskTimelineLink::query()->updateOrCreate(
                     ['ask_id' => $ask->id],
                     ['post_id' => $existingPost->id]
@@ -694,14 +859,14 @@ class AskService
 
             $tags = array_values(array_filter(['ask', strtolower((string) ($ask->flow?->code ?? ''))]));
 
-            $post = Post::create([
+            $postAttributes = [
                 'user_id' => $user->id,
-                'circle_id' => $ask->visibility_circle_id,
+                'circle_id' => $postCircleId,
                 'title' => $ask->title,
                 'content_text' => $contentText,
                 'media' => [],
                 'tags' => $tags,
-                'visibility' => 'public',
+                'visibility' => $postVisibility,
                 'moderation_status' => 'approved',
                 'sponsored' => false,
                 'is_deleted' => false,
@@ -710,7 +875,18 @@ class AskService
                 'source_id' => $ask->id,
                 'source_event' => 'published',
                 'post_type' => 'ask',
-            ]);
+            ];
+
+            try {
+                $post = Post::create($postAttributes);
+            } catch (Throwable $e) {
+                if ($postVisibility === 'district') {
+                    $postAttributes['visibility'] = 'public';
+                    $post = Post::create($postAttributes);
+                } else {
+                    throw $e;
+                }
+            }
 
             AskTimelineLink::query()->updateOrCreate(
                 ['ask_id' => $ask->id],
