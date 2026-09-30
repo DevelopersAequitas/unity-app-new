@@ -1198,15 +1198,26 @@ use Carbon\Carbon;
                                                 <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
                                                 <div class="mb-4">
-                                                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Sub Category</label>
+                                                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Sub Category
+                                                        <span class="ml-1 text-teal-600 font-normal">(Open slots only)</span>
+                                                    </label>
+                                                    @php
+                                                        $thisMemberCatId = (int)($membership->joinedCircleCategory?->level4_category_id ?? 0);
+                                                    @endphp
                                                     <select name="level4_category_id" id="cat-select-{{ $membership->id }}"
                                                             class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 text-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" required>
                                                         <option value="">— Select sub category —</option>
                                                         @foreach ($circleSubCategories as $subCat)
-                                                            <option value="{{ $subCat->id }}"
-                                                                @selected((int)($membership->joinedCircleCategory?->level4_category_id) === (int)$subCat->id)>
-                                                                {{ $subCat->name }}
-                                                            </option>
+                                                            @php
+                                                                $isTakenByOther = ($categoryPeerCounts[$subCat->id] ?? 0) > 0
+                                                                    && $thisMemberCatId !== (int)$subCat->id;
+                                                            @endphp
+                                                            @if(!$isTakenByOther)
+                                                                <option value="{{ $subCat->id }}"
+                                                                    @selected($thisMemberCatId === (int)$subCat->id)>
+                                                                    {{ $subCat->name }}
+                                                                </option>
+                                                            @endif
                                                         @endforeach
                                                     </select>
                                                 </div>
