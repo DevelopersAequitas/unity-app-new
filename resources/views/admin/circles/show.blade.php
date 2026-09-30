@@ -667,47 +667,57 @@ use Carbon\Carbon;
     </div>
 
     @php
-        // Build a map of level4_category_id => count of peers who selected it
+        // Query ALL members for this circle (not just current paginated page)
+        $hasSubCategories = isset($circleSubCategories) && $circleSubCategories->isNotEmpty();
         $categoryPeerCounts = [];
         $categoryPeerNames  = [];
-        foreach ($peerMembers ?? [] as $membership) {
-            $l4id = $membership->joinedCircleCategory?->level4_category_id
-                 ?? $membership->level_4_category_id
-                 ?? null;
-            if ($l4id) {
-                $categoryPeerCounts[$l4id] = ($categoryPeerCounts[$l4id] ?? 0) + 1;
-                $memberUser = $membership->user ?? null;
-                $mName = $memberUser
-                    ? trim((string)(($memberUser->first_name ?? '') . ' ' . ($memberUser->last_name ?? '')))
-                    : '';
-                if ($mName === '') {
-                    $mName = $memberUser?->display_name ?? $memberUser?->name ?? '—';
-                }
-                $categoryPeerNames[$l4id][] = $mName;
+
+        if ($hasSubCategories && \Illuminate\Support\Facades\Schema::hasTable('joined_circle_categories')) {
+            $allJoined = \Illuminate\Support\Facades\DB::table('joined_circle_categories as jcc')
+                ->join('users', 'users.id', '=', 'jcc.user_id')
+                ->where('jcc.circle_id', $circle->id)
+                ->whereNotNull('jcc.level4_category_id')
+                ->select([
+                    'jcc.level4_category_id',
+                    \Illuminate\Support\Facades\DB::raw(
+                        "TRIM(COALESCE(NULLIF(users.display_name,''), CONCAT_WS(' ', NULLIF(users.first_name,''), NULLIF(users.last_name,'')), users.email)) as peer_name"
+                    ),
+                ])
+                ->get();
+
+            foreach ($allJoined as $row) {
+                $lid = $row->level4_category_id;
+                $categoryPeerCounts[$lid] = ($categoryPeerCounts[$lid] ?? 0) + 1;
+                $categoryPeerNames[$lid][] = $row->peer_name ?: '—';
             }
         }
-        $hasSubCategories = isset($circleSubCategories) && $circleSubCategories->isNotEmpty();
     @endphp
 
     @if($hasSubCategories)
     <!-- CATEGORY SLOTS SECTION -->
     <div class="border bs rounded-xl p-4 surface mb-4">
+        {{-- Header --}}
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 m-0 flex items-center gap-1.5">
                 <i class="bi bi-grid-3x3-gap admin-icon me-1" aria-hidden="true"></i> Category Slots
             </h3>
-            <div class="flex items-center gap-2 text-[11px]">
-                <span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 font-semibold">
-                    <span class="w-1.5 h-1.5 rounded-full bg-teal-500 inline-block"></span> Open
+            @php
+                $totalSlots  = $circleSubCategories->count();
+                $closedSlots = count(array_filter($categoryPeerCounts, fn($c) => $c > 0));
+                $openSlots   = $totalSlots - $closedSlots;
+            @endphp
+            <div class="flex items-center gap-3 text-[11px] font-semibold">
+                <span class="t3">Total: <span class="t1 font-bold">{{ $totalSlots }}</span></span>
+                <span class="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                    ● Open: {{ $openSlots }}
                 </span>
-                <span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-semibold">
-                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span> Closed
+                <span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                    ● Closed: {{ $closedSlots }}
                 </span>
             </div>
         </div>
 
         @php
-            // Group sub-categories by their parent level-1 name for display
             $groupedByMain = $circleSubCategories->groupBy('circle_category_id');
         @endphp
 
@@ -715,71 +725,60 @@ use Carbon\Carbon;
             @php
                 $mainCatName = $circleMainCategories->firstWhere('id', $mainCatId)?->name ?? 'Category';
             @endphp
-            <div class="mb-4 last:mb-0">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-2 m-0">
-                    {{ $mainCatName }}
-                </p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    @foreach($subCats as $subCat)
-                        @php
-                            $catId      = $subCat->id;
-                            $peerCount  = $categoryPeerCounts[$catId] ?? 0;
-                            $isOpen     = $peerCount === 0;
-                            $peerList   = $categoryPeerNames[$catId] ?? [];
-                        @endphp
-                        <div class="p-2.5 border rounded-xl text-xs flex flex-col gap-1.5
-                            {{ $isOpen
-                                ? 'bg-teal-50 border-teal-200'
-                                : 'bg-rose-50 border-rose-200' }}">
-                            <div class="flex items-start justify-between gap-1">
-                                <span class="font-semibold leading-snug
-                                    {{ $isOpen ? 'text-teal-800' : 'text-rose-800' }}">
-                                    {{ $subCat->name }}
-                                </span>
-                                @if($isOpen)
-                                    <span class="shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-teal-100 text-teal-700 border border-teal-300 whitespace-nowrap">
-                                        Open
-                                    </span>
-                                @else
-                                    <span class="shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700 border border-rose-300 whitespace-nowrap">
-                                        Closed
-                                    </span>
-                                @endif
-                            </div>
-                            @if($peerCount > 0)
-                                <div class="text-[11px] text-rose-600 font-medium flex items-center gap-1">
-                                    <i class="bi bi-person-check-fill"></i>
-                                    {{ $peerCount }} peer{{ $peerCount > 1 ? 's' : '' }} selected
-                                </div>
-                                @if(!empty($peerList))
-                                    <div class="text-[10px] text-rose-500 truncate" title="{{ implode(', ', $peerList) }}">
-                                        {{ implode(', ', array_slice($peerList, 0, 2)) }}{{ count($peerList) > 2 ? ' +' . (count($peerList) - 2) . ' more' : '' }}
-                                    </div>
-                                @endif
-                            @else
-                                <div class="text-[11px] text-teal-600 font-medium flex items-center gap-1">
-                                    <i class="bi bi-person-dash"></i>
-                                    No peer selected
-                                </div>
-                            @endif
-                        </div>
-                    @endforeach
+
+            <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-1.5 m-0 mt-3 first:mt-0">
+                {{ $mainCatName }}
+            </p>
+
+            {{-- Compact scrollable table --}}
+            <div class="border bs rounded-xl overflow-hidden mb-2">
+                <div class="overflow-y-auto" style="max-height:260px">
+                    <table class="w-full text-xs">
+                        <tbody class="divide-y divide-[color:var(--border-soft)]">
+                            @foreach($subCats as $subCat)
+                                @php
+                                    $catId     = $subCat->id;
+                                    $peerCount = $categoryPeerCounts[$catId] ?? 0;
+                                    $isOpen    = $peerCount === 0;
+                                    $peerList  = $categoryPeerNames[$catId] ?? [];
+                                    $peerLabel = !empty($peerList)
+                                        ? implode(', ', array_slice($peerList, 0, 2)) . (count($peerList) > 2 ? ' +' . (count($peerList)-2) : '')
+                                        : '—';
+                                @endphp
+                                <tr class="hover:surface-2 transition-colors">
+                                    {{-- Category name --}}
+                                    <td class="px-3 py-2 font-medium t1 w-1/2">
+                                        {{ $subCat->name }}
+                                    </td>
+                                    {{-- Peer name --}}
+                                    <td class="px-3 py-2 t2 truncate max-w-0 w-1/3" title="{{ implode(', ', $peerList) }}">
+                                        @if($peerCount > 0)
+                                            <span class="flex items-center gap-1">
+                                                <i class="bi bi-person-fill text-rose-500 shrink-0"></i>
+                                                <span class="truncate text-rose-600">{{ $peerLabel }}</span>
+                                            </span>
+                                        @else
+                                            <span class="t3 italic">No peer</span>
+                                        @endif
+                                    </td>
+                                    {{-- Badge --}}
+                                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                                        @if($isOpen)
+                                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-50 text-teal-700 border border-teal-200">Open</span>
+                                        @else
+                                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-50 text-rose-700 border border-rose-200">Closed</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
         @endforeach
-
-        @php
-            $totalSlots  = $circleSubCategories->count();
-            $openSlots   = $circleSubCategories->filter(fn($c) => ($categoryPeerCounts[$c->id] ?? 0) === 0)->count();
-            $closedSlots = $totalSlots - $openSlots;
-        @endphp
-        <div class="mt-4 pt-3 border-t bs flex items-center gap-4 text-xs flex-wrap">
-            <span class="t3">Total Slots: <span class="font-bold t1">{{ $totalSlots }}</span></span>
-            <span class="text-teal-700">Open: <span class="font-bold">{{ $openSlots }}</span></span>
-            <span class="text-rose-700">Closed: <span class="font-bold">{{ $closedSlots }}</span></span>
-        </div>
     </div>
     @endif
+
 
     <?php
         $circleApiData = (new \App\Http\Resources\CircleResource($circle))->toArray(request());
