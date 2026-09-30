@@ -29,10 +29,12 @@ class MyCircleController extends BaseApiController
                     ])
                         ->withCount([
                             'members as members_count' => function ($query) {
-                                $query->where('status', 'approved');
+                                $query->where('status', 'approved')
+                                    ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                             },
                             'members as peers_count' => function ($query) {
-                                $query->where('status', 'approved');
+                                $query->where('status', 'approved')
+                                    ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
                             },
                         ]);
                 },

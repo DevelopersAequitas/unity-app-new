@@ -32,6 +32,52 @@ class CircleMember extends Model
         'committee_leader',
     ];
 
+    public const REGIONAL_ROLES = [
+        'ded',
+        'industry_director',
+        'id',
+        'circle_director',
+        'director',
+        'cd',
+        'circle_founder',
+        'founder',
+        'cf',
+        'eed',
+        'regional_leader',
+        'regional_director',
+        'regional_head',
+        'global_admin',
+        'country_director',
+        'superadmin',
+        'super_admin',
+    ];
+
+    public const CIRCLE_LEADERSHIP_ROLES = [
+        'chair',
+        'vice_chair',
+        'secretary',
+        'chair_business_growth_committee',
+        'business_growth_committee_chair',
+        'business_growth_chair',
+        'chair_membership_growth_committee',
+        'membership_growth_committee_chair',
+        'membership_growth_chair',
+        'chair_events_impacts_committee',
+        'events_impacts_committee_chair',
+        'events_impacts_chair',
+        'power_house_chair_1',
+        'power_house_chair_2',
+        'power_house_chair_3',
+        'powerhouse_1',
+        'powerhouse_2',
+        'powerhouse_3',
+        'power_house_1',
+        'power_house_2',
+        'power_house_3',
+        'committee_leader',
+        'chair_leader',
+    ];
+
     public const ROLE_OPTIONS = [
         'member',
         'circle_founder',
@@ -94,6 +140,28 @@ class CircleMember extends Model
         'level_4_category_id' => 'integer',
         'meta' => 'array',
     ];
+
+    public static function isRegionalRole(?string $role): bool
+    {
+        if ($role === null || trim($role) === '') {
+            return false;
+        }
+
+        $normalized = Str::of($role)->lower()->trim()->replace(['-', ' '], '_')->toString();
+
+        return in_array($normalized, self::REGIONAL_ROLES, true);
+    }
+
+    public static function isCircleLeaderRole(?string $role): bool
+    {
+        if ($role === null || trim($role) === '') {
+            return false;
+        }
+
+        $normalized = Str::of($role)->lower()->trim()->replace(['-', ' '], '_')->toString();
+
+        return in_array($normalized, self::CIRCLE_LEADERSHIP_ROLES, true);
+    }
 
     public static function roleOptions(): array
     {

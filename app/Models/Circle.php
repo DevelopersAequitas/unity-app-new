@@ -102,12 +102,25 @@ class Circle extends Model
     {
         $totalMembers = 0;
 
-        if ($this->relationLoaded('members')) {
-            $totalMembers = $this->members->count();
-        } elseif ($this->getAttribute('members_count') !== null) {
+        if ($this->getAttribute('members_count') !== null) {
             $totalMembers = (int) $this->getAttribute('members_count');
+        } elseif ($this->relationLoaded('members')) {
+            $totalMembers = $this->members
+                ->filter(function ($m): bool {
+                    $status = strtolower((string) ($m->status ?? 'approved'));
+                    $isApproved = in_array($status, ['approved', 'active'], true) || empty($m->status);
+
+                    return $isApproved && ! CircleMember::isRegionalRole($m->role);
+                })
+                ->count();
         } else {
-            $totalMembers = $this->members()->count();
+            $totalMembers = $this->members()
+                ->where(function ($q): void {
+                    $q->whereIn('status', CircleMember::activeStatuses())
+                        ->orWhereNull('status');
+                })
+                ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                ->count();
         }
 
         return self::buildCircleRankingData($totalMembers);

@@ -81,6 +81,11 @@ class CircleResource extends JsonResource
                 ->all()
             : [];
 
+        $calendar = $this->calendar;
+        if (is_array($calendar)) {
+            unset($calendar['leadership']);
+        }
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -94,7 +99,7 @@ class CircleResource extends JsonResource
             'referral_score' => $this->referral_score,
             'visitor_count' => $this->visitor_count,
             'industry_tags' => $this->industry_tags,
-            'calendar' => $this->calendar,
+            'calendar' => $calendar,
             'meeting_mode' => $this->meeting_mode,
             'meeting_frequency' => $this->meeting_frequency,
             'meeting_link' => $this->meeting_link,
