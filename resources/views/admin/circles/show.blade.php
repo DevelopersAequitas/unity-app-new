@@ -1092,7 +1092,10 @@ use Carbon\Carbon;
                                 $memberCity = $safeStr(data_get($member, 'city.name') ?: data_get($member, 'city_name') ?: data_get($member, 'city'), 'No City');
                             @endphp
 
-                            <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openPeerDrawer('{{ $member ? $member->id : '' }}')">
+                            <tr class="peer-row hover:surface-2 transition border-b bs cursor-pointer"
+                                data-name="{{ strtolower($memberName) }}"
+                                data-email="{{ strtolower($member->email ?? '') }}"
+                                onclick="openPeerDrawer('{{ $member ? $member->id : '' }}')">
                                 <td class="px-3 py-2.5">
                                     <div class="font-medium t1 text-[12.5px]">{{ $memberName }}</div>
                                     <div class="t3 text-[11px] mt-0.5">{{ $memberCompany }}</div>
@@ -1548,58 +1551,66 @@ use Carbon\Carbon;
             }
         }
 
-        // ── Peer Search ──────────────────────────────────────────────────────
-        const peerFilterForm = document.getElementById('peerFilterForm');
-        const peerNameInput  = document.getElementById('peer_name');
-        const peerEmailInput = document.getElementById('peer_email');
-        const baseCircleUrl  = @json(route('admin.circles.show', $circle));
+        // ── Peer Search (client-side, no reload) ─────────────────────────────
+        (function () {
+            const nameInput  = document.getElementById('peer_name');
+            const emailInput = document.getElementById('peer_email');
+            const tbody      = document.getElementById('grid-body');
 
-        // Navigate to filtered URL with #peers-section so browser scrolls there
-        function goToFilteredPeers() {
-            const name  = peerNameInput  ? peerNameInput.value.trim()  : '';
-            const email = peerEmailInput ? peerEmailInput.value.trim() : '';
-            const qs    = new URLSearchParams();
-            if (name)  qs.set('peer_name',  name);
-            if (email) qs.set('peer_email', email);
-            const query = qs.toString();
-            window.location.href = baseCircleUrl + (query ? '?' + query : '') + '#peers-section';
-        }
+            if (!tbody) return;
 
-        if (peerNameInput || peerEmailInput) {
-            let searchTimer = null;
+            // Pre-fill inputs from URL params (for bookmarked/shared URLs)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (nameInput  && urlParams.get('peer_name'))  nameInput.value  = urlParams.get('peer_name');
+            if (emailInput && urlParams.get('peer_email')) emailInput.value = urlParams.get('peer_email');
 
-            function debouncedSearch() {
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(goToFilteredPeers, 500);
-            }
+            // Insert a hidden "no results" row
+            const noResultRow = document.createElement('tr');
+            noResultRow.id = 'peer-no-result-row';
+            noResultRow.style.display = 'none';
+            noResultRow.innerHTML = '<td colspan="6" class="text-center py-8 text-xs t3 italic">No peers match your search.</td>';
+            tbody.appendChild(noResultRow);
 
-            [peerNameInput, peerEmailInput].forEach(function (input) {
-                if (!input) return;
-                // Enter = immediate search
-                input.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        clearTimeout(searchTimer);
-                        goToFilteredPeers();
+            function filterRows() {
+                const name  = nameInput  ? nameInput.value.trim().toLowerCase()  : '';
+                const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+
+                let visibleCount = 0;
+                const rows = tbody.querySelectorAll('tr.peer-row');
+
+                rows.forEach(function (row) {
+                    const rowName  = (row.dataset.name  || '').toLowerCase();
+                    const rowEmail = (row.dataset.email || '').toLowerCase();
+
+                    const matchName  = !name  || rowName.includes(name);
+                    const matchEmail = !email || rowEmail.includes(email);
+
+                    if (matchName && matchEmail) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
                     }
                 });
-                // Typing = debounced search (500ms)
-                input.addEventListener('input', debouncedSearch);
-            });
-        }
 
-        // Auto-scroll to peers section when filter is active and no hash yet
-        (function () {
-            const urlParams    = new URLSearchParams(window.location.search);
-            const hasPeerFilter = urlParams.get('peer_name') || urlParams.get('peer_email');
-            if (hasPeerFilter) {
-                const section = document.getElementById('peers-section');
-                if (section) {
-                    setTimeout(function () {
-                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 200);
-                }
+                // Show/hide the "no results" row
+                noResultRow.style.display = visibleCount === 0 ? '' : 'none';
             }
+
+            // Attach listeners
+            [nameInput, emailInput].forEach(function (input) {
+                if (!input) return;
+                input.addEventListener('input', filterRows);
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        input.value = '';
+                        filterRows();
+                    }
+                });
+            });
+
+            // Run on load in case URL params pre-filled the inputs
+            filterRows();
         })();
         // ─────────────────────────────────────────────────────────────────────
     });
