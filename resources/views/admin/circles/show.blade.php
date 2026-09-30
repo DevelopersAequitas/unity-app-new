@@ -1548,51 +1548,60 @@ use Carbon\Carbon;
             }
         }
 
-        // ── Peer Search Auto-Submit ──────────────────────────────────────────
+        // ── Peer Search ──────────────────────────────────────────────────────
         const peerFilterForm = document.getElementById('peerFilterForm');
         const peerNameInput  = document.getElementById('peer_name');
         const peerEmailInput = document.getElementById('peer_email');
+        const baseCircleUrl  = @json(route('admin.circles.show', $circle));
 
-        // Auto-scroll to peers section if a filter is active in the URL
-        (function () {
-            const params = new URLSearchParams(window.location.search);
-            const hasPeerFilter = params.get('peer_name') || params.get('peer_email');
-            const hash = window.location.hash;
-            if (hasPeerFilter && !hash) {
-                const section = document.getElementById('peers-section');
-                if (section) {
-                    setTimeout(function () {
-                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 150);
-                }
-            }
-        })();
+        // Navigate to filtered URL with #peers-section so browser scrolls there
+        function goToFilteredPeers() {
+            const name  = peerNameInput  ? peerNameInput.value.trim()  : '';
+            const email = peerEmailInput ? peerEmailInput.value.trim() : '';
+            const qs    = new URLSearchParams();
+            if (name)  qs.set('peer_name',  name);
+            if (email) qs.set('peer_email', email);
+            const query = qs.toString();
+            window.location.href = baseCircleUrl + (query ? '?' + query : '') + '#peers-section';
+        }
 
-        if (peerFilterForm && (peerNameInput || peerEmailInput)) {
+        if (peerNameInput || peerEmailInput) {
             let searchTimer = null;
 
-            function submitPeerFilter() {
+            function debouncedSearch() {
                 clearTimeout(searchTimer);
-                searchTimer = setTimeout(function () {
-                    peerFilterForm.submit();
-                }, 500);
+                searchTimer = setTimeout(goToFilteredPeers, 500);
             }
 
             [peerNameInput, peerEmailInput].forEach(function (input) {
                 if (!input) return;
-                // Submit immediately on Enter
+                // Enter = immediate search
                 input.addEventListener('keydown', function (e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         clearTimeout(searchTimer);
-                        peerFilterForm.submit();
+                        goToFilteredPeers();
                     }
                 });
-                // Debounced submit while typing
-                input.addEventListener('input', submitPeerFilter);
+                // Typing = debounced search (500ms)
+                input.addEventListener('input', debouncedSearch);
             });
         }
-        // ────────────────────────────────────────────────────────────────────
+
+        // Auto-scroll to peers section when filter is active and no hash yet
+        (function () {
+            const urlParams    = new URLSearchParams(window.location.search);
+            const hasPeerFilter = urlParams.get('peer_name') || urlParams.get('peer_email');
+            if (hasPeerFilter) {
+                const section = document.getElementById('peers-section');
+                if (section) {
+                    setTimeout(function () {
+                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 200);
+                }
+            }
+        })();
+        // ─────────────────────────────────────────────────────────────────────
     });
 
 </script>
