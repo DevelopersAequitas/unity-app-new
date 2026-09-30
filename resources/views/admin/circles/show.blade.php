@@ -1547,6 +1547,38 @@ use Carbon\Carbon;
                     .replace(/'/g, "&#039;");
             }
         }
+
+        // ── Peer Search Auto-Submit ──────────────────────────────────────────
+        const peerFilterForm = document.getElementById('peerFilterForm');
+        const peerNameInput  = document.getElementById('peer_name');
+        const peerEmailInput = document.getElementById('peer_email');
+
+        if (peerFilterForm && (peerNameInput || peerEmailInput)) {
+            let searchTimer = null;
+
+            function submitPeerFilter() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    peerFilterForm.submit();
+                }, 500);
+            }
+
+            [peerNameInput, peerEmailInput].forEach(function (input) {
+                if (!input) return;
+                // Submit immediately on Enter
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        clearTimeout(searchTimer);
+                        peerFilterForm.submit();
+                    }
+                });
+                // Debounced submit while typing
+                input.addEventListener('input', submitPeerFilter);
+            });
+        }
+        // ────────────────────────────────────────────────────────────────────
     });
+
 </script>
 @endpush
