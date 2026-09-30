@@ -430,13 +430,31 @@ use Carbon\Carbon;
                 <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
                     <span>⭕</span> Circle Overview
                 </h3>
-                <div class="flex items-center gap-2 mb-4">
+                <div class="flex items-center flex-wrap gap-2 mb-4">
                     <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
                         • {{ $circleStatus }}
                     </span>
                     <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 uppercase">
                         {{ $circleType }}
                     </span>
+                    @php
+                        $isOpenCircle = strtolower((string) ($circle->type ?? 'public')) === 'public';
+                    @endphp
+                    @if($isOpenCircle)
+                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="inline-block" width="10" height="10" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                            </svg>
+                            Open
+                        </span>
+                    @else
+                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="inline-block" width="10" height="10" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM8 9a1 1 0 0 1 .993.883L9 10v2a1 1 0 0 1-1.993.117L7 12v-2A1 1 0 0 1 8 9z"/>
+                            </svg>
+                            Closed
+                        </span>
+                    @endif
                 </div>
                 <div class="space-y-2.5 text-xs border bs rounded-xl p-3.5 surface-2">
                     <div class="flex justify-between gap-4"><span class="t3">Slug</span><span class="t1 font-medium font-mono">{{ $circleSlug }}</span></div>
