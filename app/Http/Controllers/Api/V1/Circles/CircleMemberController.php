@@ -64,7 +64,7 @@ class CircleMemberController extends Controller
                 $query->where(function ($q) use ($mappedRole): void {
                     $q->whereRaw('LOWER(circle_members.role::text) = ?', [$mappedRole])
                         ->orWhereHas('roleModel', function ($rq) use ($mappedRole): void {
-                            $rq->whereRaw('LOWER(slug) = ?', [$mappedRole])
+                            $rq->whereRaw('LOWER(key) = ?', [$mappedRole])
                                 ->orWhereRaw('LOWER(name) = ?', [$mappedRole]);
                         });
                 });

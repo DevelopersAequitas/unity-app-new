@@ -171,7 +171,8 @@ class CircleMemberResource extends JsonResource
                 return [
                     'id' => $this->roleModel->id,
                     'name' => $this->roleModel->name ?? null,
-                    'slug' => $this->roleModel->slug ?? null,
+                    'slug' => $this->roleModel->key ?? $this->roleModel->name ?? null,
+                    'key' => $this->roleModel->key ?? null,
                 ];
             }),
         ];

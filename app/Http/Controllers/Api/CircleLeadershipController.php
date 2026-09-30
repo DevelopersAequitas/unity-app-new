@@ -162,11 +162,11 @@ class CircleLeadershipController extends BaseApiController
                 }
 
                 $role = strtolower(trim((string) ($m->role ?? '')));
-                $roleSlug = $m->roleModel ? strtolower(trim((string) ($m->roleModel->slug ?? $m->roleModel->name ?? ''))) : '';
+                $roleKey = $m->roleModel ? strtolower(trim((string) ($m->roleModel->key ?? $m->roleModel->name ?? ''))) : '';
                 $metaDesig = strtolower(trim((string) data_get($m->meta, 'designation', '')));
 
                 $matches = in_array($role, $slot['aliases'], true)
-                    || in_array($roleSlug, $slot['aliases'], true)
+                    || in_array($roleKey, $slot['aliases'], true)
                     || str_contains($metaDesig, strtolower(str_replace('_', ' ', $slot['role'])))
                     || ($slot['user_id'] && (string) $m->user_id === (string) $slot['user_id']);
 
@@ -349,7 +349,7 @@ class CircleLeadershipController extends BaseApiController
             ->where(function ($query): void {
                 $query->whereIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
                     ->orWhereHas('roleModel', function ($rq): void {
-                        $rq->whereIn(DB::raw('LOWER(slug)'), CircleMember::REGIONAL_ROLES)
+                        $rq->whereIn(DB::raw('LOWER(key)'), CircleMember::REGIONAL_ROLES)
                            ->orWhereIn(DB::raw('LOWER(name)'), CircleMember::REGIONAL_ROLES);
                     });
             })
@@ -453,7 +453,7 @@ class CircleLeadershipController extends BaseApiController
         $role = $member->relationLoaded('roleModel') ? $member->roleModel : null;
 
         return $this->normalizeRoleSlug(
-            $role?->slug
+            $role?->key
             ?? $role?->name
             ?? $member->role
         );
