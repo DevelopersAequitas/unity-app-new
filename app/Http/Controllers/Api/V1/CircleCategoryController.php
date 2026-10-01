@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -61,14 +63,25 @@ class CircleCategoryController extends Controller
             ], 404);
         }
 
-        $perPage = (int) $request->query('per_page', 30);
+        $perPage = (int) ($request->input('per_page') ?? $request->query('per_page', 30));
         if ($perPage <= 0) {
             $perPage = 30;
         }
 
-        $paginated = $category->level4Categories()
+        $search = trim((string) ($request->input('search') ?? $request->input('q') ?? $request->input('keyword') ?? ''));
+
+        $subcategoriesQuery = $category->level4Categories();
+
+        if ($search !== '') {
+            $subcategoriesQuery->where(function ($q) use ($search): void {
+                $q->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('slug', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $paginated = $subcategoriesQuery
             ->orderBy('sort_order')
-            ->orderBy('id')
+            ->orderBy('name')
             ->paginate($perPage);
 
         $pagination = [
@@ -104,3 +117,4 @@ class CircleCategoryController extends Controller
         ]);
     }
 }
+
