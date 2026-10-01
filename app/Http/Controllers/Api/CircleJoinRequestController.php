@@ -43,10 +43,10 @@ class CircleJoinRequestController extends BaseApiController
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
         $circleId = $request->validated('circle_id') ?? $request->input('circle_id');
-        $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
+        $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id') ?? $request->validated('circle_category_id') ?? $request->input('category_id') ?? $request->input('circle_category_id');
 
-        if (! $categoryId && $request->validated('level4_category_id')) {
-            $level4Id = $request->validated('level4_category_id');
+        $level4Id = $request->validated('level4_category_id') ?? $request->input('level4_category_id') ?? $request->input('level_4_category_id');
+        if (! $categoryId && $level4Id) {
             $level4Table = Schema::hasTable('level4_categories') ? 'level4_categories' : 'circle_category_level4';
             if (Schema::hasTable($level4Table)) {
                 $categoryId = DB::table($level4Table)
