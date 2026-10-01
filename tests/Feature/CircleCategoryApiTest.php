@@ -107,4 +107,38 @@ class CircleCategoryApiTest extends TestCase
         $this->assertCount(1, $response->json('data.items'));
         $this->assertEquals('Technology, IT & Digital Services Circles', $response->json('data.items.0.name'));
     }
+
+    public function test_can_retrieve_circle_category_with_only_level4_categories(): void
+    {
+        $category = CircleCategory::create([
+            'name' => 'Real Estate, Construction & Infrastructure',
+            'slug' => 'real-estate-construction-infrastructure',
+            'circle_key' => 'real_estate',
+            'level' => 1,
+            'is_active' => true,
+            'sort_order' => 2,
+        ]);
+
+        $category->level4Categories()->create([
+            'name' => 'Residential Developer (Mid-Segment)',
+            'slug' => 'residential-developer-mid-segment',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson('/api/v1/circle-categories/'.$category->id);
+
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.id', $category->id);
+        $response->assertJsonPath('data.counts.level4', 1);
+        $response->assertJsonPath('data.counts.total_children', 1);
+        $response->assertJsonPath('data.pagination.current_page', 1);
+        $response->assertJsonPath('data.pagination.per_page', 30);
+        $response->assertJsonPath('data.pagination.total', 1);
+        $response->assertJsonMissingPath('data.level2_categories');
+        $response->assertJsonMissingPath('data.level3_categories');
+        $response->assertJsonCount(1, 'data.level4_categories');
+        $response->assertJsonPath('data.level4_categories.0.name', 'Residential Developer (Mid-Segment)');
+    }
 }

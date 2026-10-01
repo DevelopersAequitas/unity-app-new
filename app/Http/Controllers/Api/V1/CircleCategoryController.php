@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\CircleCategory;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CircleCategoryController extends Controller
 {
@@ -40,7 +41,7 @@ class CircleCategoryController extends Controller
         ]);
     }
 
-    public function show(string $idOrSlug): JsonResponse
+    public function show(Request $request, string $idOrSlug): JsonResponse
     {
         $categoryQuery = CircleCategory::query()->where('level', 1);
 
@@ -60,24 +61,23 @@ class CircleCategoryController extends Controller
             ], 404);
         }
 
-        $level2Categories = $category->level2Categories()
+        $perPage = (int) $request->query('per_page', 30);
+        if ($perPage <= 0) {
+            $perPage = 30;
+        }
+
+        $paginated = $category->level4Categories()
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get();
+            ->paginate($perPage);
 
-        $level3Categories = $category->level3Categories()
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
-
-        $level4Categories = $category->level4Categories()
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
-
-        $level2Count = $level2Categories->count();
-        $level3Count = $level3Categories->count();
-        $level4Count = $level4Categories->count();
+        $pagination = [
+            'current_page' => $paginated->currentPage(),
+            'last_page' => $paginated->lastPage(),
+            'per_page' => $paginated->perPage(),
+            'total' => $paginated->total(),
+            'has_more' => $paginated->hasMorePages(),
+        ];
 
         return response()->json([
             'success' => true,
@@ -94,15 +94,13 @@ class CircleCategoryController extends Controller
                 'created_at' => $category->created_at,
                 'updated_at' => $category->updated_at,
                 'counts' => [
-                    'level2' => $level2Count,
-                    'level3' => $level3Count,
-                    'level4' => $level4Count,
-                    'total_children' => $level2Count + $level3Count + $level4Count,
+                    'level4' => $paginated->total(),
+                    'total_children' => $paginated->total(),
                 ],
-                'level2_categories' => $level2Categories,
-                'level3_categories' => $level3Categories,
-                'level4_categories' => $level4Categories,
+                'pagination' => $pagination,
+                'level4_categories' => $paginated->items(),
             ],
+            'pagination' => $pagination,
         ]);
     }
 }
