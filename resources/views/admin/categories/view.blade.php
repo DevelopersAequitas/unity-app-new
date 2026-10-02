@@ -243,53 +243,44 @@
             <i class="bi bi-exclamation-triangle me-1"></i> No subcategories found matching "<strong id="noSearchQuery"></strong>".
         </div>
 
-        @if(empty($children) && empty($directLevel4Categories))
+        @php
+            $hasDirectL4 = ($directLevel4Total ?? (method_exists($directLevel4Categories, 'total') ? $directLevel4Categories->total() : count($directLevel4Categories))) > 0;
+            $directL4BadgeCount = $directLevel4Total ?? (method_exists($directLevel4Categories, 'total') ? $directLevel4Categories->total() : count($directLevel4Categories));
+        @endphp
+
+        @if(empty($children) && ! $hasDirectL4)
             <p class="text-muted mb-0">No child categories found for this main category.</p>
         @else
             <div class="small text-muted mb-2">Main Category: <strong class="text-dark">{{ $category->name }}</strong></div>
 
-            @if(!empty($directLevel4Categories))
+            @if($hasDirectL4)
                 <div class="border rounded p-3 mb-3 bg-light tree-section" id="directL4Section">
                     <div class="fw-semibold text-dark mb-2 pb-2 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-2">
-                            <input class="form-check-input section-select-all m-0" type="checkbox" id="selectAllDirectL4" data-target="#directL4Section" title="Select all Direct Level 4 categories">
+                            <input class="form-check-input section-select-all m-0" type="checkbox" id="selectAllDirectL4" data-target="#directL4Section" title="Select all Direct Level 4 categories on this page">
                             <label for="selectAllDirectL4" class="mb-0 cursor-pointer user-select-none">Direct Subcategories (Level 4)</label>
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <button type="button" class="btn btn-link p-0 text-decoration-none select-section-toggle-btn small text-muted" data-target="#directL4Section" style="font-size: 0.75rem;">
                                 Select Section
                             </button>
-                            <span class="badge bg-secondary-subtle text-secondary border section-count-badge" data-total-count="{{ count($directLevel4Categories) }}">{{ count($directLevel4Categories) }}</span>
+                            <span class="badge bg-secondary-subtle text-secondary border section-count-badge" id="directL4TotalBadge" data-total-count="{{ $directL4BadgeCount }}">{{ number_format($directL4BadgeCount) }}</span>
                         </div>
                     </div>
-                    <ul class="list-unstyled mb-0">
-                        @foreach($directLevel4Categories as $level4Category)
-                            <li class="justify-content-between align-items-center py-1 tree-category-item" data-name="{{ strtolower($level4Category->name) }}">
-                                <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate pe-2">
-                                    <input type="checkbox" class="form-check-input category-select-checkbox m-0" name="level4_ids[]" value="{{ $level4Category->id }}" id="cat_l4_{{ $level4Category->id }}" form="bulkDeleteCategoriesForm">
-                                    <label class="text-muted item-name mb-0 cursor-pointer user-select-none text-truncate" for="cat_l4_{{ $level4Category->id }}">
-                                        • Level 4: <span class="category-name-text">{{ $level4Category->name }}</span>
-                                    </label>
-                                </div>
-                                <div class="d-flex align-items-center gap-1 flex-shrink-0">
-                                    <button type="button" class="btn btn-sm btn-outline-primary border-0 p-1 edit-category-btn" 
-                                        data-name="{{ $level4Category->name }}" 
-                                        data-level="Level 4" 
-                                        data-url="{{ route('admin.categories.level4.update', $level4Category) }}" 
-                                        title="Edit Level 4 Category">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <form method="POST" action="{{ route('admin.categories.level4.destroy', $level4Category) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Level 4 category?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Level 4 Category">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
+                    
+                    <div class="position-relative" id="directL4Wrapper">
+                        <div id="directL4Loading" class="position-absolute top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-none align-items-center justify-content-center rounded" style="z-index: 5; min-height: 100px;">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                            <span class="small text-muted fw-medium">Loading subcategories...</span>
+                        </div>
+                        <ul class="list-unstyled mb-0" id="directL4List">
+                            @include('admin.categories.partials.direct_level4_items', ['directLevel4Categories' => $directLevel4Categories])
+                        </ul>
+                    </div>
+
+                    <div id="directL4Pagination" class="mt-3 pt-2 border-top">
+                        @include('admin.categories.partials.direct_level4_pagination', ['paginator' => $directLevel4Categories])
+                    </div>
                 </div>
             @endif
 
@@ -564,8 +555,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // -------------------------------------------------------------
-    // Category Tree Live Search & Filter
+    // State & Selection Map (Persists selected items across pages)
     // -------------------------------------------------------------
+    const selectedCategoryMap = new Map(); // id -> { name: 'level4_ids[]', value: id }
+    let currentPage = {{ method_exists($directLevel4Categories, 'currentPage') ? $directLevel4Categories->currentPage() : 1 }};
+    let currentPerPage = {{ method_exists($directLevel4Categories, 'perPage') ? $directLevel4Categories->perPage() : 50 }};
+    let currentSearchQuery = '';
+    const viewUrl = "{{ route('admin.categories.view', $category) }}";
+
+    const directL4Section = document.getElementById('directL4Section');
+    const directL4List = document.getElementById('directL4List');
+    const directL4Pagination = document.getElementById('directL4Pagination');
+    const directL4Loading = document.getElementById('directL4Loading');
+    const directL4TotalBadge = document.getElementById('directL4TotalBadge');
+
     const searchInput = document.getElementById('categoryTreeSearch');
     const searchBtn = document.getElementById('categoryTreeSearchBtn');
     const clearBtn = document.getElementById('categoryTreeClearBtn');
@@ -575,6 +578,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const noSearchQueryText = document.getElementById('noSearchQuery');
     const dismissCountBtn = document.getElementById('searchCountDismiss');
 
+    // -------------------------------------------------------------
+    // Helper Display Utilities
+    // -------------------------------------------------------------
     const hideTreeElement = (el) => {
         if (!el) return;
         el.classList.add('search-hidden', 'd-none');
@@ -602,15 +608,147 @@ document.addEventListener('DOMContentLoaded', function () {
         return el.offsetParent !== null;
     }
 
-    if (searchInput) {
-        // Store original text content for highlights
-        const textNodes = document.querySelectorAll('.category-name-text');
-        textNodes.forEach((node) => {
-            node.dataset.originalText = node.textContent;
-        });
+    const escapeRegex = (string) => {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
 
+    const highlightText = (el, text, term) => {
+        if (!el || !text) return;
+        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+        el.innerHTML = text.replace(regex, '<mark class="bg-warning-subtle text-dark px-1 rounded">$1</mark>');
+    };
+
+    // Store original text content of Level 2 / Level 3 nodes for highlights
+    const storeOriginalTexts = () => {
+        document.querySelectorAll('.category-name-text').forEach((node) => {
+            if (!node.dataset.originalText) {
+                node.dataset.originalText = node.textContent.trim();
+            }
+        });
+    };
+    storeOriginalTexts();
+
+    // -------------------------------------------------------------
+    // Non-Reloadable (AJAX) Direct Level 4 Pagination Loader
+    // -------------------------------------------------------------
+    function loadDirectL4Data(page = 1, perPage = currentPerPage, searchQuery = currentSearchQuery, callback = null) {
+        if (!directL4List) {
+            if (typeof callback === 'function') callback(0);
+            return;
+        }
+
+        if (directL4Loading) {
+            directL4Loading.classList.remove('d-none');
+            directL4Loading.classList.add('d-flex');
+        }
+
+        const url = new URL(viewUrl, window.location.origin);
+        url.searchParams.set('page', page);
+        url.searchParams.set('per_page', perPage);
+        url.searchParams.set('ajax', '1');
+        if (searchQuery) {
+            url.searchParams.set('search', searchQuery);
+        }
+
+        fetch(url.toString(), {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network error loading categories');
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                currentPage = data.current_page || page;
+                currentPerPage = data.per_page || perPage;
+
+                // Update items list and pagination container
+                directL4List.innerHTML = data.items_html;
+                if (directL4Pagination) {
+                    directL4Pagination.innerHTML = data.pagination_html;
+                }
+
+                // Update total count badge
+                if (directL4TotalBadge) {
+                    const displayTotal = searchQuery ? (data.total || 0) : (data.direct_total || data.total || 0);
+                    directL4TotalBadge.textContent = Number(displayTotal).toLocaleString();
+                }
+
+                // If searching and there are items, highlight search terms in direct L4
+                if (searchQuery) {
+                    directL4List.querySelectorAll('.category-name-text').forEach(node => {
+                        node.dataset.originalText = node.textContent.trim();
+                        highlightText(node, node.dataset.originalText, searchQuery);
+                    });
+                } else {
+                    storeOriginalTexts();
+                }
+
+                // Restore checked state for any checkboxes matching selectedCategoryMap
+                directL4List.querySelectorAll('.category-select-checkbox').forEach(cb => {
+                    if (selectedCategoryMap.has(cb.value)) {
+                        cb.checked = true;
+                    }
+                });
+
+                // Show or hide direct L4 section based on total matches
+                if (searchQuery && (data.total === 0)) {
+                    hideTreeElement(directL4Section);
+                } else {
+                    showTreeElement(directL4Section, 'block');
+                }
+
+                updateBulkUi();
+
+                if (typeof callback === 'function') {
+                    callback(data.total || 0);
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Failed to load subcategories:', err);
+        })
+        .finally(() => {
+            if (directL4Loading) {
+                directL4Loading.classList.add('d-none');
+                directL4Loading.classList.remove('d-flex');
+            }
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Pagination & Per-Page Event Handlers (No Page Reload)
+    // -------------------------------------------------------------
+    document.addEventListener('click', function (e) {
+        const pageLink = e.target.closest('.ajax-page-link');
+        if (!pageLink) return;
+
+        e.preventDefault();
+        const targetPage = parseInt(pageLink.dataset.page, 10);
+        if (isNaN(targetPage) || targetPage < 1) return;
+        if (pageLink.closest('.disabled') || pageLink.parentElement.classList.contains('active')) return;
+
+        loadDirectL4Data(targetPage, currentPerPage, currentSearchQuery);
+    });
+
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.id === 'directL4PerPage') {
+            currentPerPage = parseInt(e.target.value, 10) || 50;
+            currentPage = 1;
+            loadDirectL4Data(1, currentPerPage, currentSearchQuery);
+        }
+    });
+
+    // -------------------------------------------------------------
+    // Category Tree Live Search & Server Filter
+    // -------------------------------------------------------------
+    if (searchInput) {
         const performSearch = () => {
-            const query = (searchInput.value || '').trim().toLowerCase();
+            const query = (searchInput.value || '').trim();
+            currentSearchQuery = query;
 
             if (!query) {
                 resetSearch();
@@ -618,67 +756,37 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             clearBtn.style.display = 'inline-block';
-            let matchCount = 0;
+            let treeMatchCount = 0;
+            const lowerQuery = query.toLowerCase();
 
-            // 1. Filter direct Level 4 section
-            const directSection = document.getElementById('directL4Section');
-            if (directSection) {
-                let directMatchCount = 0;
-                const directItems = directSection.querySelectorAll('.tree-category-item');
-                directItems.forEach((item) => {
-                    const textSpan = item.querySelector('.category-name-text');
-                    const originalText = textSpan ? textSpan.dataset.originalText : item.dataset.name;
-                    if (originalText.toLowerCase().includes(query)) {
-                        showTreeElement(item, 'flex');
-                        highlightText(textSpan, originalText, query);
-                        directMatchCount++;
-                        matchCount++;
-                    } else {
-                        hideTreeElement(item);
-                        if (textSpan) textSpan.textContent = originalText;
-                    }
-                });
-
-                if (directMatchCount > 0) {
-                    showTreeElement(directSection, 'block');
-                } else {
-                    hideTreeElement(directSection);
-                }
-
-                const directBadge = directSection.querySelector('.section-count-badge');
-                if (directBadge) {
-                    directBadge.textContent = directMatchCount;
-                }
-            }
-
-            // 2. Filter Level 2 sections
+            // Filter Level 2 and Level 3 sections in DOM
             const level2Sections = document.querySelectorAll('.tree-level2-section');
             level2Sections.forEach((l2Sec) => {
                 const l2TextSpan = l2Sec.querySelector('label[for^="cat_l2_"] .category-name-text') || l2Sec.querySelector('.category-name-text');
-                const l2OriginalText = l2TextSpan ? l2TextSpan.dataset.originalText : l2Sec.dataset.name;
-                const l2Matches = l2OriginalText.toLowerCase().includes(query);
+                const l2OriginalText = l2TextSpan ? (l2TextSpan.dataset.originalText || l2TextSpan.textContent.trim()) : l2Sec.dataset.name;
+                const l2Matches = (l2OriginalText || '').toLowerCase().includes(lowerQuery);
                 let l2HasChildMatch = false;
 
                 if (l2Matches) {
                     highlightText(l2TextSpan, l2OriginalText, query);
-                    matchCount++;
+                    treeMatchCount++;
                 } else if (l2TextSpan) {
                     l2TextSpan.textContent = l2OriginalText;
                 }
 
-                // Check direct Level 4 items inside this Level 2
+                // Check direct Level 4 inside Level 2
                 const directL4Group = l2Sec.querySelector('.tree-direct-l4-group');
                 if (directL4Group) {
                     let directL4GroupMatch = 0;
                     const items = directL4Group.querySelectorAll('.tree-category-item');
                     items.forEach((item) => {
                         const span = item.querySelector('.category-name-text');
-                        const orig = span ? span.dataset.originalText : item.dataset.name;
-                        const itemMatches = orig.toLowerCase().includes(query);
+                        const orig = span ? (span.dataset.originalText || span.textContent.trim()) : item.dataset.name;
+                        const itemMatches = (orig || '').toLowerCase().includes(lowerQuery);
                         if (itemMatches) {
                             showTreeElement(item, 'flex');
                             highlightText(span, orig, query);
-                            matchCount++;
+                            treeMatchCount++;
                             directL4GroupMatch++;
                             l2HasChildMatch = true;
                         } else {
@@ -694,17 +802,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Check Level 3 sections inside this Level 2
+                // Check Level 3 sections inside Level 2
                 const level3Sections = l2Sec.querySelectorAll('.tree-level3-section');
                 level3Sections.forEach((l3Sec) => {
                     const l3TextSpan = l3Sec.querySelector('label[for^="cat_l3_"] .category-name-text') || l3Sec.querySelector('.category-name-text');
-                    const l3OriginalText = l3TextSpan ? l3TextSpan.dataset.originalText : l3Sec.dataset.name;
-                    const l3Matches = l3OriginalText.toLowerCase().includes(query);
+                    const l3OriginalText = l3TextSpan ? (l3TextSpan.dataset.originalText || l3TextSpan.textContent.trim()) : l3Sec.dataset.name;
+                    const l3Matches = (l3OriginalText || '').toLowerCase().includes(lowerQuery);
                     let l4MatchesInL3 = 0;
 
                     if (l3Matches) {
                         highlightText(l3TextSpan, l3OriginalText, query);
-                        matchCount++;
+                        treeMatchCount++;
                     } else if (l3TextSpan) {
                         l3TextSpan.textContent = l3OriginalText;
                     }
@@ -712,12 +820,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     const l4Items = l3Sec.querySelectorAll('.tree-category-item');
                     l4Items.forEach((l4Item) => {
                         const l4Span = l4Item.querySelector('.category-name-text');
-                        const l4Orig = l4Span ? l4Span.dataset.originalText : l4Item.dataset.name;
-                        const l4Matches = l4Orig.toLowerCase().includes(query);
+                        const l4Orig = l4Span ? (l4Span.dataset.originalText || l4Span.textContent.trim()) : l4Item.dataset.name;
+                        const l4Matches = (l4Orig || '').toLowerCase().includes(lowerQuery);
                         if (l4Matches) {
                             showTreeElement(l4Item, 'flex');
                             highlightText(l4Span, l4Orig, query);
-                            matchCount++;
+                            treeMatchCount++;
                             l4MatchesInL3++;
                         } else {
                             hideTreeElement(l4Item);
@@ -738,11 +846,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
 
-                const l2NoSubsNote = l2Sec.querySelector('.no-subs-note');
-                if (l2NoSubsNote) {
-                    l2NoSubsNote.style.display = 'none';
-                }
-
                 if (l2Matches || l2HasChildMatch) {
                     showTreeElement(l2Sec, 'block');
                 } else {
@@ -750,71 +853,61 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-            // Summary notification
-            if (matchCount > 0) {
-                noResultsBox.style.display = 'none';
-                resultsCountText.textContent = `Found ${matchCount} matching category item${matchCount === 1 ? '' : 's'}.`;
-                resultsCountBox.style.setProperty('display', 'flex', 'important');
-            } else {
-                resultsCountBox.style.setProperty('display', 'none', 'important');
-                noSearchQueryText.textContent = searchInput.value.trim();
-                noResultsBox.style.display = 'block';
-            }
-
-            if (typeof updateBulkUi === 'function') {
-                updateBulkUi();
-            }
+            // Perform non-reloadable AJAX search on Direct Level 4 categories
+            currentPage = 1;
+            loadDirectL4Data(1, currentPerPage, query, (directTotal) => {
+                const totalMatches = treeMatchCount + directTotal;
+                if (totalMatches > 0) {
+                    noResultsBox.style.display = 'none';
+                    resultsCountText.textContent = `Found ${totalMatches} matching category item${totalMatches === 1 ? '' : 's'}.`;
+                    resultsCountBox.style.setProperty('display', 'flex', 'important');
+                } else {
+                    resultsCountBox.style.setProperty('display', 'none', 'important');
+                    noSearchQueryText.textContent = query;
+                    noResultsBox.style.display = 'block';
+                }
+            });
         };
 
         const resetSearch = () => {
             searchInput.value = '';
+            currentSearchQuery = '';
             clearBtn.style.display = 'none';
             resultsCountBox.style.setProperty('display', 'none', 'important');
             noResultsBox.style.display = 'none';
 
-            // Restore all items
-            document.querySelectorAll('.tree-section').forEach(resetTreeElement);
+            // Restore Level 2 / Level 3 sections
+            document.querySelectorAll('.tree-level2-section').forEach(resetTreeElement);
             document.querySelectorAll('.tree-direct-l4-group').forEach(resetTreeElement);
             document.querySelectorAll('.tree-level3-section').forEach(resetTreeElement);
             document.querySelectorAll('.tree-category-item').forEach(resetTreeElement);
             document.querySelectorAll('.no-subs-note').forEach(el => el.style.display = '');
 
-            // Restore badges
-            document.querySelectorAll('.section-count-badge').forEach(b => {
-                if (b.dataset.totalCount) {
-                    b.textContent = b.dataset.totalCount;
-                }
-            });
-
-            // Restore text
-            textNodes.forEach((node) => {
+            // Restore text labels
+            document.querySelectorAll('.category-name-text').forEach((node) => {
                 if (node.dataset.originalText) {
                     node.textContent = node.dataset.originalText;
                 }
             });
 
-            if (typeof updateBulkUi === 'function') {
-                updateBulkUi();
-            }
+            // Reset Direct Level 4 categories via AJAX without page reload
+            currentPage = 1;
+            loadDirectL4Data(1, currentPerPage, '');
         };
 
-        const highlightText = (el, text, term) => {
-            if (!el || !text) return;
-            const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
-            el.innerHTML = text.replace(regex, '<mark class="bg-warning-subtle text-dark px-1 rounded">$1</mark>');
-        };
+        // Debounce search input for silky-smooth experience
+        let searchTimeout = null;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(performSearch, 350);
+        });
 
-        const escapeRegex = (string) => {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        };
-
-        // Event listeners
-        searchInput.addEventListener('input', performSearch);
         searchBtn.addEventListener('click', performSearch);
         clearBtn.addEventListener('click', resetSearch);
         searchInput.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                clearTimeout(searchTimeout);
                 performSearch();
             }
         });
@@ -827,37 +920,38 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // -------------------------------------------------------------
-    // Edit Child Category Modal Handler
+    // Edit Child Category Modal Handler (Event Delegation)
     // -------------------------------------------------------------
     const editModalEl = document.getElementById('editChildCategoryModal');
     const editForm = document.getElementById('editChildCategoryForm');
     const editNameInput = document.getElementById('editChildCategoryNameInput');
     const editLevelBadge = document.getElementById('editChildCategoryLevelBadge');
 
-    document.querySelectorAll('.edit-category-btn').forEach((btn) => {
-        btn.addEventListener('click', function () {
-            const url = this.dataset.url;
-            const name = this.dataset.name;
-            const level = this.dataset.level || 'Category';
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.edit-category-btn');
+        if (!btn) return;
 
-            if (editForm && editNameInput && editLevelBadge && editModalEl) {
-                editForm.action = url;
-                editNameInput.value = name;
-                editLevelBadge.textContent = level;
+        const url = btn.dataset.url;
+        const name = btn.dataset.name;
+        const level = btn.dataset.level || 'Category';
 
-                if (window.bootstrap && typeof bootstrap.Modal !== 'undefined') {
-                    const modal = bootstrap.Modal.getOrCreateInstance(editModalEl);
-                    modal.show();
-                } else if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
-                    $(editModalEl).modal('show');
-                } else {
-                    editModalEl.classList.add('show');
-                    editModalEl.style.display = 'block';
-                }
+        if (editForm && editNameInput && editLevelBadge && editModalEl) {
+            editForm.action = url;
+            editNameInput.value = name;
+            editLevelBadge.textContent = level;
 
-                setTimeout(() => editNameInput.focus(), 400);
+            if (window.bootstrap && typeof bootstrap.Modal !== 'undefined') {
+                const modal = bootstrap.Modal.getOrCreateInstance(editModalEl);
+                modal.show();
+            } else if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+                $(editModalEl).modal('show');
+            } else {
+                editModalEl.classList.add('show');
+                editModalEl.style.display = 'block';
             }
-        });
+
+            setTimeout(() => editNameInput.focus(), 400);
+        }
     });
 
     // -------------------------------------------------------------
@@ -893,19 +987,14 @@ document.addEventListener('DOMContentLoaded', function () {
         return Array.from(document.querySelectorAll('.category-select-checkbox'));
     }
 
-    function getCheckedCategoryCheckboxes() {
-        return Array.from(document.querySelectorAll('.category-select-checkbox:checked'));
-    }
-
     function updateBulkUi() {
-        const checkedList = getCheckedCategoryCheckboxes();
-        const count = checkedList.length;
+        const count = selectedCategoryMap.size;
         const visibleCheckboxes = getVisibleCategoryCheckboxes();
-        const allVisibleChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
+        const allVisibleChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => selectedCategoryMap.has(cb.value));
 
         // Update header button text
         if (selectAllBtnText) {
-            selectAllBtnText.textContent = allVisibleChecked ? 'Deselect All' : 'Select All';
+            selectAllBtnText.textContent = allVisibleChecked ? 'Deselect All Visible' : 'Select All Visible';
         }
 
         if (headerSelectedCount) {
@@ -958,24 +1047,37 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const checkedInSection = visibleSectionCheckboxes.filter(cb => cb.checked).length;
+            const checkedInSection = visibleSectionCheckboxes.filter(cb => selectedCategoryMap.has(cb.value)).length;
             sectionCb.checked = checkedInSection === visibleSectionCheckboxes.length;
             sectionCb.indeterminate = checkedInSection > 0 && checkedInSection < visibleSectionCheckboxes.length;
         });
     }
 
-    // Individual checkbox change
-    document.querySelectorAll('.category-select-checkbox').forEach(cb => {
-        cb.addEventListener('change', updateBulkUi);
+    // Individual checkbox change using event delegation
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.classList.contains('category-select-checkbox')) {
+            const cb = e.target;
+            if (cb.checked) {
+                selectedCategoryMap.set(cb.value, { name: cb.name, value: cb.value });
+            } else {
+                selectedCategoryMap.delete(cb.value);
+            }
+            updateBulkUi();
+        }
     });
 
     // Toggle Select All Visible
     if (selectAllBtn) {
         selectAllBtn.addEventListener('click', function () {
             const visible = getVisibleCategoryCheckboxes();
-            const allVisibleChecked = visible.length > 0 && visible.every(cb => cb.checked);
+            const allVisibleChecked = visible.length > 0 && visible.every(cb => selectedCategoryMap.has(cb.value));
             visible.forEach(cb => {
                 cb.checked = !allVisibleChecked;
+                if (!allVisibleChecked) {
+                    selectedCategoryMap.set(cb.value, { name: cb.name, value: cb.value });
+                } else {
+                    selectedCategoryMap.delete(cb.value);
+                }
             });
             updateBulkUi();
         });
@@ -986,6 +1088,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const visible = getVisibleCategoryCheckboxes();
             visible.forEach(cb => {
                 cb.checked = true;
+                selectedCategoryMap.set(cb.value, { name: cb.name, value: cb.value });
             });
             updateBulkUi();
         });
@@ -993,6 +1096,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (bulkClearSelectionBtn) {
         bulkClearSelectionBtn.addEventListener('click', function () {
+            selectedCategoryMap.clear();
             getAllCategoryCheckboxes().forEach(cb => {
                 cb.checked = false;
             });
@@ -1000,56 +1104,68 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Section checkboxes and buttons
-    document.querySelectorAll('.section-select-all').forEach(sectionCb => {
-        sectionCb.addEventListener('change', function () {
-            const targetSelector = this.dataset.target;
+    // Section checkboxes and buttons using event delegation
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.classList.contains('section-select-all')) {
+            const sectionCb = e.target;
+            const targetSelector = sectionCb.dataset.target;
             if (!targetSelector) return;
             const container = document.querySelector(targetSelector);
             if (!container) return;
 
-            const isChecked = this.checked;
+            const isChecked = sectionCb.checked;
             container.querySelectorAll('.category-select-checkbox').forEach(cb => {
                 const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
                 if (!item || (isItemVisible(item) && isItemVisible(cb))) {
                     cb.checked = isChecked;
+                    if (isChecked) {
+                        selectedCategoryMap.set(cb.value, { name: cb.name, value: cb.value });
+                    } else {
+                        selectedCategoryMap.delete(cb.value);
+                    }
                 }
             });
             updateBulkUi();
-        });
+        }
     });
 
-    document.querySelectorAll('.select-section-toggle-btn').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            const targetSelector = this.dataset.target;
-            if (!targetSelector) return;
-            const container = document.querySelector(targetSelector);
-            if (!container) return;
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.select-section-toggle-btn');
+        if (!btn) return;
 
-            const checkboxes = Array.from(container.querySelectorAll('.category-select-checkbox')).filter(cb => {
-                const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
-                return !item || (isItemVisible(item) && isItemVisible(cb));
-            });
+        e.preventDefault();
+        const targetSelector = btn.dataset.target;
+        if (!targetSelector) return;
+        const container = document.querySelector(targetSelector);
+        if (!container) return;
 
-            const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
-            checkboxes.forEach(cb => {
-                cb.checked = !allChecked;
-            });
-            updateBulkUi();
+        const checkboxes = Array.from(container.querySelectorAll('.category-select-checkbox')).filter(cb => {
+            const item = cb.closest('.tree-category-item, .tree-level2-section, .tree-level3-section');
+            return !item || (isItemVisible(item) && isItemVisible(cb));
         });
+
+        const allChecked = checkboxes.length > 0 && checkboxes.every(cb => selectedCategoryMap.has(cb.value));
+        checkboxes.forEach(cb => {
+            cb.checked = !allChecked;
+            if (!allChecked) {
+                selectedCategoryMap.set(cb.value, { name: cb.name, value: cb.value });
+            } else {
+                selectedCategoryMap.delete(cb.value);
+            }
+        });
+        updateBulkUi();
     });
 
     // Open confirmation modal
     const openBulkDeleteModal = () => {
-        const checkedList = getCheckedCategoryCheckboxes();
-        if (checkedList.length === 0) {
+        const count = selectedCategoryMap.size;
+        if (count === 0) {
             alert('Please select at least one category to delete.');
             return;
         }
 
         if (bulkModalCount) {
-            bulkModalCount.textContent = checkedList.length;
+            bulkModalCount.textContent = count;
         }
 
         if (bulkDeleteModalEl) {
@@ -1059,12 +1175,12 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
                 $(bulkDeleteModalEl).modal('show');
             } else {
-                if (confirm(`Are you sure you want to delete the ${checkedList.length} selected categories?`)) {
+                if (confirm(`Are you sure you want to delete the ${count} selected categories?`)) {
                     submitBulkDelete();
                 }
             }
         } else {
-            if (confirm(`Are you sure you want to delete the ${checkedList.length} selected categories?`)) {
+            if (confirm(`Are you sure you want to delete the ${count} selected categories?`)) {
                 submitBulkDelete();
             }
         }
@@ -1084,12 +1200,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // Clear existing dynamically generated inputs in form
         bulkForm.querySelectorAll('input[type="hidden"]:not([name="_token"])').forEach(el => el.remove());
 
-        // Append inputs for all checked items
-        getCheckedCategoryCheckboxes().forEach(cb => {
+        // Append inputs for all checked items stored in selectedCategoryMap
+        selectedCategoryMap.forEach(item => {
             const input = document.createElement('input');
             input.type = 'hidden';
-            input.name = cb.name;
-            input.value = cb.value;
+            input.name = item.name;
+            input.value = item.value;
             bulkForm.appendChild(input);
         });
 

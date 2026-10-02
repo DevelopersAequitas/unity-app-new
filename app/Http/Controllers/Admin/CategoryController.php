@@ -12,10 +12,12 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Services\Admin\CategoryBulkActionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -54,30 +56,66 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function show(CircleCategory $category): View
+    public function show(Request $request, CircleCategory $category): View|JsonResponse
     {
         abort_unless((int) $category->level === 1 && $category->is_active, 404);
 
-        $level2Categories = CircleCategoryLevel2::query()
+        $level2Table = (new CircleCategoryLevel2)->getTable();
+        $hasLevel2Table = Schema::hasTable($level2Table);
+        $level2Categories = $hasLevel2Table ? CircleCategoryLevel2::query()
             ->where('circle_category_id', $category->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get();
+            ->get() : collect();
 
-        $level3Categories = CircleCategoryLevel3::query()
+        $level3Table = (new CircleCategoryLevel3)->getTable();
+        $hasLevel3Table = Schema::hasTable($level3Table);
+        $level3Categories = $hasLevel3Table ? CircleCategoryLevel3::query()
             ->where('circle_category_id', $category->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get();
+            ->get() : collect();
 
-        $level4Categories = CircleCategoryLevel4::query()
-            ->where('circle_category_id', $category->id)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
+        $level4Table = (new CircleCategoryLevel4)->getTable();
+        $hasLevel2Col = Schema::hasColumn($level4Table, 'level2_id');
+        $hasLevel2AltCol = Schema::hasColumn($level4Table, 'circle_category_level2_id');
+        $hasLevel3Col = Schema::hasColumn($level4Table, 'level3_id');
+        $hasLevel3AltCol = Schema::hasColumn($level4Table, 'circle_category_level3_id');
+
+        // Retrieve only hierarchical Level 4 categories (attached to Level 2 or Level 3)
+        $hierarchicalLevel4 = collect();
+        if ($hasLevel2Col || $hasLevel2AltCol || $hasLevel3Col || $hasLevel3AltCol) {
+            $hierarchicalLevel4 = CircleCategoryLevel4::query()
+                ->where('circle_category_id', $category->id)
+                ->where('is_active', true)
+                ->where(function ($query) use ($hasLevel2Col, $hasLevel2AltCol, $hasLevel3Col, $hasLevel3AltCol) {
+                    $hasAny = false;
+                    if ($hasLevel2Col) {
+                        $query->whereNotNull('level2_id');
+                        $hasAny = true;
+                    }
+                    if ($hasLevel2AltCol) {
+                        $hasAny ? $query->orWhereNotNull('circle_category_level2_id') : $query->whereNotNull('circle_category_level2_id');
+                        $hasAny = true;
+                    }
+                    if ($hasLevel3Col) {
+                        $hasAny ? $query->orWhereNotNull('level3_id') : $query->whereNotNull('level3_id');
+                        $hasAny = true;
+                    }
+                    if ($hasLevel3AltCol) {
+                        $hasAny ? $query->orWhereNotNull('circle_category_level3_id') : $query->whereNotNull('circle_category_level3_id');
+                        $hasAny = true;
+                    }
+                    if (! $hasAny) {
+                        $query->whereRaw('1 = 0');
+                    }
+                })
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get();
+        }
 
         $level3ByLevel2 = [];
         foreach ($level3Categories as $level3Category) {
@@ -91,18 +129,15 @@ class CategoryController extends Controller
 
         $level4ByLevel3 = [];
         $level4ByLevel2Direct = [];
-        $directLevel4Categories = [];
 
-        foreach ($level4Categories as $level4Category) {
-            $level3Id = $level4Category->level3_id ?? $level4Category->circle_category_level3_id ?? null;
-            $level2Id = $level4Category->level2_id ?? $level4Category->circle_category_level2_id ?? null;
+        foreach ($hierarchicalLevel4 as $hLevel4) {
+            $level3Id = $hLevel4->level3_id ?? $hLevel4->circle_category_level3_id ?? null;
+            $level2Id = $hLevel4->level2_id ?? $hLevel4->circle_category_level2_id ?? null;
 
             if ($level3Id !== null) {
-                $level4ByLevel3[$level3Id][] = $level4Category;
+                $level4ByLevel3[$level3Id][] = $hLevel4;
             } elseif ($level2Id !== null) {
-                $level4ByLevel2Direct[$level2Id][] = $level4Category;
-            } else {
-                $directLevel4Categories[] = $level4Category;
+                $level4ByLevel2Direct[$level2Id][] = $hLevel4;
             }
         }
 
@@ -123,18 +158,79 @@ class CategoryController extends Controller
             ];
         }
 
+        // Direct Level 4 Categories query (without Level 2/3 parents)
+        $directL4BaseQuery = CircleCategoryLevel4::query()
+            ->where('circle_category_id', $category->id)
+            ->where('is_active', true)
+            ->where(function ($query) use ($hasLevel2Col, $hasLevel2AltCol, $hasLevel3Col, $hasLevel3AltCol) {
+                if ($hasLevel2Col) {
+                    $query->whereNull('level2_id');
+                }
+                if ($hasLevel2AltCol) {
+                    $query->whereNull('circle_category_level2_id');
+                }
+                if ($hasLevel3Col) {
+                    $query->whereNull('level3_id');
+                }
+                if ($hasLevel3AltCol) {
+                    $query->whereNull('circle_category_level3_id');
+                }
+            });
+
+        $directLevel4Total = (clone $directL4BaseQuery)->count();
+
+        $search = trim((string) $request->input('search', ''));
+        $directL4Query = clone $directL4BaseQuery;
+        if ($search !== '') {
+            $operator = DB::getDriverName() === 'pgsql' ? 'ILIKE' : 'LIKE';
+            $directL4Query->where('name', $operator, '%'.$search.'%');
+        }
+
+        $perPage = (int) $request->input('per_page', 50);
+        if (! in_array($perPage, [15, 25, 50, 100, 200], true)) {
+            $perPage = 50;
+        }
+
+        $directLevel4Categories = $directL4Query
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->paginate($perPage)
+            ->withQueryString();
+
         $level2Count = $level2Categories->count();
         $level3Count = $level3Categories->count();
-        $level4Count = $level4Categories->count();
+        $level4Count = $directLevel4Total + $hierarchicalLevel4->count();
+        $totalChildren = $level2Count + $level3Count + $level4Count;
+
+        if ($request->ajax() || $request->wantsJson() || $request->boolean('ajax')) {
+            return response()->json([
+                'success' => true,
+                'items_html' => view('admin.categories.partials.direct_level4_items', [
+                    'directLevel4Categories' => $directLevel4Categories,
+                ])->render(),
+                'pagination_html' => view('admin.categories.partials.direct_level4_pagination', [
+                    'paginator' => $directLevel4Categories,
+                ])->render(),
+                'total' => $directLevel4Categories->total(),
+                'direct_total' => $directLevel4Total,
+                'current_page' => $directLevel4Categories->currentPage(),
+                'last_page' => $directLevel4Categories->lastPage(),
+                'per_page' => $directLevel4Categories->perPage(),
+                'from' => $directLevel4Categories->firstItem() ?? 0,
+                'to' => $directLevel4Categories->lastItem() ?? 0,
+                'search' => $search,
+            ]);
+        }
 
         return view('admin.categories.view', [
             'category' => $category,
             'level2Count' => $level2Count,
             'level3Count' => $level3Count,
             'level4Count' => $level4Count,
-            'totalChildren' => $level2Count + $level3Count + $level4Count,
+            'totalChildren' => $totalChildren,
             'children' => $children,
             'directLevel4Categories' => $directLevel4Categories,
+            'directLevel4Total' => $directLevel4Total,
             'level2Options' => $level2Categories,
             'level3Options' => $level3Categories,
         ]);
