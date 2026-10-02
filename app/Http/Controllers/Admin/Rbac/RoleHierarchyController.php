@@ -26,7 +26,9 @@ class RoleHierarchyController extends Controller
 
     public function index(Request $request): View|JsonResponse
     {
-        $rolesQuery = Role::query()->where('status', 'active');
+        $rolesQuery = Role::query()->where(function ($q) {
+            $q->where('status', 'active')->orWhereNull('status');
+        });
         if (Schema::hasColumn('roles', 'hierarchy_depth')) {
             $rolesQuery->orderBy('hierarchy_depth');
         }
@@ -86,7 +88,9 @@ class RoleHierarchyController extends Controller
 
     public function fullMap(): View
     {
-        $rolesQuery = Role::query()->where('status', 'active');
+        $rolesQuery = Role::query()->where(function ($q) {
+            $q->where('status', 'active')->orWhereNull('status');
+        });
         if (Schema::hasColumn('roles', 'hierarchy_depth')) {
             $rolesQuery->orderBy('hierarchy_depth');
         }

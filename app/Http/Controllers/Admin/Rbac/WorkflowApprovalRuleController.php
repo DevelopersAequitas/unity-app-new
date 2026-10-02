@@ -26,8 +26,9 @@ class WorkflowApprovalRuleController extends Controller
 
         $modules = AdminModule::query()->active()->orderBy('sort_order')->get();
         $roles = Role::query()
-            ->where('status', 'active')
-            ->whereNotIn('key', ['global_admin', 'global_founder'])
+            ->where(function ($q) {
+                $q->where('status', 'active')->orWhereNull('status');
+            })
             ->orderBy('name')
             ->get();
 
