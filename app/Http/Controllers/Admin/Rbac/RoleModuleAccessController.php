@@ -23,7 +23,9 @@ class RoleModuleAccessController extends Controller
     public function index(Request $request): View|JsonResponse
     {
         $roles = Role::query()
-            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->where('status', 'active')->orWhereNull('status');
+            })
             ->whereNotIn('key', ['global_admin', 'global_founder'])
             ->orderBy('hierarchy_depth')
             ->orderBy('name')
