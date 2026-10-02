@@ -29,7 +29,6 @@ class WorkflowApprovalRuleController extends Controller
             ->where(function ($q) {
                 $q->where('status', 'active')->orWhereNull('status');
             })
-            ->whereNotIn('key', ['global_admin', 'global_founder'])
             ->orderBy('name')
             ->get();
 
