@@ -193,6 +193,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // RBAC Hierarchy & Profile management
         Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
         Route::get('/rbac/hierarchy/map', [RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');
+        Route::post('/rbac/hierarchy/generate-default', [RoleHierarchyController::class, 'generateStandardTree'])->name('rbac.hierarchy.generate-default');
         Route::post('/rbac/roles', [RoleHierarchyController::class, 'storeRole'])->name('rbac.roles.store');
         Route::post('/rbac/roles/update-parent', [RoleHierarchyController::class, 'updateParent'])->name('rbac.roles.update-parent');
         Route::post('/rbac/roles/clone', [RoleHierarchyController::class, 'cloneProfile'])->name('rbac.roles.clone');

@@ -185,6 +185,79 @@ class RoleHierarchyController extends Controller
         return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role created successfully.');
     }
 
+    public function generateStandardTree(): RedirectResponse
+    {
+        $this->checkEditPermission();
+
+        $standardRoles = [
+            'global_admin' => ['name' => 'Global Admin',      'type' => 'admin', 'scope' => 'not_applicable'],
+            'ded' => ['name' => 'DED',               'type' => 'admin', 'scope' => 'mandatory'],
+            'industry_director' => ['name' => 'Industry Director', 'type' => 'admin', 'scope' => 'optional'],
+            'circle_leader' => ['name' => 'Circle Leader',     'type' => 'admin', 'scope' => 'mandatory'],
+            'chair' => ['name' => 'Circle Chair',      'type' => 'admin', 'scope' => 'mandatory'],
+            'vice_chair' => ['name' => 'Vice Chair',        'type' => 'admin', 'scope' => 'mandatory'],
+            'secretary' => ['name' => 'Secretary',         'type' => 'admin', 'scope' => 'mandatory'],
+            'committee_leader' => ['name' => 'Committee Leader',  'type' => 'admin', 'scope' => 'mandatory'],
+            'member' => ['name' => 'Circle Member',     'type' => 'user',  'scope' => 'mandatory'],
+        ];
+
+        DB::transaction(function () use ($standardRoles) {
+            foreach ($standardRoles as $key => $meta) {
+                Role::query()->updateOrCreate(
+                    ['key' => $key],
+                    [
+                        'name' => $meta['name'],
+                        'role_type' => $meta['type'],
+                        'scope_rule' => $meta['scope'],
+                        'status' => 'active',
+                        'is_assignable' => true,
+                        'role_code' => $key,
+                    ]
+                );
+            }
+
+            Role::query()->whereNull('status')->orWhere('status', '')->update(['status' => 'active']);
+
+            $roles = Role::all()->keyBy('key');
+
+            $gAdmin = $roles->get('global_admin')?->id;
+            $ded = $roles->get('ded')?->id;
+            $id = $roles->get('industry_director')?->id;
+            $cLeader = $roles->get('circle_leader')?->id;
+            $chair = $roles->get('chair')?->id;
+            $vChair = $roles->get('vice_chair')?->id;
+            $secretary = $roles->get('secretary')?->id;
+            $commLeader = $roles->get('committee_leader')?->id;
+            $member = $roles->get('member')?->id;
+
+            $links = [
+                ['parent' => $gAdmin,     'child' => $ded],
+                ['parent' => $gAdmin,     'child' => $id],
+                ['parent' => $ded,        'child' => $cLeader],
+                ['parent' => $cLeader,    'child' => $chair],
+                ['parent' => $chair,      'child' => $vChair],
+                ['parent' => $chair,      'child' => $secretary],
+                ['parent' => $vChair,     'child' => $commLeader],
+                ['parent' => $commLeader, 'child' => $member],
+            ];
+
+            foreach ($links as $link) {
+                if ($link['parent'] && $link['child']) {
+                    RoleHierarchy::firstOrCreate([
+                        'parent_role_id' => $link['parent'],
+                        'child_role_id' => $link['child'],
+                    ]);
+                }
+            }
+
+            foreach (Role::all() as $r) {
+                $r->recomputeDepth();
+            }
+        });
+
+        return redirect()->route('admin.rbac.hierarchy')->with('success', 'Standard Role Hierarchy Tree built successfully.');
+    }
+
     public function updateParent(Request $request): JsonResponse
     {
         $this->checkEditPermission();
