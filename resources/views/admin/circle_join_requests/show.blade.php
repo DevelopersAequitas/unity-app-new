@@ -9,7 +9,7 @@
         'pending_cd_approval' => 'Pending for CD Approval',
         'pending_id_approval' => 'Pending for ID Approval',
         'pending_circle_fee' => 'Pending for Circle Fee',
-        'circle_member' => 'Paid',
+        'circle_member' => 'Circle Member (Approved)',
         'paid' => 'Paid',
         'rejected_by_cd' => 'Rejected by CD',
         'rejected_by_id' => 'Rejected by ID',
@@ -17,6 +17,7 @@
         'approved' => 'Approved',
         'rejected' => 'Rejected',
     ];
+    $hasValidCircle = !empty($record->circle_id) && !empty($record->circle);
 @endphp
 
 @section('content')
@@ -33,36 +34,18 @@
             </span>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-            @if($canApproveCd)
-                <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $record->id) }}" class="inline" onsubmit="const sel = document.getElementById('membership_plan_select'); if (sel && sel.value) { this.querySelector('input[name=membership_plan_id]').value = sel.value; }">
+            @if($canApprove)
+                <form method="POST" action="{{ route('admin.circle-joining-requests.approve', $record->id) }}" class="inline">
                     @csrf
-                    <input type="hidden" name="membership_plan_id" value="{{ $assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '') }}">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm">
-                        Approve CD
+                        Approve Request
                     </button>
                 </form>
-                <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $record->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">
+                <form method="POST" action="{{ route('admin.circle-joining-requests.reject', $record->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">
                     @csrf
                     <input type="hidden" name="reason">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition cursor-pointer shadow-sm">
-                        Reject CD
-                    </button>
-                </form>
-            @endif
-
-            @if($canApproveId)
-                <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $record->id) }}" class="inline" onsubmit="const sel = document.getElementById('membership_plan_select'); if (sel && sel.value) { this.querySelector('input[name=membership_plan_id]').value = sel.value; }">
-                    @csrf
-                    <input type="hidden" name="membership_plan_id" value="{{ $assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '') }}">
-                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm">
-                        Approve ID
-                    </button>
-                </form>
-                <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $record->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">
-                    @csrf
-                    <input type="hidden" name="reason">
-                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition cursor-pointer shadow-sm">
-                        Reject ID
+                        Reject Request
                     </button>
                 </form>
             @endif
@@ -73,23 +56,35 @@
         </div>
     </div>
 
+    @if(!$hasValidCircle)
+        <div class="p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-medium flex items-center gap-2">
+            <span class="font-bold text-sm">⚠️</span>
+            <span>Requested Circle is missing or invalid. This request cannot be approved until a valid Circle is associated.</span>
+        </div>
+    @endif
+
     <!-- Grid Sections -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Left Column: Peer & Overview -->
+        <!-- Left Column: APPLICANT & Status Overview -->
         <div class="space-y-6">
-            <!-- Peer Profile Card -->
+            <!-- APPLICANT Card -->
             <div class="p-5 rounded-xl border bs surface space-y-4">
-                <div class="flex items-center gap-3 border-b bs pb-3">
-                    <div class="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
+                <div class="border-b bs pb-3">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-indigo-500 mb-1">Section</span>
+                    <h3 class="font-display font-bold text-sm text-gray-900 uppercase tracking-wide m-0">APPLICANT</h3>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
                         {{ strtoupper(substr($record->user?->adminDisplayName() ?? 'P', 0, 1)) }}
                     </div>
                     <div>
-                        <h3 class="font-semibold text-base t1 m-0">{{ $record->user?->adminDisplayName() ?? '—' }}</h3>
+                        <h3 class="font-bold text-base t1 m-0">{{ $record->user?->adminDisplayName() ?? '—' }}</h3>
                         <p class="text-xs t3 m-0">Applicant Peer</p>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
                     <div>
                         <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Email</span>
                         <span class="font-medium t1 text-sm">{{ $record->user?->email ?? '—' }}</span>
@@ -156,93 +151,45 @@
             </div>
         </div>
 
-        <!-- Right Column: Circle Details & DED Actions -->
+        <!-- Right Column: CIRCLE TO JOIN & APPROVAL -->
         <div class="space-y-6">
-            <!-- Membership Package Assignment Card -->
+            <!-- CIRCLE TO JOIN Card -->
             <div class="p-5 rounded-xl border bs surface space-y-4">
-                <div class="flex items-center justify-between border-b bs pb-3">
-                    <h4 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Membership Package</h4>
-                    @if($assignedPlan)
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">Package Assigned</span>
-                    @else
-                        <span class="chip px-2.5 py-0.5 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200">No Package Assigned</span>
-                    @endif
+                <div class="border-b bs pb-3">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-indigo-500 mb-1">Section</span>
+                    <h3 class="font-display font-bold text-sm text-gray-900 uppercase tracking-wide m-0">CIRCLE TO JOIN</h3>
                 </div>
-
-                @if($assignedPlan)
-                    @php($plan = $assignedPlan)
-                    @php($basePrice = (float) $plan->price)
-                    @php($gstAmount = round($basePrice * ($plan->gst_percent / 100), 2))
-                    @php($totalAmount = round($basePrice + $gstAmount, 2))
-                    <div class="p-3.5 rounded-lg border bs bg-gray-50/80 space-y-2 text-xs">
-                        <div class="flex justify-between items-center">
-                            <span class="font-semibold text-gray-800 text-sm">{{ $plan->name }}</span>
-                            <span class="font-bold text-indigo-600 text-sm">₹{{ number_format($totalAmount, 2) }}</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-500 pt-1 border-t border-gray-200">
-                            <div>Base Price: <span class="font-medium text-gray-700">₹{{ number_format($basePrice, 2) }}</span></div>
-                            <div>GST ({{ (float)$plan->gst_percent }}%): <span class="font-medium text-gray-700">₹{{ number_format($gstAmount, 2) }}</span></div>
-                            <div>Duration: <span class="font-medium text-gray-700">{{ $plan->duration_months ? $plan->duration_months . ' Months' : ($plan->duration_days ? $plan->duration_days . ' Days' : '—') }}</span></div>
-                            <div>Plan ID: <span class="font-mono text-[10px] text-gray-600">{{ substr($plan->id, 0, 13) }}...</span></div>
-                        </div>
-                    </div>
-                @endif
-
-                <form method="POST" action="{{ route('admin.circle-joining-requests.assign-package', $record->id) }}" class="space-y-3 pt-1">
-                    @csrf
-                    <div>
-                        <label for="membership_plan_select" class="block text-[11px] uppercase tracking-wider font-semibold text-gray-700 mb-1">
-                            {{ $assignedPlan ? 'Change Membership Package' : 'Select Membership Package' }}
-                        </label>
-                        <select name="membership_plan_id" id="membership_plan_select" class="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" required>
-                            <option value="">-- Choose Membership Package --</option>
-                            @foreach($membershipPlans ?? [] as $mPlan)
-                                @php($mBase = (float) $mPlan->price)
-                                @php($mGst = round($mBase * ($mPlan->gst_percent / 100), 2))
-                                @php($mTotal = round($mBase + $mGst, 2))
-                                <option value="{{ $mPlan->id }}" {{ ($assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '')) === $mPlan->id ? 'selected' : '' }}>
-                                    {{ $mPlan->name }} — ₹{{ number_format($mTotal, 2) }} (Base: ₹{{ number_format($mBase, 2) }} + {{ (float)$mPlan->gst_percent }}% GST)
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition cursor-pointer shadow-sm">
-                        {{ $assignedPlan ? 'Update Assigned Package' : 'Assign Package to Request' }}
-                    </button>
-                </form>
-            </div>
-
-            <!-- Circle Info Card -->
-            <div class="p-5 rounded-xl border bs surface space-y-4">
-                <h4 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Circle Information</h4>
 
                 <div class="space-y-3">
                     <div>
-                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Circle Name</span>
-                        <h3 class="font-bold text-base t1 m-0">{{ $record->circle?->name ?? '—' }}</h3>
-                        @if($record->circle?->id)
-                            <span class="block text-[11px] font-mono t3 mt-0.5">{{ $record->circle->id }}</span>
-                        @endif
-                        @if($record->circle?->template)
-                            <span class="inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded bg-gray-100 text-gray-600 border border-gray-200">
-                                Template: {{ $record->circle->template->name }} ({{ $record->circle->template->slug }})
-                            </span>
+                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Requested Circle:</span>
+                        @if($hasValidCircle)
+                            <h3 class="font-bold text-lg text-indigo-900 m-0">{{ $record->circle->name }}</h3>
+                            <span class="block text-[11px] font-mono text-gray-500 mt-1">Circle ID: {{ $record->circle->id }}</span>
+                            @if($record->circle->template)
+                                <span class="inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded bg-gray-100 text-gray-600 border border-gray-200">
+                                    Template: {{ $record->circle->template->name }} ({{ $record->circle->template->slug }})
+                                </span>
+                            @endif
+                        @else
+                            <div class="text-rose-600 font-semibold text-sm">
+                                Requested Circle is missing or invalid.
+                            </div>
                         @endif
                     </div>
 
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t bs">
                         <div>
-                            <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Category Name</span>
+                            <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Category</span>
                             <span class="font-semibold text-xs t1">{{ $categoryPath['level1']?->name ?? ($record->circleCategory?->name ?? '—') }}</span>
                         </div>
                         @if(!empty($categoryPath['subCategory']))
                             <div>
-                                <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Sub Category Name</span>
+                                <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-0.5">Sub Category</span>
                                 <span class="font-semibold text-xs text-indigo-600">{{ $categoryPath['subCategory']->name }}</span>
                             </div>
                         @endif
-                    </div>      
+                    </div>
 
                     @if(($categoryPath['level1'] ?? null) || ($categoryPath['level2'] ?? null) || ($categoryPath['level3'] ?? null) || ($categoryPath['level4'] ?? null))
                         <div class="pt-3 border-t bs">
@@ -277,52 +224,62 @@
                 </div>
             </div>
 
-            <!-- DED Decision Center Card -->
-            @if($canApproveDed)
-                <div class="p-5 rounded-xl border border-amber-200 bg-amber-50/50 space-y-4">
-                    <div class="flex items-center justify-between">
-                        <h4 class="font-display font-semibold text-xs text-amber-700 uppercase tracking-wider m-0">DED Decision Center</h4>
-                        <span class="chip px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-800 border-amber-300">Action Required</span>
+            <!-- APPROVAL Card -->
+            <div class="p-5 rounded-xl border bs surface space-y-4">
+                <div class="border-b bs pb-3">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-indigo-500 mb-1">Section</span>
+                    <h3 class="font-display font-bold text-sm text-gray-900 uppercase tracking-wide m-0">APPROVAL</h3>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <span class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle:</span>
+                        <div class="p-3 rounded-lg border bs bg-gray-50 font-semibold text-xs text-gray-800">
+                            {{ $record->circle?->name ?? 'Requested Circle is missing or invalid' }}
+                        </div>
                     </div>
 
-                    <form id="ded-decision-form" method="POST" action="">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="ded_membership_plan_id" class="block text-[11px] uppercase tracking-wider font-semibold text-gray-700 mb-1">
-                                Membership Package <span class="text-indigo-600 font-semibold">*</span>
-                            </label>
-                            <select name="membership_plan_id" id="ded_membership_plan_id" class="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500">
-                                <option value="">-- Keep Current / Select Package --</option>
-                                @foreach($membershipPlans ?? [] as $mPlan)
-                                    @php($mBase = (float) $mPlan->price)
-                                    @php($mGst = round($mBase * ($mPlan->gst_percent / 100), 2))
-                                    @php($mTotal = round($mBase + $mGst, 2))
-                                    <option value="{{ $mPlan->id }}" {{ ($assignedPlanId ?? ($record->notes['membership_plan_id'] ?? '')) === $mPlan->id ? 'selected' : '' }}>
-                                        {{ $mPlan->name }} — ₹{{ number_format($mTotal, 2) }}
-                                    </option>
-                                @endforeach
-                            </select>
+                    @if($canApprove)
+                        @if($hasValidCircle)
+                            <div class="flex items-center gap-3 pt-2">
+                                <form method="POST" action="{{ route('admin.circle-joining-requests.approve', $record->id) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" class="px-5 py-2.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm flex items-center gap-1.5">
+                                        <span>✓</span> Approve Request
+                                    </button>
+                                </form>
+
+                                <form method="POST" action="{{ route('admin.circle-joining-requests.reject', $record->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">
+                                    @csrf
+                                    <input type="hidden" name="reason">
+                                    <button type="submit" class="px-5 py-2.5 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition cursor-pointer shadow-sm flex items-center gap-1.5">
+                                        <span>✕</span> Reject Request
+                                    </button>
+                                </form>
+                            </div>
+                        @else
+                            <div class="text-xs text-rose-600 font-medium">
+                                Cannot approve this request because the requested Circle is missing or invalid.
+                            </div>
+                        @endif
+                    @elseif(in_array((string)$record->status, ['circle_member', 'paid'], true))
+                        <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-medium flex items-center gap-2">
+                            <span>✓</span>
+                            <span>Approved — User is an active Circle Member of <strong>{{ $record->circle?->name }}</strong>.</span>
                         </div>
-                        <div class="mb-3">
-                            <label for="ded_remarks" class="block text-[11px] uppercase tracking-wider font-semibold text-gray-700 mb-1">
-                                Remarks / Notes <span class="text-rose-600 text-xs">(Required for Rejection)</span>
-                            </label>
-                            <textarea name="remarks" id="ded_remarks" rows="3" class="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500" placeholder="Enter remarks or notes..."></textarea>
+                    @elseif(str_contains((string)$record->status, 'reject') || $record->status === 'cancelled')
+                        <div class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-xs font-medium space-y-1">
+                            <div class="font-semibold">Rejected — This request has been rejected.</div>
+                            @if($record->cd_rejection_reason || $record->id_rejection_reason || !empty($record->notes['rejection_reason']))
+                                <div class="text-[11px] text-rose-700">
+                                    Reason: {{ $record->cd_rejection_reason ?: ($record->id_rejection_reason ?: ($record->notes['rejection_reason'] ?? '')) }}
+                                </div>
+                            @endif
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm" onclick="this.form.action='{{ route('admin.circle-joining-requests.approve-ded', $record->id) }}'; return true;">
-                                Approve Request
-                            </button>
-                            <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition cursor-pointer shadow-sm" onclick="this.form.action='{{ route('admin.circle-joining-requests.reject-ded', $record->id) }}'; const val = document.getElementById('ded_remarks').value.trim(); if(!val) { alert('Remarks are required for rejection.'); return false; } return true;">
-                                Reject Request
-                            </button>
-                        </div>
-                    </form>
+                    @endif
                 </div>
-            @endif
+            </div>
         </div>
     </div>
 </div>
-
-@include('admin.circle_join_requests.partials.ded_approval_modal')
 @endsection

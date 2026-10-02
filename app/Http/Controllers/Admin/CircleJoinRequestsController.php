@@ -109,6 +109,15 @@ class CircleJoinRequestsController extends Controller
         $requests = $query->latest('created_at')->paginate(25)->appends($request->query());
 
         $requests->getCollection()->transform(function (CircleJoinRequest $joinRequest) use ($admin, $actor) {
+            $isPending = in_array((string) $joinRequest->status, [
+                CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
+                CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+                CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
+            ], true);
+            $canAct = $isPending && $this->canAccessRecord($admin, $actor, $joinRequest);
+
+            $joinRequest->setAttribute('can_approve', $canAct);
+            $joinRequest->setAttribute('can_reject', $canAct);
             $joinRequest->setAttribute('can_approve_cd', $this->canApproveCd($admin, $actor, $joinRequest));
             $joinRequest->setAttribute('can_reject_cd', $this->canApproveCd($admin, $actor, $joinRequest));
             $joinRequest->setAttribute('can_approve_id', $this->canApproveId($admin, $actor, $joinRequest));
@@ -144,30 +153,21 @@ class CircleJoinRequestsController extends Controller
         $level3 = $selectedCategoryIds['level3_category_id'] ? CircleCategoryLevel3::query()->find($selectedCategoryIds['level3_category_id']) : null;
         $level4 = $selectedCategoryIds['level4_category_id'] ? CircleCategoryLevel4::query()->find($selectedCategoryIds['level4_category_id']) : null;
 
-        $membershipPlans = MembershipPlan::query()
-            ->where('is_active', true)
-            ->where('is_free', false)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        $isApprovable = in_array((string) $record->status, [
+            CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
+            CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
+        ], true);
 
-        $assignedPlanId = is_array($record->notes) ? ($record->notes['membership_plan_id'] ?? null) : null;
-        $assignedPlan = null;
-        if ($assignedPlanId) {
-            $assignedPlanIdStr = trim((string) $assignedPlanId);
-            $assignedPlan = Str::isUuid($assignedPlanIdStr)
-                ? MembershipPlan::query()->find($assignedPlanIdStr)
-                : MembershipPlan::query()->where('slug', $assignedPlanIdStr)->first();
-        }
+        $canAccess = $this->canAccessRecord($admin, $actor, $record);
 
         return view('admin.circle_join_requests.show', [
             'record' => $record,
+            'canApprove' => $isApprovable && $canAccess,
+            'canReject' => $isApprovable && $canAccess,
             'canApproveCd' => $this->canApproveCd($admin, $actor, $record),
             'canApproveId' => $this->canApproveId($admin, $actor, $record),
             'canApproveDed' => $this->canApproveDed($admin, $actor, $record),
-            'membershipPlans' => $membershipPlans,
-            'assignedPlan' => $assignedPlan,
-            'assignedPlanId' => $assignedPlanId,
             'categoryPath' => [
                 'level1' => $level1,
                 'level2' => $level2,
@@ -178,13 +178,36 @@ class CircleJoinRequestsController extends Controller
         ]);
     }
 
+    public function approve(Request $request, string $id): RedirectResponse
+    {
+        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
+            abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
+            $approverUser = $actor ?? $admin;
+            $this->service->approveAndJoinCircle($record, $approverUser);
+        }, 'Circle joining request approved and member joined successfully.');
+    }
+
+    public function reject(Request $request, string $id): RedirectResponse
+    {
+        $reason = trim((string) ($request->input('reason') ?? $request->input('remarks') ?? ''));
+        if ($reason === '') {
+            throw ValidationException::withMessages([
+                'reason' => ['Rejection reason is required.'],
+            ]);
+        }
+
+        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($reason): void {
+            abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
+            $approverUser = $actor ?? $admin;
+            $this->service->rejectGeneric($record, $approverUser, $reason);
+        }, 'Circle joining request rejected successfully.');
+    }
+
     public function approveCd(Request $request, string $id): RedirectResponse
     {
-        $planId = $request->input('membership_plan_id');
-
-        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($planId): void {
+        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
             abort_unless($this->canApproveCd($admin, $actor, $record), 403);
-            $this->approveRequest($record, $admin, $actor, $planId);
+            $this->approveRequest($record, $admin, $actor);
         });
     }
 
@@ -200,21 +223,18 @@ class CircleJoinRequestsController extends Controller
 
     public function approveId(Request $request, string $id): RedirectResponse
     {
-        $planId = $request->input('membership_plan_id');
-
-        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($planId): void {
+        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
             abort_unless($this->canApproveId($admin, $actor, $record), 403);
-            $this->approveRequest($record, $admin, $actor, $planId);
+            $this->approveRequest($record, $admin, $actor);
         });
     }
 
     public function approveDed(Request $request, string $id): RedirectResponse
     {
-        $planId = $request->input('membership_plan_id');
-
-        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($request, $planId): void {
+        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
             abort_unless($this->canApproveDed($admin, $actor, $record), 403);
-            $this->approveRequestByDed($record, $admin, $actor, $request->input('remarks'), $planId);
+            $approverUser = $actor ?? $admin;
+            $this->service->approveAndJoinCircle($record, $approverUser);
         }, 'DED approval completed successfully.');
     }
 
@@ -242,22 +262,17 @@ class CircleJoinRequestsController extends Controller
 
     public function rejectDed(Request $request, string $id): RedirectResponse
     {
-        $request->validate(['remarks' => ['required', 'string', 'max:1000']]);
+        $remarks = trim((string) ($request->input('remarks') ?? $request->input('reason') ?? ''));
+        if ($remarks === '') {
+            throw ValidationException::withMessages([
+                'remarks' => ['Remarks are required for rejection.'],
+            ]);
+        }
 
-        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($request): void {
+        return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($remarks): void {
             abort_unless($this->canApproveDed($admin, $actor, $record), 403);
-
-            DB::transaction(function () use ($record, $request): void {
-                $req = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
-                $req->ded_approval_status = 'rejected';
-                $req->status = CircleJoinRequest::STATUS_CANCELLED;
-
-                $notes = (array) $req->notes;
-                $notes['ded_rejection_reason'] = $request->input('remarks');
-                $req->notes = $notes;
-
-                $req->save();
-            });
+            $approverUser = $actor ?? $admin;
+            $this->service->rejectGeneric($record, $approverUser, $remarks);
         }, 'DED rejection completed successfully.');
     }
 
@@ -304,6 +319,12 @@ class CircleJoinRequestsController extends Controller
 
     private function approveRequest(CircleJoinRequest $record, $admin, $actor, ?string $planId = null): void
     {
+        if (empty($record->circle_id) || ! Circle::query()->where('id', $record->circle_id)->exists()) {
+            throw ValidationException::withMessages([
+                'circle_id' => ['Requested Circle is missing or invalid.'],
+            ]);
+        }
+
         DB::transaction(function () use ($record, $admin, $actor, $planId): void {
             $request = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
             $oldStatus = (string) $request->status;
@@ -633,6 +654,7 @@ class CircleJoinRequestsController extends Controller
         return [
             CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
             CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
         ];
     }
 

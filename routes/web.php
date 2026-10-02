@@ -666,6 +666,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/coin-claims/{id}/reject', [CoinClaimsController::class, 'reject'])->whereUuid('id')->name('coin-claims.reject');
         Route::get('/pending-requests/circle-joining-requests', [CircleJoinRequestsController::class, 'index'])->name('circle-joining-requests.index');
         Route::get('/pending-requests/circle-joining-requests/{id}', [CircleJoinRequestsController::class, 'show'])->whereUuid('id')->name('circle-joining-requests.show');
+        Route::post('/pending-requests/circle-joining-requests/{id}/approve', [CircleJoinRequestsController::class, 'approve'])->whereUuid('id')->name('circle-joining-requests.approve');
+        Route::post('/pending-requests/circle-joining-requests/{id}/reject', [CircleJoinRequestsController::class, 'reject'])->whereUuid('id')->name('circle-joining-requests.reject');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-cd', [CircleJoinRequestsController::class, 'approveCd'])->whereUuid('id')->name('circle-joining-requests.approve-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
