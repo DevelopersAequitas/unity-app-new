@@ -289,7 +289,10 @@ class DistrictSyncService
             return null;
         }
 
-        $columns = ['name', 'state'];
+        $columns = ['name'];
+        if (Schema::hasColumn('cities', 'state')) {
+            $columns[] = 'state';
+        }
         if (Schema::hasColumn('cities', 'district')) {
             $columns[] = 'district';
         }

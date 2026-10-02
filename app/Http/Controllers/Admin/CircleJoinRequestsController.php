@@ -152,7 +152,13 @@ class CircleJoinRequestsController extends Controller
             ->get();
 
         $assignedPlanId = is_array($record->notes) ? ($record->notes['membership_plan_id'] ?? null) : null;
-        $assignedPlan = $assignedPlanId ? MembershipPlan::query()->find($assignedPlanId) : null;
+        $assignedPlan = null;
+        if ($assignedPlanId) {
+            $assignedPlanIdStr = trim((string) $assignedPlanId);
+            $assignedPlan = Str::isUuid($assignedPlanIdStr)
+                ? MembershipPlan::query()->find($assignedPlanIdStr)
+                : MembershipPlan::query()->where('slug', $assignedPlanIdStr)->first();
+        }
 
         return view('admin.circle_join_requests.show', [
             'record' => $record,

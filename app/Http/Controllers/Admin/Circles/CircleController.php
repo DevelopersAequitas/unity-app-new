@@ -961,11 +961,9 @@ class CircleController extends Controller
             return null;
         }
 
-        $plan = MembershipPlan::query()
-            ->where(function ($q) use ($selection) {
-                $q->where('id', $selection)->orWhere('slug', $selection);
-            })
-            ->first();
+        $plan = Str::isUuid($selection)
+            ? MembershipPlan::query()->where('id', $selection)->first()
+            : MembershipPlan::query()->where('slug', $selection)->first();
 
         if ($plan) {
             $base = (float) $plan->price;

@@ -249,7 +249,10 @@ class CircleJoinPaymentService
                     $circle = $finalized->circle ?? Circle::query()->find($finalized->circle_id);
                     $plan = null;
                     if (! empty($currentNotes['membership_plan_id'])) {
-                        $plan = MembershipPlan::query()->find($currentNotes['membership_plan_id']);
+                        $planIdStr = trim((string) $currentNotes['membership_plan_id']);
+                        $plan = Str::isUuid($planIdStr)
+                            ? MembershipPlan::query()->find($planIdStr)
+                            : MembershipPlan::query()->where('slug', $planIdStr)->first();
                     }
                     if ($circle) {
                         $this->zohoInvoiceService->createPaidInvoiceForCircle($user, $circle, $plan, $payment);
@@ -303,7 +306,10 @@ class CircleJoinPaymentService
                     $circle = $finalized->circle ?? Circle::query()->find($finalized->circle_id);
                     $plan = null;
                     if (! empty($currentNotes['membership_plan_id'])) {
-                        $plan = MembershipPlan::query()->find($currentNotes['membership_plan_id']);
+                        $planIdStr = trim((string) $currentNotes['membership_plan_id']);
+                        $plan = Str::isUuid($planIdStr)
+                            ? MembershipPlan::query()->find($planIdStr)
+                            : MembershipPlan::query()->where('slug', $planIdStr)->first();
                     }
                     if ($user && $circle) {
                         $this->zohoInvoiceService->createPaidInvoiceForCircle($user, $circle, $plan, $payment);

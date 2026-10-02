@@ -44,7 +44,10 @@ class CirclePriceResolver
             $notes = is_array($joinRequest->notes) ? $joinRequest->notes : [];
             $planId = $notes['membership_plan_id'] ?? ($notes['circle_plan_id'] ?? null);
             if ($planId) {
-                $assignedPlan = MembershipPlan::query()->find($planId);
+                $planIdStr = trim((string) $planId);
+                $assignedPlan = Str::isUuid($planIdStr)
+                    ? MembershipPlan::query()->find($planIdStr)
+                    : MembershipPlan::query()->where('slug', $planIdStr)->first();
                 if ($assignedPlan && (float) $assignedPlan->price > 0 && $assignedPlan->is_active) {
                     $planPrice = (float) $assignedPlan->price;
                     $currency = strtoupper((string) config('razorpay.currency', 'INR'));

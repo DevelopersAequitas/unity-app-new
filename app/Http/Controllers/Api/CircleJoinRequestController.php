@@ -608,7 +608,10 @@ class CircleJoinRequestController extends BaseApiController
 
         $plan = null;
         if (is_array($request->notes) && ! empty($request->notes['membership_plan_id'])) {
-            $plan = MembershipPlan::query()->find($request->notes['membership_plan_id']);
+            $notesPlanId = trim((string) $request->notes['membership_plan_id']);
+            $plan = Str::isUuid($notesPlanId)
+                ? MembershipPlan::query()->find($notesPlanId)
+                : MembershipPlan::query()->where('slug', $notesPlanId)->first();
         }
 
         $planAmounts = null;
