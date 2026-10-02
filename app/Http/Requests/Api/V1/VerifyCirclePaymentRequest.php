@@ -16,9 +16,9 @@ class VerifyCirclePaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'razorpay_order_id' => ['required', 'string'],
-            'razorpay_payment_id' => ['required', 'string'],
-            'razorpay_signature' => ['required', 'string'],
+            'razorpay_order_id' => ['required', 'string', 'min:5'],
+            'razorpay_payment_id' => ['required', 'string', 'min:5'],
+            'razorpay_signature' => ['required', 'string', 'min:10'],
         ];
     }
 }

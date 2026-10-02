@@ -949,11 +949,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
-        Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
-        Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
-        Route::get('/events/registrations/{registration_id}/invoice', [EventController::class, 'invoice'])->whereUuid('registration_id');
-        Route::get('/events/invoices', [EventController::class, 'invoices']);
-        Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
         Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register-as-user', [EventController::class, 'visitorRegisterAsUser'])->whereUuid('event_id')->whereUuid('occurrence_id');
@@ -1220,6 +1215,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);
         Route::get('/circles/{circle}/package', [CircleSubscriptionController::class, 'package']);
         Route::post('/billing/circle-checkout/{circle}', [CircleSubscriptionController::class, 'checkout']);
+        Route::post('/billing/circle-checkout/{circle}/verify', [CircleSubscriptionController::class, 'verify']);
+        Route::post('/billing/circle-checkout/{circle}/cancel', [CircleSubscriptionController::class, 'cancel']);
+        Route::post('/circles/{circle}/package/checkout', [CircleSubscriptionController::class, 'checkout']);
+        Route::post('/circles/{circle}/package/verify', [CircleSubscriptionController::class, 'verify']);
+        Route::post('/circles/{circle}/package/cancel', [CircleSubscriptionController::class, 'cancel']);
 
         // Authenticated Brand Partner bookmarks
         Route::post('/brand-partners/{id}/save', [BrandPartnerApiController::class, 'save'])->whereUuid('id');

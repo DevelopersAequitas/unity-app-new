@@ -85,6 +85,8 @@ class Circle extends Model
         'circle_price_amount',
         'circle_price_currency',
         'circle_duration_months',
+        'circle_gst_percent',
+        'is_package_active',
     ];
 
     protected $casts = [
@@ -93,7 +95,9 @@ class Circle extends Model
         'meeting_repeat' => 'array',
         'launch_date' => 'date',
         'circle_price_amount' => 'decimal:2',
+        'circle_gst_percent' => 'decimal:2',
         'circle_duration_months' => 'integer',
+        'is_package_active' => 'boolean',
     ];
 
     protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
@@ -764,5 +768,15 @@ class Circle extends Model
 
         DB::table('circles')->where('id', $circleModel->id)->update($updates);
         $circleModel->refresh();
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'circle_id');
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(CircleSubscription::class, 'circle_id');
     }
 }

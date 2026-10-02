@@ -350,7 +350,7 @@ class CircleLeadershipController extends BaseApiController
                 $query->whereIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
                     ->orWhereHas('roleModel', function ($rq): void {
                         $rq->whereIn(DB::raw('LOWER(key)'), CircleMember::REGIONAL_ROLES)
-                           ->orWhereIn(DB::raw('LOWER(name)'), CircleMember::REGIONAL_ROLES);
+                            ->orWhereIn(DB::raw('LOWER(name)'), CircleMember::REGIONAL_ROLES);
                     });
             })
             ->with(['user.cityRelation', 'user.businessCategory', 'user.mainBusinessCategory', 'roleModel'])

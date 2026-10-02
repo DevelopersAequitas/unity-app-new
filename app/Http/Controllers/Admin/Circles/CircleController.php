@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel4;
 use App\Models\City;
+use App\Models\MembershipPlan;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\IndustryDirector\IndustryScopeService;
@@ -24,7 +25,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -373,7 +373,7 @@ class CircleController extends Controller
             unset($payload['status']);
         }
 
-        $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
+        $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage, $validated));
         $payload = $this->pruneEmptyPayload($payload);
 
         $circle = new Circle;
@@ -639,7 +639,7 @@ class CircleController extends Controller
             $allowed['industry_tags'] = $this->normalizeIndustryTags($validated['industry_tags'] ?? null);
         }
 
-        $allowed = array_merge($allowed, $this->buildCirclePackagePayload($circlePackage));
+        $allowed = array_merge($allowed, $this->buildCirclePackagePayload($circlePackage, $validated));
         $allowed = $this->pruneEmptyPayload($allowed);
 
         if (Schema::hasColumn('circles', 'country') && ! array_key_exists('country', $allowed)) {
@@ -897,14 +897,60 @@ class CircleController extends Controller
 
     private function circlePackageOptions(): array
     {
-        try {
-            return $this->zohoBillingService->listCirclePackageAddons(true);
-        } catch (Throwable $throwable) {
-            report($throwable);
-            session()->flash('error', 'Unable to load Circle Package addons from Zoho Billing right now.');
+        $packages = [];
 
-            return [];
+        try {
+            $plans = MembershipPlan::query()
+                ->circleOnly()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get();
+
+            foreach ($plans as $plan) {
+                $base = (float) $plan->price;
+                $gst = (float) ($plan->gst_percent ?? 18.00);
+                $gstAmount = round($base * ($gst / 100), 2);
+                $total = round($base + $gstAmount, 2);
+
+                $packages[] = [
+                    'id' => (string) $plan->id,
+                    'addon_id' => (string) $plan->id,
+                    'addon_code' => (string) $plan->slug,
+                    'name' => (string) $plan->name,
+                    'amount' => $base,
+                    'gst_percent' => $gst,
+                    'total_amount' => $total,
+                    'currency_code' => 'INR',
+                    'source' => 'membership_plan',
+                ];
+            }
+        } catch (Throwable $e) {
+            Log::warning('Error loading MembershipPlan circle packages', ['error' => $e->getMessage()]);
         }
+
+        try {
+            $zohoAddons = $this->zohoBillingService->listCirclePackageAddons(true);
+            foreach ($zohoAddons as $za) {
+                if (! collect($packages)->contains('addon_code', $za['addon_code'])) {
+                    $packages[] = [
+                        'id' => $za['addon_id'] ?: $za['addon_code'],
+                        'addon_id' => $za['addon_id'],
+                        'addon_code' => $za['addon_code'],
+                        'name' => $za['name'],
+                        'amount' => (float) ($za['amount'] ?? 0),
+                        'gst_percent' => 18.00,
+                        'total_amount' => round((float) ($za['amount'] ?? 0) * 1.18, 2),
+                        'currency_code' => $za['currency_code'] ?? 'INR',
+                        'source' => 'zoho',
+                    ];
+                }
+            }
+        } catch (Throwable $throwable) {
+            // Zoho addons unavailable, fallback to local membership plans gracefully
+        }
+
+        return $packages;
     }
 
     private function resolveCirclePackage(?string $selection): ?array
@@ -915,44 +961,81 @@ class CircleController extends Controller
             return null;
         }
 
-        try {
-            $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
-        } catch (Throwable $throwable) {
-            throw ValidationException::withMessages([
-                'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
-            ]);
-        }
+        $plan = MembershipPlan::query()
+            ->where(function ($q) use ($selection) {
+                $q->where('id', $selection)->orWhere('slug', $selection);
+            })
+            ->first();
 
-        if (! is_array($addon)) {
-            throw ValidationException::withMessages([
-                'circle_package' => 'Selected Circle Package is invalid or inactive.',
-            ]);
-        }
+        if ($plan) {
+            $base = (float) $plan->price;
+            $gst = (float) ($plan->gst_percent ?? 18.00);
 
-        return $addon;
-    }
-
-    private function buildCirclePackagePayload(?array $circlePackage): array
-    {
-        if (! is_array($circlePackage)) {
             return [
-                'zoho_addon_code' => null,
-                'zoho_addon_id' => null,
-                'zoho_addon_name' => null,
-                'circle_price_amount' => null,
-                'circle_price_currency' => null,
-                'circle_duration_months' => null,
+                'addon_id' => (string) $plan->id,
+                'addon_code' => (string) $plan->slug,
+                'name' => (string) $plan->name,
+                'amount' => $base,
+                'gst_percent' => $gst,
+                'currency_code' => 'INR',
+                'source' => 'membership_plan',
             ];
         }
 
+        try {
+            $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
+            if (is_array($addon)) {
+                return $addon;
+            }
+        } catch (Throwable $throwable) {
+            // Ignore Zoho error if not reachable
+        }
+
         return [
-            'zoho_addon_code' => $circlePackage['addon_code'] ?? null,
-            'zoho_addon_id' => $circlePackage['addon_id'] ?? null,
-            'zoho_addon_name' => $circlePackage['name'] ?? null,
-            'circle_price_amount' => $circlePackage['amount'] ?? null,
-            'circle_price_currency' => $circlePackage['currency_code'] ?? null,
-            'circle_duration_months' => 12,
+            'addon_id' => null,
+            'addon_code' => $selection,
+            'name' => ucfirst(str_replace(['_', '-'], ' ', $selection)),
+            'amount' => null,
+            'currency_code' => 'INR',
         ];
+    }
+
+    private function buildCirclePackagePayload(?array $circlePackage, array $validated = []): array
+    {
+        $price = null;
+        if (array_key_exists('circle_price_amount', $validated) && $validated['circle_price_amount'] !== null && $validated['circle_price_amount'] !== '') {
+            $price = round((float) $validated['circle_price_amount'], 2);
+        } elseif (is_array($circlePackage) && isset($circlePackage['amount']) && $circlePackage['amount'] !== null) {
+            $price = round((float) $circlePackage['amount'], 2);
+        }
+
+        $gstPercent = 18.00;
+        if (array_key_exists('circle_gst_percent', $validated) && $validated['circle_gst_percent'] !== null && $validated['circle_gst_percent'] !== '') {
+            $gstPercent = round((float) $validated['circle_gst_percent'], 2);
+        } elseif (is_array($circlePackage) && isset($circlePackage['gst_percent'])) {
+            $gstPercent = round((float) $circlePackage['gst_percent'], 2);
+        }
+
+        $isPackageActive = true;
+        if (array_key_exists('is_package_active', $validated)) {
+            $isPackageActive = (bool) $validated['is_package_active'];
+        }
+
+        $payload = [
+            'circle_price_amount' => $price,
+            'circle_price_currency' => $circlePackage['currency_code'] ?? 'INR',
+            'circle_duration_months' => 12,
+            'circle_gst_percent' => $gstPercent,
+            'is_package_active' => $isPackageActive,
+        ];
+
+        if (is_array($circlePackage)) {
+            $payload['zoho_addon_code'] = $circlePackage['addon_code'] ?? null;
+            $payload['zoho_addon_id'] = $circlePackage['addon_id'] ?? null;
+            $payload['zoho_addon_name'] = $circlePackage['name'] ?? null;
+        }
+
+        return $payload;
     }
 
     private function countriesList()

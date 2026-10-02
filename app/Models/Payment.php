@@ -13,6 +13,14 @@ class Payment extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    public const STATUS_CANCELLED = 'cancelled';
+
+    public const STATUS_PENDING = 'pending';
+
+    public const TYPE_MEMBERSHIP = 'membership';
+
+    public const TYPE_CIRCLE_PACKAGE = 'circle_package';
+
     protected $table = 'payments';
 
     protected $keyType = 'string';
@@ -22,6 +30,8 @@ class Payment extends Model
     protected $fillable = [
         'id',
         'user_id',
+        'circle_id',
+        'payment_type',
         'membership_plan_id',
         'amount',
         'base_amount',
@@ -55,5 +65,10 @@ class Payment extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(MembershipPlan::class, 'membership_plan_id');
+    }
+
+    public function circle(): BelongsTo
+    {
+        return $this->belongsTo(Circle::class, 'circle_id');
     }
 }

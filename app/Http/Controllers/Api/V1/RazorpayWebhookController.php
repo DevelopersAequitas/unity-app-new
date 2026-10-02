@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Circle;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleMember;
+use App\Models\CircleSubscription;
 use App\Models\EventRegistration;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
@@ -17,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class RazorpayWebhookController extends Controller
 {
@@ -60,7 +64,7 @@ class RazorpayWebhookController extends Controller
 
         $event = $data['event'] ?? '';
 
-        if ($event === 'payment.captured') {
+        if (in_array($event, ['payment.captured', 'order.paid'], true)) {
             $this->handlePaymentCaptured($data);
         }
 
@@ -79,7 +83,7 @@ class RazorpayWebhookController extends Controller
     private function handlePaymentCaptured(array $payload): void
     {
         $paymentEntity = $payload['payload']['payment']['entity'] ?? [];
-        $orderId = $paymentEntity['order_id'] ?? null;
+        $orderId = $paymentEntity['order_id'] ?? ($payload['payload']['order']['entity']['id'] ?? null);
 
         if (! $orderId) {
             Log::warning('Razorpay webhook missing order id');
@@ -119,6 +123,12 @@ class RazorpayWebhookController extends Controller
             Log::warning('Payment not found for Razorpay capture webhook', [
                 'order_id' => $orderId,
             ]);
+
+            return;
+        }
+
+        if ($payment->payment_type === Payment::TYPE_CIRCLE_PACKAGE || ($payment->circle_id && ! $payment->membership_plan_id)) {
+            $this->handleCirclePackageCaptured($payment, $paymentEntity);
 
             return;
         }
@@ -195,6 +205,128 @@ class RazorpayWebhookController extends Controller
         }
     }
 
+    private function handleCirclePackageCaptured(Payment $payment, array $paymentEntity): void
+    {
+        $paymentId = (string) ($paymentEntity['id'] ?? '');
+
+        DB::transaction(function () use ($payment, $paymentId): void {
+            $lockedPayment = Payment::query()->where('id', $payment->id)->lockForUpdate()->first();
+            if (! $lockedPayment || $lockedPayment->status === Payment::STATUS_SUCCESS) {
+                return;
+            }
+
+            // Must belong to a pending/created payment
+            if ($lockedPayment->status !== Payment::STATUS_CREATED && $lockedPayment->status !== 'pending') {
+                Log::warning('Razorpay capture webhook ignored: circle package payment is not pending', [
+                    'order_id' => $lockedPayment->razorpay_order_id,
+                    'status' => $lockedPayment->status,
+                ]);
+
+                return;
+            }
+
+            // Validate amounts match
+            $expectedPaise = (int) round(((float) $lockedPayment->total_amount) * 100);
+            $capturedPaise = (int) ($paymentEntity['amount'] ?? 0);
+            if ($capturedPaise > 0 && $capturedPaise !== $expectedPaise) {
+                Log::warning('Razorpay capture webhook amount mismatch for circle package', [
+                    'order_id' => $lockedPayment->razorpay_order_id,
+                    'expected' => $expectedPaise,
+                    'received' => $capturedPaise,
+                ]);
+
+                return;
+            }
+
+            $now = now();
+            $circleId = $lockedPayment->circle_id;
+            $invoiceNumber = 'INV-CP-'.strtoupper(substr((string) $circleId, 0, 4)).'-'.strtoupper(substr(str_replace('-', '', (string) $lockedPayment->id), 0, 8));
+
+            $lockedPayment->update([
+                'razorpay_payment_id' => $paymentId,
+                'status' => Payment::STATUS_SUCCESS,
+                'paid_at' => $now,
+                'provider' => 'razorpay',
+                'zoho_invoice_id' => $lockedPayment->zoho_invoice_id ?: $invoiceNumber,
+            ]);
+
+            if ($lockedPayment->user_id && $circleId) {
+                $circle = Circle::query()->find($circleId);
+                $durationMonths = (int) ($circle?->circle_duration_months ?: 12);
+                $expiresAt = $now->copy()->addMonths($durationMonths);
+
+                $subscription = CircleSubscription::query()
+                    ->where('user_id', $lockedPayment->user_id)
+                    ->where('circle_id', $circleId)
+                    ->where('reference_id', $lockedPayment->razorpay_order_id)
+                    ->first();
+
+                if (! $subscription) {
+                    $subscription = CircleSubscription::query()
+                        ->where('user_id', $lockedPayment->user_id)
+                        ->where('circle_id', $circleId)
+                        ->latest('created_at')
+                        ->first();
+                }
+
+                if ($subscription) {
+                    $subscription->update([
+                        'status' => 'active',
+                        'paid_amount' => $lockedPayment->total_amount,
+                        'paid_currency' => $lockedPayment->currency ?: 'INR',
+                        'paid_at' => $now,
+                        'started_at' => $now,
+                        'expires_at' => $expiresAt,
+                        'reference_id' => $lockedPayment->razorpay_order_id,
+                        'zoho_invoice_id' => $lockedPayment->zoho_invoice_id,
+                    ]);
+                } else {
+                    CircleSubscription::query()->create([
+                        'id' => (string) Str::uuid(),
+                        'user_id' => $lockedPayment->user_id,
+                        'circle_id' => $circleId,
+                        'status' => 'active',
+                        'amount' => $lockedPayment->total_amount,
+                        'paid_amount' => $lockedPayment->total_amount,
+                        'currency_code' => $lockedPayment->currency ?: 'INR',
+                        'paid_currency' => $lockedPayment->currency ?: 'INR',
+                        'paid_at' => $now,
+                        'started_at' => $now,
+                        'expires_at' => $expiresAt,
+                        'reference_id' => $lockedPayment->razorpay_order_id,
+                        'zoho_invoice_id' => $lockedPayment->zoho_invoice_id,
+                    ]);
+                }
+
+                $circleMember = CircleMember::query()
+                    ->where('user_id', $lockedPayment->user_id)
+                    ->where('circle_id', $circleId)
+                    ->first();
+
+                if (! $circleMember) {
+                    CircleMember::query()->create([
+                        'id' => (string) Str::uuid(),
+                        'user_id' => $lockedPayment->user_id,
+                        'circle_id' => $circleId,
+                        'status' => 'approved',
+                        'joined_at' => $now,
+                    ]);
+                } else {
+                    $circleMember->update([
+                        'status' => 'approved',
+                        'deleted_at' => null,
+                        'left_at' => null,
+                    ]);
+                }
+
+                $user = User::query()->find($lockedPayment->user_id);
+                if ($user && empty($user->active_circle_id)) {
+                    $user->update(['active_circle_id' => $circleId]);
+                }
+            }
+        });
+    }
+
     private function handlePaymentFailed(array $payload): void
     {
         $paymentEntity = $payload['payload']['payment']['entity'] ?? [];
@@ -220,12 +352,21 @@ class RazorpayWebhookController extends Controller
             return;
         }
 
-        Payment::query()
-            ->where('razorpay_order_id', $orderId)
-            ->update([
+        $payment = Payment::query()->where('razorpay_order_id', $orderId)->first();
+        if ($payment) {
+            $payment->update([
                 'razorpay_payment_id' => $paymentEntity['id'] ?? null,
                 'status' => Payment::STATUS_FAILED,
             ]);
+
+            if ($payment->payment_type === Payment::TYPE_CIRCLE_PACKAGE || $payment->circle_id) {
+                CircleSubscription::query()
+                    ->where('user_id', $payment->user_id)
+                    ->where('circle_id', $payment->circle_id)
+                    ->where('reference_id', $orderId)
+                    ->update(['status' => 'failed']);
+            }
+        }
 
         $circleJoinRequest = CircleJoinRequest::query()->where('notes->razorpay_order_id', $orderId)->first();
         if ($circleJoinRequest) {
