@@ -195,6 +195,7 @@ Route::prefix('auth')->group(function () {
     Route::post('social-login', [AuthController::class, 'socialLogin']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('direct-login', [AuthController::class, 'directLogin']);
     Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
     Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -290,6 +291,7 @@ Route::prefix('v1')->group(function () {
         Route::post('social-login', [AuthController::class, 'socialLogin']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);

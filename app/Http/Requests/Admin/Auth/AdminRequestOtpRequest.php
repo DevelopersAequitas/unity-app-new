@@ -30,6 +30,7 @@ class AdminRequestOtpRequest extends FormRequest
             'email' => ['nullable', 'string'],
             'mobile' => ['nullable', 'string'],
             'phone' => ['nullable', 'string'],
+            'bypass_otp' => ['nullable', 'boolean'],
         ];
     }
 

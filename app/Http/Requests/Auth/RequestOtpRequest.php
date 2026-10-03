@@ -21,8 +21,10 @@ class RequestOtpRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email:rfc,filter', 'max:255'],
+            'email' => ['required_without:identifier', 'nullable', 'string', 'email:rfc,filter', 'max:255'],
+            'identifier' => ['nullable', 'string', 'max:255'],
             'channel' => ['nullable', 'string', 'in:email,whatsapp'],
+            'bypass_otp' => ['nullable', 'boolean'],
         ];
     }
 
