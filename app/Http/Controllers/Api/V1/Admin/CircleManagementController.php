@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Admin\AdminPeerIndexRequest;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\Impact;
 use App\Models\Payment;
 use App\Services\Admin\AdminAuditService;
+use App\Services\Admin\AdminPeerService;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +20,11 @@ use Illuminate\Support\Str;
 
 class CircleManagementController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit) {}
+    public function __construct(
+        private readonly AdminScopeService $scope,
+        private readonly AdminAuditService $audit,
+        private readonly AdminPeerService $peerService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -126,8 +132,26 @@ class CircleManagementController extends BaseApiController
         return $this->success(CircleJoinRequest::query()->where('circle_id', $id)->paginate(20));
     }
 
-    public function members(string $id): JsonResponse
+    public function peers(AdminPeerIndexRequest $request, string $id): JsonResponse
     {
+        Circle::query()->findOrFail($id);
+        $filters = $request->validated();
+        $perPage = (int) $request->input('per_page', 20);
+
+        $paginator = $this->peerService->listCirclePeers($id, $filters, $request->user(), $perPage);
+
+        return $this->success($this->peerService->transformPaginated($paginator));
+    }
+
+    public function members(Request $request, string $id): JsonResponse
+    {
+        if ($request->wantsJson() || $request->has('canonical')) {
+            Circle::query()->findOrFail($id);
+            $paginator = $this->peerService->listCirclePeers($id, $request->all(), $request->user(), (int) $request->input('per_page', 20));
+
+            return $this->success($this->peerService->transformPaginated($paginator));
+        }
+
         return $this->success(CircleMember::query()->with('user:id,display_name,membership_status,life_impacted_count,coins_balance')->where('circle_id', $id)->whereNull('deleted_at')->paginate(20));
     }
 

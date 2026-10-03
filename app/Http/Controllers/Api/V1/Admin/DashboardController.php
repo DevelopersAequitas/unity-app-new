@@ -6,11 +6,10 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
 use App\Models\CoinClaimRequest;
-use App\Models\Event;
 use App\Models\Impact;
-use App\Models\Industry;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Admin\AdminDashboardMetricsService;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,28 +18,19 @@ use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope) {}
+    public function __construct(
+        private readonly AdminScopeService $scope,
+        private readonly AdminDashboardMetricsService $metricsService,
+    ) {}
+
+    public function metrics(Request $request): JsonResponse
+    {
+        return $this->success($this->metricsService->getMetrics($request->user()));
+    }
 
     public function summary(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $circleIds = $this->scope->visibleCircleIds($user);
-
-        $usersQuery = User::query();
-        $this->scope->applyUserScope($usersQuery, $user);
-
-        $circlesQuery = Circle::query();
-        $this->scope->applyCircleScope($circlesQuery, $user);
-
-        return $this->success([
-            'total_users' => $usersQuery->count(),
-            'total_active_members' => (clone $usersQuery)->where('membership_status', '!=', 'visitor')->count(),
-            'total_circles' => $circlesQuery->count(),
-            'total_industries' => Industry::query()->when(! $this->scope->isGlobal($user), fn ($q) => $q->whereIn('id', $this->scope->visibleIndustryIds($user)))->count(),
-            'total_districts' => count($this->scope->visibleDistrictIds($user)),
-            'total_leaders' => User::query()->whereHas('roles', fn ($q) => $q->whereIn('key', ['ded', 'industry_director', 'circle_leader', 'founder', 'director', 'chair', 'vice_chair', 'secretary']))->count(),
-            'upcoming_events_count' => Event::query()->whereDate('start_at', '>=', now()->toDateString())->when($circleIds !== [], fn ($q) => $q->whereIn('circle_id', $circleIds))->count(),
-        ]);
+        return $this->metrics($request);
     }
 
     public function revenue(Request $request): JsonResponse

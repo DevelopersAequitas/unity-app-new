@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -79,6 +80,10 @@ class EmailLogService
 
     private function persist(array $data): ?EmailLog
     {
+        if (! Schema::hasTable('email_logs')) {
+            return null;
+        }
+
         try {
             $toEmail = trim((string) Arr::get($data, 'to_email', ''));
             if ($toEmail === '') {
