@@ -649,10 +649,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/circle-join-requests/{id}/payment/verify', [CircleJoinRequestPaymentController::class, 'verify'])->whereUuid('id');
         Route::post('/circle-join-requests/{id}/verify-payment', [CircleJoinRequestController::class, 'verifyPayment'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
-    });
 
-    Route::middleware(['auth:sanctum', 'admin.auth'])->prefix('admin')->group(function () {
-        Route::get('/sponsored-members/milestones', [SponsoredMembersMilestonesController::class, 'index']);
+        Route::prefix('admin')->group(function () {
+            Route::get('/sponsored-members/milestones', [SponsoredMembersMilestonesController::class, 'index']);
             Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
 
             Route::get('/campaigns', [AdminCampaignController::class, 'index']);
@@ -910,7 +909,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/ad-bookings/{id}/review', [AdBookingAdminController::class, 'review'])->whereUuid('id');
         });
 
-    Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         // Circle Chat
         Route::get('/circles/{circle}/chat/messages', [CircleChatController::class, 'index']);
         Route::post('/circles/{circle}/chat/messages', [CircleChatController::class, 'store']);
@@ -1294,7 +1292,15 @@ Route::prefix('v1')->group(function () {
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
 
-
+Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(function () {
+    Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+    Route::post('/campaigns', [AdminCampaignController::class, 'store']);
+    Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
+    Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
+    Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
+    Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
+    Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
+});
 
 Route::get('/debug-notifications', function () {
     try {
