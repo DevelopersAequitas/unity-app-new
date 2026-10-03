@@ -708,6 +708,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/dashboard/metrics', [DashboardController::class, 'metrics']);
             Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+            Route::get('/dashboard/get-summary', [DashboardController::class, 'getSummary']);
             Route::get('/dashboard/revenue', [DashboardController::class, 'revenue']);
             Route::get('/dashboard/life-impact', [DashboardController::class, 'lifeImpact']);
             Route::get('/dashboard/members-growth', [DashboardController::class, 'membersGrowth']);
@@ -804,6 +805,9 @@ Route::prefix('v1')->group(function () {
             Route::put('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesUpdate']);
             Route::delete('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesDelete']);
 
+            // Define static resource routes BEFORE wildcard parameter routes (e.g., before /events/{id})
+            Route::get('/events/coupons', [EventCouponAdminController::class, 'index']);
+            Route::post('/events/coupons', [EventCouponAdminController::class, 'store']);
             Route::get('/events', [EventAdminController::class, 'index']);
             Route::post('/events', [EventAdminController::class, 'store']);
             Route::get('/events/{id}', [EventAdminController::class, 'show'])->whereUuid('id');
