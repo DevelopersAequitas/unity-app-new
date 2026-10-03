@@ -1294,15 +1294,7 @@ Route::prefix('v1')->group(function () {
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
 
-Route::middleware(['auth:sanctum', 'admin.auth'])->prefix('admin')->group(function () {
-    Route::get('/campaigns', [AdminCampaignController::class, 'index']);
-    Route::post('/campaigns', [AdminCampaignController::class, 'store']);
-    Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
-    Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
-    Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
-    Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
-    Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
-});
+
 
 Route::get('/debug-notifications', function () {
     try {
