@@ -10,6 +10,7 @@ use App\Models\CircleJoinRequest;
 use App\Models\CoinClaimRequest;
 use App\Models\Event;
 use App\Models\Impact;
+use App\Models\JoinRequest;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\Admin\AdminDashboardMetricsService;
@@ -32,49 +33,82 @@ class DashboardController extends BaseApiController
 
         $totalActivePeers = User::query()
             ->where(function ($q): void {
-                $q->where('is_active', true)->orWhere('status', 'active');
+                if (Schema::hasColumn('users', 'is_active') && Schema::hasColumn('users', 'status')) {
+                    $q->where('is_active', true)->orWhere('status', 'active');
+                } elseif (Schema::hasColumn('users', 'is_active')) {
+                    $q->where('is_active', true);
+                } elseif (Schema::hasColumn('users', 'status')) {
+                    $q->where('status', 'active');
+                }
             })
             ->count();
 
         $charteredCircles = Circle::query()
             ->where(function ($q): void {
-                $q->where('status', 'active')->orWhereNull('status');
+                if (Schema::hasColumn('circles', 'status')) {
+                    $q->whereIn('status', ['active', 'chartered']);
+                }
             })
             ->count();
 
+        $today = today();
         $todayEventsCount = 0;
         if (Schema::hasTable('events')) {
             $eventQuery = Event::query();
-            if (Schema::hasColumn('events', 'start_at')) {
-                $eventQuery->whereDate('start_at', today());
-            } elseif (Schema::hasColumn('events', 'start_date')) {
-                $eventQuery->whereDate('start_date', today());
+            $startCol = Schema::hasColumn('events', 'start_date') ? 'start_date' : (Schema::hasColumn('events', 'start_at') ? 'start_at' : null);
+            $endCol = Schema::hasColumn('events', 'end_date') ? 'end_date' : (Schema::hasColumn('events', 'end_at') ? 'end_at' : null);
+
+            if ($startCol && $endCol) {
+                $eventQuery->whereDate($startCol, '<=', $today)->whereDate($endCol, '>=', $today);
+            } elseif ($startCol) {
+                $eventQuery->whereDate($startCol, $today);
             }
             $todayEventsCount = $eventQuery->count();
         }
 
         $pendingClearancesCount = 0;
+        $pendingStatuses = ['pending', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee'];
         if (Schema::hasTable('circle_join_requests')) {
-            $pendingClearancesCount = CircleJoinRequest::query()
-                ->whereIn('status', ['pending', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee'])
+            $pendingClearancesCount += CircleJoinRequest::query()
+                ->whereIn('status', $pendingStatuses)
+                ->count();
+        }
+        if (class_exists(JoinRequest::class) && Schema::hasTable('join_requests')) {
+            $pendingClearancesCount += JoinRequest::query()
+                ->whereIn('status', $pendingStatuses)
+                ->count();
+        } elseif (Schema::hasTable('join_requests')) {
+            $pendingClearancesCount += DB::table('join_requests')
+                ->whereIn('status', $pendingStatuses)
                 ->count();
         }
 
-        $activePeersCount = $totalActivePeers > 0 ? $totalActivePeers : 20;
-        $circlesCount = $charteredCircles > 0 ? $charteredCircles : 40;
-        $clearancesCount = $pendingClearancesCount > 0 ? $pendingClearancesCount : 12;
+        $coinsReserve = '1.84M';
+        if (Schema::hasTable('app_config_settings')) {
+            $setting = DB::table('app_config_settings')->where('key', 'coins_reserve')->value('value');
+            if ($setting !== null && $setting !== '') {
+                $coinsReserve = (string) $setting;
+            }
+        }
 
         $augmented = array_merge($metrics, [
-            'totalActivePeers' => $activePeersCount,
-            'total_active_peers' => $activePeersCount,
-            'charteredCircles' => $circlesCount,
-            'chartered_circles' => $circlesCount,
+            'totalActivePeers' => $totalActivePeers,
+            'total_active_peers' => $totalActivePeers,
+            'charteredCircles' => $charteredCircles,
+            'chartered_circles' => $charteredCircles,
             'todayEventsCount' => $todayEventsCount,
             'today_events_count' => $todayEventsCount,
-            'pendingClearancesCount' => $clearancesCount,
-            'pending_clearances_count' => $clearancesCount,
-            'coinsReserve' => '1.84M',
-            'coins_reserve' => '1.84M',
+            'pendingClearancesCount' => $pendingClearancesCount,
+            'pending_clearances_count' => $pendingClearancesCount,
+            'coinsReserve' => $coinsReserve,
+            'coins_reserve' => $coinsReserve,
+            'totalPeers' => $metrics['total_peers'] ?? 0,
+            'totalUsers' => $metrics['total_users'] ?? 0,
+            'totalCircles' => $metrics['total_circles'] ?? 0,
+            'activeCirclesCount' => $metrics['active_circles_count'] ?? 0,
+            'totalLivesImpacted' => $metrics['total_lives_impacted'] ?? 0,
+            'totalCoinsIssued' => $metrics['total_coins_issued'] ?? 0,
+            'totalRevenue' => $metrics['total_revenue'] ?? 0,
         ]);
 
         return $this->success($augmented);
