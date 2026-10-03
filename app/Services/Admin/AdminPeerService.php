@@ -47,7 +47,7 @@ class AdminPeerService
     /**
      * Fetch paginated list of canonical peers with comprehensive filtering and scoping.
      */
-    public function listPeers(array $filters = [], ?User $actor = null, int $perPage = 20): LengthAwarePaginator
+    public function listPeers(array $filters = [], User|\App\Models\AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
     {
         $query = User::query()
             ->with([
@@ -76,7 +76,7 @@ class AdminPeerService
     /**
      * Fetch canonical peers roster for a specific circle.
      */
-    public function listCirclePeers(string $circleId, array $filters = [], ?User $actor = null, int $perPage = 20): LengthAwarePaginator
+    public function listCirclePeers(string $circleId, array $filters = [], User|\App\Models\AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
     {
         if ($actor !== null) {
             $this->scope->assertCircleVisible($actor, $circleId);
