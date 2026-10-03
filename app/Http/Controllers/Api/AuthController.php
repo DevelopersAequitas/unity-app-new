@@ -1412,13 +1412,26 @@ class AuthController extends BaseApiController
         if (Schema::hasTable('roles') && Schema::hasTable('admin_user_roles')) {
             $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
             if ($globalAdminRoleId) {
-                $hasRole = DB::table('admin_user_roles')
+                // For AdminUser
+                $hasRoleAdmin = DB::table('admin_user_roles')
                     ->where('user_id', $adminUser->id)
                     ->where('role_id', $globalAdminRoleId)
                     ->exists();
-                if (! $hasRole) {
+                if (! $hasRoleAdmin) {
                     DB::table('admin_user_roles')->insert([
                         'user_id' => $adminUser->id,
+                        'role_id' => $globalAdminRoleId,
+                    ]);
+                }
+
+                // For User
+                $hasRoleUser = DB::table('admin_user_roles')
+                    ->where('user_id', $user->id)
+                    ->where('role_id', $globalAdminRoleId)
+                    ->exists();
+                if (! $hasRoleUser) {
+                    DB::table('admin_user_roles')->insert([
+                        'user_id' => $user->id,
                         'role_id' => $globalAdminRoleId,
                     ]);
                 }
@@ -1426,17 +1439,17 @@ class AuthController extends BaseApiController
         }
 
         // 4. Generate Sanctum Bearer Token
-        $token = $adminUser->createToken('admin_panel')->plainTextToken;
+        $token = $user->createToken('admin_panel')->plainTextToken;
 
         $userPayload = [
-            'id' => (string) $adminUser->id,
-            'name' => $adminUser->name ?: 'Harsh Super Admin',
-            'email' => $adminUser->email,
+            'id' => (string) $user->id,
+            'name' => $user->display_name ?: 'Harsh Super Admin',
+            'email' => $user->email,
             'role' => 'super_admin',
             'roleName' => 'Super Administrator',
             'permissions' => ['*'],
             'status' => 'active',
-            'created_at' => (string) ($adminUser->created_at ?? now()->toIso8601String()),
+            'created_at' => (string) ($user->created_at ?? now()->toIso8601String()),
         ];
 
         return response()->json([
