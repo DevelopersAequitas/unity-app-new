@@ -146,6 +146,7 @@ use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\RbacUserPermissionController;
+use App\Http\Controllers\Api\V1\ReferralCampaignConfigController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\SendTestNotificationController;
@@ -291,7 +292,7 @@ Route::prefix('v1')->group(function () {
         Route::post('social-login', [AuthController::class, 'socialLogin']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
-    Route::post('direct-login', [AuthController::class, 'directLogin']);
+        Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -417,6 +418,10 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
+
+    // Referral Campaign Config API
+    Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
+    Route::get('/referrals/campaign-config', [ReferralCampaignConfigController::class, 'show']);
 
     // Referral Contact Invitations APIs
     Route::post('/referrals/send-invitations', [ContactInvitationApiController::class, 'sendInvitations']);
