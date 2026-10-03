@@ -21,6 +21,8 @@ class Payment extends Model
 
     public const TYPE_CIRCLE_PACKAGE = 'circle_package';
 
+    public const TYPE_CIRCLE_JOIN = 'circle_join_fee';
+
     protected $table = 'payments';
 
     protected $keyType = 'string';
@@ -31,6 +33,7 @@ class Payment extends Model
         'id',
         'user_id',
         'circle_id',
+        'circle_join_request_id',
         'payment_type',
         'membership_plan_id',
         'amount',

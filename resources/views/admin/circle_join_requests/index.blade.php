@@ -255,10 +255,10 @@
                                     <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
                                     @if($row->can_approve_cd)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap no-underline">Select Circle & Approve</a>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @elseif($row->can_approve_id)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline" onsubmit="return confirm('Approve ID for circle: {{ addslashes($row->circle?->name ?? 'assigned circle') }}?');">@csrf<input type="hidden" name="circle_id" value="{{ $row->circle_id }}"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve ID</button></form>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @elseif($row->can_approve_ded)
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
@@ -340,6 +340,7 @@
                 <!-- Dynamic Approve Form -->
                 <form id="modalApproveForm" method="POST" action="" class="inline">
                     @csrf
+                    <input type="hidden" name="circle_id" id="modalApproveCircleId" value="">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5">
                         Approve
                     </button>
@@ -425,6 +426,10 @@
             approveForm.action = approveUrl;
             rejectForm.action = rejectUrl;
             rejectInput.name = rejectField;
+            const circleInput = document.getElementById('modalApproveCircleId');
+            if (circleInput) {
+                circleInput.value = data.requestedCircleId || '';
+            }
             approveForm.classList.remove('hidden');
             rejectForm.classList.remove('hidden');
         } else {

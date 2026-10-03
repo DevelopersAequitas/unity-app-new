@@ -19,6 +19,8 @@ class VerifyCirclePaymentRequest extends FormRequest
             'razorpay_order_id' => ['required', 'string', 'min:5'],
             'razorpay_payment_id' => ['required', 'string', 'min:5'],
             'razorpay_signature' => ['required', 'string', 'min:10'],
+            'gst_number' => ['nullable', 'string', 'max:50'],
+            'gstin' => ['nullable', 'string', 'max:50'],
         ];
     }
 }

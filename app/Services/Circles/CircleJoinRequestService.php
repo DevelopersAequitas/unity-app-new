@@ -150,23 +150,29 @@ class CircleJoinRequestService
         return $selection;
     }
 
-    public function approveByCd(CircleJoinRequest $request, User|AdminUser $admin): CircleJoinRequest
+    public function approveByCd(CircleJoinRequest $request, User|AdminUser $admin, ?string $circleId = null): CircleJoinRequest
     {
-        $updated = DB::transaction(function () use ($request, $admin) {
+        $updated = DB::transaction(function () use ($request, $admin, $circleId) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
             $oldStatus = (string) $locked->status;
             $approverUserId = $this->resolveApproverUserId($admin);
 
-            $locked->forceFill([
+            $updates = [
                 'status' => CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
                 'cd_approved_by' => $approverUserId,
                 'cd_approved_at' => now(),
                 'cd_rejected_by' => null,
                 'cd_rejected_at' => null,
                 'cd_rejection_reason' => null,
-            ])->save();
+            ];
+
+            if (! empty($circleId) && Circle::query()->where('id', $circleId)->exists()) {
+                $updates['circle_id'] = $circleId;
+            }
+
+            $locked->forceFill($updates)->save();
 
             $updated = $locked->fresh(['user', 'circle']);
 
@@ -219,23 +225,29 @@ class CircleJoinRequestService
         return $updated;
     }
 
-    public function approveById(CircleJoinRequest $request, User|AdminUser $admin): CircleJoinRequest
+    public function approveById(CircleJoinRequest $request, User|AdminUser $admin, ?string $circleId = null): CircleJoinRequest
     {
-        $updated = DB::transaction(function () use ($request, $admin) {
+        $updated = DB::transaction(function () use ($request, $admin, $circleId) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
             $oldStatus = (string) $locked->status;
             $approverUserId = $this->resolveApproverUserId($admin);
 
-            $locked->forceFill([
+            $updates = [
                 'status' => CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
                 'id_approved_by' => $approverUserId,
                 'id_approved_at' => now(),
                 'id_rejected_by' => null,
                 'id_rejected_at' => null,
                 'id_rejection_reason' => null,
-            ])->save();
+            ];
+
+            if (! empty($circleId) && Circle::query()->where('id', $circleId)->exists()) {
+                $updates['circle_id'] = $circleId;
+            }
+
+            $locked->forceFill($updates)->save();
 
             $updated = $locked->fresh(['user', 'circle']);
 
@@ -378,8 +390,13 @@ class CircleJoinRequestService
         return $updated;
     }
 
-    public function approveAndJoinCircle(CircleJoinRequest $request, User|AdminUser $admin): CircleJoinRequest
+    public function approveAndJoinCircle(CircleJoinRequest $request, User|AdminUser $admin, ?string $circleId = null): CircleJoinRequest
     {
+        if (! empty($circleId) && Circle::query()->where('id', $circleId)->exists()) {
+            $request->circle_id = $circleId;
+            $request->save();
+        }
+
         if (empty($request->circle_id)) {
             throw ValidationException::withMessages([
                 'circle_id' => ['Requested Circle is missing or invalid.'],
@@ -495,8 +512,12 @@ class CircleJoinRequestService
             ];
 
             if (Schema::hasTable('circle_join_requests') && Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
+                $dedAdminUserId = null;
+                if ($approverUserId && Schema::hasTable('admin_users') && DB::table('admin_users')->where('id', $approverUserId)->exists()) {
+                    $dedAdminUserId = $approverUserId;
+                }
                 $requestUpdates['ded_approval_status'] = 'approved';
-                $requestUpdates['ded_approved_by'] = $approverUserId;
+                $requestUpdates['ded_approved_by'] = $dedAdminUserId;
                 $requestUpdates['ded_approved_at'] = $now;
             }
 

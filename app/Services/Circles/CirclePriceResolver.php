@@ -16,30 +16,64 @@ class CirclePriceResolver
 
     public const SOURCE_CIRCLE_OVERRIDE = 'circle_override';
 
-    public const SOURCE_MEMBERSHIP_PLAN = 'membership_plan';
+    public const SOURCE_ZOHO_ADDON = 'zoho_circle_addon';
 
     /**
      * Resolve the price for a Circle and/or CircleJoinRequest.
-     *
-     * Priority:
-     * 1. Exact selected Circle pricing/plan:
-     *    - Join request assigned plan (`membership_plan_id` in notes)
-     *    - Specific Circle Plan matching the circle (slug/name)
-     * 2. Circle-specific price override (`circle_price_amount` > 0)
-     * 3. Membership Plan with slug 'circle_peer'
      *
      * @return array{
      *     amount: float,
      *     currency: string,
      *     source: string,
      *     amount_in_paise: int,
-     *     plan: ?MembershipPlan
+     *     plan: ?MembershipPlan,
+     *     gateway: string
      * }
      */
     public function resolve(?Circle $circle, ?CircleJoinRequest $joinRequest = null): array
     {
-        // 1. Exact selected Circle pricing/plan
-        // 1a. Explicit plan assigned to join request
+        // 1. If Circle is explicitly configured for Zoho (or legacy Zoho circle)
+        if ($circle && $circle->isZoho()) {
+            $circlePrice = $circle->circle_price_amount !== null ? (float) $circle->circle_price_amount : 5000.00;
+            $currency = strtoupper((string) ($circle->circle_price_currency ?: 'INR'));
+            $gstPercent = (float) ($circle->circle_gst_percent ?: 18.00);
+            $totalAmount = round($circlePrice + round($circlePrice * ($gstPercent / 100), 2), 2);
+
+            return [
+                'amount' => $circlePrice,
+                'currency' => $currency,
+                'source' => self::SOURCE_ZOHO_ADDON,
+                'amount_in_paise' => (int) round($totalAmount * 100),
+                'plan' => null,
+                'gateway' => 'zoho',
+            ];
+        }
+
+        // 2. Razorpay Circle: Check explicit payment_plan_id configured on Circle
+        if ($circle && ! empty($circle->payment_plan_id)) {
+            $planIdStr = trim((string) $circle->payment_plan_id);
+            $assignedPlan = Str::isUuid($planIdStr)
+                ? MembershipPlan::query()->find($planIdStr)
+                : MembershipPlan::query()->where('slug', $planIdStr)->first();
+
+            if ($assignedPlan && (float) $assignedPlan->price >= 0 && $assignedPlan->is_active) {
+                $planPrice = (float) $assignedPlan->price;
+                $currency = strtoupper((string) config('razorpay.currency', 'INR'));
+                $gstPercent = (float) ($assignedPlan->gst_percent ?: 18.00);
+                $totalAmount = round($planPrice + round($planPrice * ($gstPercent / 100), 2), 2);
+
+                return [
+                    'amount' => $planPrice,
+                    'currency' => $currency,
+                    'source' => self::SOURCE_CIRCLE_PLAN,
+                    'amount_in_paise' => (int) round($totalAmount * 100),
+                    'plan' => $assignedPlan,
+                    'gateway' => 'razorpay',
+                ];
+            }
+        }
+
+        // 3. Explicit plan assigned to join request
         if ($joinRequest) {
             $notes = is_array($joinRequest->notes) ? $joinRequest->notes : [];
             $planId = $notes['membership_plan_id'] ?? ($notes['circle_plan_id'] ?? null);
@@ -48,22 +82,25 @@ class CirclePriceResolver
                 $assignedPlan = Str::isUuid($planIdStr)
                     ? MembershipPlan::query()->find($planIdStr)
                     : MembershipPlan::query()->where('slug', $planIdStr)->first();
-                if ($assignedPlan && (float) $assignedPlan->price > 0 && $assignedPlan->is_active) {
+                if ($assignedPlan && (float) $assignedPlan->price >= 0 && $assignedPlan->is_active) {
                     $planPrice = (float) $assignedPlan->price;
                     $currency = strtoupper((string) config('razorpay.currency', 'INR'));
+                    $gstPercent = (float) ($assignedPlan->gst_percent ?: 18.00);
+                    $totalAmount = round($planPrice + round($planPrice * ($gstPercent / 100), 2), 2);
 
                     return [
                         'amount' => $planPrice,
                         'currency' => $currency,
                         'source' => $assignedPlan->slug === 'circle_peer' ? self::SOURCE_MEMBERSHIP_PLAN : self::SOURCE_CIRCLE_PLAN,
-                        'amount_in_paise' => (int) round($planPrice * 100),
+                        'amount_in_paise' => (int) round($totalAmount * 100),
                         'plan' => $assignedPlan,
+                        'gateway' => 'razorpay',
                     ];
                 }
             }
         }
 
-        // 1b. Specific active Circle Plan configured for the selected Circle
+        // 4. Specific active Circle Plan matching the selected Circle (slug or name)
         if ($circle) {
             $slugCandidates = array_values(array_unique(array_filter([
                 ! empty($circle->slug) ? 'circle_'.$circle->slug : null,
@@ -98,16 +135,19 @@ class CirclePriceResolver
 
             $circlePlan = $query->first();
 
-            if ($circlePlan && (float) $circlePlan->price > 0) {
+            if ($circlePlan && (float) $circlePlan->price >= 0) {
                 $planPrice = (float) $circlePlan->price;
                 $currency = strtoupper((string) config('razorpay.currency', 'INR'));
+                $gstPercent = (float) ($circlePlan->gst_percent ?: 18.00);
+                $totalAmount = round($planPrice + round($planPrice * ($gstPercent / 100), 2), 2);
 
                 return [
                     'amount' => $planPrice,
                     'currency' => $currency,
                     'source' => self::SOURCE_CIRCLE_PLAN,
-                    'amount_in_paise' => (int) round($planPrice * 100),
+                    'amount_in_paise' => (int) round($totalAmount * 100),
                     'plan' => $circlePlan,
+                    'gateway' => 'razorpay',
                 ];
             }
         }
@@ -126,6 +166,7 @@ class CirclePriceResolver
                 'source' => self::SOURCE_CIRCLE_OVERRIDE,
                 'amount_in_paise' => (int) round($circlePrice * 100),
                 'plan' => null,
+                'gateway' => 'razorpay',
             ];
         }
 
@@ -144,6 +185,7 @@ class CirclePriceResolver
                 'source' => self::SOURCE_MEMBERSHIP_PLAN,
                 'amount_in_paise' => (int) round($planPrice * 100),
                 'plan' => $plan,
+                'gateway' => 'razorpay',
             ];
         }
 
