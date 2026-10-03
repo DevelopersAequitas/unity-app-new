@@ -11,10 +11,13 @@ class EnsureUnityUser
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user() instanceof User) {
+        $user = $request->user();
+
+        // Allow if the user is a standard User OR an AdminUser
+        if (! $user instanceof User && ! $user instanceof \App\Models\AdminUser) {
             return response()->json([
                 'success' => false,
-                'message' => 'This API is only available for Unity users.',
+                'message' => 'This API is only available for Unity users and Administrators.',
             ], 403);
         }
 
