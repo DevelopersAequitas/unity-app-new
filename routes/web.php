@@ -275,6 +275,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
             return redirect()->route('admin.dashboard');
         })->name('home');
 
+        // Campaigns routes
+        Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+        Route::post('/campaigns', [AdminCampaignController::class, 'store']);
+        Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
+        Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
+        Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
+        Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
+        Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
+
         // Tutorials routes
         Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
         Route::post('/tutorials', [TutorialController::class, 'store'])->name('tutorials.store');

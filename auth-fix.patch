@@ -1,0 +1,52 @@
+--- a/app/Http/Controllers/Api/AuthController.php
++++ b/app/Http/Controllers/Api/AuthController.php
+@@ -1413,11 +1413,20 @@ class AuthController extends Controller
+             \ = DB::table('roles')->where('key', 'global_admin')->value('id');
+             if (\) {
+-                \ = DB::table('admin_user_roles')
++                // For AdminUser
++                \ = DB::table('admin_user_roles')
+                     ->where('user_id', \->id)
+                     ->where('role_id', \)
+                     ->exists();
+-                if (! \) {
++                if (! \) {
+                     DB::table('admin_user_roles')->insert([
+                         'user_id' => \->id,
+                         'role_id' => \,
+                     ]);
+                 }
++
++                // For User
++                \ = DB::table('admin_user_roles')
++                    ->where('user_id', \->id)
++                    ->where('role_id', \)
++                    ->exists();
++                if (! \) {
++                    DB::table('admin_user_roles')->insert([
++                        'user_id' => \->id,
++                        'role_id' => \,
++                    ]);
++                }
+             }
+         }
+ 
+-        // 4. Generate Sanctum Bearer Token
+-        \ = \->createToken('admin_panel')->plainTextToken;
++        // 4. Generate Sanctum Bearer Token for STANDARD user
++        \ = \->createToken('admin_panel')->plainTextToken;
+ 
+         \ = [
+-            'id' => (string) \->id,
+-            'name' => \->name ?: 'Harsh Super Admin',
+-            'email' => \->email,
++            'id' => (string) \->id,
++            'name' => \->display_name ?: 'Harsh Super Admin',
++            'email' => \->email,
+             'role' => 'super_admin',
+             'roleName' => 'Super Administrator',
+             'permissions' => ['*'],
+             'status' => 'active',
+-            'created_at' => (string) (\->created_at ?? now()->toIso8601String()),
++            'created_at' => (string) (\->created_at ?? now()->toIso8601String()),
+         ];
