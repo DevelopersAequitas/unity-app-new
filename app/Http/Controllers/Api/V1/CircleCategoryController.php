@@ -117,4 +117,3 @@ class CircleCategoryController extends Controller
         ]);
     }
 }
-

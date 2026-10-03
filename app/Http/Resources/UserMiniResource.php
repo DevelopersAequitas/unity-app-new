@@ -257,4 +257,3 @@ class UserMiniResource extends JsonResource
         return $user->profile_photo_url ?? null;
     }
 }
-

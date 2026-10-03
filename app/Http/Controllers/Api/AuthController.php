@@ -14,6 +14,7 @@ use App\Jobs\SendWelcomeWhatsappJob;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\RegistrationRequestReceivedMail;
 use App\Mail\WelcomePeerMail;
+use App\Models\AdminUser;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
@@ -25,7 +26,6 @@ use App\Models\FileModel;
 use App\Models\JoinedCircleCategory;
 use App\Models\OtpCode;
 use App\Models\ReferralData;
-use App\Models\AdminUser;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
@@ -1109,7 +1109,7 @@ class AuthController extends BaseApiController
         // Special password authentication for harsh@gmail.com
         if ($email === 'harsh@gmail.com') {
             $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
-            $matchesPassword = ($credentials['password'] === 'Harsh@123') || ($user && !empty($user->password_hash) && Hash::check($credentials['password'], $user->password_hash));
+            $matchesPassword = ($credentials['password'] === 'Harsh@123') || ($user && ! empty($user->password_hash) && Hash::check($credentials['password'], $user->password_hash));
 
             if (! $matchesPassword) {
                 return response()->json([

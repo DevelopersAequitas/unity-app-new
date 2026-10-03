@@ -87,6 +87,7 @@ class AdminAuthController extends Controller
                     $result['data']['token'] = $token;
                     $result['data']['access_token'] = $token;
                     $result['data']['permissions'] = ['*'];
+
                     return response()->json([
                         'success' => true,
                         'message' => $result['message'] ?? 'Direct login successful',
