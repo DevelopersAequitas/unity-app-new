@@ -94,7 +94,7 @@ class CircleJoinRequestAdminController extends BaseApiController
         $this->ensureCanApproveCd($request->user(), $record);
 
         try {
-            return $this->success($this->service->approveByCd($record, $request->user()), 'Circle Director approval completed.');
+            return $this->success($this->service->approveByCd($record, $request->user(), $request->input('circle_id')), 'Circle Director approval completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
@@ -118,7 +118,7 @@ class CircleJoinRequestAdminController extends BaseApiController
         $this->ensureCanApproveId($request->user(), $record);
 
         try {
-            return $this->success($this->service->approveById($record, $request->user()), 'Industry Director approval completed.');
+            return $this->success($this->service->approveById($record, $request->user(), $request->input('circle_id')), 'Industry Director approval completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }

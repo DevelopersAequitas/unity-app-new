@@ -59,6 +59,8 @@ class StoreCircleJoinRequest extends FormRequest
             'is_other_category' => ['nullable', 'boolean'],
             'other_category_name' => ['nullable', 'string', 'max:255'],
             'custom_category_name' => ['nullable', 'string', 'max:255'],
+            'gst_number' => ['nullable', 'string', 'max:50'],
+            'gstin' => ['nullable', 'string', 'max:50'],
         ];
     }
 }

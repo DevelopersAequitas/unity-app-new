@@ -87,6 +87,8 @@ class Circle extends Model
         'circle_duration_months',
         'circle_gst_percent',
         'is_package_active',
+        'payment_gateway',
+        'payment_plan_id',
     ];
 
     protected $casts = [
@@ -99,6 +101,21 @@ class Circle extends Model
         'circle_duration_months' => 'integer',
         'is_package_active' => 'boolean',
     ];
+
+    public function isRazorpay(): bool
+    {
+        return strtolower((string) ($this->payment_gateway ?? '')) === 'razorpay';
+    }
+
+    public function isZoho(): bool
+    {
+        return ! $this->isRazorpay();
+    }
+
+    public function paymentPlan(): BelongsTo
+    {
+        return $this->belongsTo(MembershipPlan::class, 'payment_plan_id', 'id');
+    }
 
     protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
 

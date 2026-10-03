@@ -3,10 +3,13 @@
 namespace App\Http\Requests\Admin\Circles;
 
 use App\Models\Circle;
+use App\Models\MembershipPlan;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreCircleRequest extends FormRequest
 {
@@ -55,6 +58,8 @@ class StoreCircleRequest extends FormRequest
             'calendar_meetings.*.default_meet_day' => ['nullable', Rule::in(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])],
             'calendar_meetings.*.default_meet_time' => ['nullable', 'date_format:H:i'],
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
+            'payment_gateway' => ['nullable', 'string', Rule::in(['zoho', 'razorpay'])],
+            'payment_plan_id' => ['nullable', 'string', 'max:255'],
             'circle_package' => ['nullable', 'string', 'max:120'],
             'circle_price_amount' => ['nullable', 'numeric', 'min:0'],
             'circle_gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -62,6 +67,43 @@ class StoreCircleRequest extends FormRequest
             'categories' => ['nullable', 'array', 'max:1'],
             'categories.*' => ['integer', 'exists:circle_categories,id'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $gateway = (string) ($this->input('payment_gateway') ?: 'zoho');
+            $package = trim((string) ($this->input('circle_package') ?: $this->input('payment_plan_id') ?: ''));
+            $price = $this->input('circle_price_amount');
+            $isPaid = $price !== null && (float) $price > 0;
+
+            if ($isPaid && $gateway === '') {
+                $validator->errors()->add('payment_gateway', 'A payment gateway must be selected for paid circles.');
+            }
+
+            if ($isPaid && $package === '') {
+                $validator->errors()->add('circle_package', 'A package must be selected for the chosen payment gateway.');
+            }
+
+            if ($package !== '') {
+                if ($gateway === 'razorpay') {
+                    $plan = Str::isUuid($package)
+                        ? MembershipPlan::query()->circleOnly()->find($package)
+                        : MembershipPlan::query()->circleOnly()->where('slug', $package)->first();
+
+                    if (! $plan) {
+                        $validator->errors()->add('circle_package', 'The selected package is not a valid Razorpay Circle plan.');
+                    } elseif (! $plan->is_active) {
+                        $validator->errors()->add('circle_package', 'The selected Razorpay package is inactive.');
+                    }
+                } elseif ($gateway === 'zoho') {
+                    // Check if package looks like a MembershipPlan UUID to prevent cross-gateway misconfiguration
+                    if (Str::isUuid($package) && MembershipPlan::query()->where('id', $package)->exists()) {
+                        $validator->errors()->add('circle_package', 'The selected package belongs to Razorpay, not Zoho.');
+                    }
+                }
+            }
+        });
     }
 
     protected function prepareForValidation(): void
@@ -81,6 +123,17 @@ class StoreCircleRequest extends FormRequest
 
         if ($this->has('category_ids') && ! $this->has('categories')) {
             $payload['categories'] = $this->input('category_ids');
+        }
+
+        $gateway = (string) ($this->input('payment_gateway') ?: 'zoho');
+        $payload['payment_gateway'] = $gateway;
+
+        if ($gateway === 'razorpay' && $this->filled('razorpay_package')) {
+            $payload['circle_package'] = $this->input('razorpay_package');
+            $payload['payment_plan_id'] = $this->input('razorpay_package');
+        } elseif ($gateway === 'zoho' && $this->filled('zoho_package')) {
+            $payload['circle_package'] = $this->input('zoho_package');
+            $payload['payment_plan_id'] = $this->input('zoho_package');
         }
 
         if ($payload !== []) {

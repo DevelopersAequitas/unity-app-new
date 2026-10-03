@@ -33,7 +33,12 @@ class CircleJoinRequestPaymentController extends BaseApiController
         }
 
         try {
-            $data = $this->circleJoinPaymentService->createOrder($joinRequest, $request->user());
+            $gstNumber = trim((string) ($request->input('gst_number') ?? $request->input('gstin') ?? ''));
+            $data = $this->circleJoinPaymentService->createOrder(
+                $joinRequest,
+                $request->user(),
+                $gstNumber !== '' ? $gstNumber : null
+            );
 
             return $this->success($data, null);
         } catch (ValidationException $e) {
@@ -57,12 +62,14 @@ class CircleJoinRequestPaymentController extends BaseApiController
         }
 
         try {
+            $gstNumber = trim((string) ($request->validated('gst_number') ?? $request->validated('gstin') ?? $request->input('gst_number') ?? $request->input('gstin') ?? ''));
             $updated = $this->circleJoinPaymentService->verifyPayment(
                 $joinRequest,
                 $request->user(),
                 (string) $request->validated('razorpay_order_id'),
                 (string) $request->validated('razorpay_payment_id'),
-                (string) $request->validated('razorpay_signature')
+                (string) $request->validated('razorpay_signature'),
+                $gstNumber !== '' ? $gstNumber : null
             );
 
             return $this->success([

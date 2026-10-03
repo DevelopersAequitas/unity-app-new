@@ -48,6 +48,7 @@
                                         data-circle-id="{{ $req->circle_id }}"
                                         data-circle-name="{{ $cName }}"
                                         data-status="{{ $req->status }}"
+                                        data-order-id="{{ $req->notes['razorpay_order_id'] ?? '' }}"
                                         data-cd-status="{{ $req->cd_approved_at ? 'approved' : 'pending' }}"
                                         data-id-status="{{ $req->id_approved_at ? 'approved' : 'pending' }}">
                                     [{{ $req->status }}] {{ $uName }} &rarr; {{ $cName }} (ID: {{ substr($req->id, 0, 8) }}...)
@@ -377,6 +378,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         boxReq.classList.remove('d-none');
         updateUiState(status, cdApproved, idApproved);
+
+        if (opt.dataset.orderId) {
+            verifyOrderId.value = opt.dataset.orderId;
+            btnVerify.disabled = false;
+        }
     });
 
     document.getElementById('btnSubmitNewRequest').addEventListener('click', async function() {
@@ -531,7 +537,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btnVerify.addEventListener('click', async function() {
-        if (!currentRequestId) return;
+        const oId = verifyOrderId.value.trim();
+        const pId = verifyPaymentId.value.trim() || ('pay_test_' + Math.random().toString(36).substring(2, 10));
+        const sig = verifySignature.value.trim() || 'test';
+
+        if (!oId) {
+            alert('Order ID is required. Please create an order or paste an Order ID first.');
+            return;
+        }
+
+        verifyPaymentId.value = pId;
         btnVerify.disabled = true;
 
         try {
@@ -539,10 +554,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                 body: JSON.stringify({
-                    join_request_id: currentRequestId,
-                    razorpay_order_id: verifyOrderId.value.trim(),
-                    razorpay_payment_id: verifyPaymentId.value.trim(),
-                    razorpay_signature: verifySignature.value.trim()
+                    join_request_id: currentRequestId || null,
+                    razorpay_order_id: oId,
+                    razorpay_payment_id: pId,
+                    razorpay_signature: sig
                 })
             });
             const data = await res.json();
@@ -550,6 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 boxVerifySuccess.classList.remove('d-none');
                 document.getElementById('spanFinalZohoInvoice').textContent = data.data.zoho_invoice_id || 'Processed';
                 alert('Success! ' + data.message);
+                window.location.reload();
             } else {
                 alert('Verification failed: ' + data.message);
             }

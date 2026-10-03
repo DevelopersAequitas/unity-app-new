@@ -945,7 +945,7 @@ class DedApiService
             'visitor_registrations' => $this->reviewVisitor($admin, $id, $action, $note),
             'event_joining_requests' => $this->reviewEventJoining($admin, $actor, $id, $action, $note),
             'coin_claims' => $this->reviewCoinClaim($admin, $id, $action, $note),
-            'circle_joining_requests' => $this->reviewCircleJoin($admin, $actor, $id, $action, $note),
+            'circle_joining_requests' => $this->reviewCircleJoin($admin, $actor, $id, $action, $note, $request->input('circle_id')),
             'pending_impacts' => $this->reviewImpact($admin, $id, $action, $note),
             default => abort(404, 'Unsupported pending request type.'),
         };
@@ -1017,15 +1017,18 @@ class DedApiService
         return $record->fresh('user');
     }
 
-    private function reviewCircleJoin(AdminUser $admin, User $actor, string $id, string $action, string $note)
+    private function reviewCircleJoin(AdminUser $admin, User $actor, string $id, string $action, string $note, ?string $circleId = null)
     {
         $record = $this->circleJoinRequestsQuery($admin)->findOrFail($id);
         if ($action === 'ded-approve') {
             if ((string) $record->status !== CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
                 throw ValidationException::withMessages(['status' => ['DED approval is only available while pending CD approval.']]);
             }
+            if (! empty($circleId) && Circle::query()->where('id', $circleId)->exists()) {
+                $record->circle_id = $circleId;
+            }
             $record->ded_approval_status = 'approved';
-            $record->ded_approved_by = $actor?->id ?? AdminAccess::resolveAppUser($admin)?->id;
+            $record->ded_approved_by = (Schema::hasTable('admin_users') && DB::table('admin_users')->where('id', $admin->id)->exists()) ? $admin->id : null;
             $record->ded_approved_at = now();
             $record->status = CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE;
             if (Schema::hasColumn('circle_join_requests', 'fee_marked_at')) {

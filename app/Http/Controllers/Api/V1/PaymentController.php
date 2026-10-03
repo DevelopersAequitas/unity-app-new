@@ -98,12 +98,16 @@ class PaymentController extends Controller
             'id' => $paymentId,
             'user_id' => $user->id,
             'membership_plan_id' => $plan->id,
+            'amount' => $amounts['total_amount'],
             'base_amount' => $amounts['base_amount'],
             'gst_percent' => $amounts['gst_percent'],
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
+            'currency' => config('razorpay.currency', 'INR'),
+            'provider' => 'razorpay',
             'razorpay_order_id' => $order['id'],
             'status' => Payment::STATUS_CREATED,
+            'payment_type' => Payment::TYPE_MEMBERSHIP,
         ]);
 
         return response()->json([

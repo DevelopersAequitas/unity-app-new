@@ -24,6 +24,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->dropSchema();
         $this->createSchema();
 
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
@@ -33,6 +34,24 @@ class CircleJoiningRequestsStatusTest extends TestCase
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
             $role->save();
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        $this->dropSchema();
+        parent::tearDown();
+    }
+
+    private function dropSchema(): void
+    {
+        $tables = [
+            'circle_subscriptions', 'email_logs', 'app_notifications', 'notifications',
+            'circle_category_mappings', 'circle_members', 'circle_join_requests',
+            'users', 'circle_templates', 'circle_categories', 'circles', 'roles',
+        ];
+        foreach ($tables as $t) {
+            Schema::dropIfExists($t);
         }
     }
 
