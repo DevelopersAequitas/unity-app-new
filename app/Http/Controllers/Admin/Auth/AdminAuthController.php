@@ -80,6 +80,27 @@ class AdminAuthController extends Controller
             $result = $this->adminAuthService->requestOtp($identifier);
 
             if ($request->expectsJson()) {
+                if (! empty($result['data']['is_direct_login']) && isset($result['data']['admin_user'])) {
+                    /** @var AdminUser $bypassUser */
+                    $bypassUser = $result['data']['admin_user'];
+                    $token = $bypassUser->createToken('admin_panel')->plainTextToken;
+                    $result['data']['token'] = $token;
+                    $result['data']['access_token'] = $token;
+                    $result['data']['permissions'] = ['*'];
+                    return response()->json([
+                        'success' => true,
+                        'message' => $result['message'] ?? 'Direct login successful',
+                        'data' => $result['data'],
+                        'token' => $token,
+                        'access_token' => $token,
+                        'user' => $bypassUser,
+                        'admin' => $bypassUser,
+                        'admin_user' => $bypassUser,
+                        'permissions' => ['*'],
+                        'is_direct_login' => true,
+                    ], 200);
+                }
+
                 return response()->json([
                     'success' => $result['success'],
                     'message' => $result['message'],

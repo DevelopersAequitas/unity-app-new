@@ -195,6 +195,7 @@ Route::prefix('auth')->group(function () {
     Route::post('social-login', [AuthController::class, 'socialLogin']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('direct-login', [AuthController::class, 'directLogin']);
     Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
     Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -290,6 +291,7 @@ Route::prefix('v1')->group(function () {
         Route::post('social-login', [AuthController::class, 'socialLogin']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -704,6 +706,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
 
+            Route::get('/dashboard/metrics', [DashboardController::class, 'metrics']);
             Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
             Route::get('/dashboard/revenue', [DashboardController::class, 'revenue']);
             Route::get('/dashboard/life-impact', [DashboardController::class, 'lifeImpact']);
@@ -711,9 +714,20 @@ Route::prefix('v1')->group(function () {
             Route::get('/dashboard/circles-overview', [DashboardController::class, 'circlesOverview']);
             Route::get('/dashboard/pending-counts', [DashboardController::class, 'pendingCounts']);
 
+            // Canonical Peers Directory & Management
+            Route::get('/peers', [UserManagementController::class, 'index']);
+            Route::get('/peers/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
+            Route::put('/peers/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::patch('/peers/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
+            Route::post('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
+            Route::patch('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
+
+            // Legacy Users Endpoints (Aliased to Unified Controller)
             Route::get('/users', [UserManagementController::class, 'index']);
             Route::get('/users/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
             Route::put('/users/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::post('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
+            Route::patch('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/users/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
             Route::patch('/users/{id}/membership-status', [UserManagementController::class, 'patchMembershipStatus'])->whereUuid('id');
             Route::patch('/users/{id}/assign-role', [UserManagementController::class, 'assignRole'])->whereUuid('id');
@@ -752,6 +766,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/circles/{id}/assign-director', [CircleManagementController::class, 'assignDirector'])->whereUuid('id');
             Route::patch('/circles/{id}/assign-leadership-team', [CircleManagementController::class, 'assignLeadershipTeam'])->whereUuid('id');
             Route::get('/circles/{id}/join-requests', [CircleManagementController::class, 'joinRequests'])->whereUuid('id');
+            Route::get('/circles/{id}/peers', [CircleManagementController::class, 'peers'])->whereUuid('id');
             Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
             Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
             Route::delete('/circles/{id}/members/{userId}', [CircleManagementController::class, 'removeMember'])->whereUuid('id')->whereUuid('userId');
