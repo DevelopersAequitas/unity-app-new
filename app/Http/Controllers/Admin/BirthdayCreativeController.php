@@ -41,8 +41,12 @@ class BirthdayCreativeController extends Controller
             ->whereNull('deleted_at')
             ->get();
 
-        // Sample users for preview dropdown
-        $previewUsers = User::query()->whereNull('deleted_at')->limit(30)->get();
+        // Users for preview dropdown
+        $previewUsers = User::query()
+            ->whereNull('deleted_at')
+            ->get()
+            ->sortBy(fn (User $user) => strtolower(trim((string) ($user->display_name ?: ($user->first_name.' '.$user->last_name)))), SORT_NATURAL)
+            ->values();
 
         return view('admin.birthday-creative.index', [
             'config' => $config,
