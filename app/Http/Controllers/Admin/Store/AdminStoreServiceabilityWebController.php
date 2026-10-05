@@ -265,6 +265,16 @@ class AdminStoreServiceabilityWebController extends Controller
         return back()->with('success', 'Store banner updated.');
     }
 
+    public function toggleBanner(string $id)
+    {
+        $banner = StoreBanner::findOrFail($id);
+        $banner->update([
+            'is_active' => ! $banner->is_active,
+        ]);
+
+        return back()->with('success', 'Store banner status updated.');
+    }
+
     public function deleteBanner(string $id)
     {
         $banner = StoreBanner::findOrFail($id);
@@ -273,3 +283,4 @@ class AdminStoreServiceabilityWebController extends Controller
         return back()->with('success', 'Store banner deleted.');
     }
 }
+
