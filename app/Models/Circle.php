@@ -659,7 +659,7 @@ class Circle extends Model
         $members = CircleMember::query()
             ->where('circle_id', $circleModel->id)
             ->whereNull('deleted_at')
-            ->whereIn('status', ['approved', 'active'])
+            ->whereIn(DB::raw('status::text'), ['approved', 'active'])
             ->with(['roleRef'])
             ->get();
 

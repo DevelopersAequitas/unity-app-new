@@ -56,6 +56,7 @@ class PostResource extends JsonResource
             'description' => $this->description ?? $this->content_text,
             'image' => $image,
             'status' => $this->status ?? ($this->active ? 'active' : 'inactive'),
+            'media_url' => $this->media_url,
             'media_type' => $this->media_type,
             'media' => $this->media
                 ? collect($this->media)->map(function ($item) use ($isAnniversary) {

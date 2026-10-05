@@ -89,3 +89,11 @@ Broadcast::channel('online-members', function ($user) {
         'name' => $user->display_name,
     ];
 });
+
+Broadcast::channel('admin-channel', function ($user) {
+    return true;
+});
+
+Broadcast::channel('community-stream', function () {
+    return true;
+});

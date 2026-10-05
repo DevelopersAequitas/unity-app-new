@@ -628,6 +628,21 @@ class User extends Authenticatable
         return $this->hasMany(IntroVideoLike::class, 'video_owner_id');
     }
 
+    public function circle(): BelongsTo
+    {
+        return $this->belongsTo(Circle::class, 'active_circle_id');
+    }
+
+    public function getNameAttribute(): string
+    {
+        return $this->display_name ?: trim(($this->first_name ?? '').' '.($this->last_name ?? ''));
+    }
+
+    public function getAvatarAttribute(): ?string
+    {
+        return $this->profile_photo_url;
+    }
+
     public function activeCircle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'active_circle_id');

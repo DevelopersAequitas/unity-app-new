@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\PostCreatedEvent;
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Resources\Ask\AskPreviewResource;
@@ -1125,6 +1126,12 @@ class PostController extends BaseApiController
 
         $this->dispatchNewPostNotifications($notificationService, $post);
         $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null, $mentionedPeerIds);
+
+        try {
+            broadcast(new PostCreatedEvent($post))->toOthers();
+        } catch (Throwable $e) {
+            Log::warning('Failed broadcasting PostCreatedEvent: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

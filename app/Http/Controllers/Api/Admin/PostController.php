@@ -11,6 +11,7 @@ use App\Services\Admin\AdminPostService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class PostController extends BaseApiController
 {
@@ -101,8 +102,24 @@ class PostController extends BaseApiController
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
         $paginator = $query->orderByDesc('created_at')->paginate($perPage);
 
+        $items = collect($paginator->items())->map(function (Post $post): array {
+            $data = $post->toArray();
+            $mediaUrl = $post->video_path
+                ? asset('storage/'.ltrim((string) $post->video_path, '/'))
+                : ($post->media_url ? (Str::startsWith((string) $post->media_url, ['http://', 'https://']) ? (string) $post->media_url : url((string) $post->media_url)) : $post->media_url);
+
+            $mediaType = ($post->video_path || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) ($post->media_url ?? $mediaUrl ?? '')) || $post->media_type === 'video')
+                ? 'video'
+                : ($mediaUrl || $post->media_type === 'image' ? 'image' : null);
+
+            $data['media_url'] = $mediaUrl;
+            $data['media_type'] = $mediaType;
+
+            return $data;
+        })->values()->all();
+
         return $this->success([
-            'items' => $paginator->items(),
+            'items' => $items,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -119,9 +136,9 @@ class PostController extends BaseApiController
     {
         $post = Post::withTrashed()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,phone,designation',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,phone,designation,active_circle_id',
                 'circle:id,name',
-                'comments.user:id,first_name,last_name,display_name,email,profile_photo_url',
+                'comments.user:id,first_name,last_name,display_name,email,profile_photo_url,company_name',
                 'reports.reporter:id,first_name,last_name,display_name,email',
             ])
             ->withCount(['likes', 'comments', 'reports'])
@@ -131,7 +148,19 @@ class PostController extends BaseApiController
             return $this->error('Post record not found', 404);
         }
 
-        return $this->success($post);
+        $data = $post->toArray();
+        $mediaUrl = $post->video_path
+            ? asset('storage/'.ltrim((string) $post->video_path, '/'))
+            : ($post->media_url ? (Str::startsWith((string) $post->media_url, ['http://', 'https://']) ? (string) $post->media_url : url((string) $post->media_url)) : $post->media_url);
+
+        $mediaType = ($post->video_path || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) ($post->media_url ?? $mediaUrl ?? '')) || $post->media_type === 'video')
+            ? 'video'
+            : ($mediaUrl || $post->media_type === 'image' ? 'image' : null);
+
+        $data['media_url'] = $mediaUrl;
+        $data['media_type'] = $mediaType;
+
+        return $this->success($data);
     }
 
     /**
@@ -186,7 +215,7 @@ class PostController extends BaseApiController
     }
 
     /**
-     * Return the paginated roster of peers who liked a specific post.
+     * Return the roster of peers who liked a specific post.
      */
     public function getLikes(Request $request, string $id): JsonResponse
     {
@@ -195,45 +224,37 @@ class PostController extends BaseApiController
             return $this->error('Post record not found', 404);
         }
 
-        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
-
-        $paginator = $post->likes()
-            ->with(['user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation'])
+        $likes = $post->likes()
+            ->with([
+                'user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation,active_circle_id',
+                'user.circle:id,name',
+                'user.circleMembers.circle:id,name',
+            ])
             ->latest('created_at')
-            ->paginate($perPage);
+            ->get();
 
-        $items = $paginator->map(function ($like): array {
+        $data = $likes->map(function ($like): array {
             $user = $like->user;
+            $name = $user?->name ?? $user?->display_name ?? trim(($user?->first_name ?? '').' '.($user?->last_name ?? '')) ?: 'Peer Member';
+            $circleName = $user?->circle?->name
+                ?? $user?->circleMembers?->first()?->circle?->name
+                ?? null;
 
             return [
-                'liked_at' => $like->created_at?->toIso8601String(),
-                'user' => $user ? [
-                    'id' => $user->id,
-                    'display_name' => $user->display_name,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'email' => $user->email,
-                    'company_name' => $user->company_name,
-                    'designation' => $user->designation,
-                    'profile_photo_url' => $user->profile_photo_url,
-                ] : null,
+                'id' => (string) ($user?->id ?? $like->id),
+                'name' => $name,
+                'avatar' => $user?->avatar ?? $user?->profile_photo_url,
+                'company' => $user?->company_name,
+                'circle_name' => $circleName,
+                'liked_at' => $like->created_at?->toIso8601String() ?? (string) $like->created_at,
             ];
-        })->values();
+        })->values()->all();
 
-        return $this->success([
-            'post_id' => $id,
-            'items' => $items,
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
-        ]);
+        return $this->success($data);
     }
 
     /**
-     * Return paginated top-level comments (with nested replies) for a specific post.
+     * Return top-level comments (with nested replies and author details) for a specific post.
      */
     public function getComments(Request $request, string $id): JsonResponse
     {
@@ -242,69 +263,64 @@ class PostController extends BaseApiController
             return $this->error('Post record not found', 404);
         }
 
-        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
-
-        $paginator = $post->comments()
-            ->whereNull('parent_id')
+        $comments = $post->comments()
             ->with([
-                'user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation',
-                'children.user:id,first_name,last_name,display_name,email,profile_photo_url',
+                'user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation,active_circle_id',
+                'children.user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation',
             ])
-            ->withCount('children')
+            ->whereNull('parent_id')
             ->latest()
-            ->paginate($perPage);
+            ->get();
 
-        $serializeUser = function (?object $user): ?array {
-            if (! $user) {
-                return null;
-            }
+        $data = $comments->map(function ($comment): array {
+            $user = $comment->user;
+            $userName = $user?->name ?? $user?->display_name ?? trim(($user?->first_name ?? '').' '.($user?->last_name ?? '')) ?: 'Peer Member';
 
-            return [
-                'id' => $user->id,
-                'display_name' => $user->display_name,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-                'company_name' => $user->company_name ?? null,
-                'designation' => $user->designation ?? null,
-                'profile_photo_url' => $user->profile_photo_url,
-            ];
-        };
+            $replies = $comment->children->map(function ($reply): array {
+                $replyUser = $reply->user;
+                $replyName = $replyUser?->name ?? $replyUser?->display_name ?? trim(($replyUser?->first_name ?? '').' '.($replyUser?->last_name ?? '')) ?: 'Peer Member';
 
-        $items = $paginator->map(function ($comment) use ($serializeUser): array {
-            $replies = $comment->children->map(function ($reply) use ($serializeUser): array {
                 return [
                     'id' => $reply->id,
                     'parent_id' => $reply->parent_id,
                     'content' => $reply->content,
-                    'created_at' => $reply->created_at?->toIso8601String(),
+                    'created_at' => $reply->created_at?->toIso8601String() ?? (string) $reply->created_at,
                     'deleted_at' => $reply->deleted_at?->toIso8601String(),
-                    'user' => $serializeUser($reply->user),
+                    'user' => $replyUser ? [
+                        'id' => $replyUser->id,
+                        'name' => $replyName,
+                        'display_name' => $replyUser->display_name,
+                        'avatar' => $replyUser->avatar ?? $replyUser->profile_photo_url,
+                        'profile_photo_url' => $replyUser->profile_photo_url,
+                        'company_name' => $replyUser->company_name,
+                        'company' => $replyUser->company_name,
+                    ] : null,
                 ];
-            })->values();
+            })->values()->all();
 
             return [
                 'id' => $comment->id,
+                'post_id' => $comment->post_id,
+                'user_id' => $comment->user_id,
                 'parent_id' => $comment->parent_id,
                 'content' => $comment->content,
-                'replies_count' => (int) $comment->children_count,
-                'created_at' => $comment->created_at?->toIso8601String(),
+                'created_at' => $comment->created_at?->toIso8601String() ?? (string) $comment->created_at,
                 'deleted_at' => $comment->deleted_at?->toIso8601String(),
-                'user' => $serializeUser($comment->user),
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $userName,
+                    'display_name' => $user->display_name,
+                    'avatar' => $user->avatar ?? $user->profile_photo_url,
+                    'profile_photo_url' => $user->profile_photo_url,
+                    'company_name' => $user->company_name,
+                    'company' => $user->company_name,
+                ] : null,
+                'replies_count' => count($replies),
                 'replies' => $replies,
             ];
-        })->values();
+        })->values()->all();
 
-        return $this->success([
-            'post_id' => $id,
-            'items' => $items,
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
-        ]);
+        return $this->success($data);
     }
 
     /**
