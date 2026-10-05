@@ -47,12 +47,12 @@
                     {{-- Initial Ticket Description --}}
                     <div class="d-flex mb-4">
                         <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center fw-bold me-3 flex-shrink-0" style="width: 40px; height: 40px;">
-                            {{ strtoupper(substr($ticket->user->name ?? 'P', 0, 1)) }}
+                            {{ strtoupper(substr($ticket->user?->name ?? 'P', 0, 1)) }}
                         </div>
                         <div class="flex-grow-1">
                             <div class="bg-white p-3 rounded-3 shadow-sm border">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="fw-bold text-dark">{{ $ticket->user->name ?? 'Peer' }} (Original Query)</span>
+                                    <span class="fw-bold text-dark">{{ $ticket->user?->name ?? 'Peer' }} (Original Query)</span>
                                     <span class="text-muted small">{{ $ticket->created_at->format('d M Y, h:i A') }}</span>
                                 </div>
                                 <div class="text-dark">{{ $ticket->description ?: $ticket->subject }}</div>
