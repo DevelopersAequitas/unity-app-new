@@ -1476,3 +1476,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Ask / Requirement Discovery System
 require __DIR__.'/ask.php';
+
+// Peers Store & Coin Wallet Routes
+require __DIR__.'/store.php';
+require __DIR__.'/admin_store.php';
+
