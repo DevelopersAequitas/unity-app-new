@@ -678,7 +678,6 @@ class PostController extends BaseApiController
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
-                'moderation_status' => (string) $row->moderation_status,
                 'activity_creative' => $this->formatActivityCreative($activityCreative),
                 'author' => $author ? [
                     'id' => (string) $author->id,
@@ -1062,7 +1061,7 @@ class PostController extends BaseApiController
             'media' => $mediaItems ?: [],
             'tags' => $data['tags'] ?? [],
             'visibility' => $data['visibility'],
-            'moderation_status' => 'pending',
+            'moderation_status' => 'approved',
             'sponsored' => false,
             'is_deleted' => false,
         ]);
@@ -1086,7 +1085,6 @@ class PostController extends BaseApiController
                 'tags' => $post->tags ?? [],
                 'mentions' => $this->formatPostMentions($post),
                 'visibility' => $post->visibility,
-                'moderation_status' => $post->moderation_status,
                 'sponsored' => $post->sponsored,
                 'is_deleted' => $post->is_deleted,
                 'created_at' => $post->created_at,
@@ -1189,7 +1187,6 @@ class PostController extends BaseApiController
                 'tags' => $post->tags ?? [],
                 'mentions' => $this->formatPostMentions($post),
                 'visibility' => $post->visibility,
-                'moderation_status' => $post->moderation_status,
                 'sponsored' => $post->sponsored,
                 'is_deleted' => $post->is_deleted,
                 'created_at' => $post->created_at,
@@ -1222,7 +1219,6 @@ class PostController extends BaseApiController
             'tags' => $post->tags ?? [],
             'mentions' => $this->formatPostMentions($post),
             'visibility' => $post->visibility,
-            'moderation_status' => $post->moderation_status,
             'author' => $post->relationLoaded('user') && $post->user ? [
                 'id' => $post->user->id,
                 'display_name' => $post->user->display_name,

@@ -142,7 +142,6 @@ class PostResource extends JsonResource
                 return array_values($mentions);
             })(),
             'visibility' => $this->visibility,
-            'moderation_status' => $this->moderation_status ?? null,
             'is_system_announcement' => $isAnniversary,
 
             'author' => $isAnniversary

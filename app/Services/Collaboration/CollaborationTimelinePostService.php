@@ -65,7 +65,7 @@ class CollaborationTimelinePostService
             'media' => [],
             'tags' => ['collaboration'],
             'visibility' => 'public',
-            'moderation_status' => 'pending',
+            'moderation_status' => 'approved',
             'sponsored' => false,
             'is_deleted' => false,
             'active' => true,
