@@ -213,10 +213,14 @@ class AdminStoreConfigWebController extends Controller
 
         $serverTime = now()->format('d M Y, h:i:s A');
 
-        $lowStockAlertCount = DB::table('product_variants')
-            ->where('status', 'ACTIVE')
-            ->whereRaw('stock_quantity <= low_stock_threshold')
-            ->count();
+        $hasLowStockCol = \Illuminate\Support\Facades\Schema::hasColumn('product_variants', 'low_stock_threshold');
+        $lowStockQuery = DB::table('product_variants')->where('status', 'ACTIVE');
+        if ($hasLowStockCol) {
+            $lowStockQuery->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
+        } else {
+            $lowStockQuery->where('stock_quantity', '<=', 5);
+        }
+        $lowStockAlertCount = $lowStockQuery->count();
 
         $pendingAdjustmentsCount = \App\Models\Store\WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count();
         $unresolvedTicketsCount = \App\Models\Store\StoreSupportTicket::whereIn('status', ['OPEN', 'open', 'IN_PROGRESS', 'in_progress'])->count();

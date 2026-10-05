@@ -45,44 +45,59 @@ class AdminStoreDashboardWebController extends Controller
             : ($ordersTodayCount > 0 ? 100 : 0);
 
         // 2. Pending Actions
-        $pendingReturnsCount = StoreReturn::whereIn('status', ['PENDING', 'pending', 'PENDING_INSPECTION'])->count();
-        $pendingRefundsCount = DB::table('refunds')->whereIn('status', ['PENDING', 'pending', 'PENDING_APPROVAL'])->count();
-        $pendingAdjustmentsCount = WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count();
-        $openTicketsCount = StoreSupportTicket::whereIn('status', ['OPEN', 'open', 'IN_PROGRESS', 'in_progress'])->count();
+        $pendingReturnsCount = \Illuminate\Support\Facades\Schema::hasTable('store_returns') ? StoreReturn::whereIn('status', ['PENDING', 'pending', 'PENDING_INSPECTION'])->count() : 0;
+        $pendingRefundsCount = \Illuminate\Support\Facades\Schema::hasTable('refunds') ? DB::table('refunds')->whereIn('status', ['PENDING', 'pending', 'PENDING_APPROVAL'])->count() : 0;
+        $pendingAdjustmentsCount = \Illuminate\Support\Facades\Schema::hasTable('wallet_adjustment_requests') ? WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count() : 0;
+        $openTicketsCount = \Illuminate\Support\Facades\Schema::hasTable('store_support_tickets') ? StoreSupportTicket::whereIn('status', ['OPEN', 'open', 'IN_PROGRESS', 'in_progress'])->count() : 0;
 
         // 3. Coin Economy Metrics
-        $coinsIssuedToday = (int) DB::table('coins_ledger')
-            ->whereDate('created_at', $today)
-            ->where('amount', '>', 0)
-            ->sum('amount');
+        $coinsIssuedToday = 0;
+        $coinsRedeemedToday = 0;
+        $coinsIssuedMonth = 0;
+        $coinsRedeemedMonth = 0;
+        if (\Illuminate\Support\Facades\Schema::hasTable('coins_ledger')) {
+            $coinsIssuedToday = (int) DB::table('coins_ledger')
+                ->whereDate('created_at', $today)
+                ->where('amount', '>', 0)
+                ->sum('amount');
 
-        $coinsRedeemedToday = (int) DB::table('coins_ledger')
-            ->whereDate('created_at', $today)
-            ->where('amount', '<', 0)
-            ->sum(DB::raw('ABS(amount)'));
+            $coinsRedeemedToday = (int) DB::table('coins_ledger')
+                ->whereDate('created_at', $today)
+                ->where('amount', '<', 0)
+                ->sum(DB::raw('ABS(amount)'));
 
-        $coinsIssuedMonth = (int) DB::table('coins_ledger')
-            ->where('created_at', '>=', $startOfMonth)
-            ->where('amount', '>', 0)
-            ->sum('amount');
+            $coinsIssuedMonth = (int) DB::table('coins_ledger')
+                ->where('created_at', '>=', $startOfMonth)
+                ->where('amount', '>', 0)
+                ->sum('amount');
 
-        $coinsRedeemedMonth = (int) DB::table('coins_ledger')
-            ->where('created_at', '>=', $startOfMonth)
-            ->where('amount', '<', 0)
-            ->sum(DB::raw('ABS(amount)'));
+            $coinsRedeemedMonth = (int) DB::table('coins_ledger')
+                ->where('created_at', '>=', $startOfMonth)
+                ->where('amount', '<', 0)
+                ->sum(DB::raw('ABS(amount)'));
+        }
 
         $coinsInCirculation = (int) DB::table('users')->sum('coins_balance');
 
         // 4. Inventory Metrics
-        $totalActiveProducts = Product::where('status', 'ACTIVE')->count();
-        $lowStockCount = DB::table('product_variants')
-            ->where('status', 'ACTIVE')
-            ->whereRaw('stock_quantity <= low_stock_threshold')
-            ->count();
-        $outOfStockCount = DB::table('product_variants')
-            ->where('status', 'ACTIVE')
-            ->where('stock_quantity', '<=', 0)
-            ->count();
+        $totalActiveProducts = \Illuminate\Support\Facades\Schema::hasTable('products') ? Product::where('status', 'ACTIVE')->count() : 0;
+        $lowStockCount = 0;
+        $outOfStockCount = 0;
+        if (\Illuminate\Support\Facades\Schema::hasTable('product_variants')) {
+            $hasLowStockCol = \Illuminate\Support\Facades\Schema::hasColumn('product_variants', 'low_stock_threshold');
+            $lowStockQuery = DB::table('product_variants')->where('status', 'ACTIVE');
+            if ($hasLowStockCol) {
+                $lowStockQuery->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
+            } else {
+                $lowStockQuery->where('stock_quantity', '<=', 5);
+            }
+            $lowStockCount = $lowStockQuery->count();
+
+            $outOfStockCount = DB::table('product_variants')
+                ->where('status', 'ACTIVE')
+                ->where('stock_quantity', '<=', 0)
+                ->count();
+        }
 
         // 5. Recent Alerts
         $alerts = [];
@@ -124,19 +139,39 @@ class AdminStoreDashboardWebController extends Controller
         }
 
         // 6. Recent Orders
-        $recentOrders = Order::with(['user', 'items'])
-            ->orderBy('created_at', 'desc')
-            ->limit(8)
-            ->get();
+        $recentOrders = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('orders')) {
+            $recentOrders = Order::with(['user', 'items'])
+                ->orderBy('created_at', 'desc')
+                ->limit(8)
+                ->get();
+        }
 
         // 7. Top Redeemed Products
-        $topProducts = DB::table('order_items')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
-            ->select('products.name', 'products.sku', DB::raw('COALESCE(SUM(order_items.quantity), 0) as units_sold'), DB::raw('COALESCE(SUM(order_items.total_price_coins), 0) as coins_redeemed'))
-            ->groupBy('products.id', 'products.name', 'products.sku')
-            ->orderByDesc('units_sold')
-            ->limit(5)
-            ->get();
+        $topProducts = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('order_items') && \Illuminate\Support\Facades\Schema::hasTable('products')) {
+            $priceCol = 'order_items.quantity * COALESCE(order_items.unit_coin_price, 0)';
+            if (\Illuminate\Support\Facades\Schema::hasColumn('order_items', 'total_coin_price')) {
+                $priceCol = 'order_items.total_coin_price';
+            } elseif (\Illuminate\Support\Facades\Schema::hasColumn('order_items', 'total_price_coins')) {
+                $priceCol = 'order_items.total_price_coins';
+            } elseif (\Illuminate\Support\Facades\Schema::hasColumn('order_items', 'total_coins')) {
+                $priceCol = 'order_items.total_coins';
+            }
+
+            $topProducts = DB::table('order_items')
+                ->join('products', 'order_items.product_id', '=', 'products.id')
+                ->select(
+                    'products.name',
+                    'products.sku',
+                    DB::raw('COALESCE(SUM(order_items.quantity), 0) as units_sold'),
+                    DB::raw("COALESCE(SUM({$priceCol}), 0) as coins_redeemed")
+                )
+                ->groupBy('products.id', 'products.name', 'products.sku')
+                ->orderByDesc('units_sold')
+                ->limit(5)
+                ->get();
+        }
 
         return view('admin.store.dashboard', compact(
             'ordersTodayCount',

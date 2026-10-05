@@ -16,7 +16,14 @@ class AdminStoreInventoryWebController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search', '');
-        $lowStockCount = ProductVariant::where('status', 'ACTIVE')->whereRaw('stock_quantity <= low_stock_threshold')->count();
+        $hasLowStockCol = \Illuminate\Support\Facades\Schema::hasColumn('product_variants', 'low_stock_threshold');
+        $lowStockQuery = ProductVariant::where('status', 'ACTIVE');
+        if ($hasLowStockCol) {
+            $lowStockQuery->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
+        } else {
+            $lowStockQuery->where('stock_quantity', '<=', 5);
+        }
+        $lowStockCount = $lowStockQuery->count();
         
         $query = Product::with(['category', 'variants'])->orderBy('created_at', 'desc');
 
