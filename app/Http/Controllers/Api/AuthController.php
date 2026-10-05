@@ -167,7 +167,11 @@ class AuthController extends BaseApiController
             'email' => (string) $persistedUser->email,
         ]);
 
-        $this->sendRegistrationRequestReceivedEmail($persistedUser);
+        try {
+            $this->sendRegistrationRequestReceivedEmail($persistedUser);
+        } catch (\Throwable $e) {
+            Log::warning('auth.register.email_skipped', ['error' => $e->getMessage()]);
+        }
 
         $registrationTime = $persistedUser->created_at ? $persistedUser->created_at->copy() : now();
 
