@@ -458,6 +458,7 @@ class LeaderPeersService
             'email' => (string) ($u->email ?? ''),
             'is_verified' => (bool) ($u->is_verified ?? true),
             'intro_video_url' => $introVideo,
+            'is_online' => (bool) ($u->is_online ?? false),
         ];
     }
 
@@ -640,6 +641,7 @@ class LeaderPeersService
             'meetings' => $this->getPeerMeetings((string) $user->id),
             'activities' => $this->getPeerActivities((string) $user->id),
             'testimonials' => $this->getPeerTestimonials((string) $user->id),
+            'is_online' => (bool) ($user->is_online ?? false),
         ];
     }
 

@@ -281,4 +281,87 @@ class LeaderMemberController extends Controller
             'meta' => $result['meta'],
         ]);
     }
+
+    /**
+     * Helper to fetch specific activity types.
+     */
+    private function fetchSpecificActivity(string $memberId, Request $request, string $activityType): JsonResponse
+    {
+        /** @var User $leader */
+        $leader = $request->user();
+
+        $member = $this->member360Service->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ], 404);
+        }
+
+        $filters = [
+            'activity_type' => $request->query('activity_type', $activityType), // Allow override like 'referral_given' if activityType is 'referral'
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
+            'search' => $request->query('search'),
+            'page' => $request->query('page', 1),
+            'limit' => $request->query('limit', $request->query('per_page', 20)),
+            'per_page' => $request->query('limit', $request->query('per_page', 20)),
+        ];
+
+        // If specific activity type was requested, use it, otherwise fall back to the base one
+        if (! $request->has('activity_type') || empty($request->query('activity_type'))) {
+            $filters['activity_type'] = $activityType;
+        }
+
+        $result = $this->member360Service->getActivities($memberId, $filters);
+
+        return response()->json([
+            'success' => true,
+            'message' => ucfirst(str_replace('_', ' ', $activityType)) . ' fetched successfully.',
+            'data' => $result['data'],
+            'meta' => $result['meta'],
+        ]);
+    }
+
+    public function referrals(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'referral');
+    }
+
+    public function testimonials(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'testimonial');
+    }
+
+    public function p2pMeetings(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'p2p_meeting');
+    }
+
+    public function businessDeals(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'business_deal');
+    }
+
+    public function requirements(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'requirement');
+    }
+
+    public function impacts(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'life_impact');
+    }
+
+    public function attendance(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'attendance');
+    }
+
+    public function coins(string $memberId, Request $request): JsonResponse
+    {
+        return $this->fetchSpecificActivity($memberId, $request, 'coins');
+    }
 }
