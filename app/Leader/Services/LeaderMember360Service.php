@@ -818,6 +818,8 @@ class LeaderMember360Service
 
         $query = Post::query()
             ->where('user_id', $memberId)
+            ->where('status', 'active')
+            ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->withCount(['comments', 'likes']);
 

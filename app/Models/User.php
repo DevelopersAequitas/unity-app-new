@@ -903,6 +903,11 @@ class User extends Authenticatable
         return $this->hasMany(Post::class);
     }
 
+    public function activePosts(): HasMany
+    {
+        return $this->hasMany(Post::class)->where('status', 'active')->where('is_deleted', false);
+    }
+
     public function savedPosts(): BelongsToMany
     {
         return $this->belongsToMany(Post::class, 'post_saves', 'user_id', 'post_id')->withTimestamps();

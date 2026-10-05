@@ -62,6 +62,7 @@ class AskFeedService
                     ->orWhereJsonContains('tags', 'deal_closed')
                     ->orWhereJsonContains('tags', 'ask_fulfilled');
             })
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->where('active', true)
             ->with(['user'])

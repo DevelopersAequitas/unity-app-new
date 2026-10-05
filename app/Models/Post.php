@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Ask\Ask;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,6 +33,7 @@ class Post extends Model
         'sponsored',
         'is_deleted',
         'active',
+        'is_active',
         'source_type',
         'source_id',
         'source_event',
@@ -49,6 +51,7 @@ class Post extends Model
         'sponsored' => 'boolean',
         'is_deleted' => 'boolean',
         'active' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -57,7 +60,40 @@ class Post extends Model
             if (empty($post->id)) {
                 $post->id = Str::uuid()->toString();
             }
+            if (empty($post->status)) {
+                $post->status = 'active';
+            }
+            if ($post->active === null) {
+                $post->active = $post->status === 'active';
+            }
+            if ($post->is_active === null) {
+                $post->is_active = $post->status === 'active';
+            }
         });
+
+        static::saving(function (self $post): void {
+            if ($post->isDirty('status')) {
+                if ($post->status === 'active') {
+                    $post->active = true;
+                    $post->is_active = true;
+                } elseif (in_array($post->status, ['inactive', 'rejected', 'hidden'], true)) {
+                    $post->active = false;
+                    $post->is_active = false;
+                }
+            } elseif ($post->isDirty('active')) {
+                $post->is_active = (bool) $post->active;
+                $post->status = $post->active ? 'active' : 'inactive';
+            } elseif ($post->isDirty('is_active')) {
+                $post->active = (bool) $post->is_active;
+                $post->status = $post->is_active ? 'active' : 'inactive';
+            }
+        });
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('posts.status', 'active')
+            ->where('posts.is_deleted', false);
     }
 
     public function author(): BelongsTo

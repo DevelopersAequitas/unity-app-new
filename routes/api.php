@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
-use App\Http\Controllers\Api\Admin\RbacController;
 use App\Http\Controllers\Admin\Rbac\AdminModuleController;
 use App\Http\Controllers\Admin\Rbac\AdminPageController;
 use App\Http\Controllers\Admin\Rbac\PageGroupController;
@@ -20,6 +19,7 @@ use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\ActivityVideoApiController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
+use App\Http\Controllers\Api\Admin\RbacController;
 use App\Http\Controllers\Api\AdminActivityController;
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\AuthController;
@@ -210,7 +210,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::prefix('v1')->group(function () {
-        // Dynamic RBAC API Endpoints with Dual Aliases (/v1/admin/rbac/* and /v1/rbac/*)
+    // Dynamic RBAC API Endpoints with Dual Aliases (/v1/admin/rbac/* and /v1/rbac/*)
     $registerRbacRoutes = function () {
         Route::middleware('auth:sanctum')->get('/my-permissions', [RbacUserPermissionController::class, 'myPermissions']);
 
@@ -867,24 +867,25 @@ Route::prefix('v1')->group(function () {
             Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
 
             // Section 25: Activities Endpoints
-            Route::get('/activities', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
-            Route::get('/activities/stats', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
-            Route::get('/activities/types', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'types']);
-            Route::get('/activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
-            Route::patch('/activities/{id}/status', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
+            Route::get('/activities', [App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
+            Route::get('/activities/stats', [App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
+            Route::get('/activities/types', [App\Http\Controllers\Api\Admin\ActivityController::class, 'types']);
+            Route::get('/activities/{id}', [App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
+            Route::patch('/activities/{id}/status', [App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
 
             // Section 21: Posts & Moderation Endpoints
-            Route::get('/posts', [\App\Http\Controllers\Api\Admin\PostController::class, 'index']);
-            Route::get('/posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'show']);
-            Route::delete('/posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'destroy']);
-            Route::patch('/posts/{id}/status', [\App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus']);
+            Route::get('/posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
+            Route::get('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+            Route::delete('/posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
+            Route::patch('/posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
 
             // Post Reports
-            Route::get('/post-reports', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
-            Route::get('/post-reports/stats', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
-            Route::get('/post-reports/{id}', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
-            Route::match(['post', 'patch'], '/post-reports/{id}/resolve', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
-            Route::match(['post', 'patch'], '/post-reports/{id}/dismiss', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
+            Route::get('/post-reports', [App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
+            Route::get('/post-reports/stats', [App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
+            Route::get('/post-reports/{id}', [App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
+            Route::match(['post', 'patch'], '/post-reports/{id}/resolve', [App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
+            Route::match(['post', 'patch'], '/post-reports/{id}/dismiss', [App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
 
             Route::get('/notification-campaigns', [NotificationCampaignController::class, 'index']);
             Route::post('/notification-campaigns', [NotificationCampaignController::class, 'store']);
@@ -1097,12 +1098,12 @@ Route::prefix('v1')->group(function () {
         Route::post('/p2p-meeting-reschedule-requests/{id}/reject', [P2PMeetingRescheduleController::class, 'reject']);
 
         // Admin Activities (Delegated to Api\Admin\ActivityController for Section 25)
-        Route::get('/admin/activities', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
-        Route::get('/admin/activities/stats', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
-        Route::get('/admin/activities/types', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'types']);
-        Route::get('/admin/activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
-        Route::patch('/admin/activities/{id}/status', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
-        Route::patch('/admin/activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
+        Route::get('/admin/activities', [App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
+        Route::get('/admin/activities/stats', [App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
+        Route::get('/admin/activities/types', [App\Http\Controllers\Api\Admin\ActivityController::class, 'types']);
+        Route::get('/admin/activities/{id}', [App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
+        Route::patch('/admin/activities/{id}/status', [App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
+        Route::patch('/admin/activities/{id}', [App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
         Route::patch('/admin/activities/{activity}/approve', [AdminActivityController::class, 'approve']);
         Route::patch('/admin/activities/{activity}/reject', [AdminActivityController::class, 'reject']);
 
@@ -1510,24 +1511,24 @@ Route::middleware('auth:sanctum')->group(function () {
 // Ask / Requirement Discovery System
 require __DIR__.'/ask.php';
 
-
 // Section 21 & 25 Dedicated Admin Hub Routes
 Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     // Section 25: Activities Endpoints (5 endpoints)
-    Route::get('activities', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
-    Route::get('activities/stats', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
-    Route::get('activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
+    Route::get('activities', [App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
+    Route::get('activities/stats', [App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
+    Route::get('activities/{id}', [App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
 
     // Section 21: Posts & Moderation Endpoints (8 endpoints)
-    Route::get('posts', [\App\Http\Controllers\Api\Admin\PostController::class, 'index']);
-    Route::get('posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'show']);
-    Route::delete('posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'destroy']);
-    Route::patch('posts/{id}/status', [\App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus']);
+    Route::get('posts', [App\Http\Controllers\Api\Admin\PostController::class, 'index']);
+    Route::get('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'show'])->whereUuid('id');
+    Route::delete('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
+    Route::patch('posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
+    Route::match(['post', 'patch'], 'posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
 
     // Post Reports
-    Route::get('post-reports', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
-    Route::get('post-reports/stats', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
-    Route::get('post-reports/{id}', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
-    Route::post('post-reports/{id}/resolve', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
-    Route::post('post-reports/{id}/dismiss', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
+    Route::get('post-reports', [App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
+    Route::get('post-reports/stats', [App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
+    Route::get('post-reports/{id}', [App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
+    Route::post('post-reports/{id}/resolve', [App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
+    Route::post('post-reports/{id}/dismiss', [App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
 });

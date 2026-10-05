@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Admin\UpdatePostStatusRequest;
 use App\Models\Post;
+use App\Services\Admin\AdminPostService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class PostController extends BaseApiController
 {
+    public function __construct(
+        protected readonly AdminPostService $postService
+    ) {}
+
     /**
      * Display a listing of community posts with engagement stats and moderation filters.
      */
@@ -29,13 +34,17 @@ class PostController extends BaseApiController
         if ($status = $request->query('status')) {
             if ($status !== 'all') {
                 if ($status === 'active') {
-                    $query->where('active', true)->where('is_deleted', false);
-                } elseif ($status === 'inactive' || $status === 'deleted') {
-                    $query->where(function ($q) {
-                        $q->where('active', false)->orWhere('is_deleted', true);
+                    $query->where('status', 'active')->where('is_deleted', false);
+                } elseif ($status === 'inactive') {
+                    $query->where(function ($q): void {
+                        $q->where('status', 'inactive')->orWhere('is_deleted', true);
                     });
+                } elseif ($status === 'deleted') {
+                    $query->where('is_deleted', true);
                 } else {
-                    $query->where('moderation_status', $status);
+                    $query->where(function ($q) use ($status): void {
+                        $q->where('status', $status)->orWhere('moderation_status', $status);
+                    });
                 }
             }
         }
@@ -75,17 +84,17 @@ class PostController extends BaseApiController
         // Debounced search (content text, title, author name)
         if ($search = $request->query('search')) {
             $search = trim((string) $search);
-            $query->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search): void {
                 $q->where('content_text', 'ILIKE', "%{$search}%")
-                  ->orWhere('title', 'ILIKE', "%{$search}%")
-                  ->orWhere('description', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('user', function ($uq) use ($search) {
-                      $uq->where('display_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('first_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('email', 'ILIKE', "%{$search}%")
-                         ->orWhere('company_name', 'ILIKE', "%{$search}%");
-                  });
+                    ->orWhere('title', 'ILIKE', "%{$search}%")
+                    ->orWhere('description', 'ILIKE', "%{$search}%")
+                    ->orWhereHas('user', function ($uq) use ($search): void {
+                        $uq->where('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere('company_name', 'ILIKE', "%{$search}%");
+                    });
             });
         }
 
@@ -126,49 +135,39 @@ class PostController extends BaseApiController
     }
 
     /**
-     * Update post status / moderation_status (e.g. approve, reject, hide, restore).
+     * Update post status / moderation_status (e.g. approve, reject, hide, restore, active, inactive).
      */
-    public function updateStatus(Request $request, string $id): JsonResponse
+    public function updateStatus(UpdatePostStatusRequest $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'status' => ['required', 'string', 'in:approved,pending,rejected,active,inactive,published,hidden'],
-            'moderation_status' => ['nullable', 'string', 'in:approved,pending,rejected'],
-        ]);
-
         $post = Post::withTrashed()->find($id);
         if (! $post) {
             return $this->error('Post record not found', 404);
         }
 
-        $status = $validated['status'];
-
-        DB::transaction(function () use ($post, $status, $validated) {
-            if (in_array($status, ['approved', 'published', 'active'], true)) {
-                $post->moderation_status = 'approved';
-                $post->active = true;
-                $post->is_deleted = false;
-                if ($post->trashed()) {
-                    $post->restore();
-                }
-            } elseif (in_array($status, ['rejected', 'hidden', 'inactive'], true)) {
-                $post->moderation_status = 'rejected';
-                $post->active = false;
-            } elseif ($status === 'pending') {
-                $post->moderation_status = 'pending';
-            }
-
-            if (! empty($validated['moderation_status'])) {
-                $post->moderation_status = $validated['moderation_status'];
-            }
-
-            $post->status = $status;
-            $post->save();
-        });
+        $post = $this->postService->updateStatus($post, $request->validated());
 
         $post->load(['user', 'circle']);
         $post->loadCount(['likes', 'comments', 'reports']);
 
         return $this->success($post, 'Post moderation status updated successfully.');
+    }
+
+    /**
+     * Toggle post active/inactive status.
+     */
+    public function toggleStatus(Request $request, string $id): JsonResponse
+    {
+        $post = Post::withTrashed()->find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $post = $this->postService->toggleStatus($post);
+
+        $post->load(['user', 'circle']);
+        $post->loadCount(['likes', 'comments', 'reports']);
+
+        return $this->success($post, "Post status updated to '{$post->status}' successfully.");
     }
 
     /**
@@ -181,12 +180,7 @@ class PostController extends BaseApiController
             return $this->error('Post record not found', 404);
         }
 
-        DB::transaction(function () use ($post) {
-            $post->is_deleted = true;
-            $post->active = false;
-            $post->save();
-            $post->delete();
-        });
+        $this->postService->destroy($post);
 
         return $this->success(['id' => $id, 'deleted' => true], 'Post removed from community feed successfully.');
     }
