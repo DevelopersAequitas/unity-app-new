@@ -145,10 +145,10 @@
 
                     <div class="border-top pt-3">
                         <span class="text-muted small">Peer Customer:</span>
-                        <div class="fw-bold text-dark">{{ $ticket->user->name ?? 'Peer #' . $ticket->user_id }}</div>
+                        <div class="fw-bold text-dark">{{ $ticket->user?->name ?? 'Peer #' . $ticket->user_id }}</div>
                         <div class="small text-muted">
-                            <i class="bi bi-telephone me-1"></i> {{ $ticket->user->phone_number ?? $ticket->user->mobile ?: '—' }}<br>
-                            <i class="bi bi-envelope me-1"></i> {{ $ticket->user->email ?? '—' }}
+                            <i class="bi bi-telephone me-1"></i> {{ $ticket->user?->phone_number ?? $ticket->user?->mobile ?: '—' }}<br>
+                            <i class="bi bi-envelope me-1"></i> {{ $ticket->user?->email ?? '—' }}
                         </div>
                     </div>
 

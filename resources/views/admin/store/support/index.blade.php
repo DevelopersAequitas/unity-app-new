@@ -86,8 +86,8 @@
                                     <small class="text-muted">{{ ucfirst($ticket->category ?? 'General Store') }}</small>
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-dark">{{ $ticket->user->name ?? 'Peer #' . $ticket->user_id }}</div>
-                                    <small class="text-muted">{{ $ticket->user->phone_number ?? $ticket->user->mobile ?: '—' }}</small>
+                                    <div class="fw-bold text-dark">{{ $ticket->user?->name ?? 'Peer #' . $ticket->user_id }}</div>
+                                    <small class="text-muted">{{ $ticket->user?->phone_number ?? $ticket->user?->mobile ?: '—' }}</small>
                                 </td>
                                 <td>
                                     @if($ticket->order_id)

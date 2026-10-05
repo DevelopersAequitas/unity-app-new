@@ -191,10 +191,10 @@
                     <h5 class="card-title fw-bold text-dark mb-0"><i class="bi bi-person text-primary me-1"></i> Peer Customer</h5>
                 </div>
                 <div class="card-body">
-                    <div class="fw-bold text-dark">{{ $return->user->name ?? 'Peer #' . $return->user_id }}</div>
+                    <div class="fw-bold text-dark">{{ $return->user?->name ?? 'Peer #' . $return->user_id }}</div>
                     <div class="text-muted small mt-1">
-                        <i class="bi bi-telephone me-1"></i> {{ $return->user->phone_number ?? $return->user->mobile ?: '—' }}<br>
-                        <i class="bi bi-envelope me-1"></i> {{ $return->user->email ?? '—' }}
+                        <i class="bi bi-telephone me-1"></i> {{ $return->user?->phone_number ?? $return->user?->mobile ?: '—' }}<br>
+                        <i class="bi bi-envelope me-1"></i> {{ $return->user?->email ?? '—' }}
                     </div>
                 </div>
             </div>

@@ -81,8 +81,8 @@
                                     <small class="text-muted">{{ $log->created_at ? $log->created_at->format('h:i A') : '' }}</small>
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-dark">{{ $log->user->name ?? 'Peer #' . $log->user_id }}</div>
-                                    <small class="text-muted">{{ $log->user->phone_number ?? $log->recipient ?? '—' }}</small>
+                                    <div class="fw-bold text-dark">{{ $log->user?->name ?? 'Peer #' . $log->user_id }}</div>
+                                    <small class="text-muted">{{ $log->user?->phone_number ?? $log->recipient ?? '—' }}</small>
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border">
