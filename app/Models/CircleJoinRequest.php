@@ -90,6 +90,7 @@ class CircleJoinRequest extends Model
 
     protected $appends = [
         'reason',
+        'payment_status',
     ];
 
     protected static function booted(): void
@@ -312,6 +313,15 @@ class CircleJoinRequest extends Model
     public function getReasonAttribute(): ?string
     {
         return $this->reason_for_joining;
+    }
+
+    public function getPaymentStatusAttribute(): string
+    {
+        if (in_array((string) $this->status, [self::STATUS_CIRCLE_MEMBER, self::STATUS_PAID], true) || $this->fee_paid_at !== null) {
+            return 'paid';
+        }
+
+        return 'unpaid';
     }
 
     public function toArray(): array

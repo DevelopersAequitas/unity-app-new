@@ -3255,19 +3255,6 @@ class UsersController extends Controller
 
         $level3Ids = $level3->pluck('id')->values();
 
-        $level4 = $allCategoryIds->isEmpty()
-            ? collect()
-            : CircleCategoryLevel4::query()
-                ->where(function ($query) use ($allCategoryIds, $level3Ids) {
-                    $query->whereIn('circle_category_id', $allCategoryIds);
-                    if ($level3Ids->isNotEmpty()) {
-                        $query->orWhereIn('level3_id', $level3Ids);
-                    }
-                })
-                ->orderBy('sort_order')
-                ->orderBy('id')
-                ->get(['id', 'circle_category_id', 'level2_id', 'level3_id', 'name']);
-
         $mainById = $allCategories->keyBy('id');
         $level2ByMain = $level2->groupBy('circle_category_id');
         $level3ByLevel2 = [];
@@ -3281,20 +3268,6 @@ class UsersController extends Controller
             $level2ByLevel3[$row->id] = $level2Id;
         }
 
-        $level4ByLevel1 = [];
-        $level4ByLevel3 = [];
-        foreach ($level4 as $row) {
-            $l1Id = $row->circle_category_id ?? null;
-            $l3Id = $row->level3_id ?? null;
-
-            if ($l3Id) {
-                $level4ByLevel3[$l3Id][] = $row;
-            }
-            if ($l1Id) {
-                $level4ByLevel1[$l1Id][] = $row;
-            }
-        }
-
         $defaultCircleData = null;
         $result = [];
         foreach ($circleIds as $circleId) {
@@ -3306,10 +3279,7 @@ class UsersController extends Controller
                         $mainById,
                         $level2ByMain,
                         $level3ByLevel2,
-                        $level2ByLevel3,
-                        $level4ByLevel1,
-                        $level4ByLevel3,
-                        $level4
+                        $level2ByLevel3
                     );
                 }
                 $result[(string) $circleId] = $defaultCircleData;
@@ -3319,10 +3289,7 @@ class UsersController extends Controller
                     $mainById,
                     $level2ByMain,
                     $level3ByLevel2,
-                    $level2ByLevel3,
-                    $level4ByLevel1,
-                    $level4ByLevel3,
-                    $level4
+                    $level2ByLevel3
                 );
             }
         }
@@ -3333,10 +3300,7 @@ class UsersController extends Controller
                 $mainById,
                 $level2ByMain,
                 $level3ByLevel2,
-                $level2ByLevel3,
-                $level4ByLevel1,
-                $level4ByLevel3,
-                $level4
+                $level2ByLevel3
             );
         }
         $result['default'] = $defaultCircleData;
@@ -3349,15 +3313,11 @@ class UsersController extends Controller
         $mainById,
         $level2ByMain,
         $level3ByLevel2,
-        $level2ByLevel3,
-        $level4ByLevel1,
-        $level4ByLevel3,
-        $level4
+        $level2ByLevel3
     ): array {
         $mainOptions = [];
         $level2Options = [];
         $level3Options = [];
-        $level4Options = [];
 
         foreach ($mainIds as $mainId) {
             $main = $mainById->get($mainId);
@@ -3369,8 +3329,6 @@ class UsersController extends Controller
                 'id' => $main->id,
                 'name' => $main->name,
             ];
-
-            $seenLevel4ForMain = [];
 
             foreach ($level2ByMain->get($main->id, collect()) as $l2) {
                 $level2Options[] = [
@@ -3385,71 +3343,6 @@ class UsersController extends Controller
                         'parent_id' => $l2->id,
                         'name' => $l3->name,
                     ];
-
-                    foreach (($level4ByLevel3[$l3->id] ?? []) as $l4) {
-                        if (! in_array($l4->id, $seenLevel4ForMain, true)) {
-                            $seenLevel4ForMain[] = $l4->id;
-                            $level4Options[] = [
-                                'id' => $l4->id,
-                                'parent_id' => $main->id,
-                                'level1_id' => $main->id,
-                                'level2_id' => $l4->level2_id ?: $l2->id,
-                                'level3_id' => $l4->level3_id ?: $l3->id,
-                                'name' => $l4->name,
-                            ];
-                        }
-                    }
-                }
-            }
-
-            foreach (($level4ByLevel1[$main->id] ?? []) as $l4) {
-                if (! in_array($l4->id, $seenLevel4ForMain, true)) {
-                    $seenLevel4ForMain[] = $l4->id;
-                    $l3Id = $l4->level3_id ?: null;
-                    $l2Id = $l4->level2_id ?: ($l3Id ? ($level2ByLevel3[$l3Id] ?? null) : null);
-                    $level4Options[] = [
-                        'id' => $l4->id,
-                        'parent_id' => $main->id,
-                        'level1_id' => $main->id,
-                        'level2_id' => $l2Id,
-                        'level3_id' => $l3Id,
-                        'name' => $l4->name,
-                    ];
-                }
-            }
-
-            // If no Level 4 categories found directly under this Main Category, match related Level 4 items by keyword
-            if (empty($seenLevel4ForMain)) {
-                $words = collect(preg_split('/[\s,&()\/]+/', $main->name))
-                    ->filter(fn ($w) => strlen(trim((string) $w)) >= 4)
-                    ->map(fn ($w) => strtolower(trim((string) $w)))
-                    ->values();
-
-                if ($words->isNotEmpty()) {
-                    foreach ($level4 as $l4) {
-                        $l4NameLower = strtolower($l4->name);
-                        $isMatch = false;
-                        foreach ($words as $word) {
-                            if (str_contains($l4NameLower, $word)) {
-                                $isMatch = true;
-                                break;
-                            }
-                        }
-
-                        if ($isMatch && ! in_array($l4->id, $seenLevel4ForMain, true)) {
-                            $seenLevel4ForMain[] = $l4->id;
-                            $l3Id = $l4->level3_id ?: null;
-                            $l2Id = $l4->level2_id ?: ($l3Id ? ($level2ByLevel3[$l3Id] ?? null) : null);
-                            $level4Options[] = [
-                                'id' => $l4->id,
-                                'parent_id' => $main->id,
-                                'level1_id' => $main->id,
-                                'level2_id' => $l2Id,
-                                'level3_id' => $l3Id,
-                                'name' => $l4->name,
-                            ];
-                        }
-                    }
                 }
             }
         }
@@ -3458,133 +3351,43 @@ class UsersController extends Controller
             'level1' => $mainOptions,
             'level2' => $level2Options,
             'level3' => $level3Options,
-            'level4' => $level4Options,
         ];
     }
 
     private function buildMainToSubCategoriesMap($allCategories, ?array $circleCategoryOptions = null): array
     {
-        if (! empty($circleCategoryOptions)) {
-            $fallback = $circleCategoryOptions['default'] ?? null;
-            if ($fallback === null) {
-                foreach ($circleCategoryOptions as $circleOpt) {
-                    if (! empty($circleOpt['level1']) && count($circleOpt['level1']) >= count($allCategories)) {
-                        $fallback = $circleOpt;
-                        break;
-                    }
+        $allCategoryIds = collect($allCategories)->pluck('id')->filter()->values();
+        if ($allCategoryIds->isEmpty()) {
+            return [];
+        }
+
+        $level3ToMain = DB::table('circle_category_level3')
+            ->whereNotNull('circle_category_id')
+            ->pluck('circle_category_id', 'id')
+            ->all();
+
+        $level4Rows = DB::table('circle_category_level4')
+            ->where(function ($query) use ($allCategoryIds, $level3ToMain) {
+                $query->whereIn('circle_category_id', $allCategoryIds);
+                if (! empty($level3ToMain)) {
+                    $query->orWhereIn('level3_id', array_keys($level3ToMain));
                 }
-            }
-            if (! empty($fallback['level4'])) {
-                $map = [];
-                foreach ($fallback['level4'] as $item) {
-                    $mainId = (string) ($item['level1_id'] ?? $item['parent_id'] ?? '');
-                    if ($mainId !== '') {
-                        $map[$mainId][] = [
-                            'id' => $item['id'],
-                            'name' => $item['name'],
-                        ];
-                    }
-                }
-
-                return $map;
-            }
-        }
-
-        $allCategoryIds = collect($allCategories)->pluck('id')->values();
-
-        $level2 = CircleCategoryLevel2::query()
-            ->whereIn('circle_category_id', $allCategoryIds)
-            ->orderBy('sort_order')->orderBy('id')
-            ->get(['id', 'circle_category_id', 'name']);
-        $level2Ids = $level2->pluck('id')->values();
-
-        $level3 = $level2Ids->isEmpty()
-            ? collect()
-            : CircleCategoryLevel3::query()
-                ->whereIn('level2_id', $level2Ids)
-                ->orderBy('sort_order')->orderBy('id')
-                ->get(['id', 'circle_category_id', 'level2_id', 'name']);
-        $level3Ids = $level3->pluck('id')->values();
-
-        $level4 = $allCategoryIds->isEmpty()
-            ? collect()
-            : CircleCategoryLevel4::query()
-                ->where(function ($query) use ($allCategoryIds, $level3Ids) {
-                    $query->whereIn('circle_category_id', $allCategoryIds);
-                    if ($level3Ids->isNotEmpty()) {
-                        $query->orWhereIn('level3_id', $level3Ids);
-                    }
-                })
-                ->orderBy('sort_order')->orderBy('id')
-                ->get(['id', 'circle_category_id', 'level2_id', 'level3_id', 'name']);
-
-        $level2ByMain = $level2->groupBy('circle_category_id');
-        $level3ByLevel2 = [];
-        foreach ($level3 as $row) {
-            if ($row->level2_id) {
-                $level3ByLevel2[$row->level2_id][] = $row;
-            }
-        }
-        $level4ByLevel3 = [];
-        $level4ByLevel1 = [];
-        foreach ($level4 as $row) {
-            if ($row->level3_id) {
-                $level4ByLevel3[$row->level3_id][] = $row;
-            }
-            if ($row->circle_category_id) {
-                $level4ByLevel1[$row->circle_category_id][] = $row;
-            }
-        }
+            })
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'circle_category_id', 'level2_id', 'level3_id', 'name']);
 
         $mainToSubMap = [];
-        foreach ($allCategories as $main) {
-            $options = [];
-            $seen = [];
-
-            foreach ($level2ByMain->get($main->id, collect()) as $l2) {
-                foreach (($level3ByLevel2[$l2->id] ?? []) as $l3) {
-                    foreach (($level4ByLevel3[$l3->id] ?? []) as $l4) {
-                        if (! in_array($l4->id, $seen, true)) {
-                            $seen[] = $l4->id;
-                            $options[] = ['id' => $l4->id, 'name' => $l4->name];
-                        }
-                    }
-                }
+        foreach ($level4Rows as $row) {
+            $mainId = $row->circle_category_id ?: ($level3ToMain[$row->level3_id] ?? null);
+            if ($mainId) {
+                $mainToSubMap[(string) $mainId][] = [
+                    'id' => $row->id,
+                    'name' => $row->name,
+                    'level2_id' => $row->level2_id,
+                    'level3_id' => $row->level3_id,
+                ];
             }
-
-            foreach (($level4ByLevel1[$main->id] ?? []) as $l4) {
-                if (! in_array($l4->id, $seen, true)) {
-                    $seen[] = $l4->id;
-                    $options[] = ['id' => $l4->id, 'name' => $l4->name];
-                }
-            }
-
-            // Keyword fallback if 0 direct L4
-            if (empty($seen)) {
-                $words = collect(preg_split('/[\s,&()\/]+/', $main->name))
-                    ->filter(fn ($w) => strlen(trim((string) $w)) >= 4)
-                    ->map(fn ($w) => strtolower(trim((string) $w)))
-                    ->values();
-
-                if ($words->isNotEmpty()) {
-                    foreach ($level4 as $l4) {
-                        $l4NameLower = strtolower($l4->name);
-                        $isMatch = false;
-                        foreach ($words as $word) {
-                            if (str_contains($l4NameLower, $word)) {
-                                $isMatch = true;
-                                break;
-                            }
-                        }
-                        if ($isMatch && ! in_array($l4->id, $seen, true)) {
-                            $seen[] = $l4->id;
-                            $options[] = ['id' => $l4->id, 'name' => $l4->name];
-                        }
-                    }
-                }
-            }
-
-            $mainToSubMap[(string) $main->id] = $options;
         }
 
         return $mainToSubMap;

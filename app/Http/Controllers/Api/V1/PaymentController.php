@@ -1,12 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\CreateOrderRequest;
 use App\Http\Requests\Api\V1\VerifyPaymentRequest;
+use App\Models\CircleJoinRequest;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\MembershipService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -16,12 +20,15 @@ use Razorpay\Api\Api;
 
 class PaymentController extends Controller
 {
-    public function __construct(private readonly MembershipService $membershipService) {}
+    public function __construct(
+        private readonly MembershipService $membershipService,
+        private readonly CircleJoinRequestPaymentSyncService $circlePaymentSyncService,
+    ) {}
 
     public function createOrder(CreateOrderRequest $request): JsonResponse
     {
         $user = $request->user();
-        $planId = $request->validated('membership_plan_id');
+        $planId = (string) $request->validated('membership_plan_id');
 
         $plan = MembershipPlan::query()
             ->where('id', $planId)
@@ -34,6 +41,24 @@ class PaymentController extends Controller
 
         if ($plan->is_free) {
             return response()->json(['message' => 'Free plans do not require payment.'], 422);
+        }
+
+        // Check if user has an approved Circle request pending payment
+        $pendingCircleRequest = CircleJoinRequest::query()
+            ->where('user_id', $user->id)
+            ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+            ->latest('created_at')
+            ->first();
+
+        if ($pendingCircleRequest) {
+            $notes = is_array($pendingCircleRequest->notes) ? $pendingCircleRequest->notes : [];
+            $approvedPlanId = (string) ($notes['membership_plan_id'] ?? '');
+
+            if ($approvedPlanId !== '' && $approvedPlanId !== $planId) {
+                return response()->json([
+                    'message' => 'The selected membership plan does not match the Admin-approved package for your Circle request.',
+                ], 422);
+            }
         }
 
         $amounts = $this->membershipService->calculateAmounts($plan);
@@ -73,13 +98,16 @@ class PaymentController extends Controller
             'id' => $paymentId,
             'user_id' => $user->id,
             'membership_plan_id' => $plan->id,
+            'amount' => $amounts['total_amount'],
             'base_amount' => $amounts['base_amount'],
             'gst_percent' => $amounts['gst_percent'],
             'gst_amount' => $amounts['gst_amount'],
             'total_amount' => $amounts['total_amount'],
+            'currency' => config('razorpay.currency', 'INR'),
+            'provider' => 'razorpay',
             'razorpay_order_id' => $order['id'],
             'status' => Payment::STATUS_CREATED,
-            'gst_number' => $gstNumber ?: null,
+            'payment_type' => Payment::TYPE_MEMBERSHIP,
         ]);
 
         return response()->json([
@@ -87,6 +115,8 @@ class PaymentController extends Controller
             'amount' => (int) $order['amount'],
             'currency' => $order['currency'],
             'key_id' => config('razorpay.key_id'),
+            'circle_join_request_id' => $pendingCircleRequest?->id,
+            'circle_id' => $pendingCircleRequest?->circle_id,
             'plan' => [
                 'id' => $plan->id,
                 'name' => $plan->name,
@@ -133,8 +163,9 @@ class PaymentController extends Controller
 
         $planToSync = null;
         $lockedPaymentToSync = null;
+        $circleToSync = null;
 
-        $updatedUser = DB::transaction(function () use ($payment, $payload, $user, $gstNumber, &$planToSync, &$lockedPaymentToSync) {
+        $updatedUser = DB::transaction(function () use ($payment, $payload, $user, &$planToSync, &$lockedPaymentToSync, &$circleToSync) {
             $lockedPayment = Payment::query()->where('id', $payment->id)->lockForUpdate()->first();
             if ($lockedPayment->status === Payment::STATUS_SUCCESS) {
                 return $user->fresh();
@@ -146,7 +177,6 @@ class PaymentController extends Controller
                 'status' => Payment::STATUS_SUCCESS,
                 'paid_at' => now(),
                 'provider' => 'razorpay',
-                'gst_number' => $gstNumber ?: $lockedPayment->gst_number,
             ]);
 
             $plan = MembershipPlan::query()->where('id', $lockedPayment->membership_plan_id)->first();
@@ -161,9 +191,40 @@ class PaymentController extends Controller
             $planToSync = $plan;
             $lockedPaymentToSync = $lockedPayment;
 
+            // Resolve circle associated with this user's pending fee request
+            $circleId = CircleJoinRequest::query()
+                ->where('user_id', $user->id)
+                ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+                ->latest('created_at')
+                ->value('circle_id');
+
+            if ($circleId) {
+                $circleToSync = (string) $circleId;
+            }
+
+            // Existing membership date & status calculation/upgrade logic
             return $this->membershipService->activateMembership($user, $plan, $lockedPayment);
         });
 
+        // 1. Existing Circle membership processing
+        if ($circleToSync) {
+            try {
+                $this->circlePaymentSyncService->markRequestPaid(
+                    $updatedUser,
+                    $circleToSync,
+                    $lockedPaymentToSync?->paid_at ?? now()
+                );
+            } catch (\Throwable $e) {
+                Log::error('Circle membership sync error on verify', [
+                    'payment_id' => $lockedPaymentToSync?->id,
+                    'user_id' => $updatedUser->id,
+                    'circle_id' => $circleToSync,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 2. Existing Zoho invoice generation
         if ($planToSync instanceof MembershipPlan && $lockedPaymentToSync instanceof Payment) {
             try {
                 $this->membershipService->syncZohoInvoice($updatedUser, $planToSync, $lockedPaymentToSync);
@@ -179,10 +240,13 @@ class PaymentController extends Controller
         $freshUser = $updatedUser->fresh();
 
         return response()->json([
+            'success' => true,
             'membership_status' => $freshUser->membership_status,
             'membership_expiry' => $freshUser->membership_ends_at,
             'zoho_invoice_id' => $freshUser->zoho_last_invoice_id,
-            'gst_number' => $freshUser->gst_number ?: $lockedPaymentToSync?->gst_number,
+            'gst_number' => $freshUser->gst_number,
+            'circle_joined' => (bool) $circleToSync,
+            'circle_id' => $circleToSync,
         ]);
     }
 }

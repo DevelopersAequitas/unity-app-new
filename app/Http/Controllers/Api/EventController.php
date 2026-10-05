@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Requests\Api\V1\VerifyEventRazorpayPaymentRequest;
 use App\Http\Requests\Event\CirclePastEventsRequest;
 use App\Http\Requests\Event\EventCheckinRequest;
 use App\Http\Requests\Event\EventRsvpRequest;
@@ -829,7 +830,8 @@ class EventController extends BaseApiController
     {
         if (! (bool) ($registration->payment_required ?? false)
             || $this->registrationPaymentCompleted($registration)
-            || ! empty($this->registrationPaymentUrl($registration))) {
+            || ! empty($this->registrationPaymentUrl($registration))
+            || ($registration->payment_gateway === 'razorpay' && ! empty($registration->razorpay_order_id))) {
             return $registration;
         }
 
@@ -971,49 +973,151 @@ class EventController extends BaseApiController
 
         $visitorFormUrl = $registration->visitor_registration_form_url ?: url('/events/'.$registration->event_id.'/occurrences/'.$registration->occurrence_id.'/visitor-register?registration_id='.$registration->id);
 
-        return $this->success([
+        $gateway = ($registration->payment_required ?? false) ? $this->registrationPaymentGateway($registration) : null;
+        $isPaid = in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true);
+
+        $payload = [
             'registration_id' => $registration->id,
             'payment_required' => (bool) ($registration->payment_required ?? false),
-            'payment_gateway' => ($registration->payment_required ?? false) ? $this->registrationPaymentGateway($registration) : null,
+            'payment_gateway' => $gateway,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
+            'amount' => $registration->amount !== null ? (string) $registration->amount : null,
+            'currency' => $registration->currency ?? 'INR',
+            'razorpay_order_id' => $registration->razorpay_order_id ?? null,
+            'razorpay_payment_id' => $registration->razorpay_payment_id ?? null,
             'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
             'visitor_registration_form_url' => $visitorFormUrl,
             'form_url' => $visitorFormUrl,
             'qr_token' => $registration->qr_token ?? null,
-            'qr_code_url' => ($registration->payment_required ?? false) && ! in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)
+            'qr_code_url' => ($registration->payment_required ?? false) && ! $isPaid
                 ? null
                 : $this->registrationQr->qrCodeUrl($registration),
             'qr_code_svg' => $registration->qr_code_svg ?? null,
-            'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
-            'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
-            'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
-            'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
-            'zoho_invoice_status' => $registration->zoho_invoice_status ?? null,
-            'zoho_payment_status' => $registration->zoho_payment_status ?? null,
-            'zoho_payment_id' => $registration->zoho_payment_id ?? null,
-            'invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
-            'invoice' => array_merge($this->invoicePayload($registration), ['invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null]),
-        ], 'Payment status fetched successfully.');
+            'invoice_number' => $isPaid ? ($registration->invoice_number ?? $registration->zoho_invoice_number ?? null) : null,
+            'invoice_date' => $isPaid ? optional($registration->payment_completed_at ?? $registration->zoho_invoice_synced_at ?? $registration->created_at)->toDateString() : null,
+            'zoho_invoice_id' => $isPaid ? ($registration->zoho_invoice_id ?? null) : null,
+            'zoho_invoice_number' => $isPaid ? ($registration->zoho_invoice_number ?? null) : null,
+            'zoho_invoice_url' => $isPaid ? ($registration->zoho_invoice_url ?? null) : null,
+            'zoho_invoice_pdf_url' => $isPaid ? ($registration->zoho_invoice_pdf_url ?? null) : null,
+            'zoho_invoice_status' => $isPaid ? ($registration->zoho_invoice_status ?? null) : null,
+            'zoho_payment_status' => $isPaid ? ($registration->zoho_payment_status ?? null) : null,
+            'zoho_payment_id' => $isPaid ? ($registration->zoho_payment_id ?? null) : null,
+            'invoice_sync_error' => $isPaid ? ($registration->zoho_invoice_sync_error ?? null) : null,
+            'invoice' => array_merge($this->invoicePayload($registration), ['invoice_sync_error' => $isPaid ? ($registration->zoho_invoice_sync_error ?? null) : null]),
+        ];
+
+        if ((bool) ($registration->payment_required ?? false) && ! $isPaid) {
+            if ($gateway === 'razorpay' && ! empty($registration->razorpay_order_id)) {
+                $payload['razorpay'] = $this->razorpayPayments->checkoutPayload($registration);
+                $payload['razorpay_order_id'] = $registration->razorpay_order_id;
+            }
+        }
+
+        return $this->success($payload, 'Payment status fetched successfully.');
     }
 
-    public function verifyRazorpay(Request $request, string $registrationId)
+    public function verifyRazorpay(VerifyEventRazorpayPaymentRequest $request, string $registrationId)
     {
-        $data = $request->validate([
-            'razorpay_order_id' => ['required', 'string'],
-            'razorpay_payment_id' => ['required', 'string'],
-            'razorpay_signature' => ['required', 'string'],
-        ]);
+        $data = $request->validated();
 
-        $registration = EventRegistration::query()->with(['event.circle', 'event.circles.cityRef', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
-        if ((string) ($registration->razorpay_order_id ?? '') !== (string) $data['razorpay_order_id']) {
+        $registration = EventRegistration::query()->with([
+            'event.circle',
+            'event.circles.cityRef',
+            'occurrence',
+            'user',
+            'invitedByUser',
+            'businessCategoryMain',
+            'businessCategorySub',
+        ])->find($registrationId);
+
+        // 1. Registration exists
+        if (! $registration) {
+            return $this->error('Event registration not found.', 404);
+        }
+
+        // 2. Registration belongs to correct Event/occurrence
+        if (! $registration->event || ! $registration->occurrence) {
+            return $this->error('Registration event or occurrence not found.', 422);
+        }
+
+        if ($request->filled('event_id') && (string) $registration->event_id !== (string) $request->input('event_id')) {
+            return $this->error('Registration does not belong to the specified event.', 422);
+        }
+
+        if ($request->filled('occurrence_id') && (string) $registration->occurrence_id !== (string) $request->input('occurrence_id')) {
+            return $this->error('Registration does not belong to the specified event occurrence.', 422);
+        }
+
+        $authUser = $request->user();
+        if ($registration->user_id && $authUser && (string) $registration->user_id !== (string) $authUser->id && ! $this->events->canViewAttendance($registration->event, $authUser)) {
+            return $this->error('You are not authorized to verify payment for this registration.', 403);
+        }
+
+        if ($registration->status === 'cancelled') {
+            return $this->error('This registration has been cancelled.', 422);
+        }
+
+        if (! (bool) ($registration->payment_required ?? false)) {
+            return $this->error('This registration does not require payment.', 422);
+        }
+
+        // 3. payment_gateway = razorpay
+        if (($registration->payment_gateway ?? '') !== 'razorpay') {
+            return $this->error('Payment gateway for this registration is not Razorpay.', 422);
+        }
+
+        // 4. Stored Razorpay order ID matches callback order ID
+        if (empty($registration->razorpay_order_id) || (string) $registration->razorpay_order_id !== (string) $data['razorpay_order_id']) {
             return $this->error('Payment order does not match this registration.', 422);
         }
 
+        // Prevent duplicate replay of same payment ID across different registrations
+        $otherPaid = EventRegistration::query()
+            ->where('razorpay_payment_id', $data['razorpay_payment_id'])
+            ->where('id', '!=', $registration->id)
+            ->where('payment_status', 'paid')
+            ->exists();
+
+        if ($otherPaid) {
+            return $this->error('This Razorpay payment has already been applied to another registration.', 422);
+        }
+
+        // 10. Idempotency / Payment has not already been finalized
+        if (in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
+            if ((string) ($registration->razorpay_payment_id ?? '') === (string) $data['razorpay_payment_id'] || empty($registration->razorpay_payment_id)) {
+                return $this->success(new EventRegistrationResource($registration), 'Payment already verified.');
+            }
+
+            return $this->error('This registration has already been finalized with another payment.', 422);
+        }
+
+        // 5. Cryptographic HMAC signature check using key_secret
         if (! $this->razorpayPayments->verifySignature($data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+            Log::warning('Razorpay event payment signature verification failed', [
+                'registration_id' => $registrationId,
+                'order_id' => $data['razorpay_order_id'],
+                'payment_id' => $data['razorpay_payment_id'],
+            ]);
+
             return $this->error('Invalid payment signature.', 422);
         }
 
+        // 6, 7, 8, 9. Server-side payment validation against Razorpay API
+        $expectedAmount = (float) ($registration->amount ?? 0);
+        $expectedCurrency = (string) ($registration->currency ?? 'INR');
+        $apiValidation = $this->razorpayPayments->validatePaymentDetails(
+            $data['razorpay_order_id'],
+            $data['razorpay_payment_id'],
+            $expectedAmount,
+            $expectedCurrency
+        );
+
+        if (! ($apiValidation['verified'] ?? true)) {
+            return $this->error($apiValidation['error'] ?? 'Payment validation failed.', 422);
+        }
+
+        // Only after all checks pass: call EventRazorpayPaymentFinalizer
         $registration = $this->paymentFinalizer->markPaid($registration, [
             'razorpay_payment_id' => $data['razorpay_payment_id'],
             'razorpay_signature' => $data['razorpay_signature'],
@@ -1027,11 +1131,17 @@ class EventController extends BaseApiController
     {
         $registration = EventRegistration::query()->with(['event', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
 
-        if ($registration->user_id && $request->user() && $registration->user_id !== $request->user()->id && ! $this->events->canViewAttendance($registration->event, $request->user())) {
+        if ($registration->user_id && $request->user() && (string) $registration->user_id !== (string) $request->user()->id && ! $this->events->canViewAttendance($registration->event, $request->user())) {
             return $this->error('You are not authorized to view this invoice.', 403);
         }
-        if ($registration->user_id && ! $request->user()) {
+
+        if ($registration->user_id && ! $request->user() && ! in_array($registration->registration_type, ['visitor', 'app_user_visitor'], true) && ! in_array($registration->source, ['visitor_app', 'web_form', 'visitor_web', 'api'], true)) {
             return $this->error('Authentication is required to view this invoice.', 401);
+        }
+
+        $isPaid = in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true);
+        if ((bool) ($registration->payment_required ?? false) && ! $isPaid) {
+            return $this->error('Invoice is not available because payment is pending.', 422);
         }
 
         return $this->success($this->invoicePayload($registration), 'Invoice fetched successfully.');
@@ -1297,6 +1407,11 @@ class EventController extends BaseApiController
             return $this->error('You are not authorized to view this invoice.', 403);
         }
 
+        $isPaid = in_array(strtolower((string) ($r->payment_status ?? '')), ['paid', 'success', 'completed'], true);
+        if ((bool) ($r->payment_required ?? false) && ! $isPaid) {
+            return $this->error('Invoice is not available because payment is pending.', 422);
+        }
+
         return $this->success(array_merge($this->invoiceListItem($r), [
             'event' => [
                 'title' => $r->event?->title,
@@ -1315,29 +1430,35 @@ class EventController extends BaseApiController
         $attendeeName = $registration->user?->display_name ?: trim(($registration->user?->first_name ?? '').' '.($registration->user?->last_name ?? '')) ?: $registration->visitor_name;
         $email = $registration->user?->email ?: $registration->visitor_email;
         $phone = $registration->user?->phone ?: $registration->visitor_phone;
+        $isPaid = in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true);
 
         return [
             'registration_id' => $registration->id,
+            'user_id' => $registration->user_id,
             'event_id' => $registration->event_id,
             'event_title' => $registration->event?->title,
             'occurrence_id' => $registration->occurrence_id,
             'attendee_name' => $attendeeName,
             'email' => $email,
             'phone' => $phone,
-            'payment_status' => $registration->payment_status,
+            'payment_status' => $registration->payment_status ?? ($registration->payment_required ? 'pending' : 'not_required'),
             'payment_gateway' => $registration->payment_gateway,
+            'razorpay_order_id' => $registration->razorpay_order_id,
+            'razorpay_payment_id' => $isPaid ? $registration->razorpay_payment_id : null,
             'zoho_payment_link_id' => $registration->zoho_payment_link_id,
             'amount' => $registration->amount !== null ? (string) $registration->amount : null,
             'currency' => $registration->currency ?? 'INR',
-            'zoho_invoice_id' => $registration->zoho_invoice_id,
-            'zoho_invoice_number' => $registration->zoho_invoice_number,
-            'zoho_invoice_status' => $registration->zoho_invoice_status,
-            'zoho_invoice_url' => $registration->zoho_invoice_url,
-            'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url,
-            'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error,
-            'zoho_payment_id' => $registration->zoho_payment_id,
-            'paid_at' => optional($registration->payment_completed_at)->toISOString(),
-            'qr_code_url' => $registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url,
+            'invoice_number' => $isPaid ? ($registration->invoice_number ?? $registration->zoho_invoice_number) : null,
+            'invoice_date' => $isPaid ? optional($registration->payment_completed_at ?? $registration->zoho_invoice_synced_at ?? $registration->created_at)->toDateString() : null,
+            'zoho_invoice_id' => $isPaid ? $registration->zoho_invoice_id : null,
+            'zoho_invoice_number' => $isPaid ? $registration->zoho_invoice_number : null,
+            'zoho_invoice_status' => $isPaid ? $registration->zoho_invoice_status : null,
+            'zoho_invoice_url' => $isPaid ? $registration->zoho_invoice_url : null,
+            'zoho_invoice_pdf_url' => $isPaid ? $registration->zoho_invoice_pdf_url : null,
+            'zoho_invoice_sync_error' => $isPaid ? $registration->zoho_invoice_sync_error : null,
+            'zoho_payment_id' => $isPaid ? $registration->zoho_payment_id : null,
+            'paid_at' => $isPaid ? optional($registration->payment_completed_at)->toISOString() : null,
+            'qr_code_url' => $isPaid ? ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url) : null,
             'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
             'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
@@ -1565,16 +1686,30 @@ class EventController extends BaseApiController
 
     private function invoicePayload(EventRegistration $registration): array
     {
+        $isPaid = in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true);
+
         return [
             'registration_id' => $registration->id,
-            'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
-            'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
-            'invoice_url' => $registration->zoho_invoice_url ?? null,
-            'invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
-            'zoho_invoice_status' => $registration->zoho_invoice_status ?? null,
-            'invoice_balance' => data_get($registration->metadata ?? [], 'invoice_balance'),
-            'amount_paid' => data_get($registration->metadata ?? [], 'invoice_amount_paid'),
-            'payment_applied' => data_get($registration->metadata ?? [], 'invoice_payment_applied'),
+            'user_id' => $registration->user_id,
+            'event_id' => $registration->event_id,
+            'event_title' => $registration->event?->title,
+            'invoice_number' => $isPaid ? ($registration->invoice_number ?? $registration->zoho_invoice_number ?? null) : null,
+            'invoice_date' => $isPaid ? optional($registration->payment_completed_at ?? $registration->zoho_invoice_synced_at ?? $registration->created_at)->toDateString() : null,
+            'amount' => $registration->amount !== null ? (string) $registration->amount : null,
+            'currency' => $registration->currency ?? 'INR',
+            'payment_status' => $registration->payment_status ?? ($registration->payment_required ? 'pending' : 'not_required'),
+            'payment_gateway' => $registration->payment_gateway,
+            'razorpay_order_id' => $registration->razorpay_order_id ?? null,
+            'razorpay_payment_id' => $isPaid ? ($registration->razorpay_payment_id ?? null) : null,
+            'qr_code_url' => $isPaid ? ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url) : null,
+            'zoho_invoice_id' => $isPaid ? ($registration->zoho_invoice_id ?? null) : null,
+            'zoho_invoice_number' => $isPaid ? ($registration->zoho_invoice_number ?? null) : null,
+            'invoice_url' => $isPaid ? ($registration->invoice_url ?? $registration->zoho_invoice_url ?? null) : null,
+            'invoice_pdf_url' => $isPaid ? ($registration->invoice_pdf_url ?? $registration->zoho_invoice_pdf_url ?? null) : null,
+            'zoho_invoice_status' => $isPaid ? ($registration->zoho_invoice_status ?? null) : null,
+            'invoice_balance' => $isPaid ? data_get($registration->metadata ?? [], 'invoice_balance') : null,
+            'amount_paid' => $isPaid ? (data_get($registration->metadata ?? [], 'invoice_amount_paid') ?? (string) $registration->amount) : '0.00',
+            'payment_applied' => $isPaid ? data_get($registration->metadata ?? [], 'invoice_payment_applied') : null,
         ];
     }
 

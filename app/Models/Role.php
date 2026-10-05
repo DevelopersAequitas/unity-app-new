@@ -207,6 +207,9 @@ class Role extends Model
                     'key' => $key,
                     'name' => $standardRoles[$normalizedKey],
                     'description' => $standardRoles[$normalizedKey].' Role',
+                    'status' => 'active',
+                    'is_assignable' => true,
+                    'hierarchy_depth' => 0,
                 ]);
 
                 return $role->id;

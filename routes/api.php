@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Api\Admin\RbacController;
 use App\Http\Controllers\Admin\Rbac\AdminModuleController;
 use App\Http\Controllers\Admin\Rbac\AdminPageController;
 use App\Http\Controllers\Admin\Rbac\PageGroupController;
@@ -73,9 +74,7 @@ use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
-use App\Http\Controllers\Api\V1\Ask\AskController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
-use App\Http\Controllers\Api\V1\Ask\AskResponseController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -86,6 +85,7 @@ use App\Http\Controllers\Api\V1\BrandPartnerApiController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
+use App\Http\Controllers\Api\V1\CircleJoinRequestPaymentController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
@@ -147,6 +147,7 @@ use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\RbacUserPermissionController;
+use App\Http\Controllers\Api\V1\ReferralCampaignConfigController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\SendTestNotificationController;
@@ -196,6 +197,7 @@ Route::prefix('auth')->group(function () {
     Route::post('social-login', [AuthController::class, 'socialLogin']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('direct-login', [AuthController::class, 'directLogin']);
     Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
     Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -208,63 +210,74 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::prefix('v1')->group(function () {
-    // Dynamic RBAC API Endpoints (All 8 RBAC components + user permissions)
-    Route::prefix('rbac')->group(function () {
+        // Dynamic RBAC API Endpoints with Dual Aliases (/v1/admin/rbac/* and /v1/rbac/*)
+    $registerRbacRoutes = function () {
         Route::middleware('auth:sanctum')->get('/my-permissions', [RbacUserPermissionController::class, 'myPermissions']);
 
-        // 1. Role Hierarchy
-        Route::get('/hierarchy', [RoleHierarchyController::class, 'index']);
-        Route::get('/hierarchy/map', [RoleHierarchyController::class, 'fullMap']);
+        // Static routes strictly defined before wildcard parameter routes
+        // 1. Admin Modules Catalog
+        Route::get('/modules', [RbacController::class, 'modules']);
+        Route::post('/modules', [AdminModuleController::class, 'store']);
+        Route::post('/modules/order', [AdminModuleController::class, 'updateOrder']);
+        Route::get('/modules/{id}', [AdminModuleController::class, 'edit'])->whereUuid('id');
+        Route::put('/modules/{id}', [AdminModuleController::class, 'update'])->whereUuid('id');
+        Route::delete('/modules/{id}', [AdminModuleController::class, 'destroy'])->whereUuid('id');
+
+        // 2. Permissions & Permission Matrix
+        Route::get('/permissions', [RbacController::class, 'permissions']);
+        Route::get('/permission-matrix', [RolePermissionMatrixController::class, 'index']);
+        Route::post('/permission-matrix', [RolePermissionMatrixController::class, 'update']);
+
+        // 3. Roles Management
+        Route::get('/roles', [RbacController::class, 'roles']);
         Route::post('/roles', [RoleHierarchyController::class, 'storeRole']);
         Route::post('/roles/update-parent', [RoleHierarchyController::class, 'updateParent']);
         Route::post('/roles/clone', [RoleHierarchyController::class, 'cloneProfile']);
+        Route::post('/roles/{id}/clone', [RoleHierarchyController::class, 'cloneProfile'])->whereUuid('id');
         Route::put('/roles/{id}', [RoleHierarchyController::class, 'updateRole'])->whereUuid('id');
         Route::delete('/roles/{id}', [RoleHierarchyController::class, 'deleteRole'])->whereUuid('id');
         Route::get('/roles/{id}/assignments', [RoleHierarchyController::class, 'getAssignments'])->whereUuid('id');
         Route::post('/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->whereUuid('id');
         Route::delete('/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->whereUuid('id')->whereUuid('userId');
 
-        // 2. Admin Modules
-        Route::get('/modules', [AdminModuleController::class, 'index']);
-        Route::post('/modules', [AdminModuleController::class, 'store']);
-        Route::get('/modules/{id}', [AdminModuleController::class, 'edit'])->whereUuid('id');
-        Route::put('/modules/{id}', [AdminModuleController::class, 'update'])->whereUuid('id');
-        Route::delete('/modules/{id}', [AdminModuleController::class, 'destroy'])->whereUuid('id');
-        Route::post('/modules/order', [AdminModuleController::class, 'updateOrder']);
+        // 4. Role Hierarchy Tree
+        Route::get('/hierarchy', [RbacController::class, 'hierarchy']);
+        Route::get('/hierarchy/map', [RoleHierarchyController::class, 'fullMap']);
 
-        // 3. Admin Pages
-        Route::get('/pages', [AdminPageController::class, 'index']);
+        // 5. Admin Pages
+        Route::get('/pages', [RbacController::class, 'pages']);
         Route::post('/pages', [AdminPageController::class, 'store']);
         Route::get('/pages/{id}', [AdminPageController::class, 'edit'])->whereUuid('id');
         Route::put('/pages/{id}', [AdminPageController::class, 'update'])->whereUuid('id');
         Route::delete('/pages/{id}', [AdminPageController::class, 'destroy'])->whereUuid('id');
 
-        // 4. Permission Matrix
-        Route::get('/permission-matrix', [RolePermissionMatrixController::class, 'index']);
-        Route::post('/permission-matrix', [RolePermissionMatrixController::class, 'update']);
+        // 6. Workflow Approval Rules
+        Route::get('/workflows', [RbacController::class, 'workflows']);
+        Route::get('/workflow-rules', [WorkflowApprovalRuleController::class, 'index']);
+        Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store']);
+        Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->whereUuid('id');
+        Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->whereUuid('id');
 
-        // 5. Module Access
+        // 7. Role Module Access
         Route::get('/module-access', [RoleModuleAccessController::class, 'index']);
         Route::post('/module-access', [RoleModuleAccessController::class, 'update']);
 
-        // 6. Page Groups
+        // 8. Page Groups
         Route::get('/page-groups', [PageGroupController::class, 'index']);
         Route::post('/page-groups', [PageGroupController::class, 'store']);
         Route::get('/page-groups/{id}', [PageGroupController::class, 'edit'])->whereUuid('id');
         Route::put('/page-groups/{id}', [PageGroupController::class, 'update'])->whereUuid('id');
         Route::delete('/page-groups/{id}', [PageGroupController::class, 'destroy'])->whereUuid('id');
 
-        // 7. Data Scope
+        // 9. Data Scope
         Route::get('/data-scope', [RoleDataScopeController::class, 'index']);
         Route::post('/data-scope', [RoleDataScopeController::class, 'store']);
         Route::delete('/data-scope/{id}', [RoleDataScopeController::class, 'destroy'])->whereUuid('id');
+    };
 
-        // 8. Workflow Rules
-        Route::get('/workflow-rules', [WorkflowApprovalRuleController::class, 'index']);
-        Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store']);
-        Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->whereUuid('id');
-        Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->whereUuid('id');
-    });
+    // Both /api/v1/admin/rbac/* and /api/v1/rbac/* are mapped for dual compatibility
+    Route::prefix('admin/rbac')->group($registerRbacRoutes);
+    Route::prefix('rbac')->group($registerRbacRoutes);
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
@@ -291,6 +304,7 @@ Route::prefix('v1')->group(function () {
         Route::post('social-login', [AuthController::class, 'socialLogin']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+        Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -416,6 +430,10 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
+
+    // Referral Campaign Config API
+    Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
+    Route::get('/referrals/campaign-config', [ReferralCampaignConfigController::class, 'show']);
 
     // Referral Contact Invitations APIs
     Route::post('/referrals/send-invitations', [ContactInvitationApiController::class, 'sendInvitations']);
@@ -625,7 +643,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/circles/{id}/join', [CircleController::class, 'join'])->whereUuid('id');
         Route::post('/circles/{id}/leave', [CircleController::class, 'leave'])->whereUuid('id');
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
-        Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
+        Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index'])->whereUuid('circle');
+        Route::get('/circles/{circle}/circle-leaders', [CircleLeadershipController::class, 'circleLeaders'])->whereUuid('circle');
+        Route::get('/circles/{circle}/leaders', [CircleLeadershipController::class, 'circleLeaders'])->whereUuid('circle');
+        Route::get('/circles/{circle}/regional-leaders', [CircleLeadershipController::class, 'regionalLeaders'])->whereUuid('circle');
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::get('/joined-circles', [CircleController::class, 'joinedCircles']);
@@ -641,6 +662,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/circle-join-requests/my', [CircleJoinRequestController::class, 'myRequests']);
         Route::get('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'show'])->whereUuid('id');
         Route::get('/circle-join-requests/{id}/status', [CircleJoinRequestController::class, 'status'])->whereUuid('id');
+        Route::post('/circle-join-requests/{id}/payment/order', [CircleJoinRequestPaymentController::class, 'createOrder'])->whereUuid('id');
+        Route::post('/circle-join-requests/{id}/payment/verify', [CircleJoinRequestPaymentController::class, 'verify'])->whereUuid('id');
         Route::post('/circle-join-requests/{id}/verify-payment', [CircleJoinRequestController::class, 'verifyPayment'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
@@ -693,23 +716,36 @@ Route::prefix('v1')->group(function () {
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
             Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);
             Route::get('/circle-join-requests/{id}', [CircleJoinRequestAdminController::class, 'show'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
 
+            Route::get('/dashboard/metrics', [DashboardController::class, 'metrics']);
             Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+            Route::get('/dashboard/get-summary', [DashboardController::class, 'getSummary']);
             Route::get('/dashboard/revenue', [DashboardController::class, 'revenue']);
             Route::get('/dashboard/life-impact', [DashboardController::class, 'lifeImpact']);
             Route::get('/dashboard/members-growth', [DashboardController::class, 'membersGrowth']);
             Route::get('/dashboard/circles-overview', [DashboardController::class, 'circlesOverview']);
             Route::get('/dashboard/pending-counts', [DashboardController::class, 'pendingCounts']);
 
+            // Canonical Peers Directory & Management
+            Route::get('/peers', [UserManagementController::class, 'index']);
+            Route::get('/peers/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
+            Route::put('/peers/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::patch('/peers/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
+            Route::post('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
+            Route::patch('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
+
+            // Legacy Users Endpoints (Aliased to Unified Controller)
             Route::get('/users', [UserManagementController::class, 'index']);
             Route::get('/users/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
             Route::put('/users/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::post('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
+            Route::patch('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/users/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
             Route::patch('/users/{id}/membership-status', [UserManagementController::class, 'patchMembershipStatus'])->whereUuid('id');
             Route::patch('/users/{id}/assign-role', [UserManagementController::class, 'assignRole'])->whereUuid('id');
@@ -748,6 +784,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/circles/{id}/assign-director', [CircleManagementController::class, 'assignDirector'])->whereUuid('id');
             Route::patch('/circles/{id}/assign-leadership-team', [CircleManagementController::class, 'assignLeadershipTeam'])->whereUuid('id');
             Route::get('/circles/{id}/join-requests', [CircleManagementController::class, 'joinRequests'])->whereUuid('id');
+            Route::get('/circles/{id}/peers', [CircleManagementController::class, 'peers'])->whereUuid('id');
             Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
             Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
             Route::delete('/circles/{id}/members/{userId}', [CircleManagementController::class, 'removeMember'])->whereUuid('id')->whereUuid('userId');
@@ -757,10 +794,10 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/circle-join-requests', [AdminOpsController::class, 'joinRequests']);
             Route::get('/circle-join-requests/{id}', [AdminOpsController::class, 'joinRequestShow'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/cd-approve', [AdminOpsController::class, 'joinCdApprove'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/cd-reject', [AdminOpsController::class, 'joinCdReject'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/id-approve', [AdminOpsController::class, 'joinIdApprove'])->whereUuid('id');
-            Route::patch('/circle-join-requests/{id}/id-reject', [AdminOpsController::class, 'joinIdReject'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/cd-approve', [AdminOpsController::class, 'joinCdApprove'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/cd-reject', [AdminOpsController::class, 'joinCdReject'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/id-approve', [AdminOpsController::class, 'joinIdApprove'])->whereUuid('id');
+            Route::match(['post', 'patch'], '/circle-join-requests/{id}/id-reject', [AdminOpsController::class, 'joinIdReject'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/mark-paid', [AdminOpsController::class, 'joinMarkPaid'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/mark-unpaid', [AdminOpsController::class, 'joinMarkUnpaid'])->whereUuid('id');
             Route::patch('/circle-join-requests/{id}/cancel', [AdminOpsController::class, 'joinCancel'])->whereUuid('id');
@@ -785,6 +822,9 @@ Route::prefix('v1')->group(function () {
             Route::put('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesUpdate']);
             Route::delete('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesDelete']);
 
+            // Define static resource routes BEFORE wildcard parameter routes (e.g., before /events/{id})
+            Route::get('/events/coupons', [EventCouponAdminController::class, 'index']);
+            Route::post('/events/coupons', [EventCouponAdminController::class, 'store']);
             Route::get('/events', [EventAdminController::class, 'index']);
             Route::post('/events', [EventAdminController::class, 'store']);
             Route::get('/events/{id}', [EventAdminController::class, 'show'])->whereUuid('id');
@@ -945,11 +985,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
-        Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
-        Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
-        Route::get('/events/registrations/{registration_id}/invoice', [EventController::class, 'invoice'])->whereUuid('registration_id');
-        Route::get('/events/invoices', [EventController::class, 'invoices']);
-        Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
         Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register-as-user', [EventController::class, 'visitorRegisterAsUser'])->whereUuid('event_id')->whereUuid('occurrence_id');
@@ -1216,6 +1251,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);
         Route::get('/circles/{circle}/package', [CircleSubscriptionController::class, 'package']);
         Route::post('/billing/circle-checkout/{circle}', [CircleSubscriptionController::class, 'checkout']);
+        Route::post('/billing/circle-checkout/{circle}/verify', [CircleSubscriptionController::class, 'verify']);
+        Route::post('/billing/circle-checkout/{circle}/cancel', [CircleSubscriptionController::class, 'cancel']);
+        Route::post('/circles/{circle}/package/checkout', [CircleSubscriptionController::class, 'checkout']);
+        Route::post('/circles/{circle}/package/verify', [CircleSubscriptionController::class, 'verify']);
+        Route::post('/circles/{circle}/package/cancel', [CircleSubscriptionController::class, 'cancel']);
 
         // Authenticated Brand Partner bookmarks
         Route::post('/brand-partners/{id}/save', [BrandPartnerApiController::class, 'save'])->whereUuid('id');

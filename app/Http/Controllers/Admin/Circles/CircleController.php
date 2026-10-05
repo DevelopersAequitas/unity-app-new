@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel4;
 use App\Models\City;
+use App\Models\MembershipPlan;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\IndustryDirector\IndustryScopeService;
@@ -24,7 +25,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -323,17 +323,21 @@ class CircleController extends Controller
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
+            'zohoPackages' => $this->zohoPackageOptions(),
+            'razorpayPackages' => $this->razorpayPackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
             'categories' => $this->categoriesList(),
             'selectedCategoryIds' => old('categories', []),
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
+            'selectedGateway' => (string) old('payment_gateway', 'zoho'),
         ]);
     }
 
     public function store(StoreCircleRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
+        $gateway = (string) ($validated['payment_gateway'] ?? 'zoho');
+        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null, $gateway);
         $baseSlug = Str::slug((string) ($validated['name'] ?? ''));
 
         if ($baseSlug === '') {
@@ -373,7 +377,7 @@ class CircleController extends Controller
             unset($payload['status']);
         }
 
-        $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
+        $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage, $validated, $gateway));
         $payload = $this->pruneEmptyPayload($payload);
 
         $circle = new Circle;
@@ -592,6 +596,8 @@ class CircleController extends Controller
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
+            'zohoPackages' => $this->zohoPackageOptions(),
+            'razorpayPackages' => $this->razorpayPackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
             'categories' => $this->categoriesList(),
             'selectedCategoryIds' => old(
@@ -601,13 +607,16 @@ class CircleController extends Controller
                     : []
             ),
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
+            'selectedGateway' => (string) old('payment_gateway', $circle->payment_gateway ?: ($circle->zoho_addon_code ? 'zoho' : 'zoho')),
         ]);
     }
 
     public function update(UpdateCircleRequest $request, Circle $circle): RedirectResponse
     {
         $validated = $request->validated();
-        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
+        $defaultGateway = $circle->payment_gateway ?: ($circle->zoho_addon_code ? 'zoho' : 'zoho');
+        $gateway = (string) ($validated['payment_gateway'] ?? $defaultGateway);
+        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null, $gateway);
 
         $allowed = [];
         foreach ([
@@ -639,7 +648,7 @@ class CircleController extends Controller
             $allowed['industry_tags'] = $this->normalizeIndustryTags($validated['industry_tags'] ?? null);
         }
 
-        $allowed = array_merge($allowed, $this->buildCirclePackagePayload($circlePackage));
+        $allowed = array_merge($allowed, $this->buildCirclePackagePayload($circlePackage, $validated, $gateway));
         $allowed = $this->pruneEmptyPayload($allowed);
 
         if (Schema::hasColumn('circles', 'country') && ! array_key_exists('country', $allowed)) {
@@ -895,19 +904,75 @@ class CircleController extends Controller
         return $payload;
     }
 
-    private function circlePackageOptions(): array
+    private function zohoPackageOptions(): array
     {
-        try {
-            return $this->zohoBillingService->listCirclePackageAddons(true);
-        } catch (Throwable $throwable) {
-            report($throwable);
-            session()->flash('error', 'Unable to load Circle Package addons from Zoho Billing right now.');
+        $packages = [];
 
-            return [];
+        try {
+            $zohoAddons = $this->zohoBillingService->listCirclePackageAddons(true);
+            foreach ($zohoAddons as $za) {
+                $packages[] = [
+                    'id' => $za['addon_id'] ?: $za['addon_code'],
+                    'addon_id' => $za['addon_id'],
+                    'addon_code' => $za['addon_code'],
+                    'name' => $za['name'],
+                    'amount' => (float) ($za['amount'] ?? 0),
+                    'gst_percent' => 18.00,
+                    'total_amount' => round((float) ($za['amount'] ?? 0) * 1.18, 2),
+                    'currency_code' => $za['currency_code'] ?? 'INR',
+                    'source' => 'zoho',
+                ];
+            }
+        } catch (Throwable $throwable) {
+            Log::warning('Error loading Zoho circle packages', ['error' => $throwable->getMessage()]);
         }
+
+        return $packages;
     }
 
-    private function resolveCirclePackage(?string $selection): ?array
+    private function razorpayPackageOptions(): array
+    {
+        $packages = [];
+
+        try {
+            $plans = MembershipPlan::query()
+                ->circleOnly()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get();
+
+            foreach ($plans as $plan) {
+                $base = (float) $plan->price;
+                $gst = (float) ($plan->gst_percent ?? 18.00);
+                $gstAmount = round($base * ($gst / 100), 2);
+                $total = round($base + $gstAmount, 2);
+
+                $packages[] = [
+                    'id' => (string) $plan->id,
+                    'addon_id' => (string) $plan->id,
+                    'addon_code' => (string) $plan->slug,
+                    'name' => (string) $plan->name,
+                    'amount' => $base,
+                    'gst_percent' => $gst,
+                    'total_amount' => $total,
+                    'currency_code' => 'INR',
+                    'source' => 'razorpay',
+                ];
+            }
+        } catch (Throwable $e) {
+            Log::warning('Error loading Razorpay circle packages', ['error' => $e->getMessage()]);
+        }
+
+        return $packages;
+    }
+
+    private function circlePackageOptions(): array
+    {
+        return array_merge($this->zohoPackageOptions(), $this->razorpayPackageOptions());
+    }
+
+    private function resolveCirclePackage(?string $selection, string $gateway = 'zoho'): ?array
     {
         $selection = trim((string) $selection);
 
@@ -915,44 +980,103 @@ class CircleController extends Controller
             return null;
         }
 
-        try {
-            $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
-        } catch (Throwable $throwable) {
-            throw ValidationException::withMessages([
-                'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
-            ]);
-        }
+        if ($gateway === 'razorpay') {
+            $plan = Str::isUuid($selection)
+                ? MembershipPlan::query()->where('id', $selection)->first()
+                : MembershipPlan::query()->where('slug', $selection)->first();
 
-        if (! is_array($addon)) {
-            throw ValidationException::withMessages([
-                'circle_package' => 'Selected Circle Package is invalid or inactive.',
-            ]);
-        }
+            if ($plan) {
+                $base = (float) $plan->price;
+                $gst = (float) ($plan->gst_percent ?? 18.00);
 
-        return $addon;
-    }
-
-    private function buildCirclePackagePayload(?array $circlePackage): array
-    {
-        if (! is_array($circlePackage)) {
-            return [
-                'zoho_addon_code' => null,
-                'zoho_addon_id' => null,
-                'zoho_addon_name' => null,
-                'circle_price_amount' => null,
-                'circle_price_currency' => null,
-                'circle_duration_months' => null,
-            ];
+                return [
+                    'id' => (string) $plan->id,
+                    'addon_id' => (string) $plan->id,
+                    'addon_code' => (string) $plan->slug,
+                    'name' => (string) $plan->name,
+                    'amount' => $base,
+                    'gst_percent' => $gst,
+                    'currency_code' => 'INR',
+                    'source' => 'razorpay',
+                ];
+            }
+        } else {
+            try {
+                $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
+                if (is_array($addon)) {
+                    return [
+                        'id' => $addon['addon_id'] ?? $addon['addon_code'],
+                        'addon_id' => $addon['addon_id'] ?? null,
+                        'addon_code' => $addon['addon_code'] ?? $selection,
+                        'name' => $addon['name'] ?? ucfirst(str_replace(['_', '-'], ' ', $selection)),
+                        'amount' => isset($addon['amount']) ? (float) $addon['amount'] : null,
+                        'gst_percent' => 18.00,
+                        'currency_code' => $addon['currency_code'] ?? 'INR',
+                        'source' => 'zoho',
+                    ];
+                }
+            } catch (Throwable $throwable) {
+                // Ignore Zoho error if not reachable
+            }
         }
 
         return [
-            'zoho_addon_code' => $circlePackage['addon_code'] ?? null,
-            'zoho_addon_id' => $circlePackage['addon_id'] ?? null,
-            'zoho_addon_name' => $circlePackage['name'] ?? null,
-            'circle_price_amount' => $circlePackage['amount'] ?? null,
-            'circle_price_currency' => $circlePackage['currency_code'] ?? null,
-            'circle_duration_months' => 12,
+            'id' => $selection,
+            'addon_id' => null,
+            'addon_code' => $selection,
+            'name' => ucfirst(str_replace(['_', '-'], ' ', $selection)),
+            'amount' => null,
+            'gst_percent' => 18.00,
+            'currency_code' => 'INR',
+            'source' => $gateway,
         ];
+    }
+
+    private function buildCirclePackagePayload(?array $circlePackage, array $validated = [], string $gateway = 'zoho'): array
+    {
+        $price = null;
+        if (array_key_exists('circle_price_amount', $validated) && $validated['circle_price_amount'] !== null && $validated['circle_price_amount'] !== '') {
+            $price = round((float) $validated['circle_price_amount'], 2);
+        } elseif (is_array($circlePackage) && isset($circlePackage['amount']) && $circlePackage['amount'] !== null) {
+            $price = round((float) $circlePackage['amount'], 2);
+        }
+
+        $gstPercent = 18.00;
+        if (array_key_exists('circle_gst_percent', $validated) && $validated['circle_gst_percent'] !== null && $validated['circle_gst_percent'] !== '') {
+            $gstPercent = round((float) $validated['circle_gst_percent'], 2);
+        } elseif (is_array($circlePackage) && isset($circlePackage['gst_percent'])) {
+            $gstPercent = round((float) $circlePackage['gst_percent'], 2);
+        }
+
+        $isPackageActive = true;
+        if (array_key_exists('is_package_active', $validated)) {
+            $isPackageActive = (bool) $validated['is_package_active'];
+        }
+
+        $payload = [
+            'payment_gateway' => $gateway,
+            'circle_price_amount' => $price,
+            'circle_price_currency' => $circlePackage['currency_code'] ?? 'INR',
+            'circle_duration_months' => 12,
+            'circle_gst_percent' => $gstPercent,
+            'is_package_active' => $isPackageActive,
+        ];
+
+        if ($gateway === 'razorpay') {
+            $payload['payment_plan_id'] = $circlePackage['addon_id'] ?? ($circlePackage['id'] ?? null);
+            $payload['zoho_addon_code'] = $circlePackage['addon_code'] ?? null;
+            $payload['zoho_addon_id'] = null;
+            $payload['zoho_addon_name'] = $circlePackage['name'] ?? null;
+        } else {
+            $payload['payment_plan_id'] = null;
+            if (is_array($circlePackage)) {
+                $payload['zoho_addon_code'] = $circlePackage['addon_code'] ?? null;
+                $payload['zoho_addon_id'] = $circlePackage['addon_id'] ?? null;
+                $payload['zoho_addon_name'] = $circlePackage['name'] ?? null;
+            }
+        }
+
+        return $payload;
     }
 
     private function countriesList()

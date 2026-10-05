@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AdminUser;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -11,10 +12,13 @@ class EnsureUnityUser
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user() instanceof User) {
+        $user = $request->user();
+
+        // Allow if the user is a standard User OR an AdminUser
+        if (! $user instanceof User && ! $user instanceof AdminUser) {
             return response()->json([
                 'success' => false,
-                'message' => 'This API is only available for Unity users.',
+                'message' => 'This API is only available for Unity users and Administrators.',
             ], 403);
         }
 

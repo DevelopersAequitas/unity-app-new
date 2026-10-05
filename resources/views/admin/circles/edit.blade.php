@@ -159,19 +159,94 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold">Circle Package</label>
-                            <select name="circle_package" class="form-select js-no-searchable-select">
-                                <option value="">Select package</option>
-                                @foreach ($circlePackages as $package)
-                                    @php
-                                        $packageValue = $package['addon_code'] ?: $package['addon_id'];
-                                    @endphp
-                                    <option value="{{ $packageValue }}" @selected(old('circle_package', $circle->zoho_addon_code ?: $circle->zoho_addon_id) === $packageValue)>
-                                        {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
-                                    </option>
-                                @endforeach
-                            </select>
+                        <div class="col-md-12 mt-4">
+                            @php
+                                $selectedGateway = $selectedGateway ?? old('payment_gateway', $circle->payment_gateway ?: ($circle->zoho_addon_code ? 'zoho' : 'zoho'));
+                            @endphp
+                            <div class="card border rounded-3 p-3 bg-light">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label fw-bold mb-0 text-primary"><i class="bi bi-credit-card me-1"></i>Circle Payment Gateway & Package Configuration</label>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" name="is_package_active" id="is_package_active" value="1" @checked(old('is_package_active', $circle->is_package_active ?? true))>
+                                        <label class="form-check-label fw-semibold small" for="is_package_active">Package Active for Purchase</label>
+                                    </div>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold small">Payment Gateway <span class="text-danger">*</span></label>
+                                        <select name="payment_gateway" id="payment_gateway_select" class="form-select js-no-searchable-select" required>
+                                            <option value="zoho" @selected($selectedGateway === 'zoho')>Zoho</option>
+                                            <option value="razorpay" @selected($selectedGateway === 'razorpay')>Razorpay</option>
+                                        </select>
+                                    </div>
+                                    
+                                    {{-- Zoho Package Selector --}}
+                                    <div class="col-md-3" id="zoho_package_wrapper">
+                                        <label class="form-label fw-semibold small">Zoho Plan / Add-on</label>
+                                        <select name="zoho_package" id="zoho_package_select" class="form-select js-no-searchable-select">
+                                            <option value="">Custom / Select Zoho Plan</option>
+                                            @foreach ($zohoPackages as $package)
+                                                @php
+                                                    $packageValue = $package['addon_code'] ?: $package['addon_id'];
+                                                    $currentVal = (string) old('zoho_package', old('circle_package', $circle->zoho_addon_code ?: $circle->zoho_addon_id));
+                                                    $isSelected = ($selectedGateway === 'zoho' && $currentVal !== '' && (
+                                                        $currentVal === (string) $package['addon_code']
+                                                        || $currentVal === (string) $package['addon_id']
+                                                        || $currentVal === (string) ($package['id'] ?? '')
+                                                    ));
+                                                @endphp
+                                                <option value="{{ $packageValue }}"
+                                                    data-amount="{{ $package['amount'] ?? '' }}"
+                                                    data-gst="{{ $package['gst_percent'] ?? 18 }}"
+                                                    @selected($isSelected)>
+                                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - ₹{{ number_format((float) ($package['amount'] ?? 0), 2) }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    {{-- Razorpay Package Selector --}}
+                                    <div class="col-md-3 d-none" id="razorpay_package_wrapper">
+                                        <label class="form-label fw-semibold small">Razorpay Circle Plan</label>
+                                        <select name="razorpay_package" id="razorpay_package_select" class="form-select js-no-searchable-select">
+                                            <option value="">Select Razorpay Plan</option>
+                                            @foreach ($razorpayPackages as $package)
+                                                @php
+                                                    $packageValue = $package['id'] ?: $package['addon_code'];
+                                                    $currentVal = (string) old('razorpay_package', old('circle_package', $circle->payment_plan_id ?: ''));
+                                                    $isSelected = ($selectedGateway === 'razorpay' && $currentVal !== '' && (
+                                                        $currentVal === (string) $package['id']
+                                                        || $currentVal === (string) ($package['addon_code'] ?? '')
+                                                        || $currentVal === (string) ($package['addon_id'] ?? '')
+                                                    ));
+                                                @endphp
+                                                <option value="{{ $packageValue }}"
+                                                    data-amount="{{ $package['amount'] ?? '' }}"
+                                                    data-gst="{{ $package['gst_percent'] ?? 18 }}"
+                                                    @selected($isSelected)>
+                                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - ₹{{ number_format((float) ($package['amount'] ?? 0), 2) }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-semibold small">Base Price (₹)</label>
+                                        <input type="number" step="0.01" min="0" name="circle_price_amount" id="circle_price_amount" class="form-control" value="{{ old('circle_price_amount', $circle->circle_price_amount) }}" placeholder="e.g. 15000.00">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-semibold small">GST Rate (%)</label>
+                                        <input type="number" step="0.01" min="0" max="100" name="circle_gst_percent" id="circle_gst_percent" class="form-control" value="{{ old('circle_gst_percent', $circle->circle_gst_percent ?? 18.00) }}" placeholder="18.00">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-semibold small">Total Amount (₹)</label>
+                                        <input type="text" id="circle_total_amount_display" class="form-control bg-white fw-bold text-success" readonly value="—">
+                                    </div>
+                                </div>
+                                <div class="form-text mt-2 text-muted small">
+                                    <i class="bi bi-info-circle me-1"></i>When <strong>Zoho</strong> is selected, Zoho Circle Add-ons are used for payments and invoicing. When <strong>Razorpay</strong> is selected, the chosen Razorpay plan is billed via Razorpay order and invoiced in Zoho upon verification.
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-6 mt-4">
                             <label class="form-label fw-semibold">Cover Image</label>
@@ -891,5 +966,84 @@
     document.getElementById('schedule-tab')?.addEventListener('shown.bs.tab', function () {
         toggleMeetingDetails();
     });
+
+    // Circle Payment Gateway & Package dynamic price calculation & autofill
+    function updateCircleTotalAmount() {
+        const priceInput = document.getElementById('circle_price_amount');
+        const gstInput = document.getElementById('circle_gst_percent');
+        const totalDisplay = document.getElementById('circle_total_amount_display');
+        if (!priceInput || !gstInput || !totalDisplay) return;
+
+        const base = parseFloat(priceInput.value) || 0;
+        const gst = parseFloat(gstInput.value) || 0;
+        if (base <= 0) {
+            totalDisplay.value = '—';
+            return;
+        }
+        const gstAmount = Math.round(base * (gst / 100) * 100) / 100;
+        const total = Math.round((base + gstAmount) * 100) / 100;
+        totalDisplay.value = '₹' + total.toFixed(2) + ' (₹' + base.toFixed(2) + ' + ₹' + gstAmount.toFixed(2) + ' GST)';
+    }
+
+    function applySelectedPackageData(selectElement) {
+        if (!selectElement) return;
+        const selected = selectElement.options[selectElement.selectedIndex];
+        if (selected && selected.dataset.amount !== undefined && selected.dataset.amount !== '') {
+            const amount = parseFloat(selected.dataset.amount);
+            if (!isNaN(amount)) {
+                const priceInput = document.getElementById('circle_price_amount');
+                if (priceInput) priceInput.value = amount.toFixed(2);
+            }
+        }
+        if (selected && selected.dataset.gst !== undefined && selected.dataset.gst !== '') {
+            const gst = parseFloat(selected.dataset.gst);
+            if (!isNaN(gst)) {
+                const gstInput = document.getElementById('circle_gst_percent');
+                if (gstInput) gstInput.value = gst.toFixed(2);
+            }
+        }
+        updateCircleTotalAmount();
+    }
+
+    function togglePaymentGatewayUI(isUserChange = false) {
+        const gatewaySelect = document.getElementById('payment_gateway_select');
+        const zohoWrapper = document.getElementById('zoho_package_wrapper');
+        const razorpayWrapper = document.getElementById('razorpay_package_wrapper');
+        const zohoSelect = document.getElementById('zoho_package_select');
+        const razorpaySelect = document.getElementById('razorpay_package_select');
+
+        if (!gatewaySelect || !zohoWrapper || !razorpayWrapper) return;
+
+        const gateway = gatewaySelect.value;
+        if (gateway === 'razorpay') {
+            zohoWrapper.classList.add('d-none');
+            razorpayWrapper.classList.remove('d-none');
+            if (isUserChange && razorpaySelect && razorpaySelect.value) {
+                applySelectedPackageData(razorpaySelect);
+            }
+        } else {
+            razorpayWrapper.classList.add('d-none');
+            zohoWrapper.classList.remove('d-none');
+            if (isUserChange && zohoSelect && zohoSelect.value) {
+                applySelectedPackageData(zohoSelect);
+            }
+        }
+    }
+
+    document.getElementById('payment_gateway_select')?.addEventListener('change', function () {
+        togglePaymentGatewayUI(true);
+    });
+    document.getElementById('zoho_package_select')?.addEventListener('change', function () {
+        applySelectedPackageData(this);
+    });
+    document.getElementById('razorpay_package_select')?.addEventListener('change', function () {
+        applySelectedPackageData(this);
+    });
+    document.getElementById('circle_price_amount')?.addEventListener('input', updateCircleTotalAmount);
+    document.getElementById('circle_gst_percent')?.addEventListener('input', updateCircleTotalAmount);
+
+    togglePaymentGatewayUI();
+    updateCircleTotalAmount();
 </script>
 @endpush
+

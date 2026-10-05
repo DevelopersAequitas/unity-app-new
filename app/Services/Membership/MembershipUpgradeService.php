@@ -175,7 +175,10 @@ class MembershipUpgradeService
 
         $planId = $data['membership_plan_id'] ?? $payment?->membership_plan_id ?? null;
         if ($planId && Schema::hasTable('membership_plans')) {
-            $plan = MembershipPlan::query()->find($planId);
+            $planIdStr = trim((string) $planId);
+            $plan = Str::isUuid($planIdStr)
+                ? MembershipPlan::query()->find($planIdStr)
+                : MembershipPlan::query()->where('slug', $planIdStr)->first();
             if ($plan && (int) $plan->duration_months > 0) {
                 return (int) $plan->duration_months;
             }

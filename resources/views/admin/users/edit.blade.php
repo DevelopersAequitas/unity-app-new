@@ -1429,7 +1429,7 @@ window.switchTab = function(tabId) {
             'level4' => $membership->level_4_category_id ?? 0,
         ];
         $memCircleId = (string) $membership->circle_id;
-        $memCircleOptions = $circleCategoryOptionsByCircle[$memCircleId] ?? $circleCategoryOptionsByCircle['default'] ?? ['level1' => [], 'level2' => [], 'level3' => [], 'level4' => []];
+        $memCircleOptions = $circleCategoryOptionsByCircle[$memCircleId] ?? $circleCategoryOptionsByCircle['default'] ?? ['level1' => [], 'level2' => [], 'level3' => []];
         $firstL1 = $memCircleOptions['level1'][0] ?? null;
         $memLevel1Name = $membershipTree['selected_category_path']['level1']->name ?? ($firstL1['name'] ?? '—');
         $memLevel1Id = $memSelectedIds['level1'] ?: ($firstL1['id'] ?? '');
@@ -1437,13 +1437,7 @@ window.switchTab = function(tabId) {
         $memCircleExpiresAt = $membership->expires_at ? \Illuminate\Support\Carbon::parse($membership->expires_at)->format('Y-m-d') : '';
 
         $selectedL1Str = (string) $memLevel1Id;
-        $modalL4List = collect($memCircleOptions['level4'] ?? [])->filter(function ($item) use ($selectedL1Str) {
-            $itemL1 = (string) ($item['level1_id'] ?? $item['parent_id'] ?? $item['circle_category_id'] ?? '');
-            return $selectedL1Str === '' || $itemL1 === $selectedL1Str;
-        })->values();
-        if ($modalL4List->isEmpty()) {
-            $modalL4List = collect($memCircleOptions['level4'] ?? []);
-        }
+        $modalL4List = $mainToSubCategoriesMap[$selectedL1Str] ?? [];
     @endphp
     <div class="modal fade" id="editCircleMembershipModal-{{ $membership->id }}" tabindex="-1" aria-labelledby="editCircleMembershipLabel-{{ $membership->id }}" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -2121,7 +2115,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const getCircleData = () => {
             const circleId = circleSelect?.value || '';
-            return circleCategoryOptionsByCircle[String(circleId)] || circleCategoryOptionsByCircle['default'] || { level1: [], level2: [], level3: [], level4: [] };
+            return circleCategoryOptionsByCircle[String(circleId)] || circleCategoryOptionsByCircle['default'] || { level1: [], level2: [], level3: [] };
         };
 
         const syncHiddenLevelsFromLevel4 = () => {
@@ -2129,8 +2123,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const selectedOption = level4Select.options[level4Select.selectedIndex];
             if (selectedOption && selectedOption.value) {
                 const data = getCircleData();
+                const firstL1 = (data.level1 || [])[0] || null;
+                const l4List = mainToSubCategoriesMap[String(firstL1?.id || '')] || [];
                 const l4Id = selectedOption.value;
-                const l4Item = (data.level4 || []).find((item) => String(item.id) === String(l4Id));
+                const l4Item = l4List.find((item) => String(item.id) === String(l4Id));
                 if (level2Select) {
                     level2Select.value = l4Item?.level2_id || selectedOption.dataset.level2Id || '';
                 }
@@ -2151,10 +2147,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (level1NameInput) level1NameInput.value = firstL1.name || '';
                 if (level1IdInput) level1IdInput.value = String(firstL1.id || '');
 
-                const level4Options = (data.level4 || []).filter((item) => {
-                    const itemL1 = item.level1_id || item.parent_id || item.circle_category_id;
-                    return String(itemL1) === String(firstL1.id);
-                });
+                const level4Options = mainToSubCategoriesMap[String(firstL1.id)] || [];
                 fillSelect(level4Select, level4Options, 'Select sub category', presetLevel4 || oldLevel4);
             } else {
                 if (level1NameInput) level1NameInput.value = '';
@@ -2183,12 +2176,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const level2Input = document.getElementById(`modal_level2_${memberId}`);
             const level3Input = document.getElementById(`modal_level3_${memberId}`);
 
-            const circleData = circleCategoryOptionsByCircle[String(circleId)] || circleCategoryOptionsByCircle['default'] || { level1: [], level2: [], level3: [], level4: [] };
+            const circleData = circleCategoryOptionsByCircle[String(circleId)] || circleCategoryOptionsByCircle['default'] || { level1: [], level2: [], level3: [] };
 
             const syncModalHiddenLevels = () => {
                 const selectedOption = modalL4Select.options[modalL4Select.selectedIndex];
                 if (selectedOption && selectedOption.value) {
-                    const l4Item = (circleData.level4 || []).find((item) => String(item.id) === String(selectedOption.value));
+                    const selectedL1 = modalL1Select.value || (circleData.level1 || [])[0]?.id || '';
+                    const l4List = mainToSubCategoriesMap[String(selectedL1)] || [];
+                    const l4Item = l4List.find((item) => String(item.id) === String(selectedOption.value));
                     if (level2Input) level2Input.value = l4Item?.level2_id || selectedOption.dataset.level2Id || '';
                     if (level3Input) level3Input.value = l4Item?.level3_id || selectedOption.dataset.level3Id || '';
                 } else {
@@ -2198,19 +2193,13 @@ document.addEventListener('DOMContentLoaded', function () {
             };
 
             const updateModalLevel4 = (presetLevel4 = '') => {
-                const selectedL1 = modalL1Select.value || '';
+                const selectedL1 = modalL1Select.value || (circleData.level1 || [])[0]?.id || '';
                 if (!selectedL1) {
-                    fillSelect(modalL4Select, circleData.level4 || [], 'Select sub category', presetLevel4);
+                    fillSelect(modalL4Select, [], 'Select sub category', presetLevel4);
                     syncModalHiddenLevels();
                     return;
                 }
-                let l4Options = (circleData.level4 || []).filter((item) => {
-                    const itemL1 = item.level1_id || item.parent_id || item.circle_category_id;
-                    return String(itemL1) === String(selectedL1);
-                });
-                if (l4Options.length === 0) {
-                    l4Options = circleData.level4 || [];
-                }
+                const l4Options = mainToSubCategoriesMap[String(selectedL1)] || [];
                 fillSelect(modalL4Select, l4Options, 'Select sub category', presetLevel4);
                 syncModalHiddenLevels();
             };

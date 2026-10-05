@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
@@ -8,9 +10,10 @@ use App\Models\CircleJoinRequest;
 use App\Models\CoinClaimRequest;
 use App\Models\Event;
 use App\Models\Impact;
-use App\Models\Industry;
+use App\Models\JoinRequest;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Admin\AdminDashboardMetricsService;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,28 +22,106 @@ use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope) {}
+    public function __construct(
+        private readonly AdminScopeService $scope,
+        private readonly AdminDashboardMetricsService $metricsService,
+    ) {}
+
+    public function metrics(Request $request): JsonResponse
+    {
+        $metrics = $this->metricsService->getMetrics($request->user());
+
+        $totalActivePeers = User::query()
+            ->where(function ($q): void {
+                if (Schema::hasColumn('users', 'is_active') && Schema::hasColumn('users', 'status')) {
+                    $q->where('is_active', true)->orWhere('status', 'active');
+                } elseif (Schema::hasColumn('users', 'is_active')) {
+                    $q->where('is_active', true);
+                } elseif (Schema::hasColumn('users', 'status')) {
+                    $q->where('status', 'active');
+                }
+            })
+            ->count();
+
+        $charteredCircles = Circle::query()
+            ->where(function ($q): void {
+                if (Schema::hasColumn('circles', 'status')) {
+                    $q->whereIn('status', ['active', 'chartered']);
+                }
+            })
+            ->count();
+
+        $today = today();
+        $todayEventsCount = 0;
+        if (Schema::hasTable('events')) {
+            $eventQuery = Event::query();
+            $startCol = Schema::hasColumn('events', 'start_date') ? 'start_date' : (Schema::hasColumn('events', 'start_at') ? 'start_at' : null);
+            $endCol = Schema::hasColumn('events', 'end_date') ? 'end_date' : (Schema::hasColumn('events', 'end_at') ? 'end_at' : null);
+
+            if ($startCol && $endCol) {
+                $eventQuery->whereDate($startCol, '<=', $today)->whereDate($endCol, '>=', $today);
+            } elseif ($startCol) {
+                $eventQuery->whereDate($startCol, $today);
+            }
+            $todayEventsCount = $eventQuery->count();
+        }
+
+        $pendingClearancesCount = 0;
+        $pendingStatuses = ['pending', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee'];
+        if (Schema::hasTable('circle_join_requests')) {
+            $pendingClearancesCount += CircleJoinRequest::query()
+                ->whereIn('status', $pendingStatuses)
+                ->count();
+        }
+        if (class_exists(JoinRequest::class) && Schema::hasTable('join_requests')) {
+            $pendingClearancesCount += JoinRequest::query()
+                ->whereIn('status', $pendingStatuses)
+                ->count();
+        } elseif (Schema::hasTable('join_requests')) {
+            $pendingClearancesCount += DB::table('join_requests')
+                ->whereIn('status', $pendingStatuses)
+                ->count();
+        }
+
+        $coinsReserve = '1.84M';
+        if (Schema::hasTable('app_config_settings')) {
+            $setting = DB::table('app_config_settings')->where('key', 'coins_reserve')->value('value');
+            if ($setting !== null && $setting !== '') {
+                $coinsReserve = (string) $setting;
+            }
+        }
+
+        $augmented = array_merge($metrics, [
+            'totalActivePeers' => $totalActivePeers,
+            'total_active_peers' => $totalActivePeers,
+            'charteredCircles' => $charteredCircles,
+            'chartered_circles' => $charteredCircles,
+            'todayEventsCount' => $todayEventsCount,
+            'today_events_count' => $todayEventsCount,
+            'pendingClearancesCount' => $pendingClearancesCount,
+            'pending_clearances_count' => $pendingClearancesCount,
+            'coinsReserve' => $coinsReserve,
+            'coins_reserve' => $coinsReserve,
+            'totalPeers' => $metrics['total_peers'] ?? 0,
+            'totalUsers' => $metrics['total_users'] ?? 0,
+            'totalCircles' => $metrics['total_circles'] ?? 0,
+            'activeCirclesCount' => $metrics['active_circles_count'] ?? 0,
+            'totalLivesImpacted' => $metrics['total_lives_impacted'] ?? 0,
+            'totalCoinsIssued' => $metrics['total_coins_issued'] ?? 0,
+            'totalRevenue' => $metrics['total_revenue'] ?? 0,
+        ]);
+
+        return $this->success($augmented);
+    }
 
     public function summary(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $circleIds = $this->scope->visibleCircleIds($user);
+        return $this->metrics($request);
+    }
 
-        $usersQuery = User::query();
-        $this->scope->applyUserScope($usersQuery, $user);
-
-        $circlesQuery = Circle::query();
-        $this->scope->applyCircleScope($circlesQuery, $user);
-
-        return $this->success([
-            'total_users' => $usersQuery->count(),
-            'total_active_members' => (clone $usersQuery)->where('membership_status', '!=', 'visitor')->count(),
-            'total_circles' => $circlesQuery->count(),
-            'total_industries' => Industry::query()->when(! $this->scope->isGlobal($user), fn ($q) => $q->whereIn('id', $this->scope->visibleIndustryIds($user)))->count(),
-            'total_districts' => count($this->scope->visibleDistrictIds($user)),
-            'total_leaders' => User::query()->whereHas('roles', fn ($q) => $q->whereIn('key', ['ded', 'industry_director', 'circle_leader', 'founder', 'director', 'chair', 'vice_chair', 'secretary']))->count(),
-            'upcoming_events_count' => Event::query()->whereDate('start_at', '>=', now()->toDateString())->when($circleIds !== [], fn ($q) => $q->whereIn('circle_id', $circleIds))->count(),
-        ]);
+    public function getSummary(Request $request): JsonResponse
+    {
+        return $this->metrics($request);
     }
 
     public function revenue(Request $request): JsonResponse

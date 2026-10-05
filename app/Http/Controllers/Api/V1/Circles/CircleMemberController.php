@@ -61,12 +61,17 @@ class CircleMemberController extends Controller
                     default => $roleStr,
                 };
 
-                if (in_array($mappedRole, CircleMember::ROLE_OPTIONS, true)) {
-                    $query->where('role', $mappedRole);
-                } else {
-                    $query->whereRaw('role::text = ?', [$mappedRole]);
-                }
+                $query->where(function ($q) use ($mappedRole): void {
+                    $q->whereRaw('LOWER(circle_members.role::text) = ?', [$mappedRole])
+                        ->orWhereHas('roleModel', function ($rq) use ($mappedRole): void {
+                            $rq->whereRaw('LOWER(key) = ?', [$mappedRole])
+                                ->orWhereRaw('LOWER(name) = ?', [$mappedRole]);
+                        });
+                });
             }
+        } else {
+            // Default: Filter out regional leaders from circle members list
+            $query->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
         }
 
         if ($request->filled('search') || $request->filled('q')) {
@@ -112,18 +117,13 @@ class CircleMemberController extends Controller
 
     private function ensureCircleMembersExist(Circle $circle): void
     {
-        $leadershipRoles = [
-            'circle_founder' => $circle->circle_founder_user_id,
-            'circle_director' => $circle->circle_director_user_id,
-            'industry_director' => $circle->industry_director_user_id,
-            'ded' => $circle->ded_user_id,
-            'eed' => $circle->eed_user_id,
+        $circleLeadershipRoles = [
             'chair' => $circle->chair_user_id ?? null,
             'vice_chair' => $circle->vice_chair_user_id ?? null,
             'secretary' => $circle->secretary_user_id ?? null,
         ];
 
-        foreach ($leadershipRoles as $role => $userId) {
+        foreach ($circleLeadershipRoles as $role => $userId) {
             if (! empty($userId) && User::where('id', $userId)->exists()) {
                 $existing = CircleMember::withTrashed()
                     ->where('circle_id', $circle->id)

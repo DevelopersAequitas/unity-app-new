@@ -13,6 +13,10 @@ class EventRegistrationResource extends JsonResource
     {
         $qr = app(EventQrService::class);
 
+        $isPaid = in_array(strtolower((string) ($this->payment_status ?? '')), ['paid', 'success', 'completed'], true);
+        $invoiceNumber = $isPaid ? ($this->invoice_number ?? $this->zoho_invoice_number ?? null) : null;
+        $invoiceDate = $isPaid ? optional($this->payment_completed_at ?? $this->zoho_invoice_synced_at ?? $this->created_at)->toDateString() : null;
+
         return [
             'registration_id' => $this->id,
             'event_id' => $this->event_id,
@@ -27,16 +31,17 @@ class EventRegistrationResource extends JsonResource
             'payment_status' => $this->payment_status ?? null,
             'amount' => $this->amount !== null ? (string) $this->amount : null,
             'currency' => $this->currency ?? null,
-            'payment_gateway' => ($this->payment_required ?? false) ? ($this->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
             'payment_gateway' => ($this->payment_required ?? false) ? (in_array(strtolower((string) ($this->payment_gateway ?: config('services.event_payment_gateway', 'zoho_billing_payment_link'))), ['none', 'not_required', 'null', ''], true) ? 'zoho_billing_payment_link' : ($this->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link'))) : null,
             'razorpay_order_id' => $this->razorpay_order_id ?? null,
-            'razorpay_payment_id' => $this->razorpay_payment_id ?? null,
+            'razorpay_payment_id' => $isPaid ? ($this->razorpay_payment_id ?? null) : null,
             'checkout_url' => $this->payment_url ?? $this->zoho_checkout_url ?? $this->zoho_payment_link_url ?? $this->zoho_hosted_page_url ?? null,
-            'zoho_invoice_id' => $this->zoho_invoice_id ?? null,
-            'zoho_invoice_number' => $this->zoho_invoice_number ?? null,
-            'invoice_url' => $this->zoho_invoice_url ?? null,
-            'invoice_pdf_url' => $this->zoho_invoice_pdf_url ?? null,
-            'payment_completed_at' => optional($this->payment_completed_at)->toISOString(),
+            'invoice_number' => $invoiceNumber,
+            'invoice_date' => $invoiceDate,
+            'zoho_invoice_id' => $isPaid ? ($this->zoho_invoice_id ?? null) : null,
+            'zoho_invoice_number' => $isPaid ? ($this->zoho_invoice_number ?? null) : null,
+            'invoice_url' => $isPaid ? ($this->zoho_invoice_url ?? null) : null,
+            'invoice_pdf_url' => $isPaid ? ($this->zoho_invoice_pdf_url ?? null) : null,
+            'payment_completed_at' => $isPaid ? optional($this->payment_completed_at)->toISOString() : null,
             'visitor_designation' => $this->visitor_designation ?? data_get($this->metadata, 'visitor_designation'),
             'visitor_business_category_id' => $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $this->visitor_business_category ?? data_get($this->metadata, 'visitor_business_category'),

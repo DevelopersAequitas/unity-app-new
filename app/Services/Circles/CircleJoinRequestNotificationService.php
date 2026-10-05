@@ -347,6 +347,8 @@ class CircleJoinRequestNotificationService
                 'circle_id' => $circle->id,
                 'error' => $throwable->getMessage(),
             ]);
+
+            return null;
         }
 
         // Fallback subscription

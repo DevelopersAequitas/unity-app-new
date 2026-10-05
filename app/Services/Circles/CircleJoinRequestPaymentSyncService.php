@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Circles;
 
+use App\Models\Circle;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CircleMemberCategorySelection;
@@ -10,6 +13,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class CircleJoinRequestPaymentSyncService
@@ -35,22 +39,52 @@ class CircleJoinRequestPaymentSyncService
         $this->markRequestPaid($freshUser, $activeCircleId);
     }
 
-    public function markRequestPaid(User $user, string $circleId, $paidAt = null): void
+    public function finalizeJoinRequest(CircleJoinRequest $joinRequest, $paidAt = null): CircleJoinRequest
+    {
+        $user = $joinRequest->user ?? User::query()->find($joinRequest->user_id);
+        if ($user && $joinRequest->circle_id) {
+            $updated = $this->markRequestPaid($user, (string) $joinRequest->circle_id, $paidAt, (string) $joinRequest->id);
+            if ($updated instanceof CircleJoinRequest) {
+                return $updated;
+            }
+
+            return $joinRequest->fresh(['user', 'circle']);
+        }
+
+        $joinRequest->status = CircleJoinRequest::STATUS_PAID;
+        $joinRequest->fee_marked_at = $joinRequest->fee_marked_at ?: ($paidAt ?: now());
+        $joinRequest->fee_paid_at = $joinRequest->fee_paid_at ?: ($paidAt ?: now());
+        $joinRequest->save();
+
+        return $joinRequest->fresh(['user', 'circle']);
+    }
+
+    public function markRequestPaid(User $user, string $circleId, $paidAt = null, ?string $specificJoinRequestId = null): ?CircleJoinRequest
     {
         if (trim($circleId) === '') {
-            return;
+            return null;
         }
 
         $paidAtTimestamp = $paidAt ?: now();
 
-        $joinRequest = DB::transaction(function () use ($user, $circleId, $paidAtTimestamp) {
-            $joinRequest = CircleJoinRequest::query()
-                ->where('user_id', $user->id)
-                ->where('circle_id', $circleId)
-                ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
-                ->latest('created_at')
-                ->lockForUpdate()
-                ->first();
+        $joinRequest = DB::transaction(function () use ($user, $circleId, $paidAtTimestamp, $specificJoinRequestId) {
+            $joinRequest = null;
+            if ($specificJoinRequestId) {
+                $joinRequest = CircleJoinRequest::query()
+                    ->where('id', $specificJoinRequestId)
+                    ->lockForUpdate()
+                    ->first();
+            }
+
+            if (! $joinRequest) {
+                $joinRequest = CircleJoinRequest::query()
+                    ->where('user_id', $user->id)
+                    ->where('circle_id', $circleId)
+                    ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+                    ->latest('created_at')
+                    ->lockForUpdate()
+                    ->first();
+            }
 
             if (! $joinRequest) {
                 $joinRequest = CircleJoinRequest::query()
@@ -97,10 +131,28 @@ class CircleJoinRequestPaymentSyncService
                 ->where('circle_id', $circleId)
                 ->first();
 
+            $circle = $joinRequest->circle ?? Circle::query()->find($circleId);
+            $notes = is_array($joinRequest->notes) ? $joinRequest->notes : [];
+
+            $durationMonths = (int) ($circle?->circle_duration_months ?: 12);
+            $paymentId = $notes['razorpay_payment_id'] ?? ($notes['payment_id'] ?? null);
+            $zohoSubId = $notes['zoho_subscription_id'] ?? null;
+            $zohoAddon = $circle?->zoho_addon_code ?: ($notes['zoho_addon_code'] ?? null);
+
             $memberPayload = [
                 'status' => (string) config('circle.member_joined_status', 'approved'),
                 'role' => $member?->role ?: 'member',
                 'left_at' => null,
+                'joined_via' => 'payment',
+                'joined_via_payment' => true,
+                'payment_status' => 'paid',
+                'payment_id' => $paymentId ?: ($member?->payment_id ?? null),
+                'paid_at' => $member?->paid_at ?: $paidAtTimestamp,
+                'paid_starts_at' => $member?->paid_starts_at ?: $paidAtTimestamp,
+                'paid_ends_at' => $member?->paid_ends_at ?: $paidAtTimestamp->copy()->addMonths($durationMonths),
+                'expires_at' => $member?->expires_at ?: $paidAtTimestamp->copy()->addMonths($durationMonths),
+                'zoho_subscription_id' => $zohoSubId ?: ($member?->zoho_subscription_id ?? null),
+                'zoho_addon_code' => $zohoAddon ?: ($member?->zoho_addon_code ?? null),
             ];
 
             if (Schema::hasColumn('circle_members', 'joined_at')) {
@@ -114,9 +166,14 @@ class CircleJoinRequestPaymentSyncService
                 $member->forceFill($memberPayload)->save();
             } else {
                 $member = CircleMember::query()->create(array_merge($memberPayload, [
+                    'id' => (string) Str::uuid(),
                     'user_id' => $user->id,
                     'circle_id' => $circleId,
                 ]));
+            }
+
+            if (empty($user->active_circle_id)) {
+                $user->forceFill(['active_circle_id' => $circleId])->save();
             }
 
             $selection = $this->resolveSelectionFromRequest($joinRequest);
@@ -131,7 +188,7 @@ class CircleJoinRequestPaymentSyncService
                 'circle_id' => $circleId,
             ]);
 
-            return;
+            return null;
         }
 
         $this->updateUserCircleMembershipTier($user->fresh() ?? $user);
@@ -145,6 +202,8 @@ class CircleJoinRequestPaymentSyncService
                 'error' => $exception->getMessage(),
             ]);
         }
+
+        return $joinRequest->fresh(['user', 'circle']);
     }
 
     private function resolveSelectionFromRequest(CircleJoinRequest $request): array

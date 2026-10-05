@@ -189,9 +189,14 @@ class PublicEventRegistrationFormController extends Controller
 
     private function ensurePendingPaymentUrl(EventRegistration $registration): EventRegistration
     {
-        if (! (bool) ($registration->payment_required ?? false)
+        $event = $registration->event;
+        $eventPaymentRequired = $event ? $this->payments->paymentRequired($event) : false;
+        $isPaidEvent = $eventPaymentRequired || (bool) ($registration->payment_required ?? false);
+
+        if (! $isPaidEvent
             || $this->registrationIsConfirmed($registration)
-            || ! empty($this->registrationPaymentUrl($registration))) {
+            || ! empty($this->registrationPaymentUrl($registration))
+            || ($registration->payment_gateway === 'razorpay' && ! empty($registration->razorpay_order_id))) {
             return $registration;
         }
 
@@ -242,7 +247,11 @@ class PublicEventRegistrationFormController extends Controller
 
     private function registrationIsConfirmed(EventRegistration $registration): bool
     {
-        if (! (bool) ($registration->payment_required ?? false)) {
+        $event = $registration->event;
+        $eventPaymentRequired = $event ? $this->payments->paymentRequired($event) : false;
+        $isPaidEvent = $eventPaymentRequired || (bool) ($registration->payment_required ?? false);
+
+        if (! $isPaidEvent) {
             return true;
         }
 

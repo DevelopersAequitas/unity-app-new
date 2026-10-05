@@ -648,15 +648,24 @@ class ProfileController extends BaseApiController
 
     public function recordView(Request $request): JsonResponse
     {
-        $request->validate([
-            'viewed_id' => 'required|uuid|exists:users,id',
-        ]);
-
         $viewer = $request->user();
-        $viewedId = $request->input('viewed_id');
+        $viewedId = (string) ($request->input('viewed_id') ?? $request->input('user_id') ?? $request->input('peer_id') ?? '');
 
-        if ($viewer->id === $viewedId) {
+        if ($viewedId === '') {
+            return $this->error('The viewed_id or user_id field is required.', 422);
+        }
+
+        if (! Str::isUuid($viewedId)) {
+            return $this->error('The viewed_id must be a valid UUID.', 422);
+        }
+
+        if ((string) $viewer->id === $viewedId) {
             return $this->error('You cannot record a view of your own profile.', 400);
+        }
+
+        $viewedUser = User::find($viewedId);
+        if (! $viewedUser) {
+            return $this->error('User not found.', 404);
         }
 
         $profileView = ProfileView::where('viewed_id', $viewedId)

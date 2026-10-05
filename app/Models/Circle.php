@@ -85,6 +85,10 @@ class Circle extends Model
         'circle_price_amount',
         'circle_price_currency',
         'circle_duration_months',
+        'circle_gst_percent',
+        'is_package_active',
+        'payment_gateway',
+        'payment_plan_id',
     ];
 
     protected $casts = [
@@ -93,8 +97,25 @@ class Circle extends Model
         'meeting_repeat' => 'array',
         'launch_date' => 'date',
         'circle_price_amount' => 'decimal:2',
+        'circle_gst_percent' => 'decimal:2',
         'circle_duration_months' => 'integer',
+        'is_package_active' => 'boolean',
     ];
+
+    public function isRazorpay(): bool
+    {
+        return strtolower((string) ($this->payment_gateway ?? '')) === 'razorpay';
+    }
+
+    public function isZoho(): bool
+    {
+        return ! $this->isRazorpay();
+    }
+
+    public function paymentPlan(): BelongsTo
+    {
+        return $this->belongsTo(MembershipPlan::class, 'payment_plan_id', 'id');
+    }
 
     protected $appends = ['cover_image_url', 'circle_image_url', 'city_display'];
 
@@ -102,12 +123,25 @@ class Circle extends Model
     {
         $totalMembers = 0;
 
-        if ($this->relationLoaded('members')) {
-            $totalMembers = $this->members->count();
-        } elseif ($this->getAttribute('members_count') !== null) {
+        if ($this->getAttribute('members_count') !== null) {
             $totalMembers = (int) $this->getAttribute('members_count');
+        } elseif ($this->relationLoaded('members')) {
+            $totalMembers = $this->members
+                ->filter(function ($m): bool {
+                    $status = strtolower((string) ($m->status ?? 'approved'));
+                    $isApproved = in_array($status, ['approved', 'active'], true) || empty($m->status);
+
+                    return $isApproved && ! CircleMember::isRegionalRole($m->role);
+                })
+                ->count();
         } else {
-            $totalMembers = $this->members()->count();
+            $totalMembers = $this->members()
+                ->where(function ($q): void {
+                    $q->whereIn('status', CircleMember::activeStatuses())
+                        ->orWhereNull('status');
+                })
+                ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                ->count();
         }
 
         return self::buildCircleRankingData($totalMembers);
@@ -751,5 +785,15 @@ class Circle extends Model
 
         DB::table('circles')->where('id', $circleModel->id)->update($updates);
         $circleModel->refresh();
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'circle_id');
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(CircleSubscription::class, 'circle_id');
     }
 }

@@ -32,7 +32,7 @@
             ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
-            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
             ['icon' => 'bi-whatsapp', 'label' => 'WhatsApp Templates', 'route' => 'admin.whatsapp-templates.index', 'active_routes' => ['admin.whatsapp-templates.*']],
             ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
@@ -48,7 +48,7 @@
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
                 ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
-                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
+                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
                 ] : []),
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
@@ -82,7 +82,7 @@
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
+                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
@@ -207,6 +207,7 @@
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
         ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
         ['label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index', 'active_routes' => ['admin.daily-notifications.*']],
+        ['label' => 'Activity Inactivity Reminders', 'route' => 'admin.activity-reminders.index', 'active_routes' => ['admin.activity-reminders.*']],
         ['label' => 'App Notifications', 'route' => 'admin.app-notifications.index', 'active_routes' => ['admin.app-notifications.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
@@ -215,6 +216,7 @@
         || request()->routeIs('admin.email-logs.*')
         || request()->routeIs('admin.execution.communications')
         || request()->routeIs('admin.daily-notifications.*')
+        || request()->routeIs('admin.activity-reminders.*')
         || request()->routeIs('admin.app-notifications.*')
         || request()->routeIs('admin.notifications.monitoring*');
     $notificationsMenu = [
@@ -874,6 +876,14 @@
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('admin.unity-peers-plans.*') ? 'active' : '' }}" href="{{ route('admin.unity-peers-plans.index') }}" title="Membership Plans">
                     <i class="bi bi-card-checklist me-2"></i><span class="menu-text">Membership Plans</span>
+                </a>
+            </li>
+            @endif
+
+            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.circle-plans.*') ? 'active' : '' }}" href="{{ route('admin.circle-plans.index') }}" title="Circle Plans">
+                    <i class="bi bi-layers me-2"></i><span class="menu-text">Circle Plans</span>
                 </a>
             </li>
             @endif

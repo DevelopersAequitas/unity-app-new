@@ -496,6 +496,12 @@
                                 <i class="bi bi-x-circle-fill text-secondary" style="font-size: 0.85rem;"></i>
                             </button>
                         </div>
+                        <form action="{{ route('admin.rbac.hierarchy.generate-default') }}" method="POST" class="d-inline" onsubmit="return confirm('Generate standard role hierarchy tree? This will connect Global Admin -> DED / Industry Director -> Circle Leader -> Circle Chair -> Vice Chair / Secretary -> Committee Leader -> Circle Member.');">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-primary d-flex align-items-center gap-1" style="font-size:0.78rem;white-space:nowrap;" title="Generate complete standard hierarchy tree">
+                                <i class="bi bi-diagram-3-fill"></i> Build Standard Tree
+                            </button>
+                        </form>
                         <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
                            class="btn btn-sm btn-light border d-flex align-items-center gap-1"
                            style="font-size:0.78rem;white-space:nowrap;"
