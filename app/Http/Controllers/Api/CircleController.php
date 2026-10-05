@@ -11,6 +11,7 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\JoinedCircleCategory;
+use App\Services\Circles\CircleActivityMetricsService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Shared\Services\UserRoleResolverService;
 use Illuminate\Http\Request;
@@ -183,6 +184,12 @@ class CircleController extends BaseApiController
                 ->where('user_id', auth()->id())
                 ->first()
         );
+
+        // Attach activity metrics so CircleResource can expose them.
+        $metrics = app(CircleActivityMetricsService::class)->forCircle($circle);
+        foreach ($metrics as $key => $value) {
+            $circle->setAttribute($key, $value);
+        }
 
         return $this->success(new CircleResource($circle));
     }
