@@ -296,44 +296,115 @@ class LeaderMember360Service
             $activities = array_merge($activities, $items);
         }
 
-        // Batch resolve counterpart user names
-        $counterpartIds = [];
+        // Batch resolve counterpart and related user objects
+        $allUserIds = [];
         foreach ($activities as $act) {
-            if (! empty($act['_counterpart_user_id'])) {
-                $counterpartIds[] = (string) $act['_counterpart_user_id'];
+            foreach (['_counterpart_user_id', '_from_user_id', '_to_user_id', '_initiator_user_id', '_peer_user_id', '_substitute_user_id'] as $uKey) {
+                if (! empty($act[$uKey])) {
+                    $allUserIds[] = (string) $act[$uKey];
+                }
             }
         }
-        $counterpartIds = array_values(array_unique(array_filter($counterpartIds)));
+        $allUserIds = array_values(array_unique(array_filter($allUserIds)));
 
+        $userMap = [];
         $nameMap = [];
-        if (! empty($counterpartIds)) {
+        if (! empty($allUserIds)) {
+            $userCols = ['id', 'first_name', 'last_name', 'display_name', 'company_name', 'designation', 'phone', 'email', 'profile_photo_url', 'city'];
+            $existingCols = array_values(array_filter($userCols, fn ($c) => Schema::hasColumn('users', $c)));
             $users = DB::table('users')
-                ->whereIn('id', $counterpartIds)
-                ->select(['id', 'first_name', 'last_name', 'display_name'])
+                ->whereIn('id', $allUserIds)
+                ->select($existingCols)
                 ->get();
 
             foreach ($users as $u) {
                 $displayName = trim((string) ($u->display_name ?? ''));
-                if ($displayName !== '') {
-                    $nameMap[$u->id] = $displayName;
-
-                    continue;
-                }
                 $fullName = trim(trim((string) ($u->first_name ?? '')).' '.trim((string) ($u->last_name ?? '')));
-                $nameMap[$u->id] = $fullName !== '' ? $fullName : (trim((string) ($u->first_name ?? '')) ?: 'Member');
+                $resolvedName = $displayName !== '' ? $displayName : ($fullName !== '' ? $fullName : (trim((string) ($u->first_name ?? '')) ?: 'Member'));
+
+                $nameMap[$u->id] = $resolvedName;
+
+                $userMap[$u->id] = [
+                    'id' => (string) $u->id,
+                    'name' => $resolvedName,
+                    'first_name' => (string) ($u->first_name ?? ''),
+                    'last_name' => (string) ($u->last_name ?? ''),
+                    'display_name' => (string) ($u->display_name ?? ''),
+                    'company_name' => (string) ($u->company_name ?? ''),
+                    'designation' => (string) ($u->designation ?? ''),
+                    'phone' => (string) ($u->phone ?? ''),
+                    'email' => (string) ($u->email ?? ''),
+                    'profile_photo_url' => (string) ($u->profile_photo_url ?? ''),
+                    'city' => (string) ($u->city ?? ''),
+                ];
             }
         }
 
-        // Populate counterpart_name and default optional fields
+        // Attach resolved objects and clean internal keys
         foreach ($activities as &$item) {
+            // Counterpart
             if (array_key_exists('_counterpart_user_id', $item)) {
                 $cid = $item['_counterpart_user_id'];
                 $item['counterpart_name'] = $cid ? ($nameMap[$cid] ?? 'Member') : null;
+                $item['counterpart'] = $cid ? ($userMap[$cid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['counterpart'] = $item['counterpart'];
+                }
                 unset($item['_counterpart_user_id']);
             }
             if (! array_key_exists('counterpart_name', $item)) {
                 $item['counterpart_name'] = null;
             }
+            if (! array_key_exists('counterpart', $item)) {
+                $item['counterpart'] = null;
+            }
+
+            // From / To Users (Deals, Referrals, Testimonials)
+            if (array_key_exists('_from_user_id', $item)) {
+                $fid = $item['_from_user_id'];
+                $item['from_user'] = $fid ? ($userMap[$fid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['from_user'] = $item['from_user'];
+                }
+                unset($item['_from_user_id']);
+            }
+            if (array_key_exists('_to_user_id', $item)) {
+                $tid = $item['_to_user_id'];
+                $item['to_user'] = $tid ? ($userMap[$tid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['to_user'] = $item['to_user'];
+                }
+                unset($item['_to_user_id']);
+            }
+
+            // Initiator / Peer Users (P2P Meetings)
+            if (array_key_exists('_initiator_user_id', $item)) {
+                $iid = $item['_initiator_user_id'];
+                $item['initiator_user'] = $iid ? ($userMap[$iid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['initiator_user'] = $item['initiator_user'];
+                }
+                unset($item['_initiator_user_id']);
+            }
+            if (array_key_exists('_peer_user_id', $item)) {
+                $pid = $item['_peer_user_id'];
+                $item['peer_user'] = $pid ? ($userMap[$pid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['peer_user'] = $item['peer_user'];
+                }
+                unset($item['_peer_user_id']);
+            }
+
+            // Substitute User (Attendance)
+            if (array_key_exists('_substitute_user_id', $item)) {
+                $sid = $item['_substitute_user_id'];
+                $item['substitute_user'] = $sid ? ($userMap[$sid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['substitute_user'] = $item['substitute_user'];
+                }
+                unset($item['_substitute_user_id']);
+            }
+
             if (! array_key_exists('amount', $item)) {
                 $item['amount'] = null;
             }
@@ -457,25 +528,46 @@ class LeaderMember360Service
 
                 $title = ! empty($row->title) ? (string) $row->title : '1-on-1 Intro Meeting';
 
+                $media = null;
+                if (! empty($row->media)) {
+                    $media = is_string($row->media) ? (json_decode($row->media, true) ?? $row->media) : $row->media;
+                }
+
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'p2p_meeting',
                     'title' => $title,
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     '_counterpart_user_id' => $counterpartUserId,
+                    '_initiator_user_id' => (string) ($row->initiator_user_id ?? ''),
+                    '_peer_user_id' => (string) ($row->peer_user_id ?? ''),
                     'description' => $description,
                     'amount' => null,
                     'status' => $status,
                     'date' => $isoDate,
+                    'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                    'meeting_place' => (string) ($row->meeting_place ?? ''),
+                    'remarks' => (string) ($row->remarks ?? ''),
+                    'media' => $media,
+                    'member_role' => $isInitiator ? 'initiator' : 'peer',
                     'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     'data' => [
                         'meeting_id' => (string) $row->id,
                         'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
                         'meeting_place' => (string) ($row->meeting_place ?? ''),
                         'remarks' => (string) ($row->remarks ?? ''),
+                        'media' => $media,
                         'member_role' => $isInitiator ? 'initiator' : 'peer',
+                        'status' => $status,
                         'initiator_user_id' => (string) ($row->initiator_user_id ?? ''),
                         'peer_user_id' => (string) ($row->peer_user_id ?? ''),
+                        'initiator_user' => null,
+                        'peer_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     ],
                     '_sort_ts' => $ts,
                 ];
@@ -573,20 +665,48 @@ class LeaderMember360Service
                     'activity_type' => $activityType,
                     'title' => $title,
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     '_counterpart_user_id' => $counterpartUserId,
+                    '_from_user_id' => (string) ($row->from_user_id ?? ''),
+                    '_to_user_id' => (string) ($row->to_user_id ?? ''),
                     'description' => $description,
                     'amount' => null,
                     'status' => $status,
+                    'referral_of' => (string) ($row->referral_of ?? ''),
+                    'referral_type' => (string) ($row->referral_type ?? 'b2b_referral'),
+                    'referral_date' => $row->referral_date ? (string) $row->referral_date : null,
+                    'phone' => (string) ($row->phone ?? ''),
+                    'email' => (string) ($row->email ?? ''),
+                    'address' => (string) ($row->address ?? ''),
+                    'hot_value' => $row->hot_value ?? null,
+                    'remarks' => (string) ($row->remarks ?? ''),
+                    'status_id' => $row->status_id ? (int) $row->status_id : null,
+                    'status_name' => (string) ($row->status_name ?? $status),
+                    'member_role' => $isGiven ? 'giver' : 'receiver',
                     'date' => $isoDate,
                     'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     'data' => [
                         'referral_id' => (string) $row->id,
                         'referral_of' => (string) ($row->referral_of ?? ''),
                         'referral_type' => (string) ($row->referral_type ?? 'b2b_referral'),
-                        'status' => $status,
                         'referral_date' => $row->referral_date ? (string) $row->referral_date : null,
+                        'phone' => (string) ($row->phone ?? ''),
+                        'email' => (string) ($row->email ?? ''),
+                        'address' => (string) ($row->address ?? ''),
+                        'hot_value' => $row->hot_value ?? null,
                         'remarks' => (string) ($row->remarks ?? ''),
+                        'status' => $status,
+                        'status_id' => $row->status_id ? (int) $row->status_id : null,
+                        'status_name' => (string) ($row->status_name ?? $status),
                         'member_role' => $isGiven ? 'giver' : 'receiver',
+                        'from_user_id' => (string) ($row->from_user_id ?? ''),
+                        'to_user_id' => (string) ($row->to_user_id ?? ''),
+                        'from_user' => null,
+                        'to_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     ],
                     '_sort_ts' => $ts,
                 ];
@@ -664,7 +784,7 @@ class LeaderMember360Service
 
                 $title = ! empty($row->business_type)
                     ? ucwords(str_replace('_', ' ', (string) $row->business_type))
-                    : 'Business Deal';
+                    : ($isGiver ? 'Business Deal Given' : 'Business Deal Received');
 
                 $description = (string) ($row->comment ?: 'Closed business transaction.');
 
@@ -673,21 +793,39 @@ class LeaderMember360Service
                     'activity_type' => $activityType,
                     'title' => $title,
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     '_counterpart_user_id' => $counterpartUserId,
+                    '_from_user_id' => (string) ($row->from_user_id ?? ''),
+                    '_to_user_id' => (string) ($row->to_user_id ?? ''),
                     'description' => $description,
                     'amount' => $formattedAmount,
+                    'deal_amount' => $dealAmount,
+                    'business_type' => (string) ($row->business_type ?? ''),
+                    'deal_date' => $row->deal_date ? (string) $row->deal_date : null,
+                    'comment' => (string) ($row->comment ?? ''),
+                    'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
+                    'member_role' => $isGiver ? 'giver' : 'receiver',
                     'status' => $status,
                     'date' => $isoDate,
                     'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     'data' => [
                         'deal_id' => (string) $row->id,
                         'deal_amount' => $dealAmount,
+                        'deal_amount_formatted' => $formattedAmount,
                         'business_type' => (string) ($row->business_type ?? ''),
                         'deal_date' => $row->deal_date ? (string) $row->deal_date : null,
                         'comment' => (string) ($row->comment ?? ''),
+                        'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
                         'member_role' => $isGiver ? 'giver' : 'receiver',
+                        'status' => $status,
                         'from_user_id' => (string) ($row->from_user_id ?? ''),
                         'to_user_id' => (string) ($row->to_user_id ?? ''),
+                        'from_user' => null,
+                        'to_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     ],
                     '_sort_ts' => $ts,
                 ];
@@ -708,14 +846,19 @@ class LeaderMember360Service
                 $q->leftJoin('circle_meetings as cm', 'cm.id', '=', 'ar.meeting_id')
                     ->select([
                         'ar.id',
+                        'ar.meeting_id',
+                        'ar.circle_id',
                         'ar.status',
                         'ar.marked_at',
                         'ar.notes',
+                        'ar.substitute_user_id',
                         'ar.created_at',
                         'cm.meeting_date',
+                        'cm.meeting_number',
                         'cm.venue',
                         'cm.mode',
                         'cm.meeting_link',
+                        'cm.agenda',
                     ]);
 
                 if (Schema::hasTable('circles')) {
@@ -755,17 +898,40 @@ class LeaderMember360Service
                 $attendanceItems[] = [
                     'id' => (string) $row->id,
                     'activity_type' => 'attendance',
+                    'attendance_type' => 'circle_meeting',
                     'title' => $title,
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     'description' => $description,
                     'amount' => null,
                     'status' => $status,
                     'date' => $isoDate,
+                    'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                    'venue' => (string) ($row->venue ?? ''),
+                    'mode' => (string) ($row->mode ?? ''),
+                    'meeting_link' => (string) ($row->meeting_link ?? ''),
+                    'circle_id' => (string) ($row->circle_id ?? ''),
+                    'circle_name' => $circleName,
+                    'notes' => (string) ($row->notes ?? ''),
                     'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    '_substitute_user_id' => ! empty($row->substitute_user_id) ? (string) $row->substitute_user_id : null,
                     'data' => [
                         'record_id' => (string) $row->id,
+                        'attendance_type' => 'circle_meeting',
                         'status' => $status,
+                        'marked_at' => $row->marked_at ? (string) $row->marked_at : null,
+                        'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                        'meeting_id' => (string) ($row->meeting_id ?? ''),
+                        'meeting_number' => $row->meeting_number ?? null,
+                        'circle_id' => (string) ($row->circle_id ?? ''),
+                        'circle_name' => $circleName,
+                        'venue' => (string) ($row->venue ?? ''),
+                        'mode' => (string) ($row->mode ?? ''),
+                        'meeting_link' => (string) ($row->meeting_link ?? ''),
+                        'agenda' => (string) ($row->agenda ?? ''),
                         'notes' => (string) ($row->notes ?? ''),
+                        'substitute_user_id' => ! empty($row->substitute_user_id) ? (string) $row->substitute_user_id : null,
+                        'substitute_user' => null,
                     ],
                     '_sort_ts' => $attDate->timestamp,
                 ];
@@ -790,6 +956,7 @@ class LeaderMember360Service
                     'e.start_at as event_start_at',
                     'e.is_virtual',
                     'e.location_text',
+                    'e.banner_url',
                 ]);
 
             $this->applyDateFilters($eq, 'er.created_at', $fromDate, $toDate);
@@ -828,17 +995,32 @@ class LeaderMember360Service
                 $attendanceItems[] = [
                     'id' => (string) $erRow->id,
                     'activity_type' => 'attendance',
+                    'attendance_type' => 'event',
                     'title' => $title,
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     'description' => $description,
                     'amount' => null,
                     'status' => $status,
                     'date' => $isoDate,
+                    'event_id' => (string) ($erRow->event_id ?? ''),
+                    'event_title' => (string) ($erRow->event_title ?? ''),
+                    'event_start_at' => $erRow->event_start_at ? (string) $erRow->event_start_at : null,
+                    'checkin_status' => (string) ($erRow->checkin_status ?? ''),
                     'created_at' => $erRow->created_at ? Carbon::parse($erRow->created_at)->toIso8601String() : $isoDate,
                     'data' => [
                         'registration_id' => (string) $erRow->id,
+                        'attendance_type' => 'event',
                         'event_id' => (string) ($erRow->event_id ?? ''),
+                        'event_title' => (string) ($erRow->event_title ?? ''),
+                        'event_start_at' => $erRow->event_start_at ? (string) $erRow->event_start_at : null,
+                        'location_text' => (string) ($erRow->location_text ?? ''),
+                        'is_virtual' => (bool) ($erRow->is_virtual ?? false),
+                        'banner_url' => (string) ($erRow->banner_url ?? ''),
                         'checkin_status' => (string) ($erRow->checkin_status ?? ''),
+                        'checked_in_at' => $erRow->checked_in_at ? (string) $erRow->checked_in_at : null,
+                        'registration_status' => (string) ($erRow->registration_status ?? ''),
+                        'status' => $status,
                     ],
                     '_sort_ts' => $attDate->timestamp,
                 ];
@@ -894,21 +1076,44 @@ class LeaderMember360Service
                 $description = (string) ($row->remark ?: ($coinsDelta >= 0 ? 'Coins earned for platform activity.' : 'Coins redeemed.'));
                 $id = $hasTransId && ! empty($row->transaction_id) ? (string) $row->transaction_id : (string) ($row->id ?? Str::uuid());
 
+                $metadata = null;
+                if (! empty($row->metadata)) {
+                    $metadata = is_string($row->metadata) ? (json_decode($row->metadata, true) ?? $row->metadata) : $row->metadata;
+                }
+
                 return [
                     'id' => $id,
                     'activity_type' => 'coins',
                     'title' => $title,
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     'description' => $description,
                     'amount' => $amountStr,
+                    'coins_delta' => $coinsDelta,
+                    'balance_after' => $row->balance_after ?? null,
+                    'entry_type' => (string) ($row->entry_type ?? ($coinsDelta >= 0 ? 'CREDIT' : 'DEBIT')),
+                    'bucket' => (string) ($row->bucket ?? 'EARNED'),
+                    'reference' => (string) ($row->reference ?? ''),
+                    'reference_type' => (string) ($row->reference_type ?? ''),
+                    'reference_id' => (string) ($row->reference_id ?? ''),
+                    'remark' => (string) ($row->remark ?? ''),
                     'status' => $status,
                     'date' => $isoDate,
                     'created_at' => $isoDate,
                     'data' => [
+                        'transaction_id' => $id,
                         'coins_delta' => $coinsDelta,
+                        'amount' => (float) ($row->amount ?? $coinsDelta),
                         'balance_after' => $row->balance_after ?? null,
-                        'remark' => (string) ($row->remark ?? ''),
+                        'entry_type' => (string) ($row->entry_type ?? ($coinsDelta >= 0 ? 'CREDIT' : 'DEBIT')),
+                        'bucket' => (string) ($row->bucket ?? 'EARNED'),
                         'reference' => (string) ($row->reference ?? ''),
+                        'reference_type' => (string) ($row->reference_type ?? ''),
+                        'reference_id' => (string) ($row->reference_id ?? ''),
+                        'remark' => (string) ($row->remark ?? ''),
+                        'metadata' => $metadata,
+                        'status' => $status,
+                        'created_at' => $isoDate,
                     ],
                     '_sort_ts' => $ts,
                 ];
@@ -948,6 +1153,7 @@ class LeaderMember360Service
                     'activity_type' => 'life_impact',
                     'title' => 'Life Impact Created',
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     'description' => (string) ($row->action ?? 'Provided mentorship'),
                     'amount' => null,
                     'status' => ucfirst((string) ($row->status ?? 'approved')),
@@ -996,24 +1202,46 @@ class LeaderMember360Service
                 $isAuthor = ((string) ($row->from_user_id ?? '') === $memberId);
                 $counterpartUserId = $isAuthor ? (string) ($row->to_user_id ?? '') : (string) ($row->from_user_id ?? '');
 
+                $media = null;
+                if (! empty($row->media)) {
+                    $media = is_string($row->media) ? (json_decode($row->media, true) ?? $row->media) : $row->media;
+                }
+
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'testimonial',
                     'title' => $isAuthor ? 'Testimonial Given' : 'Testimonial Received',
                     'counterpart_name' => null,
+                    'counterpart' => null,
                     '_counterpart_user_id' => $counterpartUserId,
+                    '_from_user_id' => (string) ($row->from_user_id ?? ''),
+                    '_to_user_id' => (string) ($row->to_user_id ?? ''),
                     'description' => (string) mb_substr((string) ($row->content ?? ''), 0, 120),
+                    'content' => (string) ($row->content ?? ''),
+                    'rating' => $row->rating ? (int) $row->rating : null,
+                    'media' => $media,
+                    'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
+                    'member_role' => $isAuthor ? 'author' : 'recipient',
                     'amount' => null,
                     'status' => 'Completed',
                     'date' => $isoDate,
                     'created_at' => $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     'data' => [
                         'testimonial_id' => (string) $row->id,
                         'content' => (string) ($row->content ?? ''),
                         'rating' => $row->rating ? (int) $row->rating : null,
+                        'media' => $media,
+                        'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
                         'member_role' => $isAuthor ? 'author' : 'recipient',
+                        'status' => 'Completed',
                         'from_user_id' => (string) ($row->from_user_id ?? ''),
                         'to_user_id' => (string) ($row->to_user_id ?? ''),
+                        'from_user' => null,
+                        'to_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     ],
                     '_sort_ts' => $ts,
                 ];

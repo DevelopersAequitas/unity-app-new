@@ -1516,6 +1516,10 @@ Route::middleware('auth:sanctum')->group(function () {
 // Ask / Requirement Discovery System
 require __DIR__.'/ask.php';
 
+// Peers Store & Coin Wallet Routes
+require __DIR__.'/store.php';
+require __DIR__.'/admin_store.php';
+
 // Section 21 & 25 Dedicated Admin Hub Routes
 Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     // Section 25: Activities Endpoints (5 endpoints)

@@ -1,0 +1,961 @@
+{
+    "1": {
+        "num": 1,
+        "title": "Store Configuration",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/config",
+        "source_purpose": "Get Store global flags, minimum app version requirement, user coin balance, delivery minimum & home banners."
+    },
+    "2": {
+        "num": 2,
+        "title": "Store Banners",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/banners?page=1&per_page=10",
+        "source_purpose": "Get paginated list of active store banners for home carousel."
+    },
+    "3": {
+        "num": 3,
+        "title": "User Wallet Balance & Split",
+        "method": "GET",
+        "path": "\/api\/v1\/wallet",
+        "source_purpose": "Get total coin balance, Earned vs Bonus breakdown, lifetime spent, and wallet state (`ACTIVE`, `FROZEN`, `CLOSED`)."
+    },
+    "4": {
+        "num": 4,
+        "title": "Wallet Ledger History",
+        "method": "GET",
+        "path": "\/api\/v1\/wallet\/ledger?bucket=BONUS&reference_type=ORDER&page=1&per_page=20",
+        "source_purpose": "Get user coin transaction passbook with filters."
+    },
+    "5": {
+        "num": 5,
+        "title": "Wallet Monthly Summary",
+        "method": "GET",
+        "path": "\/api\/v1\/wallet\/summary",
+        "source_purpose": "Get user's current month spent vs earned coins summary."
+    },
+    "6": {
+        "num": 6,
+        "title": "Wallet Status & Freeze Info",
+        "method": "GET",
+        "path": "\/api\/v1\/wallet\/status",
+        "source_purpose": "Check if wallet is frozen or closed, along with freeze date and reason."
+    },
+    "7": {
+        "num": 7,
+        "title": "Store Categories",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/categories",
+        "source_purpose": "Get active categories list with active product count in each."
+    },
+    "8": {
+        "num": 8,
+        "title": "Product Listing & Filtering",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/products?category_id=84582fbc-a518-49e7-a249-169b42362bec&type=PHYSICAL&min_coins=1000&max_coins=100000&sort=price_asc&page=1&per_page=20",
+        "source_purpose": "Filter products by category, price, type, featured status, sorting, and pagination."
+    },
+    "9": {
+        "num": 9,
+        "title": "Product Details",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33",
+        "source_purpose": "Get complete product detail including all images, variants, stock, and approved reviews."
+    },
+    "10": {
+        "num": 10,
+        "title": "Featured Products",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/products\/featured",
+        "source_purpose": "Get top 10 featured products for store home page."
+    },
+    "11": {
+        "num": 11,
+        "title": "Search Products",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/search?q=tshirt&category_id=84582fbc-a518-49e7-a249-169b42362bec&page=1",
+        "source_purpose": "Search products by name, description, brand, or SKU."
+    },
+    "12": {
+        "num": 12,
+        "title": "Get Active Cart",
+        "method": "GET",
+        "path": "\/api\/v1\/cart",
+        "source_purpose": "Get the user's active cart with item quantities, unit prices, and product images."
+    },
+    "13": {
+        "num": 13,
+        "title": "Add Item to Cart",
+        "method": "POST",
+        "path": "\/api\/v1\/cart\/items",
+        "source_purpose": "Add product or variant to user cart with eligibility & quantity limit checks."
+    },
+    "14": {
+        "num": 14,
+        "title": "Update Cart Item Quantity",
+        "method": "PATCH",
+        "path": "\/api\/v1\/cart\/items\/01a0ed41-15dc-70db-82a3-80011e737c08",
+        "source_purpose": "Change quantity of an item in the cart."
+    },
+    "15": {
+        "num": 15,
+        "title": "Remove Item from Cart",
+        "method": "DELETE",
+        "path": "\/api\/v1\/cart\/items\/01a0ed41-15dc-70db-82a3-80011e737c08",
+        "source_purpose": "Remove an item from the cart."
+    },
+    "16": {
+        "num": 16,
+        "title": "Validate Cart (Pre-checkout Check)",
+        "method": "POST",
+        "path": "\/api\/v1\/cart\/validate",
+        "source_purpose": "Validate price changes, stock availability, and inactive products across all cart items."
+    },
+    "17": {
+        "num": 17,
+        "title": "List User Addresses",
+        "method": "GET",
+        "path": "\/api\/v1\/addresses",
+        "source_purpose": "Get all active delivery addresses of the authenticated user."
+    },
+    "18": {
+        "num": 18,
+        "title": "Create Delivery Address",
+        "method": "POST",
+        "path": "\/api\/v1\/addresses",
+        "source_purpose": "Add a new delivery address (automatically manages default address flag)."
+    },
+    "19": {
+        "num": 19,
+        "title": "Get Address by ID",
+        "method": "GET",
+        "path": "\/api\/v1\/addresses\/01a0ecd1-1d7f-70ab-885a-020f273de747",
+        "source_purpose": "Get details of a single address."
+    },
+    "20": {
+        "num": 20,
+        "title": "Update Address",
+        "method": "PUT",
+        "path": "\/api\/v1\/addresses\/01a0ecd1-1d7f-70ab-885a-020f273de747",
+        "source_purpose": "Update an existing address."
+    },
+    "21": {
+        "num": 21,
+        "title": "Delete Address",
+        "method": "DELETE",
+        "path": "\/api\/v1\/addresses\/01a0ecd1-1d7f-70ab-885a-020f273de747",
+        "source_purpose": "Soft delete a delivery address."
+    },
+    "22": {
+        "num": 22,
+        "title": "Check Pincode Serviceability",
+        "method": "POST",
+        "path": "\/api\/v1\/serviceability\/check",
+        "source_purpose": "Check if home delivery and pickup are serviceable for a given 6-digit pincode."
+    },
+    "23": {
+        "num": 23,
+        "title": "List Pickup Points",
+        "method": "GET",
+        "path": "\/api\/v1\/pickup-points?pincode=380015",
+        "source_purpose": "Get all active takeaway pickup locations."
+    },
+    "24": {
+        "num": 24,
+        "title": "Get Pickup Point Detail",
+        "method": "GET",
+        "path": "\/api\/v1\/pickup-points\/5c4b3a21-0987-6543-210f-edcba9876543",
+        "source_purpose": "Get detailed address, manager name, contact phone, and operating hours of pickup point."
+    },
+    "25": {
+        "num": 25,
+        "title": "Generate Checkout Quote",
+        "method": "POST",
+        "path": "\/api\/v1\/checkout\/quote",
+        "source_purpose": "Lock stock and price for 15 minutes, calculate coin total, verify delivery minimum, and calculate coin shortfall."
+    },
+    "26": {
+        "num": 26,
+        "title": "Send Checkout OTP Challenge",
+        "method": "POST",
+        "path": "\/api\/v1\/checkout\/otp\/send",
+        "source_purpose": "Send step-up verification OTP for orders >= configured coin limit or address changes."
+    },
+    "27": {
+        "num": 27,
+        "title": "Verify Checkout OTP Challenge",
+        "method": "POST",
+        "path": "\/api\/v1\/checkout\/otp\/verify",
+        "source_purpose": "Verify 6-digit OTP and get a short-lived `verification_token`."
+    },
+    "28": {
+        "num": 28,
+        "title": "Place Order (Atomic Transaction)",
+        "method": "POST",
+        "path": "\/api\/v1\/orders",
+        "source_purpose": "Finalize purchase, lock wallet & inventory, debit coins (Bonus-first then Earned), generate receipt & status history."
+    },
+    "29": {
+        "num": 29,
+        "title": "List User Orders",
+        "method": "GET",
+        "path": "\/api\/v1\/orders?status=CONFIRMED&page=1&per_page=20",
+        "source_purpose": "Get paginated list of user orders."
+    },
+    "30": {
+        "num": 30,
+        "title": "Get Order Details & Action Flags",
+        "method": "GET",
+        "path": "\/api\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed",
+        "source_purpose": "Full order details with items, snapshot, payments split, receipt, tracking, and Flutter action flags (`can_cancel`, `can_return`, etc.)."
+    },
+    "31": {
+        "num": 31,
+        "title": "Cancel Order",
+        "method": "POST",
+        "path": "\/api\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/cancel",
+        "source_purpose": "Cancel eligible order (`PLACED`, `CONFIRMED`) and automatically refund exact Bonus\/Earned coin split to user wallet."
+    },
+    "32": {
+        "num": 32,
+        "title": "Order Status Audit History",
+        "method": "GET",
+        "path": "\/api\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/status-history",
+        "source_purpose": "View timestamped history of all status transitions of the order."
+    },
+    "33": {
+        "num": 33,
+        "title": "Order Coin Receipt",
+        "method": "GET",
+        "path": "\/api\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/receipt",
+        "source_purpose": "View or download immutable receipt of the order."
+    },
+    "34": {
+        "num": 34,
+        "title": "Order Live Tracking",
+        "method": "GET",
+        "path": "\/api\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/tracking",
+        "source_purpose": "Get courier tracking information and shipment events."
+    },
+    "35": {
+        "num": 35,
+        "title": "Submit Return Request",
+        "method": "POST",
+        "path": "\/api\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/return",
+        "source_purpose": "Submit return request within 7 days of delivery with photos (customized products are rejected)."
+    },
+    "36": {
+        "num": 36,
+        "title": "List User Returns",
+        "method": "GET",
+        "path": "\/api\/v1\/returns?page=1",
+        "source_purpose": "Get all return requests submitted by the user."
+    },
+    "37": {
+        "num": 37,
+        "title": "Get Return Details",
+        "method": "GET",
+        "path": "\/api\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc",
+        "source_purpose": "View return status, quality check result, and refund info."
+    },
+    "38": {
+        "num": 38,
+        "title": "Cancel Return Request",
+        "method": "POST",
+        "path": "\/api\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc\/cancel",
+        "source_purpose": "Cancel a pending return request."
+    },
+    "39": {
+        "num": 39,
+        "title": "Get Refund Details",
+        "method": "GET",
+        "path": "\/api\/v1\/refunds\/09876543-210f-edcb-a987-6543210fedcb",
+        "source_purpose": "View refund transaction, restored coins, and ledger reference."
+    },
+    "40": {
+        "num": 40,
+        "title": "User Membership Status",
+        "method": "GET",
+        "path": "\/api\/v1\/membership",
+        "source_purpose": "Get membership status, start date, expiry date, and days remaining."
+    },
+    "41": {
+        "num": 41,
+        "title": "List Membership Plans for Coins",
+        "method": "GET",
+        "path": "\/api\/v1\/membership\/plans",
+        "source_purpose": "Get active membership renewal plans with duration and coin prices."
+    },
+    "42": {
+        "num": 42,
+        "title": "Membership Renewal Quote",
+        "method": "POST",
+        "path": "\/api\/v1\/membership\/quote",
+        "source_purpose": "Calculate new end date (extending active or lapsed membership), coin shortfall, and max horizon limits."
+    },
+    "43": {
+        "num": 43,
+        "title": "Renew Membership with Coins",
+        "method": "POST",
+        "path": "\/api\/v1\/membership\/renew",
+        "source_purpose": "Atomically pay coins, extend membership dates, log membership ledger, and generate receipt."
+    },
+    "44": {
+        "num": 44,
+        "title": "Digital Library \/ Entitlements",
+        "method": "GET",
+        "path": "\/api\/v1\/library?page=1",
+        "source_purpose": "List all purchased digital assets, courses, and subscription entitlements."
+    },
+    "45": {
+        "num": 45,
+        "title": "Digital Entitlement Detail",
+        "method": "GET",
+        "path": "\/api\/v1\/library\/e2d3c4b5-a698-7012-3456-789abcdef012",
+        "source_purpose": "Get single digital course\/asset entitlement details and period."
+    },
+    "46": {
+        "num": 46,
+        "title": "Get Signed Access URL",
+        "method": "GET",
+        "path": "\/api\/v1\/library\/e2d3c4b5-a698-7012-3456-789abcdef012\/access",
+        "source_purpose": "Generate 15-minute temporary secure signed S3\/storage URL to access private content."
+    },
+    "47": {
+        "num": 47,
+        "title": "Internal Coin Credit (Engine API)",
+        "method": "POST",
+        "path": "\/api\/internal\/v1\/coins\/credit",
+        "source_purpose": "Idempotent coin credit by background systems (re-submitting same `source_event_id` will not double credit)."
+    },
+    "48": {
+        "num": 48,
+        "title": "Internal Coin Reversal (Engine API)",
+        "method": "POST",
+        "path": "\/api\/internal\/v1\/coins\/reverse",
+        "source_purpose": "Idempotent reversal of a previously awarded credit without modifying historical ledger rows."
+    },
+    "49": {
+        "num": 49,
+        "title": "List Notifications",
+        "method": "GET",
+        "path": "\/api\/v1\/notifications?page=1&per_page=20",
+        "source_purpose": "User notifications inbox."
+    },
+    "50": {
+        "num": 50,
+        "title": "Get Notification Detail",
+        "method": "GET",
+        "path": "\/api\/v1\/notifications\/d3c4b5a6-9870-1234-5678-9abcdef01234",
+        "source_purpose": "View single notification."
+    },
+    "51": {
+        "num": 51,
+        "title": "Mark Notification as Read",
+        "method": "PATCH",
+        "path": "\/api\/v1\/notifications\/d3c4b5a6-9870-1234-5678-9abcdef01234\/read",
+        "source_purpose": "Mark a notification as read."
+    },
+    "52": {
+        "num": 52,
+        "title": "Register Device Push Token",
+        "method": "POST",
+        "path": "\/api\/v1\/devices",
+        "source_purpose": "Register FCM \/ APNS push token for order notifications."
+    },
+    "53": {
+        "num": 53,
+        "title": "Delete Device Token",
+        "method": "DELETE",
+        "path": "\/api\/v1\/devices\/device_pixel_7_abc",
+        "source_purpose": "Remove push token upon user logout."
+    },
+    "54": {
+        "num": 54,
+        "title": "Inbound Courier Tracking Webhook",
+        "method": "POST",
+        "path": "\/api\/v1\/webhooks\/courier\/tracking",
+        "source_purpose": "Courier tracking updates webhook with `provider_event_id` idempotency."
+    },
+    "55": {
+        "num": 55,
+        "title": "WhatsApp Delivery Status Webhook",
+        "method": "POST",
+        "path": "\/api\/v1\/webhooks\/whatsapp\/status",
+        "source_purpose": "WhatsApp delivery callback."
+    },
+    "56": {
+        "num": 56,
+        "title": "Email Delivery Webhook",
+        "method": "POST",
+        "path": "\/api\/v1\/webhooks\/email\/status",
+        "source_purpose": "Email delivery callback."
+    },
+    "57": {
+        "num": 57,
+        "title": "SMS Delivery Webhook",
+        "method": "POST",
+        "path": "\/api\/v1\/webhooks\/sms\/status",
+        "source_purpose": "SMS delivery callback."
+    },
+    "58": {
+        "num": 58,
+        "title": "Create Support Ticket",
+        "method": "POST",
+        "path": "\/api\/v1\/support\/tickets",
+        "source_purpose": "Open a support ticket linked to an order."
+    },
+    "59": {
+        "num": 59,
+        "title": "List User Support Tickets",
+        "method": "GET",
+        "path": "\/api\/v1\/support\/tickets?page=1",
+        "source_purpose": "List all support tickets opened by the user."
+    },
+    "60": {
+        "num": 60,
+        "title": "Get Support Ticket Thread",
+        "method": "GET",
+        "path": "\/api\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456",
+        "source_purpose": "View ticket details and threaded chat messages."
+    },
+    "61": {
+        "num": 61,
+        "title": "Send Message in Support Ticket",
+        "method": "POST",
+        "path": "\/api\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456\/messages",
+        "source_purpose": "Send message\/attachment in existing support ticket."
+    },
+    "62": {
+        "num": 62,
+        "title": "Close Support Ticket",
+        "method": "POST",
+        "path": "\/api\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456\/close",
+        "source_purpose": "Close a support ticket by user."
+    },
+    "63": {
+        "num": 63,
+        "title": "List Published Store Policies",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/policies",
+        "source_purpose": "Get all published store policies (Terms, Return, Shipping, Privacy, etc.)."
+    },
+    "64": {
+        "num": 64,
+        "title": "Get Policy by Key",
+        "method": "GET",
+        "path": "\/api\/v1\/store\/policies\/return-refund",
+        "source_purpose": "Get latest published version of a specific policy."
+    },
+    "65": {
+        "num": 65,
+        "title": "Admin Dashboard Metrics",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/dashboard",
+        "source_purpose": "Overview of orders today, stuck orders, coin burn\/redemption, low stock, pending returns."
+    },
+    "66": {
+        "num": 66,
+        "title": "Admin Dashboard Summary Metrics",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/dashboard\/summary?from=2026-09-01&to=2026-09-30",
+        "source_purpose": "Filtered financial summary metrics by date range."
+    },
+    "67": {
+        "num": 67,
+        "title": "Admin Pending Operational Actions",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/dashboard\/pending-actions",
+        "source_purpose": "Tasks needing admin attention (pending returns, pending wallet adjustments, stuck orders)."
+    },
+    "68": {
+        "num": 68,
+        "title": "Admin List Categories",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/categories",
+        "source_purpose": "List all categories."
+    },
+    "69": {
+        "num": 69,
+        "title": "Admin Create Category",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/categories",
+        "source_purpose": "Process store transaction."
+    },
+    "70": {
+        "num": 70,
+        "title": "Admin Update Category",
+        "method": "PUT",
+        "path": "\/api\/admin\/v1\/categories\/b5a69870-1234-5678-9abc-def012345678",
+        "source_purpose": "Process store transaction."
+    },
+    "71": {
+        "num": 71,
+        "title": "Admin Delete Category",
+        "method": "DELETE",
+        "path": "\/api\/admin\/v1\/categories\/b5a69870-1234-5678-9abc-def012345678",
+        "source_purpose": "Safe deletion (disables category if referenced by products)."
+    },
+    "72": {
+        "num": 72,
+        "title": "Admin List Products",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/products?search=polo&status=ACTIVE&page=1",
+        "source_purpose": "Filter products for admin management."
+    },
+    "73": {
+        "num": 73,
+        "title": "Admin Create Product",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/products",
+        "source_purpose": "Process store transaction."
+    },
+    "74": {
+        "num": 74,
+        "title": "Admin Get Product Detail",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33",
+        "source_purpose": "Process store transaction."
+    },
+    "75": {
+        "num": 75,
+        "title": "Admin Update Product",
+        "method": "PUT",
+        "path": "\/api\/admin\/v1\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33",
+        "source_purpose": "Process store transaction."
+    },
+    "76": {
+        "num": 76,
+        "title": "Admin Disable Product",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33\/disable",
+        "source_purpose": "Process store transaction."
+    },
+    "77": {
+        "num": 77,
+        "title": "Admin Add Product Image",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33\/images",
+        "source_purpose": "Process store transaction."
+    },
+    "78": {
+        "num": 78,
+        "title": "Admin Delete Product Image",
+        "method": "DELETE",
+        "path": "\/api\/admin\/v1\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33\/images\/a6987012-3456-789a-bcde-f0123456789a",
+        "source_purpose": "Process store transaction."
+    },
+    "79": {
+        "num": 79,
+        "title": "Admin Create Product Variant",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/products\/a05ceb9e-2747-4dba-841d-63da4d725c33\/variants",
+        "source_purpose": "Process store transaction."
+    },
+    "80": {
+        "num": 80,
+        "title": "Admin Update Variant",
+        "method": "PUT",
+        "path": "\/api\/admin\/v1\/variants\/935d6a66-837e-40c0-9971-aadda2db131e",
+        "source_purpose": "Process store transaction."
+    },
+    "81": {
+        "num": 81,
+        "title": "Admin Manual Stock Adjustment",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/variants\/935d6a66-837e-40c0-9971-aadda2db131e\/stock-adjustment",
+        "source_purpose": "Stock in\/out adjustment with inventory movement log."
+    },
+    "82": {
+        "num": 82,
+        "title": "Admin Variant Inventory Movements",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/variants\/935d6a66-837e-40c0-9971-aadda2db131e\/inventory",
+        "source_purpose": "View full audit log of stock increments and decrements for a variant."
+    },
+    "83": {
+        "num": 83,
+        "title": "Admin List Orders",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/orders?order_no=ORD&status=CONFIRMED&page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "84": {
+        "num": 84,
+        "title": "Admin Get Order Detail",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed",
+        "source_purpose": "Process store transaction."
+    },
+    "85": {
+        "num": 85,
+        "title": "Admin Update Order Status",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/status",
+        "source_purpose": "Process store transaction."
+    },
+    "86": {
+        "num": 86,
+        "title": "Admin Add Note to Order",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/notes",
+        "source_purpose": "Process store transaction."
+    },
+    "87": {
+        "num": 87,
+        "title": "Admin Get Packing Slip",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/packing-slip",
+        "source_purpose": "Process store transaction."
+    },
+    "88": {
+        "num": 88,
+        "title": "Admin Dispatch & Add Shipment",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/shipment",
+        "source_purpose": "Process store transaction."
+    },
+    "89": {
+        "num": 89,
+        "title": "Admin Verify Pickup Takeaway Code",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/orders\/21098765-4321-0fed-cba9-876543210fed\/pickup\/verify",
+        "source_purpose": "Process store transaction."
+    },
+    "90": {
+        "num": 90,
+        "title": "Admin List Return Requests",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/returns?status=REQUESTED&page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "91": {
+        "num": 91,
+        "title": "Admin Get Return Detail",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc",
+        "source_purpose": "Process store transaction."
+    },
+    "92": {
+        "num": 92,
+        "title": "Admin Approve Return Request",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc\/approve",
+        "source_purpose": "Process store transaction."
+    },
+    "93": {
+        "num": 93,
+        "title": "Admin Reject Return Request",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc\/reject",
+        "source_purpose": "Process store transaction."
+    },
+    "94": {
+        "num": 94,
+        "title": "Admin Mark Return Received",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc\/receive",
+        "source_purpose": "Process store transaction."
+    },
+    "95": {
+        "num": 95,
+        "title": "Admin Inspect Returned Item",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc\/inspect",
+        "source_purpose": "Process store transaction."
+    },
+    "96": {
+        "num": 96,
+        "title": "Admin Execute Return Refund",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/returns\/10987654-3210-fedc-ba98-76543210fedc\/refund",
+        "source_purpose": "Restore exact Bonus\/Earned split into user wallet atomically."
+    },
+    "97": {
+        "num": 97,
+        "title": "Admin List Peer Wallets",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/wallets?search=rajesh&page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "98": {
+        "num": 98,
+        "title": "Admin Single Peer Wallet Detail",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/wallets\/a05ceb9e-2747-4dba-841d-63da4d725c33",
+        "source_purpose": "Process store transaction."
+    },
+    "99": {
+        "num": 99,
+        "title": "Admin Freeze Peer Wallet",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/wallets\/a05ceb9e-2747-4dba-841d-63da4d725c33\/freeze",
+        "source_purpose": "Process store transaction."
+    },
+    "100": {
+        "num": 100,
+        "title": "Admin Unfreeze Peer Wallet",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/wallets\/a05ceb9e-2747-4dba-841d-63da4d725c33\/unfreeze",
+        "source_purpose": "Process store transaction."
+    },
+    "101": {
+        "num": 101,
+        "title": "Admin List Wallet Adjustment Requests",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/wallet-adjustments?status=PENDING&page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "102": {
+        "num": 102,
+        "title": "Admin Create Wallet Adjustment Request (Maker)",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/wallet-adjustments",
+        "source_purpose": "Process store transaction."
+    },
+    "103": {
+        "num": 103,
+        "title": "Admin Approve Wallet Adjustment (Checker)",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/wallet-adjustments\/98701234-5678-9abc-def0-123456789abc\/approve",
+        "source_purpose": "Executes atomic coin credit\/debit (Strict Maker != Checker validation)."
+    },
+    "104": {
+        "num": 104,
+        "title": "Admin Reject Wallet Adjustment",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/wallet-adjustments\/98701234-5678-9abc-def0-123456789abc\/reject",
+        "source_purpose": "Process store transaction."
+    },
+    "105": {
+        "num": 105,
+        "title": "Admin List Bonus Grants",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/bonus-grants",
+        "source_purpose": "Process store transaction."
+    },
+    "106": {
+        "num": 106,
+        "title": "Admin Create Bonus Grant Request",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/bonus-grants",
+        "source_purpose": "Process store transaction."
+    },
+    "107": {
+        "num": 107,
+        "title": "Admin Approve Bonus Grant",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/bonus-grants\/87654321-0fed-cba9-8765-43210fedcba9\/approve",
+        "source_purpose": "Process store transaction."
+    },
+    "108": {
+        "num": 108,
+        "title": "Admin Reject Bonus Grant",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/bonus-grants\/87654321-0fed-cba9-8765-43210fedcba9\/reject",
+        "source_purpose": "Process store transaction."
+    },
+    "109": {
+        "num": 109,
+        "title": "Admin List Membership Plans",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/membership\/plans",
+        "source_purpose": "Process store transaction."
+    },
+    "110": {
+        "num": 110,
+        "title": "Admin Create Membership Plan",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/membership\/plans",
+        "source_purpose": "Process store transaction."
+    },
+    "111": {
+        "num": 111,
+        "title": "Admin Update Membership Plan",
+        "method": "PUT",
+        "path": "\/api\/admin\/v1\/membership\/plans\/f1e2d3c4-b5a6-9870-1234-56789abcdef0",
+        "source_purpose": "Process store transaction."
+    },
+    "112": {
+        "num": 112,
+        "title": "Admin View Peer Membership Ledger",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/membership\/ledger\/a05ceb9e-2747-4dba-841d-63da4d725c33",
+        "source_purpose": "Process store transaction."
+    },
+    "113": {
+        "num": 113,
+        "title": "Admin List Entitlements",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/entitlements?page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "114": {
+        "num": 114,
+        "title": "Admin Get Entitlement Detail",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/entitlements\/e2d3c4b5-a698-7012-3456-789abcdef012",
+        "source_purpose": "Process store transaction."
+    },
+    "115": {
+        "num": 115,
+        "title": "Admin Manually Grant Entitlement",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/entitlements\/grant",
+        "source_purpose": "Process store transaction."
+    },
+    "116": {
+        "num": 116,
+        "title": "Admin Revoke Entitlement",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/entitlements\/e2d3c4b5-a698-7012-3456-789abcdef012\/revoke",
+        "source_purpose": "Process store transaction."
+    },
+    "117": {
+        "num": 117,
+        "title": "Admin Notification Templates List",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/notifications\/templates",
+        "source_purpose": "Process store transaction."
+    },
+    "118": {
+        "num": 118,
+        "title": "Admin Get Notification Template",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/notifications\/templates\/d3c4b5a6-9870-1234-5678-9abcdef01234",
+        "source_purpose": "Process store transaction."
+    },
+    "119": {
+        "num": 119,
+        "title": "Admin Notification Logs",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/notifications\/logs?page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "120": {
+        "num": 120,
+        "title": "Admin Resend Notification Log",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/notifications\/logs\/87012345-6789-abcd-ef01-23456789abcd\/resend",
+        "source_purpose": "Process store transaction."
+    },
+    "121": {
+        "num": 121,
+        "title": "Admin List Support Tickets",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/support\/tickets?status=OPEN&page=1",
+        "source_purpose": "Process store transaction."
+    },
+    "122": {
+        "num": 122,
+        "title": "Admin Get Support Ticket Thread",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456",
+        "source_purpose": "Process store transaction."
+    },
+    "123": {
+        "num": 123,
+        "title": "Admin Assign Support Ticket",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456\/assign",
+        "source_purpose": "Process store transaction."
+    },
+    "124": {
+        "num": 124,
+        "title": "Admin Reply to Support Ticket",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456\/messages",
+        "source_purpose": "Process store transaction."
+    },
+    "125": {
+        "num": 125,
+        "title": "Admin Resolve Support Ticket",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/support\/tickets\/c4b5a698-7012-3456-789a-bcdef0123456\/resolve",
+        "source_purpose": "Process store transaction."
+    },
+    "126": {
+        "num": 126,
+        "title": "Admin List Store Configs",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/config",
+        "source_purpose": "Process store transaction."
+    },
+    "127": {
+        "num": 127,
+        "title": "Admin Get Store Config",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/config\/min_delivery_order_coins",
+        "source_purpose": "Process store transaction."
+    },
+    "128": {
+        "num": 128,
+        "title": "Admin Update Store Config",
+        "method": "PUT",
+        "path": "\/api\/admin\/v1\/config\/min_delivery_order_coins",
+        "source_purpose": "Process store transaction."
+    },
+    "129": {
+        "num": 129,
+        "title": "Admin List Policies",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/policies",
+        "source_purpose": "Process store transaction."
+    },
+    "130": {
+        "num": 130,
+        "title": "Admin Create Policy",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/policies",
+        "source_purpose": "Process store transaction."
+    },
+    "131": {
+        "num": 131,
+        "title": "Admin Update Policy",
+        "method": "PUT",
+        "path": "\/api\/admin\/v1\/policies\/70123456-789a-bcde-f012-3456789abcde",
+        "source_purpose": "Process store transaction."
+    },
+    "132": {
+        "num": 132,
+        "title": "Admin Publish Policy Version",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/policies\/70123456-789a-bcde-f012-3456789abcde\/publish",
+        "source_purpose": "Process store transaction."
+    },
+    "133": {
+        "num": 133,
+        "title": "Admin Sales Report",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/reports\/sales?from=2026-09-01&to=2026-09-30",
+        "source_purpose": "Process store transaction."
+    },
+    "134": {
+        "num": 134,
+        "title": "Admin Coin Redemption Report",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/reports\/coin-redemption?from=2026-09-01&to=2026-09-30",
+        "source_purpose": "Process store transaction."
+    },
+    "135": {
+        "num": 135,
+        "title": "Admin Coin Issuance Report",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/reports\/coin-issuance?from=2026-09-01&to=2026-09-30",
+        "source_purpose": "Process store transaction."
+    },
+    "136": {
+        "num": 136,
+        "title": "Admin Membership Renewals Report",
+        "method": "GET",
+        "path": "\/api\/admin\/v1\/reports\/membership-renewals?from=2026-09-01&to=2026-09-30",
+        "source_purpose": "Process store transaction."
+    },
+    "137": {
+        "num": 137,
+        "title": "Admin Export Reports (CSV \/ XLSX)",
+        "method": "POST",
+        "path": "\/api\/admin\/v1\/reports\/export",
+        "source_purpose": "Process store transaction."
+    }
+}

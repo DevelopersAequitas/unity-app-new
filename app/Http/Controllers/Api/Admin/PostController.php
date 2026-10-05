@@ -26,8 +26,17 @@ class PostController extends BaseApiController
     {
         $query = Post::query()
             ->with([
-                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url',
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user.circle:id,name',
                 'circle:id,name',
+                'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user.circle:id,name',
+                ]),
+                'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user.circle:id,name',
+                ]),
             ])
             ->withCount(['likes', 'comments', 'reports']);
 
@@ -102,21 +111,10 @@ class PostController extends BaseApiController
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
         $paginator = $query->orderByDesc('created_at')->paginate($perPage);
 
-        $items = collect($paginator->items())->map(function (Post $post): array {
-            $data = $post->toArray();
-            $mediaUrl = $post->video_path
-                ? asset('storage/'.ltrim((string) $post->video_path, '/'))
-                : ($post->media_url ? (Str::startsWith((string) $post->media_url, ['http://', 'https://']) ? (string) $post->media_url : url((string) $post->media_url)) : $post->media_url);
-
-            $mediaType = ($post->video_path || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) ($post->media_url ?? $mediaUrl ?? '')) || $post->media_type === 'video')
-                ? 'video'
-                : ($mediaUrl || $post->media_type === 'image' ? 'image' : null);
-
-            $data['media_url'] = $mediaUrl;
-            $data['media_type'] = $mediaType;
-
-            return $data;
-        })->values()->all();
+        $items = collect($paginator->items())
+            ->map(fn (Post $post): array => $this->formatPostItem($post))
+            ->values()
+            ->all();
 
         return $this->success([
             'items' => $items,
@@ -137,8 +135,16 @@ class PostController extends BaseApiController
         $post = Post::withTrashed()
             ->with([
                 'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,phone,designation,active_circle_id',
+                'user.circle:id,name',
                 'circle:id,name',
-                'comments.user:id,first_name,last_name,display_name,email,profile_photo_url,company_name',
+                'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user.circle:id,name',
+                ]),
+                'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
+                    'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                    'user.circle:id,name',
+                ]),
                 'reports.reporter:id,first_name,last_name,display_name,email',
             ])
             ->withCount(['likes', 'comments', 'reports'])
@@ -148,19 +154,7 @@ class PostController extends BaseApiController
             return $this->error('Post record not found', 404);
         }
 
-        $data = $post->toArray();
-        $mediaUrl = $post->video_path
-            ? asset('storage/'.ltrim((string) $post->video_path, '/'))
-            : ($post->media_url ? (Str::startsWith((string) $post->media_url, ['http://', 'https://']) ? (string) $post->media_url : url((string) $post->media_url)) : $post->media_url);
-
-        $mediaType = ($post->video_path || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) ($post->media_url ?? $mediaUrl ?? '')) || $post->media_type === 'video')
-            ? 'video'
-            : ($mediaUrl || $post->media_type === 'image' ? 'image' : null);
-
-        $data['media_url'] = $mediaUrl;
-        $data['media_type'] = $mediaType;
-
-        return $this->success($data);
+        return $this->success($this->formatPostItem($post));
     }
 
     /**
@@ -175,10 +169,22 @@ class PostController extends BaseApiController
 
         $post = $this->postService->updateStatus($post, $request->validated());
 
-        $post->load(['user', 'circle']);
+        $post->load([
+            'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+            'user.circle:id,name',
+            'circle:id,name',
+            'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user.circle:id,name',
+            ]),
+            'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user.circle:id,name',
+            ]),
+        ]);
         $post->loadCount(['likes', 'comments', 'reports']);
 
-        return $this->success($post, 'Post moderation status updated successfully.');
+        return $this->success($this->formatPostItem($post), 'Post moderation status updated successfully.');
     }
 
     /**
@@ -193,10 +199,87 @@ class PostController extends BaseApiController
 
         $post = $this->postService->toggleStatus($post);
 
-        $post->load(['user', 'circle']);
+        $post->load([
+            'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+            'user.circle:id,name',
+            'circle:id,name',
+            'likes' => fn ($q) => $q->latest('created_at')->limit(20)->with([
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user.circle:id,name',
+            ]),
+            'comments' => fn ($q) => $q->latest('created_at')->limit(50)->with([
+                'user:id,first_name,last_name,display_name,email,company_name,profile_photo_url,active_circle_id',
+                'user.circle:id,name',
+            ]),
+        ]);
         $post->loadCount(['likes', 'comments', 'reports']);
 
-        return $this->success($post, "Post status updated to '{$post->status}' successfully.");
+        return $this->success($this->formatPostItem($post), "Post status updated to '{$post->status}' successfully.");
+    }
+
+    /**
+     * Format a post model into an array with serialized media, aspect ratio, and eager-loaded engagement lists.
+     */
+    protected function formatPostItem(Post $post): array
+    {
+        $data = $post->toArray();
+        $mediaUrl = $post->video_path
+            ? asset('storage/'.ltrim((string) $post->video_path, '/'))
+            : ($post->media_url ? (Str::startsWith((string) $post->media_url, ['http://', 'https://']) ? (string) $post->media_url : url((string) $post->media_url)) : $post->media_url);
+
+        $mediaType = ($post->video_path || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) ($post->media_url ?? $mediaUrl ?? '')) || $post->media_type === 'video')
+            ? 'video'
+            : ($mediaUrl || $post->media_type === 'image' ? 'image' : null);
+
+        $data['media_url'] = $mediaUrl;
+        $data['media_type'] = $mediaType;
+        $data['aspect_ratio'] = '4:5';
+
+        if ($post->relationLoaded('likes')) {
+            $data['likes_list'] = $post->likes->map(function ($like): array {
+                $user = $like->user;
+                $avatar = $user?->avatar ?? $user?->profile_photo_url;
+                $avatarUrl = $avatar
+                    ? (Str::startsWith((string) $avatar, ['http://', 'https://']) ? (string) $avatar : url((string) $avatar))
+                    : null;
+
+                return [
+                    'id' => (string) ($like->id ?? $user?->id),
+                    'user_id' => (string) ($user?->id ?? $like->user_id),
+                    'name' => $user?->name ?? $user?->display_name ?? 'Verified Peer',
+                    'avatar' => $avatarUrl,
+                    'company' => $user?->company_name ?? 'Independent Member',
+                    'circle_name' => $user?->circle?->name ?? null,
+                    'liked_at' => $like->created_at?->toISOString() ?? (is_string($like->created_at) ? $like->created_at : now()->toISOString()),
+                ];
+            })->values()->all();
+        }
+
+        if ($post->relationLoaded('comments')) {
+            $data['comments_list'] = $post->comments->map(function ($comment): array {
+                $user = $comment->user;
+                $userName = $user?->name ?? $user?->display_name ?? 'Peer Member';
+                $avatar = $user?->avatar ?? $user?->profile_photo_url;
+                $avatarUrl = $avatar
+                    ? (Str::startsWith((string) $avatar, ['http://', 'https://']) ? (string) $avatar : url((string) $avatar))
+                    : null;
+
+                return [
+                    'id' => (string) $comment->id,
+                    'author_id' => (string) ($user?->id ?? $comment->user_id),
+                    'author_name' => $userName,
+                    'author_avatar' => $avatarUrl,
+                    'name' => $userName,
+                    'avatar' => $avatarUrl,
+                    'company' => $user?->company_name ?? 'Independent Member',
+                    'circle_name' => $user?->circle?->name ?? null,
+                    'content' => $comment->content ?? $comment->comment_text ?? '',
+                    'created_at' => $comment->created_at?->toISOString() ?? (is_string($comment->created_at) ? $comment->created_at : now()->toISOString()),
+                ];
+            })->values()->all();
+        }
+
+        return $data;
     }
 
     /**

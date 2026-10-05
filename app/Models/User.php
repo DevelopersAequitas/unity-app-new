@@ -708,6 +708,17 @@ class User extends Authenticatable
         return $this->email;
     }
 
+
+    public function getPhoneNumberAttribute(): ?string
+    {
+        return $this->phone;
+    }
+
+    public function getMobileAttribute(): ?string
+    {
+        return $this->phone;
+    }
+
     public function adminCompanyLabel(): string
     {
         $company = trim((string) ($this->company_name ?? ''));

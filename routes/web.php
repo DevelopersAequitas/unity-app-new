@@ -946,5 +946,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/settings', [WebSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [WebSettingController::class, 'update'])->name('settings.update');
         });
+
+        // ── Peers Store Admin Module ──────────────────────────────
+        require __DIR__ . '/admin_store_web.php';
     });
 });
+
