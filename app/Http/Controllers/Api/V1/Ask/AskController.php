@@ -47,6 +47,14 @@ class AskController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+
+        if ($user && $user->status === 'inactive') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Inactive peers cannot create asks. Your account is in view-only mode.',
+            ], 403);
+        }
+
         $ask = $this->askService->createDraft($user, $request->validated());
 
         return response()->json([

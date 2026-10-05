@@ -541,6 +541,7 @@ class ProfileController extends BaseApiController
             ->where(function ($statusQuery) {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
             })
+            ->where('status', '!=', 'inactive')
             ->find($memberId);
 
         if (! $member) {

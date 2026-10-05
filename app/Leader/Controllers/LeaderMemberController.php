@@ -71,14 +71,15 @@ class LeaderMemberController extends Controller
             'to_date' => $request->query('to_date'),
             'search' => $request->query('search'),
             'page' => $request->query('page', 1),
-            'per_page' => $request->query('per_page', 20),
+            'limit' => $request->query('limit', $request->query('per_page', 20)),
+            'per_page' => $request->query('limit', $request->query('per_page', 20)),
         ];
 
         $result = $this->member360Service->getActivities($memberId, $filters);
 
         return response()->json([
             'success' => true,
-            'message' => 'Member activities retrieved successfully.',
+            'message' => 'Activities fetched successfully',
             'data' => $result['data'],
             'meta' => $result['meta'],
         ]);

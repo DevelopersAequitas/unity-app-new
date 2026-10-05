@@ -9,6 +9,7 @@ use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\WearTheBadgeWhatsappService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -1311,5 +1312,24 @@ class User extends Authenticatable
         if ($tagModel) {
             $this->tags()->detach($tagModel->id);
         }
+    }
+
+    public function isInactive(): bool
+    {
+        return strtolower((string) ($this->status ?? '')) === 'inactive';
+    }
+
+    public function isActive(): bool
+    {
+        return ! $this->isInactive() && ! in_array(strtolower((string) ($this->status ?? 'active')), ['rejected', 'pending', 'suspended'], true);
+    }
+
+    public function scopeActive(Builder $query, string $table = 'users'): Builder
+    {
+        return $query->where(function (Builder $q) use ($table): void {
+            $q->whereNull("{$table}.status")
+                ->orWhere("{$table}.status", 'active');
+        })->where("{$table}.status", '!=', 'inactive')
+            ->whereNull("{$table}.deleted_at");
     }
 }

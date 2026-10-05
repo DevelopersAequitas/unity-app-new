@@ -37,6 +37,12 @@ class CircleMemberController extends Controller
         $query = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
+            ->whereHas('user', function ($uq): void {
+                $uq->where(function ($sq): void {
+                    $sq->whereNull('status')->orWhere('status', 'active');
+                })->where('status', '!=', 'inactive')
+                    ->whereNull('deleted_at');
+            })
             ->with($with);
 
         if ($request->filled('status')) {

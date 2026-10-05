@@ -64,6 +64,15 @@ class RequirementController extends Controller
             ], 401);
         }
 
+        if ($request->user() && $request->user()->status === 'inactive') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Inactive peers cannot create requirements. Your account is in view-only mode.',
+                'data' => null,
+                'meta' => null,
+            ], 403);
+        }
+
         $validated = $request->validate([
             'subject' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],

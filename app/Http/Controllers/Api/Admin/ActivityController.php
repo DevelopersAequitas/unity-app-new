@@ -55,7 +55,7 @@ class ActivityController extends BaseApiController
         if ($userId = $request->query('user_id')) {
             $query->where(function ($q) use ($userId) {
                 $q->where('user_id', $userId)
-                  ->orWhere('related_user_id', $userId);
+                    ->orWhere('related_user_id', $userId);
             });
         }
 
@@ -72,21 +72,21 @@ class ActivityController extends BaseApiController
             $search = trim((string) $search);
             $query->where(function ($q) use ($search) {
                 $q->where('description', 'ILIKE', "%{$search}%")
-                  ->orWhere('admin_notes', 'ILIKE', "%{$search}%")
-                  ->orWhere('type', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('user', function ($uq) use ($search) {
-                      $uq->where('display_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('first_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('email', 'ILIKE', "%{$search}%")
-                         ->orWhere('company_name', 'ILIKE', "%{$search}%");
-                  })
-                  ->orWhereHas('relatedUser', function ($ruq) use ($search) {
-                      $ruq->where('display_name', 'ILIKE', "%{$search}%")
-                          ->orWhere('first_name', 'ILIKE', "%{$search}%")
-                          ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                          ->orWhere('email', 'ILIKE', "%{$search}%");
-                  });
+                    ->orWhere('admin_notes', 'ILIKE', "%{$search}%")
+                    ->orWhere('type', 'ILIKE', "%{$search}%")
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere('company_name', 'ILIKE', "%{$search}%");
+                    })
+                    ->orWhereHas('relatedUser', function ($ruq) use ($search) {
+                        $ruq->where('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%");
+                    });
             });
         }
 
@@ -113,7 +113,7 @@ class ActivityController extends BaseApiController
         $pending = Activity::where('status', 'pending')
             ->orWhere(function ($q) {
                 $q->where('requires_verification', true)
-                  ->whereNull('verified_at');
+                    ->whereNull('verified_at');
             })->count();
         $verified = Activity::whereNotNull('verified_at')
             ->orWhere('status', 'approved')->count();

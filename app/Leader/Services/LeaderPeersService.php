@@ -139,7 +139,7 @@ class LeaderPeersService
             ->whereNull('deleted_at')
             ->where(function ($q): void {
                 $q->whereNull('status')
-                    ->orWhereIn('status', ['approved', 'active', 'pending']);
+                    ->orWhereIn(DB::raw('status::text'), ['approved', 'active', 'pending']);
             })
             ->pluck('circle_id')
             ->all();
