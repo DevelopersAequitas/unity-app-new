@@ -159,6 +159,23 @@ class EventController extends BaseApiController
                         return null;
                     }
 
+                    // If event starts in the future, ignore occurrences that start prior to event start_at
+                    if ($event->start_at) {
+                        $eventStartUtc = Carbon::parse($event->start_at);
+                        if ($eventStartUtc->gt($now) && Carbon::parse($occurrence->start_at)->lt($eventStartUtc->copy()->subMinutes(15))) {
+                            return null;
+                        }
+                    }
+
+                    // For recurring events with fixed day of month, ensure occurrence matches the recurrence day
+                    if ($event->recurrence_type === 'monthly' && $event->recurrence_day_of_month) {
+                        $eventTz = data_get($event->metadata, 'timezone') ?: $timezone;
+                        $occLocal = Carbon::parse($occurrence->start_at)->setTimezone($eventTz);
+                        if ((int) $occLocal->format('j') !== (int) $event->recurrence_day_of_month) {
+                            return null;
+                        }
+                    }
+
                     $isLiveEvent = $startAt->lte($now) && $endAt->gte($now);
                     $isUpcoming = $startAt->gt($now);
 
@@ -217,16 +234,14 @@ class EventController extends BaseApiController
                 });
 
                 if ($currentMonthGroup->isNotEmpty()) {
-                    $filteredOccurrences = $filteredOccurrences->merge($currentMonthGroup);
-                } else {
-                    if ($group->isNotEmpty()) {
-                        $firstOccur = $group->first();
-                        $targetYear = $firstOccur['_start_year'];
-                        $targetMonth = $firstOccur['_start_month'];
-                        $fallbackGroup = $group->filter(function (array $occ) use ($targetYear, $targetMonth): bool {
-                            return $occ['_start_year'] === $targetYear && $occ['_start_month'] === $targetMonth;
-                        });
-                        $filteredOccurrences = $filteredOccurrences->merge($fallbackGroup);
+                    $selected = $currentMonthGroup->firstWhere('is_live_event', true) ?? $currentMonthGroup->first();
+                    if ($selected) {
+                        $filteredOccurrences->push($selected);
+                    }
+                } elseif ($group->isNotEmpty()) {
+                    $firstOccur = $group->first();
+                    if ($firstOccur) {
+                        $filteredOccurrences->push($firstOccur);
                     }
                 }
             }

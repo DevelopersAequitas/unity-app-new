@@ -4,6 +4,9 @@ namespace App\Services\Events;
 
 use App\Models\Event;
 use App\Models\EventOccurrence;
+use App\Models\EventQrScanLog;
+use App\Models\EventRegistration;
+use App\Models\EventRegistrationRequest;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -194,7 +197,28 @@ class EventOccurrenceGeneratorService
                         $orphan = $orphansWithRegistrations->shift();
 
                         if ($existingOnDate && $existingOnDate->id !== $orphan->id) {
-                            $existingOnDate->delete();
+                            EventRegistration::query()
+                                ->where('occurrence_id', $orphan->id)
+                                ->update(['occurrence_id' => $existingOnDate->id]);
+
+                            if (Schema::hasTable('event_qr_scan_logs')) {
+                                EventQrScanLog::query()
+                                    ->where('occurrence_id', $orphan->id)
+                                    ->update(['occurrence_id' => $existingOnDate->id]);
+                            }
+
+                            if (Schema::hasTable('event_registration_requests')) {
+                                EventRegistrationRequest::query()
+                                    ->where('occurrence_id', $orphan->id)
+                                    ->update(['occurrence_id' => $existingOnDate->id]);
+                            }
+
+                            $existingOnDate->registered_count = $existingOnDate->registrations()->count();
+                            $existingOnDate->save();
+
+                            $orphan->delete();
+
+                            continue;
                         }
 
                         $occurrenceEnd = $durationSeconds > 0 ? $occurrenceStart->addSeconds($durationSeconds) : null;
