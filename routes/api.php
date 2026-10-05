@@ -866,14 +866,25 @@ Route::prefix('v1')->group(function () {
             Route::get('/forms/recommend-peer/{id}', [AdminOpsController::class, 'recommendPeerFormShow'])->whereUuid('id');
             Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
 
-            Route::get('/posts', [AdminOpsController::class, 'posts']);
-            Route::get('/posts/{id}', [AdminOpsController::class, 'postShow'])->whereUuid('id');
-            Route::patch('/posts/{id}/status', [AdminOpsController::class, 'postStatus'])->whereUuid('id');
-            Route::delete('/posts/{id}', [AdminOpsController::class, 'postDelete'])->whereUuid('id');
-            Route::get('/post-reports', [AdminOpsController::class, 'postReports']);
-            Route::get('/post-reports/{id}', [AdminOpsController::class, 'postReportShow'])->whereUuid('id');
-            Route::patch('/post-reports/{id}/resolve', [AdminOpsController::class, 'postReportResolve'])->whereUuid('id');
-            Route::patch('/post-reports/{id}/dismiss', [AdminOpsController::class, 'postReportDismiss'])->whereUuid('id');
+            // Section 25: Activities Endpoints
+            Route::get('/activities', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
+            Route::get('/activities/stats', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
+            Route::get('/activities/types', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'types']);
+            Route::get('/activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
+            Route::patch('/activities/{id}/status', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
+
+            // Section 21: Posts & Moderation Endpoints
+            Route::get('/posts', [\App\Http\Controllers\Api\Admin\PostController::class, 'index']);
+            Route::get('/posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'show']);
+            Route::delete('/posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'destroy']);
+            Route::patch('/posts/{id}/status', [\App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus']);
+
+            // Post Reports
+            Route::get('/post-reports', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
+            Route::get('/post-reports/stats', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
+            Route::get('/post-reports/{id}', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
+            Route::match(['post', 'patch'], '/post-reports/{id}/resolve', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
+            Route::match(['post', 'patch'], '/post-reports/{id}/dismiss', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
 
             Route::get('/notification-campaigns', [NotificationCampaignController::class, 'index']);
             Route::post('/notification-campaigns', [NotificationCampaignController::class, 'store']);
@@ -1085,10 +1096,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/p2p-meeting-reschedule-requests/{id}/approve', [P2PMeetingRescheduleController::class, 'approve']);
         Route::post('/p2p-meeting-reschedule-requests/{id}/reject', [P2PMeetingRescheduleController::class, 'reject']);
 
-        // Admin Activities
-        Route::get('/admin/activities', [AdminActivityController::class, 'index']);
-        Route::get('/admin/activities/{activity}', [AdminActivityController::class, 'show']);
-        Route::patch('/admin/activities/{id}', [AdminActivityController::class, 'updateStatus']);
+        // Admin Activities (Delegated to Api\Admin\ActivityController for Section 25)
+        Route::get('/admin/activities', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
+        Route::get('/admin/activities/stats', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
+        Route::get('/admin/activities/types', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'types']);
+        Route::get('/admin/activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
+        Route::patch('/admin/activities/{id}/status', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
+        Route::patch('/admin/activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'updateStatus']);
         Route::patch('/admin/activities/{activity}/approve', [AdminActivityController::class, 'approve']);
         Route::patch('/admin/activities/{activity}/reject', [AdminActivityController::class, 'reject']);
 
