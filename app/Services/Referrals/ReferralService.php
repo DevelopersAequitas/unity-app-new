@@ -434,7 +434,10 @@ class ReferralService
     {
         $perPage = max(1, min($perPage, 100));
 
-        return EventRegistration::query()
+        $hasInvitedColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'invited_by_user_id');
+        $hasMetadataColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'metadata');
+
+        $query = EventRegistration::query()
             ->with([
                 'user.city',
                 'user.level4Category',
@@ -443,8 +446,22 @@ class ReferralService
                 'occurrence',
                 'businessCategoryMain',
                 'businessCategorySub',
-            ])
-            ->where('invited_by_user_id', $user->id)
+            ]);
+
+        if ($hasInvitedColumn) {
+            $query->where(function ($q) use ($user, $hasMetadataColumn): void {
+                $q->where('invited_by_user_id', $user->id);
+                if ($hasMetadataColumn) {
+                    $q->orWhereRaw("metadata->>'invited_by_user_id' = ?", [(string) $user->id]);
+                }
+            });
+        } elseif ($hasMetadataColumn) {
+            $query->whereRaw("metadata->>'invited_by_user_id' = ?", [(string) $user->id]);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        return $query
             ->latest('registered_at')
             ->latest('created_at')
             ->paginate($perPage);

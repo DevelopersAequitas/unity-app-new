@@ -83,9 +83,26 @@ class ReferralController extends BaseApiController
 
     public function updateVisitor(Request $request, string $id)
     {
-        $registration = EventRegistration::query()
-            ->where('invited_by_user_id', $request->user()->id)
-            ->findOrFail($id);
+        $hasInvitedColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'invited_by_user_id');
+        $hasMetadataColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'metadata');
+        $userId = $request->user()->id;
+
+        $query = EventRegistration::query()->where('id', $id);
+
+        if ($hasInvitedColumn) {
+            $query->where(function ($q) use ($userId, $hasMetadataColumn): void {
+                $q->where('invited_by_user_id', $userId);
+                if ($hasMetadataColumn) {
+                    $q->orWhereRaw("metadata->>'invited_by_user_id' = ?", [(string) $userId]);
+                }
+            });
+        } elseif ($hasMetadataColumn) {
+            $query->whereRaw("metadata->>'invited_by_user_id' = ?", [(string) $userId]);
+        } else {
+            return $this->error('Visitor registration not found.', 404);
+        }
+
+        $registration = $query->firstOrFail();
 
         if ($request->filled('notes')) {
             $metadata = is_array($registration->metadata) ? $registration->metadata : [];
