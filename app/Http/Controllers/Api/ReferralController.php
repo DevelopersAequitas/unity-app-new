@@ -7,8 +7,10 @@ use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Http\Resources\Ask\PeerResource;
+use App\Http\Resources\ReferralEventVisitorResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\CircleMember;
+use App\Models\EventRegistration;
 use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\Referral;
@@ -62,6 +64,37 @@ class ReferralController extends BaseApiController
                 'total' => $paginator->total(),
             ],
         ]);
+    }
+
+    public function listVisitors(Request $request, ReferralService $referralService)
+    {
+        $paginator = $referralService->getEventVisitors($request->user(), (int) $request->input('per_page', 20));
+
+        return $this->success([
+            'items' => ReferralEventVisitorResource::collection($paginator->items()),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ], 'Event visitors fetched successfully.');
+    }
+
+    public function updateVisitor(Request $request, string $id)
+    {
+        $registration = EventRegistration::query()
+            ->where('invited_by_user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        if ($request->filled('notes')) {
+            $metadata = is_array($registration->metadata) ? $registration->metadata : [];
+            $metadata['inviter_notes'] = (string) $request->input('notes');
+            $registration->metadata = $metadata;
+            $registration->save();
+        }
+
+        return $this->success(new ReferralEventVisitorResource($registration), 'Visitor updated successfully.');
     }
 
     public function stats(Request $request)

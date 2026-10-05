@@ -5,6 +5,7 @@ namespace App\Services\Referrals;
 use App\Http\Resources\MemberDetailResource;
 use App\Mail\ReferralJoinedMail;
 use App\Models\CoinsLedger;
+use App\Models\EventRegistration;
 use App\Models\ReferralData;
 use App\Models\User;
 use App\Services\Coins\CoinsService;
@@ -426,6 +427,26 @@ class ReferralService
             ->whereNotNull('referred_user_id')
             ->orderByRaw('used_at DESC NULLS LAST')
             ->orderByDesc('created_at')
+            ->paginate($perPage);
+    }
+
+    public function getEventVisitors(User $user, int $perPage = 20): LengthAwarePaginator
+    {
+        $perPage = max(1, min($perPage, 100));
+
+        return EventRegistration::query()
+            ->with([
+                'user.city',
+                'user.level4Category',
+                'user.activeCircle',
+                'event.circle',
+                'occurrence',
+                'businessCategoryMain',
+                'businessCategorySub',
+            ])
+            ->where('invited_by_user_id', $user->id)
+            ->latest('registered_at')
+            ->latest('created_at')
             ->paginate($perPage);
     }
 
