@@ -188,4 +188,33 @@ class Post extends Model
 
         return $value;
     }
+
+    /**
+     * Derive the primary media type ('image' | 'video' | null) from the media array.
+     * Inspects the first media item's 'type' field and normalises it.
+     */
+    public function getMediaTypeAttribute(): ?string
+    {
+        $media = $this->media;
+        if (empty($media) || ! is_array($media)) {
+            return null;
+        }
+
+        $first = reset($media);
+        if (! is_array($first)) {
+            return null;
+        }
+
+        $type = strtolower((string) ($first['type'] ?? ''));
+
+        if (str_contains($type, 'video')) {
+            return 'video';
+        }
+
+        if ($type !== '') {
+            return 'image';
+        }
+
+        return null;
+    }
 }

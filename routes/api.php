@@ -880,6 +880,11 @@ Route::prefix('v1')->group(function () {
             Route::patch('/posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
             Route::match(['post', 'patch'], '/posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
 
+            // Section 21: Post Engagements & Interactions
+            Route::get('/posts/{id}/likes', [App\Http\Controllers\Api\Admin\PostController::class, 'getLikes'])->whereUuid('id');
+            Route::get('/posts/{id}/comments', [App\Http\Controllers\Api\Admin\PostController::class, 'getComments'])->whereUuid('id');
+            Route::delete('/posts/{id}/comments/{commentId}', [App\Http\Controllers\Api\Admin\PostController::class, 'deleteComment'])->whereUuid('id')->whereUuid('commentId');
+
             // Post Reports
             Route::get('/post-reports', [App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
             Route::get('/post-reports/stats', [App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
@@ -1524,6 +1529,11 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::delete('posts/{id}', [App\Http\Controllers\Api\Admin\PostController::class, 'destroy'])->whereUuid('id');
     Route::patch('posts/{id}/status', [App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus'])->whereUuid('id');
     Route::match(['post', 'patch'], 'posts/{id}/toggle', [App\Http\Controllers\Api\Admin\PostController::class, 'toggleStatus'])->whereUuid('id');
+
+    // Section 21: Post Engagements & Interactions
+    Route::get('posts/{id}/likes', [App\Http\Controllers\Api\Admin\PostController::class, 'getLikes'])->whereUuid('id');
+    Route::get('posts/{id}/comments', [App\Http\Controllers\Api\Admin\PostController::class, 'getComments'])->whereUuid('id');
+    Route::delete('posts/{id}/comments/{commentId}', [App\Http\Controllers\Api\Admin\PostController::class, 'deleteComment'])->whereUuid('id')->whereUuid('commentId');
 
     // Post Reports
     Route::get('post-reports', [App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);

@@ -184,4 +184,149 @@ class PostController extends BaseApiController
 
         return $this->success(['id' => $id, 'deleted' => true], 'Post removed from community feed successfully.');
     }
+
+    /**
+     * Return the paginated roster of peers who liked a specific post.
+     */
+    public function getLikes(Request $request, string $id): JsonResponse
+    {
+        $post = Post::find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $paginator = $post->likes()
+            ->with(['user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation'])
+            ->latest('created_at')
+            ->paginate($perPage);
+
+        $items = $paginator->map(function ($like): array {
+            $user = $like->user;
+
+            return [
+                'liked_at' => $like->created_at?->toIso8601String(),
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'display_name' => $user->display_name,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'company_name' => $user->company_name,
+                    'designation' => $user->designation,
+                    'profile_photo_url' => $user->profile_photo_url,
+                ] : null,
+            ];
+        })->values();
+
+        return $this->success([
+            'post_id' => $id,
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Return paginated top-level comments (with nested replies) for a specific post.
+     */
+    public function getComments(Request $request, string $id): JsonResponse
+    {
+        $post = Post::find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $paginator = $post->comments()
+            ->whereNull('parent_id')
+            ->with([
+                'user:id,first_name,last_name,display_name,email,profile_photo_url,company_name,designation',
+                'children.user:id,first_name,last_name,display_name,email,profile_photo_url',
+            ])
+            ->withCount('children')
+            ->latest()
+            ->paginate($perPage);
+
+        $serializeUser = function (?object $user): ?array {
+            if (! $user) {
+                return null;
+            }
+
+            return [
+                'id' => $user->id,
+                'display_name' => $user->display_name,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'company_name' => $user->company_name ?? null,
+                'designation' => $user->designation ?? null,
+                'profile_photo_url' => $user->profile_photo_url,
+            ];
+        };
+
+        $items = $paginator->map(function ($comment) use ($serializeUser): array {
+            $replies = $comment->children->map(function ($reply) use ($serializeUser): array {
+                return [
+                    'id' => $reply->id,
+                    'parent_id' => $reply->parent_id,
+                    'content' => $reply->content,
+                    'created_at' => $reply->created_at?->toIso8601String(),
+                    'deleted_at' => $reply->deleted_at?->toIso8601String(),
+                    'user' => $serializeUser($reply->user),
+                ];
+            })->values();
+
+            return [
+                'id' => $comment->id,
+                'parent_id' => $comment->parent_id,
+                'content' => $comment->content,
+                'replies_count' => (int) $comment->children_count,
+                'created_at' => $comment->created_at?->toIso8601String(),
+                'deleted_at' => $comment->deleted_at?->toIso8601String(),
+                'user' => $serializeUser($comment->user),
+                'replies' => $replies,
+            ];
+        })->values();
+
+        return $this->success([
+            'post_id' => $id,
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Soft-delete a specific comment on a post (admin moderation).
+     */
+    public function deleteComment(Request $request, string $id, string $commentId): JsonResponse
+    {
+        $post = Post::find($id);
+        if (! $post) {
+            return $this->error('Post record not found', 404);
+        }
+
+        $comment = $post->comments()->where('id', $commentId)->first();
+        if (! $comment) {
+            return $this->error('Comment not found for this post', 404);
+        }
+
+        $comment->delete();
+
+        return $this->success(
+            ['id' => $commentId, 'post_id' => $id, 'deleted' => true],
+            'Comment removed successfully.'
+        );
+    }
 }
