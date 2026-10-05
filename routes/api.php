@@ -1509,3 +1509,25 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Ask / Requirement Discovery System
 require __DIR__.'/ask.php';
+
+
+// Section 21 & 25 Dedicated Admin Hub Routes
+Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
+    // Section 25: Activities Endpoints (5 endpoints)
+    Route::get('activities', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
+    Route::get('activities/stats', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
+    Route::get('activities/{id}', [\App\Http\Controllers\Api\Admin\ActivityController::class, 'show']);
+
+    // Section 21: Posts & Moderation Endpoints (8 endpoints)
+    Route::get('posts', [\App\Http\Controllers\Api\Admin\PostController::class, 'index']);
+    Route::get('posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'show']);
+    Route::delete('posts/{id}', [\App\Http\Controllers\Api\Admin\PostController::class, 'destroy']);
+    Route::patch('posts/{id}/status', [\App\Http\Controllers\Api\Admin\PostController::class, 'updateStatus']);
+
+    // Post Reports
+    Route::get('post-reports', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'index']);
+    Route::get('post-reports/stats', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'stats']);
+    Route::get('post-reports/{id}', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
+    Route::post('post-reports/{id}/resolve', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
+    Route::post('post-reports/{id}/dismiss', [\App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
+});
