@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Api\Admin\RbacController;
 use App\Http\Controllers\Admin\Rbac\AdminModuleController;
 use App\Http\Controllers\Admin\Rbac\AdminPageController;
 use App\Http\Controllers\Admin\Rbac\PageGroupController;
@@ -209,63 +210,74 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::prefix('v1')->group(function () {
-    // Dynamic RBAC API Endpoints (All 8 RBAC components + user permissions)
-    Route::prefix('rbac')->group(function () {
+        // Dynamic RBAC API Endpoints with Dual Aliases (/v1/admin/rbac/* and /v1/rbac/*)
+    $registerRbacRoutes = function () {
         Route::middleware('auth:sanctum')->get('/my-permissions', [RbacUserPermissionController::class, 'myPermissions']);
 
-        // 1. Role Hierarchy
-        Route::get('/hierarchy', [RoleHierarchyController::class, 'index']);
-        Route::get('/hierarchy/map', [RoleHierarchyController::class, 'fullMap']);
+        // Static routes strictly defined before wildcard parameter routes
+        // 1. Admin Modules Catalog
+        Route::get('/modules', [RbacController::class, 'modules']);
+        Route::post('/modules', [AdminModuleController::class, 'store']);
+        Route::post('/modules/order', [AdminModuleController::class, 'updateOrder']);
+        Route::get('/modules/{id}', [AdminModuleController::class, 'edit'])->whereUuid('id');
+        Route::put('/modules/{id}', [AdminModuleController::class, 'update'])->whereUuid('id');
+        Route::delete('/modules/{id}', [AdminModuleController::class, 'destroy'])->whereUuid('id');
+
+        // 2. Permissions & Permission Matrix
+        Route::get('/permissions', [RbacController::class, 'permissions']);
+        Route::get('/permission-matrix', [RolePermissionMatrixController::class, 'index']);
+        Route::post('/permission-matrix', [RolePermissionMatrixController::class, 'update']);
+
+        // 3. Roles Management
+        Route::get('/roles', [RbacController::class, 'roles']);
         Route::post('/roles', [RoleHierarchyController::class, 'storeRole']);
         Route::post('/roles/update-parent', [RoleHierarchyController::class, 'updateParent']);
         Route::post('/roles/clone', [RoleHierarchyController::class, 'cloneProfile']);
+        Route::post('/roles/{id}/clone', [RoleHierarchyController::class, 'cloneProfile'])->whereUuid('id');
         Route::put('/roles/{id}', [RoleHierarchyController::class, 'updateRole'])->whereUuid('id');
         Route::delete('/roles/{id}', [RoleHierarchyController::class, 'deleteRole'])->whereUuid('id');
         Route::get('/roles/{id}/assignments', [RoleHierarchyController::class, 'getAssignments'])->whereUuid('id');
         Route::post('/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->whereUuid('id');
         Route::delete('/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->whereUuid('id')->whereUuid('userId');
 
-        // 2. Admin Modules
-        Route::get('/modules', [AdminModuleController::class, 'index']);
-        Route::post('/modules', [AdminModuleController::class, 'store']);
-        Route::get('/modules/{id}', [AdminModuleController::class, 'edit'])->whereUuid('id');
-        Route::put('/modules/{id}', [AdminModuleController::class, 'update'])->whereUuid('id');
-        Route::delete('/modules/{id}', [AdminModuleController::class, 'destroy'])->whereUuid('id');
-        Route::post('/modules/order', [AdminModuleController::class, 'updateOrder']);
+        // 4. Role Hierarchy Tree
+        Route::get('/hierarchy', [RbacController::class, 'hierarchy']);
+        Route::get('/hierarchy/map', [RoleHierarchyController::class, 'fullMap']);
 
-        // 3. Admin Pages
-        Route::get('/pages', [AdminPageController::class, 'index']);
+        // 5. Admin Pages
+        Route::get('/pages', [RbacController::class, 'pages']);
         Route::post('/pages', [AdminPageController::class, 'store']);
         Route::get('/pages/{id}', [AdminPageController::class, 'edit'])->whereUuid('id');
         Route::put('/pages/{id}', [AdminPageController::class, 'update'])->whereUuid('id');
         Route::delete('/pages/{id}', [AdminPageController::class, 'destroy'])->whereUuid('id');
 
-        // 4. Permission Matrix
-        Route::get('/permission-matrix', [RolePermissionMatrixController::class, 'index']);
-        Route::post('/permission-matrix', [RolePermissionMatrixController::class, 'update']);
+        // 6. Workflow Approval Rules
+        Route::get('/workflows', [RbacController::class, 'workflows']);
+        Route::get('/workflow-rules', [WorkflowApprovalRuleController::class, 'index']);
+        Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store']);
+        Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->whereUuid('id');
+        Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->whereUuid('id');
 
-        // 5. Module Access
+        // 7. Role Module Access
         Route::get('/module-access', [RoleModuleAccessController::class, 'index']);
         Route::post('/module-access', [RoleModuleAccessController::class, 'update']);
 
-        // 6. Page Groups
+        // 8. Page Groups
         Route::get('/page-groups', [PageGroupController::class, 'index']);
         Route::post('/page-groups', [PageGroupController::class, 'store']);
         Route::get('/page-groups/{id}', [PageGroupController::class, 'edit'])->whereUuid('id');
         Route::put('/page-groups/{id}', [PageGroupController::class, 'update'])->whereUuid('id');
         Route::delete('/page-groups/{id}', [PageGroupController::class, 'destroy'])->whereUuid('id');
 
-        // 7. Data Scope
+        // 9. Data Scope
         Route::get('/data-scope', [RoleDataScopeController::class, 'index']);
         Route::post('/data-scope', [RoleDataScopeController::class, 'store']);
         Route::delete('/data-scope/{id}', [RoleDataScopeController::class, 'destroy'])->whereUuid('id');
+    };
 
-        // 8. Workflow Rules
-        Route::get('/workflow-rules', [WorkflowApprovalRuleController::class, 'index']);
-        Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store']);
-        Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->whereUuid('id');
-        Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->whereUuid('id');
-    });
+    // Both /api/v1/admin/rbac/* and /api/v1/rbac/* are mapped for dual compatibility
+    Route::prefix('admin/rbac')->group($registerRbacRoutes);
+    Route::prefix('rbac')->group($registerRbacRoutes);
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);

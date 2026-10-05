@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\ActivityVideoController;
 use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AdBookingAdminWebController;
@@ -758,6 +759,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/daily-notifications/{id}/eligible-users', [DailyNotificationController::class, 'eligibleUsers'])->name('daily-notifications.eligible-users');
         Route::post('/daily-notifications/{id}/send', [DailyNotificationController::class, 'sendReminder'])->name('daily-notifications.send');
         Route::get('/test-notifications', [DailyNotificationController::class, 'testNotifications'])->name('daily-notifications.test');
+
+        Route::get('/activity-reminders', [ActivityReminderSettingController::class, 'index'])->name('activity-reminders.index');
+        Route::put('/activity-reminders/{id}', [ActivityReminderSettingController::class, 'update'])->whereUuid('id')->name('activity-reminders.update');
+        Route::post('/activity-reminders/trigger', [ActivityReminderSettingController::class, 'trigger'])->name('activity-reminders.trigger');
 
         Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
         Route::get('/impacts/export/csv', [ImpactsController::class, 'exportCsv'])->name('impacts.export.csv');
