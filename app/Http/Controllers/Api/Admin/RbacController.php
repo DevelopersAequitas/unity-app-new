@@ -7,11 +7,9 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\AdminModule;
 use App\Models\AdminPage;
-use App\Models\AdminUser;
 use App\Models\AdminUserRole;
 use App\Models\Permission;
 use App\Models\Role;
-use App\Models\RoleHierarchy;
 use App\Models\RolePagePermission;
 use App\Models\WorkflowApprovalRule;
 use Illuminate\Http\JsonResponse;
@@ -58,7 +56,7 @@ class RbacController extends BaseApiController
                     'name' => (string) $module->name,
                     'slug' => $slug,
                     'icon' => (string) ($module->icon ?? 'layers'),
-                    'route' => '/admin/' . $slug,
+                    'route' => '/admin/'.$slug,
                     'order' => (int) ($module->sort_order ?? 0),
                     'isActive' => (bool) ($module->is_active ?? true),
                     'pageCount' => $module->pages ? $module->pages->count() : 0,
@@ -258,6 +256,7 @@ class RbacController extends BaseApiController
 
         $nodes = $roles->map(function (Role $role) use ($childToParents, $roleCounts) {
             $parentId = $childToParents[$role->id][0] ?? null;
+
             return [
                 'id' => (string) $role->id,
                 'name' => (string) $role->name,

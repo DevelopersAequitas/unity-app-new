@@ -790,9 +790,9 @@
             }
 
             if (sd) {
-                const dayParts = sd.split('-');
-                if (dayParts.length === 3) {
-                    const dayNum = parseInt(dayParts[2], 10);
+                const parts = sd.split('-').map(Number);
+                if (parts.length === 3) {
+                    const dayNum = parts[0] > 1000 ? parts[2] : parts[0];
                     const dayOfMonthEl = document.getElementById('dayOfMonth');
                     if (dayOfMonthEl && !isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
                         dayOfMonthEl.value = String(dayNum);
@@ -801,7 +801,15 @@
             }
 
             if (sd && st) {
-                const [year, month, day] = sd.split('-').map(Number);
+                const parts = sd.split('-').map(Number);
+                let year, month, day;
+                if (parts[0] > 1000) {
+                    [year, month, day] = parts;
+                } else if (parts[2] > 1000) {
+                    [day, month, year] = parts;
+                } else {
+                    [year, month, day] = parts;
+                }
                 const [hours, minutes] = st.split(':').map(Number);
                 // Create local date object in user's browser timezone
                 const startDateObj = new Date(year, month - 1, day, hours, minutes, 0);
@@ -978,7 +986,7 @@
                 syncDateTimes();
             });
         }
-        ['customHours', 'customMinutes'].forEach(id => {
+        ['startDate', 'startTime', 'customHours', 'customMinutes'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
                 el.addEventListener('input', syncDateTimes);

@@ -6,9 +6,11 @@ namespace Tests\Feature;
 
 use App\Models\Event;
 use App\Models\EventOccurrence;
+use App\Models\EventRegistration;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventService;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -132,83 +134,167 @@ class EventUpdateDateAndLocationTest extends TestCase
         $this->assertEquals('Crowne Plaza, Ahmedabad, Gujarat', $event->location_text);
     }
 
+    public function test_updating_recurring_event_reschedules_occurrence_with_registrations_to_new_date(): void
+    {
+        $event = Event::query()->create([
+            'title' => 'MSME One Meet',
+            'event_type' => 'circle_meeting',
+            'mode' => 'offline',
+            'start_at' => '2026-10-06 08:00:00',
+            'end_at' => '2026-10-06 10:00:00',
+            'recurrence_type' => 'monthly',
+            'recurrence_interval' => 1,
+            'recurrence_ends_at' => '2027-10-06 00:00:00',
+            'recurrence_week_of_month' => 1,
+            'recurrence_day_of_week' => 2,
+        ]);
+
+        $generator = app(EventOccurrenceGeneratorService::class);
+        $generator->generate($event);
+
+        $initialOccurrence = EventOccurrence::query()
+            ->where('event_id', $event->id)
+            ->orderBy('start_at')
+            ->firstOrFail();
+
+        // Simulate 2 registrations on this occurrence
+        EventRegistration::query()->create([
+            'event_id' => $event->id,
+            'occurrence_id' => $initialOccurrence->id,
+            'status' => 'confirmed',
+        ]);
+        EventRegistration::query()->create([
+            'event_id' => $event->id,
+            'occurrence_id' => $initialOccurrence->id,
+            'status' => 'confirmed',
+        ]);
+
+        $this->assertEquals(2, $initialOccurrence->registrations()->count());
+
+        // Now admin updates event date from 10-06 to 10-10
+        $eventService = app(EventService::class);
+        $eventService->update($event, [
+            'title' => 'MSME One Meet',
+            'event_type' => 'circle_meeting',
+            'mode' => 'offline',
+            'start_at' => '2026-10-10 08:00:00',
+            'end_at' => '2026-10-10 10:00:00',
+            'recurrence_type' => 'monthly',
+            'recurrence_interval' => 1,
+            'recurrence_ends_at' => '2027-10-10 00:00:00',
+            'monthly_pattern' => 'fixed',
+            'recurrence_day_of_month' => 10,
+        ]);
+
+        $event->refresh();
+
+        // Ensure 2026-10-06 occurrence is gone
+        $oldOccurrenceExists = EventOccurrence::query()
+            ->where('event_id', $event->id)
+            ->where('start_at', 'like', '2026-10-06%')
+            ->exists();
+        $this->assertFalse($oldOccurrenceExists);
+
+        // Ensure first upcoming occurrence is on 2026-10-10 and preserves the registration
+        $newOccurrence = EventOccurrence::query()
+            ->where('event_id', $event->id)
+            ->orderBy('start_at')
+            ->first();
+        $this->assertNotNull($newOccurrence);
+        $this->assertEquals('2026-10-10', $newOccurrence->start_at->toDateString());
+        $this->assertEquals($initialOccurrence->id, $newOccurrence->id);
+        $this->assertEquals(2, $newOccurrence->registrations()->count());
+    }
+
     private function setUpInMemoryDatabase(): void
     {
-        Schema::dropIfExists('event_registrations');
-        Schema::dropIfExists('event_occurrences');
-        Schema::dropIfExists('events');
-        Schema::dropIfExists('circles');
+        config(['database.default' => 'sqlite']);
+        config(['database.connections.sqlite.database' => ':memory:']);
+        DB::purge('sqlite');
+        DB::setDefaultConnection('sqlite');
 
-        Schema::create('circles', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->string('name')->nullable();
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('circles')) {
+            Schema::create('circles', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->string('name')->nullable();
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('events', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('circle_id')->nullable();
-            $table->string('title')->nullable();
-            $table->text('description')->nullable();
-            $table->timestamp('start_at')->nullable();
-            $table->timestamp('end_at')->nullable();
-            $table->boolean('is_virtual')->default(false);
-            $table->text('location_text')->nullable();
-            $table->json('agenda')->nullable();
-            $table->json('speakers')->nullable();
-            $table->text('banner_url')->nullable();
-            $table->string('visibility')->default('members');
-            $table->boolean('is_paid')->default(false);
-            $table->json('metadata')->nullable();
-            $table->string('event_type')->nullable();
-            $table->string('event_category')->nullable();
-            $table->string('mode')->nullable();
-            $table->integer('registration_limit')->nullable();
-            $table->decimal('ticket_price', 10, 2)->default(0);
-            $table->boolean('qr_checkin_enabled')->default(false);
-            $table->boolean('is_public')->default(false);
-            $table->string('recurrence_type')->nullable();
-            $table->integer('recurrence_interval')->nullable()->default(1);
-            $table->integer('recurrence_day_of_week')->nullable();
-            $table->integer('recurrence_week_of_month')->nullable();
-            $table->integer('recurrence_day_of_month')->nullable();
-            $table->integer('recurrence_month')->nullable();
-            $table->timestamp('recurrence_ends_at')->nullable();
-            $table->boolean('visitor_registration_enabled')->default(false);
-            $table->boolean('member_registration_enabled')->default(true);
-            $table->text('online_meeting_url')->nullable();
-            $table->text('zoho_form_url')->nullable();
-            $table->string('status')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-            $table->softDeletes();
-        });
+        if (! Schema::hasTable('events')) {
+            Schema::create('events', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('circle_id')->nullable();
+                $table->string('title')->nullable();
+                $table->text('description')->nullable();
+                $table->timestamp('start_at')->nullable();
+                $table->timestamp('end_at')->nullable();
+                $table->boolean('is_virtual')->default(false);
+                $table->text('location_text')->nullable();
+                $table->json('agenda')->nullable();
+                $table->json('speakers')->nullable();
+                $table->text('banner_url')->nullable();
+                $table->string('visibility')->default('members');
+                $table->boolean('is_paid')->default(false);
+                $table->json('metadata')->nullable();
+                $table->string('event_type')->nullable();
+                $table->string('event_category')->nullable();
+                $table->string('mode')->nullable();
+                $table->integer('registration_limit')->nullable();
+                $table->decimal('ticket_price', 10, 2)->default(0);
+                $table->boolean('qr_checkin_enabled')->default(false);
+                $table->boolean('is_public')->default(false);
+                $table->string('recurrence_type')->nullable();
+                $table->integer('recurrence_interval')->nullable()->default(1);
+                $table->integer('recurrence_day_of_week')->nullable();
+                $table->integer('recurrence_week_of_month')->nullable();
+                $table->integer('recurrence_day_of_month')->nullable();
+                $table->integer('recurrence_month')->nullable();
+                $table->timestamp('recurrence_ends_at')->nullable();
+                $table->boolean('visitor_registration_enabled')->default(false);
+                $table->boolean('member_registration_enabled')->default(true);
+                $table->text('online_meeting_url')->nullable();
+                $table->text('zoho_form_url')->nullable();
+                $table->string('status')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
 
-        Schema::create('event_occurrences', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('event_id');
-            $table->date('occurrence_date')->nullable();
-            $table->timestamp('start_at')->nullable();
-            $table->timestamp('end_at')->nullable();
-            $table->string('status')->nullable();
-            $table->integer('sequence')->default(1);
-            $table->integer('registered_count')->default(0);
-            $table->integer('checked_in_count')->default(0);
-            $table->timestamps();
-            $table->softDeletes();
-        });
+        if (! Schema::hasTable('event_occurrences')) {
+            Schema::create('event_occurrences', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('event_id');
+                $table->date('occurrence_date')->nullable();
+                $table->timestamp('start_at')->nullable();
+                $table->timestamp('end_at')->nullable();
+                $table->string('status')->nullable();
+                $table->integer('sequence')->default(1);
+                $table->integer('registered_count')->default(0);
+                $table->integer('checked_in_count')->default(0);
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
 
-        Schema::create('event_registrations', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('event_id');
-            $table->uuid('occurrence_id')->nullable();
-            $table->uuid('user_id')->nullable();
-            $table->string('status')->nullable();
-            $table->boolean('payment_required')->default(false);
-            $table->string('payment_status')->nullable();
-            $table->string('checkin_status')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-        });
+        if (! Schema::hasTable('event_registrations')) {
+            Schema::create('event_registrations', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('event_id');
+                $table->uuid('occurrence_id')->nullable();
+                $table->uuid('user_id')->nullable();
+                $table->string('status')->nullable();
+                $table->boolean('payment_required')->default(false);
+                $table->string('payment_status')->nullable();
+                $table->string('checkin_status')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
+
+        EventRegistration::query()->delete();
+        EventOccurrence::query()->delete();
+        Event::query()->delete();
     }
 }
