@@ -8,7 +8,6 @@ use App\Models\Store\OrderStatusHistory;
 use App\Services\Store\OrderLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class AdminStoreOrderWebController extends Controller
 {
@@ -57,13 +56,13 @@ class AdminStoreOrderWebController extends Controller
         }
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('order_no', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('user', function($uq) use ($search) {
-                      $uq->where('name', 'ILIKE', "%{$search}%")
-                         ->orWhere('phone_number', 'ILIKE', "%{$search}%")
-                         ->orWhere('email', 'ILIKE', "%{$search}%");
-                  });
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone_number', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%");
+                    });
             });
         }
 
@@ -85,7 +84,7 @@ class AdminStoreOrderWebController extends Controller
             'user',
             'items.product',
             'pickupPoint',
-            'statusHistory'
+            'statusHistory',
         ])->findOrFail($id);
 
         $validNextTransitions = [];
@@ -117,7 +116,7 @@ class AdminStoreOrderWebController extends Controller
             'order_id' => $order->id,
             'status' => $newStatus,
             'notes' => $notes,
-            'changed_by' => $admin ? $admin->name : 'Admin'
+            'changed_by' => $admin ? $admin->name : 'Admin',
         ]);
 
         return back()->with('success', "Order status changed from {$fromStatus} to {$newStatus}.");
@@ -126,6 +125,7 @@ class AdminStoreOrderWebController extends Controller
     public function packingSlip(string $id)
     {
         $order = Order::with(['user', 'items.product', 'pickupPoint'])->findOrFail($id);
+
         return view('admin.store.orders.packing-slip', compact('order'));
     }
 
@@ -146,7 +146,7 @@ class AdminStoreOrderWebController extends Controller
             'order_id' => $order->id,
             'status' => 'shipped',
             'notes' => "Dispatched via {$courierName} (AWB: {$trackingNumber})",
-            'changed_by' => $admin ? $admin->name : 'Admin'
+            'changed_by' => $admin ? $admin->name : 'Admin',
         ]);
 
         return back()->with('success', 'Order marked as shipped with courier AWB details.');
@@ -159,15 +159,15 @@ class AdminStoreOrderWebController extends Controller
 
         $order->update([
             'status' => 'delivered',
-            'pickup_pin' => $pickupPin
+            'pickup_pin' => $pickupPin,
         ]);
 
         $admin = Auth::guard('admin')->user();
         OrderStatusHistory::create([
             'order_id' => $order->id,
             'status' => 'delivered',
-            'notes' => "Customer collected merchandise at Hub. PIN verified by " . ($admin ? $admin->name : 'Admin'),
-            'changed_by' => $admin ? $admin->name : 'Admin'
+            'notes' => 'Customer collected merchandise at Hub. PIN verified by '.($admin ? $admin->name : 'Admin'),
+            'changed_by' => $admin ? $admin->name : 'Admin',
         ]);
 
         return back()->with('success', 'Pickup verified and order marked as delivered.');
@@ -184,6 +184,6 @@ class AdminStoreOrderWebController extends Controller
             $order->update(['status' => 'cancelled', 'cancellation_reason' => $reason]);
         }
 
-        return back()->with('success', "Order cancelled and coins refunded.");
+        return back()->with('success', 'Order cancelled and coins refunded.');
     }
 }

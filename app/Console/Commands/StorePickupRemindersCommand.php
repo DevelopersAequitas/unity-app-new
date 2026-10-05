@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
 use App\Services\Store\OrderLifecycleService;
 use App\Services\Store\StoreRefundService;
@@ -11,6 +10,7 @@ use Illuminate\Console\Command;
 class StorePickupRemindersCommand extends Command
 {
     protected $signature = 'store:process-pickups';
+
     protected $description = 'Process pickup reminders on day 3, day 6, and auto-cancel + refund on day 7';
 
     public function handle(OrderLifecycleService $lifecycleService, StoreRefundService $refundService): int

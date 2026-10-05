@@ -25,8 +25,8 @@ class AdminStoreServiceabilityWebController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('pincode', 'ILIKE', "%{$s}%")
-                  ->orWhere('city', 'ILIKE', "%{$s}%")
-                  ->orWhere('state', 'ILIKE', "%{$s}%");
+                    ->orWhere('city', 'ILIKE', "%{$s}%")
+                    ->orWhere('state', 'ILIKE', "%{$s}%");
             });
         }
 
@@ -35,6 +35,7 @@ class AdminStoreServiceabilityWebController extends Controller
         }
 
         $pincodes = $query->paginate(25);
+
         return view('admin.store.serviceability.pincodes', compact('pincodes', 'search', 'activeFilter'));
     }
 
@@ -48,7 +49,7 @@ class AdminStoreServiceabilityWebController extends Controller
             'pickup_available' => 'nullable|boolean',
             'courier_partner' => 'nullable|string|max:100',
             'delivery_days' => 'nullable|integer|min:1',
-            'is_active' => 'nullable|boolean'
+            'is_active' => 'nullable|boolean',
         ]);
 
         $validated['delivery_available'] = $request->has('delivery_available');
@@ -64,7 +65,7 @@ class AdminStoreServiceabilityWebController extends Controller
     public function togglePincode(string $id)
     {
         $p = ServiceablePincode::findOrFail($id);
-        $p->update(['is_active' => !$p->is_active]);
+        $p->update(['is_active' => ! $p->is_active]);
 
         return back()->with('success', "Pincode {$p->pincode} visibility updated.");
     }
@@ -75,10 +76,10 @@ class AdminStoreServiceabilityWebController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="serviceable_pincodes_' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="serviceable_pincodes_'.date('Y-m-d').'.csv"',
         ];
 
-        return response()->stream(function() use ($pincodes) {
+        return response()->stream(function () use ($pincodes) {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, ['Pincode', 'City', 'State', 'Delivery Available', 'Pickup Available', 'Courier Partner', 'Estimated Transit Days', 'Is Active']);
 
@@ -91,7 +92,7 @@ class AdminStoreServiceabilityWebController extends Controller
                     $p->pickup_available ? 'YES' : 'NO',
                     $p->courier_partner ?? 'Standard Delivery',
                     $p->delivery_days ?? 4,
-                    $p->is_active ? 'ACTIVE' : 'INACTIVE'
+                    $p->is_active ? 'ACTIVE' : 'INACTIVE',
                 ]);
             }
             fclose($handle);
@@ -111,13 +112,14 @@ class AdminStoreServiceabilityWebController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('name', 'ILIKE', "%{$s}%")
-                  ->orWhere('city', 'ILIKE', "%{$s}%")
-                  ->orWhere('code', 'ILIKE', "%{$s}%");
+                    ->orWhere('city', 'ILIKE', "%{$s}%")
+                    ->orWhere('code', 'ILIKE', "%{$s}%");
             });
         }
 
         $points = $query->paginate(15);
         $pickupPoints = $points;
+
         return view('admin.store.serviceability.pickup-points', compact('points', 'pickupPoints', 'search'));
     }
 
@@ -133,14 +135,14 @@ class AdminStoreServiceabilityWebController extends Controller
             'contact_person' => 'nullable|string|max:100',
             'contact_phone' => 'nullable|string|max:25',
             'operating_hours' => 'nullable|string|max:100',
-            'is_active' => 'nullable'
+            'is_active' => 'nullable',
         ]);
 
         $addressParts = array_filter([
             $request->address_line1,
             $request->address_line2,
             $request->city,
-            ($request->state ? $request->state : '') . ($request->pincode ? ' - ' . $request->pincode : '')
+            ($request->state ? $request->state : '').($request->pincode ? ' - '.$request->pincode : ''),
         ]);
         $fullAddress = implode(', ', $addressParts);
 
@@ -173,14 +175,14 @@ class AdminStoreServiceabilityWebController extends Controller
             'contact_person' => 'nullable|string|max:100',
             'contact_phone' => 'nullable|string|max:25',
             'operating_hours' => 'nullable|string|max:100',
-            'is_active' => 'nullable'
+            'is_active' => 'nullable',
         ]);
 
         $addressParts = array_filter([
             $request->address_line1,
             $request->address_line2,
             $request->city,
-            ($request->state ? $request->state : '') . ($request->pincode ? ' - ' . $request->pincode : '')
+            ($request->state ? $request->state : '').($request->pincode ? ' - '.$request->pincode : ''),
         ]);
         $fullAddress = count($addressParts) > 0 ? implode(', ', $addressParts) : $request->address_line1;
 
@@ -219,6 +221,7 @@ class AdminStoreServiceabilityWebController extends Controller
     public function banners(Request $request)
     {
         $banners = StoreBanner::orderBy('sort_order', 'asc')->paginate(15);
+
         return view('admin.store.serviceability.banners', compact('banners'));
     }
 
@@ -233,13 +236,14 @@ class AdminStoreServiceabilityWebController extends Controller
             'sort_order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
             'starts_at' => 'nullable|date',
-            'ends_at' => 'nullable|date|after_or_equal:starts_at'
+            'ends_at' => 'nullable|date|after_or_equal:starts_at',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
         $validated['sort_order'] = $validated['sort_order'] ?? 1;
 
         StoreBanner::create($validated);
+
         return back()->with('success', 'Store banner added.');
     }
 
@@ -256,7 +260,7 @@ class AdminStoreServiceabilityWebController extends Controller
             'sort_order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
             'starts_at' => 'nullable|date',
-            'ends_at' => 'nullable|date'
+            'ends_at' => 'nullable|date',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
@@ -283,4 +287,3 @@ class AdminStoreServiceabilityWebController extends Controller
         return back()->with('success', 'Store banner deleted.');
     }
 }
-

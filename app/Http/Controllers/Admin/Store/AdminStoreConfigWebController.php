@@ -6,17 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
 use App\Models\Store\PolicyPage;
 use App\Models\Store\StoreConfig;
+use App\Models\Store\StoreSupportTicket;
+use App\Models\Store\WalletAdjustmentRequest;
 use App\Services\Store\StoreConfigService;
 use App\Services\Store\StorePolicyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class AdminStoreConfigWebController extends Controller
 {
     protected StoreConfigService $configService;
+
     protected StorePolicyService $policyService;
 
     public function __construct(StoreConfigService $configService, StorePolicyService $policyService)
@@ -37,6 +41,7 @@ class AdminStoreConfigWebController extends Controller
             $configs[$c->config_key] = $c->config_value;
         }
         $maintenanceMode = ($configs['store_enabled'] ?? 'true') === 'false' || ($configs['maintenance_mode'] ?? 'false') === 'true';
+
         return view('admin.store.config.index', compact('configs', 'maintenanceMode'));
     }
 
@@ -57,7 +62,7 @@ class AdminStoreConfigWebController extends Controller
     public function toggleStoreStatus(Request $request)
     {
         $enabled = $request->input('store_enabled') === '1' || $request->input('maintenance_mode') === '0';
-        
+
         StoreConfig::updateOrCreate(
             ['config_key' => 'store_enabled'],
             ['config_value' => $enabled ? 'true' : 'false', 'updated_at' => now()]
@@ -67,7 +72,7 @@ class AdminStoreConfigWebController extends Controller
             ['config_value' => $enabled ? 'false' : 'true', 'updated_at' => now()]
         );
 
-        return back()->with('success', 'Store status changed to ' . ($enabled ? 'ACTIVE' : 'DISABLED (Maintenance Mode)'));
+        return back()->with('success', 'Store status changed to '.($enabled ? 'ACTIVE' : 'DISABLED (Maintenance Mode)'));
     }
 
     // ==========================================
@@ -80,33 +85,33 @@ class AdminStoreConfigWebController extends Controller
             'terms' => [
                 'title' => 'Peers Store Terms of Service',
                 'body' => "### 1. Acceptance of Terms\nWelcome to Peers Store. By browsing the merchandise catalog and redeeming Unity Coins, you agree to comply with and be bound by these official Store Terms of Service.\n\n### 2. Member Eligibility & Entitlements\n- Access to the store catalog is exclusively available to verified members of the Peers Global network.\n- Certain premium merchandise and VIP items may require leadership tier entitlements or circle milestone qualifications.\n\n### 3. Coin Valuation & Transactions\n- Unity Coins hold utility strictly within the Peers network and have no direct cash value outside authorized benefits.\n- All coin redemptions undergo maker-checker ledger reconciliation to safeguard network integrity.\n\n### 4. Order Limits & Fair Use\n- Maximum order quantity limits apply to high-demand merchandise to guarantee equal access for all members.\n- Commercial reselling or unauthorized automated checkout is strictly prohibited.",
-                'status' => 'PUBLISHED'
+                'status' => 'PUBLISHED',
             ],
             'return_policy' => [
                 'title' => 'Return, Replacement & Refund Policy',
                 'body' => "### 1. Return Window\nMembers can raise a return or replacement request within **7 calendar days** of order delivery through the mobile app or Helpdesk.\n\n### 2. Eligible Return Conditions\n- Item received in damaged, defective, or physically compromised condition.\n- Incorrect item variant, size, or color dispatched against the order confirmation.\n- Missing advertised accessories, manuals, or gift components.\n\n### 3. Inspection & Quality Check (QC)\n- Returned items must include original tags, packaging, and intact warranty seals.\n- Central Fulfillment Hub verifies parcels within **48 business hours** of receipt.\n\n### 4. Coin Refund Timeline\n- Upon QC approval, 100% of redeemed Unity Coins (Earned and Bonus portions) are automatically credited back to your Member Coin Wallet within **24 hours**.",
-                'status' => 'PUBLISHED'
+                'status' => 'PUBLISHED',
             ],
             'shipping_policy' => [
                 'title' => 'Shipping, Courier & Hub Pickup Policy',
                 'body' => "### 1. Dispatch Timelines\n- Orders confirmed on business days before 2:00 PM are packed and dispatched on the same day.\n- Standard doorstep delivery transit time is **3 to 5 business days** across serviceable pincodes.\n\n### 2. Logistics & Tracking\n- Courier shipments are fulfilled via Blue Dart, Delhivery, and express couriers with live SMS/app tracking.\n\n### 3. Central Pickup Points\n- Members selecting 'Self-Pickup' can collect parcels from their selected Central Pickup Hub during working hours (10:00 AM - 7:00 PM).\n- An OTP verification code sent to your registered mobile is required for parcel pickup handover.",
-                'status' => 'PUBLISHED'
+                'status' => 'PUBLISHED',
             ],
             'coin_redemption_policy' => [
                 'title' => 'Unity Coin Redemption & Spending Rules',
                 'body' => "### 1. Coin Categories\n- **Earned Coins**: Accumulated through authentic peer transactions, verified business references, and chapter impact.\n- **Bonus Coins**: Promotional coins granted during campaigns, milestones, and special recognitions.\n\n### 2. Redemption Ratio Cap\n- Up to **50%** of an order total can be settled using Bonus Coins, while the remainder is deducted from Earned Coins.\n- If Bonus Coins are unavailable, 100% of the total can be fulfilled with Earned Coins.\n\n### 3. Ledger Transparency\n- Every coin transaction produces an immutable record in `coins_ledger`. Balances are cryptographically checked against maker-checker controls.",
-                'status' => 'PUBLISHED'
+                'status' => 'PUBLISHED',
             ],
             'product_warranty_policy' => [
                 'title' => 'Product Warranty & Quality Standards',
                 'body' => "### 1. Certified Authentic Merchandise\n- All catalog items are 100% genuine, directly sourced from authorized brand distributors and audited vendors.\n\n### 2. Manufacturer Warranty Support\n- Branded electronics and premium products carry official manufacturer warranties valid pan-India.\n- Digital invoices and warranty claim certificates can be downloaded anytime from your Order History screen in the mobile app.",
-                'status' => 'PUBLISHED'
+                'status' => 'PUBLISHED',
             ],
             'order_cancellation_policy' => [
                 'title' => 'Order Cancellation & Modification Guidelines',
                 'body' => "### 1. Instant Cancellation\n- Orders can be cancelled instantly with zero deduction before the parcel enters the 'PACKED' or 'SHIPPED' state.\n- 100% of redeemed Unity Coins are instantly refunded back to the member wallet.\n\n### 2. In-Transit Orders\n- Once handed over to the courier partner, cancellation is no longer possible. Members may refuse delivery at doorstep to trigger return processing.\n\n### 3. Delivery Address Changes\n- Delivery address corrections can be made within 2 hours of order placement via the Support Helpdesk.",
-                'status' => 'PUBLISHED'
-            ]
+                'status' => 'PUBLISHED',
+            ],
         ];
 
         // Seed or update canonical records
@@ -139,9 +144,16 @@ class AdminStoreConfigWebController extends Controller
         $all = PolicyPage::orderBy('created_at', 'desc')->get();
         $policies = $all->unique(function ($item) {
             $k = str_replace('-', '_', $item->key);
-            if (in_array($k, ['return_refund', 'return_policy'])) return 'return_policy';
-            if (in_array($k, ['shipping_policy', 'shipping'])) return 'shipping_policy';
-            if (in_array($k, ['terms', 'terms_and_conditions'])) return 'terms';
+            if (in_array($k, ['return_refund', 'return_policy'])) {
+                return 'return_policy';
+            }
+            if (in_array($k, ['shipping_policy', 'shipping'])) {
+                return 'shipping_policy';
+            }
+            if (in_array($k, ['terms', 'terms_and_conditions'])) {
+                return 'terms';
+            }
+
             return $k;
         })->values();
 
@@ -174,7 +186,7 @@ class AdminStoreConfigWebController extends Controller
             ]);
             $msg = "Policy '{$policy->title}' updated to v{$policy->version}.";
         } else {
-            $key = $validated['key'] ?: \Illuminate\Support\Str::slug($validated['title'], '_');
+            $key = $validated['key'] ?: Str::slug($validated['title'], '_');
             $policy = PolicyPage::create([
                 'key' => $key,
                 'title' => $validated['title'],
@@ -213,7 +225,7 @@ class AdminStoreConfigWebController extends Controller
 
         $serverTime = now()->format('d M Y, h:i:s A');
 
-        $hasLowStockCol = \Illuminate\Support\Facades\Schema::hasColumn('product_variants', 'low_stock_threshold');
+        $hasLowStockCol = Schema::hasColumn('product_variants', 'low_stock_threshold');
         $lowStockQuery = DB::table('product_variants')->where('status', 'ACTIVE');
         if ($hasLowStockCol) {
             $lowStockQuery->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
@@ -222,8 +234,8 @@ class AdminStoreConfigWebController extends Controller
         }
         $lowStockAlertCount = $lowStockQuery->count();
 
-        $pendingAdjustmentsCount = \App\Models\Store\WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count();
-        $unresolvedTicketsCount = \App\Models\Store\StoreSupportTicket::whereIn('status', ['OPEN', 'open', 'IN_PROGRESS', 'in_progress'])->count();
+        $pendingAdjustmentsCount = WalletAdjustmentRequest::whereIn('status', ['PENDING', 'pending'])->count();
+        $unresolvedTicketsCount = StoreSupportTicket::whereIn('status', ['OPEN', 'open', 'IN_PROGRESS', 'in_progress'])->count();
 
         $health = [
             'Database (PostgreSQL)' => $dbStatus ? 'HEALTHY' : 'ERROR',
@@ -231,7 +243,7 @@ class AdminStoreConfigWebController extends Controller
             'Storage & Assets' => is_dir(storage_path('app/public')) ? 'HEALTHY' : 'WARNING',
             'Order State Machine' => 'HEALTHY',
             'Webhook Processor' => 'HEALTHY',
-            'Notification Delivery' => 'HEALTHY'
+            'Notification Delivery' => 'HEALTHY',
         ];
 
         return view('admin.store.config.system-health', compact(
@@ -260,7 +272,7 @@ class AdminStoreConfigWebController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('orders.order_no', 'ILIKE', "%{$search}%")
-                  ->orWhere('order_status_history.note', 'ILIKE', "%{$search}%");
+                    ->orWhere('order_status_history.note', 'ILIKE', "%{$search}%");
             });
         }
 

@@ -1,6 +1,6 @@
 <?php
 
-$sourcePath = __DIR__ . '/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md';
+$sourcePath = __DIR__.'/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md';
 $content = file_get_contents($sourcePath);
 
 // Parse all APIs from source
@@ -9,36 +9,42 @@ preg_match_all('/###\s*(\d+)\.\s*([^\r\n]+)(.*?)(?=(?:###\s*\d+\.|$))/s', $conte
 $apis = [];
 
 foreach ($rawMatches as $m) {
-    $num = (int)$m[1];
+    $num = (int) $m[1];
     $title = trim($m[2]);
     $rawBody = $m[3];
 
     // Method
     preg_match('/-\s*\*\*Method\*\*:\s*`?([A-Z]+)`?/i', $rawBody, $methodMatch);
-    $method = !empty($methodMatch[1]) ? strtoupper($methodMatch[1]) : 'GET';
+    $method = ! empty($methodMatch[1]) ? strtoupper($methodMatch[1]) : 'GET';
 
     // URL / Path
     preg_match('/-\s*\*\*URL\*\*:\s*`?([^`\r\n]+)`?/i', $rawBody, $urlMatch);
-    $rawUrl = !empty($urlMatch[1]) ? trim($urlMatch[1]) : '';
+    $rawUrl = ! empty($urlMatch[1]) ? trim($urlMatch[1]) : '';
     $path = preg_replace('/^https?:\/\/[^\/]+/i', '', $rawUrl);
-    if (empty($path)) $path = '/api/v1/store';
-    if (!str_starts_with($path, '/')) $path = '/' . $path;
-    if (!str_starts_with($path, '/api')) $path = '/api' . $path;
+    if (empty($path)) {
+        $path = '/api/v1/store';
+    }
+    if (! str_starts_with($path, '/')) {
+        $path = '/'.$path;
+    }
+    if (! str_starts_with($path, '/api')) {
+        $path = '/api'.$path;
+    }
 
     // Headers
     preg_match('/-\s*\*\*Headers\*\*:\s*([^\r\n]+)/i', $rawBody, $headersMatch);
-    $headers = !empty($headersMatch[1]) ? trim($headersMatch[1]) : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
+    $headers = ! empty($headersMatch[1]) ? trim($headersMatch[1]) : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
 
     // Request Body
     preg_match('/-\s*\*\*Request Body\*\*:\s*(?:`None`|None)?\s*(?:```(?:json)?\s*([\s\S]*?)```)?/i', $rawBody, $reqMatch);
-    $reqBody = !empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
+    $reqBody = ! empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
     if ($reqBody) {
         $reqBody = str_replace('https://...', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500', $reqBody);
     }
 
     // Response Body
     preg_match('/-\s*\*\*Response\*\*:\s*```(?:json)?\s*([\s\S]*?)```/i', $rawBody, $resMatch);
-    $resBody = !empty($resMatch[1]) ? trim($resMatch[1]) : null;
+    $resBody = ! empty($resMatch[1]) ? trim($resMatch[1]) : null;
     if ($resBody) {
         $resBody = str_replace('https://...', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500', $resBody);
     } else {
@@ -50,52 +56,52 @@ foreach ($rawMatches as $m) {
     preg_match('/-\s*\*\*ક્યારે\s*વપરાશે\s*\(Usage\)\*\*:\s*([^\r\n]+)/iu', $rawBody, $usageMatch);
 
     // Deep English Detailed Description & Flutter Architectural Guide
-    $detailedDescription = "";
-    $flutterGuide = "";
+    $detailedDescription = '';
+    $flutterGuide = '';
 
     // Generate comprehensive deep descriptions per module
     if ($num >= 1 && $num <= 6) {
-        $detailedDescription = "This endpoint manages the core wallet state, spendable coin balances, and app configuration for the authenticated peer. It queries the `users` and `coins_ledger` tables to provide an exact real-time split between Earned Coins (accumulated from verified business meetings and referrals) and Bonus Coins (granted by admin promotional campaigns). It also validates the minimum mobile application version requirement to enforce mandatory updates when breaking changes occur.";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Call this API in the Splash Screen or upon entering the Store Home tab. Store `coin_balance`, `earned_coins`, and `bonus_coins` in your global state (e.g., Riverpod / Bloc). If `current_app_version_supported` is false, show a non-dismissible Update Dialog directing the user to the Play Store / App Store.";
+        $detailedDescription = 'This endpoint manages the core wallet state, spendable coin balances, and app configuration for the authenticated peer. It queries the `users` and `coins_ledger` tables to provide an exact real-time split between Earned Coins (accumulated from verified business meetings and referrals) and Bonus Coins (granted by admin promotional campaigns). It also validates the minimum mobile application version requirement to enforce mandatory updates when breaking changes occur.';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Call this API in the Splash Screen or upon entering the Store Home tab. Store `coin_balance`, `earned_coins`, and `bonus_coins` in your global state (e.g., Riverpod / Bloc). If `current_app_version_supported` is false, show a non-dismissible Update Dialog directing the user to the Play Store / App Store.';
     } elseif ($num >= 7 && $num <= 10) {
-        $detailedDescription = "Retrieves the product catalog, active merchandise categories, and search results with multi-attribute filtering. Products support tiered coin pricing, thumbnail galleries, SKU variants (sizes, colors), and stock reservation counts. The response includes delivery eligibility indicators (Home Courier Delivery vs Central Pickup Point).";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Use this in the Store Catalog Grid. Implement a 300ms debounce on the search input field before firing API calls. Support infinite scroll pagination using `page` and `per_page` query parameters. Display a shimmer loading placeholder while data is fetching.";
+        $detailedDescription = 'Retrieves the product catalog, active merchandise categories, and search results with multi-attribute filtering. Products support tiered coin pricing, thumbnail galleries, SKU variants (sizes, colors), and stock reservation counts. The response includes delivery eligibility indicators (Home Courier Delivery vs Central Pickup Point).';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Use this in the Store Catalog Grid. Implement a 300ms debounce on the search input field before firing API calls. Support infinite scroll pagination using `page` and `per_page` query parameters. Display a shimmer loading placeholder while data is fetching.';
     } elseif ($num >= 11 && $num <= 18) {
-        $detailedDescription = "Manages persistent shopping cart operations stored in the `carts` and `cart_items` tables. Adding or updating items dynamically verifies product variant stock levels against `product_variants.stock_quantity`. Prevents peers from exceeding their monthly product purchase limits (`max_quantity_per_peer_month`) and computes real-time subtotal coin values.";
+        $detailedDescription = 'Manages persistent shopping cart operations stored in the `carts` and `cart_items` tables. Adding or updating items dynamically verifies product variant stock levels against `product_variants.stock_quantity`. Prevents peers from exceeding their monthly product purchase limits (`max_quantity_per_peer_month`) and computes real-time subtotal coin values.';
         $flutterGuide = "<strong>Flutter Integration:</strong> Call when user taps 'Add to Cart' or adjusts quantity (+/-) on the Cart screen. Provide optimistic UI updates for quantity changes, and roll back if the server returns a 422 validation error (such as insufficient stock).";
     } elseif ($num >= 19 && $num <= 24) {
-        $detailedDescription = "Handles customer shipping addresses and delivery serviceability verification. Checks postal pincodes against the `serviceable_pincodes` table to confirm courier partner coverage (BlueDart / Delhivery) and retrieves designated Peers Central Hub pickup locations with contact info and operational hours.";
+        $detailedDescription = 'Handles customer shipping addresses and delivery serviceability verification. Checks postal pincodes against the `serviceable_pincodes` table to confirm courier partner coverage (BlueDart / Delhivery) and retrieves designated Peers Central Hub pickup locations with contact info and operational hours.';
         $flutterGuide = "<strong>Flutter Integration:</strong> Trigger pincode verification as soon as the user enters a 6-digit postal code in the address form. If `serviceable` is false, display an inline warning and disable the 'Deliver to this address' option, prompting the user to select an alternative pickup hub.";
     } elseif ($num >= 25 && $num <= 28) {
-        $detailedDescription = "Generates a 15-minute locked valuation checkout quote (`checkout_quotes` table). Computes delivery coin surcharges, wallet deductions breakdown (Earned vs Bonus coins), and assesses whether an OTP challenge (`store_otp_challenges`) is mandatory for high-coin redemptions or first-time address deliveries.";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Call upon entering the Checkout screen. If `otp_required` is true, automatically transition the user to the OTP verification bottom sheet. Start a 15-minute countdown timer on screen matching `expires_at`.";
+        $detailedDescription = 'Generates a 15-minute locked valuation checkout quote (`checkout_quotes` table). Computes delivery coin surcharges, wallet deductions breakdown (Earned vs Bonus coins), and assesses whether an OTP challenge (`store_otp_challenges`) is mandatory for high-coin redemptions or first-time address deliveries.';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Call upon entering the Checkout screen. If `otp_required` is true, automatically transition the user to the OTP verification bottom sheet. Start a 15-minute countdown timer on screen matching `expires_at`.';
     } elseif ($num >= 29 && $num <= 33) {
-        $detailedDescription = "Atomically executes order placement inside a database transaction: deducts coin balances from the user wallet, creates credit/debit entries in `coins_ledger`, reserves inventory stock in `product_variants`, and creates an immutable order snapshot in `orders` and `order_items`.";
+        $detailedDescription = 'Atomically executes order placement inside a database transaction: deducts coin balances from the user wallet, creates credit/debit entries in `coins_ledger`, reserves inventory stock in `product_variants`, and creates an immutable order snapshot in `orders` and `order_items`.';
         $flutterGuide = "<strong>Flutter Integration:</strong> Attach an `Idempotency-Key` header with a unique UUID on 'Confirm Order' button click to prevent double-charging on network retries. On 201 Created, clear the local cart and navigate user to the Order Success screen.";
     } elseif ($num >= 34 && $num <= 38) {
-        $detailedDescription = "Provides real-time courier shipment tracking and official tax receipts. Retrieves courier name, Airway Bill (AWB) number, live tracking milestones (IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED), and renders structured invoice JSON for bookkeeping.";
+        $detailedDescription = 'Provides real-time courier shipment tracking and official tax receipts. Retrieves courier name, Airway Bill (AWB) number, live tracking milestones (IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED), and renders structured invoice JSON for bookkeeping.';
         $flutterGuide = "<strong>Flutter Integration:</strong> Use on the Order Details screen to draw an interactive timeline stepper of delivery status. Allow clicking the `tracking_url` to open the courier's live tracking web page in an in-app browser.";
     } elseif ($num >= 39 && $num <= 42) {
-        $detailedDescription = "Handles physical item returns and refunds. Allows peers to file a return within the 7-day delivery window (`return_window_days`), submit photographic proof of damaged goods, and track quality inspection status leading to automatic coin refund credits.";
+        $detailedDescription = 'Handles physical item returns and refunds. Allows peers to file a return within the 7-day delivery window (`return_window_days`), submit photographic proof of damaged goods, and track quality inspection status leading to automatic coin refund credits.';
         $flutterGuide = "<strong>Flutter Integration:</strong> Display a 'Return Item' button only when `orders.status == 'DELIVERED'` and the current date is within 7 days of delivery. On submission, display the return tracking timeline.";
     } elseif ($num >= 43 && $num <= 45) {
-        $detailedDescription = "Allows verified purchasers to submit 1 to 5 star ratings and written reviews on products. Reviews are stored in `product_reviews` and moderated before appearing on the public product catalog.";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Show an interactive 5-star rating bar on the delivered order screen. Validate that review text is at least 10 characters before enabling the submit button.";
+        $detailedDescription = 'Allows verified purchasers to submit 1 to 5 star ratings and written reviews on products. Reviews are stored in `product_reviews` and moderated before appearing on the public product catalog.';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Show an interactive 5-star rating bar on the delivered order screen. Validate that review text is at least 10 characters before enabling the submit button.';
     } elseif ($num >= 46 && $num <= 48) {
-        $detailedDescription = "Customer support ticketing system. Enables peers to open support tickets regarding delayed orders or store issues, attach images, and conduct real-time two-way messaging conversations with store administrators.";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Render a chat-like message thread for ticket messages. Poll or listen on WebSocket channels for incoming admin replies.";
+        $detailedDescription = 'Customer support ticketing system. Enables peers to open support tickets regarding delayed orders or store issues, attach images, and conduct real-time two-way messaging conversations with store administrators.';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Render a chat-like message thread for ticket messages. Poll or listen on WebSocket channels for incoming admin replies.';
     } elseif ($num >= 49 && $num <= 55) {
-        $detailedDescription = "Store membership passes (Gold / Silver) and official legal policies. Allows peers to subscribe to store privilege passes for zero delivery charges, early product drops, and view published Terms & Conditions.";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Display Gold & Silver Pass benefit comparison cards on the Membership screen. On purchase, deduct coins and refresh user entitlement state.";
+        $detailedDescription = 'Store membership passes (Gold / Silver) and official legal policies. Allows peers to subscribe to store privilege passes for zero delivery charges, early product drops, and view published Terms & Conditions.';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Display Gold & Silver Pass benefit comparison cards on the Membership screen. On purchase, deduct coins and refresh user entitlement state.';
     } elseif ($num >= 56 && $num <= 58) {
-        $detailedDescription = "Digital library entitlement management. Checks active user licenses for eBooks, masterclasses, and PDF assets in the `entitlements` table and generates secure, time-expiring signed download URLs.";
+        $detailedDescription = 'Digital library entitlement management. Checks active user licenses for eBooks, masterclasses, and PDF assets in the `entitlements` table and generates secure, time-expiring signed download URLs.';
         $flutterGuide = "<strong>Flutter Integration:</strong> Use in 'My Digital Library' tab. When user taps 'Read PDF' or 'Download', open the signed content URL directly in the in-app PDF viewer.";
     } elseif ($num >= 59 && $num <= 64) {
-        $detailedDescription = "In-app notifications and event logs. Delivers real-time push/in-app alerts for order dispatches, coin credits, return approvals, and supports marking notifications as read.";
-        $flutterGuide = "<strong>Flutter Integration:</strong> Show unread badge count on the notification bell icon. Tapping a notification routes the user directly to the relevant Order or Return screen.";
+        $detailedDescription = 'In-app notifications and event logs. Delivers real-time push/in-app alerts for order dispatches, coin credits, return approvals, and supports marking notifications as read.';
+        $flutterGuide = '<strong>Flutter Integration:</strong> Show unread badge count on the notification bell icon. Tapping a notification routes the user directly to the relevant Order or Return screen.';
     } else {
-        $detailedDescription = "Admin Management Portal API: Provides operations for catalog creation, inventory stock movements, warehouse AWB shipment creation, return quality inspections, maker-checker wallet approvals, and financial reconciliation exports.";
-        $flutterGuide = "<strong>Admin Web / Portal Integration:</strong> Requires Admin Sanctum token with authorized roles. Handles table updates, filter queries, and paginated audit reporting.";
+        $detailedDescription = 'Admin Management Portal API: Provides operations for catalog creation, inventory stock movements, warehouse AWB shipment creation, return quality inspections, maker-checker wallet approvals, and financial reconciliation exports.';
+        $flutterGuide = '<strong>Admin Web / Portal Integration:</strong> Requires Admin Sanctum token with authorized roles. Handles table updates, filter queries, and paginated audit reporting.';
     }
 
     $apis[] = [
@@ -103,7 +109,7 @@ foreach ($rawMatches as $m) {
         'title' => $title,
         'method' => $method,
         'path' => $path,
-        'localUrl' => 'http://localhost:8000' . $path,
+        'localUrl' => 'http://localhost:8000'.$path,
         'headers' => $headers,
         'reqBody' => $reqBody,
         'resBody' => $resBody,
@@ -531,15 +537,15 @@ ob_start();
             <input type="text" id="apiSearch" placeholder="Search API by number, name, path..." onkeyup="filterApis()">
         </div>
         <nav class="sidebar-nav" id="sidebarNav">
-            <?php foreach ($apis as $api): ?>
-                <?php 
-                    $methodClass = 'method-' . strtolower($api['method']);
+            <?php foreach ($apis as $api) { ?>
+                <?php
+                    $methodClass = 'method-'.strtolower($api['method']);
                 ?>
                 <a href="#api-<?= $api['num'] ?>" class="nav-item">
                     <span class="method-badge <?= $methodClass ?>"><?= htmlspecialchars($api['method']) ?></span>
                     <span><?= $api['num'] ?>. <?= htmlspecialchars($api['title']) ?></span>
                 </a>
-            <?php endforeach; ?>
+            <?php } ?>
         </nav>
     </aside>
 
@@ -582,9 +588,9 @@ ob_start();
         </section>
 
         <!-- RENDER ALL 137 APIS SEQUENTIALLY -->
-        <?php foreach ($apis as $api): ?>
-            <?php 
-                $methodClass = 'method-' . strtolower($api['method']);
+        <?php foreach ($apis as $api) { ?>
+            <?php
+                $methodClass = 'method-'.strtolower($api['method']);
             ?>
             <article class="api-card" id="api-<?= $api['num'] ?>">
                 <div class="api-header">
@@ -623,19 +629,19 @@ ob_start();
                 </div>
 
                 <!-- Request Body (if any) -->
-                <?php if (!empty($api['reqBody'])): ?>
+                <?php if (! empty($api['reqBody'])) { ?>
                     <div class="api-section-title">Request Body (JSON)</div>
                     <pre class="code-block"><?= htmlspecialchars($api['reqBody']) ?></pre>
-                <?php else: ?>
+                <?php } else { ?>
                     <div class="api-section-title">Request Body</div>
                     <div style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 12px;">No request body required (GET Request / URL & Query Parameters only).</div>
-                <?php endif; ?>
+                <?php } ?>
 
                 <!-- Response Body -->
                 <div class="api-section-title">Full Success Response Example (JSON)</div>
                 <pre class="code-block"><?= htmlspecialchars($api['resBody']) ?></pre>
             </article>
-        <?php endforeach; ?>
+        <?php } ?>
 
     </main>
 
@@ -668,7 +674,7 @@ ob_start();
 </html>
 <?php
 $htmlContent = ob_get_clean();
-file_put_contents(__DIR__ . '/../public/peers_store_137_apis_documentation.html', $htmlContent);
+file_put_contents(__DIR__.'/../public/peers_store_137_apis_documentation.html', $htmlContent);
 
 // Also generate markdown
 $mdOut = "# 🚀 Peers Global Unity — All 137 Store & Coin Wallet APIs (Official Master Guide)\n\n";
@@ -684,9 +690,9 @@ foreach ($apis as $api) {
     $mdOut .= "- **Endpoint Path**: `{$api['path']}`\n";
     $mdOut .= "- **Local URL**: `{$api['localUrl']}`\n";
     $mdOut .= "- **Developer Purpose & Overview**: {$api['detailedDescription']}\n";
-    $mdOut .= "- **Flutter / Frontend Integration Guide**: " . strip_tags($api['flutterGuide']) . "\n";
+    $mdOut .= '- **Flutter / Frontend Integration Guide**: '.strip_tags($api['flutterGuide'])."\n";
     $mdOut .= "- **Headers**: `{$api['headers']}`\n";
-    if (!empty($api['reqBody'])) {
+    if (! empty($api['reqBody'])) {
         $mdOut .= "- **Request Body (JSON)**:\n```json\n{$api['reqBody']}\n```\n";
     } else {
         $mdOut .= "- **Request Body**: `None`\n";
@@ -695,5 +701,5 @@ foreach ($apis as $api) {
     $mdOut .= "---\n\n";
 }
 
-file_put_contents(__DIR__ . '/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md', $mdOut);
+file_put_contents(__DIR__.'/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md', $mdOut);
 echo "Successfully updated both HTML and Markdown documentation for all 137 APIs.\n";

@@ -3,48 +3,53 @@
 // Ensure memory limit is sufficient
 ini_set('memory_limit', '512M');
 
-$sourcePath = __DIR__ . '/../docs/api/PEERS_STORE_137_APIS_COMPLETE_ENGLISH_DOC.md';
+$sourcePath = __DIR__.'/../docs/api/PEERS_STORE_137_APIS_COMPLETE_ENGLISH_DOC.md';
 $content = file_get_contents($sourcePath);
 
 preg_match_all('/###\s*(\d+)\.\s*([^\r\n]+)(.*?)(?=(?:###\s*\d+\.|$))/s', $content, $rawMatches, PREG_SET_ORDER);
 
 // Detailed individual 137 API knowledge base
-require_once __DIR__ . '/api_descriptions_data.php';
+require_once __DIR__.'/api_descriptions_data.php';
 
 $apis = [];
 
 foreach ($rawMatches as $m) {
-    $num = (int)$m[1];
+    $num = (int) $m[1];
     $title = trim($m[2]);
     $rawBody = $m[3];
 
     // Method
     preg_match('/-\s*\*\*Method\*\*:\s*`?([A-Z]+)`?/i', $rawBody, $methodMatch);
-    $method = !empty($methodMatch[1]) ? strtoupper($methodMatch[1]) : 'GET';
+    $method = ! empty($methodMatch[1]) ? strtoupper($methodMatch[1]) : 'GET';
 
     // URL / Path
     preg_match('/-\s*\*\*(?:Live|Local)?\s*URL\*\*:\s*`?([^`\r\n]+)`?/i', $rawBody, $urlMatch);
-    $rawUrl = !empty($urlMatch[1]) ? trim($urlMatch[1]) : '';
+    $rawUrl = ! empty($urlMatch[1]) ? trim($urlMatch[1]) : '';
     $path = preg_replace('/^https?:\/\/[^\/]+/i', '', $rawUrl);
-    if (empty($path)) $path = '/api/v1/store';
-    if (!str_starts_with($path, '/')) $path = '/' . $path;
-    if (!str_starts_with($path, '/api')) $path = '/api' . $path;
+    if (empty($path)) {
+        $path = '/api/v1/store';
+    }
+    if (! str_starts_with($path, '/')) {
+        $path = '/'.$path;
+    }
+    if (! str_starts_with($path, '/api')) {
+        $path = '/api'.$path;
+    }
 
     // Headers
     preg_match('/-\s*\*\*Headers\*\*:\s*([^\r\n]+)/i', $rawBody, $headersMatch);
-    $headers = !empty($headersMatch[1]) ? trim(trim($headersMatch[1]), '`') : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
-
+    $headers = ! empty($headersMatch[1]) ? trim(trim($headersMatch[1]), '`') : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
 
     // Request Body
     preg_match('/-\s*\*\*Request Body\*\*:\s*(?:`None`|None)?\s*(?:```(?:json)?\s*([\s\S]*?)```)?/i', $rawBody, $reqMatch);
-    $reqBody = !empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
+    $reqBody = ! empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
     if ($reqBody) {
         $reqBody = str_replace('https://...', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500', $reqBody);
     }
 
     // Response Body
     preg_match('/-\s*\*\*Response\s*(?:\(JSON\))?\*\*:\s*```(?:json)?\s*([\s\S]*?)```/i', $rawBody, $resMatch);
-    $resBody = !empty($resMatch[1]) ? trim($resMatch[1]) : null;
+    $resBody = ! empty($resMatch[1]) ? trim($resMatch[1]) : null;
     if ($resBody) {
         $resBody = str_replace('https://...', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500', $resBody);
     } else {
@@ -64,11 +69,11 @@ foreach ($rawMatches as $m) {
         'resBody' => $resBody,
         'purpose' => $customInfo['purpose'],
         'flutter' => $customInfo['flutter'],
-        'category' => $customInfo['category']
+        'category' => $customInfo['category'],
     ];
 }
 
-echo "Loaded " . count($apis) . " API entries with unique metadata.\n";
+echo 'Loaded '.count($apis)." API entries with unique metadata.\n";
 
 // 1. Build Markdown File
 $md = "# 🚀 Peers Global Unity — All 137 Store & Coin Wallet APIs (Official Master Guide)\n\n";
@@ -86,15 +91,15 @@ foreach ($apis as $num => $a) {
     $md .= "- **Flutter / Frontend Integration Guide**: {$a['flutter']}\n";
     $md .= "- **Headers**: `{$a['headers']}`\n";
     if ($a['reqBody']) {
-        $md .= "- **Request Body**:\n```json\n" . $a['reqBody'] . "\n```\n";
+        $md .= "- **Request Body**:\n```json\n".$a['reqBody']."\n```\n";
     } else {
         $md .= "- **Request Body**: `None`\n";
     }
-    $md .= "- **Success Response (JSON)**:\n```json\n" . $a['resBody'] . "\n```\n\n";
+    $md .= "- **Success Response (JSON)**:\n```json\n".$a['resBody']."\n```\n\n";
     $md .= "---\n\n";
 }
 
-file_put_contents(__DIR__ . '/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md', $md);
+file_put_contents(__DIR__.'/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md', $md);
 echo "Successfully generated docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md\n";
 
 // 2. Build Interactive HTML File
@@ -631,7 +636,7 @@ foreach ($apis as $num => $a) {
         $escapedReq = htmlspecialchars($a['reqBody'], ENT_QUOTES, 'UTF-8');
         $reqBlock = '<div class="code-container">
             <div class="code-header"><span>Request Body (JSON)</span></div>
-            <pre><code>' . $escapedReq . '</code></pre>
+            <pre><code>'.$escapedReq.'</code></pre>
         </div>';
     }
 
@@ -640,41 +645,41 @@ foreach ($apis as $num => $a) {
     $escapedFlutter = $a['flutter']; // Contains strong HTML tags
 
     $html .= '
-    <article class="api-card" data-category="' . htmlspecialchars($a['category']) . '" data-text="' . htmlspecialchars(strtolower($a['title'] . ' ' . $a['method'] . ' ' . $a['path'] . ' ' . $a['category'])) . '">
+    <article class="api-card" data-category="'.htmlspecialchars($a['category']).'" data-text="'.htmlspecialchars(strtolower($a['title'].' '.$a['method'].' '.$a['path'].' '.$a['category'])).'">
         <div class="api-header">
             <div class="api-id-title">
-                <div class="api-number">#' . $num . '</div>
-                <h3 class="api-title">' . htmlspecialchars($a['title']) . '</h3>
+                <div class="api-number">#'.$num.'</div>
+                <h3 class="api-title">'.htmlspecialchars($a['title']).'</h3>
             </div>
-            <span class="api-category-badge">' . htmlspecialchars($a['category']) . '</span>
+            <span class="api-category-badge">'.htmlspecialchars($a['category']).'</span>
             <div class="endpoint-row">
-                <span class="http-badge http-' . $a['method'] . '">' . $a['method'] . '</span>
-                <span class="endpoint-path">' . htmlspecialchars($a['path']) . '</span>
+                <span class="http-badge http-'.$a['method'].'">'.$a['method'].'</span>
+                <span class="endpoint-path">'.htmlspecialchars($a['path']).'</span>
             </div>
         </div>
         <div class="api-body">
             <div class="info-block">
                 <div class="block-title"><span>📘</span> Developer Purpose & Deep Technical Overview</div>
-                <div class="block-text">' . $escapedPurpose . '</div>
+                <div class="block-text">'.$escapedPurpose.'</div>
             </div>
 
             <div class="info-block flutter">
                 <div class="block-title"><span>📱</span> Flutter & Frontend Integration Guide</div>
-                <div class="block-text">' . $escapedFlutter . '</div>
+                <div class="block-text">'.$escapedFlutter.'</div>
             </div>
 
             <div class="meta-grid">
                 <div class="meta-item">
                     <span class="meta-label">Headers:</span>
-                    <span class="meta-val">' . htmlspecialchars($a['headers']) . '</span>
+                    <span class="meta-val">'.htmlspecialchars($a['headers']).'</span>
                 </div>
             </div>
 
-            ' . $reqBlock . '
+            '.$reqBlock.'
 
             <div class="code-container">
                 <div class="code-header"><span>Success Response (JSON)</span></div>
-                <pre><code>' . $escapedRes . '</code></pre>
+                <pre><code>'.$escapedRes.'</code></pre>
             </div>
         </div>
     </article>';
@@ -715,6 +720,5 @@ $html .= '
 </body>
 </html>';
 
-file_put_contents(__DIR__ . '/../public/peers_store_137_apis_documentation.html', $html);
+file_put_contents(__DIR__.'/../public/peers_store_137_apis_documentation.html', $html);
 echo "Successfully generated public/peers_store_137_apis_documentation.html\n";
-

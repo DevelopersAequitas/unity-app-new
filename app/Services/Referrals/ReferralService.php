@@ -192,6 +192,23 @@ class ReferralService
                     ->first();
 
                 if (! $link) {
+                    $userWithCode = User::query()
+                        ->where('referral_code', $normalized)
+                        ->orWhere('id', $normalized)
+                        ->first();
+
+                    if ($userWithCode) {
+                        $this->generateOrGetReferral($userWithCode);
+                        $link = DB::table('referral_links')
+                            ->where($codeColumn, $normalized)
+                            ->first()
+                            ?? DB::table('referral_links')
+                                ->where($userColumn, (string) $userWithCode->id)
+                                ->first();
+                    }
+                }
+
+                if (! $link) {
                     throw ValidationException::withMessages([
                         'referral_code' => ['The selected referral code is invalid.'],
                     ]);

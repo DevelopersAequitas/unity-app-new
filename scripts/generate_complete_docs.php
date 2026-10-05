@@ -1,6 +1,6 @@
 <?php
 
-$mdPath = __DIR__ . '/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md';
+$mdPath = __DIR__.'/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md';
 $content = file_get_contents($mdPath);
 
 // Regex split by ### <number>. <Title>
@@ -9,78 +9,78 @@ preg_match_all('/###\s*(\d+)\.\s*([^\r\n]+)(.*?)(?=(?:###\s*\d+\.|$))/s', $conte
 $apis = [];
 
 foreach ($matches as $m) {
-    $num = (int)$m[1];
+    $num = (int) $m[1];
     $title = trim($m[2]);
     $body = $m[3];
 
     // Method
     preg_match('/-\s*\*\*Method\*\*:\s*`?([A-Z]+)`?/i', $body, $methodMatch);
-    $method = !empty($methodMatch[1]) ? strtoupper($methodMatch[1]) : 'GET';
+    $method = ! empty($methodMatch[1]) ? strtoupper($methodMatch[1]) : 'GET';
 
     // URL
     preg_match('/-\s*\*\*URL\*\*:\s*`?([^`\r\n]+)`?/i', $body, $urlMatch);
-    $rawUrl = !empty($urlMatch[1]) ? trim($urlMatch[1]) : '';
+    $rawUrl = ! empty($urlMatch[1]) ? trim($urlMatch[1]) : '';
     $path = preg_replace('/^https?:\/\/[^\/]+/i', '', $rawUrl);
     if (empty($path)) {
         $path = '/api/v1/store';
     }
-    if (!str_starts_with($path, '/')) {
-        $path = '/' . $path;
+    if (! str_starts_with($path, '/')) {
+        $path = '/'.$path;
     }
-    if (!str_starts_with($path, '/api')) {
-        $path = '/api' . $path;
+    if (! str_starts_with($path, '/api')) {
+        $path = '/api'.$path;
     }
 
-    $localUrl = 'http://localhost:8000' . $path;
-    $liveUrl = 'https://api.peersglobalunity.com' . $path;
+    $localUrl = 'http://localhost:8000'.$path;
+    $liveUrl = 'https://api.peersglobalunity.com'.$path;
 
     // Purpose / Description
     preg_match('/-\s*\*\*Purpose\*\*:\s*([^\r\n]+)/i', $body, $purposeMatch);
-    $purpose = !empty($purposeMatch[1]) ? trim($purposeMatch[1]) : 'Process store and coin wallet transaction for the authenticated user.';
+    $purpose = ! empty($purposeMatch[1]) ? trim($purposeMatch[1]) : 'Process store and coin wallet transaction for the authenticated user.';
 
     // Headers
     preg_match('/-\s*\*\*Headers\*\*:\s*([^\r\n]+)/i', $body, $headersMatch);
-    $headers = !empty($headersMatch[1]) ? trim($headersMatch[1]) : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
+    $headers = ! empty($headersMatch[1]) ? trim($headersMatch[1]) : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
 
     // Request Body JSON
     preg_match('/-\s*\*\*Request Body\*\*:\s*(?:`None`|None)?\s*(?:```(?:json)?\s*([\s\S]*?)```)?/i', $body, $reqMatch);
-    $reqBody = !empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
+    $reqBody = ! empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
 
     // Response JSON
     preg_match('/-\s*\*\*Response\*\*:\s*```(?:json)?\s*([\s\S]*?)```/i', $body, $resMatch);
-    $resBody = !empty($resMatch[1]) ? trim($resMatch[1]) : "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {}\n}";
+    $resBody = ! empty($resMatch[1]) ? trim($resMatch[1]) : "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {}\n}";
 
     // Generate Deep English Flutter / Frontend description based on API number and purpose
-    $flutterUsage = "Trigger this API from the Flutter mobile app / Web client when user interacts with this feature. Handles state validation, token authentication, and data synchronization.";
-    
+    $flutterUsage = 'Trigger this API from the Flutter mobile app / Web client when user interacts with this feature. Handles state validation, token authentication, and data synchronization.';
+
     if ($num >= 1 && $num <= 4) {
-        $flutterUsage = "Call during mobile app splash/home initial load or Wallet Screen. Use response to populate store banners, verify app version compatibility, and render total spendable vs earned/bonus coins.";
+        $flutterUsage = 'Call during mobile app splash/home initial load or Wallet Screen. Use response to populate store banners, verify app version compatibility, and render total spendable vs earned/bonus coins.';
     } elseif ($num >= 5 && $num <= 10) {
-        $flutterUsage = "Call in Store Catalog & Search screens. Use for horizontal category chips, infinite scroll product grids, search debounce filtering, and product detail viewing.";
+        $flutterUsage = 'Call in Store Catalog & Search screens. Use for horizontal category chips, infinite scroll product grids, search debounce filtering, and product detail viewing.';
     } elseif ($num >= 11 && $num <= 18) {
-        $flutterUsage = "Call in Shopping Cart screen. Manage cart items quantity (+/-), stock reserve verification, item removal, and auto-subtotal calculation.";
+        $flutterUsage = 'Call in Shopping Cart screen. Manage cart items quantity (+/-), stock reserve verification, item removal, and auto-subtotal calculation.';
     } elseif ($num >= 19 && $num <= 24) {
-        $flutterUsage = "Call in Checkout Delivery Address & Pincode checker. Manage user saved addresses, set default shipping address, check courier courier delivery SLA, or select central pickup points.";
+        $flutterUsage = 'Call in Checkout Delivery Address & Pincode checker. Manage user saved addresses, set default shipping address, check courier courier delivery SLA, or select central pickup points.';
     } elseif ($num >= 25 && $num <= 28) {
-        $flutterUsage = "Call when user enters Checkout screen. Generates a temporary 15-minute valuation quote locking prices and delivery charges. Triggers SMS/In-app OTP challenge if high-value coin redemption is detected.";
+        $flutterUsage = 'Call when user enters Checkout screen. Generates a temporary 15-minute valuation quote locking prices and delivery charges. Triggers SMS/In-app OTP challenge if high-value coin redemption is detected.';
     } elseif ($num >= 29 && $num <= 33) {
         $flutterUsage = "Call on 'Place Order' or 'Cancel Order' button click. Deducts coins atomically in DB transaction, transitions order lifecycle from CONFIRMED to SHIPPED/DELIVERED/CANCELLED.";
     } elseif ($num >= 34 && $num <= 38) {
-        $flutterUsage = "Call in Order Details & Fulfillment screen. Displays live AWB tracking milestones (IN_TRANSIT, DELIVERED) and allows downloading official tax receipts & invoices.";
+        $flutterUsage = 'Call in Order Details & Fulfillment screen. Displays live AWB tracking milestones (IN_TRANSIT, DELIVERED) and allows downloading official tax receipts & invoices.';
     } elseif ($num >= 39 && $num <= 42) {
-        $flutterUsage = "Call in Return Request flow. Allows peers to file a return within 7 days of physical item delivery, upload reason details, and track refund credit status.";
+        $flutterUsage = 'Call in Return Request flow. Allows peers to file a return within 7 days of physical item delivery, upload reason details, and track refund credit status.';
     } elseif ($num >= 43 && $num <= 45) {
-        $flutterUsage = "Call on Product Detail Review section. Allows verified buyers to submit 1-5 star ratings, feedback reviews, and view aggregated ratings.";
+        $flutterUsage = 'Call on Product Detail Review section. Allows verified buyers to submit 1-5 star ratings, feedback reviews, and view aggregated ratings.';
     } elseif ($num >= 46 && $num <= 48) {
-        $flutterUsage = "Call in Customer Support screen. Open inquiries regarding delayed orders, send two-way conversation messages with admin support executives.";
+        $flutterUsage = 'Call in Customer Support screen. Open inquiries regarding delayed orders, send two-way conversation messages with admin support executives.';
     } elseif ($num >= 49 && $num <= 55) {
-        $flutterUsage = "Call in Membership & Legal Policy screens. Display Gold/Silver Pass benefits, purchase membership with coin wallet, and display Terms & Return Policies.";
+        $flutterUsage = 'Call in Membership & Legal Policy screens. Display Gold/Silver Pass benefits, purchase membership with coin wallet, and display Terms & Return Policies.';
     } elseif ($num >= 56 && $num <= 58) {
         $flutterUsage = "Call in 'My Digital Library' tab. Fetch secure signed download URLs for purchased eBooks, masterclass PDF assets, and verify course access permissions.";
     } elseif ($num >= 59 && $num <= 64) {
-        $flutterUsage = "Call in User Notification Feed. Fetch real-time order status updates, coin credit/debit alerts, and mark notification logs as read.";
+        $flutterUsage = 'Call in User Notification Feed. Fetch real-time order status updates, coin credit/debit alerts, and mark notification logs as read.';
     } else {
-        $flutterUsage = "Admin Portal execution: Used by management & warehouse dispatch operators for catalog maintenance, stock adjustments, AWB creation, returns inspection, maker-checker wallet approvals, and financial report exports.";
+        $flutterUsage = 'Admin Portal execution: Used by management & warehouse dispatch operators for catalog maintenance, stock adjustments, AWB creation, returns inspection, maker-checker wallet approvals, and financial report exports.';
     }
 
     $apis[] = [
@@ -521,15 +521,15 @@ ob_start();
             <input type="text" id="apiSearch" placeholder="Search API by number, name, path..." onkeyup="filterApis()">
         </div>
         <nav class="sidebar-nav" id="sidebarNav">
-            <?php foreach ($apis as $api): ?>
-                <?php 
-                    $methodClass = 'method-' . strtolower($api['method']);
+            <?php foreach ($apis as $api) { ?>
+                <?php
+                    $methodClass = 'method-'.strtolower($api['method']);
                 ?>
                 <a href="#api-<?= $api['num'] ?>" class="nav-item">
                     <span class="method-badge <?= $methodClass ?>"><?= htmlspecialchars($api['method']) ?></span>
                     <span><?= $api['num'] ?>. <?= htmlspecialchars($api['title']) ?></span>
                 </a>
-            <?php endforeach; ?>
+            <?php } ?>
         </nav>
     </aside>
 
@@ -572,9 +572,9 @@ ob_start();
         </section>
 
         <!-- RENDER ALL 137 APIS SEQUENTIALLY -->
-        <?php foreach ($apis as $api): ?>
-            <?php 
-                $methodClass = 'method-' . strtolower($api['method']);
+        <?php foreach ($apis as $api) { ?>
+            <?php
+                $methodClass = 'method-'.strtolower($api['method']);
             ?>
             <article class="api-card" id="api-<?= $api['num'] ?>">
                 <div class="api-header">
@@ -612,19 +612,19 @@ ob_start();
                 </div>
 
                 <!-- Request Body (if any) -->
-                <?php if (!empty($api['reqBody'])): ?>
+                <?php if (! empty($api['reqBody'])) { ?>
                     <div class="api-section-title">Request Body (JSON)</div>
                     <pre class="code-block"><?= htmlspecialchars($api['reqBody']) ?></pre>
-                <?php else: ?>
+                <?php } else { ?>
                     <div class="api-section-title">Request Body</div>
                     <div style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 12px;">No request body required (Query parameters or URL parameter only).</div>
-                <?php endif; ?>
+                <?php } ?>
 
                 <!-- Response Body -->
                 <div class="api-section-title">Success Response Example</div>
                 <pre class="code-block"><?= htmlspecialchars($api['resBody']) ?></pre>
             </article>
-        <?php endforeach; ?>
+        <?php } ?>
 
     </main>
 
@@ -657,5 +657,5 @@ ob_start();
 </html>
 <?php
 $htmlContent = ob_get_clean();
-file_put_contents(__DIR__ . '/../public/peers_store_137_apis_documentation.html', $htmlContent);
-echo "Successfully generated HTML documentation with " . count($apis) . " APIs.\n";
+file_put_contents(__DIR__.'/../public/peers_store_137_apis_documentation.html', $htmlContent);
+echo 'Successfully generated HTML documentation with '.count($apis)." APIs.\n";

@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class StoreReconciliationCommand extends Command
 {
     protected $signature = 'store:reconcile-wallets';
+
     protected $description = 'Perform nightly wallet reconciliation comparing cached balance against coins ledger';
 
     public function handle(StoreReconciliationService $service): int
@@ -17,6 +18,7 @@ class StoreReconciliationCommand extends Command
 
         if ($result['status'] === 'OK') {
             $this->info('All peer wallets reconciled perfectly with coins ledger! (0 mismatches)');
+
             return 0;
         }
 

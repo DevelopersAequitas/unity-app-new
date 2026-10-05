@@ -319,7 +319,7 @@ class LeaderMemberController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => ucfirst(str_replace('_', ' ', $activityType)) . ' fetched successfully.',
+            'message' => ucfirst(str_replace('_', ' ', $activityType)).' fetched successfully.',
             'data' => $result['data'],
             'meta' => $result['meta'],
         ]);

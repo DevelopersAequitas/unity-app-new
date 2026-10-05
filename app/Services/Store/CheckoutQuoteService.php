@@ -4,7 +4,6 @@ namespace App\Services\Store;
 
 use App\Constants\StoreErrorCodes;
 use App\Models\Store\Address;
-use App\Models\Store\Cart;
 use App\Models\Store\CheckoutQuote;
 use App\Models\Store\CheckoutQuoteItem;
 use App\Models\Store\PickupPoint;
@@ -19,7 +18,9 @@ use Illuminate\Support\Str;
 class CheckoutQuoteService
 {
     protected CartService $cartService;
+
     protected ServiceabilityService $serviceabilityService;
+
     protected StoreWalletService $walletService;
 
     public function __construct(
@@ -119,7 +120,7 @@ class CheckoutQuoteService
             $quoteItems[] = [
                 'product_id' => $product->id,
                 'variant_id' => $variant ? $variant->id : null,
-                'name' => $product->name . ($variant ? " ({$variant->name})" : ''),
+                'name' => $product->name.($variant ? " ({$variant->name})" : ''),
                 'quantity' => $cartItem->quantity,
                 'unit_price_coins' => $unitPrice,
                 'total_price_coins' => $lineTotal,
@@ -143,7 +144,7 @@ class CheckoutQuoteService
         $quoteExpiryMinutes = (int) StoreConfig::getValue('quote_expiry_minutes', 15);
         $expiresAt = now()->addMinutes($quoteExpiryMinutes);
 
-        $quoteNo = 'QUO-' . strtoupper(Str::random(10));
+        $quoteNo = 'QUO-'.strtoupper(Str::random(10));
 
         $quote = DB::transaction(function () use (
             $user,

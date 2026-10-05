@@ -14,7 +14,7 @@ class StoreSupportService
 {
     public function createTicket(User $user, array $data): StoreSupportTicket
     {
-        $ticketNo = 'TICK-' . strtoupper(Str::random(8));
+        $ticketNo = 'TICK-'.strtoupper(Str::random(8));
 
         $ticket = StoreSupportTicket::create([
             'ticket_no' => $ticketNo,

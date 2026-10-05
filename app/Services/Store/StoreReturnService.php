@@ -5,7 +5,6 @@ namespace App\Services\Store;
 use App\Constants\StoreErrorCodes;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
-use App\Models\Store\OrderItem;
 use App\Models\Store\ReturnPhoto;
 use App\Models\Store\StoreConfig;
 use App\Models\Store\StoreReturn;
@@ -50,7 +49,7 @@ class StoreReturnService
             }
         }
 
-        $returnNo = 'RET-' . strtoupper(Str::random(10));
+        $returnNo = 'RET-'.strtoupper(Str::random(10));
 
         return DB::transaction(function () use ($user, $order, $returnNo, $data) {
             $return = StoreReturn::create([

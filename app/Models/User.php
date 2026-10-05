@@ -708,7 +708,6 @@ class User extends Authenticatable
         return $this->email;
     }
 
-
     public function getPhoneNumberAttribute(): ?string
     {
         return $this->phone;

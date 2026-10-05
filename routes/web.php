@@ -948,7 +948,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
 
         // ── Peers Store Admin Module ──────────────────────────────
-        require __DIR__ . '/admin_store_web.php';
+        require __DIR__.'/admin_store_web.php';
     });
 });
-

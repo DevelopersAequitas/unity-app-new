@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1\Store;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\CoinsLedger;
 use App\Models\User;
-use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -84,7 +83,7 @@ class InternalCoinController extends BaseApiController
             return $this->error('Original transaction not found', 404);
         }
 
-        $reversalKey = 'REV_' . $sourceEventId;
+        $reversalKey = 'REV_'.$sourceEventId;
         $existingRev = CoinsLedger::where('idempotency_key', $reversalKey)->first();
         if ($existingRev) {
             return $this->success($existingRev, 'Reversal already processed (idempotent)');

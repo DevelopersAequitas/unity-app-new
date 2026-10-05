@@ -2,14 +2,11 @@
 
 namespace App\Services\Store;
 
-use App\Constants\StoreErrorCodes;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
 use App\Models\Store\OrderPayment;
 use App\Models\Store\Refund;
-use App\Models\Store\StoreReturn;
 use App\Models\User;
-use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -47,7 +44,7 @@ class StoreRefundService
 
             if ($idempotencyKey) {
                 $existing = Refund::whereHas('ledgerTransaction', function ($q) use ($idempotencyKey) {
-                    $q->where('idempotency_key', 'LIKE', $idempotencyKey . '%');
+                    $q->where('idempotency_key', 'LIKE', $idempotencyKey.'%');
                 })->first();
 
                 if ($existing) {
@@ -67,7 +64,7 @@ class StoreRefundService
             $refundBonus = (int) round($refundCoins * $bonusRatio);
             $refundEarned = $refundCoins - $refundBonus;
 
-            $refundNo = 'REF-' . strtoupper(Str::random(10));
+            $refundNo = 'REF-'.strtoupper(Str::random(10));
             $refundId = (string) Str::uuid();
 
             // Execute Refund Credit in Ledger & Balance
@@ -78,7 +75,7 @@ class StoreRefundService
                 'REFUND',
                 $refundId,
                 $idempotencyKey,
-                "Refund for Order #{$lockedOrder->order_no}: " . ($reasonDetail ?? $reasonCode)
+                "Refund for Order #{$lockedOrder->order_no}: ".($reasonDetail ?? $reasonCode)
             );
 
             $primaryLedgerId = ! empty($refundResult['ledger_entries']) ? $refundResult['ledger_entries'][0]->transaction_id : null;
@@ -90,7 +87,7 @@ class StoreRefundService
                 'return_id' => $returnId,
                 'user_id' => $lockedUser->id,
                 'refund_coins' => $refundCoins,
-                'reason' => $reasonCode . ($reasonDetail ? ": {$reasonDetail}" : ''),
+                'reason' => $reasonCode.($reasonDetail ? ": {$reasonDetail}" : ''),
                 'status' => 'COMPLETED',
                 'processed_by' => $adminUser ? $adminUser->id : null,
                 'processed_at' => now(),

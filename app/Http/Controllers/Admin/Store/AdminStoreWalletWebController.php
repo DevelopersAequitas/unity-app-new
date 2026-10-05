@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Store\WalletAdjustmentRequest;
 use App\Models\User;
 use App\Services\Store\StoreWalletService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -33,38 +32,39 @@ class AdminStoreWalletWebController extends Controller
             'circleMembers.level1Category',
             'circleMembers.level2Category',
             'circleMembers.level3Category',
-            'circleMembers.level4Category'
+            'circleMembers.level4Category',
         ])->orderBy('coins_balance', 'desc');
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'ILIKE', "%{$search}%")
-                  ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                  ->orWhere('display_name', 'ILIKE', "%{$search}%")
-                  ->orWhere('company_name', 'ILIKE', "%{$search}%")
-                  ->orWhere('email', 'ILIKE', "%{$search}%")
-                  ->orWhere('phone', 'ILIKE', "%{$search}%")
-                  ->orWhere('city', 'ILIKE', "%{$search}%")
-                  ->orWhere('business_city', 'ILIKE', "%{$search}%");
+                    ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('company_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('email', 'ILIKE', "%{$search}%")
+                    ->orWhere('phone', 'ILIKE', "%{$search}%")
+                    ->orWhere('city', 'ILIKE', "%{$search}%")
+                    ->orWhere('business_city', 'ILIKE', "%{$search}%");
             });
         }
 
         if ($freezeFilter === '1') {
             $query->where('wallet_state', 'FROZEN');
         } elseif ($freezeFilter === '0') {
-            $query->where(function($q) {
+            $query->where(function ($q) {
                 $q->where('wallet_state', 'ACTIVE')->orWhereNull('wallet_state');
             });
         }
 
         $users = $query->paginate(20);
+
         return view('admin.store.wallet.index', compact('users', 'search', 'freezeFilter'));
     }
 
     public function show(string $userId)
     {
         $user = User::findOrFail($userId);
-        
+
         $totalBalance = (int) $user->coins_balance;
         $earnedBalance = (int) DB::table('coins_ledger')->where('user_id', $user->id)->where('bucket', 'EARNED')->sum('amount');
         $bonusBalance = (int) DB::table('coins_ledger')->where('user_id', $user->id)->where('bucket', 'BONUS')->sum('amount');
@@ -115,7 +115,7 @@ class AdminStoreWalletWebController extends Controller
             'coin_type' => 'required|string|in:earned,bonus',
             'action' => 'required|string|in:credit,debit',
             'amount' => 'required|integer|min:1',
-            'reason' => 'required|string|min:5|max:500'
+            'reason' => 'required|string|min:5|max:500',
         ]);
 
         $adminId = Auth::guard('admin')->id() ?? '00000000-0000-0000-0000-000000000000';
@@ -125,7 +125,7 @@ class AdminStoreWalletWebController extends Controller
             'requested_by' => $adminId,
             'adjustment_type' => $validated['action'] === 'credit' ? 'ADJUST_CREDIT' : 'ADJUST_DEBIT',
             'bucket' => strtoupper($validated['coin_type']),
-            'coins' => (int)$validated['amount'],
+            'coins' => (int) $validated['amount'],
             'reason' => $validated['reason'],
             'status' => 'PENDING',
             'requested_at' => now(),
@@ -145,7 +145,7 @@ class AdminStoreWalletWebController extends Controller
             return back()->with('error', 'Maker-Checker Violation: You cannot approve your own adjustment request. Another admin must authorize it.');
         }
 
-        DB::transaction(function() use ($adj, $adminId) {
+        DB::transaction(function () use ($adj, $adminId) {
             $peer = $adj->user;
             if ($adj->adjustment_type === 'ADJUST_CREDIT') {
                 $this->walletService->creditCoins(
@@ -170,7 +170,7 @@ class AdminStoreWalletWebController extends Controller
             $adj->update([
                 'status' => 'APPROVED',
                 'approved_by' => $adminId,
-                'approved_at' => now()
+                'approved_at' => now(),
             ]);
         });
 
@@ -187,7 +187,7 @@ class AdminStoreWalletWebController extends Controller
             'status' => 'REJECTED',
             'approved_by' => $adminId,
             'rejected_at' => now(),
-            'rejection_reason' => $reason
+            'rejection_reason' => $reason,
         ]);
 
         return back()->with('success', 'Adjustment request rejected.');

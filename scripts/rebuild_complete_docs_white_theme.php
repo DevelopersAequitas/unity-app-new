@@ -4,18 +4,18 @@
 
 ini_set('memory_limit', '512M');
 
-require_once __DIR__ . '/api_descriptions_data.php';
-require_once __DIR__ . '/build_full_responses_data.php';
+require_once __DIR__.'/api_descriptions_data.php';
+require_once __DIR__.'/build_full_responses_data.php';
 
-$meta = json_decode(file_get_contents(__DIR__ . '/api_meta.json'), true);
-$sourcePath = __DIR__ . '/../docs/api/PEERS_STORE_137_APIS_COMPLETE_ENGLISH_DOC.md';
+$meta = json_decode(file_get_contents(__DIR__.'/api_meta.json'), true);
+$sourcePath = __DIR__.'/../docs/api/PEERS_STORE_137_APIS_COMPLETE_ENGLISH_DOC.md';
 $content = file_get_contents($sourcePath);
 
 preg_match_all('/###\s*(\d+)\.\s*([^\r\n]+)(.*?)(?=(?:###\s*\d+\.|$))/s', $content, $rawMatches, PREG_SET_ORDER);
 
 $rawMap = [];
 foreach ($rawMatches as $rm) {
-    $n = (int)$rm[1];
+    $n = (int) $rm[1];
     $rawMap[$n] = $rm[3];
 }
 
@@ -29,14 +29,14 @@ foreach ($meta as $num => $info) {
 
     // Headers
     preg_match('/-\s*\*\*Headers\*\*:\s*([^\r\n]+)/i', $rawBody, $headersMatch);
-    $headers = !empty($headersMatch[1]) ? trim(trim($headersMatch[1]), '`') : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
+    $headers = ! empty($headersMatch[1]) ? trim(trim($headersMatch[1]), '`') : 'Authorization: Bearer <TOKEN>, Content-Type: application/json';
     if (str_contains($path, '/admin/')) {
         $headers = str_replace('<TOKEN>', '<ADMIN_TOKEN>', $headers);
     }
 
     // Request Body
     preg_match('/-\s*\*\*Request Body\*\*:\s*(?:`None`|None)?\s*(?:```(?:json)?\s*([\s\S]*?)```)?/i', $rawBody, $reqMatch);
-    $reqBody = !empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
+    $reqBody = ! empty($reqMatch[1]) ? trim($reqMatch[1]) : null;
     if ($reqBody) {
         $reqBody = str_replace('https://...', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500', $reqBody);
     }
@@ -49,7 +49,7 @@ foreach ($meta as $num => $info) {
     } else {
         // Extract from markdown or build comprehensive schema
         preg_match('/-\s*\*\*Response\s*(?:\(JSON\))?\*\*:\s*```(?:json)?\s*([\s\S]*?)```/i', $rawBody, $resMatch);
-        $resBody = !empty($resMatch[1]) ? trim($resMatch[1]) : null;
+        $resBody = ! empty($resMatch[1]) ? trim($resMatch[1]) : null;
         if ($resBody) {
             $resBody = str_replace('https://...', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500', $resBody);
             // Decode and re-encode to ensure pretty formatting
@@ -58,23 +58,23 @@ foreach ($meta as $num => $info) {
                 // If it was minimal/empty data, enrich it
                 if (isset($decoded['data']) && is_array($decoded['data']) && count($decoded['data']) === 0) {
                     $decoded['data'] = [
-                        "id" => "01a0ecd1-1d7f-70ab-885a-020f273de747",
-                        "status" => "SUCCESS",
-                        "reference_id" => "ref_" . uniqid(),
-                        "processed_at" => "2026-10-01T10:00:00.000000Z"
+                        'id' => '01a0ecd1-1d7f-70ab-885a-020f273de747',
+                        'status' => 'SUCCESS',
+                        'reference_id' => 'ref_'.uniqid(),
+                        'processed_at' => '2026-10-01T10:00:00.000000Z',
                     ];
                 }
                 $resBody = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
             }
         } else {
             $resBody = json_encode([
-                "success" => true,
-                "message" => "{$title} executed successfully",
-                "data" => [
-                    "id" => "01a0ecd1-1d7f-70ab-885a-020f273de747",
-                    "status" => "COMPLETED",
-                    "updated_at" => "2026-10-01T10:00:00.000000Z"
-                ]
+                'success' => true,
+                'message' => "{$title} executed successfully",
+                'data' => [
+                    'id' => '01a0ecd1-1d7f-70ab-885a-020f273de747',
+                    'status' => 'COMPLETED',
+                    'updated_at' => '2026-10-01T10:00:00.000000Z',
+                ],
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         }
     }
@@ -91,7 +91,7 @@ foreach ($meta as $num => $info) {
         'resBody' => $resBody,
         'purpose' => $descData['purpose'],
         'flutter' => $descData['flutter'],
-        'category' => $descData['category']
+        'category' => $descData['category'],
     ];
 }
 
@@ -111,15 +111,15 @@ foreach ($apis as $num => $a) {
     $md .= "- **Flutter / Frontend Integration Guide**: {$a['flutter']}\n";
     $md .= "- **Headers**: `{$a['headers']}`\n";
     if ($a['reqBody']) {
-        $md .= "- **Request Body**:\n```json\n" . $a['reqBody'] . "\n```\n";
+        $md .= "- **Request Body**:\n```json\n".$a['reqBody']."\n```\n";
     } else {
         $md .= "- **Request Body**: `None`\n";
     }
-    $md .= "- **Success Response (JSON)**:\n```json\n" . $a['resBody'] . "\n```\n\n";
+    $md .= "- **Success Response (JSON)**:\n```json\n".$a['resBody']."\n```\n\n";
     $md .= "---\n\n";
 }
 
-file_put_contents(__DIR__ . '/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md', $md);
+file_put_contents(__DIR__.'/../docs/api/PEERS_STORE_137_APIS_MASTER_DOCUMENTATION.md', $md);
 echo "Generated MD doc successfully.\n";
 
 // 2. Build White Theme Interactive HTML File
@@ -687,7 +687,7 @@ foreach ($apis as $num => $a) {
         $escapedReq = htmlspecialchars($a['reqBody'], ENT_QUOTES, 'UTF-8');
         $reqBlock = '<div class="code-container">
             <div class="code-header"><span>Request Body (JSON)</span></div>
-            <pre><code>' . $escapedReq . '</code></pre>
+            <pre><code>'.$escapedReq.'</code></pre>
         </div>';
     }
 
@@ -696,41 +696,41 @@ foreach ($apis as $num => $a) {
     $escapedFlutter = $a['flutter'];
 
     $html .= '
-    <article class="api-card" data-category="' . htmlspecialchars($a['category']) . '" data-text="' . htmlspecialchars(strtolower($a['title'] . ' ' . $a['method'] . ' ' . $a['path'] . ' ' . $a['category'])) . '">
+    <article class="api-card" data-category="'.htmlspecialchars($a['category']).'" data-text="'.htmlspecialchars(strtolower($a['title'].' '.$a['method'].' '.$a['path'].' '.$a['category'])).'">
         <div class="api-header">
             <div class="api-id-title">
-                <div class="api-number">#' . $num . '</div>
-                <h3 class="api-title">' . htmlspecialchars($a['title']) . '</h3>
+                <div class="api-number">#'.$num.'</div>
+                <h3 class="api-title">'.htmlspecialchars($a['title']).'</h3>
             </div>
-            <span class="api-category-badge">' . htmlspecialchars($a['category']) . '</span>
+            <span class="api-category-badge">'.htmlspecialchars($a['category']).'</span>
             <div class="endpoint-row">
-                <span class="http-badge http-' . $a['method'] . '">' . $a['method'] . '</span>
-                <span class="endpoint-path">' . htmlspecialchars($a['path']) . '</span>
+                <span class="http-badge http-'.$a['method'].'">'.$a['method'].'</span>
+                <span class="endpoint-path">'.htmlspecialchars($a['path']).'</span>
             </div>
         </div>
         <div class="api-body">
             <div class="info-block">
                 <div class="block-title"><span>📘</span> Developer Purpose & Deep Technical Overview</div>
-                <div class="block-text">' . $escapedPurpose . '</div>
+                <div class="block-text">'.$escapedPurpose.'</div>
             </div>
 
             <div class="info-block flutter">
                 <div class="block-title"><span>📱</span> Flutter & Frontend Integration Guide</div>
-                <div class="block-text">' . $escapedFlutter . '</div>
+                <div class="block-text">'.$escapedFlutter.'</div>
             </div>
 
             <div class="meta-grid">
                 <div class="meta-item">
                     <span class="meta-label">Headers:</span>
-                    <span class="meta-val">' . htmlspecialchars($a['headers']) . '</span>
+                    <span class="meta-val">'.htmlspecialchars($a['headers']).'</span>
                 </div>
             </div>
 
-            ' . $reqBlock . '
+            '.$reqBlock.'
 
             <div class="code-container">
                 <div class="code-header"><span>Success Response (JSON)</span></div>
-                <pre><code>' . $escapedRes . '</code></pre>
+                <pre><code>'.$escapedRes.'</code></pre>
             </div>
         </div>
     </article>';
@@ -771,6 +771,5 @@ $html .= '
 </body>
 </html>';
 
-file_put_contents(__DIR__ . '/../public/peers_store_137_apis_documentation.html', $html);
+file_put_contents(__DIR__.'/../public/peers_store_137_apis_documentation.html', $html);
 echo "Successfully generated public/peers_store_137_apis_documentation.html with White Theme!\n";
-

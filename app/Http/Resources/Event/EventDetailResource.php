@@ -148,6 +148,8 @@ class EventDetailResource extends JsonResource
             'qr_checkin_enabled' => (bool) $this->qr_checkin_enabled,
             'is_public' => (bool) $this->is_public,
             'visitor_registration_enabled' => $visitorRegistrationEnabled,
+            'allow_free_peers' => (bool) ($this->allow_free_peers ?? $this->event?->allow_free_peers ?? true),
+            'is_open_for_free_peers' => (bool) ($this->allow_free_peers ?? $this->event?->allow_free_peers ?? true),
             'zoho_form_url' => $zohoFormUrl,
             'visitor_registration_url' => $visitorRegistrationEnabled ? ($activeOccurrence ? url('/events/'.$this->id.'/occurrences/'.$activeOccurrence->id.'/visitor-register') : $zohoFormUrl) : null,
             'member_registration_enabled' => $eventService->memberRegistrationEnabled($this->resource),

@@ -2,7 +2,6 @@
 
 namespace App\Services\Store;
 
-use App\Models\CoinsLedger;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +16,7 @@ class StoreReconciliationService
     {
         $mismatches = [];
 
-        $results = DB::select("
+        $results = DB::select('
             SELECT 
                 u.id as user_id, 
                 COALESCE(u.coins_balance, 0) as cached_balance, 
@@ -27,7 +26,7 @@ class StoreReconciliationService
             LEFT JOIN coins_ledger cl ON cl.user_id = u.id
             GROUP BY u.id, u.coins_balance
             HAVING COALESCE(u.coins_balance, 0) <> COALESCE(SUM(cl.amount), 0)
-        ");
+        ');
 
         foreach ($results as $row) {
             $mismatches[] = [

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Services\Store\StoreAdminReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminStoreReportController extends BaseApiController
 {
@@ -58,9 +59,9 @@ class AdminStoreReportController extends BaseApiController
         ]);
 
         return $this->success([
-            'export_job_id' => (string) \Illuminate\Support\Str::uuid(),
+            'export_job_id' => (string) Str::uuid(),
             'status' => 'COMPLETED',
-            'download_url' => url('/api/admin/v1/reports/download/' . \Illuminate\Support\Str::random(16)),
+            'download_url' => url('/api/admin/v1/reports/download/'.Str::random(16)),
         ], 'Report export generated');
     }
 
@@ -68,7 +69,7 @@ class AdminStoreReportController extends BaseApiController
     {
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="peers_store_report_' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="peers_store_report_'.date('Y-m-d').'.csv"',
         ];
 
         $callback = function () {

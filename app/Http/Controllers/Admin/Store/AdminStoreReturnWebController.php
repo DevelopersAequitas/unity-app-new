@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 class AdminStoreReturnWebController extends Controller
 {
     protected StoreReturnService $returnService;
+
     protected StoreRefundService $refundService;
 
     public function __construct(StoreReturnService $returnService, StoreRefundService $refundService)
@@ -42,21 +43,23 @@ class AdminStoreReturnWebController extends Controller
         }
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('return_no', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('user', function($uq) use ($search) {
-                      $uq->where('name', 'ILIKE', "%{$search}%");
-                  });
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('name', 'ILIKE', "%{$search}%");
+                    });
             });
         }
 
         $returns = $query->paginate(20);
+
         return view('admin.store.returns.index', compact('returns', 'tab', 'search', 'tabs'));
     }
 
     public function show(string $id)
     {
         $return = StoreReturn::with(['user', 'order.items.product', 'photos'])->findOrFail($id);
+
         return view('admin.store.returns.show', compact('return'));
     }
 
@@ -66,15 +69,15 @@ class AdminStoreReturnWebController extends Controller
         $admin = Auth::guard('admin')->user();
 
         $validated = $request->validate([
-            'inspection_notes' => 'nullable|string|max:500'
+            'inspection_notes' => 'nullable|string|max:500',
         ]);
 
-        DB::transaction(function() use ($return, $admin, $validated) {
-            $this->returnService->approveReturn($return, $validated['inspection_notes'] ?? 'Approved by ' . $admin->name, $admin->id);
+        DB::transaction(function () use ($return, $admin, $validated) {
+            $this->returnService->approveReturn($return, $validated['inspection_notes'] ?? 'Approved by '.$admin->name, $admin->id);
             $this->refundService->processReturnRefund($return, $admin->id);
         });
 
-        return back()->with('success', "Return request approved. Refund coins credited back to peer wallet ledger.");
+        return back()->with('success', 'Return request approved. Refund coins credited back to peer wallet ledger.');
     }
 
     public function reject(Request $request, string $id)
@@ -83,7 +86,7 @@ class AdminStoreReturnWebController extends Controller
         $admin = Auth::guard('admin')->user();
 
         $validated = $request->validate([
-            'rejection_reason' => 'required|string|min:5|max:500'
+            'rejection_reason' => 'required|string|min:5|max:500',
         ]);
 
         $this->returnService->rejectReturn($return, $validated['rejection_reason'], $admin->id);
@@ -100,11 +103,11 @@ class AdminStoreReturnWebController extends Controller
         $query = Refund::with(['order', 'user', 'processor'])->orderBy('created_at', 'desc');
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('refund_no', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('user', function($uq) use ($search) {
-                      $uq->where('name', 'ILIKE', "%{$search}%");
-                  });
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('name', 'ILIKE', "%{$search}%");
+                    });
             });
         }
         if ($dateFrom) {

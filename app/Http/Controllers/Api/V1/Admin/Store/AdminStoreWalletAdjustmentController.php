@@ -9,7 +9,6 @@ use App\Http\Requests\Store\Admin\AdminWalletAdjustmentRequest;
 use App\Models\CoinsLedger;
 use App\Models\Store\WalletAdjustmentRequest;
 use App\Models\User;
-use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

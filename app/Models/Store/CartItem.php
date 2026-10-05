@@ -14,6 +14,7 @@ class CartItem extends Model
     protected $table = 'cart_items';
 
     const CREATED_AT = 'added_at';
+
     const UPDATED_AT = 'updated_at';
 
     protected $fillable = [

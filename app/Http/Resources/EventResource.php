@@ -59,6 +59,8 @@ class EventResource extends JsonResource
             'organizer' => data_get($metadata, 'organizer'),
             'visibility' => $this->visibility,
             'is_paid' => (bool) $this->is_paid,
+            'allow_free_peers' => (bool) ($this->allow_free_peers ?? true),
+            'is_open_for_free_peers' => (bool) ($this->allow_free_peers ?? true),
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

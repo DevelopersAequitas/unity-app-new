@@ -127,7 +127,7 @@ class StoreMembershipService
 
             // Create Receipt
             $receipt = Receipt::create([
-                'receipt_no' => 'REC-MEM-' . strtoupper(Str::random(8)),
+                'receipt_no' => 'REC-MEM-'.strtoupper(Str::random(8)),
                 'order_id' => null,
                 'user_id' => $lockedUser->id,
                 'coins_paid' => $plan->price_coins,

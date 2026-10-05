@@ -4,7 +4,6 @@ namespace App\Services\Store;
 
 use App\Constants\StoreErrorCodes;
 use App\Models\CoinsLedger;
-use App\Models\Store\OrderPayment;
 use App\Models\User;
 use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -183,7 +182,7 @@ class StoreWalletService
                 'bucket' => 'BONUS',
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
-                'idempotency_key' => $idempotencyKey ? $idempotencyKey . '_BONUS' : null,
+                'idempotency_key' => $idempotencyKey ? $idempotencyKey.'_BONUS' : null,
                 'reference' => $remark ?? "Store purchase ({$referenceType})",
                 'created_by' => $lockedUser->id,
                 'created_at' => now(),
@@ -201,7 +200,7 @@ class StoreWalletService
                 'bucket' => 'EARNED',
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
-                'idempotency_key' => $idempotencyKey ? $idempotencyKey . '_EARNED' : null,
+                'idempotency_key' => $idempotencyKey ? $idempotencyKey.'_EARNED' : null,
                 'reference' => $remark ?? "Store purchase ({$referenceType})",
                 'created_by' => $lockedUser->id,
                 'created_at' => now(),
@@ -254,7 +253,7 @@ class StoreWalletService
                 'bucket' => 'BONUS',
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
-                'idempotency_key' => $idempotencyKey ? $idempotencyKey . '_REFUND_BONUS' : null,
+                'idempotency_key' => $idempotencyKey ? $idempotencyKey.'_REFUND_BONUS' : null,
                 'reference' => $reason ?? "Store refund ({$referenceType})",
                 'created_by' => $lockedUser->id,
                 'created_at' => now(),
@@ -271,7 +270,7 @@ class StoreWalletService
                 'bucket' => 'EARNED',
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
-                'idempotency_key' => $idempotencyKey ? $idempotencyKey . '_REFUND_EARNED' : null,
+                'idempotency_key' => $idempotencyKey ? $idempotencyKey.'_REFUND_EARNED' : null,
                 'reference' => $reason ?? "Store refund ({$referenceType})",
                 'created_by' => $lockedUser->id,
                 'created_at' => now(),

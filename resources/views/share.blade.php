@@ -83,8 +83,8 @@
 
     <script>
         (function() {
-            var appScheme = @json($appScheme);
-            var storeUrl = @json($storeUrl);
+            var appScheme = "{!! $appScheme !!}";
+            var storeUrl = "{!! $storeUrl !!}";
             var isMobile = @json($isMobile);
             var isiOS = @json($isiOS);
 

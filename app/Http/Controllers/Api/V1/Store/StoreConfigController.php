@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 class StoreConfigController extends BaseApiController
 {
     protected StoreConfigService $configService;
+
     protected StoreCatalogService $catalogService;
 
     public function __construct(StoreConfigService $configService, StoreCatalogService $catalogService)

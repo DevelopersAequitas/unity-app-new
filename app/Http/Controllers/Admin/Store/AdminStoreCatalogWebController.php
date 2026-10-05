@@ -9,7 +9,6 @@ use App\Models\Store\ProductVariant;
 use App\Models\Store\StoreCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class AdminStoreCatalogWebController extends Controller
@@ -21,13 +20,14 @@ class AdminStoreCatalogWebController extends Controller
     public function categories(Request $request)
     {
         $query = StoreCategory::withCount('products')->orderBy('sort_order', 'asc');
-        
+
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where('name', 'ILIKE', "%{$s}%")->orWhere('slug', 'ILIKE', "%{$s}%");
         }
 
         $categories = $query->paginate(15);
+
         return view('admin.store.catalog.categories', compact('categories'));
     }
 
@@ -39,7 +39,7 @@ class AdminStoreCatalogWebController extends Controller
             'description' => 'nullable|string|max:500',
             'image_url' => 'nullable|string|max:500',
             'sort_order' => 'nullable|integer',
-            'status' => 'nullable|string|in:ACTIVE,INACTIVE'
+            'status' => 'nullable|string|in:ACTIVE,INACTIVE',
         ]);
 
         if (empty($validated['slug'])) {
@@ -59,11 +59,11 @@ class AdminStoreCatalogWebController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'slug' => 'nullable|string|max:120|unique:store_categories,slug,' . $id,
+            'slug' => 'nullable|string|max:120|unique:store_categories,slug,'.$id,
             'description' => 'nullable|string|max:500',
             'image_url' => 'nullable|string|max:500',
             'sort_order' => 'nullable|integer',
-            'status' => 'required|string|in:ACTIVE,INACTIVE'
+            'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
 
         if (empty($validated['slug'])) {
@@ -84,6 +84,7 @@ class AdminStoreCatalogWebController extends Controller
         }
 
         $category->delete();
+
         return redirect()->route('admin.store.categories.index')->with('success', 'Category deleted successfully.');
     }
 
@@ -106,10 +107,10 @@ class AdminStoreCatalogWebController extends Controller
         }
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->where(function($q) use ($s) {
+            $query->where(function ($q) use ($s) {
                 $q->where('name', 'ILIKE', "%{$s}%")
-                  ->orWhere('sku', 'ILIKE', "%{$s}%")
-                  ->orWhere('short_description', 'ILIKE', "%{$s}%");
+                    ->orWhere('sku', 'ILIKE', "%{$s}%")
+                    ->orWhere('short_description', 'ILIKE', "%{$s}%");
             });
         }
 
@@ -122,10 +123,11 @@ class AdminStoreCatalogWebController extends Controller
     public function createProduct()
     {
         $categories = StoreCategory::where('status', 'ACTIVE')->orderBy('name')->get();
+
         return view('admin.store.catalog.product-form', [
-            'product' => new Product(),
+            'product' => new Product,
             'categories' => $categories,
-            'isEdit' => false
+            'isEdit' => false,
         ]);
     }
 
@@ -148,7 +150,7 @@ class AdminStoreCatalogWebController extends Controller
             'customised' => 'nullable|boolean',
             'is_featured' => 'nullable|boolean',
             'status' => 'required|string|in:DRAFT,ACTIVE,HIDDEN,OUT_OF_STOCK,ARCHIVED',
-            'stock_qty' => 'nullable|integer|min:0'
+            'stock_qty' => 'nullable|integer|min:0',
         ]);
 
         if (empty($validated['slug'])) {
@@ -166,23 +168,23 @@ class AdminStoreCatalogWebController extends Controller
         if ($request->filled('initial_variant_name')) {
             ProductVariant::create([
                 'product_id' => $product->id,
-                'sku' => $product->sku . '-STD',
+                'sku' => $product->sku.'-STD',
                 'name' => $request->initial_variant_name,
                 'price_coins' => $product->price_coins,
                 'stock_quantity' => $product->stock_qty,
-                'status' => 'ACTIVE'
+                'status' => 'ACTIVE',
             ]);
         }
 
         // Handle uploaded images
         if ($request->filled('images')) {
-            foreach ((array)$request->images as $idx => $imgUrl) {
-                if (!empty($imgUrl)) {
+            foreach ((array) $request->images as $idx => $imgUrl) {
+                if (! empty($imgUrl)) {
                     ProductImage::create([
                         'product_id' => $product->id,
                         'image_url' => $imgUrl,
                         'is_primary' => $idx === 0,
-                        'sort_order' => $idx + 1
+                        'sort_order' => $idx + 1,
                     ]);
                 }
             }
@@ -199,7 +201,7 @@ class AdminStoreCatalogWebController extends Controller
         return view('admin.store.catalog.product-form', [
             'product' => $product,
             'categories' => $categories,
-            'isEdit' => true
+            'isEdit' => true,
         ]);
     }
 
@@ -208,9 +210,9 @@ class AdminStoreCatalogWebController extends Controller
         $product = Product::findOrFail($id);
 
         $validated = $request->validate([
-            'sku' => 'required|string|max:50|unique:products,sku,' . $id,
+            'sku' => 'required|string|max:50|unique:products,sku,'.$id,
             'name' => 'required|string|max:200',
-            'slug' => 'nullable|string|max:250|unique:products,slug,' . $id,
+            'slug' => 'nullable|string|max:250|unique:products,slug,'.$id,
             'category_id' => 'required|uuid|exists:store_categories,id',
             'type' => 'required|string|in:PHYSICAL,DIGITAL,COURSE,SUBSCRIPTION,MEMBERSHIP',
             'price_coins' => 'required|integer|min:0',
@@ -224,7 +226,7 @@ class AdminStoreCatalogWebController extends Controller
             'customised' => 'nullable|boolean',
             'is_featured' => 'nullable|boolean',
             'status' => 'required|string|in:DRAFT,ACTIVE,HIDDEN,OUT_OF_STOCK,ARCHIVED',
-            'stock_qty' => 'nullable|integer|min:0'
+            'stock_qty' => 'nullable|integer|min:0',
         ]);
 
         if (empty($validated['slug'])) {
@@ -261,7 +263,7 @@ class AdminStoreCatalogWebController extends Controller
             'price_coins' => 'nullable|integer|min:0',
             'stock_quantity' => 'required|integer|min:0',
             'low_stock_threshold' => 'nullable|integer|min:0',
-            'status' => 'required|string|in:ACTIVE,INACTIVE'
+            'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
 
         $validated['product_id'] = $product->id;
@@ -279,11 +281,11 @@ class AdminStoreCatalogWebController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'sku' => 'required|string|max:50|unique:product_variants,sku,' . $variantId,
+            'sku' => 'required|string|max:50|unique:product_variants,sku,'.$variantId,
             'price_coins' => 'nullable|integer|min:0',
             'stock_quantity' => 'required|integer|min:0',
             'low_stock_threshold' => 'nullable|integer|min:0',
-            'status' => 'required|string|in:ACTIVE,INACTIVE'
+            'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
 
         $variant->update($validated);
@@ -305,7 +307,7 @@ class AdminStoreCatalogWebController extends Controller
 
         $request->validate([
             'image_url' => 'required|string|max:500',
-            'is_primary' => 'nullable|boolean'
+            'is_primary' => 'nullable|boolean',
         ]);
 
         $isPrimary = $request->has('is_primary');
@@ -317,7 +319,7 @@ class AdminStoreCatalogWebController extends Controller
             'product_id' => $product->id,
             'image_url' => $request->image_url,
             'is_primary' => $isPrimary,
-            'sort_order' => ProductImage::where('product_id', $product->id)->count() + 1
+            'sort_order' => ProductImage::where('product_id', $product->id)->count() + 1,
         ]);
 
         return back()->with('success', 'Product image added.');

@@ -6,14 +6,11 @@ use App\Constants\StoreErrorCodes;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
 use App\Models\Store\OrderStatusHistory;
-use App\Models\Store\Shipment;
-use App\Models\Store\ShipmentEvent;
 use App\Models\User;
 use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class OrderLifecycleService
 {

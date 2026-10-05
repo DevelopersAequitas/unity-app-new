@@ -48,12 +48,12 @@ class StoreBanner extends Model
         if (Schema::hasColumn('store_banners', 'status')) {
             $query->where(function ($q) {
                 $q->where('status', 'ACTIVE')
-                  ->orWhere('status', '1');
+                    ->orWhere('status', '1');
             });
         } elseif (Schema::hasColumn('store_banners', 'is_active')) {
             $query->where(function ($q) {
                 $q->where('is_active', true)
-                  ->orWhere('is_active', 1);
+                    ->orWhere('is_active', 1);
             });
         }
 
@@ -93,5 +93,3 @@ class StoreBanner extends Model
         return true;
     }
 }
-
-

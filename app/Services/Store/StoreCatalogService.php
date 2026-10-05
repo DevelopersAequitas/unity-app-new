@@ -7,6 +7,7 @@ use App\Models\Store\StoreBanner;
 use App\Models\Store\StoreCategory;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Str;
 
 class StoreCatalogService
 {
@@ -37,7 +38,7 @@ class StoreCatalogService
                 $q->active();
             }]);
 
-        if (! empty($filters['category_id']) && \Illuminate\Support\Str::isUuid($filters['category_id'])) {
+        if (! empty($filters['category_id']) && Str::isUuid($filters['category_id'])) {
             $query->where('category_id', $filters['category_id']);
         }
 

@@ -2,14 +2,11 @@
 
 namespace App\Services\Store;
 
-use App\Models\NotificationPreference;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\NotificationLog;
 use App\Models\User;
 use App\Models\UserPushToken;
-use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Log;
 
 class StoreNotificationService
 {

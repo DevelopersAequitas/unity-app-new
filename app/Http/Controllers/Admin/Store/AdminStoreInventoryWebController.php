@@ -9,6 +9,7 @@ use App\Models\Store\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminStoreInventoryWebController extends Controller
@@ -16,7 +17,7 @@ class AdminStoreInventoryWebController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search', '');
-        $hasLowStockCol = \Illuminate\Support\Facades\Schema::hasColumn('product_variants', 'low_stock_threshold');
+        $hasLowStockCol = Schema::hasColumn('product_variants', 'low_stock_threshold');
         $lowStockQuery = ProductVariant::where('status', 'ACTIVE');
         if ($hasLowStockCol) {
             $lowStockQuery->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
@@ -24,20 +25,21 @@ class AdminStoreInventoryWebController extends Controller
             $lowStockQuery->where('stock_quantity', '<=', 5);
         }
         $lowStockCount = $lowStockQuery->count();
-        
+
         $query = Product::with(['category', 'variants'])->orderBy('created_at', 'desc');
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'ILIKE', "%{$search}%")
-                  ->orWhere('slug', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('variants', function($vq) use ($search) {
-                      $vq->where('sku', 'ILIKE', "%{$search}%");
-                  });
+                    ->orWhere('slug', 'ILIKE', "%{$search}%")
+                    ->orWhereHas('variants', function ($vq) use ($search) {
+                        $vq->where('sku', 'ILIKE', "%{$search}%");
+                    });
             });
         }
 
         $products = $query->paginate(20);
+
         return view('admin.store.inventory.index', compact('products', 'search', 'lowStockCount'));
     }
 
@@ -65,8 +67,8 @@ class AdminStoreInventoryWebController extends Controller
         $query = InventoryMovement::with(['variant.product'])->orderBy('created_at', 'desc');
 
         if ($search) {
-            $query->whereHas('variant', function($vq) use ($search) {
-                $vq->where('sku', 'ILIKE', "%{$search}%")->orWhereHas('product', function($pq) use ($search) {
+            $query->whereHas('variant', function ($vq) use ($search) {
+                $vq->where('sku', 'ILIKE', "%{$search}%")->orWhereHas('product', function ($pq) use ($search) {
                     $pq->where('name', 'ILIKE', "%{$search}%");
                 });
             });
@@ -82,6 +84,7 @@ class AdminStoreInventoryWebController extends Controller
         }
 
         $movements = $query->paginate(25);
+
         return view('admin.store.inventory.movements', compact('movements', 'referenceTypes', 'refType', 'search', 'dateFrom', 'dateTo'));
     }
 
@@ -94,7 +97,7 @@ class AdminStoreInventoryWebController extends Controller
         $qty = (int) $request->input('quantity', 0);
         $reason = $request->input('reason', 'Manual Adjustment');
 
-        DB::transaction(function() use ($variant, $adjustmentType, $qty, $reason) {
+        DB::transaction(function () use ($variant, $adjustmentType, $qty, $reason) {
             if ($adjustmentType === 'add') {
                 $qtyChange = $qty;
                 $newStock = $variant->stock_quantity + $qty;
@@ -113,10 +116,10 @@ class AdminStoreInventoryWebController extends Controller
                 'quantity_change' => $qtyChange,
                 'balance_after' => $newStock,
                 'reason' => 'MANUAL_ADJUSTMENT',
-                'reference' => 'MANUAL_AUDIT_' . uniqid(),
+                'reference' => 'MANUAL_AUDIT_'.uniqid(),
                 'notes' => $reason,
                 'actor_id' => Auth::guard('admin')->id() ?? '00000000-0000-0000-0000-000000000000',
-                'actor_type' => 'AdminUser'
+                'actor_type' => 'AdminUser',
             ]);
         });
 
@@ -133,10 +136,10 @@ class AdminStoreInventoryWebController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="low_stock_report_' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="low_stock_report_'.date('Y-m-d').'.csv"',
         ];
 
-        return response()->stream(function() use ($variants) {
+        return response()->stream(function () use ($variants) {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, ['Product Name', 'Category', 'Variant Name', 'SKU', 'Available Stock', 'Threshold', 'Status', 'Exported At']);
 
@@ -149,7 +152,7 @@ class AdminStoreInventoryWebController extends Controller
                     $v->stock_quantity,
                     $v->low_stock_threshold,
                     $v->stock_quantity <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-                    now()->toIso8601String()
+                    now()->toIso8601String(),
                 ]);
             }
             fclose($handle);

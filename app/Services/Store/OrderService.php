@@ -3,7 +3,6 @@
 namespace App\Services\Store;
 
 use App\Constants\StoreErrorCodes;
-use App\Models\CoinsLedger;
 use App\Models\Store\Address;
 use App\Models\Store\Cart;
 use App\Models\Store\CartItem;
@@ -14,7 +13,6 @@ use App\Models\Store\Order;
 use App\Models\Store\OrderItem;
 use App\Models\Store\OrderPayment;
 use App\Models\Store\OrderStatusHistory;
-use App\Models\Store\PickupPoint;
 use App\Models\Store\PolicyPage;
 use App\Models\Store\Product;
 use App\Models\Store\ProductVariant;
@@ -27,7 +25,9 @@ use Illuminate\Support\Str;
 class OrderService
 {
     protected StoreWalletService $walletService;
+
     protected StoreOtpService $otpService;
+
     protected StoreEligibilityService $eligibilityService;
 
     public function __construct(
@@ -45,7 +45,7 @@ class OrderService
         // 1. Idempotency Check
         if ($idempotencyKey) {
             $existingPayment = OrderPayment::whereHas('ledgerTransaction', function ($q) use ($idempotencyKey) {
-                $q->where('idempotency_key', 'LIKE', $idempotencyKey . '%');
+                $q->where('idempotency_key', 'LIKE', $idempotencyKey.'%');
             })->first();
 
             if ($existingPayment) {
@@ -187,7 +187,7 @@ class OrderService
             }
 
             $orderId = (string) Str::uuid();
-            $orderNo = 'ORD-' . strtoupper(Str::random(10));
+            $orderNo = 'ORD-'.strtoupper(Str::random(10));
 
             // Execute Coin Debit with exact Bonus-first then Earned split
             $debitResult = $this->walletService->executeSpendDebit(
@@ -304,7 +304,7 @@ class OrderService
             ]);
 
             // Create Receipt
-            $receiptNo = 'REC-' . strtoupper(Str::random(10));
+            $receiptNo = 'REC-'.strtoupper(Str::random(10));
             $receipt = Receipt::create([
                 'receipt_no' => $receiptNo,
                 'order_id' => $order->id,
@@ -312,7 +312,7 @@ class OrderService
                 'coins_paid' => $orderTotalCoins,
                 'receipt_data' => [
                     'order_no' => $orderNo,
-                    'peer_name' => $lockedUser->display_name ?? ($lockedUser->first_name . ' ' . $lockedUser->last_name),
+                    'peer_name' => $lockedUser->display_name ?? ($lockedUser->first_name.' '.$lockedUser->last_name),
                     'peer_phone' => $lockedUser->phone,
                     'items' => $itemsToCreate,
                     'bonus_coins' => $debitResult['bonus_coins'],

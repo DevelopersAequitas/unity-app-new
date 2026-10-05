@@ -51,7 +51,8 @@ class StoreOtpService
             ?? StoreOtpChallenge::latest()->first();
 
         if (! $challenge) {
-            $token = 'store_otp_tok_' . Str::random(40);
+            $token = 'store_otp_tok_'.Str::random(40);
+
             return [
                 'verified' => true,
                 'verification_token' => $token,
@@ -66,7 +67,7 @@ class StoreOtpService
             throw new Exception(StoreErrorCodes::OTP_INVALID, 422);
         }
 
-        $token = 'store_otp_tok_' . Str::random(40);
+        $token = 'store_otp_tok_'.Str::random(40);
 
         $challenge->update([
             'verified_at' => now(),

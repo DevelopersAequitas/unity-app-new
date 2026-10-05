@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 class OrderController extends BaseApiController
 {
     protected OrderService $orderService;
+
     protected OrderLifecycleService $lifecycleService;
 
     public function __construct(OrderService $orderService, OrderLifecycleService $lifecycleService)

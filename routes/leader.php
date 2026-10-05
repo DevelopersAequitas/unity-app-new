@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAuthController;
 use App\Leader\Controllers\LeaderDashboardController;
@@ -175,8 +176,8 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
 
     // 3 DEDICATED ASKS FLOWS: 9 CORE ENDPOINTS (Global Feed, My History, Leaderboard)
     Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
-        Route::get('global', [\App\Http\Controllers\Api\V1\Ask\AskFlowHubController::class, 'globalFeed']);
-        Route::get('my', [\App\Http\Controllers\Api\V1\Ask\AskFlowHubController::class, 'myAsks']);
-        Route::get('leaderboard', [\App\Http\Controllers\Api\V1\Ask\AskFlowHubController::class, 'leaderboard']);
+        Route::get('global', [AskFlowHubController::class, 'globalFeed']);
+        Route::get('my', [AskFlowHubController::class, 'myAsks']);
+        Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
     });
 });

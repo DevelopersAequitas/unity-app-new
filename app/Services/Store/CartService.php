@@ -108,7 +108,7 @@ class CartService
     public function updateItem(User $user, string $cartItemId, int $quantity): array
     {
         $cart = $this->getActiveCart($user);
-        
+
         // Find item by ID either directly or inside user's active cart
         $item = CartItem::where('cart_id', $cart->id)->where('id', $cartItemId)->first()
             ?? CartItem::where('id', $cartItemId)->first();
@@ -137,7 +137,7 @@ class CartService
     public function removeItem(User $user, string $cartItemId): bool
     {
         $cart = $this->getActiveCart($user);
-        
+
         $deleted = CartItem::where('cart_id', $cart->id)->where('id', $cartItemId)->delete();
         if (! $deleted) {
             $deleted = CartItem::where('id', $cartItemId)->delete();

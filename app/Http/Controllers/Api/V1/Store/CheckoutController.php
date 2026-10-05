@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 class CheckoutController extends BaseApiController
 {
     protected CheckoutQuoteService $quoteService;
+
     protected StoreOtpService $otpService;
 
     public function __construct(CheckoutQuoteService $quoteService, StoreOtpService $otpService)

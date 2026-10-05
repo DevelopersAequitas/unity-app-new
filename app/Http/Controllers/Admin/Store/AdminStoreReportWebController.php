@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AdminStoreReportWebController extends Controller
 {
     protected StoreAdminReportService $reportService;
+
     protected StoreReconciliationService $reconciliationService;
 
     public function __construct(StoreAdminReportService $reportService, StoreReconciliationService $reconciliationService)
@@ -29,7 +30,7 @@ class AdminStoreReportWebController extends Controller
 
         $ordersQuery = DB::table('orders')->whereBetween('created_at', [
             Carbon::parse($dateFrom)->startOfDay(),
-            Carbon::parse($dateTo)->endOfDay()
+            Carbon::parse($dateTo)->endOfDay(),
         ]);
 
         $totalOrders = (int) (clone $ordersQuery)->count();
@@ -111,7 +112,7 @@ class AdminStoreReportWebController extends Controller
             $ledgerSum = (int) DB::table('coins_ledger')->where('user_id', $u->id)->sum('amount');
             $cached = (int) $u->coins_balance;
             $diff = $cached - $ledgerSum;
-            
+
             if ($ledgerSum !== $cached) {
                 $totalDiscrepancyCount++;
                 $totalVarianceCoins += abs($diff);
@@ -119,7 +120,7 @@ class AdminStoreReportWebController extends Controller
                 $matchedCount++;
             }
 
-            $userName = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')) ?: ($u->display_name ?? 'Peer Member');
+            $userName = trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: ($u->display_name ?? 'Peer Member');
             $usersLedgerReconciliation[] = [
                 'user_id' => $u->id,
                 'user_name' => $userName,
@@ -127,7 +128,7 @@ class AdminStoreReportWebController extends Controller
                 'company_name' => $u->company_name,
                 'cached_balance' => $cached,
                 'ledger_sum' => $ledgerSum,
-                'diff' => $diff
+                'diff' => $diff,
             ];
         }
 
@@ -150,10 +151,10 @@ class AdminStoreReportWebController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="sales_report_' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="sales_report_'.date('Y-m-d').'.csv"',
         ];
 
-        return response()->stream(function() use ($sales) {
+        return response()->stream(function () use ($sales) {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, ['Date', 'Total Orders', 'Total Coins Volume']);
 

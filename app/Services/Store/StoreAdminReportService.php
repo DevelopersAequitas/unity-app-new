@@ -5,14 +5,9 @@ namespace App\Services\Store;
 use App\Models\CoinsLedger;
 use App\Models\Store\MembershipLedger;
 use App\Models\Store\Order;
-use App\Models\Store\OrderItem;
 use App\Models\Store\Product;
-use App\Models\Store\ProductVariant;
-use App\Models\Store\Refund;
 use App\Models\Store\StoreReturn;
 use App\Models\Store\WalletAdjustmentRequest;
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 class StoreAdminReportService
 {

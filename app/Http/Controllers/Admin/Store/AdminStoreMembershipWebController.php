@@ -5,17 +5,18 @@ namespace App\Http\Controllers\Admin\Store;
 use App\Http\Controllers\Controller;
 use App\Models\Store\Entitlement;
 use App\Models\Store\MembershipLedger;
+use App\Models\Store\Product;
 use App\Models\Store\StoreMembershipPlan;
 use App\Models\User;
 use App\Services\Store\EntitlementService;
 use App\Services\Store\StoreMembershipService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class AdminStoreMembershipWebController extends Controller
 {
     protected StoreMembershipService $membershipService;
+
     protected EntitlementService $entitlementService;
 
     public function __construct(StoreMembershipService $membershipService, EntitlementService $entitlementService)
@@ -32,6 +33,7 @@ class AdminStoreMembershipWebController extends Controller
     {
         $plans = StoreMembershipPlan::orderBy('sort_order', 'asc')->paginate(15);
         $tiers = $plans;
+
         return view('admin.store.membership.index', compact('plans', 'tiers'));
     }
 
@@ -42,13 +44,14 @@ class AdminStoreMembershipWebController extends Controller
             'duration_months' => 'required|integer|min:1|max:60',
             'price_coins' => 'required|integer|min:0',
             'is_active' => 'nullable|boolean',
-            'sort_order' => 'nullable|integer'
+            'sort_order' => 'nullable|integer',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
         $validated['sort_order'] = $validated['sort_order'] ?? 1;
 
         StoreMembershipPlan::create($validated);
+
         return back()->with('success', 'Membership plan created.');
     }
 
@@ -61,7 +64,7 @@ class AdminStoreMembershipWebController extends Controller
             'duration_months' => 'required|integer|min:1|max:60',
             'price_coins' => 'required|integer|min:0',
             'is_active' => 'nullable|boolean',
-            'sort_order' => 'nullable|integer'
+            'sort_order' => 'nullable|integer',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
@@ -81,15 +84,16 @@ class AdminStoreMembershipWebController extends Controller
 
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->whereHas('user', function($uq) use ($s) {
+            $query->whereHas('user', function ($uq) use ($s) {
                 $uq->where('first_name', 'ILIKE', "%{$s}%")
-                   ->orWhere('last_name', 'ILIKE', "%{$s}%")
-                   ->orWhere('phone', 'ILIKE', "%{$s}%");
+                    ->orWhere('last_name', 'ILIKE', "%{$s}%")
+                    ->orWhere('phone', 'ILIKE', "%{$s}%");
             });
         }
 
         $records = $query->paginate(20);
         $memberships = $records;
+
         return view('admin.store.membership.ledger', compact('records', 'memberships', 'search'));
     }
 
@@ -104,10 +108,10 @@ class AdminStoreMembershipWebController extends Controller
 
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->whereHas('user', function($uq) use ($s) {
+            $query->whereHas('user', function ($uq) use ($s) {
                 $uq->where('first_name', 'ILIKE', "%{$s}%")
-                   ->orWhere('last_name', 'ILIKE', "%{$s}%")
-                   ->orWhere('email', 'ILIKE', "%{$s}%");
+                    ->orWhere('last_name', 'ILIKE', "%{$s}%")
+                    ->orWhere('email', 'ILIKE', "%{$s}%");
             });
         }
 
@@ -116,7 +120,8 @@ class AdminStoreMembershipWebController extends Controller
             ->orderByRaw("COALESCE(NULLIF(first_name, ''), NULLIF(display_name, ''), NULLIF(email, ''), 'zzz') ASC")
             ->limit(200)
             ->get();
-        $products = \App\Models\Store\Product::where('status', 'ACTIVE')->orderBy('name')->get();
+        $products = Product::where('status', 'ACTIVE')->orderBy('name')->get();
+
         return view('admin.store.membership.entitlements', compact('entitlements', 'users', 'products', 'search'));
     }
 
@@ -126,7 +131,7 @@ class AdminStoreMembershipWebController extends Controller
             'user_id' => 'required|uuid|exists:users,id',
             'feature_key' => 'required|string|max:100',
             'product_id' => 'nullable|uuid|exists:products,id',
-            'expires_at' => 'nullable|date'
+            'expires_at' => 'nullable|date',
         ]);
 
         $admin = Auth::guard('admin')->user();

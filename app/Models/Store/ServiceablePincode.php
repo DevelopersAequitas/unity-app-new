@@ -32,7 +32,7 @@ class ServiceablePincode extends Model
     {
         return $query->where(function ($q) {
             $q->where('serviceable', true)
-              ->orWhere('serviceable', 1);
+                ->orWhere('serviceable', 1);
         });
     }
 }

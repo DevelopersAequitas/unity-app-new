@@ -5,7 +5,6 @@ namespace App\Jobs\Store;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\NotificationLog;
 use App\Models\User;
-use App\Services\Notifications\FcmService;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

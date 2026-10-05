@@ -2,9 +2,7 @@
 
 namespace App\Services\Store;
 
-use App\Constants\StoreErrorCodes;
 use App\Models\Store\PolicyPage;
-use Exception;
 use Illuminate\Database\Eloquent\Collection;
 
 class StorePolicyService
@@ -14,8 +12,8 @@ class StorePolicyService
         return PolicyPage::query()
             ->where(function ($q) {
                 $q->where('status', 'PUBLISHED')
-                  ->orWhere('status', 'published')
-                  ->orWhereNull('status');
+                    ->orWhere('status', 'published')
+                    ->orWhereNull('status');
             })
             ->orderBy('title', 'asc')
             ->get();
@@ -27,14 +25,14 @@ class StorePolicyService
         $policy = PolicyPage::query()
             ->where(function ($q) use ($cleanKey) {
                 $q->where('key', $cleanKey)
-                  ->orWhere('key', strtolower($cleanKey))
-                  ->orWhere('key', str_replace('_', '-', $cleanKey))
-                  ->orWhere('key', str_replace('-', '_', $cleanKey));
+                    ->orWhere('key', strtolower($cleanKey))
+                    ->orWhere('key', str_replace('_', '-', $cleanKey))
+                    ->orWhere('key', str_replace('-', '_', $cleanKey));
             })
             ->where(function ($q) {
                 $q->where('status', 'PUBLISHED')
-                  ->orWhere('status', 'published')
-                  ->orWhereNull('status');
+                    ->orWhere('status', 'published')
+                    ->orWhereNull('status');
             })
             ->orderBy('version', 'desc')
             ->first();

@@ -30,8 +30,8 @@ class PickupPoint extends Model
     {
         return $query->where(function ($q) {
             $q->where('status', 'ACTIVE')
-              ->orWhere('status', '1')
-              ->orWhereRaw("COALESCE(status, 'ACTIVE') = 'ACTIVE'");
+                ->orWhere('status', '1')
+                ->orWhereRaw("COALESCE(status, 'ACTIVE') = 'ACTIVE'");
         });
     }
 }
