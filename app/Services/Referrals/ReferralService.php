@@ -12,7 +12,6 @@ use App\Services\EmailLogs\EmailLogService;
 use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -381,7 +380,11 @@ class ReferralService
                         $data
                     );
 
-                    $this->sendReferralEmail($referrer, $newUser, $normalized);
+                    try {
+                        $this->sendReferralEmail($referrer, $newUser, $normalized);
+                    } catch (\Throwable $e) {
+                        Log::warning('referral.email.skipped', ['error' => $e->getMessage()]);
+                    }
                 }
 
                 Log::info('referral.registration.applied', [
@@ -514,43 +517,18 @@ class ReferralService
             return;
         }
 
-        $referrerName = trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '').' '.($referrer->last_name ?? ''))));
-        $peerName = trim((string) (($referredUser->display_name ?: '') ?: (($referredUser->first_name ?? '').' '.($referredUser->last_name ?? ''))));
-        $mailable = new ReferralJoinedMail(
-            $referrerName !== '' ? $referrerName : 'Peer',
-            $peerName !== '' ? $peerName : 'New Peer',
-            $referralCode
-        );
-
         try {
+            $referrerName = trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '').' '.($referrer->last_name ?? ''))));
+            $peerName = trim((string) (($referredUser->display_name ?: '') ?: (($referredUser->first_name ?? '').' '.($referredUser->last_name ?? ''))));
+            $mailable = new ReferralJoinedMail(
+                $referrerName !== '' ? $referrerName : 'Peer',
+                $peerName !== '' ? $peerName : 'New Peer',
+                $referralCode
+            );
             Mail::to($referrer->email)->send($mailable);
 
-            app(EmailLogService::class)->logMailableSent($mailable, [
-                'user_id' => (string) $referrer->id,
-                'to_email' => (string) $referrer->email,
-                'to_name' => $referrerName !== '' ? $referrerName : null,
-                'template_key' => 'referral_joined',
-                'source_module' => 'Referral',
-                'related_type' => User::class,
-                'related_id' => (string) $referredUser->id,
-                'payload' => [
-                    'referrer_user_id' => (string) $referrer->id,
-                    'referred_user_id' => (string) $referredUser->id,
-                    'referral_code' => $referralCode,
-                ],
-            ]);
-
-            Log::info('referral.email.sent', [
-                'referrer_user_id' => (string) $referrer->id,
-                'referrer_email' => (string) $referrer->email,
-            ]);
-        } catch (\Throwable $exception) {
-            if ($exception instanceof QueryException) {
-                throw $exception;
-            }
-
             try {
-                app(EmailLogService::class)->logMailableFailed($mailable, [
+                app(EmailLogService::class)->logMailableSent($mailable, [
                     'user_id' => (string) $referrer->id,
                     'to_email' => (string) $referrer->email,
                     'to_name' => $referrerName !== '' ? $referrerName : null,
@@ -563,21 +541,13 @@ class ReferralService
                         'referred_user_id' => (string) $referredUser->id,
                         'referral_code' => $referralCode,
                     ],
-                ], $exception);
-            } catch (\Throwable $logFailureException) {
-                if ($logFailureException instanceof QueryException) {
-                    throw $logFailureException;
-                }
-
-                Log::warning('referral.email.log_failed', [
-                    'referrer_user_id' => (string) $referrer->id,
-                    'original_error' => $exception->getMessage(),
-                    'logging_error' => $logFailureException->getMessage(),
                 ]);
+            } catch (\Throwable) {
+                // Ignore log persistence errors
             }
-
+        } catch (\Throwable $exception) {
             Log::warning('referral.email.failed', [
-                'referrer_user_id' => (string) $referrer->id,
+                'referrer_id' => $referrer->id ?? null,
                 'error' => $exception->getMessage(),
             ]);
         }
