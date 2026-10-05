@@ -28,8 +28,15 @@ class LastMonthActivityController extends BaseApiController
             }
 
             $timezone = $user->timezone ?? config('app.timezone');
+            $month = $request->parseMonth($request->input('month'));
+            $year = $request->filled('year') ? (int) $request->input('year') : null;
 
-            $data = $service->getActivityData($user, is_string($timezone) ? $timezone : null);
+            $data = $service->getActivityData(
+                $user,
+                is_string($timezone) ? $timezone : null,
+                $month,
+                $year
+            );
 
             return $this->success($data, 'Last month activity data retrieved successfully');
         } catch (\Throwable $e) {

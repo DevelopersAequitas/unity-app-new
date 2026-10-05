@@ -46,7 +46,7 @@ return [
         'project_id' => env('FIREBASE_PROJECT_ID'),
     ],
 
-    'event_payment_gateway' => env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'),
+    'event_payment_gateway' => env('EVENT_PAYMENT_GATEWAY', 'razorpay'),
     'zoho_event_ticket_item_id' => env('ZOHO_EVENT_TICKET_ITEM_ID'),
 
     'whatsapp' => [

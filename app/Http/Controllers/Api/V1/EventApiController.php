@@ -46,7 +46,10 @@ class EventApiController extends BaseApiController
             ->with([
                 'circle',
                 'circles.cityRef',
-                'occurrences' => fn ($query) => $query->orderBy('start_at'),
+                'occurrences' => fn ($query) => $query->where(function ($q): void {
+                    $q->whereNull('status')
+                        ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive']);
+                })->orderBy('start_at'),
             ])
             ->when($circleId, fn ($query) => $query->where(function ($circleQuery) use ($circleId): void {
                 $circleQuery->where('circle_id', $circleId)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
@@ -97,7 +100,22 @@ class EventApiController extends BaseApiController
     {
         if ($event->occurrences->isNotEmpty()) {
             $now = Carbon::now($timezone);
-            $upcomingOccurrences = $event->occurrences->filter(function (EventOccurrence $occ) use ($now): bool {
+            $eventStartUtc = $event->start_at ? Carbon::parse($event->start_at) : null;
+            $isEventFuture = $eventStartUtc && $eventStartUtc->greaterThan($now);
+
+            $upcomingOccurrences = $event->occurrences->filter(function (EventOccurrence $occ) use ($now, $isEventFuture, $eventStartUtc): bool {
+                $status = strtolower((string) ($occ->status ?? ''));
+                if (in_array($status, ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive'], true)) {
+                    return false;
+                }
+
+                if ($isEventFuture && $occ->start_at) {
+                    $occStart = Carbon::parse($occ->start_at);
+                    if ($occStart->lessThan($eventStartUtc->copy()->subMinutes(15))) {
+                        return false;
+                    }
+                }
+
                 $end = $occ->end_at ?? $occ->start_at;
 
                 return $end ? Carbon::parse($end)->greaterThanOrEqualTo($now->copy()->startOfDay()) : true;

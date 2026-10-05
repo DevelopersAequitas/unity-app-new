@@ -75,11 +75,13 @@
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Start Time (Optional)</label>
-                    <input type="datetime-local" name="start_time" value="{{ $maintenanceConfig->start_time ? $maintenanceConfig->start_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <input type="datetime-local" name="start_time" data-utc="{{ $maintenanceConfig->start_time?->toIso8601String() }}" value="{{ $maintenanceConfig->start_time ? $maintenanceConfig->start_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <p class="text-[10px] t3 mt-0.5"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</p>
                 </div>
                 <div>
                     <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Expected End Time (Optional)</label>
-                    <input type="datetime-local" name="end_time" value="{{ $maintenanceConfig->end_time ? $maintenanceConfig->end_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <input type="datetime-local" name="end_time" data-utc="{{ $maintenanceConfig->end_time?->toIso8601String() }}" value="{{ $maintenanceConfig->end_time ? $maintenanceConfig->end_time->format('Y-m-d\TH:i') : '' }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    <p class="text-[10px] t3 mt-0.5"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</p>
                 </div>
             </div>
 

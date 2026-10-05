@@ -74,6 +74,15 @@ class TestimonialController extends BaseApiController
             return $this->error('You cannot give a testimonial to yourself.', 422);
         }
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot give testimonials. Your account is in view-only mode.', 403);
+        }
+
+        $targetUser = User::find($targetUserId);
+        if (! $targetUser || $targetUser->status === 'inactive') {
+            return $this->error('Selected peer is inactive.', 422);
+        }
+
         if (! $authUser->isPro()) {
             return response()->json([
                 'success' => false,

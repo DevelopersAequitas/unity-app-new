@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Services\Recommendation;
 
 use App\Models\City;
+use App\Models\Connection;
 use App\Models\User;
+use App\Models\UserFollow;
 use App\Services\MutualConnectionService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -55,12 +57,72 @@ class MemberMatchingService
         $candidateIds = $candidates->pluck('id')->map(fn ($id) => (string) $id)->all();
         $candidateConnectionMap = $this->bulkGetAcceptedConnectionsMap($candidateIds);
 
+        // Bulk load direct connections between auth user and candidates
+        $directConnections = collect();
+        if (Schema::hasTable('connections') && ! empty($candidateIds)) {
+            $sent = Connection::query()
+                ->where('requester_id', $authUserId)
+                ->whereIn('addressee_id', $candidateIds);
+
+            $directConnections = Connection::query()
+                ->where('addressee_id', $authUserId)
+                ->whereIn('requester_id', $candidateIds)
+                ->union($sent)
+                ->get()
+                ->keyBy(function (Connection $connection) use ($authUserId): string {
+                    return (string) ((string) $connection->requester_id === $authUserId
+                        ? $connection->addressee_id
+                        : $connection->requester_id);
+                });
+        }
+
+        // Bulk load followed users
+        $followedUserIds = [];
+        if (Schema::hasTable('user_follows') && ! empty($candidateIds)) {
+            $followedUserIds = UserFollow::query()
+                ->where('follower_id', $authUserId)
+                ->whereIn('following_id', $candidateIds)
+                ->whereIn('status', ['accepted', 'pending'])
+                ->pluck('following_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
         // Find max life impacted count for normalization
         $maxLifeImpact = max(1, (int) $candidates->max('life_impacted_count'));
 
-        $scoredCandidates = $candidates->map(function (User $candidate) use ($authUser, $authConnectionIds, $candidateConnectionMap, $maxLifeImpact): User {
+        $scoredCandidates = $candidates->map(function (User $candidate) use ($authUser, $authUserId, $authConnectionIds, $candidateConnectionMap, $directConnections, $followedUserIds, $maxLifeImpact): User {
             $candidateId = (string) $candidate->id;
             $candidateConnectionIds = $candidateConnectionMap[$candidateId] ?? [];
+
+            $isFollowing = in_array($candidateId, $followedUserIds, true);
+            $candidate->setAttribute('is_following', $isFollowing);
+
+            $isPro = $this->determineIsPro($candidate);
+            $candidate->setAttribute('is_pro', $isPro);
+
+            $connection = $directConnections->get($candidateId);
+            $isConnected = false;
+            $isRequested = false;
+            $connectionStatus = null;
+            $canSendConnectionRequest = true;
+
+            if ($connection) {
+                $isConnected = (bool) $connection->is_approved;
+                $isRequested = ! $connection->is_approved && (string) $connection->requester_id === $authUserId;
+                $connectionStatus = $isConnected
+                    ? 'connected'
+                    : ($isRequested ? 'pending_sent' : 'pending_received');
+                $canSendConnectionRequest = false;
+            }
+
+            $candidate->setAttribute('is_connected', $isConnected);
+            $candidate->setAttribute('connection_status', $connectionStatus);
+            $candidate->setAttribute('is_requested', $isRequested);
+            $candidate->setAttribute('can_send_connection_request', $canSendConnectionRequest);
+
+            $tier = $this->determineTier($isPro, $isConnected, $isRequested, $connectionStatus);
+            $candidate->setAttribute('priority_tier', $tier);
 
             $scoreDetails = $this->calculateMatchScore($authUser, $candidate, $authConnectionIds, $candidateConnectionIds);
             $matchPercentage = $scoreDetails['match_percentage'];
@@ -79,8 +141,18 @@ class MemberMatchingService
             return $candidate;
         });
 
-        // Sort by rank score descending, then life_impacted_count descending, then created_at descending
+        // Primary: priority_tier ascending (Tier 1 -> Tier 2 -> Tier 3 -> Tier 4 -> Tier 5 -> Tier 6)
+        // Secondary: recommendation_rank_score descending
+        // Tertiary: life_impacted_count descending
+        // Quaternary: created_at descending
         return $scoredCandidates->sort(function (User $a, User $b) {
+            $tierA = (int) ($a->getAttribute('priority_tier') ?? 1);
+            $tierB = (int) ($b->getAttribute('priority_tier') ?? 1);
+
+            if ($tierA !== $tierB) {
+                return $tierA <=> $tierB;
+            }
+
             $rankA = (float) $a->getAttribute('recommendation_rank_score');
             $rankB = (float) $b->getAttribute('recommendation_rank_score');
 
@@ -97,6 +169,63 @@ class MemberMatchingService
 
             return $b->created_at <=> $a->created_at;
         })->values();
+    }
+
+    /**
+     * Determine if a candidate is a Pro/Paid member.
+     */
+    public function determineIsPro(User $user): bool
+    {
+        $rawVerified = $user->is_verified ?? null;
+        if ($rawVerified !== null && (bool) $rawVerified) {
+            return true;
+        }
+
+        if (method_exists($user, 'isPaidMember')) {
+            return (bool) $user->isPaidMember();
+        }
+
+        $status = strtolower(trim((string) ($user->effective_membership_status ?? $user->membership_status ?? '')));
+
+        return $status !== '' && ! in_array($status, ['free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'], true);
+    }
+
+    /**
+     * Determine sorting tier:
+     * Tier 1: Pro & Not Connected (can connect)
+     * Tier 2: Pro & Requested (pending)
+     * Tier 3: Pro & Connected
+     * Tier 4: Non-Pro & Not Connected
+     * Tier 5: Non-Pro & Requested
+     * Tier 6: Non-Pro & Connected
+     */
+    public function determineTier(bool $isPro, bool $isConnected, bool $isRequested, ?string $connectionStatus): int
+    {
+        if ($isPro) {
+            if (! $isConnected && ! $isRequested && $connectionStatus === null) {
+                return 1;
+            }
+            if (! $isConnected && ($isRequested || in_array($connectionStatus, ['pending_sent', 'pending_received'], true))) {
+                return 2;
+            }
+            if ($isConnected) {
+                return 3;
+            }
+
+            return 1;
+        }
+
+        if (! $isConnected && ! $isRequested && $connectionStatus === null) {
+            return 4;
+        }
+        if (! $isConnected && ($isRequested || in_array($connectionStatus, ['pending_sent', 'pending_received'], true))) {
+            return 5;
+        }
+        if ($isConnected) {
+            return 6;
+        }
+
+        return 4;
     }
 
     /**

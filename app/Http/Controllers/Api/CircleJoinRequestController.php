@@ -12,12 +12,16 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CircleSubscription;
 use App\Models\CustomCategoryRequest;
+use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Circles\CircleJoinPaymentService;
 use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\CircleJoinRequestService;
+use App\Services\Circles\CirclePriceResolver;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
+use App\Services\MembershipService;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,10 +43,10 @@ class CircleJoinRequestController extends BaseApiController
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
         $circleId = $request->validated('circle_id') ?? $request->input('circle_id');
-        $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id');
+        $categoryId = $request->validated('category_id') ?? $request->validated('level1_category_id') ?? $request->validated('circle_category_id') ?? $request->input('category_id') ?? $request->input('circle_category_id');
 
-        if (! $categoryId && $request->validated('level4_category_id')) {
-            $level4Id = $request->validated('level4_category_id');
+        $level4Id = $request->validated('level4_category_id') ?? $request->input('level4_category_id') ?? $request->input('level_4_category_id');
+        if (! $categoryId && $level4Id) {
             $level4Table = Schema::hasTable('level4_categories') ? 'level4_categories' : 'circle_category_level4';
             if (Schema::hasTable($level4Table)) {
                 $categoryId = DB::table($level4Table)
@@ -116,6 +120,11 @@ class CircleJoinRequestController extends BaseApiController
                     'category_name' => $otherCategoryName,
                     'status' => 'pending',
                 ]);
+            }
+
+            $gstNumber = trim((string) ($request->validated('gst_number') ?? $request->validated('gstin') ?? $request->input('gst_number') ?? $request->input('gstin') ?? ''));
+            if ($gstNumber !== '' && $request->user()) {
+                $request->user()->forceFill(['gst_number' => $gstNumber])->save();
             }
 
             $record = $this->service->submitRequest(
@@ -279,6 +288,40 @@ class CircleJoinRequestController extends BaseApiController
                 'data' => $this->transformJoinRequest($record),
                 'meta' => null,
             ]);
+        }
+
+        // Razorpay payment verification
+        if ($request->filled('razorpay_payment_id') && $request->filled('razorpay_order_id') && $request->filled('razorpay_signature')) {
+            try {
+                $updated = app(CircleJoinPaymentService::class)->verifyPayment(
+                    $record,
+                    $request->user(),
+                    (string) $request->input('razorpay_order_id'),
+                    (string) $request->input('razorpay_payment_id'),
+                    (string) $request->input('razorpay_signature')
+                );
+
+                $updated->load(['circle', 'user', 'cdApprovedBy', 'idApprovedBy']);
+
+                return response()->json([
+                    'success' => true,
+                    'status' => true,
+                    'message' => 'Payment verified successfully! You have joined the circle.',
+                    'payment_confirmed' => true,
+                    'data' => $this->transformJoinRequest($updated),
+                    'meta' => null,
+                ]);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'status' => false,
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                    'payment_confirmed' => false,
+                    'data' => $this->transformJoinRequest($record),
+                    'meta' => null,
+                ], 422);
+            }
         }
 
         // Dev / test mode support: allow instant simulation of payment confirmation.
@@ -568,13 +611,97 @@ class CircleJoinRequestController extends BaseApiController
             }
         }
 
+        $plan = null;
+        if (is_array($request->notes) && ! empty($request->notes['membership_plan_id'])) {
+            $notesPlanId = trim((string) $request->notes['membership_plan_id']);
+            $plan = Str::isUuid($notesPlanId)
+                ? MembershipPlan::query()->find($notesPlanId)
+                : MembershipPlan::query()->where('slug', $notesPlanId)->first();
+        }
+
+        $planAmounts = null;
+        if ($plan) {
+            $planAmounts = app(MembershipService::class)->calculateAmounts($plan);
+        }
+
+        $isZoho = $request->circle ? $request->circle->isZoho() : true;
+
+        if ($isZoho) {
+            $circle = $request->circle;
+            $addonCode = $circle?->zoho_addon_code ?: 'circle_package';
+            $addonName = $circle?->zoho_addon_name ?: ($circle?->name ? $circle->name.' Package' : 'Circle Package');
+            $baseAmount = (float) ($circle?->circle_price_amount ?: 15000.00);
+            $gstPercent = (float) ($circle?->circle_gst_percent ?? 18.0);
+            $gstAmount = round($baseAmount * ($gstPercent / 100), 2);
+            $totalAmount = round($baseAmount + $gstAmount, 2);
+            $amountInPaise = (int) round($totalAmount * 100);
+
+            $packageData = [
+                'id' => (string) ($circle?->zoho_addon_id ?: $addonCode),
+                'addon_id' => $circle?->zoho_addon_id,
+                'addon_code' => $addonCode,
+                'name' => $addonName,
+                'slug' => $addonCode,
+                'price' => $baseAmount,
+                'amount' => $baseAmount,
+                'gst_percent' => $gstPercent,
+                'gst_amount' => $gstAmount,
+                'total_amount' => $totalAmount,
+                'duration_days' => 365,
+                'duration_months' => (int) ($circle?->circle_duration_months ?: 12),
+                'is_free' => false,
+                'source' => 'zoho',
+            ];
+            $planData = null;
+        } else {
+            if (! $plan) {
+                try {
+                    $resolved = app(CirclePriceResolver::class)->resolve($request->circle, $request);
+                    $baseAmount = $resolved['amount'];
+                    if ($resolved['plan'] instanceof MembershipPlan) {
+                        $plan = $resolved['plan'];
+                        $planAmounts = app(MembershipService::class)->calculateAmounts($plan);
+                    }
+                } catch (\Throwable) {
+                    $baseAmount = (float) ($request->circle?->circle_price_amount ?: 15000.00);
+                }
+            } else {
+                $baseAmount = (float) $plan->price;
+            }
+            $gstPercent = $plan ? (float) $plan->gst_percent : 18.0;
+            $gstAmount = $planAmounts ? (float) $planAmounts['gst_amount'] : round($baseAmount * ($gstPercent / 100), 2);
+            $totalAmount = $planAmounts ? (float) $planAmounts['total_amount'] : round($baseAmount + $gstAmount, 2);
+            $amountInPaise = (int) round($totalAmount * 100);
+
+            $packageData = $plan ? [
+                'id' => (string) $plan->id,
+                'name' => (string) $plan->name,
+                'slug' => (string) $plan->slug,
+                'price' => (float) $plan->price,
+                'amount' => (float) $plan->price,
+                'gst_percent' => (float) $plan->gst_percent,
+                'gst_amount' => (float) $planAmounts['gst_amount'],
+                'total_amount' => (float) $planAmounts['total_amount'],
+                'duration_days' => (int) $plan->duration_days,
+                'duration_months' => $plan->duration_months ? (int) $plan->duration_months : null,
+                'is_free' => (bool) $plan->is_free,
+                'source' => 'razorpay',
+            ] : null;
+            $planData = $packageData;
+        }
+
         $hostedPageId = $this->resolveHostedPageId($request, $paymentUrl);
+        $gateway = $isZoho ? 'zoho' : 'razorpay';
 
         return [
             'id' => (string) $request->id,
             'user_id' => (string) $request->user_id,
             'is_pro' => $isPro,
             'circle_id' => (string) $request->circle_id,
+            'membership_plan_id' => $plan?->id,
+            'membership_plan' => $planData,
+            'package' => $packageData,
+            'payment_gateway' => $gateway,
             'circle' => $request->circle ? [
                 'id' => (string) $request->circle->id,
                 'name' => (string) $request->circle->name,
@@ -596,7 +723,16 @@ class CircleJoinRequestController extends BaseApiController
             'payment' => [
                 'required' => true,
                 'status' => $paymentStatus,
-                'amount' => (int) ($request->circle?->circle_price_amount ?: 5000),
+                'payment_gateway' => $gateway,
+                'membership_plan_id' => $plan?->id,
+                'membership_plan' => $planData,
+                'package' => $packageData,
+                'amount' => (int) round($totalAmount),
+                'base_amount' => $baseAmount,
+                'gst_percent' => $gstPercent,
+                'gst_amount' => $gstAmount,
+                'total_amount' => $totalAmount,
+                'amount_in_paise' => $amountInPaise,
                 'currency' => $request->circle?->circle_price_currency ?: 'INR',
                 'payment_url' => $paymentUrl,
                 'hostedpage_id' => $hostedPageId,
@@ -655,6 +791,7 @@ class CircleJoinRequestController extends BaseApiController
         $record = CircleJoinRequest::query()
             ->with([
                 'user',
+                'circle',
                 'cdApprovedBy',
                 'idApprovedBy',
                 'cdRejectedBy',
@@ -797,7 +934,7 @@ class CircleJoinRequestController extends BaseApiController
 
         if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
             $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
-            $canPay = $paymentUrl !== null;
+            $canPay = true;
         }
 
         $paidAt = null;
@@ -827,11 +964,26 @@ class CircleJoinRequestController extends BaseApiController
 
         $hostedPageId = $this->resolveHostedPageId($record, $paymentUrl);
 
+        try {
+            $resolvedPricing = app(CirclePriceResolver::class)->resolve($record->circle, $record);
+            $paymentAmount = (int) round($resolvedPricing['amount']);
+            $paymentCurrency = $resolvedPricing['currency'];
+        } catch (\Throwable) {
+            $resolvedPricing = null;
+            $paymentAmount = (int) round((float) ($record->circle?->circle_price_amount ?: 15000));
+            $paymentCurrency = $record->circle?->circle_price_currency ?: 'INR';
+        }
+
         $data = [
             'id' => (string) $record->id,
             'user_id' => (string) $record->user_id,
             'is_pro' => $isPro,
             'circle_id' => (string) $record->circle_id,
+            'circle' => $record->circle ? [
+                'id' => (string) $record->circle->id,
+                'name' => (string) $record->circle->name,
+                'slug' => (string) $record->circle->slug,
+            ] : null,
             'status' => (string) $record->status,
             'status_label' => $this->statusLabel($record->status),
             'display_status' => $this->statusLabel($record->status),
@@ -862,13 +1014,17 @@ class CircleJoinRequestController extends BaseApiController
             'payment' => [
                 'required' => true,
                 'status' => $paymentStatus,
-                'amount' => (int) ($record->circle?->circle_price_amount ?: 5000),
-                'currency' => $record->circle?->circle_price_currency ?: 'INR',
+                'payment_gateway' => $record->circle?->payment_gateway ?: 'zoho',
+                'amount' => $paymentAmount,
+                'currency' => $paymentCurrency,
+                'plan_name' => ($resolvedPricing['plan'] ?? null)?->name ?? ($record->circle?->zoho_addon_name ?: ($record->circle?->name ? $record->circle->name.' Circle Plan' : 'Circle Package')),
+                'plan_id' => ($resolvedPricing['plan'] ?? null)?->id ?? ($record->circle?->zoho_addon_code ?: null),
                 'payment_url' => $paymentUrl,
                 'hostedpage_id' => $hostedPageId,
                 'button_label' => 'Pay Now',
                 'paid_at' => $paidAt,
             ],
+            'payment_gateway' => $record->circle?->payment_gateway ?: 'zoho',
             'can_pay' => $canPay,
             'created_at' => $record->created_at ? $record->created_at->toIso8601String() : null,
             'updated_at' => $record->updated_at ? $record->updated_at->toIso8601String() : null,

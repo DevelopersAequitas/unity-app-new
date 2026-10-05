@@ -47,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
             'Models/Notifications/NotificationSuppressionLog.php',
             'Models/UserTag.php',
             'Models/UserTagAssignment.php',
+            'Models/ActivityReminderSetting.php',
         ] as $file) {
             $path = app_path($file);
             if (file_exists($path)) {

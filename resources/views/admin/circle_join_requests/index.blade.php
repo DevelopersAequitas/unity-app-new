@@ -84,7 +84,7 @@
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Company</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">City</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[160px]">Circle</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[180px]">Requested Circle</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[200px]">Category</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap min-w-[180px]">Reason for Joining</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
@@ -101,10 +101,8 @@
                             $peerCompany = $peer->company_name ?? $peer->company ?? $peer->business_name ?? '—';
                             $peerCity = $peer->city ?? '—';
                             
-                            $allPeerCirclesList = $peer ? $peer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->values() : collect();
-                            $peerCircleCount = $allPeerCirclesList->count();
-                            $peerCircleFirst = $peerCircleCount > 0 ? $allPeerCirclesList->first() : '—';
-                            $peerCircleFull = $peerCircleCount > 0 ? $allPeerCirclesList->implode(', ') : '—';
+                            $requestedCircleName = $row->circle ? $row->circle->name : '—';
+                            $requestedCircleId = $row->circle ? $row->circle->id : '';
 
                             $categoryName = $row->circleCategory ? $row->circleCategory->name : '—';
                             $categoryId = $row->circleCategory ? $row->circleCategory->id : '';
@@ -121,7 +119,9 @@
                                 'peerId' => $peer?->id,
                                 'peerCompany' => $peerCompany,
                                 'peerCity' => $peerCity,
-                                'peerCircle' => $peerCircleFull,
+                                'requestedCircle' => $requestedCircleName,
+                                'requestedCircleId' => $requestedCircleId,
+                                'peerCircle' => $requestedCircleName,
                                 'category' => $categoryName,
                                 'categoryId' => $categoryId,
                                 'reason' => $reasonText !== '' ? $reasonText : '—',
@@ -131,6 +131,8 @@
                                 'dedApprovedBy' => $dedApprovedBy,
                                 'payment' => $paymentStatus,
                                 'showUrl' => route('admin.circle-joining-requests.show', $row->id),
+                                'canApprove' => (bool)($row->can_approve ?? false),
+                                'canReject' => (bool)($row->can_reject ?? false),
                                 'canApproveCd' => (bool)$row->can_approve_cd,
                                 'approveCdUrl' => route('admin.circle-joining-requests.approve-cd', $row->id),
                                 'rejectCdUrl' => route('admin.circle-joining-requests.reject-cd', $row->id),
@@ -140,6 +142,8 @@
                                 'canApproveDed' => (bool)$row->can_approve_ded,
                                 'approveDedUrl' => route('admin.circle-joining-requests.approve-ded', $row->id),
                                 'rejectDedUrl' => route('admin.circle-joining-requests.reject-ded', $row->id),
+                                'approveUrl' => route('admin.circle-joining-requests.approve', $row->id),
+                                'rejectUrl' => route('admin.circle-joining-requests.reject', $row->id),
                             ];
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openRequestRowModal({{ json_encode($rowData) }})" title="Click row to view full request details">
@@ -147,7 +151,7 @@
                                 @if ($peer)
                                     <div class="flex items-center gap-2 whitespace-nowrap">
                                         <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
-                                            {{ $getInitials($peerName) }}
+                                             {{ $getInitials($peerName) }}
                                         </div>
                                         <span class="text-indigo-600 font-semibold hover:underline no-underline whitespace-nowrap">
                                             {{ $peerName }}
@@ -160,19 +164,13 @@
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCompany }}</td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $peerCity }}</td>
                             <td class="px-3 py-2.5 text-xs t2 max-w-[220px]">
-                                @if ($peerCircleCount > 0)
-                                    <div class="flex items-center gap-1.5 flex-wrap max-w-[220px]">
-                                        <span class="inline-block font-medium text-slate-700 max-w-[170px] truncate" title="{{ $peerCircleFull }}">
-                                            {{ $peerCircleFirst }}
-                                        </span>
-                                        @if ($peerCircleCount > 1)
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0 cursor-help" title="{{ $peerCircleFull }}">
-                                                +{{ $peerCircleCount - 1 }}
-                                            </span>
-                                        @endif
-                                    </div>
+                                @if ($row->circle)
+                                    <span class="inline-block font-semibold text-slate-800 max-w-[200px] truncate" title="{{ $row->circle->name }}">
+                                        {{ $row->circle->name }}
+                                    </span>
+                                    <div class="t3 text-[10px] font-mono mt-0.5">{{ substr($row->circle->id, 0, 13) }}...</div>
                                 @else
-                                    <span class="t3">—</span>
+                                    <span class="text-rose-600 font-medium">Missing / Invalid</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 min-w-[200px] whitespace-normal">
@@ -257,18 +255,17 @@
                                     <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
                                     @if($row->can_approve_cd)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap no-underline">Select Circle & Approve</a>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
-                                    @endif
-
-                                    @if($row->can_approve_id)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                    @elseif($row->can_approve_id)
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline" onsubmit="return confirm('Approve ID for circle: {{ addslashes($row->circle?->name ?? 'assigned circle') }}?');">@csrf<input type="hidden" name="circle_id" value="{{ $row->circle_id }}"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve ID</button></form>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
-                                    @endif
-
-                                    @if($row->can_approve_ded)
+                                    @elseif($row->can_approve_ded)
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
                                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
+                                    @elseif($row->can_approve)
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve', $row->id) }}" class="inline">@csrf<button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
                                 </div>
                             </td>
@@ -305,7 +302,7 @@
                 <span id="modalRowCity" class="font-semibold text-gray-900">—</span>
             </div>
             <div class="p-3 rounded-lg border bs bg-gray-50/70">
-                <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Circle</span>
+                <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Requested Circle</span>
                 <span id="modalRowCircle" class="font-semibold text-gray-900">—</span>
             </div>
             <div class="p-3 rounded-lg border bs bg-gray-50/70">
@@ -343,6 +340,7 @@
                 <!-- Dynamic Approve Form -->
                 <form id="modalApproveForm" method="POST" action="" class="inline">
                     @csrf
+                    <input type="hidden" name="circle_id" id="modalApproveCircleId" value="">
                     <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5">
                         Approve
                     </button>
@@ -370,7 +368,7 @@
         document.getElementById('modalRowPeerName').textContent = data.peerName || 'Circle Joining Request';
         document.getElementById('modalRowCompany').textContent = data.peerCompany || '—';
         document.getElementById('modalRowCity').textContent = data.peerCity || '—';
-        document.getElementById('modalRowCircle').textContent = data.peerCircle || '—';
+        document.getElementById('modalRowCircle').textContent = data.requestedCircle || data.peerCircle || '—';
         document.getElementById('modalRowCategory').textContent = data.category + (data.categoryId ? ' (ID: ' + data.categoryId + ')' : '');
         document.getElementById('modalRowReason').textContent = data.reason || '—';
         
@@ -417,22 +415,35 @@
         let rejectField = 'reason';
         let canAct = false;
 
-        if (data.canApproveDed) {
-            approveUrl = data.approveDedUrl;
-            rejectUrl = data.rejectDedUrl;
-            rejectField = 'remarks';
-            canAct = true;
-        } else if (data.canApproveId) {
-            approveUrl = data.approveIdUrl;
-            rejectUrl = data.rejectIdUrl;
-            rejectField = 'reason';
-            canAct = true;
-        } else if (data.canApproveCd) {
-            approveUrl = data.approveCdUrl;
-            rejectUrl = data.rejectCdUrl;
+        if (data.canApprove || data.canApproveCd || data.canApproveId || data.canApproveDed) {
+            approveUrl = data.approveUrl || data.approveDedUrl || data.approveIdUrl || data.approveCdUrl;
+            rejectUrl = data.rejectUrl || data.rejectDedUrl || data.rejectIdUrl || data.rejectCdUrl;
             rejectField = 'reason';
             canAct = true;
         }
+
+        if (canAct && approveUrl && rejectUrl) {
+            approveForm.action = approveUrl;
+            rejectForm.action = rejectUrl;
+            rejectInput.name = rejectField;
+            const circleInput = document.getElementById('modalApproveCircleId');
+            if (circleInput) {
+                circleInput.value = data.requestedCircleId || '';
+            }
+            approveForm.classList.remove('hidden');
+            rejectForm.classList.remove('hidden');
+        } else {
+            approveForm.action = '';
+            rejectForm.action = '';
+            approveForm.classList.add('hidden');
+            rejectForm.classList.add('hidden');
+        }
+
+        // Full Review Link
+        document.getElementById('modalRowReviewBtn').href = data.showUrl || '#';
+
+        document.getElementById('requestRowDetailModal').classList.remove('hidden');
+    }
 
         if (canAct && approveUrl && rejectUrl) {
             approveForm.action = approveUrl;

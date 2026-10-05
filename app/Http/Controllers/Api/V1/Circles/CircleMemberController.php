@@ -9,6 +9,7 @@ use App\Http\Resources\CircleMemberResource;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\User;
+use App\Services\Circles\CircleActivityMetricsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,12 @@ class CircleMemberController extends Controller
         $query = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
+            ->whereHas('user', function ($uq): void {
+                $uq->where(function ($sq): void {
+                    $sq->whereNull('status')->orWhere('status', 'active');
+                })->where('status', '!=', 'inactive')
+                    ->whereNull('deleted_at');
+            })
             ->with($with);
 
         if ($request->filled('status')) {
@@ -61,12 +68,17 @@ class CircleMemberController extends Controller
                     default => $roleStr,
                 };
 
-                if (in_array($mappedRole, CircleMember::ROLE_OPTIONS, true)) {
-                    $query->where('role', $mappedRole);
-                } else {
-                    $query->whereRaw('role::text = ?', [$mappedRole]);
-                }
+                $query->where(function ($q) use ($mappedRole): void {
+                    $q->whereRaw('LOWER(circle_members.role::text) = ?', [$mappedRole])
+                        ->orWhereHas('roleModel', function ($rq) use ($mappedRole): void {
+                            $rq->whereRaw('LOWER(key) = ?', [$mappedRole])
+                                ->orWhereRaw('LOWER(name) = ?', [$mappedRole]);
+                        });
+                });
             }
+        } else {
+            // Default: Filter out regional leaders from circle members list
+            $query->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
         }
 
         if ($request->filled('search') || $request->filled('q')) {
@@ -103,6 +115,18 @@ class CircleMemberController extends Controller
             $members = $query->paginate($perPage);
         }
 
+        // Attach per-member activity metrics.
+        $memberMetrics = app(CircleActivityMetricsService::class)->perMember($circle);
+        foreach ($members as $member) {
+            if ($member->user) {
+                $uid = (string) $member->user->id;
+                $stats = $memberMetrics[$uid] ?? [];
+                foreach ($stats as $key => $value) {
+                    $member->user->setAttribute($key, $value);
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => null,
@@ -112,18 +136,13 @@ class CircleMemberController extends Controller
 
     private function ensureCircleMembersExist(Circle $circle): void
     {
-        $leadershipRoles = [
-            'circle_founder' => $circle->circle_founder_user_id,
-            'circle_director' => $circle->circle_director_user_id,
-            'industry_director' => $circle->industry_director_user_id,
-            'ded' => $circle->ded_user_id,
-            'eed' => $circle->eed_user_id,
+        $circleLeadershipRoles = [
             'chair' => $circle->chair_user_id ?? null,
             'vice_chair' => $circle->vice_chair_user_id ?? null,
             'secretary' => $circle->secretary_user_id ?? null,
         ];
 
-        foreach ($leadershipRoles as $role => $userId) {
+        foreach ($circleLeadershipRoles as $role => $userId) {
             if (! empty($userId) && User::where('id', $userId)->exists()) {
                 $existing = CircleMember::withTrashed()
                     ->where('circle_id', $circle->id)

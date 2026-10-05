@@ -9,6 +9,8 @@ use App\Models\Ask\AskResponse;
 use App\Models\Ask\AskResponseStatusHistory;
 use App\Models\Ask\AskType;
 use App\Models\BusinessDeal;
+use App\Models\CircleMember;
+use App\Models\District;
 use App\Models\PostSave;
 use App\Models\Referral;
 use App\Models\User;
@@ -17,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class AskFlowHubService
@@ -86,6 +89,8 @@ class AskFlowHubService
             ->with(['user', 'type', 'flow', 'answers', 'timelineLink'])
             ->withCount('responses')
             ->orderByDesc('created_at');
+
+        $this->applyVisibilityScope($query, $user);
 
         if ($categoryId !== null) {
             $query->where(function (Builder $cq) use ($categoryId): void {
@@ -1201,5 +1206,104 @@ class AskFlowHubService
             'confidential', '8' => 8,
             default => 1,
         };
+    }
+
+    /**
+     * Apply visibility scoping to flow feed queries.
+     */
+    protected function applyVisibilityScope(Builder $query, User $user): void
+    {
+        $userCircleIds = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('circle_id')
+            ->filter()
+            ->all();
+
+        $userDistrictIds = [];
+        if (! empty($userCircleIds) && Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+            $userDistrictIds = DB::table('circles')
+                ->whereIn('id', $userCircleIds)
+                ->whereNotNull('district_id')
+                ->pluck('district_id')
+                ->filter()
+                ->all();
+        }
+
+        if (Schema::hasColumn('users', 'district_id') && ! empty($user->district_id)) {
+            $userDistrictIds[] = (string) $user->district_id;
+        }
+
+        if ($user->city_id && Schema::hasTable('cities') && Schema::hasColumn('cities', 'district_id')) {
+            $cityDistrictId = DB::table('cities')->where('id', $user->city_id)->value('district_id');
+            if ($cityDistrictId) {
+                $userDistrictIds[] = (string) $cityDistrictId;
+            }
+        }
+
+        $cityName = trim((string) ($user->city_of_residence ?: (is_string($user->city) ? $user->city : '')));
+        if ($cityName !== '' && Schema::hasTable('districts')) {
+            $districtId = District::query()->where('name', 'ILIKE', "%{$cityName}%")->value('id');
+            if ($districtId) {
+                $userDistrictIds[] = (string) $districtId;
+            }
+        }
+
+        $userDistrictIds = array_values(array_unique(array_filter($userDistrictIds)));
+        $cityId = $user->city_id;
+
+        $query->where(function (Builder $q) use ($user, $userCircleIds, $userDistrictIds, $cityId, $cityName): void {
+            // Author can always see their own asks
+            $q->where('user_id', $user->id)
+                // Global / all peers asks
+                ->orWhereNull('visibility_type')
+                ->orWhereIn('visibility_type', [Ask::VISIBILITY_ALL_PEERS, 'global', 'all_peers_global'])
+                // Circle asks
+                ->orWhere(function (Builder $cq) use ($userCircleIds): void {
+                    $cq->whereIn('visibility_type', [Ask::VISIBILITY_CIRCLE, 'my_circle']);
+                    if (! empty($userCircleIds)) {
+                        $cq->where(function (Builder $subCq) use ($userCircleIds): void {
+                            $subCq->whereIn('visibility_circle_id', $userCircleIds)
+                                ->orWhereIn('user_id', CircleMember::query()
+                                    ->whereIn('circle_id', $userCircleIds)
+                                    ->whereNull('deleted_at')
+                                    ->select('user_id')
+                                );
+                        });
+                    } else {
+                        $cq->whereRaw('1 = 0');
+                    }
+                })
+                // District asks
+                ->orWhere(function (Builder $dq) use ($userDistrictIds, $cityId, $cityName): void {
+                    $dq->whereIn('visibility_type', [Ask::VISIBILITY_DISTRICT, 'my_district']);
+                    $dq->where(function (Builder $subDq) use ($userDistrictIds, $cityId, $cityName): void {
+                        $hasDistrictCondition = false;
+                        if (! empty($userDistrictIds)) {
+                            $subDq->whereIn('visibility_district_id', $userDistrictIds);
+                            $hasDistrictCondition = true;
+                        }
+                        if ($cityId) {
+                            if ($hasDistrictCondition) {
+                                $subDq->orWhereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+                            } else {
+                                $subDq->whereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+                                $hasDistrictCondition = true;
+                            }
+                        }
+                        if ($cityName !== '') {
+                            if ($hasDistrictCondition) {
+                                $subDq->orWhereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$cityName}%"));
+                            } else {
+                                $subDq->whereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$cityName}%"));
+                                $hasDistrictCondition = true;
+                            }
+                        }
+                        if (! $hasDistrictCondition) {
+                            $subDq->whereRaw('1 = 0');
+                        }
+                    });
+                });
+        });
     }
 }

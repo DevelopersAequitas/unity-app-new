@@ -430,13 +430,31 @@ use Carbon\Carbon;
                 <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
                     <span>⭕</span> Circle Overview
                 </h3>
-                <div class="flex items-center gap-2 mb-4">
+                <div class="flex items-center flex-wrap gap-2 mb-4">
                     <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
                         • {{ $circleStatus }}
                     </span>
                     <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 uppercase">
                         {{ $circleType }}
                     </span>
+                    @php
+                        $isOpenCircle = strtolower((string) ($circle->type ?? 'public')) === 'public';
+                    @endphp
+                    @if($isOpenCircle)
+                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="inline-block" width="10" height="10" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                            </svg>
+                            Open
+                        </span>
+                    @else
+                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="inline-block" width="10" height="10" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM8 9a1 1 0 0 1 .993.883L9 10v2a1 1 0 0 1-1.993.117L7 12v-2A1 1 0 0 1 8 9z"/>
+                            </svg>
+                            Closed
+                        </span>
+                    @endif
                 </div>
                 <div class="space-y-2.5 text-xs border bs rounded-xl p-3.5 surface-2">
                     <div class="flex justify-between gap-4"><span class="t3">Slug</span><span class="t1 font-medium font-mono">{{ $circleSlug }}</span></div>
@@ -647,6 +665,120 @@ use Carbon\Carbon;
             @endif
         </div>
     </div>
+
+    @php
+        // Query ALL members for this circle (not just current paginated page)
+        $hasSubCategories = isset($circleSubCategories) && $circleSubCategories->isNotEmpty();
+        $categoryPeerCounts = [];
+        $categoryPeerNames  = [];
+
+        if ($hasSubCategories && \Illuminate\Support\Facades\Schema::hasTable('joined_circle_categories')) {
+            $allJoined = \Illuminate\Support\Facades\DB::table('joined_circle_categories as jcc')
+                ->join('users', 'users.id', '=', 'jcc.user_id')
+                ->where('jcc.circle_id', $circle->id)
+                ->whereNotNull('jcc.level4_category_id')
+                ->select([
+                    'jcc.level4_category_id',
+                    \Illuminate\Support\Facades\DB::raw(
+                        "TRIM(COALESCE(NULLIF(users.display_name,''), CONCAT_WS(' ', NULLIF(users.first_name,''), NULLIF(users.last_name,'')), users.email)) as peer_name"
+                    ),
+                ])
+                ->get();
+
+            foreach ($allJoined as $row) {
+                $lid = $row->level4_category_id;
+                $categoryPeerCounts[$lid] = ($categoryPeerCounts[$lid] ?? 0) + 1;
+                $categoryPeerNames[$lid][] = $row->peer_name ?: '—';
+            }
+        }
+    @endphp
+
+    @if($hasSubCategories)
+    <!-- CATEGORY SLOTS SECTION -->
+    <div class="border bs rounded-xl p-4 surface mb-4">
+        {{-- Header --}}
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 m-0 flex items-center gap-1.5">
+                <i class="bi bi-grid-3x3-gap admin-icon me-1" aria-hidden="true"></i> Category Slots
+            </h3>
+            @php
+                $totalSlots  = $circleSubCategories->count();
+                $closedSlots = count(array_filter($categoryPeerCounts, fn($c) => $c > 0));
+                $openSlots   = $totalSlots - $closedSlots;
+            @endphp
+            <div class="flex items-center gap-3 text-[11px] font-semibold">
+                <span class="t3">Total: <span class="t1 font-bold">{{ $totalSlots }}</span></span>
+                <span class="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                    ● Open: {{ $openSlots }}
+                </span>
+                <span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                    ● Closed: {{ $closedSlots }}
+                </span>
+            </div>
+        </div>
+
+        @php
+            $groupedByMain = $circleSubCategories->groupBy('circle_category_id');
+        @endphp
+
+        @foreach($groupedByMain as $mainCatId => $subCats)
+            @php
+                $mainCatName = $circleMainCategories->firstWhere('id', $mainCatId)?->name ?? 'Category';
+            @endphp
+
+            <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-1.5 m-0 mt-3 first:mt-0">
+                {{ $mainCatName }}
+            </p>
+
+            {{-- Compact scrollable table --}}
+            <div class="border bs rounded-xl overflow-hidden mb-2">
+                <div class="overflow-y-auto" style="max-height:260px">
+                    <table class="w-full text-xs">
+                        <tbody class="divide-y divide-[color:var(--border-soft)]">
+                            @foreach($subCats as $subCat)
+                                @php
+                                    $catId     = $subCat->id;
+                                    $peerCount = $categoryPeerCounts[$catId] ?? 0;
+                                    $isOpen    = $peerCount === 0;
+                                    $peerList  = $categoryPeerNames[$catId] ?? [];
+                                    $peerLabel = !empty($peerList)
+                                        ? implode(', ', array_slice($peerList, 0, 2)) . (count($peerList) > 2 ? ' +' . (count($peerList)-2) : '')
+                                        : '—';
+                                @endphp
+                                <tr class="hover:surface-2 transition-colors">
+                                    {{-- Category name --}}
+                                    <td class="px-3 py-2 font-medium t1 w-1/2">
+                                        {{ $subCat->name }}
+                                    </td>
+                                    {{-- Peer name --}}
+                                    <td class="px-3 py-2 t2 truncate max-w-0 w-1/3" title="{{ implode(', ', $peerList) }}">
+                                        @if($peerCount > 0)
+                                            <span class="flex items-center gap-1">
+                                                <i class="bi bi-person-fill text-rose-500 shrink-0"></i>
+                                                <span class="truncate text-rose-600">{{ $peerLabel }}</span>
+                                            </span>
+                                        @else
+                                            <span class="t3 italic">No peer</span>
+                                        @endif
+                                    </td>
+                                    {{-- Badge --}}
+                                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                                        @if($isOpen)
+                                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-50 text-teal-700 border border-teal-200">Open</span>
+                                        @else
+                                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-50 text-rose-700 border border-rose-200">Closed</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endforeach
+    </div>
+    @endif
+
 
     <?php
         $circleApiData = (new \App\Http\Resources\CircleResource($circle))->toArray(request());
@@ -898,9 +1030,9 @@ use Carbon\Carbon;
             </div>
         </form>
 
-        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}" class="d-none"></form>
+        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}#peers-section" class="d-none"></form>
 
-        <div class="rounded-xl border bs surface overflow-hidden">
+        <div id="peers-section" class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
@@ -940,7 +1072,7 @@ use Carbon\Carbon;
                             <th class="px-2 py-1"></th>
                             <th class="px-2 py-1 text-right">
                                 <div class="flex justify-end">
-                                    <a href="{{ route('admin.circles.show', $circle) }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                                    <a href="{{ route('admin.circles.show', $circle) }}#peers-section" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                                 </div>
                             </th>
                         </tr>
@@ -960,7 +1092,10 @@ use Carbon\Carbon;
                                 $memberCity = $safeStr(data_get($member, 'city.name') ?: data_get($member, 'city_name') ?: data_get($member, 'city'), 'No City');
                             @endphp
 
-                            <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openPeerDrawer('{{ $member ? $member->id : '' }}')">
+                            <tr class="peer-row hover:surface-2 transition border-b bs cursor-pointer"
+                                data-name="{{ strtolower($memberName) }}"
+                                data-email="{{ strtolower($member->email ?? '') }}"
+                                onclick="openPeerDrawer('{{ $member ? $member->id : '' }}')">
                                 <td class="px-3 py-2.5">
                                     <div class="font-medium t1 text-[12.5px]">{{ $memberName }}</div>
                                     <div class="t3 text-[11px] mt-0.5">{{ $memberCompany }}</div>
@@ -1021,17 +1156,88 @@ use Carbon\Carbon;
                                 </td>
 
                                 <td class="px-3 py-2.5 text-right whitespace-nowrap" onclick="event.stopPropagation()">
-                                    <form method="POST" action="{{ route('admin.circles.members.destroy', [$circle, $membership]) }}"
-                                          onsubmit="return confirm('Remove this peer from the circle?');" onclick="event.stopPropagation()">
-                                        @csrf
-                                        @method('DELETE')
+                                    <div class="flex items-center justify-end gap-2">
 
-                                        <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
-                                        <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
-                                        <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+                                        {{-- Add Category Button --}}
+                                        <button type="button"
+                                            onclick="event.stopPropagation(); openCategoryModal('{{ $membership->id }}', '{{ $membership->joinedCircleCategory?->level4_category_id ?? '' }}')"
+                                            class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold hover:bg-indigo-100 transition cursor-pointer">
+                                            <i class="bi bi-tag me-1"></i>{{ $membership->joinedCircleCategory?->level4Category ? 'Change Category' : 'Add Category' }}
+                                        </button>
 
-                                        <button class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer" onclick="event.stopPropagation()">Remove</button>
-                                    </form>
+                                        {{-- Remove Button --}}
+                                        <form method="POST" action="{{ route('admin.circles.members.destroy', [$circle, $membership]) }}"
+                                              onsubmit="return confirm('Remove this peer from the circle?');" onclick="event.stopPropagation()">
+                                            @csrf
+                                            @method('DELETE')
+
+                                            <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
+                                            <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                            <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+
+                                            <button class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer" onclick="event.stopPropagation()">Remove</button>
+                                        </form>
+                                    </div>
+
+                                    {{-- Category Modal (per-row) --}}
+                                    <div id="cat-modal-{{ $membership->id }}"
+                                         class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+                                         onclick="if(event.target===this) closeCategoryModal('{{ $membership->id }}')">
+                                        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+                                        <div class="relative bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-sm p-5 z-10" onclick="event.stopPropagation()">
+                                            <div class="flex items-center justify-between mb-4">
+                                                <h3 class="font-semibold text-slate-900 text-sm">Assign Category</h3>
+                                                <button type="button" onclick="closeCategoryModal('{{ $membership->id }}')"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 text-xs cursor-pointer bg-transparent border-0">✕</button>
+                                            </div>
+
+                                            <form method="POST"
+                                                  action="{{ route('admin.circles.members.update-category', [$circle, $membership]) }}"
+                                                  onclick="event.stopPropagation()">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
+                                                <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                                <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
+
+                                                <div class="mb-4">
+                                                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Sub Category
+                                                        <span class="ml-1 text-teal-600 font-normal">(Open slots only)</span>
+                                                    </label>
+                                                    @php
+                                                        $thisMemberCatId = (int)($membership->joinedCircleCategory?->level4_category_id ?? 0);
+                                                    @endphp
+                                                    <select name="level4_category_id" id="cat-select-{{ $membership->id }}"
+                                                            class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 text-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" required>
+                                                        <option value="">— Select sub category —</option>
+                                                        @foreach ($circleSubCategories as $subCat)
+                                                            @php
+                                                                $isTakenByOther = ($categoryPeerCounts[$subCat->id] ?? 0) > 0
+                                                                    && $thisMemberCatId !== (int)$subCat->id;
+                                                            @endphp
+                                                            @if(!$isTakenByOther)
+                                                                <option value="{{ $subCat->id }}"
+                                                                    @selected($thisMemberCatId === (int)$subCat->id)>
+                                                                    {{ $subCat->name }}
+                                                                </option>
+                                                            @endif
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="flex gap-2 justify-end">
+                                                    <button type="button" onclick="closeCategoryModal('{{ $membership->id }}')"
+                                                        class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer bg-white">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="submit"
+                                                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer border-0">
+                                                        <i class="bi bi-check-lg me-1"></i>Save Category
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -1181,6 +1387,28 @@ use Carbon\Carbon;
         document.getElementById('drawer-scrim').classList.add('hidden');
     }
 
+    function openCategoryModal(membershipId, currentCategoryId) {
+        document.getElementById('cat-modal-' + membershipId).classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeCategoryModal(membershipId) {
+        document.getElementById('cat-modal-' + membershipId).classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    // Close category modal on Escape key
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('[id^="cat-modal-"]').forEach(function (el) {
+                if (!el.classList.contains('hidden')) {
+                    el.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+    });
+
     document.addEventListener('DOMContentLoaded', function () {
         const CIRCLE_ID = @json($circle->id ?? null);
         const jQuery = window.jQuery || window.$;
@@ -1322,6 +1550,70 @@ use Carbon\Carbon;
                     .replace(/'/g, "&#039;");
             }
         }
+
+        // ── Peer Search (client-side, no reload) ─────────────────────────────
+        (function () {
+            const nameInput  = document.getElementById('peer_name');
+            const emailInput = document.getElementById('peer_email');
+            const tbody      = document.getElementById('grid-body');
+
+            if (!tbody) return;
+
+            // Pre-fill inputs from URL params (for bookmarked/shared URLs)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (nameInput  && urlParams.get('peer_name'))  nameInput.value  = urlParams.get('peer_name');
+            if (emailInput && urlParams.get('peer_email')) emailInput.value = urlParams.get('peer_email');
+
+            // Insert a hidden "no results" row
+            const noResultRow = document.createElement('tr');
+            noResultRow.id = 'peer-no-result-row';
+            noResultRow.style.display = 'none';
+            noResultRow.innerHTML = '<td colspan="6" class="text-center py-8 text-xs t3 italic">No peers match your search.</td>';
+            tbody.appendChild(noResultRow);
+
+            function filterRows() {
+                const name  = nameInput  ? nameInput.value.trim().toLowerCase()  : '';
+                const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+
+                let visibleCount = 0;
+                const rows = tbody.querySelectorAll('tr.peer-row');
+
+                rows.forEach(function (row) {
+                    const rowName  = (row.dataset.name  || '').toLowerCase();
+                    const rowEmail = (row.dataset.email || '').toLowerCase();
+
+                    const matchName  = !name  || rowName.includes(name);
+                    const matchEmail = !email || rowEmail.includes(email);
+
+                    if (matchName && matchEmail) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                // Show/hide the "no results" row
+                noResultRow.style.display = visibleCount === 0 ? '' : 'none';
+            }
+
+            // Attach listeners
+            [nameInput, emailInput].forEach(function (input) {
+                if (!input) return;
+                input.addEventListener('input', filterRows);
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        input.value = '';
+                        filterRows();
+                    }
+                });
+            });
+
+            // Run on load in case URL params pre-filled the inputs
+            filterRows();
+        })();
+        // ─────────────────────────────────────────────────────────────────────
     });
+
 </script>
 @endpush

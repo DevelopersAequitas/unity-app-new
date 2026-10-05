@@ -337,6 +337,69 @@ class EventListApiTest extends TestCase
             ->assertJsonPath('data.1.start_datetime', '2026-07-01 10:00:00');
     }
 
+    public function test_all_with_live_status_ignores_obsolete_occurrence_when_event_date_updated_to_10th(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-05 10:00:00'));
+
+        $user = $this->unityUser();
+        $circle = $this->circle('MSME ONE');
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $eventId = 'a4b37c0b-085c-4a8f-adfd-00bf3a775fd3';
+
+        // Event was updated to start on 2026-10-10, monthly recurring on the 10th
+        DB::table('events')->insert([
+            'id' => $eventId,
+            'circle_id' => $circle->id,
+            'title' => 'MSME One Meet',
+            'description' => null,
+            'start_at' => '2026-10-10 02:30:00',
+            'end_at' => '2026-10-10 04:30:00',
+            'is_virtual' => false,
+            'location_text' => 'Ahmedabad',
+            'visibility' => 'members',
+            'is_paid' => false,
+            'ticket_price' => 0,
+            'event_type' => 'circle_meeting',
+            'event_category' => 'networking',
+            'mode' => 'offline',
+            'qr_checkin_enabled' => false,
+            'is_public' => false,
+            'recurrence_type' => 'monthly',
+            'recurrence_day_of_month' => 10,
+            'visitor_registration_enabled' => false,
+            'member_registration_enabled' => true,
+            'status' => 'scheduled',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Old occurrence on 6 Oct
+        $this->insertOccurrence('019fea49-09e3-72fe-87d6-45cfc54c8eb6', $eventId, 'scheduled', '2026-10-06 02:30:00');
+        // New occurrence on 10 Oct
+        $this->insertOccurrence('01a10125-18d0-7360-921c-65512d558961', $eventId, 'scheduled', '2026-10-10 02:30:00');
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/events/all-with-live-status');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event_id', $eventId)
+            ->assertJsonPath('data.0.occurrence_id', '01a10125-18d0-7360-921c-65512d558961')
+            ->assertJsonPath('data.0.start_datetime', '2026-10-10 02:30:00');
+    }
+
     private function unityUser(): User
     {
         return User::query()->create([
@@ -404,6 +467,11 @@ class EventListApiTest extends TestCase
 
     private function setUpInMemoryDatabase(): void
     {
+        config(['database.default' => 'sqlite']);
+        config(['database.connections.sqlite.database' => ':memory:']);
+        DB::purge('sqlite');
+        DB::setDefaultConnection('sqlite');
+
         Schema::dropIfExists('personal_access_tokens');
         Schema::dropIfExists('event_registrations');
         Schema::dropIfExists('event_occurrences');
@@ -456,6 +524,12 @@ class EventListApiTest extends TestCase
             $table->boolean('qr_checkin_enabled')->default(false);
             $table->boolean('is_public')->default(false);
             $table->string('recurrence_type')->nullable();
+            $table->integer('recurrence_interval')->nullable()->default(1);
+            $table->integer('recurrence_day_of_week')->nullable();
+            $table->integer('recurrence_week_of_month')->nullable();
+            $table->integer('recurrence_day_of_month')->nullable();
+            $table->integer('recurrence_month')->nullable();
+            $table->timestamp('recurrence_ends_at')->nullable();
             $table->boolean('visitor_registration_enabled')->default(false);
             $table->boolean('member_registration_enabled')->default(true);
             $table->text('online_meeting_url')->nullable();

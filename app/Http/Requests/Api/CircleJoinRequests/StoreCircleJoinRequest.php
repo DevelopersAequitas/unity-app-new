@@ -11,7 +11,7 @@ class StoreCircleJoinRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $rawLevel4 = $this->input('level4_category_id', $this->input('level_4_category_id'));
-        $rawCategory = $this->input('category_id', $this->input('level1_category_id', $this->input('level_1_category_id')));
+        $rawCategory = $this->input('category_id', $this->input('level1_category_id', $this->input('level_1_category_id', $this->input('circle_category_id'))));
 
         $isOther = $this->boolean('is_other_category')
             || strtolower((string) $rawLevel4) === 'other'
@@ -23,6 +23,7 @@ class StoreCircleJoinRequest extends FormRequest
 
         $this->merge([
             'category_id' => $category,
+            'circle_category_id' => $category,
             'level1_category_id' => $category,
             'level4_category_id' => $level4,
             'is_other_category' => $isOther,
@@ -46,15 +47,20 @@ class StoreCircleJoinRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'circle_id' => ['nullable', 'required_without_all:category_id,level1_category_id,level4_category_id', 'uuid', 'exists:circles,id'],
-            'category_id' => ['nullable', 'required_without_all:circle_id,level4_category_id', 'integer', 'exists:circle_categories,id'],
+            'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
+            'category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'circle_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
             'level1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'level_1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
             'level4_category_id' => ['nullable', 'integer'],
+            'level_4_category_id' => ['nullable', 'integer'],
             'reason_for_joining' => ['nullable', 'string', 'max:2000'],
             'reason' => ['nullable', 'string', 'max:2000'],
             'is_other_category' => ['nullable', 'boolean'],
             'other_category_name' => ['nullable', 'string', 'max:255'],
             'custom_category_name' => ['nullable', 'string', 'max:255'],
+            'gst_number' => ['nullable', 'string', 'max:50'],
+            'gstin' => ['nullable', 'string', 'max:50'],
         ];
     }
 }

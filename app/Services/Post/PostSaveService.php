@@ -119,6 +119,7 @@ class PostSaveService
             ->select('posts.*')
             ->join('post_saves', 'post_saves.post_id', '=', 'posts.id')
             ->where('post_saves.user_id', $user->id)
+            ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
             ->with([
@@ -145,6 +146,7 @@ class PostSaveService
     private function findActivePost(string $postId): Post
     {
         return Post::query()
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->findOrFail($postId);

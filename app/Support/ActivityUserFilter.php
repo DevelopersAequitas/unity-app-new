@@ -19,7 +19,10 @@ class ActivityUserFilter
         string $tablePrefix = 'users'
     ): void {
         if (Schema::hasColumn($tablePrefix, 'status')) {
-            $query->where("{$tablePrefix}.status", 'active');
+            $query->where(function ($q) use ($tablePrefix) {
+                $q->whereNull("{$tablePrefix}.status")
+                    ->orWhere("{$tablePrefix}.status", 'active');
+            })->where("{$tablePrefix}.status", '!=', 'inactive');
         }
 
         if (Schema::hasColumn($tablePrefix, 'deleted_at')) {
@@ -50,7 +53,10 @@ class ActivityUserFilter
     ): void {
         if ($actorAlias !== null && $actorAlias !== '') {
             if (Schema::hasColumn('users', 'status')) {
-                $query->where("{$actorAlias}.status", 'active');
+                $query->where(function ($q) use ($actorAlias) {
+                    $q->whereNull("{$actorAlias}.status")
+                        ->orWhere("{$actorAlias}.status", 'active');
+                })->where("{$actorAlias}.status", '!=', 'inactive');
             }
 
             if (Schema::hasColumn('users', 'deleted_at')) {
@@ -63,7 +69,10 @@ class ActivityUserFilter
                     ->whereColumn('u_act_filter.id', $actorColumn);
 
                 if (Schema::hasColumn('users', 'status')) {
-                    $sub->where('u_act_filter.status', 'active');
+                    $sub->where(function ($q) {
+                        $q->whereNull('u_act_filter.status')
+                            ->orWhere('u_act_filter.status', 'active');
+                    })->where('u_act_filter.status', '!=', 'inactive');
                 }
 
                 if (Schema::hasColumn('users', 'deleted_at')) {
@@ -97,7 +106,7 @@ class ActivityUserFilter
             return false;
         }
 
-        if (isset($user->status) && strtolower((string) $user->status) !== 'active') {
+        if (isset($user->status) && (strtolower((string) $user->status) === 'inactive' || in_array(strtolower((string) $user->status), ['rejected', 'pending', 'suspended'], true))) {
             return false;
         }
 

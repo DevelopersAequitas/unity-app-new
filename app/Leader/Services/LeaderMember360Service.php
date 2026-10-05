@@ -235,24 +235,53 @@ class LeaderMember360Service
     public function getActivities(string $memberId, array $filters): array
     {
         $page = max(1, (int) ($filters['page'] ?? 1));
-        $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
-        $activityType = isset($filters['activity_type']) ? trim((string) $filters['activity_type']) : null;
+        $perPage = min(100, max(1, (int) ($filters['limit'] ?? $filters['per_page'] ?? 20)));
+        $activityType = isset($filters['activity_type']) && trim((string) $filters['activity_type']) !== ''
+            ? trim((string) $filters['activity_type'])
+            : null;
         $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
         $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
         $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
 
-        // Determine which activity types to load
-        $allTypes = [
-            'life_impact', 'referral', 'p2p_meeting', 'business_deal',
-            'testimonial', 'requirement', 'post', 'creative', 'badge', 'event_registration',
-        ];
+        // Map activityType filter to the specific sub-fetchers
+        $types = match ($activityType) {
+            'p2p_meeting' => ['p2p_meeting'],
+            'referral_given' => ['referral_given'],
+            'referral_received' => ['referral_received'],
+            'referral' => ['referral_given', 'referral_received'],
+            'deal_given' => ['deal_given'],
+            'deal_received' => ['deal_received'],
+            'deal_closed' => ['deal_closed'],
+            'business_deal' => ['deal_given', 'deal_received'],
+            'attendance' => ['attendance'],
+            'coins' => ['coins'],
+            'life_impact' => ['life_impact'],
+            'testimonial' => ['testimonial'],
+            'requirement' => ['requirement'],
+            'post' => ['post'],
+            'creative' => ['creative'],
+            'badge' => ['badge'],
+            'event_registration' => ['event_registration'],
+            null => [
+                'p2p_meeting',
+                'referral_given',
+                'referral_received',
+                'deal_given',
+                'deal_received',
+                'attendance',
+                'coins',
+                'life_impact',
+                'testimonial',
+                'requirement',
+                'post',
+                'creative',
+                'badge',
+            ],
+            default => [$activityType],
+        };
 
-        $types = ($activityType && in_array($activityType, $allTypes, true))
-            ? [$activityType]
-            : $allTypes;
-
-        // Fetch buffer = perPage * 3 per type to allow proper sorting+pagination
-        $buffer = $perPage * 3;
+        // Fetch buffer to allow proper cross-type chronological sorting and pagination
+        $buffer = max(100, ($page * $perPage) + ($perPage * 3));
         $activities = [];
 
         foreach ($types as $type) {
@@ -267,7 +296,122 @@ class LeaderMember360Service
             $activities = array_merge($activities, $items);
         }
 
-        // Sort all by created_at descending
+        // Batch resolve counterpart and related user objects
+        $allUserIds = [];
+        foreach ($activities as $act) {
+            foreach (['_counterpart_user_id', '_from_user_id', '_to_user_id', '_initiator_user_id', '_peer_user_id', '_substitute_user_id'] as $uKey) {
+                if (! empty($act[$uKey])) {
+                    $allUserIds[] = (string) $act[$uKey];
+                }
+            }
+        }
+        $allUserIds = array_values(array_unique(array_filter($allUserIds)));
+
+        $userMap = [];
+        $nameMap = [];
+        if (! empty($allUserIds)) {
+            $userCols = ['id', 'first_name', 'last_name', 'display_name', 'company_name', 'designation', 'phone', 'email', 'profile_photo_url', 'city'];
+            $existingCols = array_values(array_filter($userCols, fn ($c) => Schema::hasColumn('users', $c)));
+            $users = DB::table('users')
+                ->whereIn('id', $allUserIds)
+                ->select($existingCols)
+                ->get();
+
+            foreach ($users as $u) {
+                $displayName = trim((string) ($u->display_name ?? ''));
+                $fullName = trim(trim((string) ($u->first_name ?? '')).' '.trim((string) ($u->last_name ?? '')));
+                $resolvedName = $displayName !== '' ? $displayName : ($fullName !== '' ? $fullName : (trim((string) ($u->first_name ?? '')) ?: 'Member'));
+
+                $nameMap[$u->id] = $resolvedName;
+
+                $userMap[$u->id] = [
+                    'id' => (string) $u->id,
+                    'name' => $resolvedName,
+                    'first_name' => (string) ($u->first_name ?? ''),
+                    'last_name' => (string) ($u->last_name ?? ''),
+                    'display_name' => (string) ($u->display_name ?? ''),
+                    'company_name' => (string) ($u->company_name ?? ''),
+                    'designation' => (string) ($u->designation ?? ''),
+                    'phone' => (string) ($u->phone ?? ''),
+                    'email' => (string) ($u->email ?? ''),
+                    'profile_photo_url' => (string) ($u->profile_photo_url ?? ''),
+                    'city' => (string) ($u->city ?? ''),
+                ];
+            }
+        }
+
+        // Attach resolved objects and clean internal keys
+        foreach ($activities as &$item) {
+            // Counterpart
+            if (array_key_exists('_counterpart_user_id', $item)) {
+                $cid = $item['_counterpart_user_id'];
+                $item['counterpart_name'] = $cid ? ($nameMap[$cid] ?? 'Member') : null;
+                $item['counterpart'] = $cid ? ($userMap[$cid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['counterpart'] = $item['counterpart'];
+                }
+                unset($item['_counterpart_user_id']);
+            }
+            if (! array_key_exists('counterpart_name', $item)) {
+                $item['counterpart_name'] = null;
+            }
+            if (! array_key_exists('counterpart', $item)) {
+                $item['counterpart'] = null;
+            }
+
+            // From / To Users (Deals, Referrals, Testimonials)
+            if (array_key_exists('_from_user_id', $item)) {
+                $fid = $item['_from_user_id'];
+                $item['from_user'] = $fid ? ($userMap[$fid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['from_user'] = $item['from_user'];
+                }
+                unset($item['_from_user_id']);
+            }
+            if (array_key_exists('_to_user_id', $item)) {
+                $tid = $item['_to_user_id'];
+                $item['to_user'] = $tid ? ($userMap[$tid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['to_user'] = $item['to_user'];
+                }
+                unset($item['_to_user_id']);
+            }
+
+            // Initiator / Peer Users (P2P Meetings)
+            if (array_key_exists('_initiator_user_id', $item)) {
+                $iid = $item['_initiator_user_id'];
+                $item['initiator_user'] = $iid ? ($userMap[$iid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['initiator_user'] = $item['initiator_user'];
+                }
+                unset($item['_initiator_user_id']);
+            }
+            if (array_key_exists('_peer_user_id', $item)) {
+                $pid = $item['_peer_user_id'];
+                $item['peer_user'] = $pid ? ($userMap[$pid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['peer_user'] = $item['peer_user'];
+                }
+                unset($item['_peer_user_id']);
+            }
+
+            // Substitute User (Attendance)
+            if (array_key_exists('_substitute_user_id', $item)) {
+                $sid = $item['_substitute_user_id'];
+                $item['substitute_user'] = $sid ? ($userMap[$sid] ?? null) : null;
+                if (isset($item['data']) && is_array($item['data'])) {
+                    $item['data']['substitute_user'] = $item['substitute_user'];
+                }
+                unset($item['_substitute_user_id']);
+            }
+
+            if (! array_key_exists('amount', $item)) {
+                $item['amount'] = null;
+            }
+        }
+        unset($item);
+
+        // Sort all items by timestamp descending
         usort($activities, function (array $a, array $b): int {
             $tsA = $a['_sort_ts'] ?? 0;
             $tsB = $b['_sort_ts'] ?? 0;
@@ -275,7 +419,7 @@ class LeaderMember360Service
             return $tsB <=> $tsA;
         });
 
-        // Remove internal sort key
+        // Strip internal sorting key
         $activities = array_map(function (array $item): array {
             unset($item['_sort_ts']);
 
@@ -290,9 +434,10 @@ class LeaderMember360Service
             'data' => array_values($items),
             'meta' => [
                 'current_page' => $page,
+                'last_page' => max(1, (int) ceil($total / $perPage)),
                 'per_page' => $perPage,
+                'limit' => $perPage,
                 'total' => $total,
-                'last_page' => (int) ceil($total / $perPage),
             ],
         ];
     }
@@ -311,10 +456,17 @@ class LeaderMember360Service
         int $limit,
     ): array {
         return match ($type) {
-            'life_impact' => $this->fetchImpacts($memberId, $fromDate, $toDate, $search, $limit),
-            'referral' => $this->fetchReferrals($memberId, $fromDate, $toDate, $search, $limit),
             'p2p_meeting' => $this->fetchP2pMeetings($memberId, $fromDate, $toDate, $search, $limit),
-            'business_deal' => $this->fetchBusinessDeals($memberId, $fromDate, $toDate, $search, $limit),
+            'referral_given' => $this->fetchReferrals($memberId, $fromDate, $toDate, $search, $limit, 'given'),
+            'referral_received' => $this->fetchReferrals($memberId, $fromDate, $toDate, $search, $limit, 'received'),
+            'referral' => $this->fetchReferrals($memberId, $fromDate, $toDate, $search, $limit, 'all'),
+            'deal_given' => $this->fetchBusinessDeals($memberId, $fromDate, $toDate, $search, $limit, 'given'),
+            'deal_received' => $this->fetchBusinessDeals($memberId, $fromDate, $toDate, $search, $limit, 'received'),
+            'deal_closed' => $this->fetchBusinessDeals($memberId, $fromDate, $toDate, $search, $limit, 'closed'),
+            'business_deal' => $this->fetchBusinessDeals($memberId, $fromDate, $toDate, $search, $limit, 'all'),
+            'attendance' => $this->fetchAttendance($memberId, $fromDate, $toDate, $search, $limit),
+            'coins' => $this->fetchCoins($memberId, $fromDate, $toDate, $search, $limit),
+            'life_impact' => $this->fetchImpacts($memberId, $fromDate, $toDate, $search, $limit),
             'testimonial' => $this->fetchTestimonials($memberId, $fromDate, $toDate, $search, $limit),
             'requirement' => $this->fetchRequirements($memberId, $fromDate, $toDate, $search, $limit),
             'post' => $this->fetchPosts($memberId, $fromDate, $toDate, $search, $limit),
@@ -323,6 +475,649 @@ class LeaderMember360Service
             'event_registration' => $this->fetchEventRegistrations($memberId, $fromDate, $toDate, $search, $limit),
             default => [],
         };
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchP2pMeetings(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
+    {
+        if (! Schema::hasTable('p2p_meetings')) {
+            return [];
+        }
+
+        $q = DB::table('p2p_meetings')
+            ->where(function ($sq) use ($memberId): void {
+                $sq->where('initiator_user_id', $memberId)
+                    ->orWhere('peer_user_id', $memberId);
+            })
+            ->whereNull('deleted_at');
+
+        if (Schema::hasColumn('p2p_meetings', 'is_deleted')) {
+            $q->where('is_deleted', false);
+        }
+
+        $dateCol = Schema::hasColumn('p2p_meetings', 'meeting_date') ? 'meeting_date' : 'created_at';
+        $this->applyDateFilters($q, $dateCol, $fromDate, $toDate);
+
+        if ($search) {
+            $q->where(function ($sq) use ($search): void {
+                $sq->where('remarks', 'like', "%{$search}%");
+                if (Schema::hasColumn('p2p_meetings', 'meeting_place')) {
+                    $sq->orWhere('meeting_place', 'like', "%{$search}%");
+                }
+            });
+        }
+
+        return $q->orderByDesc('created_at')
+            ->take($limit)
+            ->get()
+            ->map(function ($row) use ($memberId): array {
+                $meetingDate = $row->meeting_date ? Carbon::parse($row->meeting_date) : ($row->created_at ? Carbon::parse($row->created_at) : now());
+                $isoDate = $meetingDate->toIso8601String();
+                $ts = $meetingDate->timestamp;
+                $isInitiator = ((string) $row->initiator_user_id === $memberId);
+                $counterpartUserId = $isInitiator ? (string) ($row->peer_user_id ?? '') : (string) ($row->initiator_user_id ?? '');
+
+                $status = ! empty($row->status)
+                    ? ucfirst((string) $row->status)
+                    : ($meetingDate->isFuture() ? 'Confirmed' : 'Completed');
+
+                $description = trim(($row->meeting_place ? "{$row->meeting_place}. " : '').($row->remarks ?? ''));
+                if ($description === '') {
+                    $description = 'One-on-one meeting';
+                }
+
+                $title = ! empty($row->title) ? (string) $row->title : '1-on-1 Intro Meeting';
+
+                $media = null;
+                if (! empty($row->media)) {
+                    $media = is_string($row->media) ? (json_decode($row->media, true) ?? $row->media) : $row->media;
+                }
+
+                return [
+                    'id' => (string) $row->id,
+                    'activity_type' => 'p2p_meeting',
+                    'title' => $title,
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    '_counterpart_user_id' => $counterpartUserId,
+                    '_initiator_user_id' => (string) ($row->initiator_user_id ?? ''),
+                    '_peer_user_id' => (string) ($row->peer_user_id ?? ''),
+                    'description' => $description,
+                    'amount' => null,
+                    'status' => $status,
+                    'date' => $isoDate,
+                    'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                    'meeting_place' => (string) ($row->meeting_place ?? ''),
+                    'remarks' => (string) ($row->remarks ?? ''),
+                    'media' => $media,
+                    'member_role' => $isInitiator ? 'initiator' : 'peer',
+                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
+                    'data' => [
+                        'meeting_id' => (string) $row->id,
+                        'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                        'meeting_place' => (string) ($row->meeting_place ?? ''),
+                        'remarks' => (string) ($row->remarks ?? ''),
+                        'media' => $media,
+                        'member_role' => $isInitiator ? 'initiator' : 'peer',
+                        'status' => $status,
+                        'initiator_user_id' => (string) ($row->initiator_user_id ?? ''),
+                        'peer_user_id' => (string) ($row->peer_user_id ?? ''),
+                        'initiator_user' => null,
+                        'peer_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
+                    ],
+                    '_sort_ts' => $ts,
+                ];
+            })->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchReferrals(
+        string $memberId,
+        ?string $fromDate,
+        ?string $toDate,
+        ?string $search,
+        int $limit,
+        string $direction = 'all',
+    ): array {
+        if (! Schema::hasTable('referrals')) {
+            return [];
+        }
+
+        $q = DB::table('referrals as r')
+            ->whereNull('r.deleted_at');
+
+        if (Schema::hasColumn('referrals', 'is_deleted')) {
+            $q->where('r.is_deleted', false);
+        }
+
+        if ($direction === 'given') {
+            $q->where('r.from_user_id', $memberId);
+        } elseif ($direction === 'received') {
+            $q->where('r.to_user_id', $memberId);
+        } else {
+            $q->where(function ($sq) use ($memberId): void {
+                $sq->where('r.from_user_id', $memberId)
+                    ->orWhere('r.to_user_id', $memberId);
+            });
+        }
+
+        if (Schema::hasTable('referral_status')) {
+            $q->leftJoin('referral_status as rs', 'rs.id', '=', 'r.status_id')
+                ->select(['r.*', 'rs.name as status_name']);
+        } else {
+            $q->select(['r.*']);
+        }
+
+        $dateCol = Schema::hasColumn('referrals', 'referral_date') ? 'r.referral_date' : 'r.created_at';
+        $this->applyDateFilters($q, $dateCol, $fromDate, $toDate);
+
+        if ($search) {
+            $q->where(function ($sq) use ($search): void {
+                $sq->where('r.referral_of', 'like', "%{$search}%")
+                    ->orWhere('r.remarks', 'like', "%{$search}%");
+            });
+        }
+
+        return $q->orderByDesc('r.created_at')
+            ->take($limit)
+            ->get()
+            ->map(function ($row) use ($memberId): array {
+                $isGiven = ((string) $row->from_user_id === $memberId);
+                $activityType = $isGiven ? 'referral_given' : 'referral_received';
+                $counterpartUserId = $isGiven ? (string) ($row->to_user_id ?? '') : (string) ($row->from_user_id ?? '');
+
+                $refDate = $row->referral_date ? Carbon::parse($row->referral_date) : ($row->created_at ? Carbon::parse($row->created_at) : now());
+                $isoDate = $refDate->toIso8601String();
+                $ts = $refDate->timestamp;
+
+                $rawStatus = (string) ($row->status_name ?? $row->status ?? 'Pending');
+                $lowerStatus = strtolower($rawStatus);
+                if (in_array($lowerStatus, ['converted', 'won', 'success'], true)) {
+                    $status = 'Converted';
+                } elseif (in_array($lowerStatus, ['contacted', 'in_progress', 'progress'], true)) {
+                    $status = 'Contacted';
+                } else {
+                    $status = 'Pending';
+                }
+
+                $title = ! empty($row->referral_of)
+                    ? (string) $row->referral_of
+                    : (! empty($row->referral_type) ? ucwords(str_replace('_', ' ', (string) $row->referral_type)) : 'Referral');
+
+                $descParts = [];
+                if (! empty($row->remarks)) {
+                    $descParts[] = (string) $row->remarks;
+                }
+                if (! empty($row->phone)) {
+                    $descParts[] = 'Phone: '.$row->phone;
+                }
+                if (! empty($row->email)) {
+                    $descParts[] = 'Email: '.$row->email;
+                }
+                $description = ! empty($descParts) ? implode(' | ', $descParts) : 'Referral details shared.';
+
+                return [
+                    'id' => (string) $row->id,
+                    'activity_type' => $activityType,
+                    'title' => $title,
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    '_counterpart_user_id' => $counterpartUserId,
+                    '_from_user_id' => (string) ($row->from_user_id ?? ''),
+                    '_to_user_id' => (string) ($row->to_user_id ?? ''),
+                    'description' => $description,
+                    'amount' => null,
+                    'status' => $status,
+                    'referral_of' => (string) ($row->referral_of ?? ''),
+                    'referral_type' => (string) ($row->referral_type ?? 'b2b_referral'),
+                    'referral_date' => $row->referral_date ? (string) $row->referral_date : null,
+                    'phone' => (string) ($row->phone ?? ''),
+                    'email' => (string) ($row->email ?? ''),
+                    'address' => (string) ($row->address ?? ''),
+                    'hot_value' => $row->hot_value ?? null,
+                    'remarks' => (string) ($row->remarks ?? ''),
+                    'status_id' => $row->status_id ? (int) $row->status_id : null,
+                    'status_name' => (string) ($row->status_name ?? $status),
+                    'member_role' => $isGiven ? 'giver' : 'receiver',
+                    'date' => $isoDate,
+                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
+                    'data' => [
+                        'referral_id' => (string) $row->id,
+                        'referral_of' => (string) ($row->referral_of ?? ''),
+                        'referral_type' => (string) ($row->referral_type ?? 'b2b_referral'),
+                        'referral_date' => $row->referral_date ? (string) $row->referral_date : null,
+                        'phone' => (string) ($row->phone ?? ''),
+                        'email' => (string) ($row->email ?? ''),
+                        'address' => (string) ($row->address ?? ''),
+                        'hot_value' => $row->hot_value ?? null,
+                        'remarks' => (string) ($row->remarks ?? ''),
+                        'status' => $status,
+                        'status_id' => $row->status_id ? (int) $row->status_id : null,
+                        'status_name' => (string) ($row->status_name ?? $status),
+                        'member_role' => $isGiven ? 'giver' : 'receiver',
+                        'from_user_id' => (string) ($row->from_user_id ?? ''),
+                        'to_user_id' => (string) ($row->to_user_id ?? ''),
+                        'from_user' => null,
+                        'to_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
+                    ],
+                    '_sort_ts' => $ts,
+                ];
+            })->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchBusinessDeals(
+        string $memberId,
+        ?string $fromDate,
+        ?string $toDate,
+        ?string $search,
+        int $limit,
+        string $filter = 'all',
+    ): array {
+        if (! Schema::hasTable('business_deals')) {
+            return [];
+        }
+
+        $q = DB::table('business_deals')
+            ->whereNull('deleted_at');
+
+        if (Schema::hasColumn('business_deals', 'is_deleted')) {
+            $q->where('is_deleted', false);
+        }
+
+        if ($filter === 'given') {
+            $q->where('from_user_id', $memberId);
+        } elseif ($filter === 'received') {
+            $q->where('to_user_id', $memberId);
+        } else {
+            $q->where(function ($sq) use ($memberId): void {
+                $sq->where('from_user_id', $memberId)
+                    ->orWhere('to_user_id', $memberId);
+            });
+        }
+
+        $dateCol = Schema::hasColumn('business_deals', 'deal_date') ? 'deal_date' : 'created_at';
+        $this->applyDateFilters($q, $dateCol, $fromDate, $toDate);
+
+        if ($search) {
+            $q->where(function ($sq) use ($search): void {
+                $sq->where('comment', 'like', "%{$search}%");
+                if (Schema::hasColumn('business_deals', 'business_type')) {
+                    $sq->orWhere('business_type', 'like', "%{$search}%");
+                }
+            });
+        }
+
+        return $q->orderByDesc('created_at')
+            ->take($limit)
+            ->get()
+            ->map(function ($row) use ($memberId, $filter): array {
+                $isGiver = ((string) ($row->from_user_id ?? '') === $memberId);
+                $counterpartUserId = $isGiver ? (string) ($row->to_user_id ?? '') : (string) ($row->from_user_id ?? '');
+
+                if ($filter === 'closed') {
+                    $activityType = 'deal_closed';
+                } elseif ($filter === 'given') {
+                    $activityType = 'deal_given';
+                } elseif ($filter === 'received') {
+                    $activityType = 'deal_received';
+                } else {
+                    $activityType = $isGiver ? 'deal_given' : 'deal_received';
+                }
+
+                $dealDate = $row->deal_date ? Carbon::parse($row->deal_date) : ($row->created_at ? Carbon::parse($row->created_at) : now());
+                $isoDate = $dealDate->toIso8601String();
+                $ts = $dealDate->timestamp;
+
+                $dealAmount = (float) ($row->deal_amount ?? 0);
+                $formattedAmount = '₹ '.number_format($dealAmount, 0);
+
+                $status = ! empty($row->status) ? ucfirst((string) $row->status) : 'Closed';
+
+                $title = ! empty($row->business_type)
+                    ? ucwords(str_replace('_', ' ', (string) $row->business_type))
+                    : ($isGiver ? 'Business Deal Given' : 'Business Deal Received');
+
+                $description = (string) ($row->comment ?: 'Closed business transaction.');
+
+                return [
+                    'id' => (string) $row->id,
+                    'activity_type' => $activityType,
+                    'title' => $title,
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    '_counterpart_user_id' => $counterpartUserId,
+                    '_from_user_id' => (string) ($row->from_user_id ?? ''),
+                    '_to_user_id' => (string) ($row->to_user_id ?? ''),
+                    'description' => $description,
+                    'amount' => $formattedAmount,
+                    'deal_amount' => $dealAmount,
+                    'business_type' => (string) ($row->business_type ?? ''),
+                    'deal_date' => $row->deal_date ? (string) $row->deal_date : null,
+                    'comment' => (string) ($row->comment ?? ''),
+                    'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
+                    'member_role' => $isGiver ? 'giver' : 'receiver',
+                    'status' => $status,
+                    'date' => $isoDate,
+                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
+                    'data' => [
+                        'deal_id' => (string) $row->id,
+                        'deal_amount' => $dealAmount,
+                        'deal_amount_formatted' => $formattedAmount,
+                        'business_type' => (string) ($row->business_type ?? ''),
+                        'deal_date' => $row->deal_date ? (string) $row->deal_date : null,
+                        'comment' => (string) ($row->comment ?? ''),
+                        'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
+                        'member_role' => $isGiver ? 'giver' : 'receiver',
+                        'status' => $status,
+                        'from_user_id' => (string) ($row->from_user_id ?? ''),
+                        'to_user_id' => (string) ($row->to_user_id ?? ''),
+                        'from_user' => null,
+                        'to_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
+                    ],
+                    '_sort_ts' => $ts,
+                ];
+            })->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchAttendance(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
+    {
+        $attendanceItems = [];
+
+        // 1. Circle Meeting Attendance via attendance_records
+        if (Schema::hasTable('attendance_records')) {
+            $q = DB::table('attendance_records as ar')
+                ->where('ar.member_user_id', $memberId);
+
+            if (Schema::hasTable('circle_meetings')) {
+                $q->leftJoin('circle_meetings as cm', 'cm.id', '=', 'ar.meeting_id')
+                    ->select([
+                        'ar.id',
+                        'ar.meeting_id',
+                        'ar.circle_id',
+                        'ar.status',
+                        'ar.marked_at',
+                        'ar.notes',
+                        'ar.substitute_user_id',
+                        'ar.created_at',
+                        'cm.meeting_date',
+                        'cm.meeting_number',
+                        'cm.venue',
+                        'cm.mode',
+                        'cm.meeting_link',
+                        'cm.agenda',
+                    ]);
+
+                if (Schema::hasTable('circles')) {
+                    $q->leftJoin('circles as c', 'c.id', '=', 'ar.circle_id')
+                        ->addSelect('c.name as circle_name');
+                }
+            } else {
+                $q->select(['ar.*']);
+            }
+
+            $dateCol = 'ar.created_at';
+            $this->applyDateFilters($q, $dateCol, $fromDate, $toDate);
+
+            if ($search) {
+                $q->where(function ($sq) use ($search): void {
+                    $sq->where('ar.notes', 'like', "%{$search}%");
+                });
+            }
+
+            $rows = $q->orderByDesc('ar.created_at')->take($limit)->get();
+
+            foreach ($rows as $row) {
+                $rawDate = $row->marked_at ?: ($row->meeting_date ?: $row->created_at);
+                $attDate = $rawDate ? Carbon::parse($rawDate) : now();
+                $isoDate = $attDate->toIso8601String();
+
+                $rawStatus = (string) ($row->status ?? 'Present');
+                $status = ucfirst(strtolower($rawStatus));
+
+                $circleName = ! empty($row->circle_name) ? (string) $row->circle_name : null;
+                $title = $circleName ? "Weekly {$circleName} Meeting" : 'Weekly Circle Meeting';
+
+                $description = ! empty($row->venue)
+                    ? (string) $row->venue
+                    : (! empty($row->meeting_link) ? 'Online via Meeting Link' : ($row->mode === 'online' ? 'Online via Zoom' : 'Circle Meeting'));
+
+                $attendanceItems[] = [
+                    'id' => (string) $row->id,
+                    'activity_type' => 'attendance',
+                    'attendance_type' => 'circle_meeting',
+                    'title' => $title,
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    'description' => $description,
+                    'amount' => null,
+                    'status' => $status,
+                    'date' => $isoDate,
+                    'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                    'venue' => (string) ($row->venue ?? ''),
+                    'mode' => (string) ($row->mode ?? ''),
+                    'meeting_link' => (string) ($row->meeting_link ?? ''),
+                    'circle_id' => (string) ($row->circle_id ?? ''),
+                    'circle_name' => $circleName,
+                    'notes' => (string) ($row->notes ?? ''),
+                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : $isoDate,
+                    '_substitute_user_id' => ! empty($row->substitute_user_id) ? (string) $row->substitute_user_id : null,
+                    'data' => [
+                        'record_id' => (string) $row->id,
+                        'attendance_type' => 'circle_meeting',
+                        'status' => $status,
+                        'marked_at' => $row->marked_at ? (string) $row->marked_at : null,
+                        'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
+                        'meeting_id' => (string) ($row->meeting_id ?? ''),
+                        'meeting_number' => $row->meeting_number ?? null,
+                        'circle_id' => (string) ($row->circle_id ?? ''),
+                        'circle_name' => $circleName,
+                        'venue' => (string) ($row->venue ?? ''),
+                        'mode' => (string) ($row->mode ?? ''),
+                        'meeting_link' => (string) ($row->meeting_link ?? ''),
+                        'agenda' => (string) ($row->agenda ?? ''),
+                        'notes' => (string) ($row->notes ?? ''),
+                        'substitute_user_id' => ! empty($row->substitute_user_id) ? (string) $row->substitute_user_id : null,
+                        'substitute_user' => null,
+                    ],
+                    '_sort_ts' => $attDate->timestamp,
+                ];
+            }
+        }
+
+        // 2. Event Attendance via event_registrations
+        if (Schema::hasTable('event_registrations')) {
+            $eq = DB::table('event_registrations as er')
+                ->leftJoin('events as e', 'e.id', '=', 'er.event_id')
+                ->where('er.user_id', $memberId)
+                ->whereNull('er.deleted_at')
+                ->select([
+                    'er.id',
+                    'er.event_id',
+                    'er.status as registration_status',
+                    'er.checkin_status',
+                    'er.checked_in_at',
+                    'er.registered_at',
+                    'er.created_at',
+                    'e.title as event_title',
+                    'e.start_at as event_start_at',
+                    'e.is_virtual',
+                    'e.location_text',
+                    'e.banner_url',
+                ]);
+
+            $this->applyDateFilters($eq, 'er.created_at', $fromDate, $toDate);
+
+            if ($search) {
+                $eq->where(function ($sq) use ($search): void {
+                    $sq->where('e.title', 'like', "%{$search}%")
+                        ->orWhere('e.location_text', 'like', "%{$search}%");
+                });
+            }
+
+            $erRows = $eq->orderByDesc('er.created_at')->take($limit)->get();
+
+            foreach ($erRows as $erRow) {
+                $rawDate = $erRow->checked_in_at ?: ($erRow->event_start_at ?: ($erRow->registered_at ?: $erRow->created_at));
+                $attDate = $rawDate ? Carbon::parse($rawDate) : now();
+                $isoDate = $attDate->toIso8601String();
+
+                if ($erRow->checkin_status === 'checked_in') {
+                    $status = 'Present';
+                } elseif ($erRow->checkin_status === 'late') {
+                    $status = 'Late';
+                } elseif ($erRow->checkin_status === 'excused') {
+                    $status = 'Excused';
+                } elseif ($erRow->registration_status === 'cancelled') {
+                    $status = 'Cancelled';
+                } elseif (! empty($erRow->event_start_at) && Carbon::parse($erRow->event_start_at)->isPast()) {
+                    $status = 'Absent';
+                } else {
+                    $status = 'Present';
+                }
+
+                $title = ! empty($erRow->event_title) ? (string) $erRow->event_title : 'Circle Meeting';
+                $description = (string) ($erRow->location_text ?: ($erRow->is_virtual ? 'Online via Zoom' : 'In-Person Meeting'));
+
+                $attendanceItems[] = [
+                    'id' => (string) $erRow->id,
+                    'activity_type' => 'attendance',
+                    'attendance_type' => 'event',
+                    'title' => $title,
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    'description' => $description,
+                    'amount' => null,
+                    'status' => $status,
+                    'date' => $isoDate,
+                    'event_id' => (string) ($erRow->event_id ?? ''),
+                    'event_title' => (string) ($erRow->event_title ?? ''),
+                    'event_start_at' => $erRow->event_start_at ? (string) $erRow->event_start_at : null,
+                    'checkin_status' => (string) ($erRow->checkin_status ?? ''),
+                    'created_at' => $erRow->created_at ? Carbon::parse($erRow->created_at)->toIso8601String() : $isoDate,
+                    'data' => [
+                        'registration_id' => (string) $erRow->id,
+                        'attendance_type' => 'event',
+                        'event_id' => (string) ($erRow->event_id ?? ''),
+                        'event_title' => (string) ($erRow->event_title ?? ''),
+                        'event_start_at' => $erRow->event_start_at ? (string) $erRow->event_start_at : null,
+                        'location_text' => (string) ($erRow->location_text ?? ''),
+                        'is_virtual' => (bool) ($erRow->is_virtual ?? false),
+                        'banner_url' => (string) ($erRow->banner_url ?? ''),
+                        'checkin_status' => (string) ($erRow->checkin_status ?? ''),
+                        'checked_in_at' => $erRow->checked_in_at ? (string) $erRow->checked_in_at : null,
+                        'registration_status' => (string) ($erRow->registration_status ?? ''),
+                        'status' => $status,
+                    ],
+                    '_sort_ts' => $attDate->timestamp,
+                ];
+            }
+        }
+
+        return $attendanceItems;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchCoins(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
+    {
+        if (! Schema::hasTable('coins_ledger')) {
+            return [];
+        }
+
+        $q = DB::table('coins_ledger')
+            ->where('user_id', $memberId);
+
+        if (Schema::hasColumn('coins_ledger', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $this->applyDateFilters($q, 'created_at', $fromDate, $toDate);
+
+        if ($search) {
+            $q->where(function ($sq) use ($search): void {
+                $sq->where('remark', 'like', "%{$search}%");
+                if (Schema::hasColumn('coins_ledger', 'reference')) {
+                    $sq->orWhere('reference', 'like', "%{$search}%");
+                }
+            });
+        }
+
+        $hasTransId = Schema::hasColumn('coins_ledger', 'transaction_id');
+
+        return $q->orderByDesc('created_at')
+            ->take($limit)
+            ->get()
+            ->map(function ($row) use ($hasTransId): array {
+                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+                $isoDate = $createdDate->toIso8601String();
+                $ts = $createdDate->timestamp;
+
+                $coinsDelta = (int) ($row->amount ?? $row->coins_delta ?? 0);
+                $amountStr = $coinsDelta >= 0 ? "+{$coinsDelta}" : "{$coinsDelta}";
+                $status = $coinsDelta >= 0 ? 'Earned' : 'Redeemed';
+
+                $title = ! empty($row->remark) && mb_strlen((string) $row->remark) < 45
+                    ? (string) $row->remark
+                    : (! empty($row->reference) ? ucwords(str_replace(['_', '-'], ' ', (string) $row->reference)) : 'Coin Transaction');
+
+                $description = (string) ($row->remark ?: ($coinsDelta >= 0 ? 'Coins earned for platform activity.' : 'Coins redeemed.'));
+                $id = $hasTransId && ! empty($row->transaction_id) ? (string) $row->transaction_id : (string) ($row->id ?? Str::uuid());
+
+                $metadata = null;
+                if (! empty($row->metadata)) {
+                    $metadata = is_string($row->metadata) ? (json_decode($row->metadata, true) ?? $row->metadata) : $row->metadata;
+                }
+
+                return [
+                    'id' => $id,
+                    'activity_type' => 'coins',
+                    'title' => $title,
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    'description' => $description,
+                    'amount' => $amountStr,
+                    'coins_delta' => $coinsDelta,
+                    'balance_after' => $row->balance_after ?? null,
+                    'entry_type' => (string) ($row->entry_type ?? ($coinsDelta >= 0 ? 'CREDIT' : 'DEBIT')),
+                    'bucket' => (string) ($row->bucket ?? 'EARNED'),
+                    'reference' => (string) ($row->reference ?? ''),
+                    'reference_type' => (string) ($row->reference_type ?? ''),
+                    'reference_id' => (string) ($row->reference_id ?? ''),
+                    'remark' => (string) ($row->remark ?? ''),
+                    'status' => $status,
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
+                    'data' => [
+                        'transaction_id' => $id,
+                        'coins_delta' => $coinsDelta,
+                        'amount' => (float) ($row->amount ?? $coinsDelta),
+                        'balance_after' => $row->balance_after ?? null,
+                        'entry_type' => (string) ($row->entry_type ?? ($coinsDelta >= 0 ? 'CREDIT' : 'DEBIT')),
+                        'bucket' => (string) ($row->bucket ?? 'EARNED'),
+                        'reference' => (string) ($row->reference ?? ''),
+                        'reference_type' => (string) ($row->reference_type ?? ''),
+                        'reference_id' => (string) ($row->reference_id ?? ''),
+                        'remark' => (string) ($row->remark ?? ''),
+                        'metadata' => $metadata,
+                        'status' => $status,
+                        'created_at' => $isoDate,
+                    ],
+                    '_sort_ts' => $ts,
+                ];
+            })->all();
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -349,14 +1144,21 @@ class LeaderMember360Service
             ->take($limit)
             ->get()
             ->map(function ($row): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
+                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+                $isoDate = $createdDate->toIso8601String();
+                $ts = $createdDate->timestamp;
 
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'life_impact',
                     'title' => 'Life Impact Created',
+                    'counterpart_name' => null,
+                    'counterpart' => null,
                     'description' => (string) ($row->action ?? 'Provided mentorship'),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
+                    'amount' => null,
+                    'status' => ucfirst((string) ($row->status ?? 'approved')),
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
                     'data' => [
                         'impact_id' => (string) $row->id,
                         'action' => (string) ($row->action ?? ''),
@@ -364,153 +1166,6 @@ class LeaderMember360Service
                         'lives_impacted' => (int) ($row->life_impacted ?? 1),
                         'status' => ucfirst((string) ($row->status ?? 'approved')),
                         'impact_date' => $row->impact_date ? (string) $row->impact_date : null,
-                    ],
-                    '_sort_ts' => $ts,
-                ];
-            })->all();
-    }
-
-    /** @return array<int, array<string, mixed>> */
-    private function fetchReferrals(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
-    {
-        if (! Schema::hasTable('referrals')) {
-            return [];
-        }
-
-        $q = DB::table('referrals')
-            ->where('from_user_id', $memberId)
-            ->whereNull('deleted_at');
-
-        $this->applyDateFilters($q, 'created_at', $fromDate, $toDate);
-
-        if ($search) {
-            $q->where(function ($sq) use ($search): void {
-                $sq->where('referral_of', 'like', "%{$search}%")
-                    ->orWhere('remarks', 'like', "%{$search}%");
-            });
-        }
-
-        return $q->orderByDesc('created_at')
-            ->take($limit)
-            ->get()
-            ->map(function ($row): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
-
-                return [
-                    'id' => (string) $row->id,
-                    'activity_type' => 'referral',
-                    'title' => 'Referral Created',
-                    'description' => 'Member gave a referral to '.(string) ($row->referral_of ?? 'a prospect'),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
-                    'data' => [
-                        'referral_id' => (string) $row->id,
-                        'referral_of' => (string) ($row->referral_of ?? ''),
-                        'referral_type' => (string) ($row->referral_type ?? 'b2b_referral'),
-                        'status' => ucfirst((string) ($row->status ?? 'pending')),
-                        'referral_date' => $row->referral_date ? (string) $row->referral_date : null,
-                        'remarks' => (string) ($row->remarks ?? ''),
-                    ],
-                    '_sort_ts' => $ts,
-                ];
-            })->all();
-    }
-
-    /** @return array<int, array<string, mixed>> */
-    private function fetchP2pMeetings(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
-    {
-        if (! Schema::hasTable('p2p_meetings')) {
-            return [];
-        }
-
-        $q = DB::table('p2p_meetings')
-            ->where(function ($sq) use ($memberId): void {
-                $sq->where('initiator_user_id', $memberId)
-                    ->orWhere('peer_user_id', $memberId);
-            })
-            ->whereNull('deleted_at');
-
-        $this->applyDateFilters($q, 'created_at', $fromDate, $toDate);
-
-        if ($search) {
-            $q->where(function ($sq) use ($search): void {
-                $sq->where('remarks', 'like', "%{$search}%")
-                    ->orWhere('meeting_place', 'like', "%{$search}%");
-            });
-        }
-
-        return $q->orderByDesc('created_at')
-            ->take($limit)
-            ->get()
-            ->map(function ($row) use ($memberId): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
-                $role = ((string) $row->initiator_user_id === $memberId) ? 'initiator' : 'peer';
-
-                return [
-                    'id' => (string) $row->id,
-                    'activity_type' => 'p2p_meeting',
-                    'title' => 'P2P Meeting',
-                    'description' => (string) ($row->remarks ?? 'One-on-one meeting'),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
-                    'data' => [
-                        'meeting_id' => (string) $row->id,
-                        'meeting_date' => $row->meeting_date ? (string) $row->meeting_date : null,
-                        'meeting_place' => (string) ($row->meeting_place ?? ''),
-                        'remarks' => (string) ($row->remarks ?? ''),
-                        'member_role' => $role,
-                        'initiator_user_id' => (string) ($row->initiator_user_id ?? ''),
-                        'peer_user_id' => (string) ($row->peer_user_id ?? ''),
-                    ],
-                    '_sort_ts' => $ts,
-                ];
-            })->all();
-    }
-
-    /** @return array<int, array<string, mixed>> */
-    private function fetchBusinessDeals(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
-    {
-        if (! Schema::hasTable('business_deals')) {
-            return [];
-        }
-
-        $q = DB::table('business_deals')
-            ->where(function ($sq) use ($memberId): void {
-                $sq->where('from_user_id', $memberId)
-                    ->orWhere('to_user_id', $memberId);
-            })
-            ->whereNull('deleted_at');
-
-        $this->applyDateFilters($q, 'created_at', $fromDate, $toDate);
-
-        if ($search) {
-            $q->where(function ($sq) use ($search): void {
-                $sq->where('comment', 'like', "%{$search}%")
-                    ->orWhere('business_type', 'like', "%{$search}%");
-            });
-        }
-
-        return $q->orderByDesc('created_at')
-            ->take($limit)
-            ->get()
-            ->map(function ($row) use ($memberId): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
-                $amount = (float) ($row->deal_amount ?? 0);
-                $role = ((string) ($row->from_user_id ?? '') === $memberId) ? 'giver' : 'receiver';
-
-                return [
-                    'id' => (string) $row->id,
-                    'activity_type' => 'business_deal',
-                    'title' => 'Business Deal',
-                    'description' => ucwords(str_replace('_', ' ', (string) ($row->business_type ?? 'New Business'))).' deal',
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
-                    'data' => [
-                        'deal_id' => (string) $row->id,
-                        'deal_amount' => $amount,
-                        'business_type' => (string) ($row->business_type ?? ''),
-                        'deal_date' => $row->deal_date ? (string) $row->deal_date : null,
-                        'comment' => (string) ($row->comment ?? ''),
-                        'member_role' => $role,
-                        'from_user_id' => (string) ($row->from_user_id ?? ''),
-                        'to_user_id' => (string) ($row->to_user_id ?? ''),
                     ],
                     '_sort_ts' => $ts,
                 ];
@@ -541,22 +1196,52 @@ class LeaderMember360Service
             ->take($limit)
             ->get()
             ->map(function ($row) use ($memberId): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
-                $role = ((string) ($row->from_user_id ?? '') === $memberId) ? 'author' : 'recipient';
+                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+                $isoDate = $createdDate->toIso8601String();
+                $ts = $createdDate->timestamp;
+                $isAuthor = ((string) ($row->from_user_id ?? '') === $memberId);
+                $counterpartUserId = $isAuthor ? (string) ($row->to_user_id ?? '') : (string) ($row->from_user_id ?? '');
+
+                $media = null;
+                if (! empty($row->media)) {
+                    $media = is_string($row->media) ? (json_decode($row->media, true) ?? $row->media) : $row->media;
+                }
 
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'testimonial',
-                    'title' => $role === 'author' ? 'Testimonial Given' : 'Testimonial Received',
+                    'title' => $isAuthor ? 'Testimonial Given' : 'Testimonial Received',
+                    'counterpart_name' => null,
+                    'counterpart' => null,
+                    '_counterpart_user_id' => $counterpartUserId,
+                    '_from_user_id' => (string) ($row->from_user_id ?? ''),
+                    '_to_user_id' => (string) ($row->to_user_id ?? ''),
                     'description' => (string) mb_substr((string) ($row->content ?? ''), 0, 120),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
+                    'content' => (string) ($row->content ?? ''),
+                    'rating' => $row->rating ? (int) $row->rating : null,
+                    'media' => $media,
+                    'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
+                    'member_role' => $isAuthor ? 'author' : 'recipient',
+                    'amount' => null,
+                    'status' => 'Completed',
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
+                    'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     'data' => [
                         'testimonial_id' => (string) $row->id,
                         'content' => (string) ($row->content ?? ''),
                         'rating' => $row->rating ? (int) $row->rating : null,
-                        'member_role' => $role,
+                        'media' => $media,
+                        'referral_id' => $row->referral_id ? (string) $row->referral_id : null,
+                        'member_role' => $isAuthor ? 'author' : 'recipient',
+                        'status' => 'Completed',
                         'from_user_id' => (string) ($row->from_user_id ?? ''),
                         'to_user_id' => (string) ($row->to_user_id ?? ''),
+                        'from_user' => null,
+                        'to_user' => null,
+                        'counterpart' => null,
+                        'created_at' => $isoDate,
+                        'updated_at' => $row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null,
                     ],
                     '_sort_ts' => $ts,
                 ];
@@ -587,14 +1272,20 @@ class LeaderMember360Service
             ->take($limit)
             ->get()
             ->map(function ($row): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
+                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+                $isoDate = $createdDate->toIso8601String();
+                $ts = $createdDate->timestamp;
 
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'requirement',
                     'title' => 'Requirement Posted',
+                    'counterpart_name' => null,
                     'description' => (string) ($row->subject ?? 'Business requirement'),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
+                    'amount' => null,
+                    'status' => ucfirst((string) ($row->status ?? 'active')),
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
                     'data' => [
                         'requirement_id' => (string) $row->id,
                         'subject' => (string) ($row->subject ?? ''),
@@ -609,6 +1300,10 @@ class LeaderMember360Service
     /** @return array<int, array<string, mixed>> */
     private function fetchPosts(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
     {
+        if (! Schema::hasTable('posts')) {
+            return [];
+        }
+
         $q = DB::table('posts')
             ->where('user_id', $memberId)
             ->whereNull('deleted_at');
@@ -623,14 +1318,20 @@ class LeaderMember360Service
             ->take($limit)
             ->get()
             ->map(function ($row): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
+                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+                $isoDate = $createdDate->toIso8601String();
+                $ts = $createdDate->timestamp;
 
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'post',
                     'title' => 'Post Created',
+                    'counterpart_name' => null,
                     'description' => (string) mb_substr((string) ($row->content_text ?? $row->title ?? ''), 0, 120),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
+                    'amount' => null,
+                    'status' => 'Completed',
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
                     'data' => [
                         'post_id' => (string) $row->id,
                         'post_type' => (string) ($row->post_type ?? 'post'),
@@ -645,6 +1346,10 @@ class LeaderMember360Service
     /** @return array<int, array<string, mixed>> */
     private function fetchCreatives(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
     {
+        if (! Schema::hasTable('activity_creatives')) {
+            return [];
+        }
+
         $q = DB::table('activity_creatives')
             ->where('user_id', $memberId)
             ->whereNull('deleted_at');
@@ -662,14 +1367,20 @@ class LeaderMember360Service
             ->take($limit)
             ->get()
             ->map(function ($row): array {
-                $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
+                $createdDate = $row->created_at ? Carbon::parse($row->created_at) : now();
+                $isoDate = $createdDate->toIso8601String();
+                $ts = $createdDate->timestamp;
 
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'creative',
                     'title' => 'Creative Shared',
+                    'counterpart_name' => null,
                     'description' => (string) ($row->title ?? 'Activity creative'),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
+                    'amount' => null,
+                    'status' => ucfirst((string) ($row->status ?? 'completed')),
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
                     'data' => [
                         'creative_id' => (string) $row->id,
                         'title' => (string) ($row->title ?? ''),
@@ -686,6 +1397,10 @@ class LeaderMember360Service
     /** @return array<int, array<string, mixed>> */
     private function fetchBadges(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
     {
+        if (! Schema::hasTable('user_milestone_badges') || ! Schema::hasTable('milestone_badges')) {
+            return [];
+        }
+
         $q = DB::table('user_milestone_badges as umb')
             ->join('milestone_badges as mb', 'mb.id', '=', 'umb.badge_id')
             ->where('umb.user_id', $memberId)
@@ -729,7 +1444,11 @@ class LeaderMember360Service
                     'id' => (string) $row->id,
                     'activity_type' => 'badge',
                     'title' => 'Badge Earned',
+                    'counterpart_name' => null,
                     'description' => (string) ($row->badge_title ?? 'Milestone badge'),
+                    'amount' => null,
+                    'status' => 'Earned',
+                    'date' => $earnedAt,
                     'created_at' => $earnedAt,
                     'data' => [
                         'badge_id' => (string) ($row->badge_id ?? ''),
@@ -750,6 +1469,10 @@ class LeaderMember360Service
     /** @return array<int, array<string, mixed>> */
     private function fetchEventRegistrations(string $memberId, ?string $fromDate, ?string $toDate, ?string $search, int $limit): array
     {
+        if (! Schema::hasTable('event_registrations')) {
+            return [];
+        }
+
         $q = DB::table('event_registrations as er')
             ->leftJoin('events as e', 'e.id', '=', 'er.event_id')
             ->where('er.user_id', $memberId)
@@ -776,13 +1499,18 @@ class LeaderMember360Service
             ->get()
             ->map(function ($row): array {
                 $ts = $row->created_at ? strtotime((string) $row->created_at) : 0;
+                $isoDate = $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String();
 
                 return [
                     'id' => (string) $row->id,
                     'activity_type' => 'event_registration',
                     'title' => 'Event Registration',
+                    'counterpart_name' => null,
                     'description' => 'Registered for '.(string) ($row->event_title ?? 'an event'),
-                    'created_at' => $row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : now()->toIso8601String(),
+                    'amount' => null,
+                    'status' => ucfirst((string) ($row->status ?? 'registered')),
+                    'date' => $isoDate,
+                    'created_at' => $isoDate,
                     'data' => [
                         'registration_id' => (string) $row->id,
                         'event_id' => (string) ($row->event_id ?? ''),
@@ -818,6 +1546,8 @@ class LeaderMember360Service
 
         $query = Post::query()
             ->where('user_id', $memberId)
+            ->where('status', 'active')
+            ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->withCount(['comments', 'likes']);
 

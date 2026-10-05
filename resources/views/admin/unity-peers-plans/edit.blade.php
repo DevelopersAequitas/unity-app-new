@@ -34,13 +34,18 @@
                         <label class="form-label">Name</label>
                         <input type="text" name="name" class="form-control" value="{{ old('name', $plan->name) }}" required>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Slug</label>
+                        <input type="text" class="form-control font-monospace" value="{{ $plan->slug }}" disabled readonly>
+                        <small class="text-muted">System identifier used for pricing &amp; membership rules.</small>
+                    </div>
                     <div class="col-md-4">
                         <label class="form-label">Price (Base)</label>
-                        <input type="number" step="0.01" min="0" name="price" class="form-control" value="{{ old('price', $plan->price) }}" required>
+                        <input type="number" step="0.01" min="0" name="price" id="planPriceInput" class="form-control" value="{{ old('price', $plan->price) }}" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">GST %</label>
-                        <input type="number" step="0.01" min="0" name="gst_percent" class="form-control" value="{{ old('gst_percent', $plan->gst_percent) }}" required>
+                        <input type="number" step="0.01" min="0" name="gst_percent" id="planGstInput" class="form-control" value="{{ old('gst_percent', $plan->gst_percent) }}" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Total Amount (Preview)</label>
@@ -50,7 +55,7 @@
                             $gstAmount = round($price * ($gstPercent / 100), 2);
                             $totalAmount = round($price + $gstAmount, 2);
                         @endphp
-                        <input type="text" class="form-control" value="₹{{ number_format($totalAmount, 2) }}" disabled>
+                        <input type="text" id="planTotalPreview" class="form-control" value="₹{{ number_format($totalAmount, 2) }}" disabled>
                     </div>
 
                     <div class="col-md-4">
@@ -87,11 +92,43 @@
                     </div>
                 </div>
 
-                <div class="mt-4 d-flex justify-content-end gap-2">
-                    <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                <div class="mt-4 d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Are you sure you want to delete this plan ({{ addslashes($plan->name) }})? This action cannot be undone.')) document.getElementById('deletePlanForm').submit();">
+                        <i class="bi bi-trash"></i> Delete Plan
+                    </button>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
                 </div>
+            </form>
+            <form id="deletePlanForm" action="{{ route('admin.unity-peers-plans.destroy', $plan) }}" method="POST" class="d-none">
+                @csrf
+                @method('DELETE')
             </form>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const priceInput = document.getElementById('planPriceInput');
+            const gstInput = document.getElementById('planGstInput');
+            const totalPreview = document.getElementById('planTotalPreview');
+
+            function updateTotal() {
+                const price = parseFloat(priceInput.value) || 0;
+                const gst = parseFloat(gstInput.value) || 0;
+                const gstAmount = price * (gst / 100);
+                const total = price + gstAmount;
+                if (totalPreview) {
+                    totalPreview.value = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+            }
+
+            if (priceInput && gstInput) {
+                priceInput.addEventListener('input', updateTotal);
+                gstInput.addEventListener('input', updateTotal);
+            }
+        });
+    </script>
 @endsection

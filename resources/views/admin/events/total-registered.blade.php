@@ -178,7 +178,7 @@
                   </a>
                 </td>
                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap font-mono align-middle">
-                  {{ optional($row->occurrence?->start_at)->format('d M Y') ?: '—' }}
+                  <span class="utc-to-local" data-utc="{{ optional($row->occurrence?->start_at)->toIso8601String() }}" data-format="date">{{ optional($row->occurrence?->start_at)->format('d M Y') ?: '—' }}</span>
                 </td>
                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle">
                   @if(!empty($row->event?->circle?->id))

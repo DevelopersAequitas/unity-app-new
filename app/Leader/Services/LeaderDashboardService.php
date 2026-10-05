@@ -101,7 +101,7 @@ class LeaderDashboardService
             // Global Scope includes all circle peers across circles (members + direct leaders)
             $circleMemberUserIds = CircleMember::query()
                 ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
                 ->pluck('user_id')
                 ->all();
 
@@ -122,7 +122,7 @@ class LeaderDashboardService
         } elseif (! empty($targetCircleIds)) {
             $totalPeers = CircleMember::query()
                 ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
                 ->whereIn('circle_id', $targetCircleIds)
                 ->distinct('user_id')
                 ->count('user_id');
@@ -139,7 +139,7 @@ class LeaderDashboardService
             if (! empty($directLeaderIds)) {
                 $alreadyCounted = CircleMember::query()
                     ->whereNull('deleted_at')
-                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
                     ->whereIn('circle_id', $targetCircleIds)
                     ->whereIn('user_id', $directLeaderIds)
                     ->distinct('user_id')
@@ -174,7 +174,7 @@ class LeaderDashboardService
                 $scopedMemberUserIds = DB::table('circle_members')
                     ->whereIn('circle_id', $targetCircleIds)
                     ->whereNull('deleted_at')
-                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn('status', ['approved', 'active']))
+                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
                     ->pluck('user_id')
                     ->filter()
                     ->unique()

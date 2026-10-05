@@ -3,48 +3,58 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Admin\AdminPeerIndexRequest;
+use App\Http\Requests\Admin\AdminPeerUpgradeRequest;
 use App\Models\CircleMember;
 use App\Models\Impact;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Admin\AdminAuditService;
+use App\Services\Admin\AdminPeerService;
 use App\Services\Admin\AdminScopeService;
 use App\Services\Membership\MembershipNotificationService;
+use App\Services\Membership\MembershipUpgradeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class UserManagementController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit) {}
+    public function __construct(
+        private readonly AdminScopeService $scope,
+        private readonly AdminAuditService $audit,
+        private readonly AdminPeerService $peerService,
+        private readonly MembershipUpgradeService $upgradeService,
+    ) {}
 
-    public function index(Request $request): JsonResponse
+    public function index(AdminPeerIndexRequest $request): JsonResponse
     {
-        $q = User::query()->with(['roles:id,key,name'])->withCount('circleMemberships');
-        $this->scope->applyUserScope($q, $request->user());
+        $filters = $request->validated();
+        $perPage = (int) $request->input('per_page', 20);
 
-        if ($search = $request->string('search')->toString()) {
-            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
-            $q->where(fn ($x) => $x->where('first_name', 'ILIKE', $term)->orWhere('last_name', 'ILIKE', $term)->orWhere('display_name', 'ILIKE', $term)->orWhere('email', 'ILIKE', $term)->orWhere('phone', 'ILIKE', $term));
-        }
+        $paginator = $this->peerService->listPeers($filters, $request->user(), $perPage);
 
-        $q->when($request->filled('membership_status'), fn ($x) => $x->where('membership_status', $request->string('membership_status')))
-            ->when($request->filled('is_active'), fn ($x) => $x->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN)))
-            ->when($request->filled('role'), fn ($x) => $x->whereHas('roles', fn ($r) => $r->where('key', $request->string('role'))))
-            ->when($request->filled('circle_id'), fn ($x) => $x->whereHas('circleMemberships', fn ($m) => $m->where('circle_id', $request->string('circle_id'))->whereNull('deleted_at')))
-            ->orderByDesc('created_at');
-
-        return $this->success($q->paginate((int) $request->input('per_page', 20)));
+        return $this->success($this->peerService->transformPaginated($paginator));
     }
 
     public function show(Request $request, string $id): JsonResponse
     {
-        $user = User::query()->with(['roles:id,key,name', 'circleMemberships.circle:id,name'])->findOrFail($id);
+        $user = User::query()
+            ->with([
+                'roles:id,key,name',
+                'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
+                'mainBusinessCategory:id,name',
+                'businessCategory:id,name',
+                'cityRelation:id,name,state,country',
+            ])
+            ->findOrFail($id);
+
         $this->scope->applyUserScope(User::query()->where('id', $id), $request->user())->firstOrFail();
 
-        return $this->success($user);
+        return $this->success($this->peerService->transformPeer($user));
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -175,5 +185,84 @@ class UserManagementController extends BaseApiController
     public function circleMemberships(string $id): JsonResponse
     {
         return $this->success(CircleMember::query()->with('circle:id,name')->where('user_id', $id)->whereNull('deleted_at')->get());
+    }
+
+    public function upgrade(AdminPeerUpgradeRequest $request, string $id): JsonResponse
+    {
+        $target = User::query()->findOrFail($id);
+        $this->scope->applyUserScope(User::query()->where('id', $id), $request->user())->firstOrFail();
+
+        $validated = $request->validated();
+        $adminUser = $request->user();
+
+        $startDate = filled($validated['membership_starts_at'] ?? $validated['membership_start_date'] ?? null)
+            ? Carbon::parse($validated['membership_starts_at'] ?? $validated['membership_start_date'])->startOfDay()
+            : now()->startOfDay();
+
+        $durationMonths = (int) ($validated['duration_months'] ?? 12);
+        $endDate = filled($validated['membership_ends_at'] ?? $validated['membership_end_date'] ?? null)
+            ? Carbon::parse($validated['membership_ends_at'] ?? $validated['membership_end_date'])->endOfDay()
+            : $startDate->copy()->addMonths($durationMonths)->endOfDay();
+
+        $planCode = (string) ($validated['plan_code'] ?? $validated['plan'] ?? '013');
+        $targetStatus = (string) ($validated['target_status'] ?? User::STATUS_GREEN_PEER);
+
+        $oldData = [
+            'membership_status' => $target->membership_status,
+            'membership_starts_at' => $target->membership_starts_at,
+            'membership_ends_at' => $target->membership_ends_at,
+        ];
+
+        $upgradeData = [
+            'membership_starts_at' => $startDate,
+            'membership_ends_at' => $endDate,
+            'starts_at' => $startDate,
+            'ends_at' => $endDate,
+            'duration_months' => $durationMonths,
+            'plan_code' => $planCode,
+            'zoho_plan_code' => $planCode,
+            'membership_approved_by' => $adminUser?->id,
+            'membership_approved_at' => now(),
+            'amount' => $validated['amount'] ?? null,
+            'force_dates' => true,
+        ];
+
+        $upgradedUser = $this->upgradeService->markAsOnlyGreenPeerAfterPayment($target, $upgradeData);
+
+        if ($targetStatus && $targetStatus !== User::STATUS_GREEN_PEER) {
+            $upgradedUser->membership_status = $targetStatus;
+            $upgradedUser->save();
+        }
+
+        $this->audit->log(
+            $adminUser,
+            'admin.peer.upgrade',
+            'users',
+            $upgradedUser->id,
+            $oldData,
+            [
+                'membership_status' => $upgradedUser->membership_status,
+                'starts_at' => $startDate->toDateTimeString(),
+                'ends_at' => $endDate->toDateTimeString(),
+                'plan_code' => $planCode,
+                'notes' => $validated['notes'] ?? $validated['reason'] ?? null,
+            ],
+            $request
+        );
+
+        $fresh = User::query()
+            ->with([
+                'roles:id,key,name',
+                'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
+                'mainBusinessCategory:id,name',
+                'businessCategory:id,name',
+                'cityRelation:id,name,state,country',
+            ])
+            ->findOrFail($upgradedUser->id);
+
+        return $this->success(
+            $this->peerService->transformPeer($fresh),
+            'Peer upgraded successfully to Pro/Global Peer.'
+        );
     }
 }

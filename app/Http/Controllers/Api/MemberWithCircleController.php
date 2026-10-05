@@ -36,6 +36,11 @@ class MemberWithCircleController extends BaseApiController
                 'users.company_name',
             ], array_map(fn (string $column): string => 'users.'.$column, $listOptionalColumns)))
             ->with('activeCircle:id,name')
+            ->where(function ($q): void {
+                $q->whereNull('users.status')->orWhere('users.status', 'active');
+            })
+            ->where('users.status', '!=', 'inactive')
+            ->whereNull('users.deleted_at')
             ->orderByDesc('created_at')
             ->get();
 
@@ -76,6 +81,11 @@ class MemberWithCircleController extends BaseApiController
     private function baseMemberQuery(array $availableOptionalColumns): Builder
     {
         return User::query()
+            ->where(function ($q): void {
+                $q->whereNull('users.status')->orWhere('users.status', 'active');
+            })
+            ->where('users.status', '!=', 'inactive')
+            ->whereNull('users.deleted_at')
             ->select(array_merge(
                 array_map(fn (string $column): string => 'users.'.$column, $this->baseColumns()),
                 array_map(fn (string $column): string => 'users.'.$column, $availableOptionalColumns)

@@ -131,6 +131,11 @@ class GeoLocationController extends BaseApiController
             ->join('user_geo_locations', 'user_geo_locations.user_id', '=', 'users.id')
             ->where('user_geo_locations.is_visible', true)
             ->where('users.id', '!=', (string) $authUser->id)
+            ->where(function ($q): void {
+                $q->whereNull('users.status')->orWhere('users.status', 'active');
+            })
+            ->where('users.status', '!=', 'inactive')
+            ->whereNull('users.deleted_at')
             ->select([
                 'users.id',
                 'users.display_name',

@@ -88,6 +88,10 @@ class RequirementController extends BaseApiController
         // select * from notifications where user_id = '<any-target-user-uuid>' order by created_at desc limit 20;
 
         $user = $request->user();
+
+        if ($user && $user->status === 'inactive') {
+            return $this->error('Inactive peers cannot create requirements. Your account is in view-only mode.', 403);
+        }
         $data = $request->validated();
 
         $media = null;

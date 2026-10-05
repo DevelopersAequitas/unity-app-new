@@ -6,11 +6,14 @@ namespace App\Services\Ask;
 
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskMatch;
+use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\District;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class AskMatchingService
 {
@@ -57,11 +60,27 @@ class AskMatchingService
             ->with(['city', 'level4Category']);
 
         if ($ask->visibility_type === Ask::VISIBILITY_DISTRICT && $ask->visibility_district_id) {
-            $query->where('district_id', $ask->visibility_district_id);
+            $query->where(function (Builder $dq) use ($ask): void {
+                if (Schema::hasColumn('users', 'district_id')) {
+                    $dq->where('district_id', $ask->visibility_district_id);
+                }
+                if (Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+                    $dq->orWhereIn('id', CircleMember::query()
+                        ->whereIn('circle_id', Circle::query()->where('district_id', $ask->visibility_district_id)->select('id'))
+                        ->whereNull('deleted_at')
+                        ->select('user_id')
+                    );
+                }
+                $district = District::find($ask->visibility_district_id);
+                if ($district) {
+                    $dq->orWhere('city', 'ILIKE', "%{$district->name}%");
+                    $dq->orWhereHas('city', fn (Builder $cq) => $cq->where('name', 'ILIKE', "%{$district->name}%"));
+                }
+            });
         } elseif ($ask->visibility_type === Ask::VISIBILITY_CIRCLE && $ask->visibility_circle_id) {
             $circleUserIds = CircleMember::query()
                 ->where('circle_id', $ask->visibility_circle_id)
-                ->where('is_approved', true)
+                ->whereNull('deleted_at')
                 ->pluck('user_id');
 
             $query->whereIn('id', $circleUserIds);

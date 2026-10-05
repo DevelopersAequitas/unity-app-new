@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $event->title }} – Visitor Registration | Peers Global Unity</title>
     <meta name="description" content="Register as a visitor for {{ $event->title }}. Official Peers Global Unity corporate event registration.">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v={{ time() }}">
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
         /* ==========================================================
            PEERS GLOBAL UNITY — CLEAN CORPORATE REGISTRATION LAYOUT
@@ -665,6 +667,80 @@
             line-height: 1.5;
         }
 
+        /* ── QR & Invoice Components ── */
+        .vr-qr-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+            background: #ffffff;
+            border: 2px dashed var(--border-mid);
+            border-radius: var(--r-lg);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .vr-qr-image {
+            width: 190px;
+            height: 190px;
+            object-fit: contain;
+            border-radius: var(--r-md);
+            border: 1px solid var(--border);
+            padding: 6px;
+            background: #ffffff;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 12px;
+        }
+
+        .vr-qr-hint {
+            font-size: .84rem;
+            color: var(--text-muted);
+            max-width: 380px;
+        }
+
+        .vr-btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: #ffffff;
+            color: var(--navy-mid);
+            border: 1px solid var(--border-mid);
+            font-size: .88rem;
+            font-weight: 700;
+            border-radius: var(--r-md);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all var(--duration) var(--ease);
+        }
+        .vr-btn-secondary:hover {
+            background: var(--bg-muted);
+            border-color: var(--navy-light);
+        }
+        .vr-btn-secondary svg { width: 16px; height: 16px; }
+
+        .vr-spin {
+            animation: vr-spinner-anim 1s linear infinite;
+        }
+        @keyframes vr-spinner-anim {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .vr-badge-paid {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            background: var(--success-subtle);
+            border: 1px solid var(--success-border);
+            color: #047857;
+            font-size: .78rem;
+            font-weight: 800;
+            border-radius: 999px;
+            text-transform: uppercase;
+        }
+
         /* ==========================================================
            5. FOOTER
            ========================================================== */
@@ -738,6 +814,36 @@
             || (bool) ($event->is_paid ?? false)
             || (float) ($event->ticket_price ?? 0) > 0);
     $isPendingPayment = $paymentRequired && ! $isPaidStatus;
+
+    /* ── Razorpay resolution ── */
+    $razorpayPayload = $payment['razorpay'] ?? null;
+    if (! $razorpayPayload && $registration && $registration->razorpay_order_id) {
+        $razorpayPayload = app(\App\Services\Events\EventRazorpayPaymentService::class)->checkoutPayload($registration);
+    }
+    $isRazorpay = ($payment['payment_gateway'] ?? $registration?->payment_gateway ?? '') === 'razorpay'
+        || ! empty($registration?->razorpay_order_id)
+        || ! empty($razorpayPayload);
+
+    /* ── QR and Invoice resolution for display (only for confirmed/paid or free) ── */
+    $qrCodeUrl = $isPaidStatus || ! $paymentRequired
+        ? ($qr['qr_code_url']
+            ?? ($registration?->qr_code_path ? app(\App\Services\Events\EventQrService::class)->url($registration->qr_code_path) : null)
+            ?? $registration?->qr_code_url
+            ?? $payment['qr_code_url']
+            ?? null)
+        : null;
+
+    if (! $qrCodeUrl && $registration && ($isPaidStatus || ! $paymentRequired)) {
+        $qrCodeUrl = app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($registration);
+    }
+
+    $invoiceNumber = $isPaidStatus
+        ? ($registration?->invoice_number ?? $payment['invoice_number'] ?? $registration?->zoho_invoice_number ?? null)
+        : null;
+
+    $invoiceUrl = $isPaidStatus
+        ? ($registration?->zoho_invoice_pdf_url ?? $registration?->zoho_invoice_url ?? ($registration ? url('/api/v1/events/registrations/'.$registration->id.'/invoice') : null))
+        : null;
 
     /* ── Banner URL resolution ── */
     $bannerUrl = $event->banner_url ?? null;
@@ -944,7 +1050,7 @@
                 ════════════════════════════════════════════════ --}}
                 @if($registration)
                     @if($isPendingPayment)
-                        <div class="vr-status-card">
+                        <div id="vr-pending-card" class="vr-status-card">
                             <div class="vr-alert-header">
                                 <div class="vr-alert-icon-wrap pending">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -970,32 +1076,100 @@
                                 </div>
                             </div>
 
-                            @if($paymentUrl)
-                                <div class="vr-pay-actions">
+                            <div class="vr-pay-actions">
+                                @if($isRazorpay && !empty($razorpayPayload))
+                                    <button type="button" id="rzp-pay-button" class="vr-btn-pay">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                                        <span>Pay Fees Now</span>
+                                    </button>
+                                @elseif($paymentUrl)
                                     <a class="vr-btn-pay" href="{{ $paymentUrl }}" target="_blank" rel="noopener">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                                        Pay Fees Now
+                                        <span>Pay Fees Now</span>
                                     </a>
-                                </div>
-                            @else
-                                <div class="vr-safe-notice">
-                                    We could not generate the payment link right now. Your registration has been saved. Please try again shortly.
-                                </div>
-                            @endif
-                        </div>
-                    @else
-                        <div class="vr-status-card">
-                            <div class="vr-alert-header">
-                                <div class="vr-alert-icon-wrap success">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                </div>
+                                @else
+                                    <div class="vr-safe-notice">
+                                        Payment is currently being configured. Please refresh in a moment to complete payment.
+                                    </div>
+                                @endif
+                            </div>
+
+                            <div id="rzp-verifying-box" style="display:none; margin-top:20px; padding:16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; align-items:center; gap:12px;">
+                                <svg class="vr-spin" style="width:24px; height:24px; color:#2563eb; flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
                                 <div>
-                                    <h2 class="vr-alert-title">{{ $isPaidStatus ? 'Payment Confirmed — Registration Complete!' : 'Registered Successfully!' }}</h2>
-                                    <p class="vr-alert-sub">Your registration ID is <strong>{{ $registration->id }}</strong>. Your Event Entry Pass with QR Code has been sent to <strong>{{ $registration->visitor_email ?: $registration->user?->email }}</strong>.</p>
+                                    <div style="font-weight:700; color:#1e40af; font-size:.92rem;">Verifying Payment with Server...</div>
+                                    <div style="color:#3b82f6; font-size:.82rem;">Please wait while we confirm your payment, generate your entry QR pass, and prepare your invoice.</div>
                                 </div>
                             </div>
+
+                            <div id="rzp-error-box" style="display:none; margin-top:16px; padding:14px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#b91c1c; font-size:.88rem;"></div>
                         </div>
                     @endif
+
+                    <div id="vr-confirmed-card" class="vr-status-card" style="{{ $isPaidStatus ? '' : 'display:none;' }}">
+                        <div class="vr-alert-header">
+                            <div class="vr-alert-icon-wrap success">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            </div>
+                            <div>
+                                <h2 class="vr-alert-title">{{ $isPaidStatus ? 'Payment Confirmed — Registration Complete!' : 'Registered Successfully!' }}</h2>
+                                <p class="vr-alert-sub">Thank you, <strong id="confirmed-attendee-name">{{ $registration->visitor_name ?: ($registration->user?->display_name ?? trim(($registration->user?->first_name ?? '').' '.($registration->user?->last_name ?? ''))) }}</strong>! Your registration is complete and confirmed. Please save your Entry Pass QR Code below.</p>
+                            </div>
+                        </div>
+
+                        <div class="vr-status-details">
+                            <div class="vr-status-prop">
+                                <span class="vr-status-prop-lbl">Registration ID</span>
+                                <span id="confirmed-reg-id" class="vr-status-prop-val">{{ $registration->id }}</span>
+                            </div>
+                            <div class="vr-status-prop">
+                                <span class="vr-status-prop-lbl">Payment Status</span>
+                                <span id="confirmed-payment-status" class="vr-status-prop-val">
+                                    <span class="vr-badge-paid">Paid</span>
+                                </span>
+                            </div>
+                            <div class="vr-status-prop">
+                                <span class="vr-status-prop-lbl">Invoice Number</span>
+                                <span id="confirmed-invoice-number" class="vr-status-prop-val">{{ $invoiceNumber ?? '' }}</span>
+                            </div>
+                            <div class="vr-status-prop">
+                                <span class="vr-status-prop-lbl">Amount Paid</span>
+                                <span id="confirmed-amount" class="vr-status-prop-val">{{ $payment['amount'] ?? $registration->amount ?? $event->ticket_price }} {{ strtoupper($payment['currency'] ?? $registration->currency ?? data_get($event->metadata,'currency','INR')) }}</span>
+                            </div>
+                        </div>
+
+                        {{-- QR Pass Box --}}
+                        <div class="vr-qr-box">
+                            <img id="confirmed-qr-image" class="vr-qr-image" src="{{ $qrCodeUrl ?: asset('images/qr-placeholder.png') }}" alt="Event Entry Pass QR" style="{{ $qrCodeUrl ? '' : 'display:none;' }}">
+                            <div style="font-weight:800; font-size:1.05rem; color:var(--text-primary); margin-bottom:4px;">Official Event Entry Pass</div>
+                            <p class="vr-qr-hint">Show this QR code at the event entrance for fast check-in. A copy has also been sent to your email.</p>
+                            @if($qrCodeUrl)
+                                <a id="confirmed-qr-download" href="{{ $qrCodeUrl }}" download="event-pass-qr.png" class="vr-btn-secondary" style="margin-top:14px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    Download Pass QR
+                                </a>
+                            @endif
+                        </div>
+
+                        {{-- Invoice Actions --}}
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding-top:16px; border-top:1px solid var(--border);">
+                            <div>
+                                <span style="font-size:.78rem; font-weight:700; text-transform:uppercase; color:var(--text-light); letter-spacing:.05em;">Tax Invoice</span>
+                                <div id="confirmed-invoice-text" style="font-weight:700; font-size:.9rem; color:var(--text-secondary);">
+                                    {{ $invoiceNumber ?? '' }}
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:10px;">
+                                <a id="confirmed-invoice-link" href="{{ $invoiceUrl ?: url('/api/v1/events/registrations/'.$registration->id.'/invoice') }}" target="_blank" rel="noopener" class="vr-btn-secondary" style="{{ $invoiceUrl ? '' : 'display:none;' }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                    View / Download Invoice
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
                 @if($unavailableMessage)
@@ -1301,55 +1475,214 @@
     }
 
     /* ── Category select loader (only runs when the selects exist) ── */
-    if (!mainSelect || !subSelect) { return; }
+    if (mainSelect && subSelect) {
+        var selectedMain = mainSelect.dataset.selected || mainSelect.value;
+        var selectedSub  = subSelect.dataset.selected  || subSelect.value;
 
-    var selectedMain = mainSelect.dataset.selected || mainSelect.value;
-    var selectedSub  = subSelect.dataset.selected  || subSelect.value;
+        function buildOptions(select, items, placeholder, selectedValue) {
+            select.innerHTML = '';
+            select.appendChild(new Option(placeholder, ''));
+            items.forEach(function (item) {
+                var opt = new Option(item.name, item.id);
+                opt.selected = String(item.id) === String(selectedValue || '');
+                select.appendChild(opt);
+            });
+        }
 
-    function buildOptions(select, items, placeholder, selectedValue) {
-        select.innerHTML = '';
-        select.appendChild(new Option(placeholder, ''));
-        items.forEach(function (item) {
-            var opt = new Option(item.name, item.id);
-            opt.selected = String(item.id) === String(selectedValue || '');
-            select.appendChild(opt);
+        function extractItems(payload, keys) {
+            var data = (payload && payload.data) ? payload.data : payload;
+            for (var i = 0; i < keys.length; i++) {
+                if (Array.isArray(data && data[keys[i]])) { return data[keys[i]]; }
+            }
+            return Array.isArray(data && data.items) ? data.items : [];
+        }
+
+        function loadMainCategories() {
+            fetch('/api/v1/circle-categories', { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                .then(function (payload) {
+                    var items = extractItems(payload, ['items']);
+                    if (items.length) { buildOptions(mainSelect, items, 'Select category', selectedMain); }
+                    if (mainSelect.value) { loadSubCategories(mainSelect.value, selectedSub); }
+                })
+                .catch(function (e) { console.warn('Unable to load categories', e); });
+        }
+
+        function loadSubCategories(mainId, selectedValue) {
+            if (!mainId) { buildOptions(subSelect, [], 'Select sub category', null); return; }
+            subSelect.disabled = true;
+            fetch('/api/v1/circle-categories/' + encodeURIComponent(mainId), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                .then(function (payload) {
+                    var items = extractItems(payload, ['level4_categories', 'sub_categories', 'children']);
+                    buildOptions(subSelect, items, 'Select sub category', selectedValue);
+                })
+                .catch(function (e) { console.warn('Unable to load sub categories', e); })
+                .finally(function () { subSelect.disabled = false; });
+        }
+
+        mainSelect.addEventListener('change', function () { loadSubCategories(mainSelect.value, null); });
+        loadMainCategories();
+    }
+
+    /* ── Razorpay Checkout Modal & AJAX Verification ── */
+    var rzpBtn = document.getElementById('rzp-pay-button');
+    if (rzpBtn) {
+        var rzpOptions = @json($razorpayPayload ?? []);
+        var registrationId = @json($registration?->id ?? '');
+
+        function showRzpError(msg) {
+            var errorBox = document.getElementById('rzp-error-box');
+            if (errorBox) {
+                errorBox.textContent = msg;
+                errorBox.style.display = 'block';
+            }
+            if (rzpBtn) {
+                rzpBtn.disabled = false;
+            }
+        }
+
+        rzpBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var errorBox = document.getElementById('rzp-error-box');
+            if (errorBox) {
+                errorBox.style.display = 'none';
+            }
+
+            // Guard 1: Verify Razorpay script is loaded
+            if (typeof Razorpay === 'undefined') {
+                showRzpError('Payment gateway script (Razorpay checkout.js) failed to load. Please check your internet connection or ad-blocker and refresh the page.');
+                console.error('Razorpay is undefined on window');
+                return;
+            }
+
+            // Guard 2: Verify Razorpay configuration key
+            if (!rzpOptions || (!rzpOptions.key && !rzpOptions.key_id)) {
+                showRzpError('Payment gateway key is not configured. Please refresh or contact support.');
+                console.error('Razorpay key missing', rzpOptions);
+                return;
+            }
+
+            // Guard 3: Verify Razorpay order_id
+            if (!rzpOptions.order_id) {
+                showRzpError('Payment order ID is missing for this registration. Please refresh the page to regenerate your order.');
+                console.error('Razorpay order_id missing', rzpOptions);
+                return;
+            }
+
+            // Guard 4: Verify payment amount
+            if (!rzpOptions.amount || Number(rzpOptions.amount) <= 0) {
+                showRzpError('Invalid payment amount. Please refresh or contact support.');
+                console.error('Razorpay amount invalid', rzpOptions);
+                return;
+            }
+
+            rzpBtn.disabled = true;
+
+            try {
+                var checkoutConfig = Object.assign({}, rzpOptions);
+
+                checkoutConfig.handler = function (response) {
+                    var verifyingBox = document.getElementById('rzp-verifying-box');
+                    if (verifyingBox) verifyingBox.style.display = 'flex';
+                    if (errorBox) errorBox.style.display = 'none';
+                    rzpBtn.disabled = true;
+
+                    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+                    fetch('/api/v1/events/registrations/' + encodeURIComponent(registrationId) + '/razorpay/verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        })
+                    })
+                    .then(function (r) {
+                        return r.json().then(function (data) {
+                            return { ok: r.ok, status: r.status, data: data };
+                        });
+                    })
+                    .then(function (res) {
+                        if (verifyingBox) verifyingBox.style.display = 'none';
+
+                        if (res.ok && res.data && (res.data.success || res.data.status === 200)) {
+                            var regData = res.data.data || {};
+                            var pendingCard = document.getElementById('vr-pending-card');
+                            var confirmedCard = document.getElementById('vr-confirmed-card');
+                            if (pendingCard) pendingCard.style.display = 'none';
+                            if (confirmedCard) {
+                                confirmedCard.style.display = 'block';
+
+                                var regId = regData.id || regData.registration_id || registrationId;
+                                var regIdEl = document.getElementById('confirmed-reg-id');
+                                if (regIdEl) regIdEl.textContent = regId;
+
+                                var invoiceNum = regData.invoice_number || regData.zoho_invoice_number || '';
+                                var invEl = document.getElementById('confirmed-invoice-number');
+                                if (invEl) invEl.textContent = invoiceNum;
+                                var invTextEl = document.getElementById('confirmed-invoice-text');
+                                if (invTextEl) invTextEl.textContent = invoiceNum;
+
+                                var invLink = regData.invoice_pdf_url || regData.invoice_url || ('/api/v1/events/registrations/' + encodeURIComponent(regId) + '/invoice');
+                                var invLinkEl = document.getElementById('confirmed-invoice-link');
+                                if (invLinkEl) {
+                                    invLinkEl.href = invLink;
+                                    invLinkEl.style.display = 'inline-flex';
+                                }
+
+                                var qrUrl = regData.qr_code_url;
+                                var qrImg = document.getElementById('confirmed-qr-image');
+                                var qrDl = document.getElementById('confirmed-qr-download');
+                                if (qrUrl && qrImg) {
+                                    qrImg.src = qrUrl;
+                                    qrImg.style.display = 'block';
+                                    if (qrDl) {
+                                        qrDl.href = qrUrl;
+                                        qrDl.style.display = 'inline-flex';
+                                    }
+                                }
+                            }
+
+                            if (window.history && window.history.replaceState) {
+                                var newUrl = window.location.pathname + '?registration_id=' + encodeURIComponent(registrationId);
+                                window.history.replaceState(null, '', newUrl);
+                            }
+                        } else {
+                            showRzpError((res.data && res.data.message) ? res.data.message : 'Payment verification failed. Please try again or contact support.');
+                        }
+                    })
+                    .catch(function (err) {
+                        if (verifyingBox) verifyingBox.style.display = 'none';
+                        showRzpError('Unable to complete payment verification. Please refresh this page to see updated payment status.');
+                        console.error('Payment verification error', err);
+                    });
+                };
+
+                checkoutConfig.modal = {
+                    ondismiss: function () {
+                        rzpBtn.disabled = false;
+                    }
+                };
+
+                var rzp = new Razorpay(checkoutConfig);
+                rzp.on('payment.failed', function (resp) {
+                    showRzpError(resp.error && resp.error.description ? ('Payment failed: ' + resp.error.description) : 'Payment was not completed. Please try again.');
+                });
+
+                rzp.open();
+            } catch (err) {
+                console.error('Razorpay checkout failed', err);
+                showRzpError('Could not start Razorpay checkout: ' + (err.message || 'Unknown error') + '. Please refresh and try again.');
+            }
         });
     }
-
-    function extractItems(payload, keys) {
-        var data = (payload && payload.data) ? payload.data : payload;
-        for (var i = 0; i < keys.length; i++) {
-            if (Array.isArray(data && data[keys[i]])) { return data[keys[i]]; }
-        }
-        return Array.isArray(data && data.items) ? data.items : [];
-    }
-
-    function loadMainCategories() {
-        fetch('/api/v1/circle-categories', { headers: { 'Accept': 'application/json' } })
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-            .then(function (payload) {
-                var items = extractItems(payload, ['items']);
-                if (items.length) { buildOptions(mainSelect, items, 'Select category', selectedMain); }
-                if (mainSelect.value) { loadSubCategories(mainSelect.value, selectedSub); }
-            })
-            .catch(function (e) { console.warn('Unable to load categories', e); });
-    }
-
-    function loadSubCategories(mainId, selectedValue) {
-        if (!mainId) { buildOptions(subSelect, [], 'Select sub category', null); return; }
-        subSelect.disabled = true;
-        fetch('/api/v1/circle-categories/' + encodeURIComponent(mainId), { headers: { 'Accept': 'application/json' } })
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-            .then(function (payload) {
-                var items = extractItems(payload, ['level4_categories', 'sub_categories', 'children']);
-                buildOptions(subSelect, items, 'Select sub category', selectedValue);
-            })
-            .catch(function (e) { console.warn('Unable to load sub categories', e); })
-            .finally(function () { subSelect.disabled = false; });
-    }
-
-    mainSelect.addEventListener('change', function () { loadSubCategories(mainSelect.value, null); });
-    loadMainCategories();
 })();
 </script>
 </body>

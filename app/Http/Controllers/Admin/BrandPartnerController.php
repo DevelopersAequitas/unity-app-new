@@ -135,7 +135,13 @@ class BrandPartnerController extends Controller
         $data['is_active'] = $request->boolean('is_active', true);
         $data['is_featured'] = $request->boolean('is_featured', false);
         $data['is_verified'] = $request->boolean('is_verified', false);
-        $data['is_sponsored'] = $request->boolean('is_sponsored', false);
+        $browserTz = $request->input('_browser_timezone') ?: config('app.timezone', 'UTC');
+        if (! empty($data['valid_from'])) {
+            $data['valid_from'] = Carbon::parse($data['valid_from'], $browserTz)->utc();
+        }
+        if (! empty($data['valid_to'])) {
+            $data['valid_to'] = Carbon::parse($data['valid_to'], $browserTz)->utc();
+        }
 
         try {
             $partner = BrandPartner::query()->create($data);
@@ -213,6 +219,14 @@ class BrandPartnerController extends Controller
 
         $wasActive = $brand_partner->is_active;
         $hadOffer = ! empty($brand_partner->offer_title);
+
+        $browserTz = $request->input('_browser_timezone') ?: config('app.timezone', 'UTC');
+        if (! empty($data['valid_from'])) {
+            $data['valid_from'] = Carbon::parse($data['valid_from'], $browserTz)->utc();
+        }
+        if (! empty($data['valid_to'])) {
+            $data['valid_to'] = Carbon::parse($data['valid_to'], $browserTz)->utc();
+        }
 
         try {
             $brand_partner->update($data);

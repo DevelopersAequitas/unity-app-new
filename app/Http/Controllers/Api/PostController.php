@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\PostCreatedEvent;
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Resources\Ask\AskPreviewResource;
@@ -33,6 +34,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -44,31 +46,75 @@ class PostController extends BaseApiController
         $perPage = max(1, min((int) $request->integer('per_page', 20), 50));
         $page = LengthAwarePaginator::resolveCurrentPage();
 
-        try {
-            $unlinkedAsks = Ask::query()
-                ->where('status', Ask::STATUS_PUBLISHED)
-                ->where(function ($q) {
-                    $q->whereNull('publish_to_timeline')
-                        ->orWhere('publish_to_timeline', true);
-                })
-                ->whereNotExists(function ($sub) {
-                    $sub->select(DB::raw(1))
-                        ->from('ask_timeline_links')
-                        ->whereColumn('ask_timeline_links.ask_id', 'asks.id');
-                })
-                ->whereNotExists(function ($sub) {
-                    $sub->select(DB::raw(1))
-                        ->from('posts')
-                        ->where('posts.source_type', 'ask')
-                        ->whereColumn('posts.source_id', 'asks.id');
-                })
-                ->limit(10)
-                ->get();
+        $userCircleIds = [];
+        if (Schema::hasTable('circle_members')) {
+            $userCircleIds = DB::table('circle_members')
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->pluck('circle_id')
+                ->filter()
+                ->all();
+        }
 
-            if ($unlinkedAsks->isNotEmpty()) {
-                $askService = app(AskService::class);
-                foreach ($unlinkedAsks as $unlinkedAsk) {
-                    $askService->ensureTimelinePost($unlinkedAsk);
+        $userDistrictIds = [];
+        if (! empty($userCircleIds) && Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+            $userDistrictIds = DB::table('circles')
+                ->whereIn('id', $userCircleIds)
+                ->whereNotNull('district_id')
+                ->pluck('district_id')
+                ->filter()
+                ->all();
+        }
+
+        if (Schema::hasColumn('users', 'district_id') && ! empty($user->district_id)) {
+            $userDistrictIds[] = (string) $user->district_id;
+        }
+
+        if ($user->city_id && Schema::hasTable('cities') && Schema::hasColumn('cities', 'district_id')) {
+            $cityDistrictId = DB::table('cities')->where('id', $user->city_id)->value('district_id');
+            if ($cityDistrictId) {
+                $userDistrictIds[] = (string) $cityDistrictId;
+            }
+        }
+
+        $cityName = trim((string) ($user->city_of_residence ?: (is_string($user->city) ? $user->city : '')));
+        if ($cityName !== '' && Schema::hasTable('districts')) {
+            $districtId = DB::table('districts')->where('name', 'ILIKE', "%{$cityName}%")->value('id');
+            if ($districtId) {
+                $userDistrictIds[] = (string) $districtId;
+            }
+        }
+
+        $userDistrictIds = array_values(array_unique(array_filter($userDistrictIds)));
+        $cityId = $user->city_id;
+
+        try {
+            if (Schema::hasTable('asks') && Schema::hasTable('ask_timeline_links')) {
+                $unlinkedAsks = Ask::query()
+                    ->where('status', Ask::STATUS_PUBLISHED)
+                    ->where(function ($q) {
+                        $q->whereNull('publish_to_timeline')
+                            ->orWhere('publish_to_timeline', true);
+                    })
+                    ->whereNotExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('ask_timeline_links')
+                            ->whereColumn('ask_timeline_links.ask_id', 'asks.id');
+                    })
+                    ->whereNotExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('posts')
+                            ->where('posts.source_type', 'ask')
+                            ->whereColumn('posts.source_id', 'asks.id');
+                    })
+                    ->limit(10)
+                    ->get();
+
+                if ($unlinkedAsks->isNotEmpty()) {
+                    $askService = app(AskService::class);
+                    foreach ($unlinkedAsks as $unlinkedAsk) {
+                        $askService->ensureTimelinePost($unlinkedAsk);
+                    }
                 }
             }
         } catch (Throwable $e) {
@@ -113,88 +159,196 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
             ->selectRaw('posts.post_type as post_type')
-            ->where('posts.visibility', 'public')
+            ->where(function ($q) use ($user, $userCircleIds, $userDistrictIds, $cityId, $cityName): void {
+                $visibilityCol = DB::raw('CAST(posts.visibility AS TEXT)');
+
+                $q->where($visibilityCol, 'public')
+                    ->orWhere('posts.user_id', $user->id);
+
+                if (! empty($userCircleIds)) {
+                    $q->orWhere(function ($cq) use ($visibilityCol, $userCircleIds): void {
+                        $cq->where($visibilityCol, 'circle')
+                            ->whereIn('posts.circle_id', $userCircleIds);
+                    });
+                }
+
+                $q->orWhere(function ($dq) use ($visibilityCol, $userDistrictIds, $cityId, $cityName): void {
+                    $dq->where($visibilityCol, 'district');
+                    $dq->where(function ($subDq) use ($userDistrictIds, $cityId, $cityName): void {
+                        $hasDistrictCondition = false;
+                        if (! empty($userDistrictIds) && Schema::hasTable('asks')) {
+                            $subDq->whereExists(function ($askQuery) use ($userDistrictIds): void {
+                                $askQuery->select(DB::raw(1))
+                                    ->from('asks')
+                                    ->whereColumn('asks.id', 'posts.source_id')
+                                    ->where('posts.source_type', 'ask')
+                                    ->whereIn('asks.visibility_district_id', $userDistrictIds);
+                            });
+                            $hasDistrictCondition = true;
+                        }
+                        if ($cityId) {
+                            if ($hasDistrictCondition) {
+                                $subDq->orWhereExists(function ($authorQuery) use ($cityId): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city_id', $cityId);
+                                });
+                            } else {
+                                $subDq->whereExists(function ($authorQuery) use ($cityId): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city_id', $cityId);
+                                });
+                                $hasDistrictCondition = true;
+                            }
+                        }
+                        if ($cityName !== '') {
+                            if ($hasDistrictCondition) {
+                                $subDq->orWhereExists(function ($authorQuery) use ($cityName): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city', 'ILIKE', "%{$cityName}%");
+                                });
+                            } else {
+                                $subDq->whereExists(function ($authorQuery) use ($cityName): void {
+                                    $authorQuery->select(DB::raw(1))
+                                        ->from('users')
+                                        ->whereColumn('users.id', 'posts.user_id')
+                                        ->where('users.city', 'ILIKE', "%{$cityName}%");
+                                });
+                                $hasDistrictCondition = true;
+                            }
+                        }
+                        if (! $hasDistrictCondition) {
+                            $subDq->whereRaw('1 = 0');
+                        }
+                    });
+                });
+            })
+            ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
-            ->whereNull('posts.deleted_at');
-
-        $impactRows = DB::table('impacts')
-            ->selectRaw('impacts.id as id')
-            ->selectRaw('impacts.user_id as author_id')
-            ->selectRaw('NULL::uuid as circle_id')
-            ->selectRaw('impacts.story_to_share as content_text')
-            ->selectRaw("'[]'::jsonb as media")
-            ->selectRaw("'[]'::jsonb as tags")
-            ->selectRaw("'public' as visibility")
-            ->selectRaw("'approved' as moderation_status")
-            ->selectRaw('0 as likes_count')
-            ->selectRaw('0 as comments_count')
-            ->selectRaw('0 as saves_count')
-            ->selectRaw('false as is_liked_by_me')
-            ->selectRaw('false as is_saved_by_me')
-            ->selectRaw('impacts.created_at as created_at')
-            ->selectRaw('impacts.updated_at as updated_at')
-            ->selectRaw('impacts.timeline_posted_at as sort_at')
-            ->selectRaw("'impact' as source_type")
-            ->selectRaw('NULL::text as post_source_type')
-            ->selectRaw('NULL::uuid as post_source_id')
-            ->selectRaw('NULL::text as post_source_event')
-            ->selectRaw('NULL::uuid as accepted_by_id')
-            ->selectRaw('NULL::text as accepted_by_display_name')
-            ->selectRaw('NULL::text as accepted_by_first_name')
-            ->selectRaw('NULL::text as accepted_by_last_name')
-            ->selectRaw('NULL::text as accepted_by_company_name')
-            ->selectRaw('NULL::text as accepted_by_city')
-            ->selectRaw('impacts.impacted_peer_id as impacted_peer_id')
-            ->selectRaw('impacts.impact_date as impact_date')
-            ->selectRaw('impacts.action as impact_action')
-            ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
-            ->selectRaw('NULL::text as post_type')
-            ->where('impacts.status', 'approved')
-            ->whereNotNull('impacts.timeline_posted_at');
-
-        $referralRows = DB::table('referrals')
-            ->leftJoin('users as to_users', 'to_users.id', '=', 'referrals.to_user_id')
-            ->selectRaw('referrals.id as id')
-            ->selectRaw('referrals.from_user_id as author_id')
-            ->selectRaw('NULL::uuid as circle_id')
-            ->selectRaw("COALESCE(referrals.remarks, 'Shared a referral for ' || referrals.referral_of) as content_text")
-            ->selectRaw("'[]'::jsonb as media")
-            ->selectRaw("'[\"referral\"]'::jsonb as tags")
-            ->selectRaw("'public' as visibility")
-            ->selectRaw("'approved' as moderation_status")
-            ->selectRaw('0 as likes_count')
-            ->selectRaw('0 as comments_count')
-            ->selectRaw('0 as saves_count')
-            ->selectRaw('false as is_liked_by_me')
-            ->selectRaw('false as is_saved_by_me')
-            ->selectRaw('referrals.created_at as created_at')
-            ->selectRaw('referrals.updated_at as updated_at')
-            ->selectRaw('referrals.created_at as sort_at')
-            ->selectRaw("'post' as source_type")
-            ->selectRaw("'referral' as post_source_type")
-            ->selectRaw('referrals.id as post_source_id')
-            ->selectRaw("'referral_created' as post_source_event")
-            ->selectRaw('to_users.id as accepted_by_id')
-            ->selectRaw('to_users.display_name as accepted_by_display_name')
-            ->selectRaw('to_users.first_name as accepted_by_first_name')
-            ->selectRaw('to_users.last_name as accepted_by_last_name')
-            ->selectRaw('to_users.company_name as accepted_by_company_name')
-            ->selectRaw('to_users.city as accepted_by_city')
-            ->selectRaw('referrals.to_user_id as impacted_peer_id')
-            ->selectRaw('referrals.referral_date as impact_date')
-            ->selectRaw('referrals.referral_of as impact_action')
-            ->selectRaw('1 as life_impacted')
-            ->selectRaw("'referral' as post_type")
-            ->where('referrals.is_deleted', false)
-            ->whereNull('referrals.deleted_at')
-            ->whereNotExists(function ($q): void {
-                $q->select(DB::raw(1))
-                    ->from('posts')
-                    ->whereColumn('posts.source_id', 'referrals.id')
-                    ->where('posts.source_type', 'referral');
+            ->whereNull('posts.deleted_at')
+            ->whereExists(function ($authorQuery): void {
+                $authorQuery->select(DB::raw(1))
+                    ->from('users as author_filter')
+                    ->whereColumn('author_filter.id', 'posts.user_id')
+                    ->where(function ($sq): void {
+                        $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
+                    })
+                    ->where('author_filter.status', '!=', 'inactive')
+                    ->whereNull('author_filter.deleted_at');
             });
 
-        $union = $postRows->unionAll($impactRows)->unionAll($referralRows);
+        $union = $postRows;
+
+        if (Schema::hasTable('impacts')) {
+            $impactRows = DB::table('impacts')
+                ->selectRaw('impacts.id as id')
+                ->selectRaw('impacts.user_id as author_id')
+                ->selectRaw('NULL::uuid as circle_id')
+                ->selectRaw('impacts.story_to_share as content_text')
+                ->selectRaw("'[]'::jsonb as media")
+                ->selectRaw("'[]'::jsonb as tags")
+                ->selectRaw("'public' as visibility")
+                ->selectRaw("'approved' as moderation_status")
+                ->selectRaw('0 as likes_count')
+                ->selectRaw('0 as comments_count')
+                ->selectRaw('0 as saves_count')
+                ->selectRaw('false as is_liked_by_me')
+                ->selectRaw('false as is_saved_by_me')
+                ->selectRaw('impacts.created_at as created_at')
+                ->selectRaw('impacts.updated_at as updated_at')
+                ->selectRaw('impacts.timeline_posted_at as sort_at')
+                ->selectRaw("'impact' as source_type")
+                ->selectRaw('NULL::text as post_source_type')
+                ->selectRaw('NULL::uuid as post_source_id')
+                ->selectRaw('NULL::text as post_source_event')
+                ->selectRaw('NULL::uuid as accepted_by_id')
+                ->selectRaw('NULL::text as accepted_by_display_name')
+                ->selectRaw('NULL::text as accepted_by_first_name')
+                ->selectRaw('NULL::text as accepted_by_last_name')
+                ->selectRaw('NULL::text as accepted_by_company_name')
+                ->selectRaw('NULL::text as accepted_by_city')
+                ->selectRaw('impacts.impacted_peer_id as impacted_peer_id')
+                ->selectRaw('impacts.impact_date as impact_date')
+                ->selectRaw('impacts.action as impact_action')
+                ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
+                ->selectRaw('NULL::text as post_type')
+                ->where('impacts.status', 'approved')
+                ->whereNotNull('impacts.timeline_posted_at')
+                ->whereExists(function ($authorQuery): void {
+                    $authorQuery->select(DB::raw(1))
+                        ->from('users as author_filter')
+                        ->whereColumn('author_filter.id', 'impacts.user_id')
+                        ->where(function ($sq): void {
+                            $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
+                        })
+                        ->where('author_filter.status', '!=', 'inactive')
+                        ->whereNull('author_filter.deleted_at');
+                });
+
+            $union = $union->unionAll($impactRows);
+        }
+
+        if (Schema::hasTable('referrals')) {
+            $referralRows = DB::table('referrals')
+                ->leftJoin('users as to_users', 'to_users.id', '=', 'referrals.to_user_id')
+                ->selectRaw('referrals.id as id')
+                ->selectRaw('referrals.from_user_id as author_id')
+                ->selectRaw('NULL::uuid as circle_id')
+                ->selectRaw("COALESCE(referrals.remarks, 'Shared a referral for ' || referrals.referral_of) as content_text")
+                ->selectRaw("'[]'::jsonb as media")
+                ->selectRaw("'[\"referral\"]'::jsonb as tags")
+                ->selectRaw("'public' as visibility")
+                ->selectRaw("'approved' as moderation_status")
+                ->selectRaw('0 as likes_count')
+                ->selectRaw('0 as comments_count')
+                ->selectRaw('0 as saves_count')
+                ->selectRaw('false as is_liked_by_me')
+                ->selectRaw('false as is_saved_by_me')
+                ->selectRaw('referrals.created_at as created_at')
+                ->selectRaw('referrals.updated_at as updated_at')
+                ->selectRaw('referrals.created_at as sort_at')
+                ->selectRaw("'post' as source_type")
+                ->selectRaw("'referral' as post_source_type")
+                ->selectRaw('referrals.id as post_source_id')
+                ->selectRaw("'referral_created' as post_source_event")
+                ->selectRaw('to_users.id as accepted_by_id')
+                ->selectRaw('to_users.display_name as accepted_by_display_name')
+                ->selectRaw('to_users.first_name as accepted_by_first_name')
+                ->selectRaw('to_users.last_name as accepted_by_last_name')
+                ->selectRaw('to_users.company_name as accepted_by_company_name')
+                ->selectRaw('to_users.city as accepted_by_city')
+                ->selectRaw('referrals.to_user_id as impacted_peer_id')
+                ->selectRaw('referrals.referral_date as impact_date')
+                ->selectRaw('referrals.referral_of as impact_action')
+                ->selectRaw('1 as life_impacted')
+                ->selectRaw("'referral' as post_type")
+                ->where('referrals.is_deleted', false)
+                ->whereNull('referrals.deleted_at')
+                ->whereNotExists(function ($q): void {
+                    $q->select(DB::raw(1))
+                        ->from('posts')
+                        ->whereColumn('posts.source_id', 'referrals.id')
+                        ->where('posts.source_type', 'referral');
+                })
+                ->whereExists(function ($authorQuery): void {
+                    $authorQuery->select(DB::raw(1))
+                        ->from('users as author_filter')
+                        ->whereColumn('author_filter.id', 'referrals.from_user_id')
+                        ->where(function ($sq): void {
+                            $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
+                        })
+                        ->where('author_filter.status', '!=', 'inactive')
+                        ->whereNull('author_filter.deleted_at');
+                });
+
+            $union = $union->unionAll($referralRows);
+        }
+
         $orderedRows = DB::query()->fromSub($union, 'feed_rows')->orderByDesc('sort_at');
 
         $total = (clone $orderedRows)->count();
@@ -570,7 +724,6 @@ class PostController extends BaseApiController
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
-                'moderation_status' => (string) $row->moderation_status,
                 'activity_creative' => $this->formatActivityCreative($activityCreative),
                 'author' => $author ? [
                     'id' => (string) $author->id,
@@ -855,7 +1008,7 @@ class PostController extends BaseApiController
 
         $user = User::query()->find($userId);
 
-        if (! $user) {
+        if (! $user || $user->status === 'inactive') {
             return $this->error('User not found', 404);
         }
 
@@ -864,6 +1017,7 @@ class PostController extends BaseApiController
 
         $posts = Post::query()
             ->where('user_id', $user->id)
+            ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
             ->with([
@@ -913,6 +1067,10 @@ class PostController extends BaseApiController
     {
         $user = Auth::user();
 
+        if ($user && $user->status === 'inactive') {
+            return $this->error('Inactive peers cannot create posts. Your account is in view-only mode.', 403);
+        }
+
         $data = $request->validate([
             'content_text' => ['nullable', 'string', 'max:5000'],
             'media' => ['nullable', 'array'],
@@ -920,7 +1078,7 @@ class PostController extends BaseApiController
             'media.*.type' => ['required_with:media', 'string', 'max:50'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:100'],
-            'visibility' => ['required', 'in:public,connections,members,circle,private'],
+            'visibility' => ['required', 'in:public,connections,members,circle,private,district,global'],
             'circle_id' => ['nullable', 'uuid'],
         ]);
 
@@ -954,9 +1112,12 @@ class PostController extends BaseApiController
             'media' => $mediaItems ?: [],
             'tags' => $data['tags'] ?? [],
             'visibility' => $data['visibility'],
-            'moderation_status' => 'pending',
+            'moderation_status' => 'approved',
             'sponsored' => false,
             'is_deleted' => false,
+            'status' => 'active',
+            'active' => true,
+            'is_active' => true,
         ]);
 
         if (! empty($mentionedPeerIds)) {
@@ -965,6 +1126,12 @@ class PostController extends BaseApiController
 
         $this->dispatchNewPostNotifications($notificationService, $post);
         $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null, $mentionedPeerIds);
+
+        try {
+            broadcast(new PostCreatedEvent($post))->toOthers();
+        } catch (Throwable $e) {
+            Log::warning('Failed broadcasting PostCreatedEvent: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -978,7 +1145,6 @@ class PostController extends BaseApiController
                 'tags' => $post->tags ?? [],
                 'mentions' => $this->formatPostMentions($post),
                 'visibility' => $post->visibility,
-                'moderation_status' => $post->moderation_status,
                 'sponsored' => $post->sponsored,
                 'is_deleted' => $post->is_deleted,
                 'created_at' => $post->created_at,
@@ -996,6 +1162,7 @@ class PostController extends BaseApiController
         }
 
         $post = Post::where('id', $id)
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->first();
@@ -1019,7 +1186,7 @@ class PostController extends BaseApiController
             'media.*.type' => ['required_with:media', 'string', 'max:50'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:100'],
-            'visibility' => ['sometimes', 'required', 'in:public,connections,members,circle,private'],
+            'visibility' => ['sometimes', 'required', 'in:public,connections,members,circle,private,district,global'],
             'circle_id' => ['nullable', 'uuid'],
         ]);
 
@@ -1081,7 +1248,6 @@ class PostController extends BaseApiController
                 'tags' => $post->tags ?? [],
                 'mentions' => $this->formatPostMentions($post),
                 'visibility' => $post->visibility,
-                'moderation_status' => $post->moderation_status,
                 'sponsored' => $post->sponsored,
                 'is_deleted' => $post->is_deleted,
                 'created_at' => $post->created_at,
@@ -1099,6 +1265,7 @@ class PostController extends BaseApiController
                 'saves as is_saved_by_me' => fn ($query) => $query->where('user_id', $request->user()->id),
             ])
             ->where('id', $id)
+            ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at')
             ->first();
@@ -1114,7 +1281,6 @@ class PostController extends BaseApiController
             'tags' => $post->tags ?? [],
             'mentions' => $this->formatPostMentions($post),
             'visibility' => $post->visibility,
-            'moderation_status' => $post->moderation_status,
             'author' => $post->relationLoaded('user') && $post->user ? [
                 'id' => $post->user->id,
                 'display_name' => $post->user->display_name,
@@ -1179,6 +1345,11 @@ class PostController extends BaseApiController
             return $this->error('Post not found or you are not allowed to delete it', 404);
         }
 
+        $post->is_deleted = true;
+        $post->status = 'inactive';
+        $post->active = false;
+        $post->is_active = false;
+        $post->save();
         $post->delete(); // respects SoftDeletes if used on the model
 
         return $this->success(null, 'Post deleted successfully');
@@ -1188,7 +1359,12 @@ class PostController extends BaseApiController
     {
         $authUser = $request->user();
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot like posts. Your account is in view-only mode.', 403);
+        }
+
         $post = Post::where('id', $id)
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->first();
@@ -1216,6 +1392,7 @@ class PostController extends BaseApiController
         $authUser = $request->user();
 
         $post = Post::where('id', $id)
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->first();
@@ -1237,7 +1414,12 @@ class PostController extends BaseApiController
     {
         $authUser = $request->user();
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot comment on posts. Your account is in view-only mode.', 403);
+        }
+
         $post = Post::where('id', $id)
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->first();
@@ -1267,6 +1449,7 @@ class PostController extends BaseApiController
     public function listComments(Request $request, string $id)
     {
         $post = Post::where('id', $id)
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->first();

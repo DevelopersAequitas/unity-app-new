@@ -19,7 +19,8 @@ class SetAskVisibilityRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'visibility_type' => ['required', 'string', 'in:all_peers,district,circle'],
+            'visibility_type' => ['nullable', 'string'],
+            'visibility' => ['nullable', 'string'],
             'district_id' => ['nullable', 'string'],
             'circle_id' => ['nullable', 'string'],
         ];

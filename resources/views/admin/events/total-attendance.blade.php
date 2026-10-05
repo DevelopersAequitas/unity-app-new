@@ -169,7 +169,7 @@
                   @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
-                  {{ optional($row->checked_in_at)->format('d M Y, h:i A') ?? '-' }}
+                  <span class="utc-to-local" data-utc="{{ optional($row->checked_in_at)->toIso8601String() }}">{{ optional($row->checked_in_at)->format('d M Y, h:i A') ?? '-' }}</span>
                 </td>
                 <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap">
                   <a href="{{ route('admin.events.attendance', ['id' => $row->event_id]) }}" class="inline-flex items-center justify-center px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold no-underline hover:bg-emerald-100 transition whitespace-nowrap">

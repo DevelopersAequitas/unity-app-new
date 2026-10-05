@@ -14,6 +14,11 @@ class ActivityController extends BaseApiController
     public function store(StoreActivityRequest $request)
     {
         $authUser = $request->user();
+
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot submit activities. Your account is in view-only mode.', 403);
+        }
+
         $data = $request->validated();
 
         $activity = new Activity;

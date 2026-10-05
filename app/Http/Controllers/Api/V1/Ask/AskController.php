@@ -47,6 +47,14 @@ class AskController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+
+        if ($user && $user->status === 'inactive') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Inactive peers cannot create asks. Your account is in view-only mode.',
+            ], 403);
+        }
+
         $ask = $this->askService->createDraft($user, $request->validated());
 
         return response()->json([
@@ -89,7 +97,7 @@ class AskController extends Controller
             unset($filters['filters']);
         }
 
-        $updatedAsk = $this->askService->saveFilters($ask, $filters);
+        $updatedAsk = $this->askService->saveFilters($ask, $filters, $request->user());
 
         return response()->json([
             'success' => true,
@@ -107,11 +115,13 @@ class AskController extends Controller
         $this->authorizeOwner($request->user(), $ask);
 
         $validated = $request->validated();
+        $visibility = (string) ($validated['visibility_type'] ?? $validated['visibility'] ?? Ask::VISIBILITY_ALL_PEERS);
         $updatedAsk = $this->askService->setVisibility(
             $ask,
-            (string) $validated['visibility_type'],
+            $visibility,
             isset($validated['district_id']) ? (string) $validated['district_id'] : null,
-            isset($validated['circle_id']) ? (string) $validated['circle_id'] : null
+            isset($validated['circle_id']) ? (string) $validated['circle_id'] : null,
+            $request->user()
         );
 
         return response()->json([

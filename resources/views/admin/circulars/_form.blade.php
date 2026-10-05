@@ -79,11 +79,13 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Publish Date *</label>
-                            <input type="datetime-local" name="publish_date" class="form-control" value="{{ old('publish_date', optional($circular->publish_date)->format('Y-m-d\TH:i')) }}" required>
+                            <input type="datetime-local" name="publish_date" class="form-control" data-utc="{{ optional($circular->publish_date)?->toIso8601String() }}" value="{{ old('publish_date', optional($circular->publish_date)->format('Y-m-d\TH:i')) }}" required>
+                            <div class="form-text text-muted small"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Expiry Date</label>
-                            <input type="datetime-local" name="expiry_date" class="form-control" value="{{ old('expiry_date', optional($circular->expiry_date)->format('Y-m-d\TH:i')) }}">
+                            <input type="datetime-local" name="expiry_date" class="form-control" data-utc="{{ optional($circular->expiry_date)?->toIso8601String() }}" value="{{ old('expiry_date', optional($circular->expiry_date)->format('Y-m-d\TH:i')) }}">
+                            <div class="form-text text-muted small"><i class="bi bi-clock me-1 text-primary"></i>Shown in your browser time (<span class="user-local-tz"></span>). Saved as UTC.</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold">Short Summary</label>

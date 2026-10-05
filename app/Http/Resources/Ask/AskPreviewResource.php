@@ -88,7 +88,9 @@ class AskPreviewResource extends JsonResource
             'answers_by_key' => $answersGrouped,
             'visibility' => [
                 'visibility_type' => $this->resource->visibility_type,
+                'district_id' => $this->resource->visibility_district_id ? (string) $this->resource->visibility_district_id : null,
                 'district' => $this->resource->district?->name,
+                'circle_id' => $this->resource->visibility_circle_id ? (string) $this->resource->visibility_circle_id : null,
                 'circle' => $this->resource->circle?->name,
             ],
             'publish_to_timeline' => (bool) $this->resource->publish_to_timeline,

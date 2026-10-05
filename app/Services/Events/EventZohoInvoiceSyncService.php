@@ -39,10 +39,12 @@ class EventZohoInvoiceSyncService
                 ]);
             }
 
+            $invoiceNum = $invoice['invoice_number'] ?? $registration->invoice_number ?? $registration->zoho_invoice_number;
             $registration->forceFill($this->filterRegistrationColumns([
                 'zoho_customer_id' => $invoice['customer_id'] ?? $registration->zoho_customer_id,
                 'zoho_invoice_id' => $invoice['invoice_id'] ?? $registration->zoho_invoice_id,
-                'zoho_invoice_number' => $invoice['invoice_number'] ?? $registration->zoho_invoice_number,
+                'zoho_invoice_number' => $invoiceNum,
+                'invoice_number' => $invoiceNum,
                 'zoho_invoice_url' => $invoice['invoice_url'] ?? $registration->zoho_invoice_url,
                 'zoho_invoice_pdf_url' => $invoice['invoice_pdf_url'] ?? $registration->zoho_invoice_pdf_url,
                 'zoho_invoice_synced_at' => now(),
@@ -226,7 +228,9 @@ class EventZohoInvoiceSyncService
                 'customer_id' => $registration->zoho_customer_id,
                 'reference_number' => (string) $registration->id,
                 'date' => now()->toDateString(),
-                'notes' => 'Payment received via Zoho Payment Link.\nRegistration Ref: '.$shortRegistrationId,
+                'notes' => $registration->payment_gateway === 'razorpay'
+                    ? "Payment received via Razorpay.\nOrder ID: ".((string) ($registration->razorpay_order_id ?? 'N/A'))."\nPayment ID: ".((string) ($registration->razorpay_payment_id ?? 'N/A'))."\nRegistration Ref: ".$shortRegistrationId
+                    : "Payment received via Zoho Payment Link.\nRegistration Ref: ".$shortRegistrationId,
                 'terms' => 'Thank you for registering for this event.',
                 'line_items' => [[
                     'item_id' => $itemId,

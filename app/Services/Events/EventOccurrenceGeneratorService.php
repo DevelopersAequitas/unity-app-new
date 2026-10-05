@@ -4,6 +4,9 @@ namespace App\Services\Events;
 
 use App\Models\Event;
 use App\Models\EventOccurrence;
+use App\Models\EventQrScanLog;
+use App\Models\EventRegistration;
+use App\Models\EventRegistrationRequest;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -129,13 +132,12 @@ class EventOccurrenceGeneratorService
     {
         return DB::transaction(function () use ($event): Collection {
             $type = $event->recurrence_type ?: 'none';
+            $eventTz = data_get($event->metadata, 'timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
+            if ($eventTz === 'UTC') {
+                $eventTz = 'Asia/Kolkata';
+            }
 
             if ($type === 'none') {
-                $eventTz = data_get($event->metadata, 'timezone') ?: (config('app.timezone') ?: 'Asia/Kolkata');
-                if ($eventTz === 'UTC') {
-                    $eventTz = 'Asia/Kolkata';
-                }
-
                 $allOccurrences = $event->occurrences()->get();
                 if ($allOccurrences->count() > 1) {
                     $keepId = $allOccurrences->first(fn ($occ) => $occ->registrations()->exists())?->id
@@ -148,8 +150,96 @@ class EventOccurrenceGeneratorService
                         ->delete();
                 }
             } else {
+                $starts = $this->buildStarts($event);
+                $durationSeconds = max(0, CarbonImmutable::parse($event->end_at ?? $event->start_at)->diffInSeconds(CarbonImmutable::parse($event->start_at), true));
+                $targetDates = collect($starts)->map(fn (CarbonImmutable $s): string => $s->setTimezone($eventTz)->toDateString())->all();
+
+                $now = now();
+                $futureOccurrences = $event->occurrences()
+                    ->where(function ($q) use ($now): void {
+                        $q->where('start_at', '>=', $now)
+                            ->orWhere('occurrence_date', '>=', $now->toDateString());
+                    })
+                    ->orderBy('start_at')
+                    ->get();
+
+                $orphans = $futureOccurrences->filter(function (EventOccurrence $occ) use ($targetDates, $eventTz): bool {
+                    $dateStr = $occ->occurrence_date?->toDateString()
+                        ?? ($occ->start_at ? CarbonImmutable::parse($occ->start_at)->setTimezone($eventTz)->toDateString() : null);
+
+                    return ! in_array($dateStr, $targetDates, true);
+                });
+
+                foreach ($orphans as $orphan) {
+                    if (! $orphan->registrations()->exists()) {
+                        $orphan->delete();
+                    }
+                }
+
+                $orphansWithRegistrations = $orphans->filter(fn (EventOccurrence $occ): bool => $occ->exists && $occ->registrations()->exists());
+
+                if ($orphansWithRegistrations->isNotEmpty()) {
+                    foreach ($starts as $occurrenceStart) {
+                        if ($orphansWithRegistrations->isEmpty()) {
+                            break;
+                        }
+
+                        $occurrenceDate = $occurrenceStart->setTimezone($eventTz)->toDateString();
+                        $existingOnDate = $event->occurrences()
+                            ->where('occurrence_date', $occurrenceDate)
+                            ->first();
+
+                        if ($existingOnDate && $existingOnDate->registrations()->exists()) {
+                            continue;
+                        }
+
+                        /** @var EventOccurrence $orphan */
+                        $orphan = $orphansWithRegistrations->shift();
+
+                        if ($existingOnDate && $existingOnDate->id !== $orphan->id) {
+                            EventRegistration::query()
+                                ->where('occurrence_id', $orphan->id)
+                                ->update(['occurrence_id' => $existingOnDate->id]);
+
+                            if (Schema::hasTable('event_qr_scan_logs')) {
+                                EventQrScanLog::query()
+                                    ->where('occurrence_id', $orphan->id)
+                                    ->update(['occurrence_id' => $existingOnDate->id]);
+                            }
+
+                            if (Schema::hasTable('event_registration_requests')) {
+                                EventRegistrationRequest::query()
+                                    ->where('occurrence_id', $orphan->id)
+                                    ->update(['occurrence_id' => $existingOnDate->id]);
+                            }
+
+                            $existingOnDate->registered_count = $existingOnDate->registrations()->count();
+                            $existingOnDate->save();
+
+                            $orphan->delete();
+
+                            continue;
+                        }
+
+                        $occurrenceEnd = $durationSeconds > 0 ? $occurrenceStart->addSeconds($durationSeconds) : null;
+                        $orphan->fill([
+                            'occurrence_date' => $occurrenceDate,
+                            'start_at' => $occurrenceStart,
+                            'end_at' => $occurrenceEnd,
+                            'status' => 'scheduled',
+                        ]);
+                        $orphan->save();
+                    }
+
+                    foreach ($orphansWithRegistrations as $unmatched) {
+                        $unmatched->status = 'cancelled';
+                        $unmatched->save();
+                    }
+                }
+
                 $event->occurrences()
-                    ->where('start_at', '>=', now())
+                    ->where('start_at', '>=', $now)
+                    ->whereNotIn('occurrence_date', $targetDates)
                     ->whereDoesntHave('registrations')
                     ->delete();
             }

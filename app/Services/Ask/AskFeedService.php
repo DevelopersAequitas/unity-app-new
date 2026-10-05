@@ -9,6 +9,7 @@ use App\Http\Resources\Ask\AskTypeResource;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\BusinessDeal;
+use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Post;
 use App\Models\PostComment;
@@ -61,6 +62,7 @@ class AskFeedService
                     ->orWhereJsonContains('tags', 'deal_closed')
                     ->orWhereJsonContains('tags', 'ask_fulfilled');
             })
+            ->where('status', 'active')
             ->where('is_deleted', false)
             ->where('active', true)
             ->with(['user'])
@@ -567,6 +569,57 @@ class AskFeedService
             } else {
                 $query->whereRaw('1 = 0');
             }
+
+            return;
+        }
+
+        if ($scope === 'district') {
+            $userCircleIds = CircleMember::query()
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->pluck('circle_id')
+                ->filter()
+                ->all();
+
+            $userDistrictIds = [];
+            if (! empty($userCircleIds) && Schema::hasTable('circles') && Schema::hasColumn('circles', 'district_id')) {
+                $userDistrictIds = DB::table('circles')
+                    ->whereIn('id', $userCircleIds)
+                    ->whereNotNull('district_id')
+                    ->pluck('district_id')
+                    ->filter()
+                    ->all();
+            }
+
+            $city = trim((string) ($user->city ?? ''));
+            $cityId = $user->city_id;
+
+            $query->where(function (Builder $q) use ($userDistrictIds, $city, $cityId): void {
+                $hasFilter = false;
+                if (! empty($userDistrictIds)) {
+                    $q->whereIn('visibility_district_id', $userDistrictIds);
+                    $hasFilter = true;
+                }
+                if ($cityId) {
+                    if ($hasFilter) {
+                        $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+                    } else {
+                        $q->whereHas('user', fn (Builder $uq) => $uq->where('city_id', $cityId));
+                        $hasFilter = true;
+                    }
+                }
+                if ($city !== '') {
+                    if ($hasFilter) {
+                        $q->orWhereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+                    } else {
+                        $q->whereHas('user', fn (Builder $uq) => $uq->where('city', 'ILIKE', "%{$city}%"));
+                        $hasFilter = true;
+                    }
+                }
+                if (! $hasFilter) {
+                    $q->whereRaw('1 = 0');
+                }
+            });
 
             return;
         }

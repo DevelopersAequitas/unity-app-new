@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\ActivityVideoController;
 use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AdBookingAdminWebController;
@@ -39,6 +40,8 @@ use App\Http\Controllers\Admin\CertificationSubmissionsController;
 use App\Http\Controllers\Admin\CircleJoinRequestsController;
 use App\Http\Controllers\Admin\CircleMemberDashboardController;
 use App\Http\Controllers\Admin\CirclePeersController;
+use App\Http\Controllers\Admin\CirclePlanController;
+use App\Http\Controllers\Admin\CirclePlansTestCheckoutController;
 use App\Http\Controllers\Admin\Circles\CircleController;
 use App\Http\Controllers\Admin\Circles\CircleMemberController;
 use App\Http\Controllers\Admin\CircularController;
@@ -77,6 +80,7 @@ use App\Http\Controllers\Admin\PeerReferralsController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\RazorpayTestCheckoutController;
 use App\Http\Controllers\Admin\Rbac\AdminModuleController;
 use App\Http\Controllers\Admin\Rbac\AdminPageController;
 use App\Http\Controllers\Admin\Rbac\PageGroupController;
@@ -190,6 +194,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // RBAC Hierarchy & Profile management
         Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
         Route::get('/rbac/hierarchy/map', [RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');
+        Route::post('/rbac/hierarchy/generate-default', [RoleHierarchyController::class, 'generateStandardTree'])->name('rbac.hierarchy.generate-default');
         Route::post('/rbac/roles', [RoleHierarchyController::class, 'storeRole'])->name('rbac.roles.store');
         Route::post('/rbac/roles/update-parent', [RoleHierarchyController::class, 'updateParent'])->name('rbac.roles.update-parent');
         Route::post('/rbac/roles/clone', [RoleHierarchyController::class, 'cloneProfile'])->name('rbac.roles.clone');
@@ -270,6 +275,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+
+        // Campaigns routes
+        Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+        Route::post('/campaigns', [AdminCampaignController::class, 'store']);
+        Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
+        Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
+        Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
+        Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
+        Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
 
         // Tutorials routes
         Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
@@ -404,6 +418,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/export', [AskManagementController::class, 'export'])->name('export');
             Route::get('/config', [AskManagementController::class, 'config'])->name('config');
             Route::post('/config/toggle', [AskManagementController::class, 'toggleConfigStatus'])->name('config.toggle');
+            Route::post('/config/group', [AskManagementController::class, 'storeOptionGroup'])->name('config.group.store');
+            Route::post('/config/option', [AskManagementController::class, 'storeOption'])->name('config.option.store');
             Route::get('/{ask}', [AskManagementController::class, 'show'])->name('show')->whereUuid('ask');
             Route::patch('/{ask}/status', [AskManagementController::class, 'updateStatus'])->name('status')->whereUuid('ask');
             Route::delete('/{ask}', [AskManagementController::class, 'destroy'])->name('destroy')->whereUuid('ask');
@@ -504,9 +520,28 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/unity-peers-plans', [MembershipPlanController::class, 'index'])->name('unity-peers-plans.index');
         Route::get('/unity-peers-plans/create', [MembershipPlanController::class, 'create'])->name('unity-peers-plans.create');
         Route::post('/unity-peers-plans', [MembershipPlanController::class, 'store'])->name('unity-peers-plans.store');
-        Route::get('/unity-peers-plans/{plan}/edit', [MembershipPlanController::class, 'edit'])->name('unity-peers-plans.edit');
+        Route::get('/unity-peers-plans/test-checkout', [RazorpayTestCheckoutController::class, 'index'])->name('unity-peers-plans.test-checkout');
+        Route::post('/razorpay-test-checkout/create-order', [RazorpayTestCheckoutController::class, 'createOrder'])->name('razorpay-test-checkout.create-order');
+        Route::post('/razorpay-test-checkout/verify', [RazorpayTestCheckoutController::class, 'verify'])->name('razorpay-test-checkout.verify');
+        Route::post('/razorpay-test-checkout/generate-signature', [RazorpayTestCheckoutController::class, 'generateSignature'])->name('razorpay-test-checkout.generate-signature');
+        Route::get('/unity-peers-plans/{plan}/edit', [MembershipPlanController::class, 'edit'])->name('unity-peers-plans.edit')->whereUuid('plan');
         Route::get('/login-history', [LoginHistoryController::class, 'index'])->name('login-history.index');
-        Route::put('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'update'])->name('unity-peers-plans.update');
+        Route::put('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'update'])->name('unity-peers-plans.update')->whereUuid('plan');
+        Route::delete('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'destroy'])->name('unity-peers-plans.destroy')->whereUuid('plan');
+
+        Route::get('/circle-plans', [CirclePlanController::class, 'index'])->name('circle-plans.index');
+        Route::get('/circle-plans/create', [CirclePlanController::class, 'create'])->name('circle-plans.create');
+        Route::post('/circle-plans', [CirclePlanController::class, 'store'])->name('circle-plans.store');
+        Route::get('/circle-plans/test-checkout', [CirclePlansTestCheckoutController::class, 'index'])->name('circle-plans.test-checkout');
+        Route::post('/circle-plans/test-checkout/create-request', [CirclePlansTestCheckoutController::class, 'createRequest'])->name('circle-plans.test-checkout.create-request');
+        Route::post('/circle-plans/test-checkout/approve-cd/{id}', [CirclePlansTestCheckoutController::class, 'approveCd'])->name('circle-plans.test-checkout.approve-cd')->whereUuid('id');
+        Route::post('/circle-plans/test-checkout/approve-id/{id}', [CirclePlansTestCheckoutController::class, 'approveId'])->name('circle-plans.test-checkout.approve-id')->whereUuid('id');
+        Route::post('/circle-plans/test-checkout/create-order', [CirclePlansTestCheckoutController::class, 'createOrder'])->name('circle-plans.test-checkout.create-order');
+        Route::post('/circle-plans/test-checkout/verify', [CirclePlansTestCheckoutController::class, 'verify'])->name('circle-plans.test-checkout.verify');
+        Route::post('/circle-plans/test-checkout/generate-signature', [CirclePlansTestCheckoutController::class, 'generateSignature'])->name('circle-plans.test-checkout.generate-signature');
+        Route::get('/circle-plans/{plan}/edit', [CirclePlanController::class, 'edit'])->name('circle-plans.edit')->whereUuid('plan');
+        Route::put('/circle-plans/{plan}', [CirclePlanController::class, 'update'])->name('circle-plans.update')->whereUuid('plan');
+        Route::delete('/circle-plans/{plan}', [CirclePlanController::class, 'destroy'])->name('circle-plans.destroy')->whereUuid('plan');
         Route::post('/files/upload', [AdminFileUploadController::class, 'upload'])->name('files.upload');
 
         Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
@@ -534,6 +569,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/delete-stats', [CircleController::class, 'deleteStats'])->name('circles.delete-stats');
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
+        Route::patch('/circles/{circle}/members/{circleMember}/category', [CircleMemberController::class, 'updateCategory'])->name('circles.members.update-category');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
         Route::get('/event-scan-credentials', [EventScanCredentialController::class, 'index'])->name('event-scan-credentials.index');
         Route::get('/event-scan-credentials/create', [EventScanCredentialController::class, 'create'])->name('event-scan-credentials.create');
@@ -570,9 +606,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/categories/{category}/level2', [CategoryController::class, 'storeLevel2'])->name('categories.level2.store');
         Route::post('/categories/{category}/level3', [CategoryController::class, 'storeLevel3'])->name('categories.level3.store');
         Route::post('/categories/{category}/level4', [CategoryController::class, 'storeLevel4'])->name('categories.level4.store');
+        Route::put('/categories/level2/{level2}', [CategoryController::class, 'updateLevel2'])->name('categories.level2.update');
+        Route::put('/categories/level3/{level3}', [CategoryController::class, 'updateLevel3'])->name('categories.level3.update');
+        Route::put('/categories/level4/{level4}', [CategoryController::class, 'updateLevel4'])->name('categories.level4.update');
         Route::delete('/categories/level2/{level2}', [CategoryController::class, 'destroyLevel2'])->name('categories.level2.destroy');
         Route::delete('/categories/level3/{level3}', [CategoryController::class, 'destroyLevel3'])->name('categories.level3.destroy');
         Route::delete('/categories/level4/{level4}', [CategoryController::class, 'destroyLevel4'])->name('categories.level4.destroy');
+        Route::post('/categories/{category}/bulk-destroy', [CategoryController::class, 'bulkDestroy'])->name('categories.bulk-destroy');
         Route::resource('categories', CategoryController::class)->except(['show']);
         Route::get('/ads/dashboard', [AdAnalyticsController::class, 'index'])->name('ads.dashboard');
         Route::get('/ads/analytics', [AdAnalyticsController::class, 'detailedReport'])->name('ads.analytics');
@@ -636,12 +676,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/coin-claims/{id}/reject', [CoinClaimsController::class, 'reject'])->whereUuid('id')->name('coin-claims.reject');
         Route::get('/pending-requests/circle-joining-requests', [CircleJoinRequestsController::class, 'index'])->name('circle-joining-requests.index');
         Route::get('/pending-requests/circle-joining-requests/{id}', [CircleJoinRequestsController::class, 'show'])->whereUuid('id')->name('circle-joining-requests.show');
+        Route::post('/pending-requests/circle-joining-requests/{id}/approve', [CircleJoinRequestsController::class, 'approve'])->whereUuid('id')->name('circle-joining-requests.approve');
+        Route::post('/pending-requests/circle-joining-requests/{id}/reject', [CircleJoinRequestsController::class, 'reject'])->whereUuid('id')->name('circle-joining-requests.reject');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-cd', [CircleJoinRequestsController::class, 'approveCd'])->whereUuid('id')->name('circle-joining-requests.approve-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-ded', [CircleJoinRequestsController::class, 'approveDed'])->whereUuid('id')->name('circle-joining-requests.approve-ded');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-ded', [CircleJoinRequestsController::class, 'rejectDed'])->whereUuid('id')->name('circle-joining-requests.reject-ded');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
+        Route::post('/pending-requests/circle-joining-requests/{id}/assign-package', [CircleJoinRequestsController::class, 'assignPackage'])->whereUuid('id')->name('circle-joining-requests.assign-package');
         Route::get('/pending-requests/certifications', [CertificationSubmissionsController::class, 'index'])->name('certifications.index');
         Route::post('/pending-requests/certifications/{id}/approve', [CertificationSubmissionsController::class, 'approve'])->whereUuid('id')->name('certifications.approve');
         Route::post('/pending-requests/certifications/{id}/reject', [CertificationSubmissionsController::class, 'reject'])->whereUuid('id')->name('certifications.reject');
@@ -716,6 +759,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/daily-notifications/{id}/eligible-users', [DailyNotificationController::class, 'eligibleUsers'])->name('daily-notifications.eligible-users');
         Route::post('/daily-notifications/{id}/send', [DailyNotificationController::class, 'sendReminder'])->name('daily-notifications.send');
         Route::get('/test-notifications', [DailyNotificationController::class, 'testNotifications'])->name('daily-notifications.test');
+
+        Route::get('/activity-reminders', [ActivityReminderSettingController::class, 'index'])->name('activity-reminders.index');
+        Route::put('/activity-reminders/{id}', [ActivityReminderSettingController::class, 'update'])->whereUuid('id')->name('activity-reminders.update');
+        Route::post('/activity-reminders/trigger', [ActivityReminderSettingController::class, 'trigger'])->name('activity-reminders.trigger');
 
         Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
         Route::get('/impacts/export/csv', [ImpactsController::class, 'exportCsv'])->name('impacts.export.csv');

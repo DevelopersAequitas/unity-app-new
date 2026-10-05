@@ -31,8 +31,9 @@ class RoleDataScopeController extends Controller
             ->paginate(50);
 
         $roles = Role::query()
-            ->where('status', 'active')
-            ->whereNotIn('key', ['global_admin', 'global_founder'])
+            ->where(function ($q) {
+                $q->where('status', 'active')->orWhereNull('status');
+            })
             ->orderBy('name')
             ->get();
 

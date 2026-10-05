@@ -133,6 +133,10 @@ class ActivityCreativeController extends BaseApiController
         ]);
 
         $user = $request->user();
+
+        if ($user && $user->status === 'inactive') {
+            return $this->error('Inactive peers cannot submit creatives. Your account is in view-only mode.', 403);
+        }
         $metaInput = $request->input('meta');
         if (is_string($metaInput) && $metaInput !== '') {
             $decodedMetaInput = json_decode($metaInput, true);

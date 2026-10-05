@@ -30,47 +30,78 @@ Route::prefix('leader')->group(function () {
 
 // ── Protected Leader Endpoints ──────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
-    // Auth & Profile (Collision renamed)
+    // Auth & Profile
     Route::get('/leader/profile', [LeaderAuthController::class, 'profile']);
     Route::get('/auth/profile', [LeaderAuthController::class, 'profile']);
+    Route::get('/leader/auth/profile', [LeaderAuthController::class, 'profile']);
     Route::put('/auth/profile', [LeaderAuthController::class, 'updateProfile']);
+    Route::put('/leader/auth/profile', [LeaderAuthController::class, 'updateProfile']);
+    Route::put('/leader/profile', [LeaderAuthController::class, 'updateProfile']);
     Route::post('/auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
+    Route::post('/leader/auth/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
+    Route::post('/leader/profile/avatar', [LeaderAuthController::class, 'uploadAvatar']);
 
     // Tab 0: Dashboard
     Route::get('/dashboard/metrics', [LeaderDashboardController::class, 'metrics']);
+    Route::get('/leader/dashboard/metrics', [LeaderDashboardController::class, 'metrics']);
     Route::get('/dashboard/top-impacters', [LeaderDashboardController::class, 'topImpacters']);
+    Route::get('/leader/dashboard/top-impacters', [LeaderDashboardController::class, 'topImpacters']);
 
     // Tab 1: Peers & Celebrations
     Route::get('/peers', [LeaderPeersController::class, 'index']);
+    Route::get('/leader/peers', [LeaderPeersController::class, 'index']);
     Route::get('/peers/celebrations', [LeaderPeersController::class, 'celebrations']);
+    Route::get('/leader/peers/celebrations', [LeaderPeersController::class, 'celebrations']);
     Route::post('/peers/p2p-meetings', [LeaderPeersController::class, 'storeP2pMeeting']);
+    Route::post('/leader/peers/p2p-meetings', [LeaderPeersController::class, 'storeP2pMeeting']);
     Route::get('/peers/{id}/meetings', [LeaderPeersController::class, 'meetings']);
+    Route::get('/leader/peers/{id}/meetings', [LeaderPeersController::class, 'meetings']);
     Route::get('/peers/{id}/activities', [LeaderPeersController::class, 'activities']);
+    Route::get('/leader/peers/{id}/activities', [LeaderPeersController::class, 'activities']);
     Route::get('/peers/{id}', [LeaderPeersController::class, 'show'])->whereUuid('id');
+    Route::get('/leader/peers/{id}', [LeaderPeersController::class, 'show'])->whereUuid('id');
     Route::post('/peers/{id}/send-wish', [LeaderPeersController::class, 'sendWish']);
+    Route::post('/leader/peers/{id}/send-wish', [LeaderPeersController::class, 'sendWish']);
 
     // Tab 2: Teams & Circles
     Route::get('/teams/summary', [LeaderTeamsController::class, 'summary']);
+    Route::get('/leader/teams/summary', [LeaderTeamsController::class, 'summary']);
     Route::get('/teams/industries', [LeaderTeamsController::class, 'industries']);
+    Route::get('/leader/teams/industries', [LeaderTeamsController::class, 'industries']);
     Route::get('/industries', [LeaderTeamsController::class, 'industries']);
+    Route::get('/leader/industries', [LeaderTeamsController::class, 'industries']);
     Route::get('/teams/circles', [LeaderTeamsController::class, 'circles']);
+    Route::get('/leader/teams/circles', [LeaderTeamsController::class, 'circles']);
     Route::get('/teams/circles/{circle_id}/peers', [LeaderTeamsController::class, 'circlePeers'])->whereUuid('circle_id');
+    Route::get('/leader/teams/circles/{circle_id}/peers', [LeaderTeamsController::class, 'circlePeers'])->whereUuid('circle_id');
     Route::get('/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
+    Route::get('/leader/teams/circles/{id}', [LeaderTeamsController::class, 'showCircle'])->whereUuid('id');
     Route::get('/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
+    Route::get('/leader/teams/circles/{id}/sub-industries', [LeaderTeamsController::class, 'subIndustries']);
     Route::get('/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
+    Route::get('/leader/teams/circles/{id}/events', [LeaderTeamsController::class, 'events']);
 
     // Tab 3: Finance & Accounts
     Route::get('/finance/metrics', [LeaderFinanceController::class, 'metrics']);
+    Route::get('/leader/finance/metrics', [LeaderFinanceController::class, 'metrics']);
     Route::get('/finance/transactions', [LeaderFinanceController::class, 'transactions']);
+    Route::get('/leader/finance/transactions', [LeaderFinanceController::class, 'transactions']);
     Route::put('/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
+    Route::put('/leader/finance/commission-rates', [LeaderFinanceController::class, 'updateCommissionRates']);
     Route::post('/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
+    Route::post('/leader/finance/transactions/record-offline', [LeaderFinanceController::class, 'recordOfflinePayment']);
 
     // Tab 4: Reports & Analytics
     Route::get('/reports', [LeaderReportsController::class, 'index']);
+    Route::get('/leader/reports', [LeaderReportsController::class, 'index']);
     Route::post('/reports', [LeaderReportsController::class, 'store']);
+    Route::post('/leader/reports', [LeaderReportsController::class, 'store']);
     Route::get('/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
+    Route::get('/leader/reports/attendance-trend', [LeaderReportsController::class, 'attendanceTrend']);
     Route::get('/reports/{id}', [LeaderReportsController::class, 'show']);
+    Route::get('/leader/reports/{id}', [LeaderReportsController::class, 'show']);
     Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
+    Route::get('/leader/reports/{id}/download', [LeaderReportsController::class, 'download']);
 
     // Activities (Scoped under /leader/ to avoid colliding with Peer/Member App APIs)
     Route::get('/leader/referrals', [LeaderActivitiesController::class, 'referrals']);

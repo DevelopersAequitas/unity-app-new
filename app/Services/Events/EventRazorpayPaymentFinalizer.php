@@ -20,14 +20,22 @@ class EventRazorpayPaymentFinalizer
             $locked = EventRegistration::query()->lockForUpdate()->findOrFail($registration->id);
 
             if (($locked->payment_status ?? null) !== 'paid') {
+                $invoiceNumber = $locked->invoice_number ?? $locked->zoho_invoice_number;
+                if (empty($invoiceNumber)) {
+                    $invoiceNumber = 'INV-EVT-'.strtoupper(substr(str_replace('-', '', (string) $locked->id), 0, 8));
+                }
+
                 $locked->forceFill($this->filterRegistrationColumns([
                     'payment_status' => 'paid',
                     'status' => 'registered',
                     'payment_completed_at' => now(),
+                    'payment_gateway' => 'razorpay',
                     'razorpay_payment_id' => $paymentData['razorpay_payment_id'] ?? $locked->razorpay_payment_id,
                     'razorpay_signature' => $paymentData['razorpay_signature'] ?? $locked->razorpay_signature,
                     'razorpay_payment_status' => $paymentData['razorpay_payment_status'] ?? 'captured',
-                    'razorpay_paid_at' => now(),
+                    'razorpay_paid_at' => $locked->razorpay_paid_at ?? now(),
+                    'invoice_number' => $invoiceNumber,
+                    'zoho_invoice_number' => $locked->zoho_invoice_number ?? $invoiceNumber,
                 ]))->save();
                 Log::info('payment_success_registration_updated', ['event_registration_id' => (string) $locked->id]);
             }
@@ -52,10 +60,14 @@ class EventRazorpayPaymentFinalizer
                 }
             }
 
-            return $locked->fresh(['event.circle', 'occurrence', 'user']);
+            return $locked->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         });
 
-        return $this->zohoInvoices->sync($registration);
+        if (empty($registration->zoho_invoice_id)) {
+            $registration = $this->zohoInvoices->sync($registration);
+        }
+
+        return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']) ?? $registration;
     }
 
     private function filterRegistrationColumns(array $data): array

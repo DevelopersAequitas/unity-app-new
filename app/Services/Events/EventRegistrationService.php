@@ -496,12 +496,27 @@ class EventRegistrationService
                 }
 
                 $existing = $this->ensureVisitorRegistrationFormUrl($existing);
-                if ((bool) ($existing->payment_required ?? false)
-                    && in_array(strtolower((string) ($existing->payment_status ?? '')), ['pending', 'failed', 'expired', 'processing'], true)) {
+
+                $isPaid = in_array(strtolower((string) ($existing->payment_status ?? '')), ['paid', 'success', 'completed'], true);
+                $amount = isset($data['amount']) ? (float) $data['amount'] : ($applyPayment && $this->payments->paymentRequired($event) ? $this->payments->amount($event) : 0.0);
+                $paymentRequired = $applyPayment && $this->payments->paymentRequired($event) && $amount > 0;
+
+                if ($paymentRequired && ! $isPaid) {
+                    $existing->forceFill($this->filterRegistrationColumns([
+                        'payment_required' => true,
+                        'payment_status' => 'pending',
+                        'status' => 'pending_payment',
+                        'amount' => $amount,
+                        'currency' => $this->payments->currency($event),
+                        'payment_gateway' => $existing->payment_gateway ?: 'razorpay',
+                    ]))->save();
+
                     return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
                 }
 
-                $existing = $this->registrationQr->ensureQrGenerated($existing);
+                if ($isPaid || ! $paymentRequired) {
+                    $existing = $this->registrationQr->ensureQrGenerated($existing);
+                }
 
                 return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }

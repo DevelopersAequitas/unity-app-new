@@ -91,6 +91,7 @@ class EventRegistration extends Model
         'razorpay_signature',
         'razorpay_payment_id',
         'razorpay_order_id',
+        'invoice_number',
         'visitor_registration_form_url',
         'qr_status',
         'coupon_id',

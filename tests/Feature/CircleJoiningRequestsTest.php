@@ -33,6 +33,12 @@ class CircleJoiningRequestsTest extends TestCase
         }
     }
 
+    protected function tearDown(): void
+    {
+        $this->dropSchema();
+        parent::tearDown();
+    }
+
     public function test_can_view_circle_joining_requests_list_with_circle_details(): void
     {
         $this->withoutExceptionHandling();
@@ -103,6 +109,7 @@ class CircleJoiningRequestsTest extends TestCase
         $response->assertOk();
         $response->assertSee($category->name);
         $response->assertSee('ID: '.$category->id);
+        $response->assertSee('Approve');
 
         // 7. Request show page
         $responseShow = $this->actingAs($admin, 'admin')
@@ -114,6 +121,20 @@ class CircleJoiningRequestsTest extends TestCase
         $responseShow->assertSee($template->name);
         $responseShow->assertSee($template->slug);
         $responseShow->assertSee($category->name);
+        $responseShow->assertSee('Approve CD');
+
+        // Test approve-cd action as Global Admin without app user
+        $approveCdResponse = $this->actingAs($admin, 'admin')
+            ->post('/admin/pending-requests/circle-joining-requests/'.$joinRequest->id.'/approve-cd');
+        $approveCdResponse->assertRedirect();
+        $this->assertEquals(CircleJoinRequest::STATUS_PENDING_ID_APPROVAL, $joinRequest->fresh()->status);
+
+        // Test approve-id action as Global Admin
+        $approveIdResponse = $this->actingAs($admin, 'admin')
+            ->post('/admin/pending-requests/circle-joining-requests/'.$joinRequest->id.'/approve-id');
+        $approveIdResponse->assertRedirect();
+        $this->assertEquals(CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE, $joinRequest->fresh()->status);
+        $this->assertEquals('approved', $joinRequest->fresh()->ded_approval_status);
 
         // 8. Act as User and request myRequests API
         Sanctum::actingAs($user);
@@ -631,6 +652,8 @@ class CircleJoiningRequestsTest extends TestCase
 
     private function createSchema(): void
     {
+        $this->dropSchema();
+
         Schema::create('admin_users', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('name');
@@ -663,6 +686,11 @@ class CircleJoiningRequestsTest extends TestCase
             $table->uuid('template_id')->nullable();
             $table->string('status')->default('active');
             $table->string('circle_stage')->nullable();
+            $table->decimal('circle_price_amount', 10, 2)->nullable();
+            $table->string('circle_price_currency')->nullable();
+            $table->string('zoho_addon_code')->nullable();
+            $table->string('zoho_addon_id')->nullable();
+            $table->string('zoho_addon_name')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -770,5 +798,41 @@ class CircleJoiningRequestsTest extends TestCase
             $table->timestamps();
             $table->softDeletes();
         });
+
+        Schema::create('circle_subscriptions', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('circle_id');
+            $table->string('zoho_customer_id')->nullable();
+            $table->string('zoho_subscription_id')->nullable();
+            $table->string('zoho_hosted_page_id')->nullable();
+            $table->string('zoho_addon_id')->nullable();
+            $table->string('zoho_addon_code')->nullable();
+            $table->string('zoho_addon_name')->nullable();
+            $table->decimal('amount', 10, 2)->nullable();
+            $table->string('currency_code')->nullable();
+            $table->string('status')->nullable();
+            $table->text('zoho_checkout_url')->nullable();
+            $table->jsonb('raw_checkout_response')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    private function dropSchema(): void
+    {
+        Schema::dropIfExists('circle_subscriptions');
+        Schema::dropIfExists('circle_members');
+        Schema::dropIfExists('circle_join_requests');
+        Schema::dropIfExists('circle_category_mappings');
+        Schema::dropIfExists('circle_category_level4');
+        Schema::dropIfExists('circle_category_level3');
+        Schema::dropIfExists('circle_category_level2');
+        Schema::dropIfExists('circle_categories');
+        Schema::dropIfExists('circles');
+        Schema::dropIfExists('circle_templates');
+        Schema::dropIfExists('admin_user_roles');
+        Schema::dropIfExists('roles');
+        Schema::dropIfExists('users');
+        Schema::dropIfExists('admin_users');
     }
 }

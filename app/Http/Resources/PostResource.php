@@ -56,6 +56,8 @@ class PostResource extends JsonResource
             'description' => $this->description ?? $this->content_text,
             'image' => $image,
             'status' => $this->status ?? ($this->active ? 'active' : 'inactive'),
+            'media_url' => $this->media_url,
+            'media_type' => $this->media_type,
             'media' => $this->media
                 ? collect($this->media)->map(function ($item) use ($isAnniversary) {
                     if (! is_array($item)) {
@@ -142,7 +144,6 @@ class PostResource extends JsonResource
                 return array_values($mentions);
             })(),
             'visibility' => $this->visibility,
-            'moderation_status' => $this->moderation_status ?? null,
             'is_system_announcement' => $isAnniversary,
 
             'author' => $isAnniversary

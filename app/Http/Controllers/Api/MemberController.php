@@ -127,7 +127,7 @@ class MemberController extends BaseApiController
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
-        });
+        })->where('status', '!=', 'inactive');
 
         $authUser = auth('sanctum')->user();
 
@@ -288,7 +288,8 @@ class MemberController extends BaseApiController
             ->whereNull('deleted_at')
             ->where(function ($statusQuery) {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
-            });
+            })
+            ->where('status', '!=', 'inactive');
 
         $profileVisibilityService->applyVisibleTo($members, $request->user());
 
@@ -393,7 +394,7 @@ class MemberController extends BaseApiController
         // Exclude inactive members
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
-        });
+        })->where('users.status', '!=', 'inactive');
 
         // Filter out authenticated user and blocked users if user is authenticated
         $authUser = auth('sanctum')->user() ?: $request->user();
@@ -437,14 +438,15 @@ class MemberController extends BaseApiController
 
         $search = trim((string) ($request->query('search') ?: $request->query('q', '')));
         if ($search !== '') {
-            $query->where(function ($q) use ($search): void {
+            $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($q) use ($search, $operator): void {
                 $term = "%{$search}%";
-                $q->where('users.first_name', 'ilike', $term)
-                    ->orWhere('users.last_name', 'ilike', $term)
-                    ->orWhere('users.display_name', 'ilike', $term)
-                    ->orWhere('users.company_name', 'ilike', $term);
+                $q->where('users.first_name', $operator, $term)
+                    ->orWhere('users.last_name', $operator, $term)
+                    ->orWhere('users.display_name', $operator, $term)
+                    ->orWhere('users.company_name', $operator, $term);
                 if (Schema::hasColumn('users', 'business_name')) {
-                    $q->orWhere('users.business_name', 'ilike', $term);
+                    $q->orWhere('users.business_name', $operator, $term);
                 }
             });
         }
@@ -482,7 +484,9 @@ class MemberController extends BaseApiController
         if ($authUser instanceof User) {
             $paginator = $memberMatchingService->rankAndPaginate($authUser, $query, $page, $perPage);
         } else {
-            $paginator = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
+            $paginator = $query->orderByRaw(
+                "CASE WHEN (is_verified = true OR (membership_status IS NOT NULL AND LOWER(membership_status) NOT IN ('free_peer', 'free_trial_peer', 'visitor', 'suspended', 'free peer', 'free'))) THEN 0 ELSE 1 END"
+            )->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
         }
 
         $pageItems = collect($paginator->items());
@@ -620,6 +624,13 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
+        if ($user->status === 'inactive') {
+            $authUser = $request->user();
+            if (! $authUser || (string) $authUser->id !== (string) $user->id) {
+                return $this->error('Member not found', 404);
+            }
+        }
+
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
         }
@@ -655,6 +666,10 @@ class MemberController extends BaseApiController
             return $this->error('Public profile not found', 404);
         }
 
+        if ($user->status === 'inactive') {
+            return $this->error('Public profile not found', 404);
+        }
+
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
         }
@@ -670,7 +685,7 @@ class MemberController extends BaseApiController
     {
         $member = User::query()->find($user);
 
-        if (! $member) {
+        if (! $member || $member->status === 'inactive') {
             return $this->error('User not found.', 404);
         }
 
@@ -680,6 +695,11 @@ class MemberController extends BaseApiController
 
         $followersQuery = UserFollow::query()
             ->where('following_id', $member->id)
+            ->whereHas('follower', function ($fq) {
+                $fq->where(function ($sq) {
+                    $sq->whereNull('status')->orWhere('status', 'active');
+                })->where('status', '!=', 'inactive')->whereNull('deleted_at');
+            })
             ->with([
                 'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,life_impacted_count,profile_photo_file_id',
                 'follower.city:id,name',
@@ -787,12 +807,16 @@ class MemberController extends BaseApiController
     {
         $authUser = $request->user();
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot send connection requests. Your account is in view-only mode.', 403);
+        }
+
         if ($authUser->id === $id) {
             return $this->error('You cannot connect to yourself', 422);
         }
 
         $target = User::find($id);
-        if (! $target) {
+        if (! $target || $target->status === 'inactive') {
             return $this->error('Member not found', 404);
         }
 
@@ -1037,27 +1061,114 @@ class MemberController extends BaseApiController
             return $this->error('Unauthenticated.', 401);
         }
 
+        $page = max(1, (int) ($request->query('page') ?: $request->input('page', 1)));
+        $perPageInput = $request->query('per_page') ?: $request->query('limit') ?: $request->input('per_page') ?: $request->input('limit', 15);
+        $perPage = min(100, max(1, (int) $perPageInput));
+
         $bookmarks = $authUser->bookmarks ?? [];
         if (! is_array($bookmarks) || empty($bookmarks)) {
-            return $this->success([], 'Bookmarked peers fetched successfully.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Bookmarked peers fetched successfully.',
+                'data' => [],
+                'meta' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'pagination' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'links' => [
+                    'first' => null,
+                    'last' => null,
+                    'prev' => null,
+                    'next' => null,
+                ],
+                'total_users' => 0,
+                'total_user' => 0,
+                'total' => 0,
+            ]);
         }
 
         $bookmarkIds = array_values(array_unique(array_filter(array_map('strval', $bookmarks))));
         if (empty($bookmarkIds)) {
-            return $this->success([], 'Bookmarked peers fetched successfully.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Bookmarked peers fetched successfully.',
+                'data' => [],
+                'meta' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'pagination' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+                'links' => [
+                    'first' => null,
+                    'last' => null,
+                    'prev' => null,
+                    'next' => null,
+                ],
+                'total_users' => 0,
+                'total_user' => 0,
+                'total' => 0,
+            ]);
         }
 
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService)
             ->whereIn('users.id', $bookmarkIds);
 
-        $users = $query->get();
+        $reversedBookmarkIds = array_values(array_reverse($bookmarkIds));
+        $orderCases = [];
+        $bindings = [];
+        foreach ($reversedBookmarkIds as $index => $id) {
+            $orderCases[] = 'WHEN ? THEN '.(int) $index;
+            $bindings[] = (string) $id;
+        }
+        $orderSql = 'CASE CAST(users.id AS text) '.implode(' ', $orderCases).' ELSE '.count($reversedBookmarkIds).' END';
+        $query->orderByRaw($orderSql, $bindings);
 
-        $this->attachConnectionStatuses($authUser, $users);
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $pageItems = collect($paginator->items());
 
-        return $this->success(
-            LimitedUserResource::collection($users),
-            'Bookmarked peers fetched successfully.'
-        );
+        $this->attachConnectionStatuses($authUser, $pageItems);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Bookmarked peers fetched successfully.',
+            'data' => LimitedUserResource::collection($pageItems),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'total_users' => $paginator->total(),
+            'total_user' => $paginator->total(),
+            'total' => $paginator->total(),
+        ]);
     }
 
     public function unbookmark(Request $request, string $id): JsonResponse
@@ -1086,6 +1197,7 @@ class MemberController extends BaseApiController
             ->where(function ($statusQuery) {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
             })
+            ->where('status', '!=', 'inactive')
             ->has('introducedMembers')
             ->orderByDesc('introduced_members_count')
             ->orderBy('display_name', 'asc')

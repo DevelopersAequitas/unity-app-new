@@ -127,10 +127,11 @@ class UserSubscriptionController extends BaseApiController
             }
         }
 
-        // 2. Fetch circle subscriptions
+        // 2. Fetch circle subscriptions (only active subscriptions)
         $circleSubscriptions = CircleSubscription::query()
             ->with('circle')
             ->where('user_id', $user->id)
+            ->where('status', 'active')
             ->get();
 
         foreach ($circleSubscriptions as $sub) {
