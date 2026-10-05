@@ -129,7 +129,7 @@ class Post extends Model
 
     public function comments(): HasMany
     {
-        return $this->hasMany(PostComment::class);
+        return $this->hasMany(PostComment::class, 'post_id');
     }
 
     public function postMentions(): HasMany
@@ -144,7 +144,12 @@ class Post extends Model
 
     public function likes(): HasMany
     {
-        return $this->hasMany(PostLike::class);
+        return $this->hasMany(PostLike::class, 'post_id');
+    }
+
+    public function likedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'post_likes', 'post_id', 'user_id')->withTimestamps();
     }
 
     public function saves(): HasMany
