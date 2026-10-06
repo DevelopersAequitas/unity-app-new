@@ -222,16 +222,36 @@ class AdminPeerService
         }
 
         // 7. Active Status Filter
+        $hasIsActive = \Illuminate\Support\Facades\Schema::hasColumn('users', 'is_active');
         if (isset($filters['is_active'])) {
-            $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
+            $isActive = filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN);
+            if ($hasIsActive) {
+                $query->where('is_active', $isActive);
+            } else {
+                $query->where('status', $isActive ? 'active' : 'inactive');
+            }
         }
 
-        if (! empty($filters['status'])) {
+        if (! empty($filters['status']) && strtolower(trim((string) $filters['status'])) !== 'all') {
             $status = strtolower(trim((string) $filters['status']));
             if ($status === 'active') {
-                $query->where(fn ($q) => $q->where('status', 'active')->orWhere('is_active', true));
+                $query->where(function (Builder $q) use ($hasIsActive): void {
+                    $q->where('status', 'active');
+                    if ($hasIsActive) {
+                        $q->orWhere('is_active', true);
+                    }
+                });
             } elseif ($status === 'inactive') {
-                $query->where(fn ($q) => $q->where('status', 'inactive')->orWhere('is_active', false));
+                $query->where(function (Builder $q) use ($hasIsActive): void {
+                    $q->where('status', 'inactive');
+                    if ($hasIsActive) {
+                        $q->orWhere('is_active', false);
+                    }
+                });
+            } elseif ($status === 'suspended') {
+                $query->where('status', 'suspended');
+            } elseif ($status === 'pending') {
+                $query->where('status', 'pending');
             } elseif ($status === 'expired') {
                 $query->where(function (Builder $q): void {
                     $q->where('status', 'expired')

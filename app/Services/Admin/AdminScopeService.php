@@ -49,6 +49,10 @@ class AdminScopeService
             return Industry::query()->pluck('id')->all();
         }
 
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('circles', 'industry_id')) {
+            return [];
+        }
+
         return Circle::query()
             ->whereIn('id', $this->visibleCircleIds($user))
             ->whereNotNull('industry_id')
