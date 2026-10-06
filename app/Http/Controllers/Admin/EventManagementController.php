@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class EventManagementController extends Controller
@@ -322,34 +323,69 @@ class EventManagementController extends Controller
     {
         abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
 
-        $data = $this->prepareEventData($request, $this->validated($request));
-        $event = DB::transaction(function () use ($data): Event {
-            $event = Event::query()->create($this->filterColumns($this->withDefaults($data)));
-            $this->syncEventCircles($event, $data['circle_ids'] ?? null);
-            $this->occurrences->generate($event);
+        try {
+            $data = $this->prepareEventData($request, $this->validated($request));
+            $event = DB::transaction(function () use ($data): Event {
+                $event = Event::query()->create($this->filterColumns($this->withDefaults($data)));
+                $this->syncEventCircles($event, $data['circle_ids'] ?? null);
+                try {
+                    $this->occurrences->generate($event);
+                } catch (\Throwable $occEx) {
+                    Log::warning('Event occurrence generation skipped: '.$occEx->getMessage(), [
+                        'event_id' => $event->id,
+                    ]);
+                }
 
-            return $event;
-        });
+                return $event;
+            });
 
-        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+            SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
-        return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
+            return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
+        } catch (ValidationException $e) {
+            return back()->withInput()->withErrors($e->errors());
+        } catch (\Throwable $e) {
+            Log::error('admin_store_event_failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withInput()->withErrors(['banner' => 'Failed to create event: '.$e->getMessage()]);
+        }
     }
 
     public function update(Request $request, string $id): RedirectResponse
     {
-        $event = Event::query()->findOrFail($id);
-        abort_unless($this->canAccessEvent((string) $event->id), 403);
-        $data = $this->prepareEventData($request, $this->validated($request), $event);
+        try {
+            $event = Event::query()->findOrFail($id);
+            abort_unless($this->canAccessEvent((string) $event->id), 403);
+            $data = $this->prepareEventData($request, $this->validated($request), $event);
 
-        DB::transaction(function () use ($event, $data): void {
-            $event->fill($this->filterColumns($this->withDefaults($data)));
-            $event->save();
-            $this->syncEventCircles($event, $data['circle_ids'] ?? null);
-            $this->occurrences->regenerateFuture($event);
-        });
+            DB::transaction(function () use ($event, $data): void {
+                $event->fill($this->filterColumns($this->withDefaults($data)));
+                $event->save();
+                $this->syncEventCircles($event, $data['circle_ids'] ?? null);
+                try {
+                    $this->occurrences->regenerateFuture($event);
+                } catch (\Throwable $occEx) {
+                    Log::warning('Event occurrence regeneration skipped: '.$occEx->getMessage(), [
+                        'event_id' => $event->id,
+                    ]);
+                }
+            });
 
-        return redirect()->route('admin.events.show', $event)->with('success', 'Event updated successfully.');
+            return redirect()->route('admin.events.show', $event)->with('success', 'Event updated successfully.');
+        } catch (ValidationException $e) {
+            return back()->withInput()->withErrors($e->errors());
+        } catch (\Throwable $e) {
+            Log::error('admin_update_event_failed', [
+                'event_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withInput()->withErrors(['banner' => 'Failed to update event: '.$e->getMessage()]);
+        }
     }
 
     public function show(string $id): View
@@ -531,7 +567,7 @@ class EventManagementController extends Controller
             'google_maps_url' => ['nullable', 'string', 'max:2000'],
             'online_meeting_url' => ['nullable', 'string', 'max:2000'],
             'start_at' => ['required', 'date'],
-            'end_at' => ['nullable', 'date', 'after:start_at'],
+            'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'recurrence_type' => ['required', 'string', 'in:none,weekly,monthly,yearly'],
             'recurrence_interval' => ['nullable', 'integer', 'min:1'],
             'recurrence_week_of_month' => ['nullable', 'integer', 'min:1', 'max:5'],
@@ -547,7 +583,7 @@ class EventManagementController extends Controller
             'visitor_registration_enabled' => ['nullable', 'boolean'],
             'member_registration_enabled' => ['nullable', 'boolean'],
             'zoho_form_url' => ['nullable', 'string', 'max:2000'],
-            'banner' => ['nullable', 'image', 'max:5120'],
+            'banner' => ['nullable', 'file', 'max:10240'],
             'banner_url' => ['nullable', 'string', 'max:2000'],
             'agenda' => ['nullable', 'array'],
             'agenda.*.time' => ['nullable', 'string', 'max:100'],
@@ -629,7 +665,12 @@ class EventManagementController extends Controller
         }
 
         if ($request->hasFile('banner')) {
-            $data['banner_url'] = $this->storeBanner($request);
+            $uploadedBannerUrl = $this->storeBanner($request);
+            if (! empty($uploadedBannerUrl)) {
+                $data['banner_url'] = $uploadedBannerUrl;
+            } elseif ($event) {
+                $data['banner_url'] = $event->banner_url;
+            }
         } elseif (array_key_exists('banner_url', $data)) {
             $data['banner_url'] = $data['banner_url'] ?: null;
         } elseif ($event) {
@@ -777,18 +818,68 @@ class EventManagementController extends Controller
 
     private function storeBanner(Request $request): string
     {
-        $path = $request->file('banner')->store('events/banners', 'public');
+        $file = $request->file('banner');
+        if (! $file) {
+            return '';
+        }
 
-        $file = new FileModel;
-        $file->s3_key = $path;
-        $file->mime_type = Storage::disk('public')->mimeType($path);
-        $file->size_bytes = Storage::disk('public')->size($path);
-        [$width, $height] = @getimagesize(Storage::disk('public')->path($path)) ?: [null, null];
-        $file->width = $width;
-        $file->height = $height;
-        $file->save();
+        if (! $file->isValid()) {
+            throw new \RuntimeException('Image upload failed: '.$file->getErrorMessage().'. Please verify file size and upload limits.');
+        }
 
-        return url('/api/v1/files/'.$file->id);
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg'));
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg'];
+        if (! in_array($extension, $allowed, true)) {
+            throw ValidationException::withMessages([
+                'banner' => 'The banner must be a valid image file (JPG, PNG, WEBP, GIF, SVG).',
+            ]);
+        }
+
+        $disk = config('filesystems.default', 'public');
+        if ($disk === 'local') {
+            $disk = 'public';
+        }
+        $filename = (string) Str::uuid().'.'.$extension;
+        $folder = 'uploads/events/'.now()->format('Y/m/d');
+
+        try {
+            $path = $file->storeAs($folder, $filename, $disk);
+        } catch (\Throwable $e) {
+            Log::warning('Failed storing banner to default disk, falling back to public disk', ['error' => $e->getMessage()]);
+            $disk = 'public';
+            $path = $file->storeAs($folder, $filename, $disk);
+        }
+
+        if (! $path) {
+            throw new \RuntimeException('Failed to save uploaded file to storage.');
+        }
+
+        try {
+            $fileModel = new FileModel;
+            $fileModel->id = (string) Str::uuid();
+            $fileModel->uploader_user_id = null;
+            $fileModel->s3_key = $path;
+            $fileModel->mime_type = $file->getClientMimeType() ?: ('image/'.$extension);
+            $fileModel->size_bytes = (int) ($file->getSize() ?: 0);
+
+            $localPath = $file->getRealPath();
+            [$width, $height] = ($localPath && file_exists($localPath)) ? (@getimagesize($localPath) ?: [null, null]) : [null, null];
+            $fileModel->width = $width;
+            $fileModel->height = $height;
+            $fileModel->save();
+
+            return url('/api/v1/files/'.$fileModel->id);
+        } catch (\Throwable $e) {
+            Log::error('Failed creating FileModel for banner, falling back to direct disk URL: '.$e->getMessage());
+
+            try {
+                $url = Storage::disk($disk)->url($path);
+
+                return str_starts_with($url, 'http://') || str_starts_with($url, 'https://') ? $url : asset($url);
+            } catch (\Throwable) {
+                return asset('storage/'.$path);
+            }
+        }
     }
 
     private function filterColumns(array $data): array

@@ -15,7 +15,7 @@ class EventRegistrationRequest extends Model
     protected $fillable = [
         'event_id', 'occurrence_id', 'user_id', 'user_circle_id', 'event_circle_id', 'status', 'request_reason', 'admin_note',
         'approved_by_user_id', 'approved_at', 'rejected_by_user_id', 'rejected_at', 'registration_id', 'metadata',
-        'coupon_id', 'coupon_code',
+        'coupon_id', 'coupon_code', 'invited_by_user_id', 'invited_by_type',
     ];
 
     protected $casts = [
@@ -57,5 +57,10 @@ class EventRegistrationRequest extends Model
     public function rejectedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rejected_by_user_id');
+    }
+
+    public function invitedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invited_by_user_id');
     }
 }
