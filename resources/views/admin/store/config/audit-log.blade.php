@@ -74,20 +74,20 @@
                         @forelse($logs as $log)
                             <tr>
                                 <td class="ps-4">
-                                    <div class="fw-semibold text-dark">{{ $log->created_at ? \Carbon\Carbon::parse($log->created_at)->format('d M Y') : '—' }}</div>
-                                    <small class="text-muted">{{ $log->created_at ? \Carbon\Carbon::parse($log->created_at)->format('h:i:s A') : '' }}</small>
+                                    <div class="fw-semibold text-dark">{{ !empty($log->created_at) ? \Carbon\Carbon::parse($log->created_at)->format('d M Y') : '—' }}</div>
+                                    <small class="text-muted">{{ !empty($log->created_at) ? \Carbon\Carbon::parse($log->created_at)->format('h:i:s A') : '' }}</small>
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-dark">{{ $log->admin_name ?? ($log->admin->name ?? ('Admin #' . ($log->actor_id ?? $log->admin_id ?? ''))) }}</div>
-                                    <small class="text-muted">{{ $log->actor_type ?? ($log->admin->email ?? '') }}</small>
+                                    <div class="fw-bold text-dark">{{ $log->admin_name ?? ('Admin #' . ($log->actor_id ?? ($log->admin_id ?? ($log->changed_by ?? 'System')))) }}</div>
+                                    <small class="text-muted">{{ $log->actor_type ?? 'Admin Action' }}</small>
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border">
-                                        {{ ucfirst(str_replace(['store.', '_'], ['', ' '], $log->to_status ?? ($log->action ?? 'Action'))) }}
+                                        {{ ucfirst(str_replace(['store.', '_'], ['', ' '], $log->to_status ?? ($log->action ?? ($log->status ?? 'Status Change')))) }}
                                     </span>
                                 </td>
                                 <td>
-                                    <div class="text-dark small">{{ $log->note ?: ($log->reason ?: ($log->details ?: ($log->description ?? 'Order status updated'))) }}</div>
+                                    <div class="text-dark small">{{ $log->notes ?? ($log->note ?? ($log->reason ?? ($log->details ?? ($log->description ?? 'Order status updated')))) }}</div>
                                     <small class="text-muted">Order: <strong>{{ $log->order_number ?? '' }}</strong></small>
                                 </td>
                                 <td class="pe-4 text-end">
