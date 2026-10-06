@@ -109,17 +109,24 @@ class AdminStoreInventoryWebController extends Controller
                 $newStock = max(0, $qty);
             }
 
-            $variant->update(['stock_quantity' => $newStock]);
+            $variant->update([
+                'stock_quantity' => $newStock,
+                'stock_qty' => $newStock,
+            ]);
 
             InventoryMovement::create([
-                'product_variant_id' => $variant->id,
+                'variant_id' => $variant->id,
                 'quantity_change' => $qtyChange,
+                'quantity_after' => $newStock,
                 'balance_after' => $newStock,
                 'reason' => 'MANUAL_ADJUSTMENT',
-                'reference' => 'MANUAL_AUDIT_'.uniqid(),
+                'reference_type' => 'MANUAL_AUDIT',
+                'reference_id' => (string) Str::uuid(),
+                'note' => $reason,
                 'notes' => $reason,
-                'actor_id' => Auth::guard('admin')->id() ?? '00000000-0000-0000-0000-000000000000',
+                'actor_id' => Auth::guard('admin')->id(),
                 'actor_type' => 'AdminUser',
+                'created_at' => now(),
             ]);
         });
 
