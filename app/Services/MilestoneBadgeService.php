@@ -148,8 +148,8 @@ class MilestoneBadgeService
             $userName = 'Peer Member';
         }
 
-        $systemUser = User::where('email', 'info@peersglobal.com')->first();
-        $authorUserId = $systemUser ? $systemUser->id : $user->id;
+        $systemUser = User::getSystemUser();
+        $authorUserId = $systemUser->id;
 
         foreach ($badges as $badge) {
             try {

@@ -1357,4 +1357,50 @@ class User extends Authenticatable
         })->where("{$table}.status", '!=', 'inactive')
             ->whereNull("{$table}.deleted_at");
     }
+
+    public static function getSystemUser(): self
+    {
+        $systemUser = static::query()
+            ->where('email', 'info@peersglobal.com')
+            ->first();
+
+        if (! $systemUser) {
+            $userData = [
+                'id' => (string) Str::uuid(),
+                'first_name' => 'Peers Global',
+                'last_name' => 'Genie',
+                'display_name' => 'Peers Global Genie',
+                'company_name' => 'Peers Global',
+                'designation' => 'Peers Global Genie',
+                'email' => 'info@peersglobal.com',
+                'membership_status' => 'active',
+            ];
+            if (Schema::hasColumn('users', 'status')) {
+                $userData['status'] = 'active';
+            }
+            if (Schema::hasColumn('users', 'password_hash')) {
+                $userData['password_hash'] = bcrypt(Str::random(16));
+            } elseif (Schema::hasColumn('users', 'password')) {
+                $userData['password'] = bcrypt(Str::random(16));
+            }
+            $systemUser = static::query()->create($userData);
+        } elseif ($systemUser->display_name !== 'Peers Global Genie' || $systemUser->first_name !== 'Peers Global' || $systemUser->last_name !== 'Genie') {
+            $systemUser->update([
+                'first_name' => 'Peers Global',
+                'last_name' => 'Genie',
+                'display_name' => 'Peers Global Genie',
+                'company_name' => 'Peers Global',
+                'designation' => 'Peers Global Genie',
+            ]);
+        }
+
+        return $systemUser;
+    }
+
+    public function isSystemUser(): bool
+    {
+        return strtolower(trim((string) $this->email)) === 'info@peersglobal.com'
+            || str_contains(strtolower((string) $this->display_name), 'genie')
+            || str_contains(strtolower((string) $this->display_name), 'peersglobal unity');
+    }
 }
