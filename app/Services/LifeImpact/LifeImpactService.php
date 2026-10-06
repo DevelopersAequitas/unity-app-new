@@ -379,8 +379,8 @@ class LifeImpactService
             $generator = app(LifeImpactCreativeGenerator::class);
             $levels = $generator->getAllRecognitionLevels();
 
-            $systemUser = User::where('email', 'info@peersglobal.com')->first();
-            $authorUserId = $systemUser ? $systemUser->id : $user->id;
+            $systemUser = User::getSystemUser();
+            $authorUserId = $systemUser->id;
 
             if (Schema::hasTable('posts')) {
                 foreach ($levels as $threshold => $meta) {

@@ -6,10 +6,12 @@ use App\Http\Resources\Ask\AskPreviewResource;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\File;
+use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class PostResource extends JsonResource
@@ -33,6 +35,33 @@ class PostResource extends JsonResource
             : ($this->relationLoaded('saves') ? $this->saves->count() : 0);
 
         $isAnniversary = ($this->post_type === 'anniversary' || $this->source_type === 'anniversary');
+        $isSystemPost = method_exists($this->resource, 'isSystemCreativePost')
+            ? $this->resource->isSystemCreativePost()
+            : Post::isSystemPostRow(
+                $this->source_type,
+                $this->post_type,
+                $this->tags,
+                $this->relationLoaded('user') ? $this->user?->email : null,
+                $this->relationLoaded('user') ? $this->user?->display_name : null,
+                $this->relationLoaded('author') ? $this->author?->email : null,
+                $this->relationLoaded('author') ? $this->author?->display_name : null
+            );
+
+        $systemPhoto = url('/images/peersglobal-icon.png');
+        $systemAuthor = [
+            'id' => (string) ($this->user_id ?? $this->author?->id ?? ''),
+            'display_name' => 'Peers Global Genie',
+            'first_name' => 'Peers Global',
+            'last_name' => 'Genie',
+            'company_name' => 'Peers Global',
+            'designation' => 'Peers Global Genie',
+            'level4_category' => null,
+            'business_sub_category' => null,
+            'profile_photo_url' => $systemPhoto,
+            'profile_photo_image' => $systemPhoto,
+            'is_online' => true,
+        ];
+
         $image = $this->image;
         if ($isAnniversary && $this->image) {
             $path = parse_url($this->image, PHP_URL_PATH);
@@ -100,7 +129,7 @@ class PostResource extends JsonResource
                             ];
                         }
                     }
-                } elseif (! empty($this->id)) {
+                } elseif (! empty($this->id) && Schema::hasTable('post_mentions')) {
                     $loadedMentions = PostMention::with('peer')
                         ->where('post_id', $this->id)
                         ->get();
@@ -144,19 +173,10 @@ class PostResource extends JsonResource
                 return array_values($mentions);
             })(),
             'visibility' => $this->visibility,
-            'is_system_announcement' => $isAnniversary,
+            'is_system_announcement' => $isSystemPost || $isAnniversary,
 
-            'author' => $isAnniversary
-                ? [
-                    'id' => null,
-                    'display_name' => 'PeersGlobal Unity',
-                    'first_name' => 'PeersGlobal',
-                    'last_name' => 'Unity',
-                    'company_name' => 'PeersGlobal',
-                    'designation' => 'Unity Admin',
-                    'level4_category' => null,
-                    'profile_photo_url' => null,
-                ]
+            'author' => $isSystemPost
+                ? $systemAuthor
                 : $this->when(
                     ($this->relationLoaded('user') && $this->user)
                     || ($this->relationLoaded('author') && $this->author),
@@ -225,15 +245,16 @@ class PostResource extends JsonResource
             }
         }
 
-        if ($isAnniversary) {
+        if ($isSystemPost || $isAnniversary) {
             $response['user'] = [
-                'id' => null,
-                'display_name' => 'PeersGlobal Unity',
-                'first_name' => 'PeersGlobal',
-                'last_name' => 'Unity',
-                'profile_photo_url' => null,
+                'id' => (string) ($this->user_id ?? $this->author?->id ?? ''),
+                'display_name' => 'Peers Global Genie',
+                'first_name' => 'Peers Global',
+                'last_name' => 'Genie',
+                'profile_photo_url' => $systemPhoto,
             ];
-            $response['author'] = $response['user'];
+            $response['author'] = $systemAuthor;
+            $response['is_system_announcement'] = true;
         }
 
         return $response;

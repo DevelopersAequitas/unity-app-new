@@ -20,7 +20,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -386,25 +385,9 @@ class LifeImpactRecognitionsController extends Controller
             $meta = $generator->getRecognitionMeta($effectiveThreshold);
             $caption = $generator->formatCaption($peer, $effectiveThreshold, $meta);
 
-            // Find system user to post automated announcement
-            $systemUser = User::where('email', 'info@peersglobal.com')->first();
-            if (! $systemUser) {
-                $userData = [
-                    'id' => (string) Str::uuid(),
-                    'first_name' => 'PeersGlobal',
-                    'last_name' => 'Unity',
-                    'display_name' => 'PeersGlobal Unity',
-                    'email' => 'info@peersglobal.com',
-                    'status' => 'active',
-                ];
-                if (Schema::hasColumn('users', 'password_hash')) {
-                    $userData['password_hash'] = bcrypt(Str::random(16));
-                } elseif (Schema::hasColumn('users', 'password')) {
-                    $userData['password'] = bcrypt(Str::random(16));
-                }
-                $systemUser = User::create($userData);
-            }
-            $authorUserId = $systemUser ? $systemUser->id : $peer->id;
+            // Find system user to post automated announcement (Peers Global Genie)
+            $systemUser = User::getSystemUser();
+            $authorUserId = $systemUser->id;
 
             $post = Post::create([
                 'user_id' => $authorUserId,

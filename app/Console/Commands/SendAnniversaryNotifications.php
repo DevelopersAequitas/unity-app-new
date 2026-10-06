@@ -10,7 +10,6 @@ use App\Services\Notifications\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Throwable;
 
 class SendAnniversaryNotifications extends Command
@@ -80,20 +79,9 @@ class SendAnniversaryNotifications extends Command
                     $imageUrl = url('/api/v1/files/'.$fileRecord->id);
                     $description = "Happy Wedding Anniversary to our peer {$user->display_name}! Wishing you a lifetime of love and happiness. 🎉🥂";
 
-                    // Retrieve system/admin fallback account to own the automated post
-                    $systemUser = User::where('email', 'info@peersglobal.com')->first();
-                    if (! $systemUser) {
-                        $systemUser = User::create([
-                            'id' => (string) Str::uuid(),
-                            'first_name' => 'PeersGlobal',
-                            'last_name' => 'Unity',
-                            'display_name' => 'PeersGlobal Unity',
-                            'email' => 'info@peersglobal.com',
-                            'password_hash' => bcrypt(Str::random(16)),
-                            'status' => 'active',
-                        ]);
-                    }
-                    $authorUserId = $systemUser ? $systemUser->id : $user->id;
+                    // Retrieve system account (Peers Global Genie) to own the automated post
+                    $systemUser = User::getSystemUser();
+                    $authorUserId = $systemUser->id;
 
                     // Create timeline announcement post with creative image references
                     $post = Post::create([

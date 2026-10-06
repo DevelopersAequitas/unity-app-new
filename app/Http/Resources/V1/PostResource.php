@@ -30,7 +30,35 @@ class PostResource extends JsonResource
             'content' => $this->content_text,
             'visibility' => $this->visibility,
             'created_at' => $this->created_at,
-            'author' => new UserMiniResource($this->whenLoaded('author')),
+            'author' => (method_exists($this->resource, 'isSystemCreativePost') && $this->resource->isSystemCreativePost())
+                ? [
+                    'id' => (string) ($this->user_id ?? ''),
+                    'name' => 'Peers Global Genie',
+                    'display_name' => 'Peers Global Genie',
+                    'first_name' => 'Peers Global',
+                    'last_name' => 'Genie',
+                    'company_name' => 'Peers Global',
+                    'designation' => 'Peers Global Genie',
+                    'profile_photo_url' => url('/images/peersglobal-icon.png'),
+                    'profile_photo_image' => url('/images/peersglobal-icon.png'),
+                    'is_online' => true,
+                ]
+                : new UserMiniResource($this->whenLoaded('author')),
+            'user' => (method_exists($this->resource, 'isSystemCreativePost') && $this->resource->isSystemCreativePost())
+                ? [
+                    'id' => (string) ($this->user_id ?? ''),
+                    'name' => 'Peers Global Genie',
+                    'display_name' => 'Peers Global Genie',
+                    'first_name' => 'Peers Global',
+                    'last_name' => 'Genie',
+                    'company_name' => 'Peers Global',
+                    'designation' => 'Peers Global Genie',
+                    'profile_photo_url' => url('/images/peersglobal-icon.png'),
+                    'profile_photo_image' => url('/images/peersglobal-icon.png'),
+                    'is_online' => true,
+                ]
+                : new UserMiniResource($this->whenLoaded('author') ?: $this->whenLoaded('user')),
+            'is_system_announcement' => method_exists($this->resource, 'isSystemCreativePost') ? $this->resource->isSystemCreativePost() : false,
             'media' => PostMediaResource::collection(collect($this->media ?? [])),
             'likes_count' => (int) ($this->likes_count ?? 0),
             'comments_count' => (int) ($this->comments_count ?? 0),
