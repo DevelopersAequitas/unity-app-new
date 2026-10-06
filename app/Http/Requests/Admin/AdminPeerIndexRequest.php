@@ -26,7 +26,7 @@ class AdminPeerIndexRequest extends FormRequest
             'sub_category' => ['sometimes', 'nullable', 'string', 'max:150'],
             'subcategory' => ['sometimes', 'nullable', 'string', 'max:150'],
             'circle_id' => ['sometimes', 'nullable', 'uuid'],
-            'peer_type' => ['sometimes', 'nullable', 'string', 'in:pro,paid,free_trial,trial,free,sponsored,all'],
+            'peer_type' => ['sometimes', 'nullable', 'string', 'in:pro,paid,global,circle,multi_circle,free_trial,trial,free,sponsored,all,global_peer,circle_peer,multi_circle_peer,only_unity_peer'],
             'membership_status' => ['sometimes', 'nullable', 'string', 'max:100'],
             'status' => ['sometimes', 'nullable', 'string', 'in:active,inactive,suspended,expired,pending,awaiting_review,all'],
             'is_active' => ['sometimes', 'nullable'],
