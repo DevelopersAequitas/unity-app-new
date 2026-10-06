@@ -7,6 +7,7 @@ use App\Models\Store\PickupPoint;
 use App\Models\Store\ServiceablePincode;
 use App\Models\Store\StoreBanner;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminStoreServiceabilityWebController extends Controller
@@ -148,10 +149,18 @@ class AdminStoreServiceabilityWebController extends Controller
 
         $isActive = $request->has('is_active');
         $status = $isActive ? 'ACTIVE' : 'INACTIVE';
+        $code = 'HUB-' . strtoupper(Str::random(6));
 
         PickupPoint::create([
+            'code' => $code,
             'name' => $request->name,
             'address' => $fullAddress,
+            'address_line1' => $request->address_line1,
+            'address_line2' => $request->address_line2,
+            'city' => $request->city,
+            'state' => $request->state,
+            'pincode' => $request->pincode,
+            'country' => 'India',
             'contact_person' => $request->contact_person,
             'contact_phone' => $request->contact_phone,
             'timings' => $request->operating_hours ?: '10:00 AM - 07:00 PM',
