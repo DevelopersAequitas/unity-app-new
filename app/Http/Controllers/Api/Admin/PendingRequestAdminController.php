@@ -22,7 +22,7 @@ class PendingRequestAdminController extends Controller
     {
         $breakdown = [
             'visitor_registrations' => $this->getPendingCount('visitor_registrations'),
-            'coin_claims' => $this->getPendingCount('coin_claims'),
+            'coin_claims' => $this->getPendingCount('coin_claim_requests', 'coin_claims'),
             'circle_joining_requests' => $this->getPendingCount('circle_join_requests'),
             'certifications' => $this->getPendingCount('certification_requests', 'certifications'),
             'pending_impacts' => $this->getPendingCount('impacts', 'life_impacts'),
@@ -207,6 +207,7 @@ class PendingRequestAdminController extends Controller
                 'event_join_requests',
                 'event_registrations',
                 'visitor_registrations',
+                'coin_claim_requests',
                 'coin_claims',
                 'certification_requests',
                 'certifications',
@@ -349,6 +350,7 @@ class PendingRequestAdminController extends Controller
                 'event_join_requests',
                 'event_registrations',
                 'visitor_registrations',
+                'coin_claim_requests',
                 'coin_claims',
                 'certification_requests',
                 'certifications',
@@ -478,9 +480,19 @@ class PendingRequestAdminController extends Controller
         foreach ($tables as $tbl) {
             if (Schema::hasTable($tbl)) {
                 $q = DB::table($tbl);
-                $cnt = Schema::hasColumn($tbl, 'status')
-                    ? $q->whereRaw("LOWER(status) = 'pending'")->count()
-                    : $q->count();
+                if ($tbl === 'visitor_registrations') {
+                    $cnt = Schema::hasColumn($tbl, 'status')
+                        ? $q->where(function ($sq) {
+                            $sq->whereRaw("LOWER(status) = 'pending'")
+                                ->orWhereRaw("LOWER(status) = 'registered'")
+                                ->orWhereNull('status');
+                        })->count()
+                        : $q->count();
+                } else {
+                    $cnt = Schema::hasColumn($tbl, 'status')
+                        ? $q->whereRaw("LOWER(status) = 'pending'")->count()
+                        : $q->count();
+                }
 
                 if ($cnt > 0) {
                     return $cnt;
@@ -524,7 +536,9 @@ class PendingRequestAdminController extends Controller
             'circle_joining_requests' => 'circle_join_requests',
             'circle_join_requests' => 'circle_join_requests',
             'visitor_registrations' => 'visitor_registrations',
-            'coin_claims' => 'coin_claims',
+            'coin_claims' => Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : (Schema::hasTable('coin_claims') ? 'coin_claims' : 'coin_claim_requests'),
+            'coin-claims' => Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : (Schema::hasTable('coin_claims') ? 'coin_claims' : 'coin_claim_requests'),
+            'coin_claim_requests' => 'coin_claim_requests',
             'certifications' => Schema::hasTable('certification_requests') ? 'certification_requests' : 'certifications',
             'pending_impacts' => Schema::hasTable('impacts') ? 'impacts' : 'life_impacts',
             'ad_booking_requests' => 'ad_bookings',
@@ -660,33 +674,65 @@ class PendingRequestAdminController extends Controller
         $query = DB::table('visitor_registrations');
 
         if ($status !== 'all' && Schema::hasColumn('visitor_registrations', 'status')) {
-            $query->whereRaw('LOWER(status) = ?', [$status]);
+            if ($status === 'pending') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) = 'pending'")
+                        ->orWhereRaw("LOWER(status) = 'registered'")
+                        ->orWhereNull('status');
+                });
+            } elseif ($status === 'approved') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) = 'approved'")
+                        ->orWhereRaw("LOWER(status) = 'attended'")
+                        ->orWhereRaw("LOWER(status) = 'converted_to_member'");
+                });
+            } elseif ($status === 'rejected') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) = 'rejected'")
+                        ->orWhereRaw("LOWER(status) = 'no_show'")
+                        ->orWhereRaw("LOWER(status) = 'declined'");
+                });
+            } else {
+                $query->whereRaw('LOWER(status) = ?', [$status]);
+            }
         }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                if (Schema::hasColumn('visitor_registrations', 'name')) {
-                    $q->orWhere('name', 'like', "%{$search}%");
+                if (Schema::hasColumn('visitor_registrations', 'visitor_full_name')) {
+                    $q->orWhere('visitor_full_name', 'like', "%{$search}%");
                 }
                 if (Schema::hasColumn('visitor_registrations', 'visitor_name')) {
                     $q->orWhere('visitor_name', 'like', "%{$search}%");
                 }
-                if (Schema::hasColumn('visitor_registrations', 'visitor_full_name')) {
-                    $q->orWhere('visitor_full_name', 'like', "%{$search}%");
+                if (Schema::hasColumn('visitor_registrations', 'name')) {
+                    $q->orWhere('name', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'visitor_email')) {
+                    $q->orWhere('visitor_email', 'like', "%{$search}%");
                 }
                 if (Schema::hasColumn('visitor_registrations', 'email')) {
                     $q->orWhere('email', 'like', "%{$search}%");
                 }
-                if (Schema::hasColumn('visitor_registrations', 'visitor_email')) {
-                    $q->orWhere('visitor_email', 'like', "%{$search}%");
+                if (Schema::hasColumn('visitor_registrations', 'visitor_mobile')) {
+                    $q->orWhere('visitor_mobile', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'phone')) {
+                    $q->orWhere('phone', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'visitor_business')) {
+                    $q->orWhere('visitor_business', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'event_name')) {
+                    $q->orWhere('event_name', 'like', "%{$search}%");
                 }
             });
         }
 
         return $query->get()->map(function ($r) use ($status) {
-            $candidateName = $r->name
+            $candidateName = $r->visitor_full_name
                 ?? $r->visitor_name
-                ?? $r->visitor_full_name
+                ?? $r->name
                 ?? (isset($r->first_name) ? trim(($r->first_name ?? '').' '.($r->last_name ?? '')) : null);
 
             if (empty($candidateName)) {
@@ -698,11 +744,11 @@ class PendingRequestAdminController extends Controller
                 'category' => 'visitor_registrations',
                 'category_label' => 'Visitor Registration',
                 'applicant_name' => $candidateName,
-                'applicant_email' => $r->email ?? $r->visitor_email ?? '',
-                'applicant_phone' => $r->phone ?? $r->visitor_mobile ?? '',
-                'company_name' => $r->company ?? $r->visitor_business ?? 'Guest Visitor',
-                'target_entity' => $r->event_name ?? $r->meeting_name ?? 'Chapter Meeting',
-                'details' => $this->formatDetailsText($r->notes ?? $r->note ?? null, 'Visitor pass clearance request.'),
+                'applicant_email' => $r->visitor_email ?? $r->email ?? '',
+                'applicant_phone' => $r->visitor_mobile ?? $r->phone ?? '',
+                'company_name' => $r->visitor_business ?? $r->company ?? 'Guest Visitor',
+                'target_entity' => $r->event_name ?? $r->meeting_name ?? ($r->event_type ?? 'Chapter Meeting'),
+                'details' => $this->formatDetailsText($r->note ?? $r->notes ?? $r->how_known ?? null, 'Visitor pass clearance request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
                 'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
             ];
