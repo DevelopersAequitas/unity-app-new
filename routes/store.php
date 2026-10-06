@@ -126,14 +126,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}/access', [DigitalLibraryController::class, 'access'])->whereUuid('id');
         });
 
-        // Support Tickets (Supports both /api/v1/support/tickets and /api/v1/store/support/tickets)
-        Route::prefix('support/tickets')->group(function () {
-            Route::get('/', [StoreSupportController::class, 'index']);
-            Route::post('/', [StoreSupportController::class, 'store']);
-            Route::get('/{id}', [StoreSupportController::class, 'show'])->whereUuid('id');
-            Route::post('/{id}/messages', [StoreSupportController::class, 'addMessage'])->whereUuid('id');
-            Route::post('/{id}/close', [StoreSupportController::class, 'close'])->whereUuid('id');
-        });
+        // Support Tickets (Store Scoped)
         Route::prefix('store/support/tickets')->group(function () {
             Route::get('/', [StoreSupportController::class, 'index']);
             Route::post('/', [StoreSupportController::class, 'store']);
@@ -142,20 +135,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/close', [StoreSupportController::class, 'close'])->whereUuid('id');
         });
 
-        // Notifications & Devices (Supports both /api/v1/notifications and /api/v1/store/notifications)
-        Route::prefix('notifications')->group(function () {
-            Route::get('/', [StoreNotificationController::class, 'index']);
-            Route::get('/{id}', [StoreNotificationController::class, 'show'])->whereUuid('id');
-            Route::patch('/{id}/read', [StoreNotificationController::class, 'markAsRead'])->whereUuid('id');
-        });
+        // Notifications & Devices (Store Scoped)
         Route::prefix('store/notifications')->group(function () {
             Route::get('/', [StoreNotificationController::class, 'index']);
             Route::get('/{id}', [StoreNotificationController::class, 'show'])->whereUuid('id');
             Route::patch('/{id}/read', [StoreNotificationController::class, 'markAsRead'])->whereUuid('id');
-        });
-        Route::prefix('devices')->group(function () {
-            Route::post('/', [StoreNotificationController::class, 'registerDevice']);
-            Route::delete('/{device_id}', [StoreNotificationController::class, 'removeDevice']);
         });
         Route::prefix('store/devices')->group(function () {
             Route::post('/', [StoreNotificationController::class, 'registerDevice']);
