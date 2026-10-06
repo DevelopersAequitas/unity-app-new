@@ -219,6 +219,60 @@ class PendingRequestAdminController extends Controller
         return $map[$category] ?? null;
     }
 
+    private function formatDetailsText(mixed $raw, string $default): string
+    {
+        if ($raw === null || $raw === '') {
+            return $default;
+        }
+
+        if (is_string($raw)) {
+            $trimmed = trim($raw);
+            if ((str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}')) || (str_starts_with($trimmed, '[') && str_ends_with($trimmed, ']'))) {
+                $decoded = json_decode($trimmed, true);
+                if (is_array($decoded)) {
+                    $raw = $decoded;
+                } else {
+                    return $trimmed;
+                }
+            } else {
+                return $trimmed;
+            }
+        }
+
+        if (is_array($raw)) {
+            if (! empty($raw['membership_plan_name']) && ! empty($raw['payment_amount'])) {
+                return "Plan: {$raw['membership_plan_name']} (₹{$raw['payment_amount']})";
+            }
+            if (! empty($raw['membership_plan_name'])) {
+                return (string) $raw['membership_plan_name'];
+            }
+            if (! empty($raw['name'])) {
+                return (string) $raw['name'];
+            }
+            if (! empty($raw['notes'])) {
+                return $this->formatDetailsText($raw['notes'], $default);
+            }
+            if (! empty($raw['reason'])) {
+                return $this->formatDetailsText($raw['reason'], $default);
+            }
+            if (! empty($raw['description'])) {
+                return $this->formatDetailsText($raw['description'], $default);
+            }
+
+            $parts = [];
+            foreach (array_slice($raw, 0, 3) as $k => $v) {
+                if (is_scalar($v)) {
+                    $cleanKey = ucwords(str_replace('_', ' ', (string) $k));
+                    $parts[] = "{$cleanKey}: {$v}";
+                }
+            }
+
+            return ! empty($parts) ? implode(' · ', $parts) : $default;
+        }
+
+        return (string) $raw;
+    }
+
     private function fetchCircleJoinRequests(?string $search): Collection
     {
         if (! Schema::hasTable('circle_join_requests')) {
@@ -255,7 +309,7 @@ class PendingRequestAdminController extends Controller
             'applicant_phone' => $r->applicant_phone ?? '',
             'company_name' => $r->company_name ?? 'Independent Member',
             'target_entity' => $r->target_entity ?? 'Assigned Circle',
-            'details' => $r->notes ?? 'Application to join chartered circle roster.',
+            'details' => $this->formatDetailsText($r->notes ?? null, 'Application to join chartered circle roster.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
         ]);
     }
@@ -280,7 +334,7 @@ class PendingRequestAdminController extends Controller
             'applicant_phone' => $r->phone ?? '',
             'company_name' => $r->company ?? 'Guest Visitor',
             'target_entity' => $r->meeting_name ?? 'Chapter Meeting',
-            'details' => $r->notes ?? 'Visitor pass clearance request.',
+            'details' => $this->formatDetailsText($r->notes ?? null, 'Visitor pass clearance request.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
         ]);
     }
@@ -312,7 +366,7 @@ class PendingRequestAdminController extends Controller
                 'applicant_phone' => '',
                 'company_name' => $r->company_name ?? 'Member',
                 'target_entity' => ($r->coins_amount ?? $r->amount ?? 0).' Coins',
-                'details' => $r->reason ?? 'Member reward disbursement request.',
+                'details' => $this->formatDetailsText($r->reason ?? null, 'Member reward disbursement request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -346,7 +400,7 @@ class PendingRequestAdminController extends Controller
                 'applicant_phone' => '',
                 'company_name' => 'Registered Member',
                 'target_entity' => $r->event_title ?? 'Scheduled Event',
-                'details' => $r->notes ?? 'RSVP pass clearance request.',
+                'details' => $this->formatDetailsText($r->notes ?? null, 'RSVP pass clearance request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -379,7 +433,7 @@ class PendingRequestAdminController extends Controller
                 'applicant_phone' => '',
                 'company_name' => 'Member',
                 'target_entity' => $r->certificate_title ?? 'Certificate Verification',
-                'details' => $r->description ?? 'Credential verification review.',
+                'details' => $this->formatDetailsText($r->description ?? null, 'Credential verification review.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -412,7 +466,7 @@ class PendingRequestAdminController extends Controller
                 'applicant_phone' => '',
                 'company_name' => 'Member Partner',
                 'target_entity' => '₹'.number_format((float) ($r->amount ?? 0)),
-                'details' => $r->description ?? 'Life impact contract validation.',
+                'details' => $this->formatDetailsText($r->description ?? null, 'Life impact contract validation.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -444,7 +498,7 @@ class PendingRequestAdminController extends Controller
                 'applicant_phone' => '',
                 'company_name' => 'Brand Partner',
                 'target_entity' => $r->placement ?? 'Banner Ad Slot',
-                'details' => $r->notes ?? 'Ad booking schedule request.',
+                'details' => $this->formatDetailsText($r->notes ?? null, 'Ad booking schedule request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -476,7 +530,7 @@ class PendingRequestAdminController extends Controller
                 'applicant_phone' => '',
                 'company_name' => 'Member',
                 'target_entity' => 'Account Closure',
-                'details' => $r->reason ?? 'User deletion request.',
+                'details' => $this->formatDetailsText($r->reason ?? null, 'User deletion request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -506,7 +560,7 @@ class PendingRequestAdminController extends Controller
             'applicant_phone' => $r->referred_phone ?? '',
             'company_name' => $r->referred_company ?? 'Candidate',
             'target_entity' => 'Peer Recommendation',
-            'details' => $r->notes ?? 'Circle referral clearance.',
+            'details' => $this->formatDetailsText($r->notes ?? null, 'Circle referral clearance.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
         ]);
     }
@@ -536,7 +590,7 @@ class PendingRequestAdminController extends Controller
             'applicant_phone' => '',
             'company_name' => 'Member',
             'target_entity' => $r->target_peer_name ?? 'Peer Intro',
-            'details' => $r->notes ?? 'Introduction request clearance.',
+            'details' => $this->formatDetailsText($r->notes ?? null, 'Introduction request clearance.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
         ]);
     }
