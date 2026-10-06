@@ -133,6 +133,12 @@ class AdminStoreCatalogWebController extends Controller
 
     public function storeProduct(Request $request)
     {
+        $request->merge([
+            'return_allowed' => $request->boolean('return_allowed'),
+            'customised' => $request->boolean('customised'),
+            'is_featured' => $request->boolean('is_featured'),
+        ]);
+
         $validated = $request->validate([
             'sku' => 'required|string|max:50|unique:products,sku',
             'name' => 'required|string|max:200',
@@ -156,9 +162,9 @@ class AdminStoreCatalogWebController extends Controller
         if (empty($validated['slug'])) {
             $validated['slug'] = Str::slug($validated['name']);
         }
-        $validated['return_allowed'] = $request->has('return_allowed');
-        $validated['customised'] = $request->has('customised');
-        $validated['is_featured'] = $request->has('is_featured');
+        $validated['return_allowed'] = $request->boolean('return_allowed');
+        $validated['customised'] = $request->boolean('customised');
+        $validated['is_featured'] = $request->boolean('is_featured');
         $validated['stock_qty'] = $validated['stock_qty'] ?? 0;
         $validated['created_by'] = Auth::guard('admin')->id();
 
@@ -209,6 +215,12 @@ class AdminStoreCatalogWebController extends Controller
     {
         $product = Product::findOrFail($id);
 
+        $request->merge([
+            'return_allowed' => $request->boolean('return_allowed'),
+            'customised' => $request->boolean('customised'),
+            'is_featured' => $request->boolean('is_featured'),
+        ]);
+
         $validated = $request->validate([
             'sku' => 'required|string|max:50|unique:products,sku,'.$id,
             'name' => 'required|string|max:200',
@@ -232,9 +244,9 @@ class AdminStoreCatalogWebController extends Controller
         if (empty($validated['slug'])) {
             $validated['slug'] = Str::slug($validated['name']);
         }
-        $validated['return_allowed'] = $request->has('return_allowed');
-        $validated['customised'] = $request->has('customised');
-        $validated['is_featured'] = $request->has('is_featured');
+        $validated['return_allowed'] = $request->boolean('return_allowed');
+        $validated['customised'] = $request->boolean('customised');
+        $validated['is_featured'] = $request->boolean('is_featured');
 
         $product->update($validated);
 

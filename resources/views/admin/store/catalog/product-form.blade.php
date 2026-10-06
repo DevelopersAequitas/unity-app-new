@@ -141,19 +141,19 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-4">
                                 <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" name="return_allowed" id="returnAllowed" {{ old('return_allowed', $product->return_allowed ?? true) ? 'checked' : '' }}>
+                                    <input class="form-check-input" type="checkbox" name="return_allowed" value="1" id="returnAllowed" {{ old('return_allowed', $product->return_allowed ?? true) ? 'checked' : '' }}>
                                     <label class="form-check-label small fw-bold" for="returnAllowed">7-Day Return Allowed</label>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" name="customised" id="customised" {{ old('customised', $product->customised) ? 'checked' : '' }}>
+                                    <input class="form-check-input" type="checkbox" name="customised" value="1" id="customised" {{ old('customised', $product->customised) ? 'checked' : '' }}>
                                     <label class="form-check-label small fw-bold" for="customised">Customised (Non-returnable)</label>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" name="is_featured" id="isFeatured" {{ old('is_featured', $product->is_featured) ? 'checked' : '' }}>
+                                    <input class="form-check-input" type="checkbox" name="is_featured" value="1" id="isFeatured" {{ old('is_featured', $product->is_featured) ? 'checked' : '' }}>
                                     <label class="form-check-label small fw-bold text-primary" for="isFeatured">Featured Collection</label>
                                 </div>
                             </div>
