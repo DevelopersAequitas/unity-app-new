@@ -441,7 +441,11 @@ class EventManagementController extends Controller
     {
         $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
         abort_unless($this->canAccessEvent((string) $registration->event_id), 403);
-        $this->zohoInvoiceSync->sync($registration);
+        $registration = $this->zohoInvoiceSync->sync($registration);
+
+        if (($registration->payment_status ?? null) === 'paid') {
+            $this->zohoInvoiceSync->finalizeAndApplyPaymentToEventInvoice($registration);
+        }
 
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
     }

@@ -40,8 +40,6 @@ class EventRazorpayPaymentFinalizer
                 Log::info('payment_success_registration_updated', ['event_registration_id' => (string) $locked->id]);
             }
 
-            $locked = $this->registrationQr->ensureQrGenerated($locked);
-
             if ($locked->user) {
                 $userUpdates = [];
                 if (in_array((string) $locked->user->membership_status, ['visitor', 'free_peer', ''], true)) {
@@ -63,8 +61,29 @@ class EventRazorpayPaymentFinalizer
             return $locked->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         });
 
-        if (empty($registration->zoho_invoice_id)) {
-            $registration = $this->zohoInvoices->sync($registration);
+        try {
+            $registration = $this->registrationQr->ensureQrGenerated($registration);
+        } catch (\Throwable $e) {
+            Log::error('event_registration_qr_generation_failed_after_payment', [
+                'registration_id' => (string) $registration->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            if (empty($registration->zoho_invoice_id)) {
+                $registration = $this->zohoInvoices->sync($registration);
+            }
+
+            if (! empty($registration->zoho_invoice_id)) {
+                $this->zohoInvoices->finalizeAndApplyPaymentToEventInvoice($registration);
+                $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']) ?? $registration;
+            }
+        } catch (\Throwable $e) {
+            Log::error('zoho_invoice_payment_finalize_failed', [
+                'registration_id' => (string) $registration->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']) ?? $registration;

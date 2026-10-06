@@ -363,7 +363,8 @@ class CircleJoinPaymentService
 
             $finalized = $this->paymentSyncService->finalizeJoinRequest($locked);
 
-            $payment = Payment::query()->where('razorpay_order_id', $orderId)->first();
+            $payment = Payment::query()->where('razorpay_order_id', $orderId)->first()
+                ?? Payment::query()->where('circle_join_request_id', $finalized->id)->latest('created_at')->first();
             if ($payment) {
                 try {
                     $circle = $finalized->circle ?? Circle::query()->find($finalized->circle_id);
@@ -425,7 +426,8 @@ class CircleJoinPaymentService
 
             $finalized = $this->paymentSyncService->finalizeJoinRequest($locked);
 
-            $payment = Payment::query()->where('razorpay_order_id', $orderId)->first();
+            $payment = Payment::query()->where('razorpay_order_id', $orderId)->first()
+                ?? Payment::query()->where('circle_join_request_id', $finalized->id)->latest('created_at')->first();
             if ($payment) {
                 try {
                     $user = $finalized->user ?? User::query()->find($finalized->user_id);
