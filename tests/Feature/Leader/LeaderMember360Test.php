@@ -214,8 +214,9 @@ class LeaderMember360Test extends TestCase
     public function it_returns_member_posts(): void
     {
         // Create a test post
+        $postId = Str::uuid()->toString();
         DB::table('posts')->insert([
-            'id' => Str::uuid()->toString(),
+            'id' => $postId,
             'user_id' => $this->member->id,
             'content_text' => 'Test post content',
             'visibility' => 'public',
@@ -230,12 +231,26 @@ class LeaderMember360Test extends TestCase
             ->assertJson(['success' => true, 'message' => 'Member posts retrieved successfully.'])
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'content', 'created_at'],
+                    '*' => [
+                        'id',
+                        'content',
+                        'created_at',
+                        'likes_count',
+                        'comments_count',
+                        'likes',
+                        'liked_peers',
+                        'comments',
+                        'comment_peers',
+                    ],
                 ],
                 'meta' => ['current_page', 'per_page', 'total', 'last_page'],
             ]);
 
         $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertIsArray($response->json('data.0.likes'));
+        $this->assertIsArray($response->json('data.0.liked_peers'));
+        $this->assertIsArray($response->json('data.0.comments'));
+        $this->assertIsArray($response->json('data.0.comment_peers'));
     }
 
     /** @test */
