@@ -1226,6 +1226,8 @@ Route::prefix('v1')->group(function () {
         // Membership payments
         Route::post('/payments/create-order', [PaymentController::class, 'createOrder']);
         Route::post('/payments/verify', [PaymentController::class, 'verify']);
+        Route::post('/api/v1/payments/create-order', [PaymentController::class, 'createOrder']);
+        Route::post('/api/v1/payments/verify', [PaymentController::class, 'verify']);
 
         // Forms
         Route::post('/forms/leader-interest', [LeaderInterestController::class, 'store']);
