@@ -237,7 +237,7 @@ class PaymentController extends Controller
             }
         }
 
-        $freshUser = $updatedUser->fresh();
+        $freshUser = $updatedUser->fresh() ?? $updatedUser;
 
         return response()->json([
             'success' => true,
