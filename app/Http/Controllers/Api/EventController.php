@@ -1919,15 +1919,18 @@ class EventController extends BaseApiController
 
         $code = trim($code);
 
+        // If code is a UUID, check if it's a valid user ID (excluding self)
         if (Str::isUuid($code)) {
-            return ($currentUserId && $code === $currentUserId) ? null : $code;
+            if ($currentUserId && $code === $currentUserId) {
+                return null;
+            }
+
+            $userExists = User::query()->where('id', $code)->exists();
+
+            return $userExists ? $code : null;
         }
 
-        $inviterUser = User::query()->where('id', $code)->first();
-        if ($inviterUser) {
-            return ($currentUserId && (string) $inviterUser->id === $currentUserId) ? null : (string) $inviterUser->id;
-        }
-
+        // Otherwise it is a referral code (e.g. CHIRA61609). Resolve via ReferralService
         try {
             $referralInfo = app(ReferralService::class)->validateReferralCode($code);
             if ($referralInfo && ! empty($referralInfo['referrer_user_id'])) {
@@ -1939,6 +1942,7 @@ class EventController extends BaseApiController
             Log::warning('event_resolve_inviter_code_failed', ['code' => $code, 'error' => $e->getMessage()]);
         }
 
+        // Fallback: search referral columns on users table
         try {
             if (Schema::hasTable('users')) {
                 foreach (['referral_code', 'ref_code', 'invite_code'] as $col) {
