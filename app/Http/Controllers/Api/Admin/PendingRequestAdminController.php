@@ -179,11 +179,15 @@ class PendingRequestAdminController extends Controller
 
     private function processApproval(string $id, ?string $category = null): JsonResponse
     {
-        // 1. Resolve table name
+        // 1. Resolve table name and locate record defensively
         $table = $category ? $this->resolveTableForCategory($category) : null;
+        $record = null;
 
-        if (! $table || ! Schema::hasTable($table)) {
-            // Check fallback tables across known pending categories
+        if ($table && Schema::hasTable($table)) {
+            $record = DB::table($table)->where('id', $id)->first();
+        }
+
+        if (! $record) {
             $fallbackCandidates = [
                 'circle_join_requests',
                 'event_joining_requests',
@@ -203,43 +207,38 @@ class PendingRequestAdminController extends Controller
                 'join_requests',
             ];
 
-            $foundTable = null;
             foreach ($fallbackCandidates as $candidate) {
-                if (Schema::hasTable($candidate) && DB::table($candidate)->where('id', $id)->exists()) {
-                    $foundTable = $candidate;
-                    break;
+                if (Schema::hasTable($candidate)) {
+                    $found = DB::table($candidate)->where('id', $id)->first();
+                    if ($found) {
+                        $table = $candidate;
+                        $record = $found;
+                        break;
+                    }
                 }
-            }
-
-            if ($foundTable) {
-                $table = $foundTable;
-            } elseif ($table && Schema::hasTable($table)) {
-                // Keep table
-            } elseif (Schema::hasTable('circle_join_requests')) {
-                $table = 'circle_join_requests';
-            } elseif (Schema::hasTable('join_requests')) {
-                $table = 'join_requests';
-            } else {
-                return response()->json(['success' => false, 'message' => 'Table not found'], 404);
             }
         }
 
-        $record = DB::table($table)->where('id', $id)->first();
-        if (! $record) {
+        if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
         }
 
         DB::beginTransaction();
         try {
             // 2. Mark status as approved
-            $updatePayload = ['updated_at' => now()];
+            $updatePayload = [];
+            if (Schema::hasColumn($table, 'updated_at')) {
+                $updatePayload['updated_at'] = now();
+            }
             if (Schema::hasColumn($table, 'status')) {
                 $updatePayload['status'] = 'approved';
             }
             if (Schema::hasColumn($table, 'approved_at')) {
                 $updatePayload['approved_at'] = now();
             }
-            DB::table($table)->where('id', $id)->update($updatePayload);
+            if (! empty($updatePayload)) {
+                DB::table($table)->where('id', $id)->update($updatePayload);
+            }
 
             // 3. Link user to circle safely (check schema first to prevent SQL crash)
             $userId = $record->user_id ?? null;
@@ -262,17 +261,31 @@ class PendingRequestAdminController extends Controller
 
                 // If pivot table circle_user exists
                 if (Schema::hasTable('circle_user')) {
+                    $pivotData = [];
+                    if (Schema::hasColumn('circle_user', 'status')) {
+                        $pivotData['status'] = 'active';
+                    }
+                    if (Schema::hasColumn('circle_user', 'updated_at')) {
+                        $pivotData['updated_at'] = now();
+                    }
                     DB::table('circle_user')->updateOrInsert(
                         ['user_id' => $userId, 'circle_id' => $circleId],
-                        ['status' => 'active', 'updated_at' => now()]
+                        $pivotData
                     );
                 }
 
                 // If pivot table circle_members exists
                 if (Schema::hasTable('circle_members')) {
+                    $pivotData = [];
+                    if (Schema::hasColumn('circle_members', 'status')) {
+                        $pivotData['status'] = 'active';
+                    }
+                    if (Schema::hasColumn('circle_members', 'updated_at')) {
+                        $pivotData['updated_at'] = now();
+                    }
                     DB::table('circle_members')->updateOrInsert(
                         ['user_id' => $userId, 'circle_id' => $circleId],
-                        ['status' => 'active', 'updated_at' => now()]
+                        $pivotData
                     );
                 }
             }
@@ -297,8 +310,13 @@ class PendingRequestAdminController extends Controller
     private function processRejection(string $id, ?string $category = null, string $reason = 'Administrative clearance declined'): JsonResponse
     {
         $table = $category ? $this->resolveTableForCategory($category) : null;
+        $record = null;
 
-        if (! $table || ! Schema::hasTable($table)) {
+        if ($table && Schema::hasTable($table)) {
+            $record = DB::table($table)->where('id', $id)->first();
+        }
+
+        if (! $record) {
             $fallbackCandidates = [
                 'circle_join_requests',
                 'event_joining_requests',
@@ -319,20 +337,27 @@ class PendingRequestAdminController extends Controller
             ];
 
             foreach ($fallbackCandidates as $candidate) {
-                if (Schema::hasTable($candidate) && DB::table($candidate)->where('id', $id)->exists()) {
-                    $table = $candidate;
-                    break;
+                if (Schema::hasTable($candidate)) {
+                    $found = DB::table($candidate)->where('id', $id)->first();
+                    if ($found) {
+                        $table = $candidate;
+                        $record = $found;
+                        break;
+                    }
                 }
             }
         }
 
-        if ($table && Schema::hasTable($table)) {
-            $record = DB::table($table)->where('id', $id)->first();
-            if (! $record) {
-                return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
-            }
+        if (! $table || ! $record) {
+            return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
 
-            $payload = ['updated_at' => now()];
+        DB::beginTransaction();
+        try {
+            $payload = [];
+            if (Schema::hasColumn($table, 'updated_at')) {
+                $payload['updated_at'] = now();
+            }
             if (Schema::hasColumn($table, 'status')) {
                 $payload['status'] = 'rejected';
             }
@@ -344,17 +369,25 @@ class PendingRequestAdminController extends Controller
             if (Schema::hasColumn($table, 'rejected_at')) {
                 $payload['rejected_at'] = now();
             }
-            DB::table($table)->where('id', $id)->update($payload);
+            if (! empty($payload)) {
+                DB::table($table)->where('id', $id)->update($payload);
+            }
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => "Request #{$id} rejected.",
             ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reject request: '.$e->getMessage(),
+            ], 500);
         }
-
-        return response()->json(['success' => false, 'message' => 'Table not found'], 404);
     }
-
     // --- Database Aggregations & Helpers (Zero Mock Data) ---
 
     /**
@@ -536,7 +569,7 @@ class PendingRequestAdminController extends Controller
             });
         }
 
-        return $selectCols = [
+        $selectCols = [
             'circle_join_requests.id',
             'circle_join_requests.created_at',
             'circle_join_requests.notes',
