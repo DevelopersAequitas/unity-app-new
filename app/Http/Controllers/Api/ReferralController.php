@@ -9,6 +9,7 @@ use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Http\Resources\Ask\PeerResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\CircleMember;
+use App\Models\EventRegistration;
 use App\Models\Post;
 use App\Models\PostMention;
 use App\Models\Referral;
@@ -660,5 +661,151 @@ class ReferralController extends BaseApiController
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function listVisitors(Request $request)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = max(1, min($perPage, 100));
+
+        $hasColumn = Schema::hasColumn('event_registrations', 'invited_by_user_id');
+        $hasMeta = Schema::hasColumn('event_registrations', 'metadata');
+
+        $query = EventRegistration::query()
+            ->with(['event.circle', 'occurrence', 'user'])
+            ->where(function ($q) use ($userId, $hasColumn, $hasMeta): void {
+                if ($hasColumn) {
+                    $q->where('invited_by_user_id', $userId);
+                }
+                if ($hasMeta) {
+                    if ($hasColumn) {
+                        $q->orWhere('metadata->invited_by_user_id', $userId)
+                            ->orWhere('metadata->inviter_user_id', $userId);
+                    } else {
+                        $q->where('metadata->invited_by_user_id', $userId)
+                            ->orWhere('metadata->inviter_user_id', $userId);
+                    }
+                }
+                if (! $hasColumn && ! $hasMeta) {
+                    $q->whereRaw('1 = 0');
+                }
+            })
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at')
+            ->latest('created_at');
+
+        $paginator = $query->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (EventRegistration $reg): array {
+            $isMember = ! empty($reg->user_id);
+            $targetUser = $reg->user;
+            $name = $isMember
+                ? ($targetUser?->display_name ?? trim(($targetUser?->first_name ?? '').' '.($targetUser?->last_name ?? '')))
+                : ($reg->visitor_name ?? 'Guest Visitor');
+
+            $phone = $isMember ? ($targetUser?->phone ?? $reg->visitor_phone) : $reg->visitor_phone;
+            $email = $isMember ? ($targetUser?->email ?? $reg->visitor_email) : $reg->visitor_email;
+            $company = $isMember ? ($targetUser?->company_name ?? $reg->visitor_company) : $reg->visitor_company;
+            $designation = $isMember ? ($targetUser?->designation ?? $reg->visitor_designation) : $reg->visitor_designation;
+
+            return [
+                'id' => (string) $reg->id,
+                'type' => $isMember ? 'member' : 'visitor',
+                'name' => (string) ($name ?: 'Guest Visitor'),
+                'email' => $email,
+                'phone' => $phone,
+                'company' => $company,
+                'company_name' => $company,
+                'designation' => $designation,
+                'event_id' => (string) $reg->event_id,
+                'event_title' => $reg->event?->title ?? '',
+                'circle_id' => (string) ($reg->event?->circle_id ?? ''),
+                'circle_name' => $reg->event?->circle?->name ?? '',
+                'occurrence_id' => (string) $reg->occurrence_id,
+                'occurrence_date' => $reg->occurrence?->occurrence_date?->toDateString() ?? optional($reg->occurrence?->start_at)->toDateString(),
+                'status' => (string) $reg->status,
+                'checkin_status' => (string) ($reg->checkin_status ?? 'pending'),
+                'is_checked_in' => $reg->checkin_status === 'checked_in' || ! empty($reg->checked_in_at),
+                'checked_in_at' => optional($reg->checked_in_at)->toISOString(),
+                'registered_at' => optional($reg->created_at)->toISOString(),
+                'user_id' => $reg->user_id ? (string) $reg->user_id : null,
+                'peer' => $targetUser ? new PeerResource($targetUser) : null,
+            ];
+        })->values()->all();
+
+        return $this->success([
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ], 'Visitors fetched successfully.');
+    }
+
+    public function updateVisitor(Request $request, string $id)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $userId = (string) $user->id;
+        $hasColumn = Schema::hasColumn('event_registrations', 'invited_by_user_id');
+        $hasMeta = Schema::hasColumn('event_registrations', 'metadata');
+
+        $registration = EventRegistration::query()
+            ->where('id', $id)
+            ->where(function ($q) use ($userId, $hasColumn, $hasMeta): void {
+                if ($hasColumn) {
+                    $q->where('invited_by_user_id', $userId);
+                }
+                if ($hasMeta) {
+                    if ($hasColumn) {
+                        $q->orWhere('metadata->invited_by_user_id', $userId);
+                    } else {
+                        $q->where('metadata->invited_by_user_id', $userId);
+                    }
+                }
+                if (! $hasColumn && ! $hasMeta) {
+                    $q->whereRaw('1 = 0');
+                }
+            })
+            ->first();
+
+        if (! $registration) {
+            return $this->error('Visitor registration not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'status' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        if (array_key_exists('notes', $validated)) {
+            $metadata = (array) ($registration->metadata ?? []);
+            $metadata['notes'] = $validated['notes'];
+            $registration->metadata = $metadata;
+        }
+
+        $registration->save();
+
+        return $this->success($registration, 'Visitor registration updated successfully.');
+    }
+
+    public function storeLink(Request $request, ReferralService $referralService)
+    {
+        return $this->generate(new GenerateReferralCodeRequest, $referralService);
+    }
+
+    public function listLinks(Request $request, ReferralService $referralService)
+    {
+        return $this->me($request, $referralService);
     }
 }
