@@ -318,39 +318,35 @@ class PendingRequestAdminController extends Controller
                     return $trimmed;
                 }
             } else {
+                if (preg_match('/^Plan:\s*/i', $trimmed)) {
+                    return $default;
+                }
                 return $trimmed;
             }
         }
 
         if (is_array($raw)) {
-            if (! empty($raw['membership_plan_name']) && ! empty($raw['payment_amount'])) {
-                return "Plan: {$raw['membership_plan_name']} (₹{$raw['payment_amount']})";
+            // Prioritize genuine submission description / reason over billing plans
+            if (! empty($raw['description'])) {
+                return $this->formatDetailsText($raw['description'], $default);
             }
-            if (! empty($raw['membership_plan_name'])) {
-                return (string) $raw['membership_plan_name'];
+            if (! empty($raw['reason_for_joining'])) {
+                return $this->formatDetailsText($raw['reason_for_joining'], $default);
             }
-            if (! empty($raw['name'])) {
-                return (string) $raw['name'];
-            }
-            if (! empty($raw['notes'])) {
+            if (! empty($raw['notes']) && is_string($raw['notes'])) {
                 return $this->formatDetailsText($raw['notes'], $default);
             }
             if (! empty($raw['reason'])) {
                 return $this->formatDetailsText($raw['reason'], $default);
             }
-            if (! empty($raw['description'])) {
-                return $this->formatDetailsText($raw['description'], $default);
+            if (! empty($raw['message'])) {
+                return $this->formatDetailsText($raw['message'], $default);
+            }
+            if (! empty($raw['comment'])) {
+                return $this->formatDetailsText($raw['comment'], $default);
             }
 
-            $parts = [];
-            foreach (array_slice($raw, 0, 3) as $k => $v) {
-                if (is_scalar($v)) {
-                    $cleanKey = ucwords(str_replace('_', ' ', (string) $k));
-                    $parts[] = "{$cleanKey}: {$v}";
-                }
-            }
-
-            return ! empty($parts) ? implode(' · ', $parts) : $default;
+            return $default;
         }
 
         return (string) $raw;
@@ -376,7 +372,7 @@ class PendingRequestAdminController extends Controller
             });
         }
 
-        return $query->select(
+        return $selectCols = [
             'circle_join_requests.id',
             'circle_join_requests.created_at',
             'circle_join_requests.notes',
@@ -384,19 +380,31 @@ class PendingRequestAdminController extends Controller
             'users.email as applicant_email',
             'users.phone as applicant_phone',
             'users.company_name',
-            'circles.name as target_entity'
-        )->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'circle_joining_requests',
-            'category_label' => 'Circle Joining Request',
-            'applicant_name' => $r->applicant_name ?: 'Peer Member',
-            'applicant_email' => $r->applicant_email ?? '',
-            'applicant_phone' => $r->applicant_phone ?? '',
-            'company_name' => $r->company_name ?? 'Independent Member',
-            'target_entity' => $r->target_entity ?? 'Assigned Circle',
-            'details' => $this->formatDetailsText($r->notes ?? null, 'Application to join chartered circle roster.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-        ]);
+            'circles.name as target_entity',
+        ];
+
+        if (Schema::hasColumn('circle_join_requests', 'reason_for_joining')) {
+            $selectCols[] = 'circle_join_requests.reason_for_joining';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'description')) {
+            $selectCols[] = 'circle_join_requests.description';
+        }
+
+        return $query->select($selectCols)->get()->map(function ($r) {
+            $descCandidate = $r->description ?? ($r->reason_for_joining ?? ($r->notes ?? null));
+            return [
+                'id' => (string) $r->id,
+                'category' => 'circle_joining_requests',
+                'category_label' => 'Circle Joining Request',
+                'applicant_name' => $r->applicant_name ?: 'Peer Member',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => $r->applicant_phone ?? '',
+                'company_name' => $r->company_name ?? 'Independent Member',
+                'target_entity' => $r->target_entity ?? 'Assigned Circle',
+                'details' => $this->formatDetailsText($descCandidate, 'Application to join chartered circle roster.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+            ];
+        });
     }
 
     private function fetchVisitorRegistrations(?string $search): Collection
