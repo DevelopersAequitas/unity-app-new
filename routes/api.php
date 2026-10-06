@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\ActivityVideoApiController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
+use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Http\Controllers\Api\Admin\RbacController;
 use App\Http\Controllers\Api\AdminActivityController;
 use App\Http\Controllers\Api\AdsController;
@@ -1548,4 +1549,10 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('post-reports/{id}', [App\Http\Controllers\Api\Admin\PostReportController::class, 'show']);
     Route::post('post-reports/{id}/resolve', [App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
     Route::post('post-reports/{id}/dismiss', [App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
+
+    // Consolidated Pending Moderation Queue
+    Route::get('pending-requests', [PendingRequestAdminController::class, 'index']);
+    Route::get('pending-requests/count', [PendingRequestAdminController::class, 'count']);
+    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approve']);
+    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'reject']);
 });
