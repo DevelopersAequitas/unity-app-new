@@ -52,7 +52,8 @@
                             $gstAmount = round($price * ($gstPercent / 100), 2);
                             $totalAmount = round($price + $gstAmount, 2);
                         @endphp
-                        <input type="text" id="planTotalPreview" class="form-control" value="₹{{ number_format($totalAmount, 2) }}" disabled>
+                        <input type="text" id="planTotalPreview" class="form-control" value="₹{{ number_format($totalAmount, 2) }}" disabled readonly>
+                        <small id="planGstBreakdown" class="text-muted d-block mt-1">GST: ₹{{ number_format($gstAmount, 2) }}</small>
                     </div>
 
                     <div class="col-md-4">
@@ -102,6 +103,7 @@
             const priceInput = document.getElementById('planPriceInput');
             const gstInput = document.getElementById('planGstInput');
             const totalPreview = document.getElementById('planTotalPreview');
+            const gstBreakdown = document.getElementById('planGstBreakdown');
 
             function updateTotal() {
                 const price = parseFloat(priceInput.value) || 0;
@@ -111,11 +113,15 @@
                 if (totalPreview) {
                     totalPreview.value = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 }
+                if (gstBreakdown) {
+                    gstBreakdown.textContent = 'GST: ₹' + gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
             }
 
             if (priceInput && gstInput) {
                 priceInput.addEventListener('input', updateTotal);
                 gstInput.addEventListener('input', updateTotal);
+                updateTotal();
             }
         });
     </script>
