@@ -198,6 +198,24 @@ class AdminPeerService
                         self::INACTIVE_STATUSES
                     );
                 }),
+                'global', 'global_peer', 'only_unity_peer' => $query->where(function (Builder $q): void {
+                    $q->whereIn(
+                        DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
+                        ['only_unity_peer', 'global_peer', 'only unity peer', 'global peer', 'global']
+                    );
+                }),
+                'circle', 'circle_peer' => $query->where(function (Builder $q): void {
+                    $q->whereIn(
+                        DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
+                        ['circle_peer', 'circle peer', 'circle']
+                    );
+                }),
+                'multi_circle', 'multi_circle_peer' => $query->where(function (Builder $q): void {
+                    $q->whereIn(
+                        DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
+                        ['multi_circle_peer', 'multi circle peer', 'multi_circle']
+                    );
+                }),
                 'free_trial', 'trial' => $query->where(function (Builder $q): void {
                     $q->whereIn(
                         DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
