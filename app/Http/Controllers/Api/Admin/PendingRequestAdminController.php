@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Events\PendingRequestChangedEvent;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ class PendingRequestAdminController extends Controller
     /**
      * Authoritative breakdown and total counts computed strictly from the database
      */
-    public function summary(): JsonResponse
+    public function getSummaryData(): array
     {
         $breakdown = [
             'visitor_registrations' => $this->getPendingCount('visitor_registrations'),
@@ -33,14 +34,22 @@ class PendingRequestAdminController extends Controller
             'event_joining_requests' => $this->getPendingCount('event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
         ];
 
-        $total = array_sum($breakdown);
+        return [
+            'total_pending' => array_sum($breakdown),
+            'breakdown' => $breakdown,
+        ];
+    }
+
+    /**
+     * Authoritative breakdown and total counts computed strictly from the database
+     */
+    public function summary(): JsonResponse
+    {
+        $data = $this->getSummaryData();
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'total_pending' => $total, // Exact DB count with ZERO mock fallback
-                'breakdown' => $breakdown,
-            ],
+            'data' => $data,
         ], 200);
     }
 
@@ -292,6 +301,19 @@ class PendingRequestAdminController extends Controller
 
             DB::commit();
 
+            try {
+                $summary = $this->getSummaryData();
+                broadcast(new PendingRequestChangedEvent(
+                    action: 'approved',
+                    category: $category ?? $table,
+                    requestId: (string) $id,
+                    itemData: ['id' => (string) $id, 'status' => 'approved'],
+                    summaryBreakdown: $summary['breakdown']
+                ));
+            } catch (\Throwable) {
+                // Non-blocking broadcast
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Request approved and clearance granted successfully.',
@@ -374,6 +396,19 @@ class PendingRequestAdminController extends Controller
             }
 
             DB::commit();
+
+            try {
+                $summary = $this->getSummaryData();
+                broadcast(new PendingRequestChangedEvent(
+                    action: 'rejected',
+                    category: $category ?? $table,
+                    requestId: (string) $id,
+                    itemData: ['id' => (string) $id, 'status' => 'rejected'],
+                    summaryBreakdown: $summary['breakdown']
+                ));
+            } catch (\Throwable) {
+                // Non-blocking broadcast
+            }
 
             return response()->json([
                 'success' => true,
