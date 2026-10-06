@@ -1286,6 +1286,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
+    Route::get('/circle-plans', [MembershipPlanController::class, 'circlePlans']);
     Route::get('/zoho/plans', [ZohoPlansController::class, 'index']);
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/payments/razorpay/webhook', [RazorpayWebhookController::class, 'handle']);
