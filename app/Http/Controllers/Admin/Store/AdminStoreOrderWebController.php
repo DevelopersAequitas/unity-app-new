@@ -115,8 +115,11 @@ class AdminStoreOrderWebController extends Controller
         OrderStatusHistory::create([
             'order_id' => $order->id,
             'status' => $newStatus,
+            'from_status' => $fromStatus,
+            'to_status' => $newStatus,
             'notes' => $notes,
-            'changed_by' => $admin ? $admin->name : 'Admin',
+            'reason' => $notes,
+            'changed_by' => $admin ? (string) $admin->id : null,
         ]);
 
         return back()->with('success', "Order status changed from {$fromStatus} to {$newStatus}.");
@@ -145,8 +148,11 @@ class AdminStoreOrderWebController extends Controller
         OrderStatusHistory::create([
             'order_id' => $order->id,
             'status' => 'shipped',
+            'from_status' => $order->status,
+            'to_status' => 'shipped',
             'notes' => "Dispatched via {$courierName} (AWB: {$trackingNumber})",
-            'changed_by' => $admin ? $admin->name : 'Admin',
+            'reason' => "Dispatched via {$courierName} (AWB: {$trackingNumber})",
+            'changed_by' => $admin ? (string) $admin->id : null,
         ]);
 
         return back()->with('success', 'Order marked as shipped with courier AWB details.');
@@ -166,8 +172,11 @@ class AdminStoreOrderWebController extends Controller
         OrderStatusHistory::create([
             'order_id' => $order->id,
             'status' => 'delivered',
+            'from_status' => $order->status,
+            'to_status' => 'delivered',
             'notes' => 'Customer collected merchandise at Hub. PIN verified by '.($admin ? $admin->name : 'Admin'),
-            'changed_by' => $admin ? $admin->name : 'Admin',
+            'reason' => 'Customer collected merchandise at Hub. PIN verified by '.($admin ? $admin->name : 'Admin'),
+            'changed_by' => $admin ? (string) $admin->id : null,
         ]);
 
         return back()->with('success', 'Pickup verified and order marked as delivered.');
