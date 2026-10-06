@@ -1554,8 +1554,10 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('pending-requests', [PendingRequestAdminController::class, 'index']);
     Route::get('pending-requests/summary', [PendingRequestAdminController::class, 'summary']);
     Route::get('pending-requests/count', [PendingRequestAdminController::class, 'summary']);
+
+    // Support both URL formats: with category and direct ID
     Route::post('pending-requests/{category}/{id}/approve', [PendingRequestAdminController::class, 'approve']);
+    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approveDirect']);
     Route::post('pending-requests/{category}/{id}/reject', [PendingRequestAdminController::class, 'reject']);
-    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approveLegacy']);
-    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'rejectLegacy']);
+    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'rejectDirect']);
 });

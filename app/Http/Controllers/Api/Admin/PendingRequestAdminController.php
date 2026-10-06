@@ -123,38 +123,219 @@ class PendingRequestAdminController extends Controller
     }
 
     /**
-     * Dynamic Approval Handler
+     * Category-aware approve handler
      */
     public function approve(Request $request, string $category, string $id): JsonResponse
     {
-        $table = $this->resolveTableForCategory($category);
-        if ($table && Schema::hasTable($table)) {
-            $payload = [
-                'status' => 'approved',
-                'updated_at' => now(),
-            ];
-            if (Schema::hasColumn($table, 'approved_at')) {
-                $payload['approved_at'] = now();
-            }
-            DB::table($table)->where('id', $id)->update($payload);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => "Request #{$id} approved.",
-        ], 200);
+        return $this->processApproval($id, $category);
     }
 
     /**
-     * Dynamic Rejection Handler
+     * Fallback approve handler when category is omitted in URL
+     */
+    public function approveDirect(Request $request, string $id): JsonResponse
+    {
+        $category = $request->input('category') ?? $request->input('type');
+
+        return $this->processApproval($id, is_string($category) ? $category : null);
+    }
+
+    /**
+     * Category-aware reject handler
      */
     public function reject(Request $request, string $category, string $id): JsonResponse
     {
         $reason = (string) $request->input('reason', 'Administrative clearance declined');
-        $table = $this->resolveTableForCategory($category);
+
+        return $this->processRejection($id, $category, $reason);
+    }
+
+    /**
+     * Fallback reject handler when category is omitted in URL
+     */
+    public function rejectDirect(Request $request, string $id): JsonResponse
+    {
+        $category = $request->input('category') ?? $request->input('type');
+        $reason = (string) $request->input('reason', 'Administrative clearance declined');
+
+        return $this->processRejection($id, is_string($category) ? $category : null, $reason);
+    }
+
+    /**
+     * Backward-compatible legacy approve handler
+     */
+    public function approveLegacy(Request $request, string $id): JsonResponse
+    {
+        return $this->approveDirect($request, $id);
+    }
+
+    /**
+     * Backward-compatible legacy reject handler
+     */
+    public function rejectLegacy(Request $request, string $id): JsonResponse
+    {
+        return $this->rejectDirect($request, $id);
+    }
+
+    private function processApproval(string $id, ?string $category = null): JsonResponse
+    {
+        // 1. Resolve table name
+        $table = $category ? $this->resolveTableForCategory($category) : null;
+
+        if (! $table || ! Schema::hasTable($table)) {
+            // Check fallback tables across known pending categories
+            $fallbackCandidates = [
+                'circle_join_requests',
+                'event_joining_requests',
+                'event_join_requests',
+                'event_registrations',
+                'visitor_registrations',
+                'coin_claims',
+                'certification_requests',
+                'certifications',
+                'impacts',
+                'life_impacts',
+                'ad_bookings',
+                'account_deletion_requests',
+                'circle_peer_referrals',
+                'peer_referrals',
+                'introduction_requests',
+                'join_requests',
+            ];
+
+            $foundTable = null;
+            foreach ($fallbackCandidates as $candidate) {
+                if (Schema::hasTable($candidate) && DB::table($candidate)->where('id', $id)->exists()) {
+                    $foundTable = $candidate;
+                    break;
+                }
+            }
+
+            if ($foundTable) {
+                $table = $foundTable;
+            } elseif ($table && Schema::hasTable($table)) {
+                // Keep table
+            } elseif (Schema::hasTable('circle_join_requests')) {
+                $table = 'circle_join_requests';
+            } elseif (Schema::hasTable('join_requests')) {
+                $table = 'join_requests';
+            } else {
+                return response()->json(['success' => false, 'message' => 'Table not found'], 404);
+            }
+        }
+
+        $record = DB::table($table)->where('id', $id)->first();
+        if (! $record) {
+            return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            // 2. Mark status as approved
+            $updatePayload = ['updated_at' => now()];
+            if (Schema::hasColumn($table, 'status')) {
+                $updatePayload['status'] = 'approved';
+            }
+            if (Schema::hasColumn($table, 'approved_at')) {
+                $updatePayload['approved_at'] = now();
+            }
+            DB::table($table)->where('id', $id)->update($updatePayload);
+
+            // 3. Link user to circle safely (check schema first to prevent SQL crash)
+            $userId = $record->user_id ?? null;
+            $circleId = $record->circle_id ?? $record->event_circle_id ?? null;
+
+            if ($userId && $circleId) {
+                // If users table has circle_id or active_circle_id column
+                if (Schema::hasTable('users')) {
+                    $userUpdates = [];
+                    if (Schema::hasColumn('users', 'circle_id')) {
+                        $userUpdates['circle_id'] = $circleId;
+                    }
+                    if (Schema::hasColumn('users', 'active_circle_id')) {
+                        $userUpdates['active_circle_id'] = $circleId;
+                    }
+                    if (! empty($userUpdates)) {
+                        DB::table('users')->where('id', $userId)->update($userUpdates);
+                    }
+                }
+
+                // If pivot table circle_user exists
+                if (Schema::hasTable('circle_user')) {
+                    DB::table('circle_user')->updateOrInsert(
+                        ['user_id' => $userId, 'circle_id' => $circleId],
+                        ['status' => 'active', 'updated_at' => now()]
+                    );
+                }
+
+                // If pivot table circle_members exists
+                if (Schema::hasTable('circle_members')) {
+                    DB::table('circle_members')->updateOrInsert(
+                        ['user_id' => $userId, 'circle_id' => $circleId],
+                        ['status' => 'active', 'updated_at' => now()]
+                    );
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Request approved and clearance granted successfully.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to approve request: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function processRejection(string $id, ?string $category = null, string $reason = 'Administrative clearance declined'): JsonResponse
+    {
+        $table = $category ? $this->resolveTableForCategory($category) : null;
+
+        if (! $table || ! Schema::hasTable($table)) {
+            $fallbackCandidates = [
+                'circle_join_requests',
+                'event_joining_requests',
+                'event_join_requests',
+                'event_registrations',
+                'visitor_registrations',
+                'coin_claims',
+                'certification_requests',
+                'certifications',
+                'impacts',
+                'life_impacts',
+                'ad_bookings',
+                'account_deletion_requests',
+                'circle_peer_referrals',
+                'peer_referrals',
+                'introduction_requests',
+                'join_requests',
+            ];
+
+            foreach ($fallbackCandidates as $candidate) {
+                if (Schema::hasTable($candidate) && DB::table($candidate)->where('id', $id)->exists()) {
+                    $table = $candidate;
+                    break;
+                }
+            }
+        }
 
         if ($table && Schema::hasTable($table)) {
-            $payload = ['status' => 'rejected', 'updated_at' => now()];
+            $record = DB::table($table)->where('id', $id)->first();
+            if (! $record) {
+                return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+            }
+
+            $payload = ['updated_at' => now()];
+            if (Schema::hasColumn($table, 'status')) {
+                $payload['status'] = 'rejected';
+            }
             if (Schema::hasColumn($table, 'rejection_reason')) {
                 $payload['rejection_reason'] = $reason;
             } elseif (Schema::hasColumn($table, 'admin_note')) {
@@ -164,32 +345,14 @@ class PendingRequestAdminController extends Controller
                 $payload['rejected_at'] = now();
             }
             DB::table($table)->where('id', $id)->update($payload);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Request #{$id} rejected.",
+            ], 200);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => "Request #{$id} rejected.",
-        ], 200);
-    }
-
-    /**
-     * Backward-compatible legacy approve handler
-     */
-    public function approveLegacy(Request $request, string $id): JsonResponse
-    {
-        $category = (string) ($request->input('category') ?? $request->input('type') ?? 'circle_joining_requests');
-
-        return $this->approve($request, $category, $id);
-    }
-
-    /**
-     * Backward-compatible legacy reject handler
-     */
-    public function rejectLegacy(Request $request, string $id): JsonResponse
-    {
-        $category = (string) ($request->input('category') ?? $request->input('type') ?? 'circle_joining_requests');
-
-        return $this->reject($request, $category, $id);
+        return response()->json(['success' => false, 'message' => 'Table not found'], 404);
     }
 
     // --- Database Aggregations & Helpers (Zero Mock Data) ---
@@ -321,6 +484,7 @@ class PendingRequestAdminController extends Controller
                 if (preg_match('/^Plan:\s*/i', $trimmed)) {
                     return $default;
                 }
+
                 return $trimmed;
             }
         }
@@ -392,6 +556,7 @@ class PendingRequestAdminController extends Controller
 
         return $query->select($selectCols)->get()->map(function ($r) {
             $descCandidate = $r->description ?? ($r->reason_for_joining ?? ($r->notes ?? null));
+
             return [
                 'id' => (string) $r->id,
                 'category' => 'circle_joining_requests',
