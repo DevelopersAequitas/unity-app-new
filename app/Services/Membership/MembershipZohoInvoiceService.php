@@ -177,12 +177,20 @@ class MembershipZohoInvoiceService
 
         $existingInvoiceId = trim((string) ($payment->zoho_invoice_id ?? ''));
         if ($existingInvoiceId !== '') {
-            Log::info('Zoho invoice already exists for payment', [
+            Log::info('Zoho invoice already exists for payment, verifying and applying payment', [
                 'payment_id' => $payment->id,
                 'invoice_id' => $existingInvoiceId,
             ]);
 
-            return ['invoice_id' => $existingInvoiceId];
+            return $this->applyPaymentToExistingInvoice(
+                $user,
+                $payment,
+                $customerId,
+                $existingInvoiceId,
+                $gstNumber,
+                'Razorpay payment for Membership '.$plan->name,
+                (float) ($payment->total_amount > 0 ? $payment->total_amount : $plan->price)
+            );
         }
 
         $amount = (float) ($payment->total_amount > 0 ? $payment->total_amount : $plan->price);
@@ -383,12 +391,20 @@ class MembershipZohoInvoiceService
 
         $existingInvoiceId = trim((string) ($payment->zoho_invoice_id ?? ''));
         if ($existingInvoiceId !== '') {
-            Log::info('Zoho invoice already exists for circle payment', [
+            Log::info('Zoho invoice already exists for circle payment, verifying and applying payment', [
                 'payment_id' => $payment->id,
                 'invoice_id' => $existingInvoiceId,
             ]);
 
-            return ['invoice_id' => $existingInvoiceId];
+            return $this->applyPaymentToExistingInvoice(
+                $user,
+                $payment,
+                $customerId,
+                $existingInvoiceId,
+                $gstNumber,
+                'Razorpay payment for Circle Join '.$circle->name,
+                (float) ($payment->total_amount > 0 ? $payment->total_amount : ($payment->amount > 0 ? $payment->amount : 15000.00))
+            );
         }
 
         $amount = (float) ($payment->total_amount > 0 ? $payment->total_amount : ($payment->amount > 0 ? $payment->amount : ($plan?->price ?: ($circle->circle_price_amount ?: 15000.00))));
@@ -560,6 +576,118 @@ class MembershipZohoInvoiceService
                 'invoice_number' => null,
                 'invoice_url' => null,
                 'invoice_pdf_url' => null,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function applyPaymentToExistingInvoice(
+        User $user,
+        Payment $payment,
+        string $customerId,
+        string $invoiceId,
+        string $gstNumber,
+        string $description,
+        float $fallbackAmount
+    ): array {
+        try {
+            $resp = $this->zohoBillingClient->request('GET', '/invoices/'.$invoiceId);
+            $invoice = is_array($resp['invoice'] ?? null) ? $resp['invoice'] : $resp;
+            $status = strtolower((string) data_get($invoice, 'status', ''));
+            $balance = (float) (data_get($invoice, 'balance') ?? data_get($invoice, 'balance_due') ?? 0);
+
+            if ($status === 'draft') {
+                try {
+                    $this->zohoBillingClient->postZohoAction('/invoices/'.$invoiceId.'/converttoopen', []);
+                    Log::info('Existing Zoho invoice converted to open', ['invoice_id' => $invoiceId]);
+                } catch (Throwable $e) {
+                    Log::warning('Zoho convert to open notice for existing invoice', [
+                        'invoice_id' => $invoiceId,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+                $resp = $this->zohoBillingClient->request('GET', '/invoices/'.$invoiceId);
+                $invoice = is_array($resp['invoice'] ?? null) ? $resp['invoice'] : $resp;
+                $status = strtolower((string) data_get($invoice, 'status', ''));
+                $balance = (float) (data_get($invoice, 'balance') ?? data_get($invoice, 'balance_due') ?? 0);
+            }
+
+            $referenceNumber = (string) ($payment->razorpay_payment_id ?: $payment->id);
+            if ($balance > 0 && ! in_array($status, ['paid', 'closed'], true)) {
+                $paymentPayload = [
+                    'customer_id' => $customerId,
+                    'payment_mode' => 'others',
+                    'amount' => $balance,
+                    'date' => optional($payment->paid_at)->toDateString() ?: now()->toDateString(),
+                    'reference_number' => $referenceNumber,
+                    'description' => $description.' | ref: '.$referenceNumber,
+                    'invoices' => [[
+                        'invoice_id' => $invoiceId,
+                        'amount_applied' => $balance,
+                    ]],
+                ];
+
+                try {
+                    $this->zohoBillingService->createPaymentForInvoice($paymentPayload);
+                    Log::info('Payment recorded in Zoho for existing invoice', [
+                        'invoice_id' => $invoiceId,
+                        'amount' => $balance,
+                    ]);
+                } catch (Throwable $e) {
+                    Log::error('Failed to apply payment to existing Zoho invoice', [
+                        'invoice_id' => $invoiceId,
+                        'customer_id' => $customerId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
+                $resp = $this->zohoBillingClient->request('GET', '/invoices/'.$invoiceId);
+                $invoice = is_array($resp['invoice'] ?? null) ? $resp['invoice'] : $resp;
+                $status = strtolower((string) data_get($invoice, 'status', ''));
+                $balance = (float) (data_get($invoice, 'balance') ?? data_get($invoice, 'balance_due') ?? 0);
+            }
+
+            $invoiceNumber = (string) (data_get($invoice, 'invoice_number') ?? data_get($invoice, 'number') ?? '');
+            $invoiceUrl = data_get($invoice, 'invoice_url') ?? data_get($invoice, 'url');
+            $invoicePdfUrl = data_get($invoice, 'invoice_pdf_url') ?? data_get($invoice, 'pdf_url');
+
+            $paymentUpdates = [
+                'zoho_invoice_id' => $invoiceId,
+                'provider' => 'razorpay',
+            ];
+            if (Schema::hasColumn('payments', 'zoho_payment_id')) {
+                $paymentUpdates['zoho_payment_id'] = $referenceNumber;
+            }
+            $payment->update($paymentUpdates);
+
+            $userUpdates = [
+                'zoho_customer_id' => $customerId,
+                'zoho_last_invoice_id' => $invoiceId,
+            ];
+            if ($gstNumber !== '' && empty($user->gst_number)) {
+                $userUpdates['gst_number'] = $gstNumber;
+            }
+            $user->forceFill($userUpdates)->save();
+
+            $isPaid = in_array($status, ['paid', 'closed'], true) || $balance <= 0;
+
+            return [
+                'invoice_id' => $invoiceId,
+                'invoice_number' => $invoiceNumber,
+                'invoice_url' => $invoiceUrl,
+                'invoice_pdf_url' => $invoicePdfUrl,
+                'status' => $isPaid ? 'paid' : $status,
+            ];
+        } catch (Throwable $e) {
+            Log::error('Failed to process existing Zoho invoice', [
+                'invoice_id' => $invoiceId,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'invoice_id' => $invoiceId,
+                'status' => 'pending',
                 'error' => $e->getMessage(),
             ];
         }

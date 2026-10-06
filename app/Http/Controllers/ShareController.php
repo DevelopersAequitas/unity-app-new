@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -15,7 +16,7 @@ class ShareController extends Controller
     public function handle(Request $request): View
     {
         $host = strtolower($request->getHost());
-        $queryString = $request->getQueryString();
+        $queryString = parse_url($request->getRequestUri(), PHP_URL_QUERY) ?? $request->server->get('QUERY_STRING') ?? $request->getQueryString();
         $querySuffix = $queryString ? "?{$queryString}" : '';
 
         // 1. Detect Product Instance dynamically
@@ -69,6 +70,51 @@ class ShareController extends Controller
 
         // Fallback store URL
         $storeUrl = $isiOS ? $appStoreUrl : $playStoreUrl;
+
+        // 5. Handle Event Previews with Open Graph Metadata
+        $type = $request->query('type');
+        $id = $request->query('id');
+        $occurrenceId = $request->query('occurrence_id');
+        $ref = $request->query('ref');
+
+        if ($type === 'event' && filled($id)) {
+            $event = Event::query()->with('circle')->find($id);
+            if ($event) {
+                $title = $event->title;
+                $description = strip_tags((string) ($event->description ?? 'Join this event on '.$appName));
+                $image = $event->banner_url
+                    ? (str_starts_with($event->banner_url, 'http') ? $event->banner_url : url('/api/v1/files/'.$event->banner_url))
+                    : asset('images/og-default.jpg');
+
+                $storeReferrer = http_build_query(array_filter([
+                    'type' => 'event',
+                    'id' => (string) $id,
+                    'occurrence_id' => $occurrenceId ? (string) $occurrenceId : null,
+                    'ref' => $ref ? (string) $ref : null,
+                ]));
+
+                $eventPlayStoreUrl = $playStoreUrl.'&referrer='.urlencode($storeReferrer);
+                $eventStoreUrl = $isiOS ? $appStoreUrl : $eventPlayStoreUrl;
+
+                return view('share.event_preview', [
+                    'event' => $event,
+                    'title' => $title,
+                    'description' => $description,
+                    'image' => $image,
+                    'playStoreUrl' => $eventPlayStoreUrl,
+                    'appStoreUrl' => $appStoreUrl,
+                    'storeUrl' => $eventStoreUrl,
+                    'appScheme' => $appScheme,
+                    'appName' => $appName,
+                    'appId' => $appId,
+                    'ref' => $ref,
+                    'occurrenceId' => $occurrenceId,
+                    'isMobile' => $isMobile,
+                    'isiOS' => $isiOS,
+                    'isAndroid' => $isAndroid,
+                ]);
+            }
+        }
 
         return view('share', [
             'appScheme' => $appScheme,

@@ -32,6 +32,12 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('api')
                 ->prefix('api/v1')
                 ->group(base_path('routes/leader.php'));
+            Route::middleware('api')
+                ->prefix('api')
+                ->group(base_path('routes/store.php'));
+            Route::middleware('api')
+                ->prefix('api')
+                ->group(base_path('routes/admin_store.php'));
         },
     )
     ->withCommands([

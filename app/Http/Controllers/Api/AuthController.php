@@ -167,7 +167,11 @@ class AuthController extends BaseApiController
             'email' => (string) $persistedUser->email,
         ]);
 
-        $this->sendRegistrationRequestReceivedEmail($persistedUser);
+        try {
+            $this->sendRegistrationRequestReceivedEmail($persistedUser);
+        } catch (\Throwable $e) {
+            Log::warning('auth.register.email_skipped', ['error' => $e->getMessage()]);
+        }
 
         $registrationTime = $persistedUser->created_at ? $persistedUser->created_at->copy() : now();
 
@@ -1232,13 +1236,18 @@ class AuthController extends BaseApiController
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
 
-        if (($user->status ?? 'active') !== 'active') {
-            $message = 'Your account is inactive. Please contact support.';
-            if ($user->status === 'inactive') {
-                $message = 'Your registration request is under review. You will receive an email once it is approved.';
-            } elseif ($user->status === 'rejected') {
-                $message = 'Your registration request has been rejected. Please contact support for further details.';
-            }
+        if ($user->membership_status === 'suspended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account is suspended',
+                'data' => null,
+            ], 403);
+        }
+
+        if (in_array($user->status, ['rejected', 'pending'], true)) {
+            $message = $user->status === 'pending'
+                ? 'Your registration request is under review. You will receive an email once it is approved.'
+                : 'Your registration request has been rejected. Please contact support for further details.';
 
             return response()->json([
                 'success' => false,
@@ -1301,13 +1310,18 @@ class AuthController extends BaseApiController
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
 
-        if (($user->status ?? 'active') !== 'active') {
-            $message = 'Your account is inactive. Please contact support.';
-            if ($user->status === 'inactive') {
-                $message = 'Your registration request is under review. You will receive an email once it is approved.';
-            } elseif ($user->status === 'rejected') {
-                $message = 'Your registration request has been rejected. Please contact support for further details.';
-            }
+        if ($user->membership_status === 'suspended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account is suspended',
+                'data' => null,
+            ], 403);
+        }
+
+        if (in_array($user->status, ['rejected', 'pending'], true)) {
+            $message = $user->status === 'pending'
+                ? 'Your registration request is under review. You will receive an email once it is approved.'
+                : 'Your registration request has been rejected. Please contact support for further details.';
 
             return response()->json([
                 'success' => false,
@@ -1565,13 +1579,10 @@ class AuthController extends BaseApiController
             return $this->error('Account is suspended', 403);
         }
 
-        if (($user->status ?? 'active') !== 'active') {
-            $message = 'Your account is inactive. Please contact support.';
-            if ($user->status === 'inactive') {
-                $message = 'Your registration request is under review. You will receive an email once it is approved.';
-            } elseif ($user->status === 'rejected') {
-                $message = 'Your registration request has been rejected. Please contact support for further details.';
-            }
+        if (in_array($user->status, ['rejected', 'pending'], true)) {
+            $message = $user->status === 'pending'
+                ? 'Your registration request is under review. You will receive an email once it is approved.'
+                : 'Your registration request has been rejected. Please contact support for further details.';
 
             return response()->json([
                 'success' => false,

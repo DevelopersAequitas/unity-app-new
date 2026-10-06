@@ -42,9 +42,13 @@ class AdminDashboardMetricsService
         }
 
         $totalUsers = (clone $usersQuery)->count();
+        $hasIsActive = Schema::hasColumn('users', 'is_active');
         $totalActiveMembers = (clone $usersQuery)
-            ->where(function ($q): void {
-                $q->where('status', 'active')->orWhere('is_active', true);
+            ->where(function ($q) use ($hasIsActive): void {
+                $q->where('status', 'active');
+                if ($hasIsActive) {
+                    $q->orWhere('is_active', true);
+                }
             })
             ->whereNotIn(DB::raw('LOWER(COALESCE(membership_status, \'\'))'), ['visitor', ''])
             ->count();
@@ -174,7 +178,7 @@ class AdminDashboardMetricsService
             : 0;
 
         $pendingPostReports = Schema::hasTable('post_reports')
-            ? PostReport::query()->where('status', 'pending')->count()
+            ? PostReport::query()->where('status', 'open')->count()
             : 0;
 
         $totalPendingActions = $pendingJoinRequests + $pendingImpacts + $pendingCoinClaims

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Leader\Controllers\LeaderActivitiesController;
 use App\Leader\Controllers\LeaderAuthController;
 use App\Leader\Controllers\LeaderDashboardController;
@@ -162,4 +163,21 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/event-registrations', [LeaderMemberController::class, 'eventRegistrations'])->whereUuid('member_id');
+
+    // Specific Activity Type APIs
+    Route::get('/leader/members/{member_id}/referrals', [LeaderMemberController::class, 'referrals'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/testimonials', [LeaderMemberController::class, 'testimonials'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/p2p-meetings', [LeaderMemberController::class, 'p2pMeetings'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/business-deals', [LeaderMemberController::class, 'businessDeals'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/requirements', [LeaderMemberController::class, 'requirements'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/impacts', [LeaderMemberController::class, 'impacts'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/attendance', [LeaderMemberController::class, 'attendance'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/coins', [LeaderMemberController::class, 'coins'])->whereUuid('member_id');
+
+    // 3 DEDICATED ASKS FLOWS: 9 CORE ENDPOINTS (Global Feed, My History, Leaderboard)
+    Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
+        Route::get('global', [AskFlowHubController::class, 'globalFeed']);
+        Route::get('my', [AskFlowHubController::class, 'myAsks']);
+        Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
+    });
 });

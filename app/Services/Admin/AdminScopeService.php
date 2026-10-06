@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Industry;
@@ -10,17 +11,17 @@ use Illuminate\Database\Eloquent\Builder;
 
 class AdminScopeService
 {
-    public function roleKeys(User|\App\Models\AdminUser $user): array
+    public function roleKeys(User|AdminUser $user): array
     {
         return $user->roles()->pluck('roles.key')->unique()->values()->all();
     }
 
-    public function isGlobal(User|\App\Models\AdminUser $user): bool
+    public function isGlobal(User|AdminUser $user): bool
     {
         return in_array('global_admin', $this->roleKeys($user), true);
     }
 
-    public function visibleCircleIds(User|\App\Models\AdminUser $user): array
+    public function visibleCircleIds(User|AdminUser $user): array
     {
         if ($this->isGlobal($user)) {
             return Circle::query()->pluck('id')->all();
@@ -42,10 +43,14 @@ class AdminScopeService
         return $direct->merge($member)->unique()->values()->all();
     }
 
-    public function visibleIndustryIds(User|\App\Models\AdminUser $user): array
+    public function visibleIndustryIds(User|AdminUser $user): array
     {
         if ($this->isGlobal($user)) {
             return Industry::query()->pluck('id')->all();
+        }
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('circles', 'industry_id')) {
+            return [];
         }
 
         return Circle::query()
@@ -57,7 +62,7 @@ class AdminScopeService
             ->all();
     }
 
-    public function visibleDistrictIds(User|\App\Models\AdminUser $user): array
+    public function visibleDistrictIds(User|AdminUser $user): array
     {
         if ($this->isGlobal($user)) {
             return Circle::query()->whereNotNull('ded_user_id')->pluck('ded_user_id')->unique()->values()->all();
@@ -77,7 +82,7 @@ class AdminScopeService
             ->all();
     }
 
-    public function applyUserScope(Builder $query, User|\App\Models\AdminUser $actor): Builder
+    public function applyUserScope(Builder $query, User|AdminUser $actor): Builder
     {
         if ($this->isGlobal($actor)) {
             return $query;
@@ -95,7 +100,7 @@ class AdminScopeService
         });
     }
 
-    public function applyCircleScope(Builder $query, User|\App\Models\AdminUser $actor, string $column = 'id'): Builder
+    public function applyCircleScope(Builder $query, User|AdminUser $actor, string $column = 'id'): Builder
     {
         if ($this->isGlobal($actor)) {
             return $query;
@@ -104,7 +109,7 @@ class AdminScopeService
         return $query->whereIn($column, $this->visibleCircleIds($actor));
     }
 
-    public function applyIndustryScope(Builder $query, User|\App\Models\AdminUser $actor, string $column = 'id'): Builder
+    public function applyIndustryScope(Builder $query, User|AdminUser $actor, string $column = 'id'): Builder
     {
         if ($this->isGlobal($actor)) {
             return $query;
@@ -113,7 +118,7 @@ class AdminScopeService
         return $query->whereIn($column, $this->visibleIndustryIds($actor));
     }
 
-    public function assertCircleVisible(User|\App\Models\AdminUser $actor, string $circleId): void
+    public function assertCircleVisible(User|AdminUser $actor, string $circleId): void
     {
         if ($this->isGlobal($actor)) {
             return;

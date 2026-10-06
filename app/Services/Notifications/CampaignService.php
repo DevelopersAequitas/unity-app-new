@@ -65,6 +65,7 @@ class CampaignService
             } elseif ($campaign->code === 'new_post_activity_circle') {
                 $latestPost = Post::where('user_id', '!=', $user->id)
                     ->where('visibility', 'public')
+                    ->where('status', 'active')
                     ->where('is_deleted', false)
                     ->latest()
                     ->first();
@@ -78,6 +79,8 @@ class CampaignService
             } elseif ($campaign->code === 'circle_activity') {
                 $latestCirclePost = Post::whereNotNull('circle_id')
                     ->where('user_id', '!=', $user->id)
+                    ->where('status', 'active')
+                    ->where('is_deleted', false)
                     ->latest()
                     ->first();
                 if ($latestCirclePost) {

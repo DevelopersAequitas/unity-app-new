@@ -31,34 +31,46 @@ class MembershipUpgradeService
      */
     public function markAsOnlyGreenPeerAfterPayment(User $user, array|Model|null $paymentOrPlanData = null): User
     {
-        return DB::transaction(function () use ($user, $paymentOrPlanData): User {
-            $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
-            $data = $this->normalizeData($paymentOrPlanData);
-            $payment = $paymentOrPlanData instanceof Payment
-                ? Payment::query()->whereKey($paymentOrPlanData->getKey())->lockForUpdate()->first()
-                : null;
+        $data = $this->normalizeData($paymentOrPlanData);
+        $payment = $paymentOrPlanData instanceof Payment
+            ? $paymentOrPlanData
+            : null;
 
-            if (! $payment && ! empty($data['payment_id']) && Schema::hasTable('payments')) {
-                $payment = Payment::query()->whereKey($data['payment_id'])->lockForUpdate()->first();
-            }
+        if (! $payment && ! empty($data['payment_id']) && Schema::hasTable('payments')) {
+            $payment = Payment::query()->whereKey($data['payment_id'])->first();
+        }
 
-            $explicitStart = $this->parseDate($data['membership_starts_at'] ?? $data['starts_at'] ?? $data['start_date'] ?? null);
-            $explicitEnd = $this->parseDate($data['membership_ends_at'] ?? $data['ends_at'] ?? $data['end_date'] ?? null);
-
-            // Determine if user has an existing active or queued plan with validity extending into the future
-            $latestMembershipEnd = null;
-            if (Schema::hasTable('user_memberships')) {
+        // Determine if user has an existing active or queued plan with validity extending into the future
+        // Done safely before transaction to avoid PostgreSQL transaction aborts
+        $latestMembershipEnd = null;
+        if (
+            Schema::hasTable('user_memberships') &&
+            Schema::hasColumn('user_memberships', 'user_id') &&
+            Schema::hasColumn('user_memberships', 'status') &&
+            Schema::hasColumn('user_memberships', 'ends_at')
+        ) {
+            try {
                 $latestMembershipEnd = UserMembership::query()
-                    ->where('user_id', $lockedUser->id)
-                    ->when($payment?->id, fn ($q) => $q->where('payment_id', '!=', $payment->id))
+                    ->where('user_id', $user->getKey())
+                    ->when($payment?->id && Schema::hasColumn('user_memberships', 'payment_id'), fn ($q) => $q->where('payment_id', '!=', $payment->id))
                     ->whereIn('status', ['active', 'queued'])
                     ->whereNotNull('ends_at')
                     ->where('ends_at', '>', now())
                     ->max('ends_at');
+            } catch (Throwable) {
+                $latestMembershipEnd = null;
             }
+        }
+
+        $result = DB::transaction(function () use ($user, $data, $payment, $latestMembershipEnd): array {
+            $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+            $lockedPayment = $payment ? Payment::query()->whereKey($payment->getKey())->lockForUpdate()->first() : null;
+
+            $explicitStart = $this->parseDate($data['membership_starts_at'] ?? $data['starts_at'] ?? $data['start_date'] ?? null);
+            $explicitEnd = $this->parseDate($data['membership_ends_at'] ?? $data['ends_at'] ?? $data['end_date'] ?? null);
 
             $anchorDate = $this->parseDate($latestMembershipEnd);
-            if (! $anchorDate && ! $payment && $lockedUser->membership_ends_at && Carbon::parse($lockedUser->membership_ends_at)->isFuture()) {
+            if (! $anchorDate && ! $lockedPayment && $lockedUser->membership_ends_at && Carbon::parse($lockedUser->membership_ends_at)->isFuture()) {
                 $anchorDate = Carbon::parse($lockedUser->membership_ends_at);
             }
 
@@ -67,12 +79,12 @@ class MembershipUpgradeService
             if (! $forceDates && $anchorDate && $anchorDate->isFuture()) {
                 // User has remaining validity: queue new purchase directly after latest end date
                 $startedAt = $anchorDate->copy();
-                $expiresAt = $this->calculateExpiry($startedAt, $data, $payment);
+                $expiresAt = $this->calculateExpiry($startedAt, $data, $lockedPayment);
                 $status = 'queued';
             } else {
                 // User is new or previously expired, or explicit forced dates provided
                 $startedAt = $explicitStart ?? now();
-                $expiresAt = $explicitEnd ?? $this->calculateExpiry($startedAt, $data, $payment);
+                $expiresAt = $explicitEnd ?? $this->calculateExpiry($startedAt, $data, $lockedPayment);
                 $status = $startedAt->isFuture() ? 'queued' : 'active';
             }
 
@@ -111,8 +123,8 @@ class MembershipUpgradeService
 
             $lockedUser->forceFill($userUpdates)->save();
 
-            if ($payment) {
-                $paymentUpdates = $this->filterColumns($payment->getTable(), [
+            if ($lockedPayment) {
+                $paymentUpdates = $this->filterColumns($lockedPayment->getTable(), [
                     'status' => $data['payment_status'] ?? 'paid',
                     'paid_at' => $this->parseDate($data['paid_at'] ?? $data['payment_date'] ?? null) ?? now(),
                     'zoho_payment_id' => $data['zoho_payment_id'] ?? $data['payment_id'] ?? null,
@@ -124,26 +136,52 @@ class MembershipUpgradeService
                 ]);
 
                 if ($paymentUpdates !== []) {
-                    $payment->forceFill($paymentUpdates)->save();
+                    $lockedPayment->forceFill($paymentUpdates)->save();
                 }
             }
 
-            $this->syncUserMembershipRow($lockedUser, $payment, $startedAt, $expiresAt, $data, $status);
-
-            Log::info('Membership payment completed', [
-                'user_id' => (string) $lockedUser->id,
-                'payment_id' => $payment?->getKey(),
-                'membership_status' => self::ONLY_GREEN_PEER_STATUS,
+            return [
+                'user' => $lockedUser,
+                'payment' => $lockedPayment,
+                'startedAt' => $startedAt,
+                'expiresAt' => $expiresAt,
+                'data' => $data,
                 'status' => $status,
-                'membership_starts_at' => $startedAt->toDateTimeString(),
-                'membership_expires_at' => $expiresAt->toDateTimeString(),
-            ]);
-
-            $fresh = $lockedUser->fresh();
-            app(MembershipWelcomeEmailService::class)->sendIfEligible($fresh);
-
-            return $fresh;
+            ];
         });
+
+        $freshUser = $result['user'] ?? $user;
+        $freshPayment = $result['payment'] ?? null;
+
+        Log::info('Membership payment completed', [
+            'user_id' => (string) $freshUser->id,
+            'payment_id' => $freshPayment?->getKey(),
+            'membership_status' => self::ONLY_GREEN_PEER_STATUS,
+            'status' => $result['status'] ?? 'active',
+            'membership_starts_at' => optional($result['startedAt'])->toDateTimeString(),
+            'membership_expires_at' => optional($result['expiresAt'])->toDateTimeString(),
+        ]);
+
+        try {
+            $this->syncUserMembershipRow($freshUser, $freshPayment, $result['startedAt'], $result['expiresAt'], $result['data'], $result['status']);
+        } catch (Throwable $throwable) {
+            Log::warning('Membership payment user_memberships sync skipped', [
+                'user_id' => (string) $freshUser->id,
+                'payment_id' => $freshPayment?->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+
+        try {
+            app(MembershipWelcomeEmailService::class)->sendIfEligible($freshUser);
+        } catch (Throwable $throwable) {
+            Log::warning('Membership welcome email delivery skipped', [
+                'user_id' => (string) $freshUser->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+
+        return $freshUser;
     }
 
     public function membershipResponseData(User $user, string $paymentStatus = 'paid'): array
@@ -355,10 +393,21 @@ class MembershipUpgradeService
         }
     }
 
+    /**
+     * @var array<string, array<string, int>>
+     */
+    private static array $tableColumnsCache = [];
+
     private function filterColumns(string $table, array $values): array
     {
+        if (! isset(self::$tableColumnsCache[$table])) {
+            self::$tableColumnsCache[$table] = array_flip(Schema::getColumnListing($table));
+        }
+
+        $tableColumns = self::$tableColumnsCache[$table];
+
         return collect($values)
-            ->filter(fn ($value, string $column) => $value !== null && Schema::hasColumn($table, $column))
+            ->filter(fn ($value, string $column) => $value !== null && isset($tableColumns[$column]))
             ->all();
     }
 }

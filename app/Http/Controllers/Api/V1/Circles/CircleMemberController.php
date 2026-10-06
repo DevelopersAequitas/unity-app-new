@@ -9,6 +9,7 @@ use App\Http\Resources\CircleMemberResource;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\User;
+use App\Services\Circles\CircleActivityMetricsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,12 @@ class CircleMemberController extends Controller
         $query = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
+            ->whereHas('user', function ($uq): void {
+                $uq->where(function ($sq): void {
+                    $sq->whereNull('status')->orWhere('status', 'active');
+                })->where('status', '!=', 'inactive')
+                    ->whereNull('deleted_at');
+            })
             ->with($with);
 
         if ($request->filled('status')) {
@@ -106,6 +113,18 @@ class CircleMemberController extends Controller
         } else {
             $perPage = max(1, min((int) $request->input('per_page', 50), 500));
             $members = $query->paginate($perPage);
+        }
+
+        // Attach per-member activity metrics.
+        $memberMetrics = app(CircleActivityMetricsService::class)->perMember($circle);
+        foreach ($members as $member) {
+            if ($member->user) {
+                $uid = (string) $member->user->id;
+                $stats = $memberMetrics[$uid] ?? [];
+                foreach ($stats as $key => $value) {
+                    $member->user->setAttribute($key, $value);
+                }
+            }
         }
 
         return response()->json([

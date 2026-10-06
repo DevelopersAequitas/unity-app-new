@@ -31,6 +31,7 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
+            ['icon' => 'bi-shop', 'label' => 'Peers Store', 'route' => 'admin.store.dashboard', 'active_routes' => ['admin.store.*']],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
             ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
             ['icon' => 'bi-whatsapp', 'label' => 'WhatsApp Templates', 'route' => 'admin.whatsapp-templates.index', 'active_routes' => ['admin.whatsapp-templates.*']],
@@ -46,6 +47,7 @@
                     ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
                 ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
+                ['icon' => 'bi-shop', 'label' => 'Peers Store', 'route' => 'admin.store.dashboard', 'active_routes' => ['admin.store.*']],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
                 ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
                     ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
@@ -81,6 +83,7 @@
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
+                ['icon' => 'bi-shop', 'label' => 'Peers Store', 'route' => 'admin.store.dashboard', 'active_routes' => ['admin.store.*']],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
                 ...(! $isCircleCommittee ? [
@@ -132,6 +135,7 @@
 
     $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
     $asksActive = request()->routeIs('admin.asks*');
+    $plansActive = request()->routeIs('admin.unity-peers-plans.*') || request()->routeIs('admin.circle-plans.*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
@@ -775,6 +779,163 @@
                             </ul>
                         </div>
                     </li>
+                @elseif ($item['label'] === 'Peers Store')
+                    @php
+                        $storeActive = request()->routeIs('admin.store.*') || request()->is('admin/store*');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $storeActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $storeActive ? 'active' : '' }}" href="javascript:void(0)" title="Peers Store">
+                            <i class="bi bi-shop me-2"></i><span class="menu-text me-auto text-start">Peers Store</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $storeActive ? 'show' : '' }}" id="peersStoreSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.dashboard') ? 'active' : '' }}" href="{{ route('admin.store.dashboard') }}">
+                                        Store Dashboard
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.catalog.categories*') ? 'active' : '' }}" href="{{ route('admin.store.catalog.categories') }}">
+                                        Product Categories
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.catalog.products*') ? 'active' : '' }}" href="{{ route('admin.store.catalog.products') }}">
+                                        Products &amp; SKUs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.inventory.index') ? 'active' : '' }}" href="{{ route('admin.store.inventory.index') }}">
+                                        Stock Inventory
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.inventory.low-stock') ? 'active' : '' }}" href="{{ route('admin.store.inventory.low-stock') }}">
+                                        Low Stock Alerts
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.inventory.movements') ? 'active' : '' }}" href="{{ route('admin.store.inventory.movements') }}">
+                                        Stock In/Out Logs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.orders.*') ? 'active' : '' }}" href="{{ route('admin.store.orders.index') }}">
+                                        Orders &amp; Shipping
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.returns.*') && !request()->routeIs('admin.store.returns.refunds') ? 'active' : '' }}" href="{{ route('admin.store.returns.index') }}">
+                                        Return Requests
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.returns.refunds') ? 'active' : '' }}" href="{{ route('admin.store.returns.refunds') }}">
+                                        Refund History
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.wallet.index') || request()->routeIs('admin.store.wallet.show') ? 'active' : '' }}" href="{{ route('admin.store.wallet.index') }}">
+                                        Member Coins Wallets
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.wallet.adjustments*') ? 'active' : '' }}" href="{{ route('admin.store.wallet.adjustments') }}">
+                                        Coin Approval Queue
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.wallet.economy') ? 'active' : '' }}" href="{{ route('admin.store.wallet.economy') }}">
+                                        Coin Economy Overview
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.serviceability.pincodes*') ? 'active' : '' }}" href="{{ route('admin.store.serviceability.pincodes') }}">
+                                        Delivery Pincodes
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.serviceability.pickup-points*') ? 'active' : '' }}" href="{{ route('admin.store.serviceability.pickup-points') }}">
+                                        Pickup Points / Hubs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.serviceability.banners*') ? 'active' : '' }}" href="{{ route('admin.store.serviceability.banners') }}">
+                                        App Store Banners
+                                    </a>
+                                </li>
+                                {{-- Hidden as requested --}}
+                                {{-- 
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.membership.index') || request()->routeIs('admin.store.membership.tiers*') ? 'active' : '' }}" href="{{ route('admin.store.membership.index') }}">
+                                        VIP Membership Tiers
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.membership.ledger') ? 'active' : '' }}" href="{{ route('admin.store.membership.ledger') }}">
+                                        Active VIP Members
+                                    </a>
+                                </li>
+                                --}}
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.membership.entitlements*') ? 'active' : '' }}" href="{{ route('admin.store.membership.entitlements') }}">
+                                        Member Product Access
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.support.*') ? 'active' : '' }}" href="{{ route('admin.store.support.index') }}">
+                                        Support Tickets
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.communication.logs*') ? 'active' : '' }}" href="{{ route('admin.store.communication.logs') }}">
+                                        Notification Logs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.reports.sales*') ? 'active' : '' }}" href="{{ route('admin.store.reports.sales') }}">
+                                        Sales Analytics
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.reports.coin-economy') ? 'active' : '' }}" href="{{ route('admin.store.reports.coin-economy') }}">
+                                        Economy Analytics
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.reports.products') ? 'active' : '' }}" href="{{ route('admin.store.reports.products') }}">
+                                        Product Performance
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.reports.reconciliation') ? 'active' : '' }}" href="{{ route('admin.store.reports.reconciliation') }}">
+                                        Wallet Balance Audit
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config.index') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
+                                        Store Configuration
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config.policies*') ? 'active' : '' }}" href="{{ route('admin.store.config.policies') }}">
+                                        Store Terms &amp; Policies
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config.system-health') ? 'active' : '' }}" href="{{ route('admin.store.config.system-health') }}">
+                                        System Health
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config.audit-log') ? 'active' : '' }}" href="{{ route('admin.store.config.audit-log') }}">
+                                        Admin Action Logs
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @elseif ($item['label'] === 'Life Impact')
                     @php
                         $lifeImpactActive = request()->routeIs('admin.life-impact.*') || request()->routeIs('admin.life-impact-recognitions.*') || request()->routeIs('admin.impact-guidelines.*');
@@ -872,19 +1033,36 @@
             </li>
             @endif
 
-            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('admin.unity-peers-plans.*') ? 'active' : '' }}" href="{{ route('admin.unity-peers-plans.index') }}" title="Membership Plans">
-                    <i class="bi bi-card-checklist me-2"></i><span class="menu-text">Membership Plans</span>
-                </a>
-            </li>
-            @endif
+            @php
+                $canSeeMembershipPlans = $isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration');
+                $canSeeCirclePlans = $isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration');
+                $canSeePlans = $canSeeMembershipPlans || $canSeeCirclePlans;
+            @endphp
 
-            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('admin.circle-plans.*') ? 'active' : '' }}" href="{{ route('admin.circle-plans.index') }}" title="Circle Plans">
-                    <i class="bi bi-layers me-2"></i><span class="menu-text">Circle Plans</span>
+            @if ($canSeePlans)
+            <li class="nav-item menu-parent {{ $plansActive ? 'open' : '' }}">
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $plansActive ? 'active' : '' }}" href="javascript:void(0)" title="Plans">
+                    <i class="bi bi-card-checklist me-2"></i><span class="menu-text me-auto text-start">Plans</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
+                <div class="collapse {{ $plansActive ? 'show' : '' }}" id="plansSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        @if ($canSeeMembershipPlans)
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.unity-peers-plans.*') ? 'active' : '' }}" href="{{ route('admin.unity-peers-plans.index') }}">
+                                <i class="bi bi-card-checklist me-1.5"></i> Membership Plans
+                            </a>
+                        </li>
+                        @endif
+                        @if ($canSeeCirclePlans)
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.circle-plans.*') ? 'active' : '' }}" href="{{ route('admin.circle-plans.index') }}">
+                                <i class="bi bi-layers me-1.5"></i> Circle Plans
+                            </a>
+                        </li>
+                        @endif
+                    </ul>
+                </div>
             </li>
             @endif
 

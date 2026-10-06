@@ -11,6 +11,7 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\JoinedCircleCategory;
+use App\Services\Circles\CircleActivityMetricsService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Shared\Services\UserRoleResolverService;
 use Illuminate\Http\Request;
@@ -69,11 +70,23 @@ class CircleController extends BaseApiController
             ->withCount([
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
-                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->whereHas('user', function ($uq) {
+                            $uq->where(function ($sq) {
+                                $sq->whereNull('status')->orWhere('status', 'active');
+                            })->where('status', '!=', 'inactive')
+                                ->whereNull('deleted_at');
+                        });
                 },
                 'members as peers_count' => function ($q) {
                     $q->where('status', 'approved')
-                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->whereHas('user', function ($uq) {
+                            $uq->where(function ($sq) {
+                                $sq->whereNull('status')->orWhere('status', 'active');
+                            })->where('status', '!=', 'inactive')
+                                ->whereNull('deleted_at');
+                        });
                 },
             ]);
 
@@ -140,11 +153,23 @@ class CircleController extends BaseApiController
             ->withCount([
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
-                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->whereHas('user', function ($uq) {
+                            $uq->where(function ($sq) {
+                                $sq->whereNull('status')->orWhere('status', 'active');
+                            })->where('status', '!=', 'inactive')
+                                ->whereNull('deleted_at');
+                        });
                 },
                 'members as peers_count' => function ($q) {
                     $q->where('status', 'approved')
-                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->whereHas('user', function ($uq) {
+                            $uq->where(function ($sq) {
+                                $sq->whereNull('status')->orWhere('status', 'active');
+                            })->where('status', '!=', 'inactive')
+                                ->whereNull('deleted_at');
+                        });
                 },
             ])
             ->find($id);
@@ -159,6 +184,12 @@ class CircleController extends BaseApiController
                 ->where('user_id', auth()->id())
                 ->first()
         );
+
+        // Attach activity metrics so CircleResource can expose them.
+        $metrics = app(CircleActivityMetricsService::class)->forCircle($circle);
+        foreach ($metrics as $key => $value) {
+            $circle->setAttribute($key, $value);
+        }
 
         return $this->success(new CircleResource($circle));
     }
@@ -274,11 +305,23 @@ class CircleController extends BaseApiController
             ->withCount([
                 'members as members_count' => function ($q) {
                     $q->where('status', 'approved')
-                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->whereHas('user', function ($uq) {
+                            $uq->where(function ($sq) {
+                                $sq->whereNull('status')->orWhere('status', 'active');
+                            })->where('status', '!=', 'inactive')
+                                ->whereNull('deleted_at');
+                        });
                 },
                 'members as peers_count' => function ($q) {
                     $q->where('status', 'approved')
-                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
+                        ->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES)
+                        ->whereHas('user', function ($uq) {
+                            $uq->where(function ($sq) {
+                                $sq->whereNull('status')->orWhere('status', 'active');
+                            })->where('status', '!=', 'inactive')
+                                ->whereNull('deleted_at');
+                        });
                 },
             ])
             ->orderBy('name')
@@ -329,7 +372,13 @@ class CircleController extends BaseApiController
         $membersQuery = CircleMember::query()
             ->with('user')
             ->where('circle_id', $circle->id)
-            ->whereNull('deleted_at');
+            ->whereNull('deleted_at')
+            ->whereHas('user', function ($uq) {
+                $uq->where(function ($sq) {
+                    $sq->whereNull('status')->orWhere('status', 'active');
+                })->where('status', '!=', 'inactive')
+                    ->whereNull('deleted_at');
+            });
 
         if (Schema::hasTable('roles')) {
             $membersQuery->with('roleModel');

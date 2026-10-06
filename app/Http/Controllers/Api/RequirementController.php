@@ -54,6 +54,10 @@ class RequirementController extends BaseApiController
     {
         $authUser = $request->user();
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot create requirements. Your account is in view-only mode.', 403);
+        }
+
         $media = null;
         if ($request->filled('media_id')) {
             $media = [[

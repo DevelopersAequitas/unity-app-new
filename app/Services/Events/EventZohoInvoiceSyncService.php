@@ -87,7 +87,10 @@ class EventZohoInvoiceSyncService
 
         try {
             if (empty($registration->zoho_invoice_id) || empty($registration->zoho_customer_id)) {
-                throw new \RuntimeException('Missing Zoho invoice/customer details for sync.');
+                $registration = $this->sync($registration);
+            }
+            if (empty($registration->zoho_invoice_id)) {
+                throw new \RuntimeException('Missing Zoho invoice details for sync.');
             }
             $invoiceResponse = $this->zohoBillingClient->request('GET', '/invoices/'.$registration->zoho_invoice_id);
             $invoice = is_array($invoiceResponse['invoice'] ?? null) ? $invoiceResponse['invoice'] : $invoiceResponse;
@@ -117,7 +120,7 @@ class EventZohoInvoiceSyncService
 
             $paymentApplied = false;
             $matchedPaymentId = (string) ($registration->zoho_payment_id ?? '');
-            if ($matchedPaymentId === '') {
+            if ($matchedPaymentId === '' && ! empty($registration->zoho_payment_link_id)) {
                 $linkResp = $this->zohoBillingClient->request('GET', '/paymentlinks/'.$registration->zoho_payment_link_id);
                 $link = data_get($linkResp, 'payment_link') ?? data_get($linkResp, 'payment_links') ?? $linkResp;
                 $matchedPaymentId = (string) (data_get($link, 'customer_payments.0.payment_id') ?? '');
@@ -133,6 +136,40 @@ class EventZohoInvoiceSyncService
                 if (! empty($matchedPaymentId)) {
                     $paymentApply = $this->recordInvoicePayment($matchedPaymentId, $registration, $invoice);
                     $paymentApplied = (bool) ($paymentApply['payment_applied'] ?? false);
+                } elseif (! empty($registration->razorpay_payment_id) || $registration->payment_gateway === 'razorpay' || $registration->payment_status === 'paid') {
+                    $refNumber = (string) ($registration->razorpay_payment_id ?: $registration->id);
+                    $customerId = (string) ($registration->zoho_customer_id ?? data_get($invoice, 'customer_id'));
+                    $applyAmount = $balance > 0 ? $balance : (float) ($registration->payment_amount ?? $registration->amount ?? 0);
+
+                    $paymentPayload = [
+                        'customer_id' => $customerId,
+                        'payment_mode' => 'others',
+                        'amount' => $applyAmount,
+                        'date' => optional($registration->payment_completed_at)->toDateString() ?: now()->toDateString(),
+                        'reference_number' => $refNumber,
+                        'description' => 'Razorpay payment for Event Registration | registration_id='.(string) $registration->id.' | payment_id='.$refNumber,
+                        'invoices' => [[
+                            'invoice_id' => (string) $registration->zoho_invoice_id,
+                            'amount_applied' => (float) $applyAmount,
+                        ]],
+                    ];
+
+                    try {
+                        Log::info('zoho_payment_create_for_razorpay_event_payload', $context + ['payload' => $paymentPayload]);
+                        $paymentResponse = $this->zohoBillingService->createPaymentForInvoice($paymentPayload);
+                        Log::info('zoho_payment_create_for_razorpay_event_success', $context + ['response' => $paymentResponse]);
+                        $createdPaymentId = (string) (data_get($paymentResponse, 'payment.payment_id') ?? data_get($paymentResponse, 'payment_id') ?? '');
+                        if ($createdPaymentId !== '') {
+                            $registration->forceFill($this->filterRegistrationColumns([
+                                'zoho_payment_id' => $createdPaymentId,
+                                'zoho_payment_status' => 'paid',
+                            ]))->save();
+                            $matchedPaymentId = $createdPaymentId;
+                        }
+                        $paymentApplied = true;
+                    } catch (\Throwable $e) {
+                        Log::error('zoho_payment_create_for_razorpay_event_failed', $context + ['error' => $e->getMessage()]);
+                    }
                 }
             }
 
@@ -152,10 +189,24 @@ class EventZohoInvoiceSyncService
                     : (float) ($registration->payment_amount ?? $registration->amount ?? 0);
             }
 
+            $resolvedInvoiceStatus = in_array($finalStatus, ['paid', 'closed'], true) || $finalBalance <= 0 ? 'paid' : $finalStatus;
+            $syncError = (($finalBalance <= 0) || in_array($finalStatus, ['paid', 'closed'], true))
+                ? null
+                : 'Payment is paid but could not be applied to invoice. Zoho response: status='.$finalStatus.' balance='.$finalBalance;
+
+            $registration->forceFill($this->filterRegistrationColumns([
+                'zoho_invoice_status' => $resolvedInvoiceStatus,
+                'zoho_payment_status' => in_array($finalStatus, ['paid', 'closed'], true) || $finalBalance <= 0 ? 'paid' : ($registration->zoho_payment_status ?? null),
+                'zoho_invoice_url' => data_get($finalInvoice, 'invoice_url') ?? data_get($finalInvoice, 'url') ?? $registration->zoho_invoice_url,
+                'zoho_invoice_pdf_url' => data_get($finalInvoice, 'invoice_pdf_url') ?? data_get($finalInvoice, 'pdf_url') ?? $registration->zoho_invoice_pdf_url,
+                'zoho_invoice_synced_at' => now(),
+                'zoho_invoice_sync_error' => $syncError,
+            ]))->save();
+
             return [
                 'invoice_id' => (string) data_get($finalInvoice, 'invoice_id', $registration->zoho_invoice_id),
                 'invoice_number' => (string) (data_get($finalInvoice, 'invoice_number') ?? $registration->zoho_invoice_number),
-                'status' => (string) data_get($finalInvoice, 'status', ''),
+                'status' => $resolvedInvoiceStatus,
                 'balance' => $finalBalance,
                 'total' => $finalTotal,
                 'amount_paid' => $finalAmountPaid,
@@ -163,9 +214,7 @@ class EventZohoInvoiceSyncService
                 'invoice_pdf_url' => data_get($finalInvoice, 'invoice_pdf_url') ?? data_get($finalInvoice, 'pdf_url'),
                 'payment_id' => $matchedPaymentId,
                 'payment_applied' => $finalPaymentApplied,
-                'sync_error' => (($finalBalance <= 0) || in_array($finalStatus, ['paid', 'closed'], true))
-                    ? null
-                    : 'Payment is paid but could not be applied to invoice. Zoho response: status='.$finalStatus.' balance='.$finalBalance,
+                'sync_error' => $syncError,
             ];
         } catch (\Throwable $e) {
             Log::error('zoho_invoice_finalize_failed', $context + ['error' => $e->getMessage()]);

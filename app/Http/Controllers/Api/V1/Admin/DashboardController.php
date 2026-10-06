@@ -46,7 +46,7 @@ class DashboardController extends BaseApiController
         $charteredCircles = Circle::query()
             ->where(function ($q): void {
                 if (Schema::hasColumn('circles', 'status')) {
-                    $q->whereIn('status', ['active', 'chartered']);
+                    $q->where('status', 'active');
                 }
             })
             ->count();
@@ -84,7 +84,7 @@ class DashboardController extends BaseApiController
         }
 
         $coinsReserve = '1.84M';
-        if (Schema::hasTable('app_config_settings')) {
+        if (Schema::hasTable('app_config_settings') && Schema::hasColumn('app_config_settings', 'key') && Schema::hasColumn('app_config_settings', 'value')) {
             $setting = DB::table('app_config_settings')->where('key', 'coins_reserve')->value('value');
             if ($setting !== null && $setting !== '') {
                 $coinsReserve = (string) $setting;
@@ -105,7 +105,8 @@ class DashboardController extends BaseApiController
             'totalPeers' => $metrics['total_peers'] ?? 0,
             'totalUsers' => $metrics['total_users'] ?? 0,
             'totalCircles' => $metrics['total_circles'] ?? 0,
-            'activeCirclesCount' => $metrics['active_circles_count'] ?? 0,
+            'activeCirclesCount' => $charteredCircles,
+            'active_circles_count' => $charteredCircles,
             'totalLivesImpacted' => $metrics['total_lives_impacted'] ?? 0,
             'totalCoinsIssued' => $metrics['total_coins_issued'] ?? 0,
             'totalRevenue' => $metrics['total_revenue'] ?? 0,

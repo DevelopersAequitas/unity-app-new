@@ -41,6 +41,7 @@ class EventRegistrationResource extends JsonResource
             'zoho_invoice_number' => $isPaid ? ($this->zoho_invoice_number ?? null) : null,
             'invoice_url' => $isPaid ? ($this->zoho_invoice_url ?? null) : null,
             'invoice_pdf_url' => $isPaid ? ($this->zoho_invoice_pdf_url ?? null) : null,
+            'zoho_invoice_status' => $isPaid ? ($this->zoho_invoice_status ?? null) : null,
             'payment_completed_at' => $isPaid ? optional($this->payment_completed_at)->toISOString() : null,
             'visitor_designation' => $this->visitor_designation ?? data_get($this->metadata, 'visitor_designation'),
             'visitor_business_category_id' => $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),

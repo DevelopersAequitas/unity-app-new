@@ -39,10 +39,13 @@ use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventScannerQrScanService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Services\Referrals\ReferralService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EventController extends BaseApiController
@@ -320,6 +323,14 @@ class EventController extends BaseApiController
         $eventCircleId = $event->circle_id;
         $allowedCircleIds = $this->registrationAllowedCircleIds($event);
 
+        // Resolve Inviter / Referrer from request
+        $referralCode = $request->input('referral_code')
+            ?? $request->input('inviter_code')
+            ?? $request->input('invited_by_referral_code')
+            ?? $request->input('invited_by')
+            ?? $request->input('invited_by_user_id');
+        $invitedByUserId = $this->resolveInvitedByUserId($referralCode, (string) $user->id);
+
         $coupon = null;
         $couponData = [];
         $couponCodeInput = $request->input('coupon_code');
@@ -345,6 +356,9 @@ class EventController extends BaseApiController
                 ], 422);
             }
         }
+
+        $inviterUserId = $this->resolveInviterUserId($request);
+        $inviterCode = $this->extractInviterCode($request);
 
         Log::info('member_event_registration_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
         Log::info('member_event_circle_check_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
@@ -378,6 +392,8 @@ class EventController extends BaseApiController
                 );
                 $this->coupons->applyCoupon($coupon);
 
+                $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
+
                 if (($couponData['amount'] ?? 0) > 0) {
                     $registration = $this->payments->attachCheckout($registration);
                 } else {
@@ -401,6 +417,7 @@ class EventController extends BaseApiController
                     $user,
                     $request->input('source', 'app')
                 );
+                $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
                 $payload = $this->payments->responsePayload($registration);
                 Log::info('multi_circle_event_direct_cross_circle_registration_success', $eligibilityContext + [
                     'registration_id' => (string) $registration->id,
@@ -436,7 +453,12 @@ class EventController extends BaseApiController
                     $request->input('source', 'app'),
                     $couponData
                 );
+
+                $effectiveInviterUserId = $invitedByUserId ?: ($approvedRequest->invited_by_user_id ?? ($approvedRequest->metadata['invited_by_user_id'] ?? null));
+                $effectiveInviterCode = $referralCode ?: ($approvedRequest->metadata['inviter_code'] ?? ($approvedRequest->metadata['referral_code'] ?? null));
+                $this->attachInviterToRegistration($registration, $effectiveInviterUserId, $request->input('invited_by_type'), $effectiveInviterCode);
                 $approvedRequest->forceFill(['registration_id' => $registration->id])->save();
+
                 Log::info('cross_circle_registration_after_approval_payment_link_created', $eligibilityContext + ['request_id' => $approvedRequest->id, 'request_status' => $approvedRequest->status, 'registration_id' => (string) $registration->id]);
                 Log::info('cross_circle_approved_registration_payment_link_created', $eligibilityContext + ['request_id' => $approvedRequest->id, 'registration_id' => (string) $registration->id]);
 
@@ -470,6 +492,12 @@ class EventController extends BaseApiController
                 ]);
             }
 
+            if ($request->filled('reason') || $request->filled('request_reason')) {
+                Log::info('cross_circle_register_auto_delegating_to_request', $eligibilityContext);
+
+                return $this->createRegistrationRequest($request, (string) $event->id, (string) $occurrence->id);
+            }
+
             Log::info('event_register_eligibility_failed_no_request', $eligibilityContext);
             Log::info('cross_circle_request_required', $eligibilityContext);
 
@@ -501,6 +529,8 @@ class EventController extends BaseApiController
             );
             $this->coupons->applyCoupon($coupon);
 
+            $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
+
             if (($couponData['amount'] ?? 0) > 0) {
                 $registration = $this->payments->attachCheckout($registration);
             } else {
@@ -522,6 +552,8 @@ class EventController extends BaseApiController
             $user,
             $request->input('source', 'app')
         );
+
+        $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
         if ((! empty($registration->qr_code_url) || ! empty($registration->qr_code_path)) && ! $existing) {
             Log::info('member_event_registration_qr_generated', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId, 'registration_id' => (string) $registration->id]);
         }
@@ -574,24 +606,52 @@ class EventController extends BaseApiController
             ], 200);
         }
 
+        $reason = (string) ($request->input('reason') ?? $request->input('request_reason') ?? '');
+        $inviterUserId = $this->resolveInviterUserId($request);
+        $inviterCode = $this->extractInviterCode($request);
+
         if ($coupon) {
             $originalPrice = $this->payments->amount($event);
             $discountCalculation = $this->coupons->calculateDiscount($coupon, $originalPrice);
             $finalAmount = $discountCalculation['final_price'];
             $discountAmount = $discountCalculation['discount_amount'];
 
-            $req = EventRegistrationRequest::query()->create([
+            $couponReqData = [
                 'event_id' => $event->id,
                 'occurrence_id' => $occurrence->id,
                 'user_id' => $user->id,
                 'event_circle_id' => $eventCircleId,
                 'status' => 'approved',
-                'request_reason' => $request->input('request_reason'),
+                'request_reason' => $reason,
                 'approved_by_user_id' => $user->id,
                 'approved_at' => now(),
                 'coupon_id' => $coupon->id,
                 'coupon_code' => $coupon->code,
-            ]);
+            ];
+
+            if ($inviterUserId && Schema::hasColumn('event_registration_requests', 'invited_by_user_id')) {
+                $couponReqData['invited_by_user_id'] = $inviterUserId;
+            }
+            if (Schema::hasColumn('event_registration_requests', 'invited_by_type')) {
+                $couponReqData['invited_by_type'] = 'circle_member_peer';
+            }
+
+            $meta = [
+                'reason' => $reason,
+                'business_category_id' => $request->input('business_category_id') ?? $request->input('category_id') ?? $request->input('visitor_business_category_id'),
+            ];
+            if ($inviterUserId) {
+                $meta['invited_by_user_id'] = $inviterUserId;
+                $meta['inviter_user_id'] = $inviterUserId;
+            }
+            if ($inviterCode) {
+                $meta['inviter_code'] = $inviterCode;
+                $meta['referral_code'] = $inviterCode;
+            }
+            $meta['invited_by_type'] = 'circle_member_peer';
+            $couponReqData['metadata'] = array_filter($meta, fn ($v) => $v !== null && $v !== '');
+
+            $req = EventRegistrationRequest::query()->create($couponReqData);
 
             $couponData = [
                 'coupon_id' => $coupon->id,
@@ -609,6 +669,10 @@ class EventController extends BaseApiController
                 $request->input('source', 'app'),
                 $couponData
             );
+
+            if ($inviterUserId || $inviterCode) {
+                $registration = $this->attachInviterAttribution($registration, $inviterUserId, $inviterCode);
+            }
 
             $req->forceFill(['registration_id' => $registration->id])->save();
             $this->coupons->applyCoupon($coupon);
@@ -641,9 +705,38 @@ class EventController extends BaseApiController
             return $this->success(['request_id' => $existing->id, 'status' => $existing->status, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'user_id' => $user->id], $existing->status === 'approved' ? 'Your request is approved. You can register now.' : 'Your registration request is pending admin approval.');
         }
 
-        $req = EventRegistrationRequest::query()->create([
-            'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'user_id' => $user->id, 'event_circle_id' => $eventCircleId, 'status' => 'pending', 'request_reason' => $request->input('request_reason'),
-        ]);
+        $reqData = [
+            'event_id' => $event->id,
+            'occurrence_id' => $occurrence->id,
+            'user_id' => $user->id,
+            'event_circle_id' => $eventCircleId,
+            'status' => 'pending',
+            'request_reason' => $reason,
+        ];
+
+        if ($inviterUserId && Schema::hasColumn('event_registration_requests', 'invited_by_user_id')) {
+            $reqData['invited_by_user_id'] = $inviterUserId;
+        }
+        if (Schema::hasColumn('event_registration_requests', 'invited_by_type')) {
+            $reqData['invited_by_type'] = 'circle_member_peer';
+        }
+
+        $meta = [
+            'reason' => $reason,
+            'business_category_id' => $request->input('business_category_id') ?? $request->input('category_id') ?? $request->input('visitor_business_category_id'),
+        ];
+        if ($inviterUserId) {
+            $meta['invited_by_user_id'] = $inviterUserId;
+            $meta['inviter_user_id'] = $inviterUserId;
+        }
+        if ($inviterCode) {
+            $meta['inviter_code'] = $inviterCode;
+            $meta['referral_code'] = $inviterCode;
+        }
+        $meta['invited_by_type'] = 'circle_member_peer';
+        $reqData['metadata'] = array_filter($meta, fn ($v) => $v !== null && $v !== '');
+
+        $req = EventRegistrationRequest::query()->create($reqData);
         Log::info('cross_circle_registration_request_created', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'request_id' => $req->id]);
 
         return $this->success(['request_id' => $req->id, 'status' => $req->status, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'user_id' => $user->id], 'Registration request submitted successfully. Please wait for admin approval.');
@@ -773,6 +866,16 @@ class EventController extends BaseApiController
         }
 
         $data = $request->validated();
+        $inviterUserId = $this->resolveInviterUserId($request);
+        $inviterCode = $this->extractInviterCode($request);
+        if ($inviterUserId) {
+            $data['invited_by_user_id'] = $inviterUserId;
+            $data['invited_by_type'] = 'circle_member_peer';
+        }
+        if ($inviterCode) {
+            $data['referral_code'] = $inviterCode;
+        }
+
         $existingBeforeSubmit = $this->findDuplicateVisitorRegistration($event->id, $occurrence->id, $data);
 
         $registration = $this->registrations->registerVisitor(
@@ -781,6 +884,9 @@ class EventController extends BaseApiController
             $data,
             $request->input('source', 'visitor_app')
         );
+
+        $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
+
         $registration = $this->registrations->ensureVisitorRegistrationFormUrl($registration);
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
 
@@ -946,6 +1052,10 @@ class EventController extends BaseApiController
                 $user,
                 $request->input('source', 'app')
             );
+
+            $referralCode = $this->extractInviterCode($request);
+            $invitedByUserId = $this->resolveInvitedByUserId($referralCode, (string) $user->id);
+            $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
             if (! empty($registration->payment_url) || ! empty($registration->zoho_payment_link_url)) {
                 Log::info('app_user_visitor_payment_link_created', $context + ['registration_id' => (string) $registration->id]);
             }
@@ -1799,5 +1909,125 @@ class EventController extends BaseApiController
         $rsvp->save();
 
         return $this->success(new EventRsvpResource($rsvp->load('user')), 'Checked in successfully');
+    }
+
+    private function resolveInvitedByUserId(?string $code, ?string $currentUserId = null): ?string
+    {
+        if (blank($code)) {
+            return null;
+        }
+
+        $code = trim($code);
+
+        // If code is a UUID, check if it's a valid user ID (excluding self)
+        if (Str::isUuid($code)) {
+            if ($currentUserId && $code === $currentUserId) {
+                return null;
+            }
+
+            $userExists = User::query()->where('id', $code)->exists();
+
+            return $userExists ? $code : null;
+        }
+
+        // Otherwise it is a referral code (e.g. CHIRA61609). Resolve via ReferralService
+        try {
+            $referralInfo = app(ReferralService::class)->validateReferralCode($code);
+            if ($referralInfo && ! empty($referralInfo['referrer_user_id'])) {
+                $refUserId = (string) $referralInfo['referrer_user_id'];
+
+                return ($currentUserId && $refUserId === $currentUserId) ? null : $refUserId;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('event_resolve_inviter_code_failed', ['code' => $code, 'error' => $e->getMessage()]);
+        }
+
+        // Fallback: search referral columns on users table
+        try {
+            if (Schema::hasTable('users')) {
+                foreach (['referral_code', 'ref_code', 'invite_code'] as $col) {
+                    if (Schema::hasColumn('users', $col)) {
+                        $u = DB::table('users')->whereRaw('UPPER('.$col.') = ?', [strtoupper($code)])->first();
+                        if ($u && ! empty($u->id)) {
+                            return ($currentUserId && (string) $u->id === $currentUserId) ? null : (string) $u->id;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore fallback error
+        }
+
+        return null;
+    }
+
+    private function resolveInviterUserId(Request $request): ?string
+    {
+        $code = $this->extractInviterCode($request);
+        $user = $request->user();
+
+        return $this->resolveInvitedByUserId($code, $user ? (string) $user->id : null);
+    }
+
+    private function extractInviterCode(Request $request): ?string
+    {
+        $code = $request->input('inviter_code')
+            ?? $request->input('invited_by_referral_code')
+            ?? $request->input('referral_code')
+            ?? $request->input('invited_by')
+            ?? $request->input('invited_by_user_id');
+
+        if (! empty($code) && is_string($code)) {
+            return trim($code);
+        }
+
+        return null;
+    }
+
+    private function attachInviterToRegistration(
+        EventRegistration $registration,
+        ?string $invitedByUserId,
+        ?string $invitedByType = null,
+        ?string $referralCode = null
+    ): void {
+        if (! $invitedByUserId && ! $referralCode) {
+            return;
+        }
+
+        $type = $invitedByType ?: 'circle_member_peer';
+        $updates = [];
+
+        $hasInvitedColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'invited_by_user_id');
+        if ($hasInvitedColumn && $invitedByUserId) {
+            $updates['invited_by_user_id'] = $invitedByUserId;
+            if (Schema::hasColumn('event_registrations', 'invited_by_type')) {
+                $updates['invited_by_type'] = $type;
+            }
+        }
+
+        $metadata = is_array($registration->metadata) ? $registration->metadata : [];
+        if ($invitedByUserId) {
+            $metadata['invited_by_user_id'] = $invitedByUserId;
+            $metadata['inviter_user_id'] = $invitedByUserId;
+        }
+        if ($referralCode) {
+            $metadata['inviter_code'] = $referralCode;
+            $metadata['referral_code'] = $referralCode;
+            $metadata['invited_by_referral_code'] = $referralCode;
+        }
+        $metadata['invited_by_type'] = $type;
+        $updates['metadata'] = $metadata;
+
+        $registration->forceFill($updates)->save();
+    }
+
+    private function attachInviterAttribution(
+        EventRegistration $registration,
+        ?string $inviterUserId,
+        ?string $inviterCode = null
+    ): EventRegistration {
+        $this->attachInviterToRegistration($registration, $inviterUserId, 'circle_member_peer', $inviterCode);
+
+        return $registration;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Ask\Ask;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,13 +52,54 @@ class Post extends Model
         'active' => 'boolean',
     ];
 
+    protected $appends = [
+        'media_url',
+        'media_type',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (self $post): void {
             if (empty($post->id)) {
                 $post->id = Str::uuid()->toString();
             }
+            if (empty($post->status)) {
+                $post->status = 'active';
+            }
+            if ($post->active === null) {
+                $post->active = $post->status === 'active';
+            }
         });
+
+        static::saving(function (self $post): void {
+            if ($post->isDirty('status')) {
+                if ($post->status === 'active') {
+                    $post->active = true;
+                } elseif (in_array($post->status, ['inactive', 'rejected', 'hidden'], true)) {
+                    $post->active = false;
+                }
+            } elseif ($post->isDirty('active')) {
+                $post->status = $post->active ? 'active' : 'inactive';
+            }
+        });
+    }
+
+    public function getIsActiveAttribute(): bool
+    {
+        return (bool) ($this->attributes['active'] ?? ($this->status === 'active'));
+    }
+
+    public function setIsActiveAttribute($value): void
+    {
+        $bool = (bool) $value;
+        $this->attributes['active'] = $bool;
+        $this->attributes['status'] = $bool ? 'active' : 'inactive';
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('posts.status', 'active')
+            ->where('posts.is_deleted', false);
     }
 
     public function author(): BelongsTo
@@ -87,7 +129,7 @@ class Post extends Model
 
     public function comments(): HasMany
     {
-        return $this->hasMany(PostComment::class);
+        return $this->hasMany(PostComment::class, 'post_id');
     }
 
     public function postMentions(): HasMany
@@ -102,7 +144,12 @@ class Post extends Model
 
     public function likes(): HasMany
     {
-        return $this->hasMany(PostLike::class);
+        return $this->hasMany(PostLike::class, 'post_id');
+    }
+
+    public function likedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'post_likes', 'post_id', 'user_id')->withTimestamps();
     }
 
     public function saves(): HasMany
@@ -151,5 +198,75 @@ class Post extends Model
         }
 
         return $value;
+    }
+
+    public function getMediaUrlAttribute(): ?string
+    {
+        $videoPath = $this->attributes['video_path'] ?? ($this->video_path ?? null);
+        if (! empty($videoPath)) {
+            $path = (string) $videoPath;
+
+            return Str::startsWith($path, ['http://', 'https://']) ? $path : asset('storage/'.ltrim($path, '/'));
+        }
+
+        $mediaUrl = $this->attributes['media_url'] ?? ($this->media_url ?? null);
+        if (! empty($mediaUrl)) {
+            $url = (string) $mediaUrl;
+
+            return Str::startsWith($url, ['http://', 'https://']) ? $url : url($url);
+        }
+
+        $media = $this->media;
+        if (! empty($media) && is_array($media)) {
+            $first = reset($media);
+            if (is_array($first)) {
+                if (! empty($first['url'])) {
+                    return (string) $first['url'];
+                }
+                if (! empty($first['id'])) {
+                    return url('/api/v1/files/'.$first['id']);
+                }
+            }
+        }
+
+        if (! empty($this->image)) {
+            $img = (string) $this->image;
+
+            return Str::startsWith($img, ['http://', 'https://']) ? $img : url($img);
+        }
+
+        return null;
+    }
+
+    /**
+     * Derive the primary media type ('image' | 'video' | null) from the media array or media attributes.
+     * Inspects video_path, media_url file extensions, and the media array's 'type' field.
+     */
+    public function getMediaTypeAttribute(): ?string
+    {
+        $videoPath = $this->attributes['video_path'] ?? ($this->video_path ?? null);
+        $mediaUrl = $this->attributes['media_url'] ?? ($this->media_url ?? null);
+        $urlToCheck = $videoPath ?: ($mediaUrl ?: $this->getMediaUrlAttribute());
+
+        if (! empty($videoPath) || preg_match('/\.(mp4|mov|webm|m4v)(\?.*)?$/i', (string) $urlToCheck)) {
+            return 'video';
+        }
+
+        $media = $this->media;
+        if (! empty($media) && is_array($media)) {
+            $first = reset($media);
+            if (is_array($first) && ! empty($first['type'])) {
+                $type = strtolower((string) $first['type']);
+                if (str_contains($type, 'video')) {
+                    return 'video';
+                }
+            }
+        }
+
+        if (! empty($urlToCheck)) {
+            return 'image';
+        }
+
+        return null;
     }
 }

@@ -470,6 +470,8 @@ class ActivityReminderService
     {
         return Post::query()
             ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->where('is_deleted', false)
             ->where('created_at', '>=', $since)
             ->exists();
     }
@@ -496,6 +498,8 @@ class ActivityReminderService
         return Post::query()
             ->where('user_id', $user->id)
             ->whereNotNull('circle_id')
+            ->where('status', 'active')
+            ->where('is_deleted', false)
             ->where('created_at', '>=', $since)
             ->exists();
     }

@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class MembershipPlan extends Model
@@ -80,18 +81,40 @@ class MembershipPlan extends Model
     public function scopeCircleOnly(Builder $query): Builder
     {
         return $query->where(function (Builder $q): void {
-            $q->whereIn('slug', self::CIRCLE_SLUGS)
-                ->orWhere('slug', 'like', 'circle\_%')
-                ->orWhere('slug', 'like', 'circle-%');
+            if (Schema::hasTable('membership_plans') && Schema::hasColumn('membership_plans', 'plan_type')) {
+                $q->where('plan_type', 'circle')
+                    ->orWhere(function (Builder $inner): void {
+                        $inner->whereIn('slug', self::CIRCLE_SLUGS)
+                            ->orWhere('slug', 'like', 'circle\_%')
+                            ->orWhere('slug', 'like', 'circle-%')
+                            ->orWhere('slug', 'like', 'circle\_%')
+                            ->orWhere('slug', 'ilike', 'circle-%');
+                    });
+            } else {
+                $q->whereIn('slug', self::CIRCLE_SLUGS)
+                    ->orWhere('slug', 'like', 'circle\_%')
+                    ->orWhere('slug', 'like', 'circle-%')
+                    ->orWhere('slug', 'ilike', 'circle\_%')
+                    ->orWhere('slug', 'ilike', 'circle-%');
+            }
         });
     }
 
     public function scopeMembershipOnly(Builder $query): Builder
     {
         return $query->where(function (Builder $q): void {
+            if (Schema::hasTable('membership_plans') && Schema::hasColumn('membership_plans', 'plan_type')) {
+                $q->where(function (Builder $inner): void {
+                    $inner->where('plan_type', 'membership')
+                        ->orWhereNull('plan_type');
+                });
+            }
+
             $q->whereNotIn('slug', self::CIRCLE_SLUGS)
                 ->where('slug', 'not like', 'circle\_%')
-                ->where('slug', 'not like', 'circle-%');
+                ->where('slug', 'not like', 'circle-%')
+                ->where('slug', 'not ilike', 'circle\_%')
+                ->where('slug', 'not ilike', 'circle-%');
         });
     }
 }

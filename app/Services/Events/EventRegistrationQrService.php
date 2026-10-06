@@ -69,11 +69,16 @@ class EventRegistrationQrService
             }
 
             // If the user's registration is confirmed/paid but they haven't been sent a QR email yet, send it
-            $hasEmailed = Schema::hasTable('email_logs') && EmailLog::query()
-                ->where('related_type', EventRegistration::class)
-                ->where('related_id', $registration->id)
-                ->where('template_key', 'event_visitor_qr')
-                ->exists();
+            $hasEmailed = false;
+            try {
+                $hasEmailed = Schema::hasTable('email_logs') && EmailLog::query()
+                    ->where('related_type', EventRegistration::class)
+                    ->where('related_id', (string) $registration->id)
+                    ->where('template_key', 'event_visitor_qr')
+                    ->exists();
+            } catch (Throwable $e) {
+                Log::warning('email_logs_check_skipped', ['error' => $e->getMessage()]);
+            }
             if (! $hasEmailed) {
                 $mailShouldBeSent = true;
             }
@@ -141,11 +146,16 @@ class EventRegistrationQrService
         $recipientName = trim((string) ($registration->visitor_name ?: $registration->user?->display_name ?: 'Valued Visitor'));
 
         // Prevent duplicate mail deliveries (check logs before sending)
-        $hasEmailed = Schema::hasTable('email_logs') && EmailLog::query()
-            ->where('related_type', EventRegistration::class)
-            ->where('related_id', $registration->id)
-            ->where('template_key', 'event_visitor_qr')
-            ->exists();
+        $hasEmailed = false;
+        try {
+            $hasEmailed = Schema::hasTable('email_logs') && EmailLog::query()
+                ->where('related_type', EventRegistration::class)
+                ->where('related_id', (string) $registration->id)
+                ->where('template_key', 'event_visitor_qr')
+                ->exists();
+        } catch (Throwable $e) {
+            Log::warning('email_logs_check_skipped', ['error' => $e->getMessage()]);
+        }
         if ($hasEmailed) {
             Log::info('event_visitor_qr_email_skipped_already_sent', [
                 'registration_id' => (string) $registration->id,

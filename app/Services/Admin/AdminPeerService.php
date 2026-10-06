@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\City;
@@ -47,7 +48,7 @@ class AdminPeerService
     /**
      * Fetch paginated list of canonical peers with comprehensive filtering and scoping.
      */
-    public function listPeers(array $filters = [], User|\App\Models\AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
+    public function listPeers(array $filters = [], User|AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
     {
         $query = User::query()
             ->with([
@@ -76,7 +77,7 @@ class AdminPeerService
     /**
      * Fetch canonical peers roster for a specific circle.
      */
-    public function listCirclePeers(string $circleId, array $filters = [], User|\App\Models\AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
+    public function listCirclePeers(string $circleId, array $filters = [], User|AdminUser|null $actor = null, int $perPage = 20): LengthAwarePaginator
     {
         if ($actor !== null) {
             $this->scope->assertCircleVisible($actor, $circleId);
@@ -197,6 +198,24 @@ class AdminPeerService
                         self::INACTIVE_STATUSES
                     );
                 }),
+                'global', 'global_peer', 'only_unity_peer' => $query->where(function (Builder $q): void {
+                    $q->whereIn(
+                        DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
+                        ['only_unity_peer', 'global_peer', 'only unity peer', 'global peer', 'global']
+                    );
+                }),
+                'circle', 'circle_peer' => $query->where(function (Builder $q): void {
+                    $q->whereIn(
+                        DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
+                        ['circle_peer', 'circle peer', 'circle']
+                    );
+                }),
+                'multi_circle', 'multi_circle_peer' => $query->where(function (Builder $q): void {
+                    $q->whereIn(
+                        DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
+                        ['multi_circle_peer', 'multi circle peer', 'multi_circle']
+                    );
+                }),
                 'free_trial', 'trial' => $query->where(function (Builder $q): void {
                     $q->whereIn(
                         DB::raw('LOWER(COALESCE(membership_status, \'\'))'),
@@ -221,16 +240,36 @@ class AdminPeerService
         }
 
         // 7. Active Status Filter
+        $hasIsActive = \Illuminate\Support\Facades\Schema::hasColumn('users', 'is_active');
         if (isset($filters['is_active'])) {
-            $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
+            $isActive = filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN);
+            if ($hasIsActive) {
+                $query->where('is_active', $isActive);
+            } else {
+                $query->where('status', $isActive ? 'active' : 'inactive');
+            }
         }
 
-        if (! empty($filters['status'])) {
+        if (! empty($filters['status']) && strtolower(trim((string) $filters['status'])) !== 'all') {
             $status = strtolower(trim((string) $filters['status']));
             if ($status === 'active') {
-                $query->where(fn ($q) => $q->where('status', 'active')->orWhere('is_active', true));
+                $query->where(function (Builder $q) use ($hasIsActive): void {
+                    $q->where('status', 'active');
+                    if ($hasIsActive) {
+                        $q->orWhere('is_active', true);
+                    }
+                });
             } elseif ($status === 'inactive') {
-                $query->where(fn ($q) => $q->where('status', 'inactive')->orWhere('is_active', false));
+                $query->where(function (Builder $q) use ($hasIsActive): void {
+                    $q->where('status', 'inactive');
+                    if ($hasIsActive) {
+                        $q->orWhere('is_active', false);
+                    }
+                });
+            } elseif ($status === 'suspended') {
+                $query->where('status', 'suspended');
+            } elseif ($status === 'pending') {
+                $query->where('status', 'pending');
             } elseif ($status === 'expired') {
                 $query->where(function (Builder $q): void {
                     $q->where('status', 'expired')
