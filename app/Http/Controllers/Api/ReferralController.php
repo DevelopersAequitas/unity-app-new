@@ -7,6 +7,7 @@ use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Http\Resources\Ask\PeerResource;
+use App\Http\Resources\ReferralEventVisitorResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\CircleMember;
 use App\Models\EventRegistration;
@@ -63,6 +64,54 @@ class ReferralController extends BaseApiController
                 'total' => $paginator->total(),
             ],
         ]);
+    }
+
+    public function listVisitors(Request $request, ReferralService $referralService)
+    {
+        $paginator = $referralService->getEventVisitors($request->user(), (int) $request->input('per_page', 20));
+
+        return $this->success([
+            'items' => ReferralEventVisitorResource::collection($paginator->items()),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ], 'Event visitors fetched successfully.');
+    }
+
+    public function updateVisitor(Request $request, string $id)
+    {
+        $hasInvitedColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'invited_by_user_id');
+        $hasMetadataColumn = Schema::hasTable('event_registrations') && Schema::hasColumn('event_registrations', 'metadata');
+        $userId = $request->user()->id;
+
+        $query = EventRegistration::query()->where('id', $id);
+
+        if ($hasInvitedColumn) {
+            $query->where(function ($q) use ($userId, $hasMetadataColumn): void {
+                $q->where('invited_by_user_id', $userId);
+                if ($hasMetadataColumn) {
+                    $q->orWhereRaw("metadata->>'invited_by_user_id' = ?", [(string) $userId]);
+                }
+            });
+        } elseif ($hasMetadataColumn) {
+            $query->whereRaw("metadata->>'invited_by_user_id' = ?", [(string) $userId]);
+        } else {
+            return $this->error('Visitor registration not found.', 404);
+        }
+
+        $registration = $query->firstOrFail();
+
+        if ($request->filled('notes')) {
+            $metadata = is_array($registration->metadata) ? $registration->metadata : [];
+            $metadata['inviter_notes'] = (string) $request->input('notes');
+            $registration->metadata = $metadata;
+            $registration->save();
+        }
+
+        return $this->success(new ReferralEventVisitorResource($registration), 'Visitor updated successfully.');
     }
 
     public function stats(Request $request)
@@ -378,6 +427,11 @@ class ReferralController extends BaseApiController
     public function store(StoreReferralRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
+
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot give referrals. Your account is in view-only mode.', 403);
+        }
+
         $targetUserId = (string) $request->input('to_user_id');
 
         // Resolve UUID if numeric or member ID passed
@@ -389,6 +443,11 @@ class ReferralController extends BaseApiController
             if ($resolvedUser) {
                 $targetUserId = (string) $resolvedUser->id;
             }
+        }
+
+        $targetUser = User::find($targetUserId);
+        if (! $targetUser || $targetUser->status === 'inactive') {
+            return $this->error('Selected peer is inactive.', 422);
         }
 
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {

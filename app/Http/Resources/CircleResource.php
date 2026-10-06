@@ -165,6 +165,18 @@ class CircleResource extends JsonResource
             'member_status' => $currentMember->status ?? null,
             'circle_leaders' => $this->resolveCircleLeaders(),
             'regional_leaders' => $this->resolveRegionalLeaders(),
+
+            // --- CIRCLE ACTIVITY TOTALS ---
+            'p2p_meetings_count' => (int) ($this->getAttribute('p2p_meetings_count') ?? 0),
+            'business_deals_given' => (int) ($this->getAttribute('business_deals_given') ?? 0),
+            'testimonials_given' => (int) ($this->getAttribute('testimonials_given') ?? 0),
+            'collaborations_count' => (int) ($this->getAttribute('collaborations_count') ?? 0),
+            'get_help_count' => (int) ($this->getAttribute('get_help_count') ?? 0),
+            'referrals_asks_count' => (int) ($this->getAttribute('referrals_asks_count') ?? 0),
+            'referrals_given_count' => (int) ($this->getAttribute('referrals_given_count') ?? 0),
+            'badges_count' => (int) ($this->getAttribute('badges_count') ?? 0),
+            'life_impacted_count' => (int) ($this->getAttribute('life_impacted_count') ?? 0),
+
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

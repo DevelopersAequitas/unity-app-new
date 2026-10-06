@@ -130,6 +130,8 @@ class EventOccurrenceListResource extends JsonResource
             'can_register' => $canRegister['can_register'],
             'can_register_reason' => $canRegister['reason'],
             'visitor_registration_enabled' => $visitorRegistrationEnabled,
+            'allow_free_peers' => (bool) ($event->allow_free_peers ?? true),
+            'is_open_for_free_peers' => (bool) ($event->allow_free_peers ?? true),
             'zoho_form_url' => $zohoFormUrl,
             'visitor_registration_url' => $visitorRegistrationEnabled ? url('/events/'.$event->id.'/occurrences/'.$this->id.'/visitor-register') : null,
             'zoho_visitor_registration_url' => $visitorRegistrationEnabled ? $zohoFormUrl : null,
@@ -137,6 +139,7 @@ class EventOccurrenceListResource extends JsonResource
             'user_registration' => [
                 'is_registered' => (bool) $registration,
                 'registration_id' => $registration?->id,
+                'registration_type' => $registration?->registration_type ?? ($registration?->user_id ? 'member' : 'visitor'),
                 'status' => $registration?->status,
                 'checkin_status' => $registration?->checkin_status,
                 'payment_gateway' => ($registration?->payment_required ?? false) ? (in_array(strtolower((string) ($registration->payment_gateway ?: config('services.event_payment_gateway', 'zoho_billing_payment_link'))), ['none', 'not_required', 'null', ''], true) ? 'zoho_billing_payment_link' : ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link'))) : null,

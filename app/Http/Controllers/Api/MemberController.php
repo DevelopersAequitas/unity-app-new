@@ -127,7 +127,7 @@ class MemberController extends BaseApiController
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
-        });
+        })->where('status', '!=', 'inactive');
 
         $authUser = auth('sanctum')->user();
 
@@ -288,7 +288,8 @@ class MemberController extends BaseApiController
             ->whereNull('deleted_at')
             ->where(function ($statusQuery) {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
-            });
+            })
+            ->where('status', '!=', 'inactive');
 
         $profileVisibilityService->applyVisibleTo($members, $request->user());
 
@@ -393,7 +394,7 @@ class MemberController extends BaseApiController
         // Exclude inactive members
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
-        });
+        })->where('users.status', '!=', 'inactive');
 
         // Filter out authenticated user and blocked users if user is authenticated
         $authUser = auth('sanctum')->user() ?: $request->user();
@@ -623,6 +624,13 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
+        if ($user->status === 'inactive') {
+            $authUser = $request->user();
+            if (! $authUser || (string) $authUser->id !== (string) $user->id) {
+                return $this->error('Member not found', 404);
+            }
+        }
+
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
         }
@@ -658,6 +666,10 @@ class MemberController extends BaseApiController
             return $this->error('Public profile not found', 404);
         }
 
+        if ($user->status === 'inactive') {
+            return $this->error('Public profile not found', 404);
+        }
+
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
         }
@@ -673,7 +685,7 @@ class MemberController extends BaseApiController
     {
         $member = User::query()->find($user);
 
-        if (! $member) {
+        if (! $member || $member->status === 'inactive') {
             return $this->error('User not found.', 404);
         }
 
@@ -683,6 +695,11 @@ class MemberController extends BaseApiController
 
         $followersQuery = UserFollow::query()
             ->where('following_id', $member->id)
+            ->whereHas('follower', function ($fq) {
+                $fq->where(function ($sq) {
+                    $sq->whereNull('status')->orWhere('status', 'active');
+                })->where('status', '!=', 'inactive')->whereNull('deleted_at');
+            })
             ->with([
                 'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,life_impacted_count,profile_photo_file_id',
                 'follower.city:id,name',
@@ -790,12 +807,16 @@ class MemberController extends BaseApiController
     {
         $authUser = $request->user();
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot send connection requests. Your account is in view-only mode.', 403);
+        }
+
         if ($authUser->id === $id) {
             return $this->error('You cannot connect to yourself', 422);
         }
 
         $target = User::find($id);
-        if (! $target) {
+        if (! $target || $target->status === 'inactive') {
             return $this->error('Member not found', 404);
         }
 
@@ -1176,6 +1197,7 @@ class MemberController extends BaseApiController
             ->where(function ($statusQuery) {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
             })
+            ->where('status', '!=', 'inactive')
             ->has('introducedMembers')
             ->orderByDesc('introduced_members_count')
             ->orderBy('display_name', 'asc')

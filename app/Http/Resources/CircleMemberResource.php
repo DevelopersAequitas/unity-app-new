@@ -141,6 +141,16 @@ class CircleMemberResource extends JsonResource
                     'company_name' => $user?->company_name ?? null,
                     'life_impacted_count' => (int) ($user?->life_impacted_count ?? 0),
                     'introduced_count' => (int) ($user?->introduced_count ?? ($user?->relationLoaded('introducedPeers') ? $user->introducedPeers->count() : ($user?->members_introduced_count ?? 0))),
+
+                    // --- MEMBER ACTIVITY METRICS ---
+                    'p2p_meetings_count' => (int) ($user?->getAttribute('p2p_meetings_count') ?? 0),
+                    'business_deals_given' => (int) ($user?->getAttribute('business_deals_given') ?? 0),
+                    'testimonials_given' => (int) ($user?->getAttribute('testimonials_given') ?? 0),
+                    'referrals_given' => (int) ($user?->getAttribute('referrals_given') ?? 0),
+                    'referrals_asks' => (int) ($user?->getAttribute('referrals_asks') ?? 0),
+                    'collaborations_count' => (int) ($user?->getAttribute('collaborations_count') ?? 0),
+                    'get_help_count' => (int) ($user?->getAttribute('get_help_count') ?? 0),
+                    'badges_count' => (int) ($user?->getAttribute('badges_count') ?? 0),
                     'profile_photo_file_id' => $photoFileId,
                     'profile_photo_url' => $photoUrl,
                     'profile_photo_image' => $photoUrl,

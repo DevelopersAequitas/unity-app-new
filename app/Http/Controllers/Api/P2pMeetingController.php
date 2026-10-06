@@ -99,7 +99,17 @@ class P2pMeetingController extends BaseApiController
     public function store(StoreP2pMeetingRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
+
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot schedule meetings. Your account is in view-only mode.', 403);
+        }
+
         $targetUserId = (string) $request->input('peer_user_id');
+
+        $targetUser = User::find($targetUserId);
+        if (! $targetUser || $targetUser->status === 'inactive') {
+            return $this->error('Selected peer is inactive.', 422);
+        }
 
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {
             return $this->error('You cannot interact with this peer.', 422);

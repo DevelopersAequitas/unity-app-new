@@ -90,6 +90,7 @@ class IntroducedPeerService
             ->where(function ($statusQuery): void {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
             })
+            ->where('status', '!=', 'inactive')
             ->with(['city', 'profilePhotoFile', 'coverPhotoFile', 'introducedBy', 'level4Category:id,name', 'businessCategory:id,name'])
             ->orderByDesc('created_at')
             ->get();
@@ -131,6 +132,7 @@ class IntroducedPeerService
             ->where(function ($statusQuery): void {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
             })
+            ->where('status', '!=', 'inactive')
             ->withCount(['introducedPeers as introduced_count' => function ($q): void {
                 $q->whereNull('deleted_at');
             }])

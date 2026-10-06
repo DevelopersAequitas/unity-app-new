@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\PostCreatedEvent;
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Resources\Ask\AskPreviewResource;
@@ -229,7 +230,17 @@ class PostController extends BaseApiController
             })
             ->where('posts.status', 'active')
             ->where('posts.is_deleted', false)
-            ->whereNull('posts.deleted_at');
+            ->whereNull('posts.deleted_at')
+            ->whereExists(function ($authorQuery): void {
+                $authorQuery->select(DB::raw(1))
+                    ->from('users as author_filter')
+                    ->whereColumn('author_filter.id', 'posts.user_id')
+                    ->where(function ($sq): void {
+                        $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
+                    })
+                    ->where('author_filter.status', '!=', 'inactive')
+                    ->whereNull('author_filter.deleted_at');
+            });
 
         $union = $postRows;
 
@@ -267,7 +278,17 @@ class PostController extends BaseApiController
                 ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
                 ->selectRaw('NULL::text as post_type')
                 ->where('impacts.status', 'approved')
-                ->whereNotNull('impacts.timeline_posted_at');
+                ->whereNotNull('impacts.timeline_posted_at')
+                ->whereExists(function ($authorQuery): void {
+                    $authorQuery->select(DB::raw(1))
+                        ->from('users as author_filter')
+                        ->whereColumn('author_filter.id', 'impacts.user_id')
+                        ->where(function ($sq): void {
+                            $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
+                        })
+                        ->where('author_filter.status', '!=', 'inactive')
+                        ->whereNull('author_filter.deleted_at');
+                });
 
             $union = $union->unionAll($impactRows);
         }
@@ -313,6 +334,16 @@ class PostController extends BaseApiController
                         ->from('posts')
                         ->whereColumn('posts.source_id', 'referrals.id')
                         ->where('posts.source_type', 'referral');
+                })
+                ->whereExists(function ($authorQuery): void {
+                    $authorQuery->select(DB::raw(1))
+                        ->from('users as author_filter')
+                        ->whereColumn('author_filter.id', 'referrals.from_user_id')
+                        ->where(function ($sq): void {
+                            $sq->whereNull('author_filter.status')->orWhere('author_filter.status', 'active');
+                        })
+                        ->where('author_filter.status', '!=', 'inactive')
+                        ->whereNull('author_filter.deleted_at');
                 });
 
             $union = $union->unionAll($referralRows);
@@ -977,7 +1008,7 @@ class PostController extends BaseApiController
 
         $user = User::query()->find($userId);
 
-        if (! $user) {
+        if (! $user || $user->status === 'inactive') {
             return $this->error('User not found', 404);
         }
 
@@ -1036,6 +1067,10 @@ class PostController extends BaseApiController
     {
         $user = Auth::user();
 
+        if ($user && $user->status === 'inactive') {
+            return $this->error('Inactive peers cannot create posts. Your account is in view-only mode.', 403);
+        }
+
         $data = $request->validate([
             'content_text' => ['nullable', 'string', 'max:5000'],
             'media' => ['nullable', 'array'],
@@ -1091,6 +1126,12 @@ class PostController extends BaseApiController
 
         $this->dispatchNewPostNotifications($notificationService, $post);
         $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null, $mentionedPeerIds);
+
+        try {
+            broadcast(new PostCreatedEvent($post))->toOthers();
+        } catch (Throwable $e) {
+            Log::warning('Failed broadcasting PostCreatedEvent: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -1318,6 +1359,10 @@ class PostController extends BaseApiController
     {
         $authUser = $request->user();
 
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot like posts. Your account is in view-only mode.', 403);
+        }
+
         $post = Post::where('id', $id)
             ->where('status', 'active')
             ->where('is_deleted', false)
@@ -1368,6 +1413,10 @@ class PostController extends BaseApiController
     public function storeComment(StorePostCommentRequest $request, string $id, NotifyUserService $notifyUserService, NotificationService $notifications, NotificationDispatchService $mentionNotifications)
     {
         $authUser = $request->user();
+
+        if ($authUser && $authUser->status === 'inactive') {
+            return $this->error('Inactive peers cannot comment on posts. Your account is in view-only mode.', 403);
+        }
 
         $post = Post::where('id', $id)
             ->where('status', 'active')

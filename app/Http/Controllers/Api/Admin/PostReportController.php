@@ -64,22 +64,22 @@ class PostReportController extends BaseApiController
             $search = trim((string) $search);
             $query->where(function ($q) use ($search) {
                 $q->where('reason', 'ILIKE', "%{$search}%")
-                  ->orWhere('admin_note', 'ILIKE', "%{$search}%")
-                  ->orWhereHas('reporter', function ($rq) use ($search) {
-                      $rq->where('display_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('first_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                         ->orWhere('email', 'ILIKE', "%{$search}%");
-                  })
-                  ->orWhereHas('post', function ($pq) use ($search) {
-                      $pq->where('content_text', 'ILIKE', "%{$search}%")
-                         ->orWhere('title', 'ILIKE', "%{$search}%")
-                         ->orWhereHas('user', function ($uq) use ($search) {
-                             $uq->where('display_name', 'ILIKE', "%{$search}%")
-                                ->orWhere('first_name', 'ILIKE', "%{$search}%")
-                                ->orWhere('last_name', 'ILIKE', "%{$search}%");
-                         });
-                  });
+                    ->orWhere('admin_note', 'ILIKE', "%{$search}%")
+                    ->orWhereHas('reporter', function ($rq) use ($search) {
+                        $rq->where('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%");
+                    })
+                    ->orWhereHas('post', function ($pq) use ($search) {
+                        $pq->where('content_text', 'ILIKE', "%{$search}%")
+                            ->orWhere('title', 'ILIKE', "%{$search}%")
+                            ->orWhereHas('user', function ($uq) use ($search) {
+                                $uq->where('display_name', 'ILIKE', "%{$search}%")
+                                    ->orWhere('first_name', 'ILIKE', "%{$search}%")
+                                    ->orWhere('last_name', 'ILIKE', "%{$search}%");
+                            });
+                    });
             });
         }
 
