@@ -135,6 +135,7 @@
 
     $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
     $asksActive = request()->routeIs('admin.asks*');
+    $plansActive = request()->routeIs('admin.unity-peers-plans.*') || request()->routeIs('admin.circle-plans.*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
@@ -1032,19 +1033,36 @@
             </li>
             @endif
 
-            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('admin.unity-peers-plans.*') ? 'active' : '' }}" href="{{ route('admin.unity-peers-plans.index') }}" title="Membership Plans">
-                    <i class="bi bi-card-checklist me-2"></i><span class="menu-text">Membership Plans</span>
-                </a>
-            </li>
-            @endif
+            @php
+                $canSeeMembershipPlans = $isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration');
+                $canSeeCirclePlans = $isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration');
+                $canSeePlans = $canSeeMembershipPlans || $canSeeCirclePlans;
+            @endphp
 
-            @if ($isSuper || $isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Membership Plans') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('admin.circle-plans.*') ? 'active' : '' }}" href="{{ route('admin.circle-plans.index') }}" title="Circle Plans">
-                    <i class="bi bi-layers me-2"></i><span class="menu-text">Circle Plans</span>
+            @if ($canSeePlans)
+            <li class="nav-item menu-parent {{ $plansActive ? 'open' : '' }}">
+                <a class="nav-link d-flex align-items-center justify-content-between {{ $plansActive ? 'active' : '' }}" href="javascript:void(0)" title="Plans">
+                    <i class="bi bi-card-checklist me-2"></i><span class="menu-text me-auto text-start">Plans</span>
+                    <i class="bi bi-chevron-right menu-arrow ms-2"></i>
                 </a>
+                <div class="collapse {{ $plansActive ? 'show' : '' }}" id="plansSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        @if ($canSeeMembershipPlans)
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.unity-peers-plans.*') ? 'active' : '' }}" href="{{ route('admin.unity-peers-plans.index') }}">
+                                <i class="bi bi-card-checklist me-1.5"></i> Membership Plans
+                            </a>
+                        </li>
+                        @endif
+                        @if ($canSeeCirclePlans)
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.circle-plans.*') ? 'active' : '' }}" href="{{ route('admin.circle-plans.index') }}">
+                                <i class="bi bi-layers me-1.5"></i> Circle Plans
+                            </a>
+                        </li>
+                        @endif
+                    </ul>
+                </div>
             </li>
             @endif
 
