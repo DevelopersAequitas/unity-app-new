@@ -14,22 +14,22 @@ use Illuminate\Support\Facades\Schema;
 class PendingRequestAdminController extends Controller
 {
     /**
-     * Authoritative breakdown and total counts across all 11 streams
+     * Authoritative breakdown and total counts computed strictly from the database
      */
     public function summary(): JsonResponse
     {
         $breakdown = [
-            'visitor_registrations' => $this->safeCount('visitor_registrations'),
-            'coin_claims' => $this->safeCount('coin_claims', 'coin_claim_requests'),
-            'circle_joining_requests' => $this->safeCount('circle_join_requests'),
-            'certifications' => $this->safeCount('certification_requests', 'certifications', 'certification_submissions'),
-            'pending_impacts' => $this->safeCount('impacts', 'life_impacts'),
-            'ad_booking_requests' => $this->safeCount('ad_bookings'),
-            'account_deletion_requests' => $this->safeCount('account_deletion_requests'),
-            'account_deletion_emails' => $this->safeCount('account_deletion_emails'),
-            'introduction_requests' => $this->safeCount('introduction_requests'),
-            'circle_peer_referrals' => $this->safeCount('circle_peer_referrals', 'peer_referrals'),
-            'event_joining_requests' => $this->safeCount('event_registrations', 'event_join_requests'),
+            'visitor_registrations' => $this->getPendingCount('visitor_registrations'),
+            'coin_claims' => $this->getPendingCount('coin_claims'),
+            'circle_joining_requests' => $this->getPendingCount('circle_join_requests'),
+            'certifications' => $this->getPendingCount('certification_requests', 'certifications'),
+            'pending_impacts' => $this->getPendingCount('impacts', 'life_impacts'),
+            'ad_booking_requests' => $this->getPendingCount('ad_bookings'),
+            'account_deletion_requests' => $this->getPendingCount('account_deletion_requests'),
+            'account_deletion_emails' => $this->getPendingCount('account_deletion_emails'),
+            'introduction_requests' => $this->getPendingCount('introduction_requests'),
+            'circle_peer_referrals' => $this->getPendingCount('circle_peer_referrals', 'peer_referrals'),
+            'event_joining_requests' => $this->getPendingCount('event_registrations', 'event_join_requests'),
         ];
 
         $total = array_sum($breakdown);
@@ -37,69 +37,78 @@ class PendingRequestAdminController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'total_pending' => $total > 0 ? $total : 58,
+                'total_pending' => $total, // Exact DB count with ZERO mock fallback
                 'breakdown' => $breakdown,
             ],
         ], 200);
     }
 
     /**
-     * Backward-compatibility alias for summary count
-     */
-    public function count(): JsonResponse
-    {
-        return $this->summary();
-    }
-
-    /**
-     * Unified list of pending requests with pagination and search
+     * Unified list of real pending requests with category filter & pagination
      */
     public function index(Request $request): JsonResponse
     {
         $category = (string) $request->input('category', 'all');
         $search = $request->input('search');
-        $searchStr = filled($search) ? trim((string) $search) : null;
-        $perPage = max(1, min((int) $request->input('per_page', 20), 100));
+        $perPage = (int) $request->input('per_page', 20);
 
+        /** @var Collection $results */
         $results = collect();
 
-        if ($category === 'all' || in_array($category, ['circle_joining_requests', 'circle_join_requests', 'circle'], true)) {
-            $results = $results->concat($this->fetchCircleJoinRequests($searchStr));
+        // 1. Circle Joining Requests
+        if ($category === 'all' || $category === 'circle_joining_requests') {
+            $results = $results->concat($this->fetchCircleJoinRequests($search));
         }
+
+        // 2. Visitor Registrations
         if ($category === 'all' || $category === 'visitor_registrations') {
-            $results = $results->concat($this->fetchVisitorRegistrations($searchStr));
+            $results = $results->concat($this->fetchVisitorRegistrations($search));
         }
-        if ($category === 'all' || in_array($category, ['coin_claims', 'coin_claim_requests'], true)) {
-            $results = $results->concat($this->fetchCoinClaims($searchStr));
+
+        // 3. Coin Claims
+        if ($category === 'all' || $category === 'coin_claims') {
+            $results = $results->concat($this->fetchCoinClaims($search));
         }
-        if ($category === 'all' || in_array($category, ['certifications', 'certification_requests', 'certification_submissions'], true)) {
-            $results = $results->concat($this->fetchCertifications($searchStr));
+
+        // 4. Certifications
+        if ($category === 'all' || $category === 'certifications') {
+            $results = $results->concat($this->fetchCertifications($search));
         }
-        if ($category === 'all' || in_array($category, ['pending_impacts', 'impacts', 'life_impacts'], true)) {
-            $results = $results->concat($this->fetchPendingImpacts($searchStr));
+
+        // 5. Pending Impacts
+        if ($category === 'all' || $category === 'pending_impacts') {
+            $results = $results->concat($this->fetchPendingImpacts($search));
         }
-        if ($category === 'all' || in_array($category, ['ad_booking_requests', 'ad_bookings'], true)) {
-            $results = $results->concat($this->fetchAdBookings($searchStr));
+
+        // 6. Ad Booking Requests
+        if ($category === 'all' || $category === 'ad_booking_requests') {
+            $results = $results->concat($this->fetchAdBookings($search));
         }
-        if ($category === 'all' || in_array($category, ['account_deletion_requests', 'account_deletions'], true)) {
-            $results = $results->concat($this->fetchAccountDeletions($searchStr));
+
+        // 7. Account Deletion Requests
+        if ($category === 'all' || $category === 'account_deletion_requests') {
+            $results = $results->concat($this->fetchAccountDeletions($search));
         }
-        if ($category === 'all' || in_array($category, ['account_deletion_emails'], true)) {
-            $results = $results->concat($this->fetchAccountDeletionEmails($searchStr));
+
+        // 8. Event Joining Requests
+        if ($category === 'all' || $category === 'event_joining_requests') {
+            $results = $results->concat($this->fetchEventJoiningRequests($search));
         }
-        if ($category === 'all' || in_array($category, ['event_joining_requests', 'event_registrations', 'event_join_requests'], true)) {
-            $results = $results->concat($this->fetchEventJoiningRequests($searchStr));
+
+        // 9. Circle Peer Referrals
+        if ($category === 'all' || $category === 'circle_peer_referrals') {
+            $results = $results->concat($this->fetchPeerReferrals($search));
         }
-        if ($category === 'all' || in_array($category, ['circle_peer_referrals', 'peer_referrals'], true)) {
-            $results = $results->concat($this->fetchPeerReferrals($searchStr));
-        }
+
+        // 10. Introduction Requests
         if ($category === 'all' || $category === 'introduction_requests') {
-            $results = $results->concat($this->fetchIntroductionRequests($searchStr));
+            $results = $results->concat($this->fetchIntroductionRequests($search));
         }
 
-        $sorted = $results->sortByDesc(fn ($item) => $item['submitted_at'] ?? '')->values();
+        // Sort chronologically by submission date
+        $sorted = $results->sortByDesc('submitted_at')->values();
 
-        $page = max(1, (int) $request->input('page', 1));
+        $page = (int) $request->input('page', 1);
         $paginated = $sorted->forPage($page, $perPage)->values();
 
         return response()->json([
@@ -119,38 +128,16 @@ class PendingRequestAdminController extends Controller
     {
         $table = $this->resolveTableForCategory($category);
         if ($table && Schema::hasTable($table)) {
-            $payload = ['status' => 'approved'];
-            if (Schema::hasColumn($table, 'updated_at')) {
-                $payload['updated_at'] = now();
-            }
-            if (Schema::hasColumn($table, 'approved_at')) {
-                $payload['approved_at'] = now();
-            }
-            if ($table === 'circle_join_requests') {
-                $payload['cd_approved_at'] = now();
-                $payload['id_approved_at'] = now();
-            }
-
-            DB::table($table)->where('id', $id)->update($payload);
+            DB::table($table)->where('id', $id)->update([
+                'status' => 'approved',
+                'updated_at' => now(),
+            ]);
         }
 
         return response()->json([
             'success' => true,
-            'message' => "Request #{$id} approved successfully.",
+            'message' => "Request #{$id} approved.",
         ], 200);
-    }
-
-    /**
-     * Backward-compatible 2-segment approve handler
-     */
-    public function approveLegacy(Request $request, string $id): JsonResponse
-    {
-        $category = (string) ($request->input('category') ?? $request->input('type') ?? '');
-        if ($category === '') {
-            $category = $this->detectCategoryForId($id) ?? 'circle_joining_requests';
-        }
-
-        return $this->approve($request, $category, $id);
     }
 
     /**
@@ -162,27 +149,10 @@ class PendingRequestAdminController extends Controller
         $table = $this->resolveTableForCategory($category);
 
         if ($table && Schema::hasTable($table)) {
-            $payload = ['status' => 'rejected'];
-            if (Schema::hasColumn($table, 'updated_at')) {
-                $payload['updated_at'] = now();
-            }
-            if (Schema::hasColumn($table, 'rejected_at')) {
-                $payload['rejected_at'] = now();
-            }
+            $payload = ['status' => 'rejected', 'updated_at' => now()];
             if (Schema::hasColumn($table, 'rejection_reason')) {
                 $payload['rejection_reason'] = $reason;
-            } elseif (Schema::hasColumn($table, 'admin_notes')) {
-                $payload['admin_notes'] = $reason;
-            } elseif (Schema::hasColumn($table, 'review_remarks')) {
-                $payload['review_remarks'] = $reason;
             }
-
-            if ($table === 'circle_join_requests') {
-                $payload['status'] = 'rejected_by_cd';
-                $payload['cd_rejected_at'] = now();
-                $payload['cd_rejection_reason'] = $reason;
-            }
-
             DB::table($table)->where('id', $id)->update($payload);
         }
 
@@ -193,81 +163,51 @@ class PendingRequestAdminController extends Controller
     }
 
     /**
-     * Backward-compatible 2-segment reject handler
+     * Backward-compatible legacy approve handler
+     */
+    public function approveLegacy(Request $request, string $id): JsonResponse
+    {
+        $category = (string) ($request->input('category') ?? $request->input('type') ?? 'circle_joining_requests');
+
+        return $this->approve($request, $category, $id);
+    }
+
+    /**
+     * Backward-compatible legacy reject handler
      */
     public function rejectLegacy(Request $request, string $id): JsonResponse
     {
-        $category = (string) ($request->input('category') ?? $request->input('type') ?? '');
-        if ($category === '') {
-            $category = $this->detectCategoryForId($id) ?? 'circle_joining_requests';
-        }
+        $category = (string) ($request->input('category') ?? $request->input('type') ?? 'circle_joining_requests');
 
         return $this->reject($request, $category, $id);
     }
 
-    // --- Helper Queries ---
+    // --- Database Aggregations (Zero Mock Data) ---
 
-    private function safeCount(string ...$tables): int
+    private function getPendingCount(string ...$tables): int
     {
-        foreach ($tables as $table) {
-            if (Schema::hasTable($table)) {
-                $q = DB::table($table);
-                if (Schema::hasColumn($table, 'status')) {
-                    if ($table === 'circle_join_requests') {
-                        return (clone $q)->where(function ($sq) {
-                            $sq->where('status', 'pending')
-                                ->orWhere('status', 'like', 'pending_%')
-                                ->orWhereNull('status');
-                        })->count();
-                    }
-                    if ($table === 'certification_submissions') {
-                        return (clone $q)->whereIn('status', ['pending', 'new'])->count();
-                    }
-
-                    return (clone $q)->where('status', 'pending')->count();
+        foreach ($tables as $tbl) {
+            if (Schema::hasTable($tbl)) {
+                $q = DB::table($tbl);
+                if (Schema::hasColumn($tbl, 'status')) {
+                    return $q->where('status', 'pending')->count();
                 }
 
                 return $q->count();
             }
         }
 
-        return 0;
+        return 0; // Exactly 0 if table does not exist or has 0 rows
     }
 
     private function resolveTableForCategory(string $category): ?string
     {
         $map = [
-            'circle_joining_requests' => Schema::hasTable('circle_join_requests') ? 'circle_join_requests' : null,
-            'circle_join_requests' => Schema::hasTable('circle_join_requests') ? 'circle_join_requests' : null,
-            'visitor_registrations' => Schema::hasTable('visitor_registrations') ? 'visitor_registrations' : null,
-            'coin_claims' => Schema::hasTable('coin_claims') ? 'coin_claims' : (Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : null),
-            'coin_claim_requests' => Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : null,
-            'certifications' => Schema::hasTable('certification_requests') ? 'certification_requests' : (Schema::hasTable('certifications') ? 'certifications' : (Schema::hasTable('certification_submissions') ? 'certification_submissions' : null)),
-            'certification_requests' => Schema::hasTable('certification_requests') ? 'certification_requests' : null,
-            'certification_submissions' => Schema::hasTable('certification_submissions') ? 'certification_submissions' : null,
-            'pending_impacts' => Schema::hasTable('impacts') ? 'impacts' : (Schema::hasTable('life_impacts') ? 'life_impacts' : null),
-            'impacts' => Schema::hasTable('impacts') ? 'impacts' : null,
-            'ad_booking_requests' => Schema::hasTable('ad_bookings') ? 'ad_bookings' : null,
-            'ad_bookings' => Schema::hasTable('ad_bookings') ? 'ad_bookings' : null,
-            'account_deletion_requests' => Schema::hasTable('account_deletion_requests') ? 'account_deletion_requests' : null,
-            'account_deletion_emails' => Schema::hasTable('account_deletion_emails') ? 'account_deletion_emails' : null,
-            'circle_peer_referrals' => Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : null),
-            'peer_referrals' => Schema::hasTable('peer_referrals') ? 'peer_referrals' : null,
-            'event_joining_requests' => Schema::hasTable('event_registrations') ? 'event_registrations' : (Schema::hasTable('event_join_requests') ? 'event_join_requests' : null),
-            'event_registrations' => Schema::hasTable('event_registrations') ? 'event_registrations' : null,
-            'introduction_requests' => Schema::hasTable('introduction_requests') ? 'introduction_requests' : null,
-        ];
-
-        return $map[$category] ?? null;
-    }
-
-    private function detectCategoryForId(string $id): ?string
-    {
-        $tables = [
             'circle_joining_requests' => 'circle_join_requests',
+            'circle_join_requests' => 'circle_join_requests',
             'visitor_registrations' => 'visitor_registrations',
-            'coin_claims' => Schema::hasTable('coin_claims') ? 'coin_claims' : 'coin_claim_requests',
-            'certifications' => Schema::hasTable('certification_requests') ? 'certification_requests' : (Schema::hasTable('certifications') ? 'certifications' : 'certification_submissions'),
+            'coin_claims' => 'coin_claims',
+            'certifications' => Schema::hasTable('certification_requests') ? 'certification_requests' : 'certifications',
             'pending_impacts' => Schema::hasTable('impacts') ? 'impacts' : 'life_impacts',
             'ad_booking_requests' => 'ad_bookings',
             'account_deletion_requests' => 'account_deletion_requests',
@@ -276,34 +216,7 @@ class PendingRequestAdminController extends Controller
             'introduction_requests' => 'introduction_requests',
         ];
 
-        foreach ($tables as $cat => $tbl) {
-            if (Schema::hasTable($tbl) && DB::table($tbl)->where('id', $id)->exists()) {
-                return $cat;
-            }
-        }
-
-        return null;
-    }
-
-    private function resolveApplicantName(object $row, string $fallback = 'Peer Member'): string
-    {
-        $display = trim((string) ($row->display_name ?? ''));
-        if ($display !== '') {
-            return $display;
-        }
-
-        $first = trim((string) ($row->first_name ?? ''));
-        $last = trim((string) ($row->last_name ?? ''));
-        $full = trim($first.' '.$last);
-        if ($full !== '') {
-            return $full;
-        }
-
-        if (filled($row->applicant_email ?? null)) {
-            return (string) $row->applicant_email;
-        }
-
-        return $fallback;
+        return $map[$category] ?? null;
     }
 
     private function fetchCircleJoinRequests(?string $search): Collection
@@ -315,47 +228,36 @@ class PendingRequestAdminController extends Controller
         $query = DB::table('circle_join_requests')
             ->leftJoin('users', 'circle_join_requests.user_id', '=', 'users.id')
             ->leftJoin('circles', 'circle_join_requests.circle_id', '=', 'circles.id')
-            ->where(function ($q) {
-                $q->where('circle_join_requests.status', 'pending')
-                    ->orWhere('circle_join_requests.status', 'like', 'pending_%')
-                    ->orWhereNull('circle_join_requests.status');
-            });
+            ->where('circle_join_requests.status', 'pending');
 
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.email) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(circles.name) LIKE ?', [$like]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
             });
         }
 
         return $query->select(
             'circle_join_requests.id',
             'circle_join_requests.created_at',
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
+            'circle_join_requests.notes',
+            'users.name as applicant_name',
             'users.email as applicant_email',
             'users.phone as applicant_phone',
             'users.company_name',
             'circles.name as target_entity'
-        )
-            ->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'circle_joining_requests',
-                'category_label' => 'Circle Joining Request',
-                'applicant_name' => $this->resolveApplicantName($r, 'Applicant Peer'),
-                'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Independent Member',
-                'target_entity' => $r->target_entity ?? 'Assigned Circle',
-                'details' => 'Application to join chartered chapter roster.',
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
+        )->get()->map(fn ($r) => [
+            'id' => (string) $r->id,
+            'category' => 'circle_joining_requests',
+            'category_label' => 'Circle Joining Request',
+            'applicant_name' => $r->applicant_name ?? 'Registered Peer',
+            'applicant_email' => $r->applicant_email ?? '',
+            'applicant_phone' => $r->applicant_phone ?? '',
+            'company_name' => $r->company_name ?? 'Independent Member',
+            'target_entity' => $r->target_entity ?? 'Assigned Circle',
+            'details' => $r->notes ?? 'Application to join chartered circle roster.',
+            'submitted_at' => $r->created_at ?? now()->toISOString(),
+        ]);
     }
 
     private function fetchVisitorRegistrations(?string $search): Collection
@@ -364,36 +266,94 @@ class PendingRequestAdminController extends Controller
             return collect();
         }
 
-        $query = DB::table('visitor_registrations')
-            ->where('status', 'pending');
-
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(visitor_full_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(visitor_email) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(event_name) LIKE ?', [$like]);
-            });
+        $query = DB::table('visitor_registrations')->where('status', 'pending');
+        if ($search) {
+            $query->where('name', 'like', "%{$search}%");
         }
 
-        return $query->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'visitor_registrations',
-                'category_label' => 'Visitor Registration',
-                'applicant_name' => $r->visitor_full_name ?? $r->visitor_name ?? $r->name ?? 'Visitor',
-                'applicant_email' => $r->visitor_email ?? $r->email ?? '',
-                'applicant_phone' => $r->visitor_mobile ?? $r->phone ?? '',
-                'company_name' => $r->visitor_business ?? $r->company ?? 'Guest',
-                'target_entity' => $r->event_name ?? $r->meeting_name ?? 'Chapter Meeting',
-                'details' => $r->note ?? 'Guest visitor registration awaiting entry pass clearance.',
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
+        return $query->get()->map(fn ($r) => [
+            'id' => (string) $r->id,
+            'category' => 'visitor_registrations',
+            'category_label' => 'Visitor Registration',
+            'applicant_name' => $r->name ?? $r->visitor_name ?? 'Guest',
+            'applicant_email' => $r->email ?? '',
+            'applicant_phone' => $r->phone ?? '',
+            'company_name' => $r->company ?? 'Guest Visitor',
+            'target_entity' => $r->meeting_name ?? 'Chapter Meeting',
+            'details' => $r->notes ?? 'Visitor pass clearance request.',
+            'submitted_at' => $r->created_at ?? now()->toISOString(),
+        ]);
     }
 
     private function fetchCoinClaims(?string $search): Collection
     {
-        $table = Schema::hasTable('coin_claims') ? 'coin_claims' : (Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : null);
+        if (! Schema::hasTable('coin_claims')) {
+            return collect();
+        }
+
+        $query = DB::table('coin_claims')
+            ->leftJoin('users', 'coin_claims.user_id', '=', 'users.id')
+            ->where('coin_claims.status', 'pending');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->select('coin_claims.*', 'users.name as applicant_name', 'users.email as applicant_email', 'users.company_name')
+            ->get()->map(fn ($r) => [
+                'id' => (string) $r->id,
+                'category' => 'coin_claims',
+                'category_label' => 'Coin Claim',
+                'applicant_name' => $r->applicant_name ?? 'Member',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => '',
+                'company_name' => $r->company_name ?? 'Member',
+                'target_entity' => ($r->coins_amount ?? $r->amount ?? 0).' Coins',
+                'details' => $r->reason ?? 'Member reward disbursement request.',
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+            ]);
+    }
+
+    private function fetchEventJoiningRequests(?string $search): Collection
+    {
+        $table = Schema::hasTable('event_registrations') ? 'event_registrations' : (Schema::hasTable('event_join_requests') ? 'event_join_requests' : null);
+        if (! $table) {
+            return collect();
+        }
+
+        $query = DB::table($table)
+            ->leftJoin('users', "{$table}.user_id", '=', 'users.id')
+            ->leftJoin('events', "{$table}.event_id", '=', 'events.id')
+            ->where("{$table}.status", 'pending');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->select("{$table}.*", 'users.name as applicant_name', 'users.email as applicant_email', 'events.title as event_title')
+            ->get()->map(fn ($r) => [
+                'id' => (string) $r->id,
+                'category' => 'event_joining_requests',
+                'category_label' => 'Event Joining Request',
+                'applicant_name' => $r->applicant_name ?? 'Attendee',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => '',
+                'company_name' => 'Registered Member',
+                'target_entity' => $r->event_title ?? 'Scheduled Event',
+                'details' => $r->notes ?? 'RSVP pass clearance request.',
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+            ]);
+    }
+
+    private function fetchCertifications(?string $search): Collection
+    {
+        $table = Schema::hasTable('certification_requests') ? 'certification_requests' : (Schema::hasTable('certifications') ? 'certifications' : null);
         if (! $table) {
             return collect();
         }
@@ -402,89 +362,24 @@ class PendingRequestAdminController extends Controller
             ->leftJoin('users', "{$table}.user_id", '=', 'users.id')
             ->where("{$table}.status", 'pending');
 
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like, $table) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.email) LIKE ?', [$like])
-                    ->orWhereRaw("LOWER({$table}.activity_code) LIKE ?", [$like]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
             });
         }
 
-        return $query->select(
-            "{$table}.*",
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'users.company_name'
-        )
-            ->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'coin_claims',
-                'category_label' => 'Coin Claim',
-                'applicant_name' => $this->resolveApplicantName($r, 'Peer Member'),
-                'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Member',
-                'target_entity' => ($r->coins_awarded ?? $r->coins_amount ?? $r->amount ?? 'Reward').' Coins',
-                'details' => 'Member coin reward disbursement claim: '.($r->activity_code ?? 'Reward'),
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
-    }
-
-    private function fetchCertifications(?string $search): Collection
-    {
-        $table = Schema::hasTable('certification_requests')
-            ? 'certification_requests'
-            : (Schema::hasTable('certifications') ? 'certifications' : (Schema::hasTable('certification_submissions') ? 'certification_submissions' : null));
-
-        if (! $table) {
-            return collect();
-        }
-
-        $query = DB::table($table)
-            ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
-
-        if ($table === 'certification_submissions') {
-            $query->whereIn("{$table}.status", ['pending', 'new']);
-        } else {
-            $query->where("{$table}.status", 'pending');
-        }
-
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.email) LIKE ?', [$like]);
-            });
-        }
-
-        return $query->select(
-            "{$table}.*",
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone'
-        )
-            ->get()
-            ->map(fn ($r) => [
+        return $query->select("{$table}.*", 'users.name as applicant_name', 'users.email as applicant_email')
+            ->get()->map(fn ($r) => [
                 'id' => (string) $r->id,
                 'category' => 'certifications',
                 'category_label' => 'Certification Clearance',
-                'applicant_name' => $r->full_name ?? $this->resolveApplicantName($r, 'Certified Peer'),
-                'applicant_email' => $r->email ?? $r->applicant_email ?? '',
-                'applicant_phone' => $r->contact_no ?? $r->applicant_phone ?? '',
-                'company_name' => $r->business_name ?? 'Member',
-                'target_entity' => $r->certification_title ?? $r->certificate_title ?? ucfirst($r->certification_type ?? 'Executive').' Certificate',
-                'details' => 'Credential verification and certificate issuance.',
+                'applicant_name' => $r->applicant_name ?? 'Candidate',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => '',
+                'company_name' => 'Member',
+                'target_entity' => $r->certificate_title ?? 'Certificate Verification',
+                'details' => $r->description ?? 'Credential verification review.',
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -500,36 +395,24 @@ class PendingRequestAdminController extends Controller
             ->leftJoin('users', "{$table}.user_id", '=', 'users.id')
             ->where("{$table}.status", 'pending');
 
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.email) LIKE ?', [$like]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
             });
         }
 
-        return $query->select(
-            "{$table}.*",
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'users.company_name'
-        )
-            ->get()
-            ->map(fn ($r) => [
+        return $query->select("{$table}.*", 'users.name as applicant_name', 'users.email as applicant_email')
+            ->get()->map(fn ($r) => [
                 'id' => (string) $r->id,
                 'category' => 'pending_impacts',
                 'category_label' => 'Life Impact Proof',
-                'applicant_name' => $this->resolveApplicantName($r, 'Peer Contributor'),
+                'applicant_name' => $r->applicant_name ?? 'Contributor',
                 'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Member Partner',
-                'target_entity' => filled($r->deal_value ?? null) ? ('₹'.number_format((float) $r->deal_value)) : ($r->action ?? 'Life Impact'),
-                'details' => $r->story_to_share ?? 'Life impact bilateral contract & GST validation.',
+                'applicant_phone' => '',
+                'company_name' => 'Member Partner',
+                'target_entity' => '₹'.number_format((float) ($r->amount ?? 0)),
+                'details' => $r->description ?? 'Life impact contract validation.',
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -544,36 +427,24 @@ class PendingRequestAdminController extends Controller
             ->leftJoin('users', 'ad_bookings.user_id', '=', 'users.id')
             ->where('ad_bookings.status', 'pending');
 
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(ad_bookings.title) LIKE ?', [$like]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
             });
         }
 
-        return $query->select(
-            'ad_bookings.*',
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'users.company_name'
-        )
-            ->get()
-            ->map(fn ($r) => [
+        return $query->select('ad_bookings.*', 'users.name as applicant_name', 'users.email as applicant_email')
+            ->get()->map(fn ($r) => [
                 'id' => (string) $r->id,
                 'category' => 'ad_booking_requests',
                 'category_label' => 'Ad Booking Request',
-                'applicant_name' => $this->resolveApplicantName($r, 'Brand Partner'),
+                'applicant_name' => $r->applicant_name ?? 'Advertiser',
                 'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Partner Advertiser',
-                'target_entity' => $r->title ?? $r->placement ?? 'App Banner Spot',
-                'details' => 'Promotional display booking authorization: '.($r->page_name ?? 'App Feed'),
+                'applicant_phone' => '',
+                'company_name' => 'Brand Partner',
+                'target_entity' => $r->placement ?? 'Banner Ad Slot',
+                'details' => $r->notes ?? 'Ad booking schedule request.',
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
@@ -588,147 +459,56 @@ class PendingRequestAdminController extends Controller
             ->leftJoin('users', 'account_deletion_requests.user_id', '=', 'users.id')
             ->where('account_deletion_requests.status', 'pending');
 
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.email) LIKE ?', [$like]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%");
             });
         }
 
-        return $query->select(
-            'account_deletion_requests.*',
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'users.company_name'
-        )
-            ->get()
-            ->map(fn ($r) => [
+        return $query->select('account_deletion_requests.*', 'users.name as applicant_name', 'users.email as applicant_email')
+            ->get()->map(fn ($r) => [
                 'id' => (string) $r->id,
                 'category' => 'account_deletion_requests',
                 'category_label' => 'Account Deletion Request',
-                'applicant_name' => $this->resolveApplicantName($r, 'User'),
+                'applicant_name' => $r->applicant_name ?? 'User',
                 'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Registered Member',
-                'target_entity' => 'Account Termination',
-                'details' => $r->reason ?? 'User-requested data deletion.',
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
-    }
-
-    private function fetchAccountDeletionEmails(?string $search): Collection
-    {
-        if (! Schema::hasTable('account_deletion_emails')) {
-            return collect();
-        }
-
-        $query = DB::table('account_deletion_emails')
-            ->where('status', 'pending');
-
-        return $query->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'account_deletion_emails',
-                'category_label' => 'Account Deletion Email',
-                'applicant_name' => $r->email ?? 'User',
-                'applicant_email' => $r->email ?? '',
                 'applicant_phone' => '',
-                'company_name' => 'Registered Member',
-                'target_entity' => 'Account Termination Email',
-                'details' => 'Account deletion email verification.',
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
-    }
-
-    private function fetchEventJoiningRequests(?string $search): Collection
-    {
-        $table = Schema::hasTable('event_registrations')
-            ? 'event_registrations'
-            : (Schema::hasTable('event_join_requests') ? 'event_join_requests' : null);
-
-        if (! $table) {
-            return collect();
-        }
-
-        $query = DB::table($table)
-            ->leftJoin('users', "{$table}.user_id", '=', 'users.id')
-            ->leftJoin('events', "{$table}.event_id", '=', 'events.id')
-            ->where("{$table}.status", 'pending');
-
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(users.first_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.last_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(users.display_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(events.title) LIKE ?', [$like]);
-            });
-        }
-
-        return $query->select(
-            "{$table}.*",
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'events.title as event_title'
-        )
-            ->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'event_joining_requests',
-                'category_label' => 'Event Joining Request',
-                'applicant_name' => $r->visitor_name ?? $this->resolveApplicantName($r, 'Attendee'),
-                'applicant_email' => $r->visitor_email ?? $r->applicant_email ?? '',
-                'applicant_phone' => $r->visitor_phone ?? $r->applicant_phone ?? '',
-                'company_name' => $r->visitor_company ?? 'Registered Member',
-                'target_entity' => $r->event_title ?? 'Upcoming Conclave',
-                'details' => 'Pass clearance and RSVP seat allocation.',
+                'company_name' => 'Member',
+                'target_entity' => 'Account Closure',
+                'details' => $r->reason ?? 'User deletion request.',
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
             ]);
     }
 
     private function fetchPeerReferrals(?string $search): Collection
     {
-        $table = Schema::hasTable('circle_peer_referrals')
-            ? 'circle_peer_referrals'
-            : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : null);
-
+        $table = Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : null);
         if (! $table) {
             return collect();
         }
 
-        $query = DB::table($table)
-            ->where('status', 'pending');
+        $query = DB::table($table)->where('status', 'pending');
 
-        if ($search !== null && $search !== '') {
-            $like = '%'.strtolower($search).'%';
-            $query->where(function ($sq) use ($like) {
-                $sq->whereRaw('LOWER(referred_name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(referred_email) LIKE ?', [$like]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('referred_name', 'like', "%{$search}%")
+                    ->orWhere('referred_email', 'like', "%{$search}%");
             });
         }
 
-        return $query->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'circle_peer_referrals',
-                'category_label' => 'Circle Peer Referral',
-                'applicant_name' => $r->referred_name ?? 'Candidate',
-                'applicant_email' => $r->referred_email ?? '',
-                'applicant_phone' => $r->referred_phone ?? '',
-                'company_name' => $r->referred_company_name ?? $r->referred_company ?? 'Referred Peer',
-                'target_entity' => 'Peer Recommendation',
-                'details' => 'Circle candidate peer referral clearance.',
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
+        return $query->get()->map(fn ($r) => [
+            'id' => (string) $r->id,
+            'category' => 'circle_peer_referrals',
+            'category_label' => 'Circle Peer Referral',
+            'applicant_name' => $r->referred_name ?? 'Referred Candidate',
+            'applicant_email' => $r->referred_email ?? '',
+            'applicant_phone' => $r->referred_phone ?? '',
+            'company_name' => $r->referred_company ?? 'Candidate',
+            'target_entity' => 'Peer Recommendation',
+            'details' => $r->notes ?? 'Circle referral clearance.',
+            'submitted_at' => $r->created_at ?? now()->toISOString(),
+        ]);
     }
 
     private function fetchIntroductionRequests(?string $search): Collection
@@ -737,31 +517,27 @@ class PendingRequestAdminController extends Controller
             return collect();
         }
 
-        $query = DB::table('introduction_requests')
-            ->leftJoin('users', 'introduction_requests.requester_id', '=', 'users.id')
-            ->where('introduction_requests.status', 'pending');
+        $query = DB::table('introduction_requests')->where('status', 'pending');
 
-        return $query->select(
-            'introduction_requests.*',
-            'users.first_name',
-            'users.last_name',
-            'users.display_name',
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'users.company_name'
-        )
-            ->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'introduction_requests',
-                'category_label' => 'Introduction Request',
-                'applicant_name' => $this->resolveApplicantName($r, 'Peer Requester'),
-                'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Member',
-                'target_entity' => 'Peer Connection',
-                'details' => $r->admin_note ?? 'Bilateral peer introduction bridge request.',
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('requester_name', 'like', "%{$search}%")
+                    ->orWhere('requester_email', 'like', "%{$search}%")
+                    ->orWhere('target_peer_name', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->get()->map(fn ($r) => [
+            'id' => (string) $r->id,
+            'category' => 'introduction_requests',
+            'category_label' => 'Introduction Request',
+            'applicant_name' => $r->requester_name ?? 'Requester Peer',
+            'applicant_email' => $r->requester_email ?? '',
+            'applicant_phone' => '',
+            'company_name' => 'Member',
+            'target_entity' => $r->target_peer_name ?? 'Peer Intro',
+            'details' => $r->notes ?? 'Introduction request clearance.',
+            'submitted_at' => $r->created_at ?? now()->toISOString(),
+        ]);
     }
 }
