@@ -1549,9 +1549,12 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::post('post-reports/{id}/resolve', [App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
     Route::post('post-reports/{id}/dismiss', [App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
 
-    // Consolidated Pending Moderation Queue
+    // Consolidated Pending Moderation Queue (All 11 Streams)
     Route::get('pending-requests', [PendingRequestAdminController::class, 'index']);
-    Route::get('pending-requests/count', [PendingRequestAdminController::class, 'count']);
-    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approve']);
-    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'reject']);
+    Route::get('pending-requests/summary', [PendingRequestAdminController::class, 'summary']);
+    Route::get('pending-requests/count', [PendingRequestAdminController::class, 'summary']);
+    Route::post('pending-requests/{category}/{id}/approve', [PendingRequestAdminController::class, 'approve']);
+    Route::post('pending-requests/{category}/{id}/reject', [PendingRequestAdminController::class, 'reject']);
+    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approveLegacy']);
+    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'rejectLegacy']);
 });
