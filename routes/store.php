@@ -62,37 +62,46 @@ Route::prefix('v1')->group(function () {
         });
 
         // Cart APIs
-        Route::prefix('cart')->group(function () {
+        $cartGroup = function () {
             Route::get('/', [CartController::class, 'index']);
             Route::post('items', [CartController::class, 'addItem']);
             Route::patch('items/{id}', [CartController::class, 'updateItem'])->whereUuid('id');
             Route::delete('items/{id}', [CartController::class, 'removeItem'])->whereUuid('id');
             Route::post('validate', [CartController::class, 'validateCart']);
-        });
+        };
+        Route::prefix('cart')->group($cartGroup);
+        Route::prefix('store/cart')->group($cartGroup);
 
         // Address APIs
-        Route::prefix('addresses')->group(function () {
+        $addressGroup = function () {
             Route::get('/', [AddressController::class, 'index']);
             Route::post('/', [AddressController::class, 'store']);
             Route::get('/{id}', [AddressController::class, 'show'])->whereUuid('id');
             Route::put('/{id}', [AddressController::class, 'update'])->whereUuid('id');
             Route::delete('/{id}', [AddressController::class, 'destroy'])->whereUuid('id');
-        });
+        };
+        Route::prefix('addresses')->group($addressGroup);
+        Route::prefix('store/addresses')->group($addressGroup);
 
         // Serviceability & Pickup
         Route::post('serviceability/check', [ServiceabilityController::class, 'check']);
+        Route::post('store/serviceability/check', [ServiceabilityController::class, 'check']);
         Route::get('pickup-points', [ServiceabilityController::class, 'pickupPoints']);
+        Route::get('store/pickup-points', [ServiceabilityController::class, 'pickupPoints']);
         Route::get('pickup-points/{id}', [ServiceabilityController::class, 'pickupPointDetails'])->whereUuid('id');
+        Route::get('store/pickup-points/{id}', [ServiceabilityController::class, 'pickupPointDetails'])->whereUuid('id');
 
         // Checkout & OTP
-        Route::prefix('checkout')->group(function () {
+        $checkoutGroup = function () {
             Route::post('quote', [CheckoutController::class, 'createQuote']);
             Route::post('otp/send', [CheckoutController::class, 'sendOtp']);
             Route::post('otp/verify', [CheckoutController::class, 'verifyOtp']);
-        });
+        };
+        Route::prefix('checkout')->group($checkoutGroup);
+        Route::prefix('store/checkout')->group($checkoutGroup);
 
         // Orders & Tracking & Cancel
-        Route::prefix('orders')->group(function () {
+        $orderGroup = function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::post('/', [OrderController::class, 'placeOrder']);
             Route::get('/{id}', [OrderController::class, 'show'])->whereUuid('id');
@@ -101,15 +110,20 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}/receipt', [OrderController::class, 'receipt'])->whereUuid('id');
             Route::get('/{id}/tracking', [OrderController::class, 'tracking'])->whereUuid('id');
             Route::post('/{id}/return', [ReturnController::class, 'requestReturn'])->whereUuid('id');
-        });
+        };
+        Route::prefix('orders')->group($orderGroup);
+        Route::prefix('store/orders')->group($orderGroup);
 
         // Returns & Refunds
-        Route::prefix('returns')->group(function () {
+        $returnGroup = function () {
             Route::get('/', [ReturnController::class, 'index']);
             Route::get('/{id}', [ReturnController::class, 'show'])->whereUuid('id');
             Route::post('/{id}/cancel', [ReturnController::class, 'cancel'])->whereUuid('id');
-        });
+        };
+        Route::prefix('returns')->group($returnGroup);
+        Route::prefix('store/returns')->group($returnGroup);
         Route::get('refunds/{id}', [ReturnController::class, 'showRefund'])->whereUuid('id');
+        Route::get('store/refunds/{id}', [ReturnController::class, 'showRefund'])->whereUuid('id');
 
         // Membership (Coin Renewal)
         Route::prefix('membership')->group(function () {
