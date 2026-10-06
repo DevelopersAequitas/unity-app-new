@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Events\PendingRequestChangedEvent;
+use App\Http\Controllers\Controller;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,6 +59,10 @@ class PendingRequestAdminController extends Controller
     public function index(Request $request): JsonResponse
     {
         $category = (string) $request->input('category', 'all');
+        $status = strtolower((string) $request->input('status', 'pending'));
+        if (! in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
+            $status = 'pending';
+        }
         $search = $request->input('search');
         $perPage = (int) $request->input('per_page', 20);
 
@@ -67,52 +71,52 @@ class PendingRequestAdminController extends Controller
 
         // 1. Circle Joining Requests
         if ($category === 'all' || $category === 'circle_joining_requests') {
-            $results = $results->concat($this->fetchCircleJoinRequests($search));
+            $results = $results->concat($this->fetchCircleJoinRequests($search, $status));
         }
 
         // 2. Visitor Registrations
         if ($category === 'all' || $category === 'visitor_registrations') {
-            $results = $results->concat($this->fetchVisitorRegistrations($search));
+            $results = $results->concat($this->fetchVisitorRegistrations($search, $status));
         }
 
         // 3. Coin Claims
         if ($category === 'all' || $category === 'coin_claims') {
-            $results = $results->concat($this->fetchCoinClaims($search));
+            $results = $results->concat($this->fetchCoinClaims($search, $status));
         }
 
         // 4. Certifications
         if ($category === 'all' || $category === 'certifications') {
-            $results = $results->concat($this->fetchCertifications($search));
+            $results = $results->concat($this->fetchCertifications($search, $status));
         }
 
         // 5. Pending Impacts
         if ($category === 'all' || $category === 'pending_impacts') {
-            $results = $results->concat($this->fetchPendingImpacts($search));
+            $results = $results->concat($this->fetchPendingImpacts($search, $status));
         }
 
         // 6. Ad Booking Requests
         if ($category === 'all' || $category === 'ad_booking_requests') {
-            $results = $results->concat($this->fetchAdBookings($search));
+            $results = $results->concat($this->fetchAdBookings($search, $status));
         }
 
         // 7. Account Deletion Requests
         if ($category === 'all' || $category === 'account_deletion_requests') {
-            $results = $results->concat($this->fetchAccountDeletions($search));
+            $results = $results->concat($this->fetchAccountDeletions($search, $status));
         }
 
         // 8. Event Joining Requests
         if ($category === 'all' || $category === 'event_joining_requests') {
-            $results = $results->concat($this->fetchEventJoiningRequests($search));
+            $results = $results->concat($this->fetchEventJoiningRequests($search, $status));
         }
 
         // 9. Circle Peer Referrals
         if ($category === 'all' || $category === 'circle_peer_referrals') {
-            $results = $results->concat($this->fetchPeerReferrals($search));
+            $results = $results->concat($this->fetchPeerReferrals($search, $status));
         }
 
         // 10. Introduction Requests
         if ($category === 'all' || $category === 'introduction_requests') {
-            $results = $results->concat($this->fetchIntroductionRequests($search));
+            $results = $results->concat($this->fetchIntroductionRequests($search, $status));
         }
 
         // Sort chronologically by submission date
@@ -475,7 +479,7 @@ class PendingRequestAdminController extends Controller
             if (Schema::hasTable($tbl)) {
                 $q = DB::table($tbl);
                 $cnt = Schema::hasColumn($tbl, 'status')
-                    ? $q->where('status', 'pending')->count()
+                    ? $q->whereRaw("LOWER(status) = 'pending'")->count()
                     : $q->count();
 
                 if ($cnt > 0) {
@@ -498,7 +502,7 @@ class PendingRequestAdminController extends Controller
         // 1. Prefer table that has active pending records
         foreach ($candidates as $tbl) {
             if (Schema::hasTable($tbl)) {
-                if (Schema::hasColumn($tbl, 'status') && DB::table($tbl)->where('status', 'pending')->exists()) {
+                if (Schema::hasColumn($tbl, 'status') && DB::table($tbl)->whereRaw("LOWER(status) = 'pending'")->exists()) {
                     return $tbl;
                 }
             }
@@ -584,7 +588,7 @@ class PendingRequestAdminController extends Controller
         return (string) $raw;
     }
 
-    private function fetchCircleJoinRequests(?string $search): Collection
+    private function fetchCircleJoinRequests(?string $search, string $status = 'pending'): Collection
     {
         if (! Schema::hasTable('circle_join_requests')) {
             return collect();
@@ -592,8 +596,11 @@ class PendingRequestAdminController extends Controller
 
         $query = DB::table('circle_join_requests')
             ->leftJoin('users', 'circle_join_requests.user_id', '=', 'users.id')
-            ->leftJoin('circles', 'circle_join_requests.circle_id', '=', 'circles.id')
-            ->where('circle_join_requests.status', 'pending');
+            ->leftJoin('circles', 'circle_join_requests.circle_id', '=', 'circles.id');
+
+        if ($status !== 'all' && Schema::hasColumn('circle_join_requests', 'status')) {
+            $query->whereRaw('LOWER(circle_join_requests.status) = ?', [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -615,6 +622,9 @@ class PendingRequestAdminController extends Controller
             'circles.name as target_entity',
         ];
 
+        if (Schema::hasColumn('circle_join_requests', 'status')) {
+            $selectCols[] = 'circle_join_requests.status';
+        }
         if (Schema::hasColumn('circle_join_requests', 'reason_for_joining')) {
             $selectCols[] = 'circle_join_requests.reason_for_joining';
         }
@@ -622,7 +632,7 @@ class PendingRequestAdminController extends Controller
             $selectCols[] = 'circle_join_requests.description';
         }
 
-        return $query->select($selectCols)->get()->map(function ($r) {
+        return $query->select($selectCols)->get()->map(function ($r) use ($status) {
             $descCandidate = $r->description ?? ($r->reason_for_joining ?? ($r->notes ?? null));
 
             return [
@@ -636,25 +646,51 @@ class PendingRequestAdminController extends Controller
                 'target_entity' => $r->target_entity ?? 'Assigned Circle',
                 'details' => $this->formatDetailsText($descCandidate, 'Application to join chartered circle roster.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
             ];
         });
     }
 
-    private function fetchVisitorRegistrations(?string $search): Collection
+    private function fetchVisitorRegistrations(?string $search, string $status = 'pending'): Collection
     {
         if (! Schema::hasTable('visitor_registrations')) {
             return collect();
         }
 
-        $query = DB::table('visitor_registrations')->where('status', 'pending');
-        if ($search) {
-            $query->where('name', 'like', "%{$search}%");
+        $query = DB::table('visitor_registrations');
+
+        if ($status !== 'all' && Schema::hasColumn('visitor_registrations', 'status')) {
+            $query->whereRaw('LOWER(status) = ?', [$status]);
         }
 
-        return $query->get()->map(function ($r) {
-            $candidateName = isset($r->first_name) ? trim(($r->first_name ?? '').' '.($r->last_name ?? '')) : null;
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                if (Schema::hasColumn('visitor_registrations', 'name')) {
+                    $q->orWhere('name', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'visitor_name')) {
+                    $q->orWhere('visitor_name', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'visitor_full_name')) {
+                    $q->orWhere('visitor_full_name', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'email')) {
+                    $q->orWhere('email', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('visitor_registrations', 'visitor_email')) {
+                    $q->orWhere('visitor_email', 'like', "%{$search}%");
+                }
+            });
+        }
+
+        return $query->get()->map(function ($r) use ($status) {
+            $candidateName = $r->name
+                ?? $r->visitor_name
+                ?? $r->visitor_full_name
+                ?? (isset($r->first_name) ? trim(($r->first_name ?? '').' '.($r->last_name ?? '')) : null);
+
             if (empty($candidateName)) {
-                $candidateName = $r->name ?? $r->visitor_name ?? 'Guest';
+                $candidateName = 'Guest';
             }
 
             return [
@@ -662,25 +698,29 @@ class PendingRequestAdminController extends Controller
                 'category' => 'visitor_registrations',
                 'category_label' => 'Visitor Registration',
                 'applicant_name' => $candidateName,
-                'applicant_email' => $r->email ?? '',
-                'applicant_phone' => $r->phone ?? '',
-                'company_name' => $r->company ?? 'Guest Visitor',
-                'target_entity' => $r->meeting_name ?? 'Chapter Meeting',
-                'details' => $this->formatDetailsText($r->notes ?? null, 'Visitor pass clearance request.'),
+                'applicant_email' => $r->email ?? $r->visitor_email ?? '',
+                'applicant_phone' => $r->phone ?? $r->visitor_mobile ?? '',
+                'company_name' => $r->company ?? $r->visitor_business ?? 'Guest Visitor',
+                'target_entity' => $r->event_name ?? $r->meeting_name ?? 'Chapter Meeting',
+                'details' => $this->formatDetailsText($r->notes ?? $r->note ?? null, 'Visitor pass clearance request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
             ];
         });
     }
 
-    private function fetchCoinClaims(?string $search): Collection
+    private function fetchCoinClaims(?string $search, string $status = 'pending'): Collection
     {
         if (! Schema::hasTable('coin_claims')) {
             return collect();
         }
 
         $query = DB::table('coin_claims')
-            ->leftJoin('users', 'coin_claims.user_id', '=', 'users.id')
-            ->where('coin_claims.status', 'pending');
+            ->leftJoin('users', 'coin_claims.user_id', '=', 'users.id');
+
+        if ($status !== 'all' && Schema::hasColumn('coin_claims', 'status')) {
+            $query->whereRaw('LOWER(coin_claims.status) = ?', [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -708,10 +748,11 @@ class PendingRequestAdminController extends Controller
             'target_entity' => ($r->coins_amount ?? $r->amount ?? 0).' Coins',
             'details' => $this->formatDetailsText($r->reason ?? null, 'Member reward disbursement request.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 
-    private function fetchEventJoiningRequests(?string $search): Collection
+    private function fetchEventJoiningRequests(?string $search, string $status = 'pending'): Collection
     {
         $table = $this->resolveEventTable();
         if (! $table) {
@@ -730,8 +771,8 @@ class PendingRequestAdminController extends Controller
             $query->leftJoin('events', "{$table}.event_id", '=', 'events.id');
         }
 
-        if (Schema::hasColumn($table, 'status')) {
-            $query->where("{$table}.status", 'pending');
+        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
+            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
         }
 
         if ($search) {
@@ -777,7 +818,7 @@ class PendingRequestAdminController extends Controller
         }
 
         return $query->select($selects)
-            ->get()->map(function ($r) {
+            ->get()->map(function ($r) use ($status) {
                 $candidateName = $r->applicant_name
                     ?? (isset($r->first_name) ? trim(($r->first_name ?? '').' '.($r->last_name ?? '')) : null)
                     ?? $r->name
@@ -806,11 +847,12 @@ class PendingRequestAdminController extends Controller
                     'target_entity' => $eventTitle,
                     'details' => $this->formatDetailsText($notes, 'RSVP pass clearance request.'),
                     'submitted_at' => $r->created_at ?? now()->toISOString(),
+                    'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
                 ];
             });
     }
 
-    private function fetchCertifications(?string $search): Collection
+    private function fetchCertifications(?string $search, string $status = 'pending'): Collection
     {
         $table = Schema::hasTable('certification_requests') ? 'certification_requests' : (Schema::hasTable('certifications') ? 'certifications' : null);
         if (! $table) {
@@ -818,8 +860,11 @@ class PendingRequestAdminController extends Controller
         }
 
         $query = DB::table($table)
-            ->leftJoin('users', "{$table}.user_id", '=', 'users.id')
-            ->where("{$table}.status", 'pending');
+            ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
+
+        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
+            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -847,10 +892,11 @@ class PendingRequestAdminController extends Controller
             'target_entity' => $r->certificate_title ?? $r->title ?? 'Certificate Verification',
             'details' => $this->formatDetailsText($r->description ?? null, 'Credential verification review.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 
-    private function fetchPendingImpacts(?string $search): Collection
+    private function fetchPendingImpacts(?string $search, string $status = 'pending'): Collection
     {
         $table = Schema::hasTable('impacts') ? 'impacts' : (Schema::hasTable('life_impacts') ? 'life_impacts' : null);
         if (! $table) {
@@ -858,8 +904,11 @@ class PendingRequestAdminController extends Controller
         }
 
         $query = DB::table($table)
-            ->leftJoin('users', "{$table}.user_id", '=', 'users.id')
-            ->where("{$table}.status", 'pending');
+            ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
+
+        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
+            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -887,18 +936,22 @@ class PendingRequestAdminController extends Controller
             'target_entity' => '₹'.number_format((float) ($r->amount ?? 0)),
             'details' => $this->formatDetailsText($r->description ?? null, 'Life impact contract validation.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 
-    private function fetchAdBookings(?string $search): Collection
+    private function fetchAdBookings(?string $search, string $status = 'pending'): Collection
     {
         if (! Schema::hasTable('ad_bookings')) {
             return collect();
         }
 
         $query = DB::table('ad_bookings')
-            ->leftJoin('users', 'ad_bookings.user_id', '=', 'users.id')
-            ->where('ad_bookings.status', 'pending');
+            ->leftJoin('users', 'ad_bookings.user_id', '=', 'users.id');
+
+        if ($status !== 'all' && Schema::hasColumn('ad_bookings', 'status')) {
+            $query->whereRaw('LOWER(ad_bookings.status) = ?', [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -926,18 +979,22 @@ class PendingRequestAdminController extends Controller
             'target_entity' => $r->placement ?? 'Banner Ad Slot',
             'details' => $this->formatDetailsText($r->notes ?? null, 'Ad booking schedule request.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 
-    private function fetchAccountDeletions(?string $search): Collection
+    private function fetchAccountDeletions(?string $search, string $status = 'pending'): Collection
     {
         if (! Schema::hasTable('account_deletion_requests')) {
             return collect();
         }
 
         $query = DB::table('account_deletion_requests')
-            ->leftJoin('users', 'account_deletion_requests.user_id', '=', 'users.id')
-            ->where('account_deletion_requests.status', 'pending');
+            ->leftJoin('users', 'account_deletion_requests.user_id', '=', 'users.id');
+
+        if ($status !== 'all' && Schema::hasColumn('account_deletion_requests', 'status')) {
+            $query->whereRaw('LOWER(account_deletion_requests.status) = ?', [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -965,17 +1022,22 @@ class PendingRequestAdminController extends Controller
             'target_entity' => 'Account Closure',
             'details' => $this->formatDetailsText($r->reason ?? null, 'User deletion request.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 
-    private function fetchPeerReferrals(?string $search): Collection
+    private function fetchPeerReferrals(?string $search, string $status = 'pending'): Collection
     {
         $table = Schema::hasTable('circle_peer_referrals') ? 'circle_peer_referrals' : (Schema::hasTable('peer_referrals') ? 'peer_referrals' : null);
         if (! $table) {
             return collect();
         }
 
-        $query = DB::table($table)->where('status', 'pending');
+        $query = DB::table($table);
+
+        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
+            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -995,16 +1057,21 @@ class PendingRequestAdminController extends Controller
             'target_entity' => 'Peer Recommendation',
             'details' => $this->formatDetailsText($r->notes ?? null, 'Circle referral clearance.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 
-    private function fetchIntroductionRequests(?string $search): Collection
+    private function fetchIntroductionRequests(?string $search, string $status = 'pending'): Collection
     {
         if (! Schema::hasTable('introduction_requests')) {
             return collect();
         }
 
-        $query = DB::table('introduction_requests')->where('status', 'pending');
+        $query = DB::table('introduction_requests');
+
+        if ($status !== 'all' && Schema::hasColumn('introduction_requests', 'status')) {
+            $query->whereRaw('LOWER(introduction_requests.status) = ?', [$status]);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -1025,6 +1092,7 @@ class PendingRequestAdminController extends Controller
             'target_entity' => $r->target_peer_name ?? 'Peer Intro',
             'details' => $this->formatDetailsText($r->notes ?? null, 'Introduction request clearance.'),
             'submitted_at' => $r->created_at ?? now()->toISOString(),
+            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
         ]);
     }
 }
