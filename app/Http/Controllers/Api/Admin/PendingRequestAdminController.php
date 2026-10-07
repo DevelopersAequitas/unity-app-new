@@ -24,7 +24,7 @@ class PendingRequestAdminController extends Controller
             'visitor_registrations' => $this->getPendingCount('visitor_registrations'),
             'coin_claims' => $this->getPendingCount('coin_claim_requests', 'coin_claims'),
             'circle_joining_requests' => $this->getPendingCount('circle_join_requests'),
-            'certifications' => $this->getPendingCount('certification_requests', 'certifications'),
+            'certifications' => $this->getPendingCount('certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'),
             'pending_impacts' => $this->getPendingCount('impacts', 'life_impacts'),
             'ad_booking_requests' => $this->getPendingCount('ad_bookings'),
             'account_deletion_requests' => $this->getPendingCount('account_deletion_requests'),
@@ -217,8 +217,11 @@ class PendingRequestAdminController extends Controller
                 'visitor_registrations',
                 'coin_claim_requests',
                 'coin_claims',
-                'certification_requests',
                 'certifications',
+                'certification_requests',
+                'user_certifications',
+                'diagnostic_submissions',
+                'certification_submissions',
                 'impacts',
                 'life_impacts',
                 'ad_bookings',
@@ -641,6 +644,9 @@ class PendingRequestAdminController extends Controller
                         if ($tbl === 'visitor_registrations') {
                             $q->orWhereRaw("LOWER(status) = 'registered'");
                         }
+                        if (in_array($tbl, ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'], true)) {
+                            $q->orWhereRaw("LOWER(status) IN ('submitted', 'completed', 'active', 'new')");
+                        }
                         if ($tbl === 'circle_join_requests' || $tbl === 'circle_joining_requests') {
                             $q->orWhereRaw("LOWER(status) IN ('pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')");
                             if (Schema::hasColumn($tbl, 'cd_status') && Schema::hasColumn($tbl, 'ded_status')) {
@@ -663,6 +669,19 @@ class PendingRequestAdminController extends Controller
         }
 
         return $firstExistingCount ?? 0;
+    }
+
+    private function resolveCertificationTable(): ?string
+    {
+        $candidates = ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'];
+
+        foreach ($candidates as $tbl) {
+            if (Schema::hasTable($tbl)) {
+                return $tbl;
+            }
+        }
+
+        return null;
     }
 
     private function resolveEventTable(): ?string
@@ -697,7 +716,7 @@ class PendingRequestAdminController extends Controller
             'coin_claims' => Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : (Schema::hasTable('coin_claims') ? 'coin_claims' : 'coin_claim_requests'),
             'coin-claims' => Schema::hasTable('coin_claim_requests') ? 'coin_claim_requests' : (Schema::hasTable('coin_claims') ? 'coin_claims' : 'coin_claim_requests'),
             'coin_claim_requests' => 'coin_claim_requests',
-            'certifications' => Schema::hasTable('certification_requests') ? 'certification_requests' : 'certifications',
+            'certifications' => $this->resolveCertificationTable(),
             'pending_impacts' => Schema::hasTable('impacts') ? 'impacts' : 'life_impacts',
             'ad_booking_requests' => 'ad_bookings',
             'account_deletion_requests' => 'account_deletion_requests',
@@ -1095,46 +1114,179 @@ class PendingRequestAdminController extends Controller
             });
     }
 
-    private function fetchCertifications(?string $search, string $status = 'pending'): Collection
+    private function fetchCertifications(?string $search, ?string $status = null): Collection
     {
-        $table = Schema::hasTable('certification_requests') ? 'certification_requests' : (Schema::hasTable('certifications') ? 'certifications' : null);
+        $table = null;
+        $possibleTables = ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'];
+
+        foreach ($possibleTables as $t) {
+            if (Schema::hasTable($t)) {
+                $table = $t;
+                break;
+            }
+        }
+
         if (! $table) {
             return collect();
         }
 
-        $query = DB::table($table)
-            ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
+        $query = DB::table($table);
 
-        $this->applyStatusFilter($query, $table, $status);
+        $hasUsersTable = Schema::hasTable('users');
+        if (Schema::hasColumn($table, 'user_id') && $hasUsersTable) {
+            $query->leftJoin('users', "{$table}.user_id", '=', 'users.id');
+        }
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('users.name', 'like', "%{$search}%")
-                    ->orWhere('users.first_name', 'like', "%{$search}%")
-                    ->orWhere('users.last_name', 'like', "%{$search}%")
-                    ->orWhere('users.email', 'like', "%{$search}%");
+        // Do NOT strictly filter by pending if certifications represent evaluation records,
+        // or allow pending, submitted, completed, and null statuses
+        if (Schema::hasColumn($table, 'status')) {
+            $query->where(function ($q) use ($table) {
+                $q->whereRaw("LOWER({$table}.status) IN ('pending', 'pending_review', 'submitted', 'completed', 'active', 'new')")
+                    ->orWhereNull("{$table}.status");
             });
         }
 
-        return $query->select(
-            "{$table}.*",
-            $this->getUserNameExpression(),
-            'users.email as applicant_email',
-            'users.phone as applicant_phone',
-            'users.company_name'
-        )->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'certifications',
-            'category_label' => 'Certification Clearance',
-            'applicant_name' => $r->applicant_name ?: 'Candidate',
-            'applicant_email' => $r->applicant_email ?? '',
-            'applicant_phone' => $r->applicant_phone ?? '',
-            'company_name' => $r->company_name ?? 'Member',
-            'target_entity' => $r->certificate_title ?? $r->title ?? 'Certificate Verification',
-            'details' => $this->formatDetailsText($r->description ?? null, 'Credential verification review.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        if (! empty($search)) {
+            $query->where(function ($q) use ($search, $table, $hasUsersTable) {
+                $likeOp = DB::connection()->getDriverName() === 'pgsql' ? 'ILIKE' : 'LIKE';
+                $added = false;
+
+                if ($hasUsersTable) {
+                    if (Schema::hasColumn('users', 'name')) {
+                        $q->where('users.name', $likeOp, "%{$search}%");
+                        $added = true;
+                    }
+                    if (Schema::hasColumn('users', 'email')) {
+                        $added ? $q->orWhere('users.email', $likeOp, "%{$search}%") : $q->where('users.email', $likeOp, "%{$search}%");
+                        $added = true;
+                    }
+                    if (Schema::hasColumn('users', 'company_name')) {
+                        $added ? $q->orWhere('users.company_name', $likeOp, "%{$search}%") : $q->where('users.company_name', $likeOp, "%{$search}%");
+                        $added = true;
+                    }
+                }
+                if (Schema::hasColumn($table, 'type')) {
+                    $added ? $q->orWhere("{$table}.type", $likeOp, "%{$search}%") : $q->where("{$table}.type", $likeOp, "%{$search}%");
+                    $added = true;
+                }
+                if (Schema::hasColumn($table, 'certification_type')) {
+                    $added ? $q->orWhere("{$table}.certification_type", $likeOp, "%{$search}%") : $q->where("{$table}.certification_type", $likeOp, "%{$search}%");
+                    $added = true;
+                }
+                if (Schema::hasColumn($table, 'full_name')) {
+                    $added ? $q->orWhere("{$table}.full_name", $likeOp, "%{$search}%") : $q->where("{$table}.full_name", $likeOp, "%{$search}%");
+                    $added = true;
+                }
+                if (Schema::hasColumn($table, 'email')) {
+                    $added ? $q->orWhere("{$table}.email", $likeOp, "%{$search}%") : $q->where("{$table}.email", $likeOp, "%{$search}%");
+                    $added = true;
+                }
+            });
+        }
+
+        $selects = [
+            "{$table}.id",
+            "{$table}.created_at",
+        ];
+
+        // Applicant Name
+        if ($hasUsersTable && Schema::hasColumn('users', 'name') && Schema::hasColumn($table, 'full_name')) {
+            $selects[] = DB::raw("COALESCE(users.name, {$table}.full_name, 'Applicant Peer') as applicant_name");
+        } elseif ($hasUsersTable && Schema::hasColumn('users', 'name')) {
+            $selects[] = 'users.name as applicant_name';
+        } elseif (Schema::hasColumn($table, 'full_name')) {
+            $selects[] = "{$table}.full_name as applicant_name";
+        } elseif (Schema::hasColumn($table, 'name')) {
+            $selects[] = "{$table}.name as applicant_name";
+        } else {
+            $selects[] = DB::raw("'Applicant Peer' as applicant_name");
+        }
+
+        // Applicant Email
+        if ($hasUsersTable && Schema::hasColumn('users', 'email') && Schema::hasColumn($table, 'email')) {
+            $selects[] = DB::raw("COALESCE(users.email, {$table}.email, '') as applicant_email");
+        } elseif ($hasUsersTable && Schema::hasColumn('users', 'email')) {
+            $selects[] = 'users.email as applicant_email';
+        } elseif (Schema::hasColumn($table, 'email')) {
+            $selects[] = "{$table}.email as applicant_email";
+        } else {
+            $selects[] = DB::raw("'' as applicant_email");
+        }
+
+        // Applicant Phone
+        if ($hasUsersTable && Schema::hasColumn('users', 'phone') && Schema::hasColumn($table, 'contact_no')) {
+            $selects[] = DB::raw("COALESCE(users.phone, {$table}.contact_no, '') as applicant_phone");
+        } elseif ($hasUsersTable && Schema::hasColumn('users', 'phone')) {
+            $selects[] = 'users.phone as applicant_phone';
+        } elseif (Schema::hasColumn($table, 'contact_no')) {
+            $selects[] = "{$table}.contact_no as applicant_phone";
+        } elseif (Schema::hasColumn($table, 'phone')) {
+            $selects[] = "{$table}.phone as applicant_phone";
+        } else {
+            $selects[] = DB::raw("'' as applicant_phone");
+        }
+
+        // Company Name
+        if ($hasUsersTable && Schema::hasColumn('users', 'company_name') && Schema::hasColumn($table, 'business_name')) {
+            $selects[] = DB::raw("COALESCE(users.company_name, {$table}.business_name, 'Independent Member') as company_name");
+        } elseif ($hasUsersTable && Schema::hasColumn('users', 'company_name')) {
+            $selects[] = 'users.company_name';
+        } elseif (Schema::hasColumn($table, 'business_name')) {
+            $selects[] = "{$table}.business_name as company_name";
+        } elseif (Schema::hasColumn($table, 'company_name')) {
+            $selects[] = "{$table}.company_name";
+        } else {
+            $selects[] = DB::raw("'Independent Member' as company_name");
+        }
+
+        // Type / cert_type
+        $typeCols = array_filter(['type', 'certification_type'], fn ($c) => Schema::hasColumn($table, $c));
+        if (! empty($typeCols)) {
+            $typeSql = implode(', ', array_map(fn ($c) => "{$table}.{$c}", $typeCols));
+            $selects[] = DB::raw("COALESCE({$typeSql}, 'Leadership') as cert_type");
+        } else {
+            $selects[] = DB::raw("'Leadership' as cert_type");
+        }
+
+        // Score
+        $scoreCols = array_filter(['score', 'total_score'], fn ($c) => Schema::hasColumn($table, $c));
+        if (! empty($scoreCols)) {
+            $scoreSql = implode(', ', array_map(fn ($c) => "{$table}.{$c}", $scoreCols));
+            $selects[] = DB::raw("COALESCE({$scoreSql}, 0) as score");
+        } else {
+            $selects[] = DB::raw('0 as score');
+        }
+
+        // Percentage
+        if (Schema::hasColumn($table, 'percentage')) {
+            $selects[] = DB::raw("COALESCE({$table}.percentage, 0) as percentage");
+        } else {
+            $selects[] = DB::raw('0 as percentage');
+        }
+
+        // Level
+        $levelCols = array_filter(['level', 'grade', 'certification_level', 'certification_tier'], fn ($c) => Schema::hasColumn($table, $c));
+        if (! empty($levelCols)) {
+            $levelSql = implode(', ', array_map(fn ($c) => "{$table}.{$c}", $levelCols));
+            $selects[] = DB::raw("COALESCE({$levelSql}, 'Needs Improvement') as level");
+        } else {
+            $selects[] = DB::raw("'Needs Improvement' as level");
+        }
+
+        return $query->select($selects)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => (string) $r->id,
+                'category' => 'certifications',
+                'category_label' => ($r->cert_type ?? 'Certification').' Clearance',
+                'applicant_name' => $r->applicant_name ?? 'Applicant Peer',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => $r->applicant_phone ?? '',
+                'company_name' => $r->company_name ?? 'Independent Member',
+                'target_entity' => "{$r->cert_type} ({$r->level} - {$r->score} pts)",
+                'details' => "Score: {$r->score} · Percentage: {$r->percentage}% · Level: {$r->level}",
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+            ]);
     }
 
     private function fetchPendingImpacts(?string $search, string $status = 'pending'): Collection
