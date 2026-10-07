@@ -663,8 +663,11 @@ class PendingRequestAdminController extends Controller
                 'visitor_registrations',
                 'coin_claim_requests',
                 'coin_claims',
-                'certification_requests',
+                'certification_submissions',
                 'certifications',
+                'certification_requests',
+                'user_certifications',
+                'diagnostic_submissions',
                 'impacts',
                 'life_impacts',
                 'ad_bookings',
@@ -930,7 +933,13 @@ class PendingRequestAdminController extends Controller
 
     private function resolveCertificationTable(): ?string
     {
-        $candidates = ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'];
+        $candidates = ['certification_submissions', 'certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions'];
+
+        foreach ($candidates as $tbl) {
+            if (Schema::hasTable($tbl) && DB::table($tbl)->exists()) {
+                return $tbl;
+            }
+        }
 
         foreach ($candidates as $tbl) {
             if (Schema::hasTable($tbl)) {
@@ -1406,12 +1415,21 @@ class PendingRequestAdminController extends Controller
     private function fetchCertifications(?string $search, string $status = 'pending'): Collection
     {
         $table = null;
-        $possibleTables = ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'];
+        $possibleTables = ['certification_submissions', 'certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions'];
 
         foreach ($possibleTables as $t) {
-            if (Schema::hasTable($t)) {
+            if (Schema::hasTable($t) && DB::table($t)->exists()) {
                 $table = $t;
                 break;
+            }
+        }
+
+        if (! $table) {
+            foreach ($possibleTables as $t) {
+                if (Schema::hasTable($t)) {
+                    $table = $t;
+                    break;
+                }
             }
         }
 
