@@ -34,8 +34,16 @@ class PendingRequestAdminController extends Controller
             'event_joining_requests' => $this->getPendingCount('event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
         ];
 
+        // Total calculated strictly as unique pending categories without duplicate counting
+        $totalPending = array_sum($breakdown);
+
+        // Normalize aliases for frontend compatibility without inflating total_pending
+        $breakdown['circle_join_requests'] = $breakdown['circle_joining_requests'];
+        $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
+        $breakdown['visitors'] = $breakdown['visitor_registrations'];
+
         return [
-            'total_pending' => array_sum($breakdown),
+            'total_pending' => $totalPending,
             'breakdown' => $breakdown,
         ];
     }
@@ -473,25 +481,60 @@ class PendingRequestAdminController extends Controller
         ");
     }
 
+    private function applyStatusFilter($query, string $table, string $status): void
+    {
+        if ($status === 'all' || ! Schema::hasColumn($table, 'status')) {
+            return;
+        }
+
+        if ($table === 'visitor_registrations') {
+            if ($status === 'pending') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review', 'registered')")
+                        ->orWhereNull('status');
+                });
+            } elseif ($status === 'approved') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) IN ('approved', 'attended', 'converted_to_member')");
+                });
+            } elseif ($status === 'rejected') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) IN ('rejected', 'no_show', 'declined')");
+                });
+            } else {
+                $query->whereRaw('LOWER(status) = ?', [$status]);
+            }
+            return;
+        }
+
+        if ($status === 'pending') {
+            $query->where(function ($q) use ($table) {
+                $q->whereRaw("LOWER({$table}.status) IN ('pending', 'pending_review', 'under_review')")
+                    ->orWhereNull("{$table}.status");
+            });
+        } else {
+            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
+        }
+    }
+
     private function getPendingCount(string ...$tables): int
     {
         $firstExistingCount = null;
 
         foreach ($tables as $tbl) {
             if (Schema::hasTable($tbl)) {
-                $q = DB::table($tbl);
-                if ($tbl === 'visitor_registrations') {
-                    $cnt = Schema::hasColumn($tbl, 'status')
-                        ? $q->where(function ($sq) {
-                            $sq->whereRaw("LOWER(status) = 'pending'")
-                                ->orWhereRaw("LOWER(status) = 'registered'")
-                                ->orWhereNull('status');
-                        })->count()
-                        : $q->count();
+                $query = DB::table($tbl);
+                $cnt = 0;
+                if (Schema::hasColumn($tbl, 'status')) {
+                    $cnt = $query->where(function ($q) use ($tbl) {
+                        $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review')")
+                            ->orWhereNull('status');
+                        if ($tbl === 'visitor_registrations') {
+                            $q->orWhereRaw("LOWER(status) = 'registered'");
+                        }
+                    })->count();
                 } else {
-                    $cnt = Schema::hasColumn($tbl, 'status')
-                        ? $q->whereRaw("LOWER(status) = 'pending'")->count()
-                        : $q->count();
+                    $cnt = $query->count();
                 }
 
                 if ($cnt > 0) {
@@ -504,7 +547,7 @@ class PendingRequestAdminController extends Controller
             }
         }
 
-        return $firstExistingCount ?? 0; // Exactly 0 if table does not exist or has 0 rows
+        return $firstExistingCount ?? 0;
     }
 
     private function resolveEventTable(): ?string
@@ -612,9 +655,7 @@ class PendingRequestAdminController extends Controller
             ->leftJoin('users', 'circle_join_requests.user_id', '=', 'users.id')
             ->leftJoin('circles', 'circle_join_requests.circle_id', '=', 'circles.id');
 
-        if ($status !== 'all' && Schema::hasColumn('circle_join_requests', 'status')) {
-            $query->whereRaw('LOWER(circle_join_requests.status) = ?', [$status]);
-        }
+        $this->applyStatusFilter($query, 'circle_join_requests', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -673,29 +714,7 @@ class PendingRequestAdminController extends Controller
 
         $query = DB::table('visitor_registrations');
 
-        if ($status !== 'all' && Schema::hasColumn('visitor_registrations', 'status')) {
-            if ($status === 'pending') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) = 'pending'")
-                        ->orWhereRaw("LOWER(status) = 'registered'")
-                        ->orWhereNull('status');
-                });
-            } elseif ($status === 'approved') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) = 'approved'")
-                        ->orWhereRaw("LOWER(status) = 'attended'")
-                        ->orWhereRaw("LOWER(status) = 'converted_to_member'");
-                });
-            } elseif ($status === 'rejected') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) = 'rejected'")
-                        ->orWhereRaw("LOWER(status) = 'no_show'")
-                        ->orWhereRaw("LOWER(status) = 'declined'");
-                });
-            } else {
-                $query->whereRaw('LOWER(status) = ?', [$status]);
-            }
-        }
+        $this->applyStatusFilter($query, 'visitor_registrations', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -764,9 +783,7 @@ class PendingRequestAdminController extends Controller
         $query = DB::table('coin_claims')
             ->leftJoin('users', 'coin_claims.user_id', '=', 'users.id');
 
-        if ($status !== 'all' && Schema::hasColumn('coin_claims', 'status')) {
-            $query->whereRaw('LOWER(coin_claims.status) = ?', [$status]);
-        }
+        $this->applyStatusFilter($query, 'coin_claims', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -817,9 +834,7 @@ class PendingRequestAdminController extends Controller
             $query->leftJoin('events', "{$table}.event_id", '=', 'events.id');
         }
 
-        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
-            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
-        }
+        $this->applyStatusFilter($query, $table, $status);
 
         if ($search) {
             $query->where(function ($q) use ($search, $hasUserId, $table) {
@@ -908,9 +923,7 @@ class PendingRequestAdminController extends Controller
         $query = DB::table($table)
             ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
 
-        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
-            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
-        }
+        $this->applyStatusFilter($query, $table, $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -952,9 +965,7 @@ class PendingRequestAdminController extends Controller
         $query = DB::table($table)
             ->leftJoin('users', "{$table}.user_id", '=', 'users.id');
 
-        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
-            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
-        }
+        $this->applyStatusFilter($query, $table, $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -995,9 +1006,7 @@ class PendingRequestAdminController extends Controller
         $query = DB::table('ad_bookings')
             ->leftJoin('users', 'ad_bookings.user_id', '=', 'users.id');
 
-        if ($status !== 'all' && Schema::hasColumn('ad_bookings', 'status')) {
-            $query->whereRaw('LOWER(ad_bookings.status) = ?', [$status]);
-        }
+        $this->applyStatusFilter($query, 'ad_bookings', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -1038,9 +1047,7 @@ class PendingRequestAdminController extends Controller
         $query = DB::table('account_deletion_requests')
             ->leftJoin('users', 'account_deletion_requests.user_id', '=', 'users.id');
 
-        if ($status !== 'all' && Schema::hasColumn('account_deletion_requests', 'status')) {
-            $query->whereRaw('LOWER(account_deletion_requests.status) = ?', [$status]);
-        }
+        $this->applyStatusFilter($query, 'account_deletion_requests', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -1081,9 +1088,7 @@ class PendingRequestAdminController extends Controller
 
         $query = DB::table($table);
 
-        if ($status !== 'all' && Schema::hasColumn($table, 'status')) {
-            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
-        }
+        $this->applyStatusFilter($query, $table, $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -1115,9 +1120,7 @@ class PendingRequestAdminController extends Controller
 
         $query = DB::table('introduction_requests');
 
-        if ($status !== 'all' && Schema::hasColumn('introduction_requests', 'status')) {
-            $query->whereRaw('LOWER(introduction_requests.status) = ?', [$status]);
-        }
+        $this->applyStatusFilter($query, 'introduction_requests', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
