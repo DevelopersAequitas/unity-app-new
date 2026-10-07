@@ -248,15 +248,30 @@ class PendingRequestAdminController extends Controller
         DB::beginTransaction();
         try {
             // 2. Mark status as approved
-            $updatePayload = [];
-            if (Schema::hasColumn($table, 'updated_at')) {
-                $updatePayload['updated_at'] = now();
-            }
+            $updatePayload = ['updated_at' => now()];
 
-            if ($table === 'circle_join_requests') {
-                $currentStatus = strtolower((string) ($record->status ?? 'pending'));
+            // Authoritative status transition: full clearance marks both CD and DED approved
+            if ($table === 'circle_join_requests' || $table === 'circle_joining_requests') {
+                if (Schema::hasColumn($table, 'cd_status')) {
+                    $updatePayload['cd_status'] = 'approved';
+                }
+                if (Schema::hasColumn($table, 'ded_status')) {
+                    $updatePayload['ded_status'] = 'approved';
+                }
+                if (Schema::hasColumn($table, 'cd_approved_at')) {
+                    $updatePayload['cd_approved_at'] = now();
+                }
+                if (Schema::hasColumn($table, 'ded_approved_at')) {
+                    $updatePayload['ded_approved_at'] = now();
+                }
+                if (Schema::hasColumn($table, 'ded_approval_status')) {
+                    $updatePayload['ded_approval_status'] = 'approved';
+                }
+                if (Schema::hasColumn($table, 'id_approved_at')) {
+                    $updatePayload['id_approved_at'] = now();
+                }
 
-                // Discover enum labels safely from PostgreSQL
+                // Check enum valid labels dynamically or assign authoritative final status
                 $enumLabels = [];
                 try {
                     $validEnums = DB::select("
@@ -270,46 +285,49 @@ class PendingRequestAdminController extends Controller
                     $enumLabels = [];
                 }
 
-                if (! empty($enumLabels)) {
-                    if (in_array('approved', $enumLabels, true)) {
-                        $targetStatus = 'approved';
-                    } elseif (in_array('ded_approved', $enumLabels, true)) {
-                        $targetStatus = 'ded_approved';
-                    } elseif (in_array('circle_member', $enumLabels, true)) {
-                        $targetStatus = 'circle_member';
-                    } elseif (in_array('paid', $enumLabels, true)) {
-                        $targetStatus = 'paid';
-                    } elseif (in_array('cd_approved', $enumLabels, true)) {
-                        $targetStatus = 'cd_approved';
-                    } elseif (in_array('pending_id_approval', $enumLabels, true) && $currentStatus === 'pending_cd_approval') {
-                        $targetStatus = 'pending_id_approval';
-                    } else {
-                        $targetStatus = $enumLabels[1] ?? ($enumLabels[0] ?? 'completed');
-                    }
+                if (in_array('approved', $enumLabels, true)) {
+                    $updatePayload['status'] = 'approved';
+                } elseif (in_array('ded_approved', $enumLabels, true)) {
+                    $updatePayload['status'] = 'ded_approved';
+                } elseif (in_array('active', $enumLabels, true)) {
+                    $updatePayload['status'] = 'active';
                 } else {
-                    $targetStatus = 'approved';
+                    $updatePayload['status'] = 'approved';
                 }
 
-                $updatePayload['status'] = $targetStatus;
+                // Link user to target circle if applicable
+                $userId = $record->user_id ?? null;
+                $circleId = $record->circle_id ?? $record->event_circle_id ?? null;
 
-                // Also update CD & DED tracking columns safely
-                if (Schema::hasColumn('circle_join_requests', 'cd_approved_at')) {
-                    $updatePayload['cd_approved_at'] = now();
-                }
-                if (Schema::hasColumn('circle_join_requests', 'cd_status')) {
-                    $updatePayload['cd_status'] = 'approved';
-                }
-                if (Schema::hasColumn('circle_join_requests', 'id_approved_at')) {
-                    $updatePayload['id_approved_at'] = now();
-                }
-                if (Schema::hasColumn('circle_join_requests', 'ded_approved_at')) {
-                    $updatePayload['ded_approved_at'] = now();
-                }
-                if (Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
-                    $updatePayload['ded_approval_status'] = 'approved';
-                }
-                if (Schema::hasColumn('circle_join_requests', 'ded_status')) {
-                    $updatePayload['ded_status'] = 'approved';
+                if (! empty($userId) && ! empty($circleId)) {
+                    if (Schema::hasTable('circle_members')) {
+                        DB::table('circle_members')->updateOrInsert(
+                            ['circle_id' => $circleId, 'user_id' => $userId],
+                            [
+                                'role' => $record->requested_role ?? 'member',
+                                'status' => 'active',
+                                'updated_at' => now(),
+                            ]
+                        );
+                    }
+                    if (Schema::hasTable('circle_user')) {
+                        DB::table('circle_user')->updateOrInsert(
+                            ['circle_id' => $circleId, 'user_id' => $userId],
+                            ['status' => 'active', 'updated_at' => now()]
+                        );
+                    }
+                    if (Schema::hasTable('users')) {
+                        $userUpdates = [];
+                        if (Schema::hasColumn('users', 'circle_id')) {
+                            $userUpdates['circle_id'] = $circleId;
+                        }
+                        if (Schema::hasColumn('users', 'active_circle_id')) {
+                            $userUpdates['active_circle_id'] = $circleId;
+                        }
+                        if (! empty($userUpdates)) {
+                            DB::table('users')->where('id', $userId)->update($userUpdates);
+                        }
+                    }
                 }
             } else {
                 if (Schema::hasColumn($table, 'status')) {
@@ -320,58 +338,9 @@ class PendingRequestAdminController extends Controller
             if (Schema::hasColumn($table, 'approved_at')) {
                 $updatePayload['approved_at'] = now();
             }
+
             if (! empty($updatePayload)) {
                 DB::table($table)->where('id', $id)->update($updatePayload);
-            }
-
-            // 3. Link user to circle safely (check schema first to prevent SQL crash)
-            $userId = $record->user_id ?? null;
-            $circleId = $record->circle_id ?? $record->event_circle_id ?? null;
-
-            if ($userId && $circleId) {
-                // If users table has circle_id or active_circle_id column
-                if (Schema::hasTable('users')) {
-                    $userUpdates = [];
-                    if (Schema::hasColumn('users', 'circle_id')) {
-                        $userUpdates['circle_id'] = $circleId;
-                    }
-                    if (Schema::hasColumn('users', 'active_circle_id')) {
-                        $userUpdates['active_circle_id'] = $circleId;
-                    }
-                    if (! empty($userUpdates)) {
-                        DB::table('users')->where('id', $userId)->update($userUpdates);
-                    }
-                }
-
-                // If pivot table circle_user exists
-                if (Schema::hasTable('circle_user')) {
-                    $pivotData = [];
-                    if (Schema::hasColumn('circle_user', 'status')) {
-                        $pivotData['status'] = 'active';
-                    }
-                    if (Schema::hasColumn('circle_user', 'updated_at')) {
-                        $pivotData['updated_at'] = now();
-                    }
-                    DB::table('circle_user')->updateOrInsert(
-                        ['user_id' => $userId, 'circle_id' => $circleId],
-                        $pivotData
-                    );
-                }
-
-                // If pivot table circle_members exists
-                if (Schema::hasTable('circle_members')) {
-                    $pivotData = [];
-                    if (Schema::hasColumn('circle_members', 'status')) {
-                        $pivotData['status'] = 'active';
-                    }
-                    if (Schema::hasColumn('circle_members', 'updated_at')) {
-                        $pivotData['updated_at'] = now();
-                    }
-                    DB::table('circle_members')->updateOrInsert(
-                        ['user_id' => $userId, 'circle_id' => $circleId],
-                        $pivotData
-                    );
-                }
             }
 
             DB::commit();
@@ -382,7 +351,7 @@ class PendingRequestAdminController extends Controller
                     action: 'approved',
                     category: $category ?? $table,
                     requestId: (string) $id,
-                    itemData: ['id' => (string) $id, 'status' => 'approved'],
+                    itemData: ['id' => (string) $id, 'status' => 'approved', 'cd_status' => 'approved', 'ded_status' => 'approved'],
                     summaryBreakdown: $summary['breakdown']
                 ));
             } catch (\Throwable) {
@@ -391,7 +360,7 @@ class PendingRequestAdminController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Request approved and clearance granted successfully.',
+                'message' => 'Clearance granted successfully. Request removed from pending queue.',
             ], 200);
 
         } catch (\Throwable $e) {
@@ -457,7 +426,7 @@ class PendingRequestAdminController extends Controller
                 $payload['updated_at'] = now();
             }
 
-            if ($table === 'circle_join_requests') {
+            if ($table === 'circle_join_requests' || $table === 'circle_joining_requests') {
                 $currentStatus = strtolower((string) ($record->status ?? 'pending'));
 
                 $enumLabels = [];
@@ -626,7 +595,7 @@ class PendingRequestAdminController extends Controller
             return;
         }
 
-        if ($table === 'circle_join_requests') {
+        if ($table === 'circle_join_requests' || $table === 'circle_joining_requests') {
             if ($status === 'pending') {
                 $query->where(function ($q) {
                     $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')")
@@ -672,8 +641,11 @@ class PendingRequestAdminController extends Controller
                         if ($tbl === 'visitor_registrations') {
                             $q->orWhereRaw("LOWER(status) = 'registered'");
                         }
-                        if ($tbl === 'circle_join_requests') {
+                        if ($tbl === 'circle_join_requests' || $tbl === 'circle_joining_requests') {
                             $q->orWhereRaw("LOWER(status) IN ('pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')");
+                            if (Schema::hasColumn($tbl, 'cd_status') && Schema::hasColumn($tbl, 'ded_status')) {
+                                $q->whereRaw("NOT (LOWER(COALESCE({$tbl}.cd_status, '')) = 'approved' AND LOWER(COALESCE({$tbl}.ded_status, '')) = 'approved')");
+                            }
                         }
                     })->count();
                 } else {
