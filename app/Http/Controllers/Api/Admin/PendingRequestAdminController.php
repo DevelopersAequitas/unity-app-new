@@ -252,9 +252,71 @@ class PendingRequestAdminController extends Controller
             if (Schema::hasColumn($table, 'updated_at')) {
                 $updatePayload['updated_at'] = now();
             }
-            if (Schema::hasColumn($table, 'status')) {
-                $updatePayload['status'] = 'approved';
+
+            if ($table === 'circle_join_requests') {
+                $currentStatus = strtolower((string) ($record->status ?? 'pending'));
+
+                // Discover enum labels safely from PostgreSQL
+                $enumLabels = [];
+                try {
+                    $validEnums = DB::select("
+                        SELECT e.enumlabel 
+                        FROM pg_enum e 
+                        JOIN pg_type t ON e.enumtypid = t.oid 
+                        WHERE t.typname = 'circle_join_request_status_enum'
+                    ");
+                    $enumLabels = array_column($validEnums, 'enumlabel');
+                } catch (\Throwable) {
+                    $enumLabels = [];
+                }
+
+                if (! empty($enumLabels)) {
+                    if (in_array('approved', $enumLabels, true)) {
+                        $targetStatus = 'approved';
+                    } elseif (in_array('ded_approved', $enumLabels, true)) {
+                        $targetStatus = 'ded_approved';
+                    } elseif (in_array('circle_member', $enumLabels, true)) {
+                        $targetStatus = 'circle_member';
+                    } elseif (in_array('paid', $enumLabels, true)) {
+                        $targetStatus = 'paid';
+                    } elseif (in_array('cd_approved', $enumLabels, true)) {
+                        $targetStatus = 'cd_approved';
+                    } elseif (in_array('pending_id_approval', $enumLabels, true) && $currentStatus === 'pending_cd_approval') {
+                        $targetStatus = 'pending_id_approval';
+                    } else {
+                        $targetStatus = $enumLabels[1] ?? ($enumLabels[0] ?? 'completed');
+                    }
+                } else {
+                    $targetStatus = 'approved';
+                }
+
+                $updatePayload['status'] = $targetStatus;
+
+                // Also update CD & DED tracking columns safely
+                if (Schema::hasColumn('circle_join_requests', 'cd_approved_at')) {
+                    $updatePayload['cd_approved_at'] = now();
+                }
+                if (Schema::hasColumn('circle_join_requests', 'cd_status')) {
+                    $updatePayload['cd_status'] = 'approved';
+                }
+                if (Schema::hasColumn('circle_join_requests', 'id_approved_at')) {
+                    $updatePayload['id_approved_at'] = now();
+                }
+                if (Schema::hasColumn('circle_join_requests', 'ded_approved_at')) {
+                    $updatePayload['ded_approved_at'] = now();
+                }
+                if (Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
+                    $updatePayload['ded_approval_status'] = 'approved';
+                }
+                if (Schema::hasColumn('circle_join_requests', 'ded_status')) {
+                    $updatePayload['ded_status'] = 'approved';
+                }
+            } else {
+                if (Schema::hasColumn($table, 'status')) {
+                    $updatePayload['status'] = 'approved';
+                }
             }
+
             if (Schema::hasColumn($table, 'approved_at')) {
                 $updatePayload['approved_at'] = now();
             }
@@ -394,9 +456,65 @@ class PendingRequestAdminController extends Controller
             if (Schema::hasColumn($table, 'updated_at')) {
                 $payload['updated_at'] = now();
             }
-            if (Schema::hasColumn($table, 'status')) {
-                $payload['status'] = 'rejected';
+
+            if ($table === 'circle_join_requests') {
+                $currentStatus = strtolower((string) ($record->status ?? 'pending'));
+
+                $enumLabels = [];
+                try {
+                    $validEnums = DB::select("
+                        SELECT e.enumlabel 
+                        FROM pg_enum e 
+                        JOIN pg_type t ON e.enumtypid = t.oid 
+                        WHERE t.typname = 'circle_join_request_status_enum'
+                    ");
+                    $enumLabels = array_column($validEnums, 'enumlabel');
+                } catch (\Throwable) {
+                    $enumLabels = [];
+                }
+
+                if (! empty($enumLabels)) {
+                    if (in_array('rejected', $enumLabels, true)) {
+                        $targetStatus = 'rejected';
+                    } elseif (in_array('rejected_by_id', $enumLabels, true) && $currentStatus === 'pending_id_approval') {
+                        $targetStatus = 'rejected_by_id';
+                    } elseif (in_array('rejected_by_cd', $enumLabels, true)) {
+                        $targetStatus = 'rejected_by_cd';
+                    } elseif (in_array('cancelled', $enumLabels, true)) {
+                        $targetStatus = 'cancelled';
+                    } else {
+                        $targetStatus = 'rejected';
+                    }
+                } else {
+                    $targetStatus = 'rejected';
+                }
+
+                $payload['status'] = $targetStatus;
+
+                if (Schema::hasColumn('circle_join_requests', 'cd_rejected_at')) {
+                    $payload['cd_rejected_at'] = now();
+                }
+                if (Schema::hasColumn('circle_join_requests', 'cd_rejection_reason')) {
+                    $payload['cd_rejection_reason'] = $reason;
+                }
+                if (Schema::hasColumn('circle_join_requests', 'id_rejected_at')) {
+                    $payload['id_rejected_at'] = now();
+                }
+                if (Schema::hasColumn('circle_join_requests', 'id_rejection_reason')) {
+                    $payload['id_rejection_reason'] = $reason;
+                }
+                if (Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
+                    $payload['ded_approval_status'] = 'rejected';
+                }
+                if (Schema::hasColumn('circle_join_requests', 'ded_status')) {
+                    $payload['ded_status'] = 'rejected';
+                }
+            } else {
+                if (Schema::hasColumn($table, 'status')) {
+                    $payload['status'] = 'rejected';
+                }
             }
+
             if (Schema::hasColumn($table, 'rejection_reason')) {
                 $payload['rejection_reason'] = $reason;
             } elseif (Schema::hasColumn($table, 'admin_note')) {
@@ -504,6 +622,28 @@ class PendingRequestAdminController extends Controller
             } else {
                 $query->whereRaw('LOWER(status) = ?', [$status]);
             }
+
+            return;
+        }
+
+        if ($table === 'circle_join_requests') {
+            if ($status === 'pending') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')")
+                        ->orWhereNull('status');
+                });
+            } elseif ($status === 'approved') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) IN ('approved', 'circle_member', 'paid', 'cd_approved', 'ded_approved')");
+                });
+            } elseif ($status === 'rejected') {
+                $query->where(function ($q) {
+                    $q->whereRaw("LOWER(status) IN ('rejected', 'rejected_by_cd', 'rejected_by_id', 'cancelled', 'declined')");
+                });
+            } else {
+                $query->whereRaw('LOWER(status) = ?', [$status]);
+            }
+
             return;
         }
 
@@ -531,6 +671,9 @@ class PendingRequestAdminController extends Controller
                             ->orWhereNull('status');
                         if ($tbl === 'visitor_registrations') {
                             $q->orWhereRaw("LOWER(status) = 'registered'");
+                        }
+                        if ($tbl === 'circle_join_requests') {
+                            $q->orWhereRaw("LOWER(status) IN ('pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')");
                         }
                     })->count();
                 } else {
@@ -680,6 +823,33 @@ class PendingRequestAdminController extends Controller
         if (Schema::hasColumn('circle_join_requests', 'status')) {
             $selectCols[] = 'circle_join_requests.status';
         }
+        if (Schema::hasColumn('circle_join_requests', 'cd_status')) {
+            $selectCols[] = 'circle_join_requests.cd_status';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'ded_status')) {
+            $selectCols[] = 'circle_join_requests.ded_status';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'payment_status')) {
+            $selectCols[] = 'circle_join_requests.payment_status';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
+            $selectCols[] = 'circle_join_requests.ded_approval_status';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'cd_approved_at')) {
+            $selectCols[] = 'circle_join_requests.cd_approved_at';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'cd_rejected_at')) {
+            $selectCols[] = 'circle_join_requests.cd_rejected_at';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'id_approved_at')) {
+            $selectCols[] = 'circle_join_requests.id_approved_at';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'id_rejected_at')) {
+            $selectCols[] = 'circle_join_requests.id_rejected_at';
+        }
+        if (Schema::hasColumn('circle_join_requests', 'fee_paid_at')) {
+            $selectCols[] = 'circle_join_requests.fee_paid_at';
+        }
         if (Schema::hasColumn('circle_join_requests', 'reason_for_joining')) {
             $selectCols[] = 'circle_join_requests.reason_for_joining';
         }
@@ -689,6 +859,43 @@ class PendingRequestAdminController extends Controller
 
         return $query->select($selectCols)->get()->map(function ($r) use ($status) {
             $descCandidate = $r->description ?? ($r->reason_for_joining ?? ($r->notes ?? null));
+            $rawStatus = (string) ($r->status ?? ($status !== 'all' ? $status : 'pending'));
+            $lowerStatus = strtolower($rawStatus);
+
+            // Compute CD Status
+            $cdStatus = 'Pending for CD Approval';
+            if (isset($r->cd_status) && $r->cd_status !== null && $r->cd_status !== '') {
+                $cdStatus = (string) $r->cd_status;
+            } elseif (! empty($r->cd_approved_at) || in_array($lowerStatus, ['pending_id_approval', 'pending_circle_fee', 'circle_member', 'paid', 'approved', 'ded_approved', 'cd_approved'], true)) {
+                $cdStatus = 'Approved';
+            } elseif (! empty($r->cd_rejected_at) || $lowerStatus === 'rejected_by_cd') {
+                $cdStatus = 'Rejected';
+            } elseif ($lowerStatus === 'pending') {
+                $cdStatus = 'Pending for CD Approval';
+            }
+
+            // Compute DED Status
+            $dedStatus = 'Pending';
+            if (isset($r->ded_status) && $r->ded_status !== null && $r->ded_status !== '') {
+                $dedStatus = (string) $r->ded_status;
+            } elseif (isset($r->ded_approval_status) && $r->ded_approval_status !== null && $r->ded_approval_status !== '') {
+                $dedVal = strtolower((string) $r->ded_approval_status);
+                $dedStatus = $dedVal === 'approved' ? 'Approved' : ($dedVal === 'rejected' ? 'Rejected' : 'Pending');
+            } elseif (! empty($r->id_approved_at) || in_array($lowerStatus, ['pending_circle_fee', 'circle_member', 'paid', 'approved', 'ded_approved'], true)) {
+                $dedStatus = 'Approved';
+            } elseif (! empty($r->id_rejected_at) || in_array($lowerStatus, ['rejected_by_id', 'rejected'], true)) {
+                $dedStatus = 'Rejected';
+            }
+
+            // Compute Payment Status
+            $paymentStatus = 'Not Applicable';
+            if (isset($r->payment_status) && $r->payment_status !== null && $r->payment_status !== '') {
+                $paymentStatus = (string) $r->payment_status;
+            } elseif (! empty($r->fee_paid_at) || in_array($lowerStatus, ['paid', 'circle_member'], true)) {
+                $paymentStatus = 'Paid';
+            } elseif ($lowerStatus === 'pending_circle_fee') {
+                $paymentStatus = 'Pending / Unpaid';
+            }
 
             return [
                 'id' => (string) $r->id,
@@ -701,7 +908,10 @@ class PendingRequestAdminController extends Controller
                 'target_entity' => $r->target_entity ?? 'Assigned Circle',
                 'details' => $this->formatDetailsText($descCandidate, 'Application to join chartered circle roster.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
-                'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
+                'status' => $lowerStatus ?: 'pending',
+                'cd_status' => $cdStatus,
+                'ded_status' => $dedStatus,
+                'payment_status' => $paymentStatus,
             ];
         });
     }
