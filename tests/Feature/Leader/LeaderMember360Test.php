@@ -107,14 +107,55 @@ class LeaderMember360Test extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'id', 'name', 'circle_name',
+                    'subscriptions' => [
+                        'app_subscription',
+                        'circle_subscription',
+                        'app_subscriptions',
+                        'circle_subscriptions',
+                        'summary' => [
+                            'has_active_app_subscription',
+                            'has_active_circle_subscription',
+                            'total_valid_until',
+                            'days_remaining',
+                        ],
+                    ],
                     'summary' => [
                         'posts', 'creatives', 'badges',
                         'referrals_given', 'referrals_received',
                         'p2p_meetings', 'business_deals', 'life_impacts',
                         'event_registrations', 'coins_balance',
+                        'app_subscriptions', 'circle_subscriptions',
                     ],
                 ],
             ]);
+    }
+
+    /** @test */
+    public function it_returns_member_peer_subscriptions_details(): void
+    {
+        // Insert a circle subscription for the member
+        $subId = Str::uuid()->toString();
+        DB::table('circle_subscriptions')->insert([
+            'id' => $subId,
+            'user_id' => $this->member->id,
+            'circle_id' => $this->circle->id,
+            'status' => 'active',
+            'amount' => 5000.00,
+            'paid_amount' => 5000.00,
+            'zoho_addon_name' => 'Premium Circle Addon',
+            'started_at' => now(),
+            'expires_at' => now()->addYear(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/api/v1/leader/members/{$this->member->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.subscriptions.summary.has_active_circle_subscription', true)
+            ->assertJsonPath('data.subscriptions.circle_subscriptions.0.id', $subId)
+            ->assertJsonPath('data.subscriptions.circle_subscriptions.0.plan_name', 'Test Circle (Premium Circle Addon)');
     }
 
     /** @test */
