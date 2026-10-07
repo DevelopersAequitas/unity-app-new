@@ -204,6 +204,14 @@ class LeaderMember360Service
             ->where('id', $memberId)
             ->value('coins_balance') ?? 0;
 
+        $appSubscriptionsCount = Schema::hasTable('user_memberships')
+            ? DB::table('user_memberships')->where('user_id', $memberId)->count()
+            : 0;
+
+        $circleSubscriptionsCount = Schema::hasTable('circle_subscriptions')
+            ? DB::table('circle_subscriptions')->where('user_id', $memberId)->count()
+            : 0;
+
         return [
             'posts' => $postsCount,
             'creatives' => $creativesCount,
@@ -219,6 +227,8 @@ class LeaderMember360Service
             'event_registrations' => $eventRegistrationsCount,
             'event_attendance' => $eventAttendanceCount,
             'coins_balance' => $coinsBalance,
+            'app_subscriptions' => $appSubscriptionsCount,
+            'circle_subscriptions' => $circleSubscriptionsCount,
         ];
     }
 
