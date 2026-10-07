@@ -157,7 +157,7 @@ class AdminOpsController extends BaseApiController
 
     public function impactReject(Request $request, string $id): JsonResponse
     {
-        $v = $request->validate(['rejection_reason' => 'required|string|max:500']);
+        $reason = $request->input('rejection_reason') ?? $request->input('reason') ?? 'Administrative clearance declined';
 
         return $this->success($this->impactService->rejectImpact(Impact::findOrFail($id), $request->user(), $v['rejection_reason']));
     }
@@ -203,9 +203,13 @@ class AdminOpsController extends BaseApiController
     }
 
     // Coins
-    public function coinClaims(): JsonResponse
+    public function coinClaims(Request $request): JsonResponse
     {
-        return $this->success(CoinClaimRequest::with('user:id,display_name,email')->latest('created_at')->paginate(20));
+        $query = CoinClaimRequest::with('user:id,display_name,email')->latest('created_at');
+        if ($request->filled('status') && $request->query('status') !== 'all') {
+            $query->where('status', $request->query('status'));
+        }
+        return $this->success($query->paginate(20));
     }
 
     public function coinClaimShow(string $id): JsonResponse
@@ -217,8 +221,15 @@ class AdminOpsController extends BaseApiController
     {
         $claim = CoinClaimRequest::findOrFail($id);
         $claim->status = 'approved';
-        $claim->reviewed_at = now();
-        $claim->reviewed_by = $request->user()->id;
+        if (Schema::hasColumn('coin_claim_requests', 'approved_at')) {
+            $claim->approved_at = now();
+        }
+        if (Schema::hasColumn('coin_claim_requests', 'reviewed_at')) {
+            $claim->reviewed_at = now();
+        }
+        if (Schema::hasColumn('coin_claim_requests', 'reviewed_by')) {
+            $claim->reviewed_by = $request->user()?->id;
+        }
         $claim->save();
 
         return $this->success($claim);
@@ -226,10 +237,10 @@ class AdminOpsController extends BaseApiController
 
     public function coinClaimReject(Request $request, string $id): JsonResponse
     {
-        $v = $request->validate(['rejection_reason' => 'required|string|max:500']);
+        $reason = $request->input('rejection_reason') ?? $request->input('reason') ?? 'Administrative clearance declined';
         $claim = CoinClaimRequest::findOrFail($id);
         $claim->status = 'rejected';
-        $claim->admin_remarks = $v['rejection_reason'];
+        $claim->admin_remarks = $reason;
         $claim->reviewed_at = now();
         $claim->reviewed_by = $request->user()->id;
         $claim->save();

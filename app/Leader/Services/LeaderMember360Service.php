@@ -1718,6 +1718,57 @@ class LeaderMember360Service
         ];
     }
 
+    /**
+     * Delete a member's post.
+     *
+     * @return array{success: bool, message: string, error_code?: string, status_code: int}
+     */
+    public function deleteMemberPost(string $memberId, string $postId, User $leader): array
+    {
+        $member = $this->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return [
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        $post = Post::query()
+            ->where('id', $postId)
+            ->where('user_id', $memberId)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $post) {
+            return [
+                'success' => false,
+                'message' => 'Post not found or already deleted.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        DB::transaction(function () use ($post): void {
+            $post->is_deleted = true;
+            $post->active = false;
+            $post->is_active = false;
+            $post->status = 'inactive';
+            $post->save();
+            $post->delete();
+        });
+
+        return [
+            'success' => true,
+            'message' => 'User post deleted successfully.',
+            'status_code' => 200,
+        ];
+    }
+
+
     // ─────────────────────────────────────────────────────────────────────────
     // MEMBER CREATIVES
     // ─────────────────────────────────────────────────────────────────────────

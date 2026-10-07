@@ -6,6 +6,7 @@ namespace Tests\Feature\Leader;
 
 use App\Models\Circle;
 use App\Models\MilestoneBadge;
+use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -369,5 +370,51 @@ class LeaderMember360Test extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('meta.current_page', 1)
             ->assertJsonPath('meta.per_page', 5);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Delete Post Tests
+    // ────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function it_allows_leader_to_delete_member_post(): void
+    {
+        $post = Post::factory()->create([
+            'id' => Str::uuid()->toString(),
+            'user_id' => $this->member->id,
+            'status' => 'active',
+            'is_deleted' => false,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/posts/{$post->id}");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'User post deleted successfully.',
+            ]);
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'is_deleted' => true,
+            'status' => 'inactive',
+        ]);
+    }
+
+
+    /** @test */
+    public function it_returns_404_when_deleting_non_existent_post(): void
+    {
+        $fakePostId = Str::uuid()->toString();
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/posts/{$fakePostId}");
+
+        $response->assertStatus(404)
+            ->assertJson([
+                'success' => false,
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ]);
     }
 }

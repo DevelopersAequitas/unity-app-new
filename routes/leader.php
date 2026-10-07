@@ -159,6 +159,7 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/members/{member_id}', [LeaderMemberController::class, 'show'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/activities', [LeaderMemberController::class, 'activities'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/posts', [LeaderMemberController::class, 'posts'])->whereUuid('member_id');
+    Route::delete('/leader/members/{member_id}/posts/{post_id}', [LeaderMemberController::class, 'deletePost'])->whereUuid('member_id')->whereUuid('post_id');
     Route::get('/leader/members/{member_id}/creatives', [LeaderMemberController::class, 'creatives'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
