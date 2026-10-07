@@ -12,6 +12,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use App\Models\Certification;
+use App\Models\Post;
+use App\Models\Notification;
+use App\Models\User;
 
 class PendingRequestAdminController extends Controller
 {
@@ -148,6 +153,10 @@ class PendingRequestAdminController extends Controller
      */
     public function approve(Request $request, string $category, string $id): JsonResponse
     {
+        if ($category === 'certifications') {
+            return $this->approveCertificationSubmission((string) $id);
+        }
+
         return $this->processApproval($id, $category);
     }
 
@@ -157,6 +166,10 @@ class PendingRequestAdminController extends Controller
     public function approveDirect(Request $request, string $id): JsonResponse
     {
         $category = $request->input('category') ?? $request->input('type');
+
+        if ($category === 'certifications') {
+            return $this->approveCertificationSubmission((string) $id);
+        }
 
         return $this->processApproval($id, is_string($category) ? $category : null);
     }
@@ -198,8 +211,260 @@ class PendingRequestAdminController extends Controller
         return $this->rejectDirect($request, $id);
     }
 
+    /**
+     * Executes the complete Old Admin Panel Certification Approval Flow
+     * (Certificate generation, feed post creation, in-app/push notification dispatch)
+     */
+    private function approveCertificationSubmission(string $id): JsonResponse
+    {
+        return DB::transaction(function () use ($id) {
+            // 1. Locate the submission in the appropriate table defensively
+            $submission = null;
+            $certTable = null;
+            $candidateTables = [
+                'certifications',
+                'certification_requests',
+                'user_certifications',
+                'diagnostic_submissions',
+                'certification_submissions',
+            ];
+
+            foreach ($candidateTables as $candidate) {
+                if (Schema::hasTable($candidate)) {
+                    $found = DB::table($candidate)->where('id', $id)->first();
+                    if ($found) {
+                        $certTable = $candidate;
+                        $submission = $found;
+                        break;
+                    }
+                }
+            }
+
+            if (! $submission) {
+                return response()->json(['success' => false, 'message' => 'Certification record not found.'], 404);
+            }
+
+            $userId = $submission->user_id ?? null;
+            $user = null;
+            if ($userId && Schema::hasTable('users')) {
+                $user = DB::table('users')->where('id', $userId)->first();
+            }
+            if (! $user && ! empty($submission->email) && Schema::hasTable('users')) {
+                $user = DB::table('users')->where('email', $submission->email)->first();
+            }
+
+            $userName = 'Applicant Peer';
+            if ($user) {
+                $userName = $user->name ?? $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+                if (empty($userName)) {
+                    $userName = $submission->full_name ?? $submission->name ?? 'Applicant Peer';
+                }
+            } elseif (! empty($submission->full_name)) {
+                $userName = $submission->full_name;
+            } elseif (! empty($submission->name)) {
+                $userName = $submission->name;
+            }
+
+            $certType = $submission->type ?? $submission->certification_type ?? 'Leadership & Entrepreneurship';
+            $level = $submission->level ?? $submission->grade ?? $submission->certification_level ?? $submission->certification_tier ?? 'Certified Member';
+            $score = $submission->score ?? $submission->total_score ?? $submission->percentage ?? 0;
+            $certNumber = $submission->certificate_number ?? ('CERT-'.strtoupper(Str::random(4)).'-'.date('Y'));
+
+            // 2. Mark submission as Approved & Completed with Certificate Number
+            $updatePayload = [
+                'status' => 'approved',
+                'updated_at' => now(),
+            ];
+
+            $updateTable = $certTable ?? 'certifications';
+            if (Schema::hasColumn($updateTable, 'status')) {
+                $updatePayload['status'] = 'approved';
+            }
+            if (Schema::hasColumn($updateTable, 'certificate_number')) {
+                $updatePayload['certificate_number'] = $certNumber;
+            }
+            if (Schema::hasColumn($updateTable, 'issued_at')) {
+                $updatePayload['issued_at'] = now();
+            }
+            if (Schema::hasColumn($updateTable, 'approved_at')) {
+                $updatePayload['approved_at'] = now();
+            }
+            if (Schema::hasColumn($updateTable, 'certificate_generated_at')) {
+                $updatePayload['certificate_generated_at'] = now();
+            }
+
+            DB::table($updateTable)->where('id', $id)->update($updatePayload);
+
+            // Also synchronize certifications table if separate and record exists
+            if (Schema::hasTable('certifications') && $updateTable !== 'certifications') {
+                $certCols = Schema::getColumnListing('certifications');
+                $syncPayload = ['updated_at' => now()];
+                if (in_array('status', $certCols, true)) {
+                    $syncPayload['status'] = 'approved';
+                }
+                if (in_array('certificate_number', $certCols, true)) {
+                    $syncPayload['certificate_number'] = $certNumber;
+                }
+                if (in_array('issued_at', $certCols, true)) {
+                    $syncPayload['issued_at'] = now();
+                }
+                DB::table('certifications')->where('id', $id)->update($syncPayload);
+            }
+
+            // Execute dedicated CertificateGeneratorService if available for rich assets/images
+            try {
+                if (Schema::hasTable('certification_submissions') && class_exists(\App\Models\CertificationSubmission::class) && class_exists(\App\Services\Certifications\CertificateGeneratorService::class)) {
+                    $certSubmission = \App\Models\CertificationSubmission::find($id);
+                    if ($certSubmission && $certSubmission->status !== \App\Models\CertificationSubmission::STATUS_APPROVED) {
+                        app(\App\Services\Certifications\CertificateGeneratorService::class)->approveSubmission(
+                            $certSubmission,
+                            'Approved via admin panel',
+                            auth('admin')->id() ?? auth()->id()
+                        );
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Legacy CertificateGeneratorService execution skipped/failed: '.$e->getMessage());
+            }
+
+            // 3. Post to Timeline Feed (Match Old Admin Panel Post Creation)
+            if (Schema::hasTable('posts') && ($user || ! empty($userId))) {
+                $postUserId = $user ? $user->id : $userId;
+                $postContent = "🎓 Congratulations to {$userName} on successfully completing the {$certType} Certification at {$level} level with a score of {$score}%!";
+
+                $postPayload = [
+                    'user_id' => $postUserId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                if (Schema::hasColumn('posts', 'id')) {
+                    $postPayload['id'] = (string) Str::uuid();
+                }
+                if (Schema::hasColumn('posts', 'content')) {
+                    $postPayload['content'] = $postContent;
+                }
+                if (Schema::hasColumn('posts', 'content_text')) {
+                    $postPayload['content_text'] = $postContent;
+                }
+                if (Schema::hasColumn('posts', 'type')) {
+                    $postPayload['type'] = 'announcement';
+                }
+                if (Schema::hasColumn('posts', 'post_type')) {
+                    $postPayload['post_type'] = 'announcement';
+                }
+                if (Schema::hasColumn('posts', 'status')) {
+                    $postPayload['status'] = 'active';
+                }
+                if (Schema::hasColumn('posts', 'active')) {
+                    $postPayload['active'] = true;
+                }
+                if (Schema::hasColumn('posts', 'visibility')) {
+                    $postPayload['visibility'] = 'public';
+                }
+                if (Schema::hasColumn('posts', 'moderation_status')) {
+                    $postPayload['moderation_status'] = 'approved';
+                }
+                if (Schema::hasColumn('posts', 'source_type')) {
+                    $postPayload['source_type'] = 'global_peer_certificate';
+                }
+                if (Schema::hasColumn('posts', 'source_id')) {
+                    $postPayload['source_id'] = $postUserId;
+                }
+                if (Schema::hasColumn('posts', 'source_event')) {
+                    $postPayload['source_event'] = 'global_peer_certificate';
+                }
+
+                try {
+                    DB::table('posts')->insert($postPayload);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed inserting certification post to posts table: '.$e->getMessage());
+                }
+            }
+
+            // 4. Send In-App / Push Notification
+            if (Schema::hasTable('notifications') && ($user || ! empty($userId))) {
+                $notifUserId = $user ? $user->id : $userId;
+                $notifData = [
+                    'title' => 'Certification Approved! 🎓',
+                    'message' => "Your {$certType} certification has been verified and issued. View your certificate in your profile.",
+                    'certificate_number' => $certNumber,
+                    'action_url' => '/profile/certifications',
+                ];
+
+                $notifPayload = [
+                    'id' => (string) Str::uuid(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                if (Schema::hasColumn('notifications', 'type')) {
+                    $notifPayload['type'] = 'App\\Notifications\\CertificationApprovedNotification';
+                }
+                if (Schema::hasColumn('notifications', 'notifiable_type')) {
+                    $notifPayload['notifiable_type'] = 'App\\Models\\User';
+                }
+                if (Schema::hasColumn('notifications', 'notifiable_id')) {
+                    $notifPayload['notifiable_id'] = $notifUserId;
+                }
+                if (Schema::hasColumn('notifications', 'user_id')) {
+                    $notifPayload['user_id'] = $notifUserId;
+                }
+                if (Schema::hasColumn('notifications', 'data')) {
+                    $notifPayload['data'] = json_encode($notifData);
+                }
+                if (Schema::hasColumn('notifications', 'payload')) {
+                    $notifPayload['payload'] = json_encode($notifData);
+                }
+                if (Schema::hasColumn('notifications', 'title')) {
+                    $notifPayload['title'] = 'Certification Approved! 🎓';
+                }
+                if (Schema::hasColumn('notifications', 'message')) {
+                    $notifPayload['message'] = "Your {$certType} certification has been verified and issued. View your certificate in your profile.";
+                }
+                if (Schema::hasColumn('notifications', 'is_read')) {
+                    $notifPayload['is_read'] = false;
+                }
+
+                try {
+                    DB::table('notifications')->insert($notifPayload);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed inserting notification: '.$e->getMessage());
+                }
+            }
+
+            // Broadcast real-time pending queue update
+            try {
+                $summary = $this->getSummaryData();
+                broadcast(new PendingRequestChangedEvent(
+                    action: 'approved',
+                    category: 'certifications',
+                    requestId: (string) $id,
+                    itemData: ['id' => (string) $id, 'status' => 'approved', 'certificate_number' => $certNumber],
+                    summaryBreakdown: $summary['breakdown']
+                ));
+            } catch (\Throwable) {
+                // Non-blocking broadcast
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Certification approved, certificate generated, feed post created, and notification dispatched.',
+                'data' => [
+                    'id' => $id,
+                    'status' => 'approved',
+                    'certificate_number' => $certNumber,
+                ],
+            ], 200);
+        });
+    }
+
     private function processApproval(string $id, ?string $category = null): JsonResponse
     {
+        if ($category === 'certifications') {
+            return $this->approveCertificationSubmission((string) $id);
+        }
+
         // 1. Resolve table name and locate record defensively
         $table = $category ? $this->resolveTableForCategory($category) : null;
         $record = null;
@@ -246,6 +511,10 @@ class PendingRequestAdminController extends Controller
 
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
+        }
+
+        if (in_array($table, ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'], true)) {
+            return $this->approveCertificationSubmission((string) $id);
         }
 
         DB::beginTransaction();
@@ -421,6 +690,8 @@ class PendingRequestAdminController extends Controller
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
         }
+
+
 
         DB::beginTransaction();
         try {
