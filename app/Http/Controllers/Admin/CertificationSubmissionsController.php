@@ -96,9 +96,22 @@ class CertificationSubmissionsController extends Controller
 
     public function certificate(string $id)
     {
-        $submission = CertificationSubmission::findOrFail($id);
+        $submission = CertificationSubmission::find($id);
 
-        abort_unless($submission->status === CertificationSubmission::STATUS_APPROVED, 404);
+        if (! $submission) {
+            foreach (['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions'] as $tbl) {
+                if (IlluminateSupportFacadesSchema::hasTable($tbl)) {
+                    $row = IlluminateSupportFacadesDB::table($tbl)->where('id', $id)->first();
+                    if ($row) {
+                        $submission = new CertificationSubmission((array) $row);
+                        $submission->id = $row->id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        abort_unless($submission, 404, 'Certificate record not found.');
 
         return view('pdf.certificates.certification', [
             'submission' => $submission,
