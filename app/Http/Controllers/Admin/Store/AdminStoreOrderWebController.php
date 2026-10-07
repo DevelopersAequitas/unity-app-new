@@ -187,12 +187,16 @@ class AdminStoreOrderWebController extends Controller
         $order = Order::with('user')->findOrFail($id);
         $reason = $request->input('reason', 'Administrative cancellation');
 
-        if ($order->user) {
-            $this->lifecycleService->cancelOrder($order->user, $order->id, $reason);
-        } else {
-            $order->update(['status' => 'cancelled', 'cancellation_reason' => $reason]);
-        }
+        try {
+            if ($order->user) {
+                $this->lifecycleService->cancelOrder($order->user, $order->id, $reason);
+            } else {
+                $order->update(['status' => 'cancelled', 'cancellation_reason' => $reason]);
+            }
 
-        return back()->with('success', 'Order cancelled and coins refunded.');
+            return back()->with('success', 'Order cancelled and coins refunded.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Order cancel failed: ' . $e->getMessage());
+        }
     }
 }
