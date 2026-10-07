@@ -125,6 +125,33 @@ class LeaderMemberController extends Controller
     }
 
     /**
+     * DELETE /api/v1/leader/members/{member_id}/posts/{post_id}
+     *
+     * Delete a post created by a member.
+     */
+    public function deletePost(string $memberId, string $postId, Request $request): JsonResponse
+    {
+        /** @var User $leader */
+        $leader = $request->user();
+
+        $result = $this->member360Service->deleteMemberPost($memberId, $postId, $leader);
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'error_code' => $result['error_code'] ?? 'RESOURCE_NOT_FOUND',
+            ], $result['status_code']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'],
+        ]);
+    }
+
+
+    /**
      * GET /api/v1/leader/members/{member_id}/creatives
      *
      * Return paginated creatives/media for the member.
