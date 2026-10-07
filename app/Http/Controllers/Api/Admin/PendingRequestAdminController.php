@@ -78,17 +78,17 @@ class PendingRequestAdminController extends Controller
         $results = collect();
 
         // 1. Circle Joining Requests
-        if ($category === 'all' || $category === 'circle_joining_requests') {
+        if ($category === 'all' || $category === 'circle_joining_requests' || $category === 'circle_join_requests') {
             $results = $results->concat($this->fetchCircleJoinRequests($search, $status));
         }
 
         // 2. Visitor Registrations
-        if ($category === 'all' || $category === 'visitor_registrations') {
+        if ($category === 'all' || $category === 'visitor_registrations' || $category === 'visitors') {
             $results = $results->concat($this->fetchVisitorRegistrations($search, $status));
         }
 
         // 3. Coin Claims
-        if ($category === 'all' || $category === 'coin_claims') {
+        if ($category === 'all' || $category === 'coin_claims' || $category === 'coin_claim_requests' || $category === 'coin-claims') {
             $results = $results->concat($this->fetchCoinClaims($search, $status));
         }
 
@@ -108,17 +108,17 @@ class PendingRequestAdminController extends Controller
         }
 
         // 7. Account Deletion Requests
-        if ($category === 'all' || $category === 'account_deletion_requests') {
+        if ($category === 'all' || $category === 'account_deletion_requests' || $category === 'account_deletion_emails') {
             $results = $results->concat($this->fetchAccountDeletions($search, $status));
         }
 
         // 8. Event Joining Requests
-        if ($category === 'all' || $category === 'event_joining_requests') {
+        if ($category === 'all' || $category === 'event_joining_requests' || $category === 'event_registrations' || $category === 'event_join_requests') {
             $results = $results->concat($this->fetchEventJoiningRequests($search, $status));
         }
 
         // 9. Circle Peer Referrals
-        if ($category === 'all' || $category === 'circle_peer_referrals') {
+        if ($category === 'all' || $category === 'circle_peer_referrals' || $category === 'peer_referrals') {
             $results = $results->concat($this->fetchPeerReferrals($search, $status));
         }
 
@@ -571,62 +571,48 @@ class PendingRequestAdminController extends Controller
         ");
     }
 
-    private function applyStatusFilter($query, string $table, string $status): void
+    private function applyStatusFilter($query, string $tableName, string $status)
     {
-        if ($status === 'all' || ! Schema::hasColumn($table, 'status')) {
-            return;
+        if (! Schema::hasColumn($tableName, 'status')) {
+            return $query;
         }
 
-        if ($table === 'visitor_registrations') {
-            if ($status === 'pending') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review', 'registered')")
-                        ->orWhereNull('status');
-                });
-            } elseif ($status === 'approved') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) IN ('approved', 'attended', 'converted_to_member')");
-                });
-            } elseif ($status === 'rejected') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) IN ('rejected', 'no_show', 'declined')");
-                });
-            } else {
-                $query->whereRaw('LOWER(status) = ?', [$status]);
-            }
-
-            return;
-        }
-
-        if ($table === 'circle_join_requests' || $table === 'circle_joining_requests') {
-            if ($status === 'pending') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')")
-                        ->orWhereNull('status');
-                });
-            } elseif ($status === 'approved') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) IN ('approved', 'circle_member', 'paid', 'cd_approved', 'ded_approved')");
-                });
-            } elseif ($status === 'rejected') {
-                $query->where(function ($q) {
-                    $q->whereRaw("LOWER(status) IN ('rejected', 'rejected_by_cd', 'rejected_by_id', 'cancelled', 'declined')");
-                });
-            } else {
-                $query->whereRaw('LOWER(status) = ?', [$status]);
-            }
-
-            return;
-        }
-
-        if ($status === 'pending') {
-            $query->where(function ($q) use ($table) {
-                $q->whereRaw("LOWER({$table}.status) IN ('pending', 'pending_review', 'under_review')")
-                    ->orWhereNull("{$table}.status");
+        if ($status === 'approved') {
+            return $query->where(function ($q) use ($tableName) {
+                $q->whereRaw("LOWER({$tableName}.status) IN ('approved', 'ded_approved', 'cd_approved', 'completed', 'verified', 'circle_member', 'paid', 'attended', 'converted_to_member')");
+                if (Schema::hasColumn($tableName, 'cd_status')) {
+                    $q->orWhereRaw("LOWER({$tableName}.cd_status) = 'approved'");
+                }
+                if (Schema::hasColumn($tableName, 'ded_status')) {
+                    $q->orWhereRaw("LOWER({$tableName}.ded_status) = 'approved'");
+                }
             });
-        } else {
-            $query->whereRaw("LOWER({$table}.status) = ?", [$status]);
         }
+
+        if ($status === 'rejected') {
+            return $query->where(function ($q) use ($tableName) {
+                $q->whereRaw("LOWER({$tableName}.status) IN ('rejected', 'declined', 'cancelled', 'no_show', 'rejected_by_cd', 'rejected_by_id')");
+                if (Schema::hasColumn($tableName, 'cd_status')) {
+                    $q->orWhereRaw("LOWER({$tableName}.cd_status) IN ('rejected', 'declined')");
+                }
+                if (Schema::hasColumn($tableName, 'ded_status')) {
+                    $q->orWhereRaw("LOWER({$tableName}.ded_status) IN ('rejected', 'declined')");
+                }
+            });
+        }
+
+        if ($status === 'all') {
+            return $query; // No status constraint
+        }
+
+        // Default: Pending
+        return $query->where(function ($q) use ($tableName) {
+            $q->whereRaw("LOWER({$tableName}.status) IN ('pending', 'pending_review', 'under_review', 'registered', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee', 'submitted', 'active', 'new')")
+                ->orWhereNull("{$tableName}.status");
+            if (Schema::hasColumn($tableName, 'cd_status') && Schema::hasColumn($tableName, 'ded_status')) {
+                $q->whereRaw("NOT (LOWER(COALESCE({$tableName}.cd_status, '')) = 'approved' AND LOWER(COALESCE({$tableName}.ded_status, '')) = 'approved')");
+            }
+        });
     }
 
     private function getPendingCount(string ...$tables): int
@@ -888,6 +874,15 @@ class PendingRequestAdminController extends Controller
                 $paymentStatus = 'Pending / Unpaid';
             }
 
+            $finalStatus = $lowerStatus ?: 'pending';
+            if ($status === 'approved') {
+                $finalStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $finalStatus = 'rejected';
+            } elseif (in_array($lowerStatus, ['approved', 'circle_member', 'paid', 'ded_approved', 'cd_approved', 'completed', 'verified'], true) || (strtolower($cdStatus) === 'approved' && strtolower($dedStatus) === 'approved')) {
+                $finalStatus = 'approved';
+            }
+
             return [
                 'id' => (string) $r->id,
                 'category' => 'circle_joining_requests',
@@ -899,7 +894,7 @@ class PendingRequestAdminController extends Controller
                 'target_entity' => $r->target_entity ?? 'Assigned Circle',
                 'details' => $this->formatDetailsText($descCandidate, 'Application to join chartered circle roster.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
-                'status' => $lowerStatus ?: 'pending',
+                'status' => $finalStatus,
                 'cd_status' => $cdStatus,
                 'ded_status' => $dedStatus,
                 'payment_status' => $paymentStatus,
@@ -959,6 +954,13 @@ class PendingRequestAdminController extends Controller
                 $candidateName = 'Guest';
             }
 
+            $visStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $visStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $visStatus = 'rejected';
+            }
+
             return [
                 'id' => (string) $r->id,
                 'category' => 'visitor_registrations',
@@ -970,7 +972,7 @@ class PendingRequestAdminController extends Controller
                 'target_entity' => $r->event_name ?? $r->meeting_name ?? ($r->event_type ?? 'Chapter Meeting'),
                 'details' => $this->formatDetailsText($r->note ?? $r->notes ?? $r->how_known ?? null, 'Visitor pass clearance request.'),
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
-                'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
+                'status' => $visStatus,
             ];
         });
     }
@@ -1001,19 +1003,28 @@ class PendingRequestAdminController extends Controller
             'users.email as applicant_email',
             'users.phone as applicant_phone',
             'users.company_name'
-        )->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'coin_claims',
-            'category_label' => 'Coin Claim',
-            'applicant_name' => $r->applicant_name ?: 'Peer Member',
-            'applicant_email' => $r->applicant_email ?? '',
-            'applicant_phone' => $r->applicant_phone ?? '',
-            'company_name' => $r->company_name ?? 'Member',
-            'target_entity' => ($r->coins_amount ?? $r->amount ?? 0).' Coins',
-            'details' => $this->formatDetailsText($r->reason ?? null, 'Member reward disbursement request.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        )->get()->map(function ($r) use ($status) {
+            $claimStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $claimStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $claimStatus = 'rejected';
+            }
+
+            return [
+                'id' => (string) $r->id,
+                'category' => 'coin_claims',
+                'category_label' => 'Coin Claim',
+                'applicant_name' => $r->applicant_name ?: 'Peer Member',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => $r->applicant_phone ?? '',
+                'company_name' => $r->company_name ?? 'Member',
+                'target_entity' => ($r->coins_amount ?? $r->amount ?? 0).' Coins',
+                'details' => $this->formatDetailsText($r->reason ?? null, 'Member reward disbursement request.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => $claimStatus,
+            ];
+        });
     }
 
     private function fetchEventJoiningRequests(?string $search, string $status = 'pending'): Collection
@@ -1098,6 +1109,13 @@ class PendingRequestAdminController extends Controller
                     ?? $r->remarks
                     ?? null;
 
+                $eventReqStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+                if ($status === 'approved') {
+                    $eventReqStatus = 'approved';
+                } elseif ($status === 'rejected') {
+                    $eventReqStatus = 'rejected';
+                }
+
                 return [
                     'id' => (string) $r->id,
                     'category' => 'event_joining_requests',
@@ -1109,12 +1127,12 @@ class PendingRequestAdminController extends Controller
                     'target_entity' => $eventTitle,
                     'details' => $this->formatDetailsText($notes, 'RSVP pass clearance request.'),
                     'submitted_at' => $r->created_at ?? now()->toISOString(),
-                    'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
+                    'status' => $eventReqStatus,
                 ];
             });
     }
 
-    private function fetchCertifications(?string $search, ?string $status = null): Collection
+    private function fetchCertifications(?string $search, string $status = 'pending'): Collection
     {
         $table = null;
         $possibleTables = ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'];
@@ -1137,14 +1155,7 @@ class PendingRequestAdminController extends Controller
             $query->leftJoin('users', "{$table}.user_id", '=', 'users.id');
         }
 
-        // Do NOT strictly filter by pending if certifications represent evaluation records,
-        // or allow pending, submitted, completed, and null statuses
-        if (Schema::hasColumn($table, 'status')) {
-            $query->where(function ($q) use ($table) {
-                $q->whereRaw("LOWER({$table}.status) IN ('pending', 'pending_review', 'submitted', 'completed', 'active', 'new')")
-                    ->orWhereNull("{$table}.status");
-            });
-        }
+        $this->applyStatusFilter($query, $table, $status);
 
         if (! empty($search)) {
             $query->where(function ($q) use ($search, $table, $hasUsersTable) {
@@ -1188,6 +1199,10 @@ class PendingRequestAdminController extends Controller
             "{$table}.id",
             "{$table}.created_at",
         ];
+
+        if (Schema::hasColumn($table, 'status')) {
+            $selects[] = "{$table}.status";
+        }
 
         // Applicant Name
         if ($hasUsersTable && Schema::hasColumn('users', 'name') && Schema::hasColumn($table, 'full_name')) {
@@ -1275,18 +1290,28 @@ class PendingRequestAdminController extends Controller
 
         return $query->select($selects)
             ->get()
-            ->map(fn ($r) => [
-                'id' => (string) $r->id,
-                'category' => 'certifications',
-                'category_label' => ($r->cert_type ?? 'Certification').' Clearance',
-                'applicant_name' => $r->applicant_name ?? 'Applicant Peer',
-                'applicant_email' => $r->applicant_email ?? '',
-                'applicant_phone' => $r->applicant_phone ?? '',
-                'company_name' => $r->company_name ?? 'Independent Member',
-                'target_entity' => "{$r->cert_type} ({$r->level} - {$r->score} pts)",
-                'details' => "Score: {$r->score} · Percentage: {$r->percentage}% · Level: {$r->level}",
-                'submitted_at' => $r->created_at ?? now()->toISOString(),
-            ]);
+            ->map(function ($r) use ($status) {
+                $certStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+                if ($status === 'approved') {
+                    $certStatus = 'approved';
+                } elseif ($status === 'rejected') {
+                    $certStatus = 'rejected';
+                }
+
+                return [
+                    'id' => (string) $r->id,
+                    'category' => 'certifications',
+                    'category_label' => ($r->cert_type ?? 'Certification').' Clearance',
+                    'applicant_name' => $r->applicant_name ?? 'Applicant Peer',
+                    'applicant_email' => $r->applicant_email ?? '',
+                    'applicant_phone' => $r->applicant_phone ?? '',
+                    'company_name' => $r->company_name ?? 'Independent Member',
+                    'target_entity' => "{$r->cert_type} ({$r->level} - {$r->score} pts)",
+                    'details' => "Score: {$r->score} · Percentage: {$r->percentage}% · Level: {$r->level}",
+                    'submitted_at' => $r->created_at ?? now()->toISOString(),
+                    'status' => $certStatus,
+                ];
+            });
     }
 
     private function fetchPendingImpacts(?string $search, string $status = 'pending'): Collection
@@ -1316,19 +1341,28 @@ class PendingRequestAdminController extends Controller
             'users.email as applicant_email',
             'users.phone as applicant_phone',
             'users.company_name'
-        )->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'pending_impacts',
-            'category_label' => 'Life Impact Proof',
-            'applicant_name' => $r->applicant_name ?: 'Contributor',
-            'applicant_email' => $r->applicant_email ?? '',
-            'applicant_phone' => $r->applicant_phone ?? '',
-            'company_name' => $r->company_name ?? 'Member Partner',
-            'target_entity' => '₹'.number_format((float) ($r->amount ?? 0)),
-            'details' => $this->formatDetailsText($r->description ?? null, 'Life impact contract validation.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        )->get()->map(function ($r) use ($status) {
+            $impactStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $impactStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $impactStatus = 'rejected';
+            }
+
+            return [
+                'id' => (string) $r->id,
+                'category' => 'pending_impacts',
+                'category_label' => 'Life Impact Proof',
+                'applicant_name' => $r->applicant_name ?: 'Contributor',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => $r->applicant_phone ?? '',
+                'company_name' => $r->company_name ?? 'Member Partner',
+                'target_entity' => '₹'.number_format((float) ($r->amount ?? 0)),
+                'details' => $this->formatDetailsText($r->description ?? null, 'Life impact contract validation.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => $impactStatus,
+            ];
+        });
     }
 
     private function fetchAdBookings(?string $search, string $status = 'pending'): Collection
@@ -1357,19 +1391,28 @@ class PendingRequestAdminController extends Controller
             'users.email as applicant_email',
             'users.phone as applicant_phone',
             'users.company_name'
-        )->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'ad_booking_requests',
-            'category_label' => 'Ad Booking Request',
-            'applicant_name' => $r->applicant_name ?: 'Advertiser',
-            'applicant_email' => $r->applicant_email ?? '',
-            'applicant_phone' => $r->applicant_phone ?? '',
-            'company_name' => $r->company_name ?? 'Brand Partner',
-            'target_entity' => $r->placement ?? 'Banner Ad Slot',
-            'details' => $this->formatDetailsText($r->notes ?? null, 'Ad booking schedule request.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        )->get()->map(function ($r) use ($status) {
+            $adStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $adStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $adStatus = 'rejected';
+            }
+
+            return [
+                'id' => (string) $r->id,
+                'category' => 'ad_booking_requests',
+                'category_label' => 'Ad Booking Request',
+                'applicant_name' => $r->applicant_name ?: 'Advertiser',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => $r->applicant_phone ?? '',
+                'company_name' => $r->company_name ?? 'Brand Partner',
+                'target_entity' => $r->placement ?? 'Banner Ad Slot',
+                'details' => $this->formatDetailsText($r->notes ?? null, 'Ad booking schedule request.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => $adStatus,
+            ];
+        });
     }
 
     private function fetchAccountDeletions(?string $search, string $status = 'pending'): Collection
@@ -1398,19 +1441,28 @@ class PendingRequestAdminController extends Controller
             'users.email as applicant_email',
             'users.phone as applicant_phone',
             'users.company_name'
-        )->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'account_deletion_requests',
-            'category_label' => 'Account Deletion Request',
-            'applicant_name' => $r->applicant_name ?: 'User',
-            'applicant_email' => $r->applicant_email ?? '',
-            'applicant_phone' => $r->applicant_phone ?? '',
-            'company_name' => $r->company_name ?? 'Member',
-            'target_entity' => 'Account Closure',
-            'details' => $this->formatDetailsText($r->reason ?? null, 'User deletion request.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        )->get()->map(function ($r) use ($status) {
+            $delStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $delStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $delStatus = 'rejected';
+            }
+
+            return [
+                'id' => (string) $r->id,
+                'category' => 'account_deletion_requests',
+                'category_label' => 'Account Deletion Request',
+                'applicant_name' => $r->applicant_name ?: 'User',
+                'applicant_email' => $r->applicant_email ?? '',
+                'applicant_phone' => $r->applicant_phone ?? '',
+                'company_name' => $r->company_name ?? 'Member',
+                'target_entity' => 'Account Closure',
+                'details' => $this->formatDetailsText($r->reason ?? null, 'User deletion request.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => $delStatus,
+            ];
+        });
     }
 
     private function fetchPeerReferrals(?string $search, string $status = 'pending'): Collection
@@ -1431,19 +1483,28 @@ class PendingRequestAdminController extends Controller
             });
         }
 
-        return $query->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'circle_peer_referrals',
-            'category_label' => 'Circle Peer Referral',
-            'applicant_name' => $r->referred_name ?? 'Referred Candidate',
-            'applicant_email' => $r->referred_email ?? '',
-            'applicant_phone' => $r->referred_phone ?? '',
-            'company_name' => $r->referred_company ?? 'Candidate',
-            'target_entity' => 'Peer Recommendation',
-            'details' => $this->formatDetailsText($r->notes ?? null, 'Circle referral clearance.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        return $query->get()->map(function ($r) use ($status) {
+            $refStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $refStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $refStatus = 'rejected';
+            }
+
+            return [
+                'id' => (string) $r->id,
+                'category' => 'circle_peer_referrals',
+                'category_label' => 'Circle Peer Referral',
+                'applicant_name' => $r->referred_name ?? 'Referred Candidate',
+                'applicant_email' => $r->referred_email ?? '',
+                'applicant_phone' => $r->referred_phone ?? '',
+                'company_name' => $r->referred_company ?? 'Candidate',
+                'target_entity' => 'Peer Recommendation',
+                'details' => $this->formatDetailsText($r->notes ?? null, 'Circle referral clearance.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => $refStatus,
+            ];
+        });
     }
 
     private function fetchIntroductionRequests(?string $search, string $status = 'pending'): Collection
@@ -1464,18 +1525,27 @@ class PendingRequestAdminController extends Controller
             });
         }
 
-        return $query->get()->map(fn ($r) => [
-            'id' => (string) $r->id,
-            'category' => 'introduction_requests',
-            'category_label' => 'Introduction Request',
-            'applicant_name' => $r->requester_name ?? 'Requester Peer',
-            'applicant_email' => $r->requester_email ?? '',
-            'applicant_phone' => '',
-            'company_name' => 'Member',
-            'target_entity' => $r->target_peer_name ?? 'Peer Intro',
-            'details' => $this->formatDetailsText($r->notes ?? null, 'Introduction request clearance.'),
-            'submitted_at' => $r->created_at ?? now()->toISOString(),
-            'status' => strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending'))),
-        ]);
+        return $query->get()->map(function ($r) use ($status) {
+            $introStatus = strtolower((string) ($r->status ?? ($status !== 'all' ? $status : 'pending')));
+            if ($status === 'approved') {
+                $introStatus = 'approved';
+            } elseif ($status === 'rejected') {
+                $introStatus = 'rejected';
+            }
+
+            return [
+                'id' => (string) $r->id,
+                'category' => 'introduction_requests',
+                'category_label' => 'Introduction Request',
+                'applicant_name' => $r->requester_name ?? 'Requester Peer',
+                'applicant_email' => $r->requester_email ?? '',
+                'applicant_phone' => '',
+                'company_name' => 'Member',
+                'target_entity' => $r->target_peer_name ?? 'Peer Intro',
+                'details' => $this->formatDetailsText($r->notes ?? null, 'Introduction request clearance.'),
+                'submitted_at' => $r->created_at ?? now()->toISOString(),
+                'status' => $introStatus,
+            ];
+        });
     }
 }
