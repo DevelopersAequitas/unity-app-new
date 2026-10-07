@@ -41,6 +41,28 @@ class ProductVariant extends Model
         'is_active' => 'boolean',
     ];
 
+    protected function coinPrice(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn ($value, $attributes) => (int) ($attributes['coin_price'] ?? ($attributes['price_coins'] ?? 0)),
+            set: fn ($value) => [
+                'coin_price' => (int) $value,
+                'price_coins' => (int) $value,
+            ]
+        );
+    }
+
+    protected function priceCoins(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn ($value, $attributes) => (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0)),
+            set: fn ($value) => [
+                'price_coins' => (int) $value,
+                'coin_price' => (int) $value,
+            ]
+        );
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id');

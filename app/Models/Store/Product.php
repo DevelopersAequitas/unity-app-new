@@ -83,8 +83,26 @@ class Product extends Model
     protected function coinPrice(): Attribute
     {
         return Attribute::make(
-            get: fn ($value, $attributes) => (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0)),
-            set: fn ($value) => ['price_coins' => (int) $value]
+            get: function ($value, $attributes) {
+                if ($this->relationLoaded('variants') && $this->variants->isNotEmpty()) {
+                    $activeVariants = $this->variants->filter(fn ($v) => (bool) $v->is_active);
+                    if ($activeVariants->isNotEmpty()) {
+                        $minPrice = $activeVariants->map(function ($v) {
+                            return (int) ($v->coin_price ?? ($v->price_coins ?? 0));
+                        })->filter(fn ($p) => $p > 0)->min();
+
+                        if ($minPrice !== null && $minPrice > 0) {
+                            return (int) $minPrice;
+                        }
+                    }
+                }
+
+                return (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0));
+            },
+            set: fn ($value) => [
+                'price_coins' => (int) $value,
+                'coin_price' => (int) $value,
+            ]
         );
     }
 

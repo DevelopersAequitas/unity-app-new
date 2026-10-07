@@ -284,6 +284,8 @@ class AdminStoreCatalogWebController extends Controller
 
         ProductVariant::create($validated);
 
+        $this->syncProductParentPrice($product);
+
         return back()->with('success', 'Variant added successfully.');
     }
 
@@ -302,15 +304,43 @@ class AdminStoreCatalogWebController extends Controller
 
         $variant->update($validated);
 
+        if ($variant->product) {
+            $this->syncProductParentPrice($variant->product);
+        }
+
         return back()->with('success', 'Variant updated successfully.');
     }
 
     public function deleteVariant(string $variantId)
     {
         $variant = ProductVariant::findOrFail($variantId);
+        $product = $variant->product;
         $variant->delete();
 
+        if ($product) {
+            $this->syncProductParentPrice($product);
+        }
+
         return back()->with('success', 'Variant deleted successfully.');
+    }
+
+    protected function syncProductParentPrice(Product $product): void
+    {
+        $minPrice = ProductVariant::where('product_id', $product->id)
+            ->where(function ($q) {
+                $q->where('status', 'ACTIVE')->orWhere('is_active', true);
+            })
+            ->where(function ($q) {
+                $q->where('price_coins', '>', 0)->orWhere('coin_price', '>', 0);
+            })
+            ->min('price_coins');
+
+        if ($minPrice && (int) $minPrice > 0) {
+            $product->update([
+                'price_coins' => (int) $minPrice,
+                'coin_price' => (int) $minPrice,
+            ]);
+        }
     }
 
     public function addImage(Request $request, string $productId)
