@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Creative;
 
 use App\Models\CircleCategoryLevel4;
+use App\Models\City;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\User;
@@ -47,10 +48,10 @@ class WelcomeCreativeImageGenerator
         $fontSemiBold = $this->getFontPath('semibold');
         $fontRegular = $this->getFontPath('regular');
 
-        // Colors
-        $colorDark = imagecolorallocate($canvas, 15, 23, 42);      // #0F172A
-        $colorGold = imagecolorallocate($canvas, 180, 83, 9);       // #B45309 Amber/Gold
-        $colorSlate = imagecolorallocate($canvas, 100, 116, 139);   // #64748B Slate
+        // Colors (matching Image 2)
+        $colorGold = imagecolorallocate($canvas, 212, 136, 6);      // #D48806 Amber/Gold for Member Name
+        $colorDark = imagecolorallocate($canvas, 15, 23, 42);       // #0F172A Deep Charcoal/Navy for Company • City
+        $colorSlate = imagecolorallocate($canvas, 71, 85, 105);     // #475569 Slate Gray for Category
         $darkCircleBg = imagecolorallocate($canvas, 19, 34, 71);    // #132247 Navy fallback
 
         // 1. Profile Avatar: Diameter = 450px, Center X = 561px, Center Y = 720px
@@ -60,55 +61,23 @@ class WelcomeCreativeImageGenerator
 
         $this->drawAvatarOrInitial($canvas, $user, $circleCenterX, $circleCenterY, $targetDiameter, $darkCircleBg, $fontBold);
 
-        // Text data preparation
+        // 1. Line 1: Member Name (Uppercase, Gold, Montserrat Bold)
         $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
         if ($name === '') {
             $name = 'PEER MEMBER';
         }
         $name = strtoupper($name);
 
-        $company = trim((string) ($user->company_name ?? $user->company ?? ''));
-        $designation = trim((string) ($user->designation ?? $user->job_title ?? ''));
+        // 2. Line 2: Company • City (Dark Navy, Montserrat SemiBold)
+        $company = trim((string) ($user->company_name ?? $user->company ?? $user->business_name ?? ''));
 
-        $line2Parts = [];
-        if (! empty($designation)) {
-            $line2Parts[] = $designation;
+        $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
+        if (! $cityModel && ! empty($user->city_id)) {
+            $cityModel = City::find($user->city_id);
         }
-        if (! empty($company)) {
-            $line2Parts[] = $company;
-        }
-        $line2Text = implode(' | ', $line2Parts);
-        if (empty($line2Text)) {
-            $line2Text = 'Peers Global Member';
-        }
-
-        // Category / Subcategory
-        $categoryName = '';
-        if ($user->relationLoaded('mainBusinessCategory') && $user->mainBusinessCategory) {
-            $categoryName = $user->mainBusinessCategory->name ?? '';
-        } elseif ($user->relationLoaded('level4Category') && $user->level4Category) {
-            $categoryName = $user->level4Category->name ?? '';
-        } elseif (! empty($user->business_category_id)) {
-            $categoryName = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
-        }
-
-        if (empty($categoryName)) {
-            $categoryName = $user->category_name ?? $user->business_sub_category ?? '';
-        }
-        if (is_array($categoryName)) {
-            $categoryName = $categoryName['name'] ?? $categoryName['label'] ?? '';
-        }
-        $categoryName = trim((string) $categoryName);
-        if (in_array(strtolower($categoryName), ['null', 'none', 'n/a', 'peers global member', 'peer'], true)) {
-            $categoryName = '';
-        }
-
-        // City
-        $cityName = '';
-        if ($user->relationLoaded('city') && $user->city) {
-            $cityName = $user->city->name ?? '';
-        } elseif (! empty($user->city)) {
-            $cityName = is_string($user->city) ? $user->city : ($user->city['name'] ?? '');
+        $cityName = $cityModel?->name ?? $user->city_name ?? $user->city ?? $user->business_city ?? '';
+        if (is_array($cityName)) {
+            $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
         }
         if (is_string($cityName) && str_starts_with(trim($cityName), '{')) {
             $decoded = json_decode(trim($cityName), true);
@@ -119,17 +88,55 @@ class WelcomeCreativeImageGenerator
             $cityName = '';
         }
 
-        $line3Parts = [];
-        if (! empty($categoryName)) {
-            $line3Parts[] = $categoryName;
+        $line2Parts = [];
+        if (! empty($company)) {
+            $line2Parts[] = $company;
         }
         if (! empty($cityName)) {
-            $line3Parts[] = $cityName;
+            $line2Parts[] = $cityName;
         }
-        $line3Text = implode(' | ', $line3Parts);
+        $line2Text = implode('  •  ', $line2Parts);
+        if (empty($line2Text)) {
+            $line2Text = 'Peers Global Member';
+        }
+
+        // 3. Line 3: Category / Subcategory / Designation (Slate Gray, Montserrat SemiBold)
+        $categoryName = '';
+        if ($user->relationLoaded('level4Category') && $user->level4Category) {
+            $categoryName = $user->level4Category->name ?? '';
+        } elseif (! empty($user->business_category_id)) {
+            $categoryName = CircleCategoryLevel4::find($user->business_category_id)?->name ?? '';
+        } elseif (! empty($user->category_id)) {
+            $categoryName = CircleCategoryLevel4::find($user->category_id)?->name ?? '';
+        }
+
+        if (empty($categoryName) && $user->relationLoaded('mainBusinessCategory') && $user->mainBusinessCategory) {
+            $categoryName = $user->mainBusinessCategory->name ?? '';
+        }
+
+        if (empty($categoryName) && isset($user->businessCategory)) {
+            $categoryName = $user->businessCategory->name ?? '';
+        }
+
+        if (empty($categoryName)) {
+            $categoryName = $user->category_name ?? $user->business_sub_category ?? $user->industry ?? $user->business_category ?? '';
+        }
+
+        if (is_array($categoryName)) {
+            $categoryName = $categoryName['name'] ?? $categoryName['label'] ?? '';
+        }
+        $categoryName = trim((string) $categoryName);
+        if (in_array(strtolower($categoryName), ['null', 'none', 'n/a', 'peers global member', 'peer'], true)) {
+            $categoryName = '';
+        }
+
+        $designation = trim((string) ($user->designation ?? $user->job_title ?? ''));
+
+        // If category is set, use category; fallback to designation if category is empty
+        $line3Text = ! empty($categoryName) ? $categoryName : $designation;
 
         // Helper to draw center-aligned text with auto-scaling to fit within maxWidth
-        $drawCenterText = function ($img, int $fontSize, int $y, int $color, string $font, string $text, int $maxWidth = 950) use ($width): void {
+        $drawCenterText = function ($img, int $fontSize, int $y, int $color, string $font, string $text, int $maxWidth = 940) use ($width): void {
             if (empty($text)) {
                 return;
             }
@@ -146,15 +153,15 @@ class WelcomeCreativeImageGenerator
             }
         };
 
-        // Draw Member Name (Y = 1010, Montserrat Bold, 36pt, Dark)
-        $drawCenterText($canvas, 36, 1010, $colorDark, $fontBold, $name, 920);
+        // Draw Line 1: Member Name (Y = 1005, Montserrat Bold, 36pt, Vibrant Gold)
+        $drawCenterText($canvas, 36, 1005, $colorGold, $fontBold, $name, 940);
 
-        // Draw Line 2: Designation | Company (Y = 1065, Montserrat SemiBold, 24pt, Gold/Amber)
-        $drawCenterText($canvas, 24, 1065, $colorGold, $fontSemiBold, $line2Text, 920);
+        // Draw Line 2: Company • City (Y = 1060, Montserrat SemiBold, 23pt, Deep Charcoal/Navy)
+        $drawCenterText($canvas, 23, 1060, $colorDark, $fontSemiBold, $line2Text, 940);
 
-        // Draw Line 3: Category | City (Y = 1115, Montserrat Regular, 20pt, Slate)
+        // Draw Line 3: Category / Designation (Y = 1110, Montserrat SemiBold, 21pt, Slate Gray)
         if (! empty($line3Text)) {
-            $drawCenterText($canvas, 20, 1115, $colorSlate, $fontRegular, $line3Text, 920);
+            $drawCenterText($canvas, 21, 1110, $colorSlate, $fontSemiBold, $line3Text, 940);
         }
 
         // Save canvas to disk

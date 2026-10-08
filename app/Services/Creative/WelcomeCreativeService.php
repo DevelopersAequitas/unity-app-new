@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Creative;
 
 use App\Models\ActivityCreative;
+use App\Models\City;
 use App\Models\Post;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -65,13 +66,22 @@ class WelcomeCreativeService
             }
 
             $company = trim((string) ($user->company_name ?? $user->company ?? ''));
-            $cityName = '';
-            if ($user->relationLoaded('city') && $user->city) {
-                $cityName = $user->city->name ?? '';
-            } elseif (! empty($user->city)) {
-                $cityName = is_string($user->city) ? $user->city : ($user->city['name'] ?? '');
+            $cityModel = $user->relationLoaded('city') ? $user->getRelation('city') : ($user->cityRelation ?? null);
+            if (! $cityModel && ! empty($user->city_id)) {
+                $cityModel = City::find($user->city_id);
+            }
+            $cityName = $cityModel?->name ?? $user->city_name ?? $user->city ?? $user->business_city ?? '';
+            if (is_array($cityName)) {
+                $cityName = $cityName['name'] ?? $cityName['label'] ?? '';
+            }
+            if (is_string($cityName) && str_starts_with(trim($cityName), '{')) {
+                $decoded = json_decode(trim($cityName), true);
+                $cityName = $decoded['name'] ?? $decoded['label'] ?? $cityName;
             }
             $cityName = trim((string) $cityName);
+            if (in_array(strtolower($cityName), ['null', 'none', 'n/a'], true)) {
+                $cityName = '';
+            }
 
             $bioParts = array_filter([$company, $cityName]);
             $bioStr = ! empty($bioParts) ? implode(', ', $bioParts) : 'Peers Global Community';
