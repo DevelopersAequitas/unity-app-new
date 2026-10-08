@@ -38,8 +38,9 @@ class MembershipController extends BaseApiController
     {
         try {
             $user = $request->user();
-            $planId = $request->input('plan_id');
-            $quote = $this->membershipService->quoteRenewal($user, $planId);
+            $data = $request->validated();
+            $planId = $data['plan_id'] ?? null;
+            $quote = $this->membershipService->quoteRenewal($user, $planId, $data);
 
             return $this->success($quote, 'Membership renewal quote calculated');
         } catch (Exception $e) {
@@ -51,10 +52,11 @@ class MembershipController extends BaseApiController
     {
         try {
             $user = $request->user();
-            $planId = $request->input('plan_id');
+            $data = $request->validated();
+            $planId = $data['plan_id'] ?? null;
             $idempotencyKey = $request->header('Idempotency-Key');
 
-            $result = $this->membershipService->renewMembership($user, $planId, $idempotencyKey);
+            $result = $this->membershipService->renewMembership($user, $planId, $idempotencyKey, $data);
 
             return $this->success($result, 'Membership renewed successfully using coins');
         } catch (Exception $e) {

@@ -14,7 +14,11 @@ class StoreMembershipQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'plan_id' => 'required|uuid',
+            'plan_id' => 'nullable|uuid',
+            'product_id' => 'nullable|uuid',
+            'coins' => 'nullable|integer|min:1',
+            'price_coins' => 'nullable|integer|min:1',
+            'duration_months' => 'nullable|integer|min:1',
         ];
     }
 }
