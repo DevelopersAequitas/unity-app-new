@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Leader;
 
+use App\Models\ActivityCreative;
 use App\Models\Circle;
 use App\Models\MilestoneBadge;
 use App\Models\Post;
@@ -451,6 +452,51 @@ class LeaderMember360Test extends TestCase
 
         $response = $this->withToken($this->token)
             ->deleteJson("/api/v1/leader/members/{$this->member->id}/posts/{$fakePostId}");
+
+        $response->assertStatus(404)
+            ->assertJson([
+                'success' => false,
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ]);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Delete Creative Tests
+    // ────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function it_allows_leader_to_delete_member_creative(): void
+    {
+        $creative = ActivityCreative::create([
+            'id' => Str::uuid()->toString(),
+            'user_id' => $this->member->id,
+            'title' => 'Test Creative',
+            'description' => 'Test Description',
+            'activity_type' => 'p2p_meeting',
+            'status' => 'completed',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/creatives/{$creative->id}");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Member creative deleted successfully.',
+            ]);
+
+        $this->assertSoftDeleted('activity_creatives', [
+            'id' => $creative->id,
+        ]);
+    }
+
+    /** @test */
+    public function it_returns_404_when_deleting_non_existent_creative(): void
+    {
+        $fakeCreativeId = Str::uuid()->toString();
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/creatives/{$fakeCreativeId}");
 
         $response->assertStatus(404)
             ->assertJson([
