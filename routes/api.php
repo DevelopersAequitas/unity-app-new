@@ -1491,6 +1491,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
     Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
 
+    
     // Web Homepage Media - Success Stories (Fetch & Uploadation CRUD)
     Route::get('/web-success-stories', [WebPublicApiController::class, 'successStories']);
     Route::get('/web/success-stories', [WebPublicApiController::class, 'successStories']);
