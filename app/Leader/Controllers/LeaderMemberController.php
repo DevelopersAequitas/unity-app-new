@@ -191,6 +191,32 @@ class LeaderMemberController extends Controller
     }
 
     /**
+     * DELETE /api/v1/leader/members/{member_id}/creatives/{creative_id}
+     *
+     * Delete a creative associated with a member.
+     */
+    public function deleteCreative(string $memberId, string $creativeId, Request $request): JsonResponse
+    {
+        /** @var User $leader */
+        $leader = $request->user();
+
+        $result = $this->member360Service->deleteMemberCreative($memberId, $creativeId, $leader);
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'error_code' => $result['error_code'] ?? 'RESOURCE_NOT_FOUND',
+            ], $result['status_code']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'],
+        ]);
+    }
+
+    /**
      * GET /api/v1/leader/members/{member_id}/badges
      *
      * Return paginated earned badges/milestones for the member.

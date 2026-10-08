@@ -120,6 +120,7 @@
         ['label' => 'Collaborations', 'route' => 'admin.collaborations.index', 'active_routes' => ['admin.collaborations*']],
         ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index', 'active_routes' => ['admin.activities.register-visitor*']],
         ['label' => 'Activity Videos', 'route' => 'admin.activities.videos.index', 'active_routes' => ['admin.activities.videos*']],
+        ['label' => 'Activity Creatives', 'route' => 'admin.activity-creatives.index', 'active_routes' => ['admin.activity-creatives*']],
     ];
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
@@ -133,7 +134,7 @@
         }));
     }
 
-    $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
+    $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*') || request()->routeIs('admin.activity-creatives*');
     $asksActive = request()->routeIs('admin.asks*');
     $plansActive = request()->routeIs('admin.unity-peers-plans.*') || request()->routeIs('admin.circle-plans.*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
@@ -433,6 +434,119 @@
                                    title="Success Stories">
                                     <i class="bi bi-play-circle-fill text-danger me-2"></i>
                                     <span class="menu-text">Success Stories</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                {{-- Leadership Selection Module --}}
+                @php
+                    $isLeadershipActive = request()->routeIs('admin.web.leadership.*') || request()->is('admin/web/leadership*');
+                @endphp
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $isLeadershipActive ? 'active' : '' }}" 
+                       data-bs-toggle="collapse" 
+                       href="#collapseLeadershipSelection" 
+                       role="button" 
+                       aria-expanded="{{ $isLeadershipActive ? 'true' : 'false' }}"
+                       title="Leadership Selection">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-award-fill me-2 text-warning"></i>
+                            <span class="menu-text">Leadership Selection</span>
+                        </div>
+                        <i class="bi bi-chevron-down small text-muted"></i>
+                    </a>
+                    <div class="collapse {{ $isLeadershipActive ? 'show' : '' }}" id="collapseLeadershipSelection">
+                        <ul class="nav flex-column ps-3 mt-1">
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/dashboard*') || (request()->is('admin/web/leadership') && !request()->is('admin/web/leadership/*')) ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/dashboard') }}" title="Dashboard">
+                                    <i class="bi bi-speedometer2 me-2 text-primary"></i>
+                                    <span class="menu-text">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/campaigns*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/campaigns') }}" title="Campaign Management">
+                                    <i class="bi bi-calendar2-range me-2 text-info"></i>
+                                    <span class="menu-text">Campaign Management</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/forms*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/forms') }}" title="Dynamic Form Builder">
+                                    <i class="bi bi-ui-checks me-2 text-primary"></i>
+                                    <span class="menu-text">Dynamic Form Builder</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/nominations*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/nominations') }}" title="Nominations">
+                                    <i class="bi bi-person-lines-fill me-2 text-success"></i>
+                                    <span class="menu-text">Nominations</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/voting*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/voting') }}" title="Voting Management">
+                                    <i class="bi bi-check2-square me-2 text-primary"></i>
+                                    <span class="menu-text">Voting Management</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/jury*') && !request()->is('admin/web/leadership/jury-evaluations*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/jury') }}" title="Jury Management">
+                                    <i class="bi bi-people-fill me-2 text-warning"></i>
+                                    <span class="menu-text">Jury Management</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/jury-evaluations*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/jury-evaluations') }}" title="Jury Evaluations">
+                                    <i class="bi bi-clipboard2-data me-2 text-danger"></i>
+                                    <span class="menu-text">Jury Evaluations</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/decisions*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/decisions') }}" title="Final Decisions">
+                                    <i class="bi bi-shield-check me-2 text-info"></i>
+                                    <span class="menu-text">Final Decisions</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/winners*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/winners') }}" title="Winners">
+                                    <i class="bi bi-trophy-fill me-2 text-warning"></i>
+                                    <span class="menu-text">Winners</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/creatives*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/creatives') }}" title="Creative Management">
+                                    <i class="bi bi-image-fill me-2 text-info"></i>
+                                    <span class="menu-text">Creative Management</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/notifications*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/notifications') }}" title="Notifications">
+                                    <i class="bi bi-bell-fill me-2 text-info"></i>
+                                    <span class="menu-text">Notifications</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/reports*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/reports') }}" title="Reports">
+                                    <i class="bi bi-bar-chart-line-fill me-2 text-success"></i>
+                                    <span class="menu-text">Reports</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/audit-logs*') ? 'active' : '' }}" 
+                                   href="{{ url('admin/web/leadership/audit-logs') }}" title="Audit Logs">
+                                    <i class="bi bi-journal-text me-2 text-secondary"></i>
+                                    <span class="menu-text">Audit Logs</span>
                                 </a>
                             </li>
                         </ul>

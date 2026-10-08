@@ -1864,6 +1864,50 @@ class LeaderMember360Service
         ];
     }
 
+    /**
+     * Delete a member's creative.
+     *
+     * @return array{success: bool, message: string, error_code?: string, status_code: int}
+     */
+    public function deleteMemberCreative(string $memberId, string $creativeId, User $leader): array
+    {
+        $member = $this->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return [
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        $creative = ActivityCreative::query()
+            ->where('id', $creativeId)
+            ->where('user_id', $memberId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $creative) {
+            return [
+                'success' => false,
+                'message' => 'Creative not found or already deleted.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        DB::transaction(function () use ($creative): void {
+            $creative->delete();
+        });
+
+        return [
+            'success' => true,
+            'message' => 'Member creative deleted successfully.',
+            'status_code' => 200,
+        ];
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // MEMBER BADGES
     // ─────────────────────────────────────────────────────────────────────────

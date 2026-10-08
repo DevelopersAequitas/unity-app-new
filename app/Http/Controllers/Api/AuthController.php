@@ -32,6 +32,7 @@ use App\Models\UserPushToken;
 use App\Services\Auth\OtpService;
 use App\Services\Auth\SocialAuthService;
 use App\Services\Coins\CoinsService;
+use App\Services\Creative\WelcomeCreativeService;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\Notifications\DailyHabitLoopService;
@@ -81,6 +82,7 @@ class AuthController extends BaseApiController
 
         $referralPreview = $referralService->validateReferralCodeOrFail($normalizedReferralCode);
         $data['resolved_referred_by_user_id'] = $this->resolveRegisterReferrerUserId($data, $referralPreview);
+        $data['is_referral_registration'] = filled($normalizedReferralCode) && ! empty($referralPreview);
 
         $profilePhotoFile = $this->storeRegisterProfilePhoto($request, $fileUploadService);
         if ($profilePhotoFile) {
@@ -174,6 +176,15 @@ class AuthController extends BaseApiController
         }
 
         $registrationTime = $persistedUser->created_at ? $persistedUser->created_at->copy() : now();
+
+        try {
+            app(WelcomeCreativeService::class)->generateAndPostWelcomeCreative($persistedUser);
+        } catch (\Throwable $e) {
+            Log::error('auth.register.welcome_creative_skipped', [
+                'user_id' => (string) $persistedUser->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         SendWelcomeWhatsappJob::dispatch((string) $persistedUser->id);
         SendFounderEngagementJob::dispatch((string) $persistedUser->id)
@@ -980,7 +991,12 @@ class AuthController extends BaseApiController
             }
         }
 
-        $trialEndsAt = now()->addDays(3);
+        $isReferralRegistration = ! empty($data['is_referral_registration'])
+            || filled($data['resolved_referred_by_user_id'] ?? null)
+            || filled($data['referral_code'] ?? null);
+
+        $trialDays = User::trialDays($isReferralRegistration);
+        $trialEndsAt = now()->addDays($trialDays);
 
         $user->status = 'active';
         $user->registration_source = 'App';
