@@ -29,61 +29,52 @@
         </div>
     </div>
 
-    {{-- 2. Quick Access Action Hub --}}
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="{{ route('admin.web.partnerships.index') }}" class="card border-0 shadow-xs rounded-4 p-3 text-center text-decoration-none h-100 bg-white hover-shadow transition">
-                <div class="d-flex align-items-center justify-content-center mx-auto mb-2 rounded-3" style="width: 44px; height: 44px; background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
-                    <i class="bi bi-people-fill fs-5"></i>
+    {{-- 2. Featured: Homepage Media & Success Stories Management Hub --}}
+    <div class="card border-0 shadow-xs rounded-4 p-4 mb-4 bg-white position-relative overflow-hidden" style="background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);">
+        <div class="row align-items-center g-3">
+            <div class="col-12 col-lg-7">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-indigo-subtle text-indigo rounded-pill px-2.5 py-1" style="background: rgba(99, 102, 241, 0.12); color: #6366f1; font-weight: 600; font-size: 0.72rem;">
+                        <i class="bi bi-camera-reels me-1"></i> Homepage Media Hub
+                    </span>
+                    <span class="badge bg-success-subtle text-success rounded-pill px-2.5 py-1" style="font-size: 0.7rem;">
+                        <i class="bi bi-broadcast me-1"></i> Ready for Website Sync
+                    </span>
                 </div>
-                <span class="fw-bold text-dark small">Partnerships</span>
-                <span class="text-muted" style="font-size: 0.7rem;">{{ $partnershipCount }} Active</span>
-            </a>
-        </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="{{ route('admin.web.opportunities.index') }}" class="card border-0 shadow-xs rounded-4 p-3 text-center text-decoration-none h-100 bg-white hover-shadow transition">
-                <div class="d-flex align-items-center justify-content-center mx-auto mb-2 rounded-3" style="width: 44px; height: 44px; background: rgba(16, 185, 129, 0.1); color: #10b981;">
-                    <i class="bi bi-compass fs-5"></i>
+                <h3 class="h5 fw-bold text-dark mb-1">Add Media for Homepage — Success Stories</h3>
+                <p class="text-muted small mb-3">
+                    Connect YouTube video case studies and member portrait photos to populate the homepage floating story collage section.
+                </p>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a href="{{ route('admin.web.success-stories.index') }}" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-sm">
+                        <i class="bi bi-play-circle-fill"></i>
+                        <span>Manage Success Stories</span>
+                    </a>
+                    <a href="{{ route('admin.web.success-stories.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3 py-2 fw-semibold d-inline-flex align-items-center gap-1.5">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>Add New Story</span>
+                    </a>
                 </div>
-                <span class="fw-bold text-dark small">Opportunities</span>
-                <span class="text-muted" style="font-size: 0.7rem;">{{ $opportunityCount }} Open</span>
-            </a>
-        </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="{{ route('admin.web.companies.index') }}" class="card border-0 shadow-xs rounded-4 p-3 text-center text-decoration-none h-100 bg-white hover-shadow transition">
-                <div class="d-flex align-items-center justify-content-center mx-auto mb-2 rounded-3" style="width: 44px; height: 44px; background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
-                    <i class="bi bi-building fs-5"></i>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="p-3 rounded-3 bg-white border shadow-xs text-center">
+                            <div class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Total Stories</div>
+                            <div class="h4 fw-bold text-dark mb-0 mt-1">{{ $successStoriesCount }}</div>
+                            <div class="text-muted small" style="font-size: 0.72rem;">Configured</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 rounded-3 bg-white border shadow-xs text-center">
+                            <div class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Active on Site</div>
+                            <div class="h4 fw-bold text-success mb-0 mt-1">{{ $activeStoriesCount }}</div>
+                            <div class="text-success small" style="font-size: 0.72rem;">Published</div>
+                        </div>
+                    </div>
                 </div>
-                <span class="fw-bold text-dark small">Companies</span>
-                <span class="text-muted" style="font-size: 0.7rem;">{{ $companyCount }} Verified</span>
-            </a>
-        </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="{{ route('admin.web.blogs.index') }}" class="card border-0 shadow-xs rounded-4 p-3 text-center text-decoration-none h-100 bg-white hover-shadow transition">
-                <div class="d-flex align-items-center justify-content-center mx-auto mb-2 rounded-3" style="width: 44px; height: 44px; background: rgba(244, 63, 94, 0.1); color: #f43f5e;">
-                    <i class="bi bi-file-earmark-richtext fs-5"></i>
-                </div>
-                <span class="fw-bold text-dark small">Publications</span>
-                <span class="text-muted" style="font-size: 0.7rem;">{{ $blogCount }} Articles</span>
-            </a>
-        </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="{{ route('admin.web.media.index') }}" class="card border-0 shadow-xs rounded-4 p-3 text-center text-decoration-none h-100 bg-white hover-shadow transition">
-                <div class="d-flex align-items-center justify-content-center mx-auto mb-2 rounded-3" style="width: 44px; height: 44px; background: rgba(6, 182, 212, 0.1); color: #06b6d4;">
-                    <i class="bi bi-images fs-5"></i>
-                </div>
-                <span class="fw-bold text-dark small">Media Library</span>
-                <span class="text-muted" style="font-size: 0.7rem;">Global Assets</span>
-            </a>
-        </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="{{ route('admin.web.page-media.index') }}" class="card border-0 shadow-xs rounded-4 p-3 text-center text-decoration-none h-100 bg-white hover-shadow transition">
-                <div class="d-flex align-items-center justify-content-center mx-auto mb-2 rounded-3" style="width: 44px; height: 44px; background: rgba(168, 85, 247, 0.1); color: #a855f7;">
-                    <i class="bi bi-collection-play fs-5"></i>
-                </div>
-                <span class="fw-bold text-dark small">Page Medias</span>
-                <span class="text-muted" style="font-size: 0.7rem;">{{ $pageMediaCount }} Assigned</span>
-            </a>
+            </div>
         </div>
     </div>
 

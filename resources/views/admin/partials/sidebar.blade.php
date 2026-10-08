@@ -413,68 +413,30 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.partnerships.*') ? 'active' : '' }}" href="{{ route('admin.web.partnerships.index') }}" title="Partnerships">
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.*') ? 'active' : '' }}" 
+                       data-bs-toggle="collapse" 
+                       href="#collapseHomepageMedia" 
+                       role="button" 
+                       aria-expanded="{{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.*') ? 'true' : 'false' }}"
+                       title="Add media for homepage">
                         <div class="d-flex align-items-center">
-                            <i class="bi bi-people-fill me-2"></i><span class="menu-text">Partnerships</span>
+                            <i class="bi bi-camera-reels me-2"></i>
+                            <span class="menu-text">Add media for homepage</span>
                         </div>
-                        <span class="badge rounded-pill px-2 py-0.5" style="font-size: 0.65rem; background: rgba(99, 102, 241, 0.2); color: #a5b4fc;">86</span>
+                        <i class="bi bi-chevron-down small text-muted"></i>
                     </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.opportunities.*') ? 'active' : '' }}" href="{{ route('admin.web.opportunities.index') }}" title="Opportunities">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-compass me-2"></i><span class="menu-text">Opportunities</span>
-                        </div>
-                        <span class="badge rounded-pill px-2 py-0.5" style="font-size: 0.65rem; background: rgba(168, 85, 247, 0.2); color: #d8b4fe;">New</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.companies.*') ? 'active' : '' }}" href="{{ route('admin.web.companies.index') }}" title="Companies">
-                        <i class="bi bi-building me-2"></i><span class="menu-text">Companies</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.blogs.*') ? 'active' : '' }}" href="{{ route('admin.web.blogs.index') }}" title="Publications">
-                        <i class="bi bi-file-earmark-richtext me-2"></i><span class="menu-text">Publications</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.media.*') ? 'active' : '' }}" href="{{ route('admin.web.media.index') }}" title="Media Library">
-                        <i class="bi bi-images me-2"></i><span class="menu-text">Media Library</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.page-media.*') ? 'active' : '' }}" href="{{ route('admin.web.page-media.index') }}" title="Page Medias">
-                        <i class="bi bi-collection-play me-2"></i><span class="menu-text">Page Medias</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.circles.*') ? 'active' : '' }}" href="{{ route('admin.web.circles.index') }}" title="Peer Circles">
-                        <i class="bi bi-diagram-3 me-2"></i><span class="menu-text">Peer Circles</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.events.*') ? 'active' : '' }}" href="{{ route('admin.web.events.index') }}" title="Conclaves & Events">
-                        <i class="bi bi-calendar-event me-2"></i><span class="menu-text">Conclaves & Events</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.messages.*') ? 'active' : '' }}" href="{{ route('admin.web.messages.index') }}" title="Messages">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-chat-dots me-2"></i><span class="menu-text">Messages</span>
-                        </div>
-                        <span class="badge rounded-pill px-2 py-0.5" style="font-size: 0.65rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5;">4</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.analytics.*') ? 'active' : '' }}" href="{{ route('admin.web.analytics.index') }}" title="Analytics">
-                        <i class="bi bi-graph-up-arrow me-2"></i><span class="menu-text">Analytics</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.web.settings.*') ? 'active' : '' }}" href="{{ route('admin.web.settings.index') }}" title="Settings & Users">
-                        <i class="bi bi-gear me-2"></i><span class="menu-text">Settings & Users</span>
-                    </a>
+                    <div class="collapse {{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.*') ? 'show' : '' }}" id="collapseHomepageMedia">
+                        <ul class="nav flex-column ps-3 mt-1">
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.success-stories.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.web.success-stories.index') }}" 
+                                   title="Success Stories">
+                                    <i class="bi bi-play-circle-fill text-danger me-2"></i>
+                                    <span class="menu-text">Success Stories</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
                 <li class="nav-item mt-3 pt-2 border-top border-secondary border-opacity-25">
                     <a class="nav-link text-info d-flex align-items-center justify-content-between" href="https://peersglobal.com" target="_blank" title="View Live Site">

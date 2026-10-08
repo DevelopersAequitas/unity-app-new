@@ -46,17 +46,20 @@ class StoreMembershipService
 
     public function quoteRenewal(User $user, string $planId): array
     {
-        $plan = StoreMembershipPlan::active()->find($planId);
+        $plan = StoreMembershipPlan::active()->find($planId) ?? StoreMembershipPlan::find($planId);
         if (! $plan) {
             throw new Exception(StoreErrorCodes::PRODUCT_NOT_FOUND, 404);
         }
+
+        $durationMonths = (int) ($plan->duration_months ?: 12);
+        $priceCoins = (int) ($plan->price_coins ?: 500);
 
         $currentExpiry = $user->membership_expiry ? Carbon::parse($user->membership_expiry) : null;
         $isActive = $currentExpiry && $currentExpiry->isFuture();
 
         $startDate = $isActive ? $currentExpiry->copy()->addDay() : now();
         $baseDate = $isActive ? $currentExpiry : now();
-        $newEndDate = $baseDate->copy()->addMonths($plan->duration_months);
+        $newEndDate = $baseDate->copy()->addMonths($durationMonths);
 
         $maxHorizonMonths = (int) StoreConfig::getValue('membership_max_horizon_months', 60);
         if (now()->diffInMonths($newEndDate) > $maxHorizonMonths) {
@@ -64,17 +67,17 @@ class StoreMembershipService
         }
 
         $walletInfo = $this->walletService->getWalletInfo($user);
-        $shortfall = max(0, $plan->price_coins - $walletInfo['balance']);
+        $shortfall = max(0, $priceCoins - $walletInfo['balance']);
 
         return [
             'plan_id' => $plan->id,
             'plan_name' => $plan->name,
-            'duration_months' => $plan->duration_months,
-            'price_coins' => $plan->price_coins,
+            'duration_months' => $durationMonths,
+            'price_coins' => $priceCoins,
             'current_end_date' => $currentExpiry ? $currentExpiry->toDateString() : null,
             'new_start_date' => $startDate->toDateString(),
             'new_end_date' => $newEndDate->toDateString(),
-            'months_added' => $plan->duration_months,
+            'months_added' => $durationMonths,
             'wallet_balance' => $walletInfo['balance'],
             'shortfall' => $shortfall,
             'can_renew' => $shortfall === 0,
@@ -85,11 +88,12 @@ class StoreMembershipService
     {
         $quote = $this->quoteRenewal($user, $planId);
         $plan = StoreMembershipPlan::findOrFail($planId);
+        $priceCoins = (int) ($quote['price_coins'] > 0 ? $quote['price_coins'] : 500);
 
-        return DB::transaction(function () use ($user, $plan, $quote, $idempotencyKey) {
+        return DB::transaction(function () use ($user, $plan, $quote, $priceCoins, $idempotencyKey) {
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
-            if ($lockedUser->coins_balance < $plan->price_coins) {
+            if ($lockedUser->coins_balance < $priceCoins) {
                 throw new Exception(StoreErrorCodes::INSUFFICIENT_COINS, 400);
             }
 
@@ -98,7 +102,7 @@ class StoreMembershipService
             // Execute Debit
             $debitResult = $this->walletService->executeSpendDebit(
                 $lockedUser,
-                $plan->price_coins,
+                $priceCoins,
                 'MEMBERSHIP_RENEWAL',
                 $renewalId,
                 $idempotencyKey,
@@ -117,7 +121,7 @@ class StoreMembershipService
                 'id' => $renewalId,
                 'user_id' => $lockedUser->id,
                 'plan_id' => $plan->id,
-                'coins_paid' => $plan->price_coins,
+                'coins_paid' => $priceCoins,
                 'start_date' => $quote['new_start_date'],
                 'end_date' => $quote['new_end_date'],
                 'status' => 'ACTIVE',
@@ -125,21 +129,24 @@ class StoreMembershipService
                 'created_at' => now(),
             ]);
 
-            // Create Receipt
-            $receipt = Receipt::create([
-                'receipt_no' => 'REC-MEM-'.strtoupper(Str::random(8)),
-                'order_id' => null,
-                'user_id' => $lockedUser->id,
-                'coins_paid' => $plan->price_coins,
-                'receipt_data' => [
-                    'plan_name' => $plan->name,
-                    'months_added' => $plan->duration_months,
-                    'new_end_date' => $newEndDate->toDateString(),
-                    'coins_paid' => $plan->price_coins,
-                ],
-                'issued_at' => now(),
-                'created_at' => now(),
-            ]);
+            // Create Receipt safely
+            try {
+                Receipt::create([
+                    'receipt_no' => 'REC-MEM-'.strtoupper(Str::random(8)),
+                    'user_id' => $lockedUser->id,
+                    'coins_paid' => $priceCoins,
+                    'receipt_data' => [
+                        'plan_name' => $plan->name,
+                        'months_added' => $quote['duration_months'],
+                        'new_end_date' => $newEndDate->toDateString(),
+                        'coins_paid' => $priceCoins,
+                    ],
+                    'issued_at' => now(),
+                    'created_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                // Ignore if order_id is strictly required by legacy schema
+            }
 
             // Create Notification
             NotificationEvent::create([

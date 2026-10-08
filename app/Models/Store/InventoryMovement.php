@@ -16,14 +16,18 @@ class InventoryMovement extends Model
 
     protected $fillable = [
         'variant_id',
+        'product_variant_id',
         'quantity_change',
         'quantity_after',
+        'balance_after',
         'reason',
         'reference_type',
         'reference_id',
+        'reference',
         'actor_type',
         'actor_id',
         'note',
+        'notes',
         'created_at',
     ];
 

@@ -36,6 +36,24 @@ class CoinClaimRequest extends Model
         'coins_awarded' => 'integer',
     ];
 
+protected static function booted(): void
+    {
+        static::created(function (self $request): void {
+            try {
+                broadcast(new \App\Events\PendingRequestChangedEvent(
+                    action: 'created',
+                    category: 'coin_claims',
+                    requestId: (string) $request->id,
+                    itemData: [
+                        'id' => (string) $request->id,
+                        'category' => 'coin_claims',
+                        'submitted_at' => optional($request->created_at)->toISOString() ?? now()->toISOString(),
+                    ]
+                ));
+            } catch (\Throwable) {}
+        });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');

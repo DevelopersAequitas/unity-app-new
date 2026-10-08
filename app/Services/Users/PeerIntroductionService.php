@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Services\Creative\IntroductionImageGenerator;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class PeerIntroductionService
 {
@@ -53,20 +52,9 @@ class PeerIntroductionService
                 ->first();
 
             if (! $existingPost) {
-                // Find a system/admin fallback account to own the automated post
-                $systemUser = User::where('email', 'info@peersglobal.com')->first();
-                if (! $systemUser) {
-                    $systemUser = User::create([
-                        'id' => (string) Str::uuid(),
-                        'first_name' => 'PeersGlobal',
-                        'last_name' => 'Unity',
-                        'display_name' => 'PeersGlobal Unity',
-                        'email' => 'info@peersglobal.com',
-                        'password_hash' => bcrypt(Str::random(16)),
-                        'status' => 'active',
-                    ]);
-                }
-                $authorUserId = $systemUser ? $systemUser->id : $introducer->id;
+                // Find a system account (Peers Global Genie) to own the automated post
+                $systemUser = User::getSystemUser();
+                $authorUserId = $systemUser->id;
 
                 $post = Post::create([
                     'user_id' => $authorUserId,

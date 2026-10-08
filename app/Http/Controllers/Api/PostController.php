@@ -714,6 +714,29 @@ class PostController extends BaseApiController
                 }
             }
 
+            $isSystemCreative = Post::isSystemPostRow(
+                $row->post_source_type ?? $row->source_type ?? null,
+                $row->post_type ?? null,
+                $row->tags ?? null,
+                $author?->email ?? null,
+                $author?->display_name ?? null
+            );
+
+            $systemPhoto = url('/images/peersglobal-icon.png');
+            $systemAuthor = [
+                'id' => (string) ($author?->id ?? ''),
+                'display_name' => 'Peers Global Genie',
+                'first_name' => 'Peers Global',
+                'last_name' => 'Genie',
+                'company_name' => 'Peers Global',
+                'designation' => 'Peers Global Genie',
+                'level4_category' => null,
+                'business_sub_category' => null,
+                'profile_photo_url' => $systemPhoto,
+                'profile_photo_image' => $systemPhoto,
+                'is_online' => true,
+            ];
+
             $item = [
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
@@ -724,8 +747,9 @@ class PostController extends BaseApiController
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'mentions' => $mentions,
                 'visibility' => (string) $row->visibility,
+                'is_system_announcement' => $isSystemCreative,
                 'activity_creative' => $this->formatActivityCreative($activityCreative),
-                'author' => $author ? [
+                'author' => $isSystemCreative ? $systemAuthor : ($author ? [
                     'id' => (string) $author->id,
                     'display_name' => $author->display_name,
                     'first_name' => $author->first_name,
@@ -746,7 +770,18 @@ class PostController extends BaseApiController
                     'profile_photo_image' => $author->profile_photo_file_id
                         ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
-                ] : null,
+                ] : null),
+                'user' => $isSystemCreative ? $systemAuthor : ($author ? [
+                    'id' => (string) $author->id,
+                    'display_name' => $author->display_name,
+                    'first_name' => $author->first_name,
+                    'last_name' => $author->last_name,
+                    'company_name' => $author->company_name ?: null,
+                    'designation' => $author->designation ?? null,
+                    'profile_photo_url' => $author->profile_photo_file_id
+                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
+                        : null,
+                ] : null),
                 'circle' => $circle ? [
                     'id' => (string) $circle->id,
                     'name' => $circle->name,
@@ -1281,7 +1316,20 @@ class PostController extends BaseApiController
             'tags' => $post->tags ?? [],
             'mentions' => $this->formatPostMentions($post),
             'visibility' => $post->visibility,
-            'author' => $post->relationLoaded('user') && $post->user ? [
+            'is_system_announcement' => $post->isSystemCreativePost(),
+            'author' => $post->isSystemCreativePost() ? [
+                'id' => (string) ($post->user_id ?? ''),
+                'display_name' => 'Peers Global Genie',
+                'first_name' => 'Peers Global',
+                'last_name' => 'Genie',
+                'company_name' => 'Peers Global',
+                'designation' => 'Peers Global Genie',
+                'level4_category' => null,
+                'business_sub_category' => null,
+                'profile_photo_url' => url('/images/peersglobal-icon.png'),
+                'profile_photo_image' => url('/images/peersglobal-icon.png'),
+                'is_online' => true,
+            ] : ($post->relationLoaded('user') && $post->user ? [
                 'id' => $post->user->id,
                 'display_name' => $post->user->display_name,
                 'first_name' => $post->user->first_name,
@@ -1298,7 +1346,27 @@ class PostController extends BaseApiController
                     ?? null,
                 'profile_photo_url' => $post->user->profile_photo_url,
                 'profile_photo_image' => $post->user->profile_photo_url,
-            ] : null,
+            ] : null),
+            'user' => $post->isSystemCreativePost() ? [
+                'id' => (string) ($post->user_id ?? ''),
+                'display_name' => 'Peers Global Genie',
+                'first_name' => 'Peers Global',
+                'last_name' => 'Genie',
+                'company_name' => 'Peers Global',
+                'designation' => 'Peers Global Genie',
+                'profile_photo_url' => url('/images/peersglobal-icon.png'),
+                'profile_photo_image' => url('/images/peersglobal-icon.png'),
+                'is_online' => true,
+            ] : ($post->relationLoaded('user') && $post->user ? [
+                'id' => $post->user->id,
+                'display_name' => $post->user->display_name,
+                'first_name' => $post->user->first_name,
+                'last_name' => $post->user->last_name,
+                'company_name' => $post->user->company_name ?: null,
+                'designation' => $post->user->designation ?? null,
+                'profile_photo_url' => $post->user->profile_photo_url,
+                'profile_photo_image' => $post->user->profile_photo_url,
+            ] : null),
             'circle' => $post->relationLoaded('circle') && $post->circle ? [
                 'id' => $post->circle->id,
                 'name' => $post->circle->name,

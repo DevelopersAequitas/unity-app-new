@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
 use Log;
 
 class GenerateBirthdayCreatives extends Command
@@ -111,20 +110,9 @@ class GenerateBirthdayCreatives extends Command
                 // Generate image using Intervention Image
                 $fileModel = $imageService->generate($user);
 
-                // Retrieve system/admin fallback account to own the automated post
-                $systemUser = User::where('email', 'info@peersglobal.com')->first();
-                if (! $systemUser) {
-                    $systemUser = User::create([
-                        'id' => (string) Str::uuid(),
-                        'first_name' => 'PeersGlobal',
-                        'last_name' => 'Unity',
-                        'display_name' => 'PeersGlobal Unity',
-                        'email' => 'info@peersglobal.com',
-                        'password_hash' => bcrypt(Str::random(16)),
-                        'status' => 'active',
-                    ]);
-                }
-                $authorUserId = $systemUser ? $systemUser->id : $user->id;
+                // Retrieve system account (Peers Global Genie) to own the automated post
+                $systemUser = User::getSystemUser();
+                $authorUserId = $systemUser->id;
 
                 // Create Timeline post
                 $displayName = $user->display_name ?: ($user->first_name.' '.$user->last_name);

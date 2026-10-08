@@ -6,6 +6,7 @@ namespace Tests\Feature\Leader;
 
 use App\Models\Circle;
 use App\Models\MilestoneBadge;
+use App\Models\Post;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -106,14 +107,55 @@ class LeaderMember360Test extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'id', 'name', 'circle_name',
+                    'subscriptions' => [
+                        'app_subscription',
+                        'circle_subscription',
+                        'app_subscriptions',
+                        'circle_subscriptions',
+                        'summary' => [
+                            'has_active_app_subscription',
+                            'has_active_circle_subscription',
+                            'total_valid_until',
+                            'days_remaining',
+                        ],
+                    ],
                     'summary' => [
                         'posts', 'creatives', 'badges',
                         'referrals_given', 'referrals_received',
                         'p2p_meetings', 'business_deals', 'life_impacts',
                         'event_registrations', 'coins_balance',
+                        'app_subscriptions', 'circle_subscriptions',
                     ],
                 ],
             ]);
+    }
+
+    /** @test */
+    public function it_returns_member_peer_subscriptions_details(): void
+    {
+        // Insert a circle subscription for the member
+        $subId = Str::uuid()->toString();
+        DB::table('circle_subscriptions')->insert([
+            'id' => $subId,
+            'user_id' => $this->member->id,
+            'circle_id' => $this->circle->id,
+            'status' => 'active',
+            'amount' => 5000.00,
+            'paid_amount' => 5000.00,
+            'zoho_addon_name' => 'Premium Circle Addon',
+            'started_at' => now(),
+            'expires_at' => now()->addYear(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/api/v1/leader/members/{$this->member->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.subscriptions.summary.has_active_circle_subscription', true)
+            ->assertJsonPath('data.subscriptions.circle_subscriptions.0.id', $subId)
+            ->assertJsonPath('data.subscriptions.circle_subscriptions.0.plan_name', 'Test Circle (Premium Circle Addon)');
     }
 
     /** @test */
@@ -214,8 +256,9 @@ class LeaderMember360Test extends TestCase
     public function it_returns_member_posts(): void
     {
         // Create a test post
+        $postId = Str::uuid()->toString();
         DB::table('posts')->insert([
-            'id' => Str::uuid()->toString(),
+            'id' => $postId,
             'user_id' => $this->member->id,
             'content_text' => 'Test post content',
             'visibility' => 'public',
@@ -230,12 +273,26 @@ class LeaderMember360Test extends TestCase
             ->assertJson(['success' => true, 'message' => 'Member posts retrieved successfully.'])
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'content', 'created_at'],
+                    '*' => [
+                        'id',
+                        'content',
+                        'created_at',
+                        'likes_count',
+                        'comments_count',
+                        'likes',
+                        'liked_peers',
+                        'comments',
+                        'comment_peers',
+                    ],
                 ],
                 'meta' => ['current_page', 'per_page', 'total', 'last_page'],
             ]);
 
         $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertIsArray($response->json('data.0.likes'));
+        $this->assertIsArray($response->json('data.0.liked_peers'));
+        $this->assertIsArray($response->json('data.0.comments'));
+        $this->assertIsArray($response->json('data.0.comment_peers'));
     }
 
     /** @test */
@@ -354,5 +411,51 @@ class LeaderMember360Test extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('meta.current_page', 1)
             ->assertJsonPath('meta.per_page', 5);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Delete Post Tests
+    // ────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function it_allows_leader_to_delete_member_post(): void
+    {
+        $post = Post::factory()->create([
+            'id' => Str::uuid()->toString(),
+            'user_id' => $this->member->id,
+            'status' => 'active',
+            'is_deleted' => false,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/posts/{$post->id}");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'User post deleted successfully.',
+            ]);
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'is_deleted' => true,
+            'status' => 'inactive',
+        ]);
+    }
+
+
+    /** @test */
+    public function it_returns_404_when_deleting_non_existent_post(): void
+    {
+        $fakePostId = Str::uuid()->toString();
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/posts/{$fakePostId}");
+
+        $response->assertStatus(404)
+            ->assertJson([
+                'success' => false,
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ]);
     }
 }

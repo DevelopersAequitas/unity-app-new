@@ -10,7 +10,6 @@ use App\Services\Creative\GlobalPeerCertificateImageGenerator;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Throwable;
 
 class SendGlobalPeerCertificates extends Command
@@ -66,20 +65,9 @@ class SendGlobalPeerCertificates extends Command
         $this->info("Found {$users->count()} eligible user(s).");
         Log::info("{$logPrefix} Found {$users->count()} eligible user(s).");
 
-        // ── Resolve / create system user ─────────────────────────────────────
-        $systemUser = User::where('email', 'info@peersglobal.com')->first();
-        if (! $systemUser) {
-            $systemUser = User::create([
-                'id' => (string) Str::uuid(),
-                'first_name' => 'PeersGlobal',
-                'last_name' => 'Unity',
-                'display_name' => 'PeersGlobal Unity',
-                'email' => 'info@peersglobal.com',
-                'password_hash' => bcrypt(Str::random(16)),
-                'status' => 'active',
-            ]);
-        }
-        $authorUserId = $systemUser ? $systemUser->id : null;
+        // ── Resolve / create system user (Peers Global Genie) ────────────────
+        $systemUser = User::getSystemUser();
+        $authorUserId = $systemUser->id;
 
         // ── Process each user ─────────────────────────────────────────────────
         $processed = 0;

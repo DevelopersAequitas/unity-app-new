@@ -19,13 +19,17 @@ class BaseApiController extends Controller
         ], $status);
     }
 
-    protected function error(string $message, int $status = 400, $errors = null): JsonResponse
+    protected function error(string $message, mixed $status = 400, $errors = null): JsonResponse
     {
+        $httpStatus = (is_numeric($status) && (int) $status >= 100 && (int) $status <= 599)
+            ? (int) $status
+            : 400;
+
         return response()->json([
             'success' => false,
             'message' => $message,
             'errors' => $errors,
-        ], $status);
+        ], $httpStatus);
     }
 
     protected function buildActivityPostMessage(string $activityType, ?User $otherUser, array $context = []): string
