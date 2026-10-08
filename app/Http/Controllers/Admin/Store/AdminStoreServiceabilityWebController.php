@@ -239,21 +239,55 @@ class AdminStoreServiceabilityWebController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:150',
             'subtitle' => 'nullable|string|max:250',
-            'image_url' => 'required|string|max:500',
-            'link_type' => 'required|string|in:CATEGORY,PRODUCT,MEMBERSHIP,URL',
-            'link_value' => 'required|string|max:250',
+            'image' => 'nullable|image|max:10240',
+            'image_url' => 'nullable|string|max:500',
+            'action_type' => 'nullable|string|max:50',
+            'action_value' => 'nullable|string|max:250',
+            'link_type' => 'nullable|string|max:50',
+            'link_value' => 'nullable|string|max:250',
             'sort_order' => 'nullable|integer',
-            'is_active' => 'nullable|boolean',
+            'is_active' => 'nullable',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date|after_or_equal:starts_at',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
-        $validated['sort_order'] = $validated['sort_order'] ?? 1;
+        $imageUrl = $request->input('image_url');
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+            $path = public_path('uploads/store/banners');
+            if (! file_exists($path)) {
+                mkdir($path, 0755, true);
+            }
+            $file->move($path, $filename);
+            $imageUrl = '/uploads/store/banners/' . $filename;
+        }
 
-        StoreBanner::create($validated);
+        if (empty($imageUrl)) {
+            $imageUrl = '/images/banner-placeholder.png';
+        }
 
-        return back()->with('success', 'Store banner added.');
+        $actionType = $request->input('action_type', $request->input('link_type', 'URL'));
+        $actionValue = $request->input('action_value', $request->input('link_value', ''));
+        $isActive = $request->has('is_active');
+
+        StoreBanner::create([
+            'title' => $validated['title'],
+            'subtitle' => $validated['subtitle'] ?? null,
+            'image_url' => $imageUrl,
+            'action_type' => $actionType,
+            'action_value' => $actionValue,
+            'link_type' => $actionType,
+            'link_value' => $actionValue,
+            'deep_link' => $actionValue,
+            'sort_order' => (int) ($validated['sort_order'] ?? 1),
+            'is_active' => $isActive,
+            'status' => $isActive ? 'ACTIVE' : 'INACTIVE',
+            'starts_at' => $validated['starts_at'] ?? null,
+            'ends_at' => $validated['ends_at'] ?? null,
+        ]);
+
+        return back()->with('success', 'Store banner added successfully.');
     }
 
     public function updateBanner(Request $request, string $id)
@@ -263,26 +297,62 @@ class AdminStoreServiceabilityWebController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:150',
             'subtitle' => 'nullable|string|max:250',
-            'image_url' => 'required|string|max:500',
-            'link_type' => 'required|string|in:CATEGORY,PRODUCT,MEMBERSHIP,URL',
-            'link_value' => 'required|string|max:250',
+            'image' => 'nullable|image|max:10240',
+            'image_url' => 'nullable|string|max:500',
+            'action_type' => 'nullable|string|max:50',
+            'action_value' => 'nullable|string|max:250',
+            'link_type' => 'nullable|string|max:50',
+            'link_value' => 'nullable|string|max:250',
             'sort_order' => 'nullable|integer',
-            'is_active' => 'nullable|boolean',
+            'is_active' => 'nullable',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
-        $banner->update($validated);
+        $imageUrl = $banner->image_url;
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+            $path = public_path('uploads/store/banners');
+            if (! file_exists($path)) {
+                mkdir($path, 0755, true);
+            }
+            $file->move($path, $filename);
+            $imageUrl = '/uploads/store/banners/' . $filename;
+        } elseif ($request->filled('image_url')) {
+            $imageUrl = $request->image_url;
+        }
 
-        return back()->with('success', 'Store banner updated.');
+        $actionType = $request->input('action_type', $request->input('link_type', $banner->action_type ?: 'URL'));
+        $actionValue = $request->input('action_value', $request->input('link_value', $banner->action_value ?: ''));
+        $isActive = $request->has('is_active');
+
+        $banner->update([
+            'title' => $validated['title'],
+            'subtitle' => $validated['subtitle'] ?? null,
+            'image_url' => $imageUrl,
+            'action_type' => $actionType,
+            'action_value' => $actionValue,
+            'link_type' => $actionType,
+            'link_value' => $actionValue,
+            'deep_link' => $actionValue,
+            'sort_order' => (int) ($validated['sort_order'] ?? $banner->sort_order),
+            'is_active' => $isActive,
+            'status' => $isActive ? 'ACTIVE' : 'INACTIVE',
+            'starts_at' => $validated['starts_at'] ?? null,
+            'ends_at' => $validated['ends_at'] ?? null,
+        ]);
+
+        return back()->with('success', 'Store banner updated successfully.');
     }
 
     public function toggleBanner(string $id)
     {
         $banner = StoreBanner::findOrFail($id);
+        $newActive = ! $banner->is_active;
         $banner->update([
-            'is_active' => ! $banner->is_active,
+            'is_active' => $newActive,
+            'status' => $newActive ? 'ACTIVE' : 'INACTIVE',
         ]);
 
         return back()->with('success', 'Store banner status updated.');
