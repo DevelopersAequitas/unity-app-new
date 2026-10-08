@@ -169,8 +169,9 @@ class StoreMembershipService
             ]);
 
             // Create Receipt safely
+            $receipt = null;
             try {
-                Receipt::create([
+                $receipt = Receipt::create([
                     'receipt_no' => 'REC-MEM-'.strtoupper(Str::random(8)),
                     'user_id' => $lockedUser->id,
                     'coins_paid' => $priceCoins,
@@ -209,6 +210,7 @@ class StoreMembershipService
                 'coins_debited' => $priceCoins,
                 'remaining_balance' => (int) ($lockedUser->fresh()->coins_balance ?? 0),
                 'ledger_id' => $ledger->id,
+                'receipt' => $receipt,
             ];
         });
     }
