@@ -36,6 +36,10 @@ class User extends Authenticatable
 
     public const STATUS_GREEN_PEER_LABEL = 'Global Peer';
 
+    public const TRIAL_DAYS_DEFAULT = 3;
+
+    public const TRIAL_DAYS_REFERRAL = 7;
+
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 
     use HasApiTokens;
@@ -897,6 +901,13 @@ class User extends Authenticatable
         }
 
         return self::STATUS_FREE;
+    }
+
+    public static function trialDays(bool $isReferral = false): int
+    {
+        return $isReferral
+            ? (int) config('membership.trial_days.referral', self::TRIAL_DAYS_REFERRAL)
+            : (int) config('membership.trial_days.default', self::TRIAL_DAYS_DEFAULT);
     }
 
     public function geoLocation(): HasOne

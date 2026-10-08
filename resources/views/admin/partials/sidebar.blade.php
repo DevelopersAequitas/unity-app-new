@@ -120,6 +120,7 @@
         ['label' => 'Collaborations', 'route' => 'admin.collaborations.index', 'active_routes' => ['admin.collaborations*']],
         ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index', 'active_routes' => ['admin.activities.register-visitor*']],
         ['label' => 'Activity Videos', 'route' => 'admin.activities.videos.index', 'active_routes' => ['admin.activities.videos*']],
+        ['label' => 'Activity Creatives', 'route' => 'admin.activity-creatives.index', 'active_routes' => ['admin.activity-creatives*']],
     ];
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
@@ -133,7 +134,7 @@
         }));
     }
 
-    $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
+    $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*') || request()->routeIs('admin.activity-creatives*');
     $asksActive = request()->routeIs('admin.asks*');
     $plansActive = request()->routeIs('admin.unity-peers-plans.*') || request()->routeIs('admin.circle-plans.*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))

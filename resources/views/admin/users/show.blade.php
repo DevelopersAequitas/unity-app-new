@@ -365,6 +365,45 @@
                             </dd>
                         </dl>
                     </div>
+
+                    <!-- Welcome Creative Card -->
+                    @php
+                        $welcomeCreative = \App\Models\ActivityCreative::query()
+                            ->where('user_id', $user->id)
+                            ->where('activity_type', 'welcome')
+                            ->latest('created_at')
+                            ->first();
+                        $welcomeCreativeUrl = $welcomeCreative?->creative_url ?? $user->welcome_creative_url;
+                    @endphp
+                    @if($welcomeCreativeUrl)
+                        <div class="rounded-xl border bs surface p-5 shadow-xs">
+                            <div class="flex items-center justify-between mb-3">
+                                <h6 class="font-display font-semibold text-xs text-indigo-500 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                                    <i class="bi bi-stars"></i> Welcome Creative
+                                </h6>
+                                @if($welcomeCreative?->post_id)
+                                    <a href="{{ url('/admin/posts/' . $welcomeCreative->post_id) }}" target="_blank" class="text-[11px] text-indigo-600 hover:underline inline-flex items-center gap-1 font-medium no-underline">
+                                        <i class="bi bi-newspaper"></i> Timeline Post
+                                    </a>
+                                @endif
+                            </div>
+                            <div class="rounded-lg overflow-hidden border border-slate-200 bg-slate-50 relative group">
+                                <img src="{{ $welcomeCreativeUrl }}" alt="Welcome Creative" class="w-full h-auto object-cover rounded-lg shadow-xs hover:scale-101 transition duration-200">
+                            </div>
+                            <div class="mt-3 flex items-center justify-between gap-2">
+                                <span class="text-[11px] text-slate-500">
+                                    @if($welcomeCreative)
+                                        Generated {{ $welcomeCreative->created_at->format('d M Y, h:i A') }}
+                                    @else
+                                        Generated on Registration
+                                    @endif
+                                </span>
+                                <a href="{{ $welcomeCreativeUrl }}" download="welcome_{{ $user->id }}.png" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition no-underline border border-indigo-200">
+                                    <i class="bi bi-download"></i> Download
+                                </a>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
