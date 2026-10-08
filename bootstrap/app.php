@@ -38,6 +38,9 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/admin_store.php'));
+            Route::middleware('api')
+                ->prefix('api/v1/leadership')
+                ->group(base_path('routes/leadership.php'));
         },
     )
     ->withCommands([

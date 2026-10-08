@@ -99,6 +99,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\Web\LeadershipAdminWebController;
 use App\Http\Controllers\Admin\Web\WebAnalyticsController;
 use App\Http\Controllers\Admin\Web\WebBlogController;
 use App\Http\Controllers\Admin\Web\WebCircleController;
@@ -961,6 +962,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/analytics', [WebAnalyticsController::class, 'index'])->name('analytics.index');
             Route::get('/settings', [WebSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [WebSettingController::class, 'update'])->name('settings.update');
+
+            // Leadership Selection Management Module
+            Route::prefix('leadership')->name('leadership.')->group(function () {
+                Route::get('/{any?}', [LeadershipAdminWebController::class, 'index'])
+                    ->where('any', '.*')
+                    ->name('index');
+            });
         });
 
         // ── Peers Store Admin Module ──────────────────────────────
