@@ -253,18 +253,23 @@ class AdminStoreServiceabilityWebController extends Controller
 
         $imageUrl = $request->input('image_url');
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
-            $path = public_path('uploads/store/banners');
-            if (! file_exists($path)) {
-                mkdir($path, 0755, true);
+            try {
+                $fileModel = app(\App\Services\Media\FileUploadService::class)->store($request->file('image'), \Illuminate\Support\Facades\Auth::guard('admin')->user());
+                $imageUrl = url('/api/v1/files/' . $fileModel->id);
+            } catch (\Throwable $e) {
+                $file = $request->file('image');
+                $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+                $path = public_path('uploads/store/banners');
+                if (! file_exists($path)) {
+                    @mkdir($path, 0755, true);
+                }
+                $file->move($path, $filename);
+                $imageUrl = asset('uploads/store/banners/' . $filename);
             }
-            $file->move($path, $filename);
-            $imageUrl = '/uploads/store/banners/' . $filename;
         }
 
         if (empty($imageUrl)) {
-            $imageUrl = '/images/banner-placeholder.png';
+            $imageUrl = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&auto=format&fit=crop&q=80';
         }
 
         $actionType = $request->input('action_type', $request->input('link_type', 'URL'));
@@ -309,18 +314,27 @@ class AdminStoreServiceabilityWebController extends Controller
             'ends_at' => 'nullable|date',
         ]);
 
-        $imageUrl = $banner->image_url;
+        $imageUrl = $banner->getRawOriginal('image_url');
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
-            $path = public_path('uploads/store/banners');
-            if (! file_exists($path)) {
-                mkdir($path, 0755, true);
+            try {
+                $fileModel = app(\App\Services\Media\FileUploadService::class)->store($request->file('image'), \Illuminate\Support\Facades\Auth::guard('admin')->user());
+                $imageUrl = url('/api/v1/files/' . $fileModel->id);
+            } catch (\Throwable $e) {
+                $file = $request->file('image');
+                $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+                $path = public_path('uploads/store/banners');
+                if (! file_exists($path)) {
+                    @mkdir($path, 0755, true);
+                }
+                $file->move($path, $filename);
+                $imageUrl = asset('uploads/store/banners/' . $filename);
             }
-            $file->move($path, $filename);
-            $imageUrl = '/uploads/store/banners/' . $filename;
         } elseif ($request->filled('image_url')) {
             $imageUrl = $request->image_url;
+        }
+
+        if (empty($imageUrl)) {
+            $imageUrl = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&auto=format&fit=crop&q=80';
         }
 
         $actionType = $request->input('action_type', $request->input('link_type', $banner->action_type ?: 'URL'));
