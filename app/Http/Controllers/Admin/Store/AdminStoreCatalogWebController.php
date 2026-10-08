@@ -160,12 +160,15 @@ class AdminStoreCatalogWebController extends Controller
         ]);
 
         if (empty($validated['slug'])) {
-            $validated['slug'] = Str::slug($validated['name']);
+            $validated['slug'] = $this->generateUniqueSlug($validated['name']);
+        } else {
+            $validated['slug'] = $this->generateUniqueSlug($validated['slug']);
         }
         $validated['return_allowed'] = $request->boolean('return_allowed');
         $validated['customised'] = $request->boolean('customised');
         $validated['is_featured'] = $request->boolean('is_featured');
         $validated['stock_qty'] = $validated['stock_qty'] ?? 0;
+        $validated['coin_price'] = $validated['price_coins'];
         $validated['created_by'] = Auth::guard('admin')->id();
 
         $product = Product::create($validated);
@@ -177,7 +180,9 @@ class AdminStoreCatalogWebController extends Controller
                 'sku' => $product->sku.'-STD',
                 'name' => $request->initial_variant_name,
                 'price_coins' => $product->price_coins,
+                'coin_price' => $product->price_coins,
                 'stock_quantity' => $product->stock_qty,
+                'stock_qty' => $product->stock_qty,
                 'status' => 'ACTIVE',
             ]);
         }
@@ -242,13 +247,18 @@ class AdminStoreCatalogWebController extends Controller
         ]);
 
         if (empty($validated['slug'])) {
-            $validated['slug'] = Str::slug($validated['name']);
+            $validated['slug'] = $product->slug ?: $this->generateUniqueSlug($validated['name'], $product->id);
+        } else {
+            $validated['slug'] = $this->generateUniqueSlug($validated['slug'], $product->id);
         }
         $validated['return_allowed'] = $request->boolean('return_allowed');
         $validated['customised'] = $request->boolean('customised');
         $validated['is_featured'] = $request->boolean('is_featured');
+        $validated['coin_price'] = $validated['price_coins'];
 
         $product->update($validated);
+
+        $this->syncProductParentPrice($product);
 
         return redirect()->route('admin.store.products.edit', $product->id)->with('success', 'Product updated successfully.');
     }
@@ -278,8 +288,15 @@ class AdminStoreCatalogWebController extends Controller
             'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
 
+        $price = $validated['price_coins'] ?? ($product->price_coins ?: $product->coin_price);
+        if (! $price || $price <= 0) {
+            $price = (int) ($product->coin_price ?: ($product->price_coins ?: 1));
+        }
+
         $validated['product_id'] = $product->id;
-        $validated['price_coins'] = $validated['price_coins'] ?? $product->price_coins;
+        $validated['price_coins'] = $price;
+        $validated['coin_price'] = $price;
+        $validated['stock_qty'] = $validated['stock_quantity'];
         $validated['low_stock_threshold'] = $validated['low_stock_threshold'] ?? 5;
 
         ProductVariant::create($validated);
@@ -301,6 +318,18 @@ class AdminStoreCatalogWebController extends Controller
             'low_stock_threshold' => 'nullable|integer|min:0',
             'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
+
+        if (isset($validated['price_coins'])) {
+            $price = (int) $validated['price_coins'];
+            if ($price <= 0 && $variant->product) {
+                $price = (int) ($variant->product->coin_price ?: $variant->product->price_coins);
+            }
+            $validated['price_coins'] = $price;
+            $validated['coin_price'] = $price;
+        }
+        if (isset($validated['stock_quantity'])) {
+            $validated['stock_qty'] = $validated['stock_quantity'];
+        }
 
         $variant->update($validated);
 
@@ -326,21 +355,52 @@ class AdminStoreCatalogWebController extends Controller
 
     protected function syncProductParentPrice(Product $product): void
     {
-        $minPrice = ProductVariant::where('product_id', $product->id)
+        $activeVariants = ProductVariant::where('product_id', $product->id)
             ->where(function ($q) {
-                $q->where('status', 'ACTIVE')->orWhere('is_active', true);
+                $q->where('status', 'ACTIVE')
+                    ->orWhere('is_active', true)
+                    ->orWhereNull('status');
             })
             ->where(function ($q) {
-                $q->where('price_coins', '>', 0)->orWhere('coin_price', '>', 0);
+                $q->where('price_coins', '>', 0)
+                    ->orWhere('coin_price', '>', 0);
             })
-            ->min('price_coins');
+            ->get();
 
-        if ($minPrice && (int) $minPrice > 0) {
-            $product->update([
-                'price_coins' => (int) $minPrice,
-                'coin_price' => (int) $minPrice,
-            ]);
+        if ($activeVariants->isNotEmpty()) {
+            $minPrice = $activeVariants->map(function ($v) {
+                return (int) ($v->coin_price ?: ($v->price_coins ?: 0));
+            })->filter(fn ($p) => $p > 0)->min();
+
+            if ($minPrice !== null && $minPrice > 0) {
+                $product->update([
+                    'price_coins' => (int) $minPrice,
+                    'coin_price' => (int) $minPrice,
+                ]);
+            }
         }
+    }
+
+    protected function generateUniqueSlug(string $name, ?string $excludeId = null): string
+    {
+        $baseSlug = Str::slug($name);
+        if (empty($baseSlug)) {
+            $baseSlug = 'product-'.Str::random(6);
+        }
+
+        $slug = $baseSlug;
+        $counter = 1;
+
+        while (
+            Product::where('slug', $slug)
+                ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+                ->exists()
+        ) {
+            $slug = $baseSlug.'-'.$counter;
+            $counter++;
+        }
+
+        return $slug;
     }
 
     public function addImage(Request $request, string $productId)

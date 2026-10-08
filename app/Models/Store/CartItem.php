@@ -40,7 +40,22 @@ class CartItem extends Model
     protected function unitCoinPrice(): Attribute
     {
         return Attribute::make(
-            get: fn ($value, $attributes) => (int) ($attributes['price_seen_coins'] ?? ($attributes['unit_coin_price'] ?? 0)),
+            get: function ($value, $attributes) {
+                if ($this->relationLoaded('variant') && $this->variant) {
+                    $vPrice = (int) ($this->variant->coin_price ?? ($this->variant->price_coins ?? 0));
+                    if ($vPrice > 0) {
+                        return $vPrice;
+                    }
+                }
+                if ($this->relationLoaded('product') && $this->product) {
+                    $pPrice = (int) ($this->product->coin_price ?? ($this->product->price_coins ?? 0));
+                    if ($pPrice > 0) {
+                        return $pPrice;
+                    }
+                }
+
+                return (int) ($attributes['price_seen_coins'] ?? ($attributes['unit_coin_price'] ?? 0));
+            },
             set: fn ($value) => ['price_seen_coins' => (int) $value]
         );
     }

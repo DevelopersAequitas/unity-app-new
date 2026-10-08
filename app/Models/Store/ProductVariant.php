@@ -41,10 +41,30 @@ class ProductVariant extends Model
         'is_active' => 'boolean',
     ];
 
+    protected $appends = [
+        'coin_price',
+        'price_coins',
+    ];
+
     protected function coinPrice(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn ($value, $attributes) => (int) ($attributes['coin_price'] ?? ($attributes['price_coins'] ?? 0)),
+            get: function ($value, $attributes) {
+                $val = (int) ($attributes['coin_price'] ?? ($attributes['price_coins'] ?? 0));
+                if ($val <= 0) {
+                    if ($this->relationLoaded('product') && $this->product) {
+                        return (int) ($this->product->coin_price ?? ($this->product->price_coins ?? 0));
+                    }
+                    if (! empty($this->product_id)) {
+                        $parent = Product::find($this->product_id);
+                        if ($parent) {
+                            return (int) ($parent->coin_price ?? ($parent->price_coins ?? 0));
+                        }
+                    }
+                }
+
+                return $val;
+            },
             set: fn ($value) => [
                 'coin_price' => (int) $value,
                 'price_coins' => (int) $value,
@@ -55,7 +75,22 @@ class ProductVariant extends Model
     protected function priceCoins(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn ($value, $attributes) => (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0)),
+            get: function ($value, $attributes) {
+                $val = (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0));
+                if ($val <= 0) {
+                    if ($this->relationLoaded('product') && $this->product) {
+                        return (int) ($this->product->price_coins ?? ($this->product->coin_price ?? 0));
+                    }
+                    if (! empty($this->product_id)) {
+                        $parent = Product::find($this->product_id);
+                        if ($parent) {
+                            return (int) ($parent->price_coins ?? ($parent->coin_price ?? 0));
+                        }
+                    }
+                }
+
+                return $val;
+            },
             set: fn ($value) => [
                 'price_coins' => (int) $value,
                 'coin_price' => (int) $value,

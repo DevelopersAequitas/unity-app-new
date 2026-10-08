@@ -36,6 +36,27 @@ class CartService
             'items.variant',
         ]);
 
+        foreach ($cart->items as $item) {
+            $currentPrice = null;
+            if ($item->variant) {
+                $vPrice = (int) ($item->variant->coin_price ?: ($item->variant->price_coins ?: 0));
+                if ($vPrice > 0) {
+                    $currentPrice = $vPrice;
+                }
+            }
+            if ($currentPrice === null && $item->product) {
+                $pPrice = (int) ($item->product->coin_price ?: ($item->product->price_coins ?: 0));
+                if ($pPrice > 0) {
+                    $currentPrice = $pPrice;
+                }
+            }
+
+            if ($currentPrice !== null && $currentPrice > 0 && (int) $item->price_seen_coins !== $currentPrice) {
+                $item->price_seen_coins = $currentPrice;
+                CartItem::where('id', $item->id)->update(['price_seen_coins' => $currentPrice]);
+            }
+        }
+
         return $cart;
     }
 
@@ -51,16 +72,21 @@ class CartService
         }
 
         $variant = null;
-        $unitPrice = $product->coin_price;
+        $unitPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 0));
 
         if ($variantId) {
             $variant = ProductVariant::active()->where('product_id', $productId)->find($variantId);
             if (! $variant) {
                 throw new Exception(StoreErrorCodes::VARIANT_NOT_FOUND, 404);
             }
-            if ($variant->coin_price !== null && $variant->coin_price > 0) {
-                $unitPrice = $variant->coin_price;
+            $vPrice = (int) ($variant->coin_price ?: ($variant->price_coins ?: 0));
+            if ($vPrice > 0) {
+                $unitPrice = $vPrice;
             }
+        }
+
+        if ($unitPrice <= 0) {
+            $unitPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 1));
         }
 
         $cart = $this->getActiveCart($user);
