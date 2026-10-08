@@ -46,7 +46,7 @@
             <div class="col-md-6 col-lg-4">
                 <div class="card shadow-sm border-0 h-100 overflow-hidden {{ !$banner->is_active ? 'opacity-75' : '' }}">
                     <div class="position-relative bg-dark" style="height: 160px;">
-                        <img src="{{ $banner->image_url }}" alt="{{ $banner->title }}" style="width: 100%; height: 100%; object-fit: cover;">
+                        <img src="{{ $banner->image_url }}" alt="{{ $banner->title }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&auto=format&fit=crop&q=60';">
                         <div class="position-absolute top-0 end-0 p-2">
                             <span class="badge {{ $banner->is_active ? 'bg-success' : 'bg-secondary' }}">
                                 {{ $banner->is_active ? 'Active' : 'Disabled' }}
@@ -117,6 +117,10 @@
                                     <input type="file" name="image" class="form-control" accept="image/*">
                                     <small class="text-muted">Recommended aspect ratio: 16:9 or 2:1</small>
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">OR Image Web URL</label>
+                                    <input type="url" name="image_url" class="form-control" value="{{ str_starts_with($banner->image_url, 'http') ? $banner->image_url : '' }}" placeholder="https://example.com/banner.jpg">
+                                </div>
                                 <div class="row g-2 mb-3">
                                     <div class="col-6">
                                         <label class="form-label fw-semibold">Action Type</label>
@@ -178,9 +182,13 @@
                         <input type="text" name="subtitle" class="form-control" placeholder="e.g. Redeem premium luxury watches with Earned Coins">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Banner Image File <span class="text-danger">*</span></label>
-                        <input type="file" name="image" class="form-control" accept="image/*" required>
+                        <label class="form-label fw-semibold">Banner Image File (Upload)</label>
+                        <input type="file" name="image" class="form-control" accept="image/*">
                         <small class="text-muted">Recommended: 1200x600px PNG/JPG</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">OR Image Web URL</label>
+                        <input type="url" name="image_url" class="form-control" placeholder="https://example.com/banner.jpg">
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-6">
