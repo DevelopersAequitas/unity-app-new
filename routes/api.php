@@ -1491,9 +1491,14 @@ Route::prefix('v1')->group(function () {
     Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
     Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
 
-    // Web Homepage Media - Success Stories
+    // Web Homepage Media - Success Stories (Fetch & Uploadation CRUD)
     Route::get('/web-success-stories', [WebPublicApiController::class, 'successStories']);
     Route::get('/web/success-stories', [WebPublicApiController::class, 'successStories']);
+    Route::post('/web/success-stories', [WebPublicApiController::class, 'storeStory']);
+    Route::get('/web/success-stories/{id}', [WebPublicApiController::class, 'showStory'])->whereUuid('id');
+    Route::put('/web/success-stories/{id}', [WebPublicApiController::class, 'updateStory'])->whereUuid('id');
+    Route::post('/web/success-stories/{id}', [WebPublicApiController::class, 'updateStory'])->whereUuid('id');
+    Route::delete('/web/success-stories/{id}', [WebPublicApiController::class, 'destroyStory'])->whereUuid('id');
     Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
 
     // Web Blogs & Publications
