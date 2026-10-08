@@ -1,0 +1,33 @@
+{
+  "__commonjsHelpers-1ThnS5nC.js": {
+    "file": "assets/_commonjsHelpers-1ThnS5nC.js",
+    "name": "_commonjsHelpers"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-BL5HtWZK.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-BCVjY9zv.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "__commonjsHelpers-1ThnS5nC.js"
+    ]
+  },
+  "resources/js/leadership-admin/main.tsx": {
+    "file": "assets/main-CFhhRCYz.js",
+    "name": "main",
+    "src": "resources/js/leadership-admin/main.tsx",
+    "isEntry": true,
+    "imports": [
+      "__commonjsHelpers-1ThnS5nC.js"
+    ]
+  }
+}

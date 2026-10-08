@@ -34,5 +34,14 @@
     window.__UNITY_API_BASE__ = "{{ url('/api/v1/leadership') }}";
 </script>
 
-@vite(['resources/js/leadership-admin/main.tsx'])
+@php
+    $manifestPath = public_path('build/manifest.json');
+    $hasManifest = file_exists($manifestPath);
+@endphp
+
+@if ($hasManifest)
+    @vite(['resources/js/leadership-admin/main.tsx'])
+@else
+    <script type="module" src="{{ asset('build/assets/main-CFhhRCYz.js') }}"></script>
+@endif
 @endsection
