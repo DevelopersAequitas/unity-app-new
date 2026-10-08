@@ -10,6 +10,7 @@ use App\Models\Web\WebMessage;
 use App\Models\Web\WebOpportunity;
 use App\Models\Web\WebPartnership;
 use App\Models\Web\WebSetting;
+use App\Models\Web\WebSuccessStory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -164,6 +165,50 @@ class WebPublicApiController extends Controller
         return response()->json([
             'success' => true,
             'data' => [],
+        ]);
+    }
+
+    /**
+     * Get active homepage success stories (YouTube video links + cover media).
+     */
+    public function successStories(Request $request): JsonResponse
+    {
+        $limit = $request->query('limit') ? (int) $request->query('limit') : null;
+
+        $query = WebSuccessStory::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('created_at', 'desc');
+
+        if ($limit !== null && $limit > 0) {
+            $query->limit($limit);
+        }
+
+        $stories = $query->get();
+
+        $mapped = $stories->map(function (WebSuccessStory $item): array {
+            return [
+                'id' => $item->id,
+                'personName' => $item->person_name,
+                'designation' => $item->designation,
+                'company' => $item->company,
+                'storyTitle' => $item->story_title,
+                'quote' => $item->quote,
+                'youtubeUrl' => $item->youtube_url,
+                'youtubeVideoId' => $item->youtube_video_id,
+                'youtubeEmbedUrl' => $item->youtube_embed_url,
+                'coverImageUrl' => $item->cover_image_url,
+                'hasCustomCover' => $item->has_custom_cover,
+                'youtubeThumbnailUrl' => $item->youtube_thumbnail_url ?: WebSuccessStory::buildYouTubeThumbnailUrl($item->youtube_video_id),
+                'sortOrder' => $item->sort_order,
+                'isActive' => (bool) $item->is_active,
+                'createdAt' => $item->created_at?->toIso8601String(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'count' => $mapped->count(),
+            'data' => $mapped,
         ]);
     }
 }

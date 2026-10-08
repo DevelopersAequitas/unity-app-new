@@ -1491,6 +1491,11 @@ Route::prefix('v1')->group(function () {
     Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
     Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
 
+    // Web Homepage Media - Success Stories
+    Route::get('/web-success-stories', [WebPublicApiController::class, 'successStories']);
+    Route::get('/web/success-stories', [WebPublicApiController::class, 'successStories']);
+    Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
+
     // Web Blogs & Publications
     Route::get('/web-blogs', [WebBlogApiController::class, 'index']);
     Route::get('/web-blogs/{slug}', [WebBlogApiController::class, 'show']);
