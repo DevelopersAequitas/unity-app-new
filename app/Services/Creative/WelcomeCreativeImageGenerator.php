@@ -153,15 +153,15 @@ class WelcomeCreativeImageGenerator
             }
         };
 
-        // Draw Line 1: Member Name (Y = 1005, Montserrat Bold, 36pt, Vibrant Gold)
-        $drawCenterText($canvas, 36, 1005, $colorGold, $fontBold, $name, 940);
+        // Draw Line 1: Member Name (Y = 1030, Montserrat Bold, 36pt, Vibrant Gold)
+        $drawCenterText($canvas, 36, 1030, $colorGold, $fontBold, $name, 940);
 
-        // Draw Line 2: Company • City (Y = 1060, Montserrat SemiBold, 23pt, Deep Charcoal/Navy)
-        $drawCenterText($canvas, 23, 1060, $colorDark, $fontSemiBold, $line2Text, 940);
+        // Draw Line 2: Company • City (Y = 1085, Montserrat SemiBold, 23pt, Deep Charcoal/Navy)
+        $drawCenterText($canvas, 23, 1085, $colorDark, $fontSemiBold, $line2Text, 940);
 
-        // Draw Line 3: Category / Designation (Y = 1110, Montserrat SemiBold, 21pt, Slate Gray)
+        // Draw Line 3: Category / Designation (Y = 1135, Montserrat SemiBold, 21pt, Slate Gray)
         if (! empty($line3Text)) {
-            $drawCenterText($canvas, 21, 1110, $colorSlate, $fontSemiBold, $line3Text, 940);
+            $drawCenterText($canvas, 21, 1135, $colorSlate, $fontSemiBold, $line3Text, 940);
         }
 
         // Save canvas to disk
