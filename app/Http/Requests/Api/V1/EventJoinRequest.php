@@ -27,6 +27,11 @@ class EventJoinRequest extends FormRequest
             'note' => ['nullable', 'string', 'max:2000'],
             'reason' => ['nullable', 'string', 'max:2000'],
             'request_reason' => ['nullable', 'string', 'max:2000'],
+            'referral_code' => ['nullable', 'string', 'max:100'],
+            'inviter_code' => ['nullable', 'string', 'max:100'],
+            'invited_by_referral_code' => ['nullable', 'string', 'max:100'],
+            'invited_by_user_id' => ['nullable', 'string', 'max:100'],
+            'invited_by' => ['nullable', 'string', 'max:100'],
         ];
     }
 }

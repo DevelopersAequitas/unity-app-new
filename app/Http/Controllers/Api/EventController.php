@@ -341,7 +341,13 @@ class EventController extends BaseApiController
         }
 
         $note = $request->input('note') ?? $request->input('reason') ?? $request->input('request_reason');
-        $result = $this->eventFlow->joinRequest($event, $request->user(), $note ? (string) $note : null);
+        $referralCode = $this->extractInviterCode($request);
+        $result = $this->eventFlow->joinRequest(
+            $event,
+            $request->user(),
+            $note ? (string) $note : null,
+            $referralCode ? (string) $referralCode : null
+        );
 
         return $this->success($result, 'Join request sent to circle admin.');
     }

@@ -217,6 +217,7 @@ class EventManagementController extends Controller
             'user.circleMemberships.circle',
             'user.introducedBy',
             'user.referredByUser',
+            'invitedByUser.circleMemberships.circle',
             'event.circle',
             'occurrence',
             'registration',
