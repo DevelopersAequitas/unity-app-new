@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Store\Wishlist;
 use App\Services\Admin\DistrictSyncService;
 use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\LifeImpact\LifeImpactService;
@@ -570,6 +571,16 @@ class User extends Authenticatable
     public function referredByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'referred_by_user_id');
+    }
+
+    public function referralData(): HasOne
+    {
+        return $this->hasOne(ReferralData::class, 'referred_user_id');
+    }
+
+    public function referralsGiven(): HasMany
+    {
+        return $this->hasMany(ReferralData::class, 'referrer_user_id');
     }
 
     public function mainBusinessCategory(): BelongsTo
@@ -1473,6 +1484,6 @@ class User extends Authenticatable
 
     public function wishlists(): HasMany
     {
-        return $this->hasMany(\App\Models\Store\Wishlist::class, 'user_id');
+        return $this->hasMany(Wishlist::class, 'user_id');
     }
 }

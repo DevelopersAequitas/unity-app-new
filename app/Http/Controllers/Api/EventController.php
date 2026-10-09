@@ -839,8 +839,13 @@ class EventController extends BaseApiController
 
     public function adminRegistrationRequests(Request $request)
     {
+        $requestRelations = ['event.circle', 'event.circles.cityRef', 'occurrence', 'user.circleMemberships.circle', 'user.introducedBy', 'registration'];
+        if (Schema::hasTable('referraldata')) {
+            $requestRelations[] = 'user.referralData.referrer';
+        }
+
         $query = EventRegistrationRequest::query()
-            ->with(['event.circle', 'event.circles.cityRef', 'occurrence', 'user.circleMemberships.circle', 'registration'])
+            ->with($requestRelations)
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
             ->when($request->occurrence_id, fn ($q, $v) => $q->where('occurrence_id', $v))
@@ -1731,6 +1736,11 @@ class EventController extends BaseApiController
         $event = $joiningRequest->event;
         $occurrence = $joiningRequest->occurrence;
         $registration = $joiningRequest->registration;
+        $referralData = $user?->relationLoaded('referralData') ? $user?->referralData : null;
+        if (! $referralData && $user && Schema::hasTable('referraldata')) {
+            $referralData = $user->referralData;
+        }
+        $referrer = $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
 
         return [
             'id' => $joiningRequest->id,
@@ -1769,6 +1779,14 @@ class EventController extends BaseApiController
                 'payment_required' => (bool) ($registration->payment_required ?? false),
                 'qr_code_url' => $registration->qr_code_url,
                 'checkin_status' => $registration->checkin_status,
+            ] : null,
+            'referral' => ($referralData || $referrer) ? [
+                'referral_code' => $referralData?->referral_code,
+                'referrer_user_id' => $referralData?->referrer_user_id ?? $referrer?->id,
+                'referrer_name' => $referrer ? ($referrer->display_name ?: trim(($referrer->first_name ?? '').' '.($referrer->last_name ?? ''))) : null,
+                'referrer_email' => $referralData?->referrer_email ?? $referrer?->email,
+                'coins' => $referralData?->coins,
+                'used_at' => optional($referralData?->used_at ?? $referralData?->created_at)->toISOString(),
             ] : null,
         ];
     }
