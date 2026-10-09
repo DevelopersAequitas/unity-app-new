@@ -395,6 +395,24 @@ class ReferralService
                     'referral_code' => $normalized,
                 ]);
 
+                if ((string) $newUser->membership_status === User::STATUS_FREE_TRIAL) {
+                    $trialDays = User::trialDays(true);
+                    $startsAt = $newUser->membership_starts_at ? $newUser->membership_starts_at->copy() : now();
+                    $referralTrialEndsAt = $startsAt->addDays($trialDays);
+
+                    if ($newUser->membership_ends_at === null || $newUser->membership_ends_at->lessThan($referralTrialEndsAt)) {
+                        $newUser->membership_ends_at = $referralTrialEndsAt;
+                        $newUser->membership_expiry = $referralTrialEndsAt;
+                        $newUser->save();
+
+                        Log::info('referral.registration.trial_extended', [
+                            'user_id' => (string) $newUser->id,
+                            'trial_days' => $trialDays,
+                            'ends_at' => $referralTrialEndsAt->toIso8601String(),
+                        ]);
+                    }
+                }
+
                 return [
                     'referrer_user_id' => $referrerUserId,
                     'referrer_email' => (string) ($data->referrer_email ?? ''),

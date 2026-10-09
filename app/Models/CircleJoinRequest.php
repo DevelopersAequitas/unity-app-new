@@ -101,6 +101,22 @@ class CircleJoinRequest extends Model
             }
         });
 
+        static::created(function (self $request): void {
+            try {
+                broadcast(new \App\Events\PendingRequestChangedEvent(
+                    action: 'created',
+                    category: 'circle_joining_requests',
+                    requestId: (string) $request->id,
+                    itemData: [
+                        'id' => (string) $request->id,
+                        'category' => 'circle_joining_requests',
+                        'submitted_at' => optional($request->created_at)->toISOString() ?? now()->toISOString(),
+                    ]
+                ));
+            } catch (\Throwable) {
+            }
+        });
+
         static::saving(function (self $request): void {
             if (! Schema::hasTable('circle_join_requests') || ! Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
                 return;

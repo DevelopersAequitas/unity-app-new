@@ -285,7 +285,7 @@ class OrderService
             foreach ($debitResult['ledger_entries'] as $ledgerRow) {
                 OrderPayment::create([
                     'order_id' => $order->id,
-                    'bucket' => $ledgerRow->bucket,
+                    'bucket' => $ledgerRow->bucket ?? 'EARNED',
                     'coins' => abs($ledgerRow->amount),
                     'ledger_transaction_id' => $ledgerRow->transaction_id,
                     'created_at' => now(),

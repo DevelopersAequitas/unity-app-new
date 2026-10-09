@@ -1020,6 +1020,10 @@ Route::prefix('v1')->group(function () {
         Route::patch('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
         Route::delete('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'destroy'])->whereUuid('id');
         Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');
+        Route::post('/events/{id}/attend', [EventController::class, 'attend'])->whereUuid('id');
+        Route::post('/events/{id}/join-request', [EventController::class, 'joinRequest'])->whereUuid('id');
+        Route::post('/events/{id}/payment/order', [EventController::class, 'paymentOrder'])->whereUuid('id');
+        Route::post('/events/{id}/payment/verify', [EventController::class, 'paymentVerify'])->whereUuid('id');
         Route::post('/events', [EventController::class, 'store']);
         Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp'])->whereUuid('id');
         Route::post('/events/{id}/checkin', [EventController::class, 'checkin'])->whereUuid('id');
@@ -1491,6 +1495,16 @@ Route::prefix('v1')->group(function () {
     Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
     Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
 
+    // Web Homepage Media - Success Stories (Fetch & Uploadation CRUD)
+    Route::get('/web-success-stories', [WebPublicApiController::class, 'successStories']);
+    Route::get('/web/success-stories', [WebPublicApiController::class, 'successStories']);
+    Route::post('/web/success-stories', [WebPublicApiController::class, 'storeStory']);
+    Route::get('/web/success-stories/{id}', [WebPublicApiController::class, 'showStory'])->whereUuid('id');
+    Route::put('/web/success-stories/{id}', [WebPublicApiController::class, 'updateStory'])->whereUuid('id');
+    Route::post('/web/success-stories/{id}', [WebPublicApiController::class, 'updateStory'])->whereUuid('id');
+    Route::delete('/web/success-stories/{id}', [WebPublicApiController::class, 'destroyStory'])->whereUuid('id');
+    Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
+
     // Web Blogs & Publications
     Route::get('/web-blogs', [WebBlogApiController::class, 'index']);
     Route::get('/web-blogs/{slug}', [WebBlogApiController::class, 'show']);
@@ -1554,8 +1568,10 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('pending-requests', [PendingRequestAdminController::class, 'index']);
     Route::get('pending-requests/summary', [PendingRequestAdminController::class, 'summary']);
     Route::get('pending-requests/count', [PendingRequestAdminController::class, 'summary']);
+
+    // Support both URL formats: with category and direct ID
     Route::post('pending-requests/{category}/{id}/approve', [PendingRequestAdminController::class, 'approve']);
+    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approveDirect']);
     Route::post('pending-requests/{category}/{id}/reject', [PendingRequestAdminController::class, 'reject']);
-    Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approveLegacy']);
-    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'rejectLegacy']);
+    Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'rejectDirect']);
 });

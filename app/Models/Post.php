@@ -269,4 +269,93 @@ class Post extends Model
 
         return null;
     }
+
+    public function isSystemCreativePost(): bool
+    {
+        return static::isSystemPostRow(
+            $this->source_type,
+            $this->post_type,
+            $this->tags,
+            $this->relationLoaded('user') ? $this->user?->email : null,
+            $this->relationLoaded('user') ? $this->user?->display_name : null,
+            $this->relationLoaded('author') ? $this->author?->email : null,
+            $this->relationLoaded('author') ? $this->author?->display_name : null
+        );
+    }
+
+    public static function isSystemPostRow(
+        mixed $sourceType = null,
+        mixed $postType = null,
+        mixed $tags = null,
+        ?string $authorEmail = null,
+        ?string $authorDisplayName = null,
+        ?string $secondAuthorEmail = null,
+        ?string $secondAuthorDisplayName = null
+    ): bool {
+        $sourceType = strtolower(trim((string) $sourceType));
+        $postType = strtolower(trim((string) $postType));
+
+        $systemTypes = [
+            'milestone_badge',
+            'growth_honour',
+            'life_impact',
+            'life_impact_recognition',
+            'member_introduction',
+            'introduction',
+            'peer_introduction',
+            'birthday',
+            'anniversary',
+            'certification',
+            'global_peer_certificate',
+            'entrepreneur_certificate',
+            'leadership_certificate',
+            'recognition',
+        ];
+
+        if (in_array($sourceType, $systemTypes, true) || in_array($postType, $systemTypes, true)) {
+            return true;
+        }
+
+        $decodedTags = [];
+        if (is_array($tags)) {
+            $decodedTags = $tags;
+        } elseif (is_string($tags) && $tags !== '') {
+            $decodedTags = json_decode($tags, true) ?? [];
+        }
+
+        $systemTags = [
+            'milestone_honour',
+            'growth_track',
+            'growth_honour',
+            'life_impact',
+            'wedding_anniversary',
+            'anniversary',
+            'global_peer_certificate',
+            'member_introduction',
+            'birthday',
+        ];
+
+        foreach ($systemTags as $st) {
+            if (in_array($st, $decodedTags, true)) {
+                return true;
+            }
+        }
+
+        $emails = array_filter([$authorEmail, $secondAuthorEmail]);
+        foreach ($emails as $email) {
+            if (strtolower(trim($email)) === 'info@peersglobal.com') {
+                return true;
+            }
+        }
+
+        $names = array_filter([$authorDisplayName, $secondAuthorDisplayName]);
+        foreach ($names as $name) {
+            $lowerName = strtolower(trim($name));
+            if (str_contains($lowerName, 'genie') || str_contains($lowerName, 'peersglobal unity')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel4;
+use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\MembershipPlan;
 use App\Models\Role;
@@ -418,11 +419,30 @@ class CircleController extends Controller
         $validatedFilters = $request->validate([
             'peer_name' => ['nullable', 'string', 'max:120'],
             'peer_email' => ['nullable', 'string', 'max:190'],
+            'show_ded' => ['nullable'],
+            'show_id' => ['nullable'],
+            'show_ids' => ['nullable'],
+            'show_ded_id' => ['nullable'],
         ]);
+
+        $legacyShowDedId = $request->boolean('show_ded_id')
+            || in_array(strtolower(trim((string) $request->input('show_ded_id', ''))), ['1', 'true', 'on', 'yes'], true)
+            || $request->boolean('include_ded_id');
+
+        $showDed = $request->has('show_ded')
+            ? ($request->boolean('show_ded') || in_array(strtolower(trim((string) $request->input('show_ded', ''))), ['1', 'true', 'on', 'yes'], true))
+            : $legacyShowDedId;
+
+        $showId = ($request->has('show_id') || $request->has('show_ids'))
+            ? ($request->boolean('show_id') || $request->boolean('show_ids') || in_array(strtolower(trim((string) ($request->input('show_id') ?? $request->input('show_ids') ?? ''))), ['1', 'true', 'on', 'yes'], true))
+            : $legacyShowDedId;
 
         $peerFilters = [
             'peer_name' => $this->sanitizeFilterInput($validatedFilters['peer_name'] ?? ''),
             'peer_email' => $this->sanitizeFilterInput($validatedFilters['peer_email'] ?? ''),
+            'show_ded' => $showDed ? '1' : '0',
+            'show_id' => $showId ? '1' : '0',
+            'show_ded_id' => ($showDed && $showId) ? '1' : '0',
         ];
 
         $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'coverFile', 'circleImageFile'];
@@ -434,6 +454,36 @@ class CircleController extends Controller
         $circle->load($relations);
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+
+        $leadershipSyncRoles = [
+            'ded' => $circle->ded_user_id ?? data_get($calendar, 'leadership.ded_user_id') ?? data_get($calendar, 'settings.ded_user_id'),
+            'industry_director' => $circle->industry_director_user_id ?? data_get($calendar, 'leadership.industry_director_user_id') ?? data_get($calendar, 'settings.industry_director_user_id'),
+        ];
+        foreach ($leadershipSyncRoles as $syncRole => $syncUserId) {
+            if (! empty($syncUserId) && User::where('id', $syncUserId)->exists()) {
+                $existingMember = CircleMember::withTrashed()
+                    ->where('circle_id', $circle->id)
+                    ->where('user_id', $syncUserId)
+                    ->first();
+                if (! $existingMember) {
+                    CircleMember::query()->create([
+                        'circle_id' => $circle->id,
+                        'user_id' => $syncUserId,
+                        'role' => $syncRole,
+                        'status' => 'approved',
+                        'joined_at' => $circle->created_at ?? now(),
+                    ]);
+                } elseif ($existingMember->trashed()) {
+                    $existingMember->restore();
+                    $existingMember->status = 'approved';
+                    $existingMember->role = $syncRole;
+                    $existingMember->save();
+                } elseif (empty($existingMember->role) || $existingMember->role === 'member') {
+                    $existingMember->role = $syncRole;
+                    $existingMember->save();
+                }
+            }
+        }
 
         $circleStage = trim((string) $circle->getRawOriginal('circle_stage'));
         if ($circleStage === '') {
@@ -460,6 +510,17 @@ class CircleController extends Controller
                 'joinedCircleCategory.level1Category',
                 'joinedCircleCategory.level4Category',
             ])
+            ->when(! $showDed || ! $showId, function ($query) use ($showDed, $showId): void {
+                $excludedRoles = [];
+                if (! $showDed) {
+                    $excludedRoles[] = 'ded';
+                }
+                if (! $showId) {
+                    $excludedRoles[] = 'industry_director';
+                    $excludedRoles[] = 'id';
+                }
+                $query->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), $excludedRoles);
+            })
             ->when($peerFilters['peer_name'] !== '', function ($query) use ($peerFilters): void {
                 $like = '%'.$peerFilters['peer_name'].'%';
 
@@ -514,6 +575,9 @@ class CircleController extends Controller
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
             'peerMembers' => $peerMembers,
             'peerFilters' => $peerFilters,
+            'showDed' => $showDed,
+            'showId' => $showId,
+            'showDedId' => $showDed && $showId,
             'circleMainCategories' => $circleMainCategories,
             'circleSubCategories' => $circleSubCategories,
         ]);

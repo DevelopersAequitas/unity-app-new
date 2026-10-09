@@ -99,6 +99,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\UserTagController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\Web\LeadershipAdminWebController;
 use App\Http\Controllers\Admin\Web\WebAnalyticsController;
 use App\Http\Controllers\Admin\Web\WebBlogController;
 use App\Http\Controllers\Admin\Web\WebCircleController;
@@ -111,6 +112,7 @@ use App\Http\Controllers\Admin\Web\WebOpportunityController;
 use App\Http\Controllers\Admin\Web\WebPageMediaController;
 use App\Http\Controllers\Admin\Web\WebPartnershipController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
+use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -688,7 +690,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/certifications', [CertificationSubmissionsController::class, 'index'])->name('certifications.index');
         Route::post('/pending-requests/certifications/{id}/approve', [CertificationSubmissionsController::class, 'approve'])->whereUuid('id')->name('certifications.approve');
         Route::post('/pending-requests/certifications/{id}/reject', [CertificationSubmissionsController::class, 'reject'])->whereUuid('id')->name('certifications.reject');
-        Route::get('/certificates/{id}/view', [CertificationSubmissionsController::class, 'certificate'])->whereUuid('id')->name('certifications.certificate');
+        Route::get('/certificates/{id}/view', [CertificationSubmissionsController::class, 'certificate'])->name('certifications.certificate');
+        Route::get('/admin/certificates/{id}/view', [CertificationSubmissionsController::class, 'certificate'])->name('admin.certifications.certificate');
 
         Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
         Route::get('/pending-requests/leads/entrepreneur-certification/{id}', [LeadSubmissionsController::class, 'entrepreneurCertificationShow'])->name('leads.entrepreneur-certification.show');
@@ -901,6 +904,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::prefix('web')->name('web.')->group(function () {
             Route::get('/dashboard', [WebDashboardController::class, 'index'])->name('dashboard');
 
+            // Homepage Media / Success Stories
+            Route::prefix('homepage-media')->name('homepage-media.')->group(function () {
+                Route::get('/success-stories', [WebSuccessStoryController::class, 'index'])->name('success-stories.index');
+                Route::post('/success-stories', [WebSuccessStoryController::class, 'store'])->name('success-stories.store');
+                Route::put('/success-stories/{id}', [WebSuccessStoryController::class, 'update'])->name('success-stories.update')->whereUuid('id');
+                Route::delete('/success-stories/{id}', [WebSuccessStoryController::class, 'destroy'])->name('success-stories.destroy')->whereUuid('id');
+                Route::patch('/success-stories/{id}/toggle-status', [WebSuccessStoryController::class, 'toggleStatus'])->name('success-stories.toggle-status')->whereUuid('id');
+            });
+            Route::get('/success-stories', [WebSuccessStoryController::class, 'index'])->name('success-stories.index');
+            Route::post('/success-stories', [WebSuccessStoryController::class, 'store'])->name('success-stories.store');
+            Route::put('/success-stories/{id}', [WebSuccessStoryController::class, 'update'])->name('success-stories.update')->whereUuid('id');
+            Route::delete('/success-stories/{id}', [WebSuccessStoryController::class, 'destroy'])->name('success-stories.destroy')->whereUuid('id');
+            Route::patch('/success-stories/{id}/toggle-status', [WebSuccessStoryController::class, 'toggleStatus'])->name('success-stories.toggle-status')->whereUuid('id');
+
             // Partnerships
             Route::get('/partnerships', [WebPartnershipController::class, 'index'])->name('partnerships.index');
             Route::post('/partnerships', [WebPartnershipController::class, 'store'])->name('partnerships.store');
@@ -945,6 +962,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/analytics', [WebAnalyticsController::class, 'index'])->name('analytics.index');
             Route::get('/settings', [WebSettingController::class, 'index'])->name('settings.index');
             Route::post('/settings', [WebSettingController::class, 'update'])->name('settings.update');
+
+            // Leadership Selection Management Module
+            Route::prefix('leadership')->name('leadership.')->group(function () {
+                Route::get('/{any?}', [LeadershipAdminWebController::class, 'index'])
+                    ->where('any', '.*')
+                    ->name('index');
+            });
         });
 
         // ── Peers Store Admin Module ──────────────────────────────

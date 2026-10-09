@@ -172,7 +172,17 @@
                 <div class="card-body">
                     <div class="mb-3 text-center p-3 bg-light rounded">
                         <span class="text-muted small d-block mb-1">Current State</span>
-                        <span class="badge bg-primary fs-6 px-3 py-1.5">{{ ucfirst(str_replace('_', ' ', $order->status)) }}</span>
+                        @php
+                            $stLower = strtolower($order->status);
+                            $badgeColor = match($stLower) {
+                                'cancelled', 'refunded' => 'bg-danger',
+                                'delivered', 'picked_up', 'completed' => 'bg-success',
+                                'shipped', 'dispatched' => 'bg-info text-dark',
+                                'ready_for_pickup' => 'bg-warning text-dark',
+                                default => 'bg-primary'
+                            };
+                        @endphp
+                        <span class="badge {{ $badgeColor }} fs-6 px-3 py-1.5">{{ ucfirst(str_replace('_', ' ', $order->status)) }}</span>
                     </div>
 
                     {{-- Next Status Transition Form --}}
@@ -193,7 +203,7 @@
                     @endif
 
                     {{-- Courier Dispatch Section (if Doorstep Delivery) --}}
-                    @if($order->delivery_method !== 'pickup' && in_array($order->status, ['processing', 'pending']))
+                    @if($order->delivery_method !== 'pickup' && in_array($stLower, ['processing', 'pending', 'placed', 'confirmed', 'packing', 'packed']))
                         <div class="border-top pt-3 mt-3">
                             <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-truck text-primary me-1"></i> Courier Dispatch & AWB</h6>
                             <form method="POST" action="{{ route('admin.store.orders.courier.dispatch', $order->id) }}">
@@ -212,7 +222,7 @@
                     @endif
 
                     {{-- Pickup PIN Verification (if Hub Pickup) --}}
-                    @if($order->delivery_method === 'pickup' && $order->status === 'ready_for_pickup')
+                    @if($order->delivery_method === 'pickup' && $stLower === 'ready_for_pickup')
                         <div class="border-top pt-3 mt-3">
                             <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-shield-lock text-primary me-1"></i> Verify Customer Pickup PIN</h6>
                             <form method="POST" action="{{ route('admin.store.orders.pickup.verify-pin', $order->id) }}">
@@ -226,7 +236,7 @@
                     @endif
 
                     {{-- Cancel & Refund Button --}}
-                    @if(!in_array($order->status, ['delivered', 'cancelled', 'refunded']))
+                    @if(!in_array($stLower, ['delivered', 'cancelled', 'refunded', 'completed', 'picked_up']))
                         <div class="border-top pt-3 mt-3">
                             <button class="btn btn-sm btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
                                 <i class="bi bi-x-circle"></i> Cancel Order & Refund Coins

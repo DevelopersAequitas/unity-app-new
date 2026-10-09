@@ -159,7 +159,9 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/members/{member_id}', [LeaderMemberController::class, 'show'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/activities', [LeaderMemberController::class, 'activities'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/posts', [LeaderMemberController::class, 'posts'])->whereUuid('member_id');
+    Route::delete('/leader/members/{member_id}/posts/{post_id}', [LeaderMemberController::class, 'deletePost'])->whereUuid('member_id')->whereUuid('post_id');
     Route::get('/leader/members/{member_id}/creatives', [LeaderMemberController::class, 'creatives'])->whereUuid('member_id');
+    Route::delete('/leader/members/{member_id}/creatives/{creative_id}', [LeaderMemberController::class, 'deleteCreative'])->whereUuid('member_id')->whereUuid('creative_id');
     Route::get('/leader/members/{member_id}/badges', [LeaderMemberController::class, 'badges'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/events', [LeaderMemberController::class, 'events'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/event-registrations', [LeaderMemberController::class, 'eventRegistrations'])->whereUuid('member_id');
@@ -173,6 +175,8 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/members/{member_id}/impacts', [LeaderMemberController::class, 'impacts'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/attendance', [LeaderMemberController::class, 'attendance'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/coins', [LeaderMemberController::class, 'coins'])->whereUuid('member_id');
+    Route::get('/leader/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
+    Route::get('/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
 
     // 3 DEDICATED ASKS FLOWS: 9 CORE ENDPOINTS (Global Feed, My History, Leaderboard)
     Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {

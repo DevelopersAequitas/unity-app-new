@@ -261,8 +261,7 @@ class AdminStoreConfigWebController extends Controller
     {
         $query = DB::table('order_status_history')
             ->join('orders', 'order_status_history.order_id', '=', 'orders.id')
-            ->leftJoin('admin_users', 'order_status_history.actor_id', '=', 'admin_users.id')
-            ->select('order_status_history.*', 'orders.order_no as order_number', 'admin_users.name as admin_name');
+            ->select('order_status_history.*', 'orders.order_no as order_number');
 
         $search = $request->input('search', '');
         $adminFilter = $request->input('admin_id', '');
@@ -271,13 +270,25 @@ class AdminStoreConfigWebController extends Controller
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('orders.order_no', 'ILIKE', "%{$search}%")
-                    ->orWhere('order_status_history.note', 'ILIKE', "%{$search}%");
+                $q->where('orders.order_no', 'ILIKE', "%{$search}%");
+                if (Schema::hasColumn('order_status_history', 'notes')) {
+                    $q->orWhere('order_status_history.notes', 'ILIKE', "%{$search}%");
+                }
+                if (Schema::hasColumn('order_status_history', 'reason')) {
+                    $q->orWhere('order_status_history.reason', 'ILIKE', "%{$search}%");
+                }
             });
         }
 
         if ($adminFilter) {
-            $query->where('order_status_history.actor_id', $adminFilter);
+            $query->where(function ($q) use ($adminFilter) {
+                if (Schema::hasColumn('order_status_history', 'changed_by')) {
+                    $q->where('order_status_history.changed_by', (string) $adminFilter);
+                }
+                if (Schema::hasColumn('order_status_history', 'actor_id')) {
+                    $q->orWhere('order_status_history.actor_id', (string) $adminFilter);
+                }
+            });
         }
 
         if ($dateFrom) {

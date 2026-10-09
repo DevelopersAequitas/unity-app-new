@@ -97,18 +97,31 @@ class CheckoutQuoteService
             }
 
             $variant = null;
-            $unitPrice = $product->coin_price ?? $product->price_coins ?? 0;
+            $unitPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 0));
 
             if ($cartItem->variant_id) {
                 $variant = ProductVariant::find($cartItem->variant_id);
-                if ($variant && $variant->coin_price !== null && $variant->coin_price > 0) {
-                    $unitPrice = $variant->coin_price;
+                if ($variant) {
+                    $vPrice = (int) ($variant->coin_price ?: ($variant->price_coins ?: 0));
+                    if ($vPrice > 0) {
+                        $unitPrice = $vPrice;
+                    }
                 }
+            }
+
+            if ($unitPrice <= 0) {
+                $unitPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 1));
+            }
+
+            // Dynamically refresh the cart item price snapshot if it changed
+            if ((int) $cartItem->price_seen_coins !== $unitPrice) {
+                CartItem::where('id', $cartItem->id)->update(['price_seen_coins' => $unitPrice]);
+                $cartItem->price_seen_coins = $unitPrice;
             }
 
             // Check stock
             if ($product->track_inventory) {
-                $availableStock = $variant ? $variant->stock_qty : $product->stock_qty;
+                $availableStock = $variant ? ($variant->stock_quantity ?? $variant->stock_qty) : ($product->stock_qty ?? $product->stock_quantity);
                 if ($availableStock < $cartItem->quantity) {
                     $stockOk = false;
                 }

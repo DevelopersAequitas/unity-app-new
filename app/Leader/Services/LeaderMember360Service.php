@@ -204,6 +204,35 @@ class LeaderMember360Service
             ->where('id', $memberId)
             ->value('coins_balance') ?? 0;
 
+        $appSubscriptionsCount = Schema::hasTable('user_memberships')
+            ? DB::table('user_memberships')->where('user_id', $memberId)->count()
+            : 0;
+
+        $circleSubscriptionsCount = Schema::hasTable('circle_subscriptions')
+            ? DB::table('circle_subscriptions')->where('user_id', $memberId)->count()
+            : 0;
+
+        $introducedPeersCount = DB::table('users')
+            ->where(function ($q) use ($memberId): void {
+                $q->where('introduced_by', $memberId);
+
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $q->orWhere('referred_by_user_id', $memberId);
+                }
+
+                if (Schema::hasTable('referraldata')) {
+                    $q->orWhereIn('id', function ($sub) use ($memberId): void {
+                        $sub->select('referred_user_id')
+                            ->from('referraldata')
+                            ->where('referrer_user_id', $memberId)
+                            ->whereNotNull('referred_user_id');
+                    });
+                }
+            })
+            ->where('id', '!=', $memberId)
+            ->whereNull('deleted_at')
+            ->count();
+
         return [
             'posts' => $postsCount,
             'creatives' => $creativesCount,
@@ -219,6 +248,221 @@ class LeaderMember360Service
             'event_registrations' => $eventRegistrationsCount,
             'event_attendance' => $eventAttendanceCount,
             'coins_balance' => $coinsBalance,
+            'app_subscriptions' => $appSubscriptionsCount,
+            'circle_subscriptions' => $circleSubscriptionsCount,
+            'introduced_peers' => $introducedPeersCount,
+        ];
+    }
+
+    /**
+     * Return paginated peers introduced or referred by the member.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function getMemberIntroducedPeers(string $memberId, array $filters = []): array
+    {
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $perPage = min(100, max(1, (int) ($filters['per_page'] ?? $filters['limit'] ?? 20)));
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
+
+        $query = User::query()
+            ->where(function ($q) use ($memberId): void {
+                $q->where('introduced_by', $memberId);
+
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $q->orWhere('referred_by_user_id', $memberId);
+                }
+
+                if (Schema::hasTable('referraldata')) {
+                    $q->orWhereIn('id', function ($sub) use ($memberId): void {
+                        $sub->select('referred_user_id')
+                            ->from('referraldata')
+                            ->where('referrer_user_id', $memberId)
+                            ->whereNotNull('referred_user_id');
+                    });
+                }
+
+                if (Schema::hasTable('peer_recommendations')) {
+                    $q->orWhereIn('phone', function ($sub) use ($memberId): void {
+                        $sub->select('peer_mobile')
+                            ->from('peer_recommendations')
+                            ->where('user_id', $memberId)
+                            ->whereNotNull('peer_mobile');
+                    });
+                }
+            })
+            ->where('id', '!=', $memberId)
+            ->whereNull('deleted_at');
+
+        if ($search) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('display_name', 'like', "%{$search}%")
+                    ->orWhere('company_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $query->with([
+            'city',
+            'profilePhotoFile',
+            'coverPhotoFile',
+            'introducedBy',
+            'level4Category',
+            'businessCategory',
+            'circleMembers.circle',
+            'activeCircle',
+        ]);
+
+        $paginator = $query->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $items = collect($paginator->items())
+            ->map(fn (User $user) => $this->formatPeer($user))
+            ->filter()
+            ->values()
+            ->all();
+
+        $memberUser = User::find($memberId);
+        $memberName = $memberUser ? trim(($memberUser->first_name ?? '').' '.($memberUser->last_name ?? '')) : null;
+        if (empty($memberName) && $memberUser) {
+            $memberName = (string) ($memberUser->display_name ?? '');
+        }
+
+        $memberData = $memberUser ? [
+            'id' => (string) $memberUser->id,
+            'name' => $memberName !== '' ? $memberName : null,
+            'first_name' => $memberUser->first_name,
+            'last_name' => $memberUser->last_name,
+            'city' => is_string($memberUser->city) ? $memberUser->city : ($memberUser->city?->name ?? null),
+            'business' => $memberUser->company_name ?? $memberUser->business_name,
+            'designation' => $memberUser->designation,
+            'profile_photo_image' => $memberUser->profile_photo_url,
+        ] : null;
+
+        return [
+            'data' => [
+                'member' => $memberData,
+                'introduced_peers_count' => $paginator->total(),
+                'introduced_peers' => $items,
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+            ],
+        ];
+    }
+
+    /**
+     * Format a peer user into standard peer card structure.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function formatPeer(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if ($fullName === '') {
+            $fullName = (string) ($user->display_name ?? 'Peer Member');
+        }
+
+        $avatarUrl = $user->profile_photo_url
+            ?: ($user->avatar_url
+            ?: ($user->avatar ? (str_starts_with((string) $user->avatar, 'http') ? (string) $user->avatar : url('storage/'.$user->avatar)) : null));
+
+        $city = (string) ($user->city ?: ($user->city_of_residence ?: ($user->location ?: 'Ahmedabad')));
+        $companyName = (string) ($user->company_name ?: ($user->business_name ?: ($user->company ?: 'Enterprise Services')));
+
+        $circleMemberL4 = null;
+        if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
+            $circleMemberL4 = $user->circleMembers->first()?->level4Category?->name;
+        }
+
+        $level4 = (string) ($circleMemberL4
+            ?: ($user->level4Category?->name
+            ?: ($user->business_sub_category
+            ?: ($user->category_name
+            ?: ($user->businessCategory?->name
+            ?: ($user->industry ?: 'Business Services'))))));
+
+        $circleName = '';
+        $circleId = (string) ($user->active_circle_id ?? '');
+
+        if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
+            $c = $user->circleMembers->first()?->circle;
+            if ($c) {
+                $circleName = (string) $c->name;
+                $circleId = (string) $c->id;
+            }
+        } elseif ($user->relationLoaded('activeCircle') && $user->activeCircle) {
+            $circleName = (string) $user->activeCircle->name;
+            $circleId = (string) $user->activeCircle->id;
+        }
+
+        return [
+            'id' => (string) $user->id,
+            'user_id' => (string) $user->id,
+            'peer_id' => (string) $user->id,
+            'name' => $fullName,
+            'peer_name' => $fullName,
+            'first_name' => (string) ($user->first_name ?? ''),
+            'last_name' => (string) ($user->last_name ?? ''),
+            'display_name' => (string) ($user->display_name ?? $fullName),
+            'email' => (string) ($user->email ?? ''),
+            'phone' => (string) ($user->phone ?? $user->mobile ?? ''),
+            'mobile' => (string) ($user->phone ?? $user->mobile ?? ''),
+            'profile_image' => $avatarUrl,
+            'profile_photo_url' => $avatarUrl,
+            'avatar_url' => $avatarUrl,
+            'avatar' => $avatarUrl,
+            'cover_photo_url' => $user->cover_photo_url ?? null,
+            'city' => $city,
+            'location' => $city,
+            'business_name' => $companyName,
+            'company_name' => $companyName,
+            'company' => $companyName,
+            'business' => $companyName,
+            'business_type' => (string) ($user->business_type ?? ''),
+            'category_level4' => $level4,
+            'level_4_category' => $level4,
+            'level4_category' => $level4,
+            'category' => $level4,
+            'industry' => (string) ($user->industry ?? $user->businessCategory?->name ?? 'Business Services'),
+            'designation' => (string) ($user->designation ?? $user->job_title ?? 'Member'),
+            'circle_name' => $circleName,
+            'circle_id' => $circleId,
+            'status' => (string) ($user->status ?? 'active'),
+            'membership_status' => (string) ($user->membership_status ?? 'active'),
+            'coins_balance' => (int) ($user->coins_balance ?? 0),
+            'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
+            'members_introduced_count' => (int) ($user->members_introduced_count ?? 0),
+            'introduced_peers_count' => (int) ($user->members_introduced_count ?? 0),
+            'created_at' => $user->created_at ? $user->created_at->toIso8601String() : null,
+            'introduced_at' => $user->created_at ? $user->created_at->toIso8601String() : null,
         ];
     }
 
@@ -1549,7 +1793,17 @@ class LeaderMember360Service
             ->where('status', 'active')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->withCount(['comments', 'likes']);
+            ->withCount(['comments', 'likes'])
+            ->with([
+                'likes' => fn ($q) => $q->orderByDesc('created_at')->with([
+                    'user.circleMembers.circle',
+                    'user.activeCircle',
+                ]),
+                'comments' => fn ($q) => $q->orderByDesc('created_at')->with([
+                    'user.circleMembers.circle',
+                    'user.activeCircle',
+                ]),
+            ]);
 
         if ($search) {
             $query->where(function ($q) use ($search): void {
@@ -1580,6 +1834,102 @@ class LeaderMember360Service
             ->paginate($perPage, ['*'], 'page', $page);
 
         $items = collect($paginator->items())->map(function (Post $post): array {
+            $likesList = $post->relationLoaded('likes')
+                ? $post->likes->map(function ($like): array {
+                    $user = $like->user;
+                    $peer = $user ? $this->formatPeer($user) : null;
+                    $likedAt = $like->created_at ? Carbon::parse($like->created_at)->toIso8601String() : null;
+
+                    return [
+                        'id' => (string) $like->id,
+                        'like_id' => (string) $like->id,
+                        'post_id' => (string) $like->post_id,
+                        'user_id' => (string) ($user?->id ?? $like->user_id),
+                        'peer_id' => (string) ($user?->id ?? $like->user_id),
+                        'name' => $peer['name'] ?? 'Verified Peer',
+                        'peer_name' => $peer['name'] ?? 'Verified Peer',
+                        'first_name' => $peer['first_name'] ?? '',
+                        'last_name' => $peer['last_name'] ?? '',
+                        'profile_photo_url' => $peer['profile_photo_url'] ?? null,
+                        'avatar_url' => $peer['avatar_url'] ?? null,
+                        'avatar' => $peer['avatar'] ?? null,
+                        'profile_image' => $peer['profile_image'] ?? null,
+                        'company_name' => $peer['company_name'] ?? null,
+                        'company' => $peer['company'] ?? null,
+                        'business_name' => $peer['business_name'] ?? null,
+                        'designation' => $peer['designation'] ?? null,
+                        'city' => $peer['city'] ?? null,
+                        'location' => $peer['location'] ?? null,
+                        'circle_name' => $peer['circle_name'] ?? null,
+                        'circle_id' => $peer['circle_id'] ?? null,
+                        'level4_category' => $peer['level4_category'] ?? null,
+                        'category_level4' => $peer['category_level4'] ?? null,
+                        'liked_at' => $likedAt,
+                        'created_at' => $likedAt,
+                        'user' => $peer,
+                        'peer' => $peer,
+                    ];
+                })->values()->all()
+                : [];
+
+            $likedPeers = $post->relationLoaded('likes')
+                ? $post->likes->map(fn ($like) => $like->user ? $this->formatPeer($like->user) : null)
+                    ->filter()
+                    ->values()
+                    ->all()
+                : [];
+
+            $commentsList = $post->relationLoaded('comments')
+                ? $post->comments->map(function ($comment): array {
+                    $user = $comment->user;
+                    $peer = $user ? $this->formatPeer($user) : null;
+                    $commentCreatedAt = $comment->created_at ? Carbon::parse($comment->created_at)->toIso8601String() : null;
+
+                    return [
+                        'id' => (string) $comment->id,
+                        'comment_id' => (string) $comment->id,
+                        'post_id' => (string) $comment->post_id,
+                        'user_id' => (string) ($user?->id ?? $comment->user_id),
+                        'peer_id' => (string) ($user?->id ?? $comment->user_id),
+                        'content' => (string) ($comment->content ?? ''),
+                        'comment' => (string) ($comment->content ?? ''),
+                        'body' => (string) ($comment->content ?? ''),
+                        'name' => $peer['name'] ?? 'Peer Member',
+                        'peer_name' => $peer['name'] ?? 'Peer Member',
+                        'author_id' => (string) ($user?->id ?? $comment->user_id),
+                        'author_name' => $peer['name'] ?? 'Peer Member',
+                        'author_avatar' => $peer['profile_photo_url'] ?? null,
+                        'first_name' => $peer['first_name'] ?? '',
+                        'last_name' => $peer['last_name'] ?? '',
+                        'profile_photo_url' => $peer['profile_photo_url'] ?? null,
+                        'avatar_url' => $peer['avatar_url'] ?? null,
+                        'avatar' => $peer['avatar'] ?? null,
+                        'profile_image' => $peer['profile_image'] ?? null,
+                        'company_name' => $peer['company_name'] ?? null,
+                        'company' => $peer['company'] ?? null,
+                        'business_name' => $peer['business_name'] ?? null,
+                        'designation' => $peer['designation'] ?? null,
+                        'city' => $peer['city'] ?? null,
+                        'location' => $peer['location'] ?? null,
+                        'circle_name' => $peer['circle_name'] ?? null,
+                        'circle_id' => $peer['circle_id'] ?? null,
+                        'level4_category' => $peer['level4_category'] ?? null,
+                        'category_level4' => $peer['category_level4'] ?? null,
+                        'created_at' => $commentCreatedAt,
+                        'user' => $peer,
+                        'peer' => $peer,
+                    ];
+                })->values()->all()
+                : [];
+
+            $commentPeers = $post->relationLoaded('comments')
+                ? $post->comments->map(fn ($comment) => $comment->user ? $this->formatPeer($comment->user) : null)
+                    ->filter()
+                    ->unique('id')
+                    ->values()
+                    ->all()
+                : [];
+
             return [
                 'id' => (string) $post->id,
                 'content' => (string) ($post->content_text ?? ''),
@@ -1592,6 +1942,12 @@ class LeaderMember360Service
                 'comments_count' => (int) ($post->comments_count ?? 0),
                 'status' => (string) ($post->moderation_status ?? 'approved'),
                 'created_at' => $post->created_at ? $post->created_at->toIso8601String() : null,
+                'likes' => $likesList,
+                'liked_peers' => $likedPeers,
+                'likes_list' => $likesList,
+                'comments' => $commentsList,
+                'comment_peers' => $commentPeers,
+                'comments_list' => $commentsList,
             ];
         })->values()->all();
 
@@ -1603,6 +1959,56 @@ class LeaderMember360Service
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
             ],
+        ];
+    }
+
+    /**
+     * Delete a member's post.
+     *
+     * @return array{success: bool, message: string, error_code?: string, status_code: int}
+     */
+    public function deleteMemberPost(string $memberId, string $postId, User $leader): array
+    {
+        $member = $this->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return [
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        $post = Post::query()
+            ->where('id', $postId)
+            ->where('user_id', $memberId)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $post) {
+            return [
+                'success' => false,
+                'message' => 'Post not found or already deleted.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        DB::transaction(function () use ($post): void {
+            $post->is_deleted = true;
+            $post->active = false;
+            $post->is_active = false;
+            $post->status = 'inactive';
+            $post->save();
+            $post->delete();
+        });
+
+        return [
+            'success' => true,
+            'message' => 'User post deleted successfully.',
+            'status_code' => 200,
         ];
     }
 
@@ -1688,6 +2094,50 @@ class LeaderMember360Service
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
             ],
+        ];
+    }
+
+    /**
+     * Delete a member's creative.
+     *
+     * @return array{success: bool, message: string, error_code?: string, status_code: int}
+     */
+    public function deleteMemberCreative(string $memberId, string $creativeId, User $leader): array
+    {
+        $member = $this->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return [
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        $creative = ActivityCreative::query()
+            ->where('id', $creativeId)
+            ->where('user_id', $memberId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $creative) {
+            return [
+                'success' => false,
+                'message' => 'Creative not found or already deleted.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'status_code' => 404,
+            ];
+        }
+
+        DB::transaction(function () use ($creative): void {
+            $creative->delete();
+        });
+
+        return [
+            'success' => true,
+            'message' => 'Member creative deleted successfully.',
+            'status_code' => 200,
         ];
     }
 
