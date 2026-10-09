@@ -87,7 +87,7 @@ Route::middleware(['auth:sanctum'])->prefix('juror')->group(function (): void {
 // 3. ADMIN ROUTES (Admin Auth Guard)
 // ==========================================
 
-Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
+Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): void {
     // Module D: Campaign Management
     Route::get('campaigns', [AdminCampaignController::class, 'index']);
     Route::post('campaigns', [AdminCampaignController::class, 'store']);
@@ -95,7 +95,10 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
     Route::put('campaigns/{id}', [AdminCampaignController::class, 'update'])->whereUuid('id');
     Route::post('campaigns/{id}/publish', [AdminCampaignController::class, 'publish'])->whereUuid('id');
     Route::post('campaigns/{id}/pause', [AdminCampaignController::class, 'pause'])->whereUuid('id');
+    Route::post('campaigns/{id}/close', [AdminCampaignController::class, 'close'])->whereUuid('id');
     Route::post('campaigns/{id}/resume', [AdminCampaignController::class, 'resume'])->whereUuid('id');
+    Route::post('campaigns/{id}/toggle-status', [AdminCampaignController::class, 'toggleStatus'])->whereUuid('id');
+    Route::delete('campaigns/{id}', [AdminCampaignController::class, 'destroy'])->whereUuid('id');
     Route::get('roles', [AdminCampaignController::class, 'roles']);
 
     // Admin Scope CRUD

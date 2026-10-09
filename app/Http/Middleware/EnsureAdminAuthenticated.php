@@ -41,7 +41,7 @@ class EnsureAdminAuthenticated
             }
         }
 
-        if (! Auth::guard('admin')->check()) {
+        if (! Auth::guard('admin')->check() && $request->hasSession()) {
             $adminId = $request->session()->get('admin_user_id');
             if ($adminId) {
                 $admin = AdminUser::find($adminId);

@@ -134,12 +134,49 @@ class AdminCampaignController extends LeadershipBaseController
     }
 
     /**
-     * D8. Get dynamic roles.
+     * Close campaign (alias of pause).
      */
-    public function roles(): JsonResponse
+    public function close(Request $request, string $id): JsonResponse
     {
-        $roles = $this->campaignService->getDynamicRoles();
+        return $this->pause($request, $id);
+    }
 
-        return $this->success($roles, 'Roles fetched successfully.');
+    /**
+     * Toggle campaign active/paused status.
+     */
+    public function toggleStatus(Request $request, string $id): JsonResponse
+    {
+        try {
+            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($id);
+            if ($campaign->status === 'active') {
+                $updated = $this->campaignService->pauseCampaign($id, 'Closed by administrator via toggle', Auth::id());
+
+                return $this->success($updated, 'Campaign closed successfully. It is now inactive on the website.');
+            } else {
+                $updated = $this->campaignService->publishCampaign($id, 'Opened by administrator via toggle', Auth::id());
+
+                return $this->success($updated, 'Campaign opened successfully. It is now live on the website.');
+            }
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * Delete campaign (draft only).
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($id);
+            if ($campaign->status !== 'draft') {
+                return $this->error('Only draft campaigns can be deleted. Published or active campaigns should be closed.', 400);
+            }
+            $campaign->delete();
+
+            return $this->success(null, 'Draft campaign deleted successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
     }
 }
