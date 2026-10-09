@@ -504,4 +504,25 @@ class LeaderMember360Test extends TestCase
                 'error_code' => 'RESOURCE_NOT_FOUND',
             ]);
     }
+
+    /** @test */
+    public function it_returns_introduced_peers_for_member(): void
+    {
+        $introducedPeer = User::factory()->create([
+            'id' => Str::uuid()->toString(),
+            'status' => 'active',
+            'introduced_by' => $this->member->id,
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/api/v1/leader/members/{$this->member->id}/introduced-peers");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.introduced_peers_count', 1)
+            ->assertJsonPath('data.introduced_peers.0.id', $introducedPeer->id);
+    }
 }
+

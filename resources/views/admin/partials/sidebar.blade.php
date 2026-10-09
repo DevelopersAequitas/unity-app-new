@@ -882,6 +882,11 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.wishlists.*') ? 'active' : '' }}" href="{{ route('admin.store.wishlists.index') }}">
+                                        Member Wishlists
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.store.inventory.index') ? 'active' : '' }}" href="{{ route('admin.store.inventory.index') }}">
                                         Stock Inventory
                                     </a>

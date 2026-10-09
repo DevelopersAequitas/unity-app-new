@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Store\StorePolicyController;
 use App\Http\Controllers\Api\V1\Store\StoreSupportController;
 use App\Http\Controllers\Api\V1\Store\StoreWalletController;
 use App\Http\Controllers\Api\V1\Store\StoreWebhookController;
+use App\Http\Controllers\Api\V1\Store\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -71,6 +72,19 @@ Route::prefix('v1')->group(function () {
         };
         Route::prefix('cart')->group($cartGroup);
         Route::prefix('store/cart')->group($cartGroup);
+
+        // Wishlist APIs
+        $wishlistGroup = function () {
+            Route::get('/', [WishlistController::class, 'index']);
+            Route::post('/', [WishlistController::class, 'addItem']);
+            Route::post('toggle', [WishlistController::class, 'toggle']);
+            Route::delete('{id}', [WishlistController::class, 'removeItem'])->whereUuid('id');
+            Route::delete('product/{productId}', [WishlistController::class, 'removeByProduct'])->whereUuid('productId');
+            Route::get('check/{productId}', [WishlistController::class, 'check'])->whereUuid('productId');
+            Route::post('{id}/move-to-cart', [WishlistController::class, 'moveToCart'])->whereUuid('id');
+        };
+        Route::prefix('wishlist')->group($wishlistGroup);
+        Route::prefix('store/wishlist')->group($wishlistGroup);
 
         // Address APIs
         $addressGroup = function () {
