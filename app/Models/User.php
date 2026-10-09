@@ -1414,4 +1414,9 @@ class User extends Authenticatable
             || str_contains(strtolower((string) $this->display_name), 'genie')
             || str_contains(strtolower((string) $this->display_name), 'peersglobal unity');
     }
+
+    public function wishlists(): HasMany
+    {
+        return $this->hasMany(\App\Models\Store\Wishlist::class, 'user_id');
+    }
 }

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\Store\AdminStoreReportWebController;
 use App\Http\Controllers\Admin\Store\AdminStoreReturnWebController;
 use App\Http\Controllers\Admin\Store\AdminStoreServiceabilityWebController;
 use App\Http\Controllers\Admin\Store\AdminStoreWalletWebController;
+use App\Http\Controllers\Admin\Store\AdminStoreWishlistWebController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('store')->name('store.')->group(function () {
@@ -61,6 +62,14 @@ Route::prefix('store')->name('store.')->group(function () {
         Route::delete('/products-alias/variants/{variantId}', [AdminStoreCatalogWebController::class, 'deleteVariant'])->name('variants.delete');
         Route::post('/products-alias/{productId}/images', [AdminStoreCatalogWebController::class, 'addImage'])->name('images.store');
         Route::delete('/products-alias/images/{imageId}', [AdminStoreCatalogWebController::class, 'deleteImage'])->name('images.delete');
+    });
+
+    // 2.1 Member Wishlists & Demand Analysis
+    Route::prefix('wishlists')->name('wishlists.')->group(function () {
+        Route::get('/', [AdminStoreWishlistWebController::class, 'index'])->name('index');
+        Route::get('/peer/{userId}', [AdminStoreWishlistWebController::class, 'peerWishlist'])->name('peer');
+        Route::get('/export', [AdminStoreWishlistWebController::class, 'exportCsv'])->name('export');
+        Route::delete('/{id}', [AdminStoreWishlistWebController::class, 'destroy'])->name('destroy');
     });
 
     // 3. Inventory Management
