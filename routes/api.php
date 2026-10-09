@@ -1020,6 +1020,10 @@ Route::prefix('v1')->group(function () {
         Route::patch('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
         Route::delete('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'destroy'])->whereUuid('id');
         Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');
+        Route::post('/events/{id}/attend', [EventController::class, 'attend'])->whereUuid('id');
+        Route::post('/events/{id}/join-request', [EventController::class, 'joinRequest'])->whereUuid('id');
+        Route::post('/events/{id}/payment/order', [EventController::class, 'paymentOrder'])->whereUuid('id');
+        Route::post('/events/{id}/payment/verify', [EventController::class, 'paymentVerify'])->whereUuid('id');
         Route::post('/events', [EventController::class, 'store']);
         Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp'])->whereUuid('id');
         Route::post('/events/{id}/checkin', [EventController::class, 'checkin'])->whereUuid('id');
@@ -1491,7 +1495,6 @@ Route::prefix('v1')->group(function () {
     Route::post('/web-media/upload', [WebMediaApiController::class, 'upload']);
     Route::delete('/web-media/{id}', [WebMediaApiController::class, 'destroy']);
 
-    
     // Web Homepage Media - Success Stories (Fetch & Uploadation CRUD)
     Route::get('/web-success-stories', [WebPublicApiController::class, 'successStories']);
     Route::get('/web/success-stories', [WebPublicApiController::class, 'successStories']);
