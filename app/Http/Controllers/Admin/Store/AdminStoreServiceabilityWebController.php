@@ -149,7 +149,7 @@ class AdminStoreServiceabilityWebController extends Controller
 
         $isActive = $request->has('is_active');
         $status = $isActive ? 'ACTIVE' : 'INACTIVE';
-        $code = 'HUB-' . strtoupper(Str::random(6));
+        $code = 'HUB-'.strtoupper(Str::random(6));
 
         PickupPoint::create([
             'code' => $code,
@@ -255,16 +255,16 @@ class AdminStoreServiceabilityWebController extends Controller
         if ($request->hasFile('image')) {
             try {
                 $fileModel = app(\App\Services\Media\FileUploadService::class)->store($request->file('image'), \Illuminate\Support\Facades\Auth::guard('admin')->user());
-                $imageUrl = url('/api/v1/files/' . $fileModel->id);
+                $imageUrl = url('/api/v1/files/'.$fileModel->id);
             } catch (\Throwable $e) {
                 $file = $request->file('image');
-                $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+                $filename = 'banner_'.time().'_'.Str::random(8).'.'.$file->getClientOriginalExtension();
                 $path = public_path('uploads/store/banners');
                 if (! file_exists($path)) {
                     @mkdir($path, 0755, true);
                 }
                 $file->move($path, $filename);
-                $imageUrl = asset('uploads/store/banners/' . $filename);
+                $imageUrl = asset('uploads/store/banners/'.$filename);
             }
         }
 
@@ -318,16 +318,16 @@ class AdminStoreServiceabilityWebController extends Controller
         if ($request->hasFile('image')) {
             try {
                 $fileModel = app(\App\Services\Media\FileUploadService::class)->store($request->file('image'), \Illuminate\Support\Facades\Auth::guard('admin')->user());
-                $imageUrl = url('/api/v1/files/' . $fileModel->id);
+                $imageUrl = url('/api/v1/files/'.$fileModel->id);
             } catch (\Throwable $e) {
                 $file = $request->file('image');
-                $filename = 'banner_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+                $filename = 'banner_'.time().'_'.Str::random(8).'.'.$file->getClientOriginalExtension();
                 $path = public_path('uploads/store/banners');
                 if (! file_exists($path)) {
                     @mkdir($path, 0755, true);
                 }
                 $file->move($path, $filename);
-                $imageUrl = asset('uploads/store/banners/' . $filename);
+                $imageUrl = asset('uploads/store/banners/'.$filename);
             }
         } elseif ($request->filled('image_url')) {
             $imageUrl = $request->image_url;

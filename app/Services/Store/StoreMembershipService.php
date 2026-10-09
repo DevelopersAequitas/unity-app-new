@@ -72,7 +72,7 @@ class StoreMembershipService
 
         // Determine duration months (Priority: options > product > plan > fallback)
         $durationMonths = (int) (
-            $options['duration_months'] 
+            $options['duration_months']
             ?? ($product->subscription_duration_months ?? ($plan->duration_months ?? 1))
         );
         if ($durationMonths <= 0) {
@@ -81,9 +81,9 @@ class StoreMembershipService
 
         // Determine price in coins (Priority: options coins/price_coins > product coin_price > plan price_coins > fallback)
         $priceCoins = (int) (
-            $options['coins'] 
-            ?? ($options['price_coins'] 
-            ?? ($product ? ($product->coin_price ?: $product->price_coins) 
+            $options['coins']
+            ?? ($options['price_coins']
+            ?? ($product ? ($product->coin_price ?: $product->price_coins)
             : ($plan ? ($plan->price_coins ?: $plan->coins) : 95)))
         );
 

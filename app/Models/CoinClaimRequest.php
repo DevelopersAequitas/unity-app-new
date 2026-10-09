@@ -36,7 +36,7 @@ class CoinClaimRequest extends Model
         'coins_awarded' => 'integer',
     ];
 
-protected static function booted(): void
+    protected static function booted(): void
     {
         static::created(function (self $request): void {
             try {
@@ -50,7 +50,8 @@ protected static function booted(): void
                         'submitted_at' => optional($request->created_at)->toISOString() ?? now()->toISOString(),
                     ]
                 ));
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         });
     }
 

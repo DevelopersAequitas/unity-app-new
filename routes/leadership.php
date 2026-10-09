@@ -87,7 +87,7 @@ Route::middleware(['auth:sanctum'])->prefix('juror')->group(function (): void {
 // 3. ADMIN ROUTES (Admin Auth Guard)
 // ==========================================
 
-Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
+Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): void {
     // Module D: Campaign Management
     Route::get('campaigns', [AdminCampaignController::class, 'index']);
     Route::post('campaigns', [AdminCampaignController::class, 'store']);
@@ -95,7 +95,10 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
     Route::put('campaigns/{id}', [AdminCampaignController::class, 'update'])->whereUuid('id');
     Route::post('campaigns/{id}/publish', [AdminCampaignController::class, 'publish'])->whereUuid('id');
     Route::post('campaigns/{id}/pause', [AdminCampaignController::class, 'pause'])->whereUuid('id');
+    Route::post('campaigns/{id}/close', [AdminCampaignController::class, 'close'])->whereUuid('id');
     Route::post('campaigns/{id}/resume', [AdminCampaignController::class, 'resume'])->whereUuid('id');
+    Route::post('campaigns/{id}/toggle-status', [AdminCampaignController::class, 'toggleStatus'])->whereUuid('id');
+    Route::delete('campaigns/{id}', [AdminCampaignController::class, 'destroy'])->whereUuid('id');
     Route::get('roles', [AdminCampaignController::class, 'roles']);
 
     // Admin Scope CRUD
@@ -103,14 +106,26 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
     Route::post('campaigns/{id}/scopes', [AdminScopeController::class, 'store'])->whereUuid('id');
     Route::put('scopes/{id}', [AdminScopeController::class, 'update'])->whereUuid('id');
     Route::delete('scopes/{id}', [AdminScopeController::class, 'destroy'])->whereUuid('id');
+    Route::delete('campaigns/{campaignId}/scopes/{id}', [AdminScopeController::class, 'destroy'])->whereUuid('campaignId')->whereUuid('id');
 
     // Module E: Form Builder
     Route::get('campaigns/{id}/forms', [FormBuilderController::class, 'index'])->whereUuid('id');
     Route::post('campaigns/{id}/forms', [FormBuilderController::class, 'store'])->whereUuid('id');
+    Route::get('forms/templates', [FormBuilderController::class, 'allTemplates']);
+    Route::post('forms/templates', [FormBuilderController::class, 'storeGlobal']);
+    Route::get('forms/templates/{id}', [FormBuilderController::class, 'show'])->whereUuid('id');
+    Route::put('forms/templates/{id}', [FormBuilderController::class, 'update'])->whereUuid('id');
+    Route::post('forms/templates/{id}/publish', [FormBuilderController::class, 'publish'])->whereUuid('id');
     Route::get('forms/{id}', [FormBuilderController::class, 'show'])->whereUuid('id');
     Route::put('forms/{id}', [FormBuilderController::class, 'update'])->whereUuid('id');
     Route::post('forms/{id}/sections', [FormBuilderController::class, 'addSection'])->whereUuid('id');
+    Route::post('forms/sections', [FormBuilderController::class, 'addSectionGeneric']);
+    Route::put('forms/sections/{id}', [FormBuilderController::class, 'updateSectionGeneric'])->whereUuid('id');
+    Route::delete('forms/sections/{id}', [FormBuilderController::class, 'deleteSectionGeneric'])->whereUuid('id');
     Route::post('sections/{id}/questions', [FormBuilderController::class, 'addQuestion'])->whereUuid('id');
+    Route::post('forms/questions', [FormBuilderController::class, 'addQuestionGeneric']);
+    Route::put('forms/questions/{id}', [FormBuilderController::class, 'updateQuestion'])->whereUuid('id');
+    Route::delete('forms/questions/{id}', [FormBuilderController::class, 'deleteQuestionGeneric'])->whereUuid('id');
     Route::put('questions/{id}', [FormBuilderController::class, 'updateQuestion'])->whereUuid('id');
     Route::post('forms/{id}/publish', [FormBuilderController::class, 'publish'])->whereUuid('id');
 
@@ -120,6 +135,7 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
     Route::get('nominations/{id}/documents', [AdminNominationController::class, 'documents'])->whereUuid('id');
     Route::post('nominations/{id}/documents/{documentId}/verify', [AdminNominationController::class, 'verifyDocument'])->whereUuid('id')->whereUuid('documentId');
     Route::post('nominations/{id}/request-changes', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
+    Route::post('nominations/{id}/request-correction', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
     Route::post('nominations/{id}/approve', [AdminNominationController::class, 'approve'])->whereUuid('id');
     Route::post('nominations/{id}/reject', [AdminNominationController::class, 'reject'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
@@ -129,7 +145,10 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
     Route::post('campaigns/{id}/voting/open', [VotingController::class, 'openVoting'])->whereUuid('id');
     Route::post('campaigns/{id}/voting/close', [VotingController::class, 'closeVoting'])->whereUuid('id');
     Route::get('campaigns/{id}/voting/results', [VotingController::class, 'results'])->whereUuid('id');
+    Route::get('voting/campaigns/{id}/tally', [VotingController::class, 'results'])->whereUuid('id');
+    Route::get('voting/campaigns/{id}/summary', [VotingController::class, 'results'])->whereUuid('id');
     Route::post('nominations/{id}/results-link', [VotingController::class, 'generateResultLink'])->whereUuid('id');
+    Route::post('voting/nominations/{id}/result-token', [VotingController::class, 'generateResultLink'])->whereUuid('id');
 
     // Module H: Admin Jury Management
     Route::get('jury/members', [JuryAssignmentController::class, 'members']);
@@ -144,6 +163,8 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
     // Module J: Final Decisions and Winners
     Route::get('campaigns/{id}/decision-candidates', [FinalDecisionController::class, 'candidates'])->whereUuid('id');
     Route::get('campaigns/{id}/decision-summary', [FinalDecisionController::class, 'summary'])->whereUuid('id');
+    Route::get('decisions/campaigns/{id}', [FinalDecisionController::class, 'index'])->whereUuid('id');
+    Route::post('decisions/campaigns/{id}/publish-winners', [FinalDecisionController::class, 'publishBatch'])->whereUuid('id');
     Route::post('campaigns/{id}/decisions', [FinalDecisionController::class, 'store'])->whereUuid('id');
     Route::put('decisions/{id}', [FinalDecisionController::class, 'update'])->whereUuid('id');
     Route::get('campaigns/{id}/decisions', [FinalDecisionController::class, 'index'])->whereUuid('id');
@@ -153,6 +174,7 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
 
     // Module K: Winner Creative Management
     Route::get('creatives/templates', [CreativeController::class, 'templates']);
+    Route::get('creatives/campaigns/{id}', [CreativeController::class, 'campaignCreatives'])->whereUuid('id');
     Route::post('decisions/{id}/creatives/generate', [CreativeController::class, 'generate'])->whereUuid('id');
     Route::get('decisions/{id}/creatives', [CreativeController::class, 'index'])->whereUuid('id');
     Route::get('creatives/{id}/download', [CreativeController::class, 'download'])->whereUuid('id');
@@ -160,13 +182,17 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function (): void {
 
     // Module L: Notifications and Audit
     Route::get('notifications', [NotificationController::class, 'index']);
+    Route::get('notifications/logs', [NotificationController::class, 'index']);
     Route::get('notifications/{id}', [NotificationController::class, 'show'])->whereUuid('id');
     Route::post('notifications/{id}/retry', [NotificationController::class, 'retry'])->whereUuid('id');
+    Route::post('notifications/resend/{id}', [NotificationController::class, 'retry'])->whereUuid('id');
     Route::get('audit-logs', [AuditController::class, 'index']);
     Route::get('campaigns/{id}/audit-logs', [AuditController::class, 'campaignLogs'])->whereUuid('id');
 
     // Module M: Dashboard and Reporting
     Route::get('dashboard/overview', [ReportController::class, 'overview']);
+    Route::get('reports/dashboard-overview', [ReportController::class, 'overview']);
+    Route::get('reports/campaigns/{campaignId}/detailed', [ReportController::class, 'campaignDetailed'])->whereUuid('campaignId');
     Route::get('reports/nominations', [ReportController::class, 'nominations']);
     Route::get('reports/voting', [ReportController::class, 'voting']);
     Route::get('reports/jury', [ReportController::class, 'jury']);

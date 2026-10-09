@@ -60,6 +60,51 @@ class LeadershipCampaign extends Model
         'settings' => 'array',
     ];
 
+    protected $appends = [
+        'nomination_open',
+        'voting_open',
+        'jury_open',
+    ];
+
+    public function getNominationOpenAttribute(): bool
+    {
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        $now = now();
+        $afterStart = ! $this->nomination_starts_at || $this->nomination_starts_at <= $now;
+        $beforeEnd = ! $this->nomination_ends_at || $this->nomination_ends_at >= $now;
+
+        return $afterStart && $beforeEnd;
+    }
+
+    public function getVotingOpenAttribute(): bool
+    {
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        $now = now();
+        $afterStart = ! $this->voting_starts_at || $this->voting_starts_at <= $now;
+        $beforeEnd = ! $this->voting_ends_at || $this->voting_ends_at >= $now;
+
+        return $afterStart && $beforeEnd;
+    }
+
+    public function getJuryOpenAttribute(): bool
+    {
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        $now = now();
+        $afterStart = ! $this->jury_starts_at || $this->jury_starts_at <= $now;
+        $beforeEnd = ! $this->jury_ends_at || $this->jury_ends_at >= $now;
+
+        return $afterStart && $beforeEnd;
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $model): void {

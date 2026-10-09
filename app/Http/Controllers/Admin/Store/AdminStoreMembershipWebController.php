@@ -140,18 +140,18 @@ class AdminStoreMembershipWebController extends Controller
         $peer = User::findOrFail($validated['user_id']);
         $product = Product::findOrFail($validated['product_id']);
 
-        $featureKey = !empty($validated['feature_key']) 
-            ? $validated['feature_key'] 
-            : ('PRODUCT_ACCESS_' . strtoupper($product->sku ?: substr($product->id, 0, 8)));
+        $featureKey = ! empty($validated['feature_key'])
+            ? $validated['feature_key']
+            : ('PRODUCT_ACCESS_'.strtoupper($product->sku ?: substr($product->id, 0, 8)));
 
         Entitlement::create([
             'user_id' => $peer->id,
             'product_id' => $product->id,
             'feature_key' => $featureKey,
             'source_type' => 'ADMIN_GRANT',
-            'source_id' => $admin ? (string)$admin->id : null,
+            'source_id' => $admin ? (string) $admin->id : null,
             'start_date' => now()->toDateString(),
-            'end_date' => !empty($validated['expires_at']) ? Carbon::parse($validated['expires_at'])->toDateString() : null,
+            'end_date' => ! empty($validated['expires_at']) ? Carbon::parse($validated['expires_at'])->toDateString() : null,
             'status' => 'ACTIVE',
             'is_active' => true,
             'access_method' => 'DIGITAL_ACCESS',

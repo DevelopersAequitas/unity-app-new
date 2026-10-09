@@ -150,7 +150,6 @@ class LeaderMemberController extends Controller
         ]);
     }
 
-
     /**
      * GET /api/v1/leader/members/{member_id}/creatives
      *
@@ -456,4 +455,3 @@ class LeaderMemberController extends Controller
         ]);
     }
 }
-

@@ -96,7 +96,7 @@ class CircleJoinRequest extends Model
     protected static function booted(): void
     {
         static::creating(function (self $request): void {
-if (! $request->id) {
+            if (! $request->id) {
                 $request->id = (string) Str::uuid();
             }
         });
@@ -113,7 +113,8 @@ if (! $request->id) {
                         'submitted_at' => optional($request->created_at)->toISOString() ?? now()->toISOString(),
                     ]
                 ));
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         });
 
         static::saving(function (self $request): void {
