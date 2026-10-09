@@ -417,4 +417,43 @@ class LeaderMemberController extends Controller
     {
         return $this->fetchSpecificActivity($memberId, $request, 'coins');
     }
+
+    /**
+     * GET /api/v1/leader/members/{member_id}/introduced-peers
+     *
+     * Return paginated peers introduced or referred by the member.
+     */
+    public function introducedPeers(string $memberId, Request $request): JsonResponse
+    {
+        /** @var User $leader */
+        $leader = $request->user();
+
+        $member = $this->member360Service->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ], 404);
+        }
+
+        $filters = [
+            'page' => $request->query('page', 1),
+            'per_page' => $request->query('per_page', $request->query('limit', 20)),
+            'search' => $request->query('search'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
+        ];
+
+        $result = $this->member360Service->getMemberIntroducedPeers($memberId, $filters);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member introduced peers retrieved successfully.',
+            'data' => $result['data'],
+            'meta' => $result['meta'],
+        ]);
+    }
 }
+

@@ -212,6 +212,27 @@ class LeaderMember360Service
             ? DB::table('circle_subscriptions')->where('user_id', $memberId)->count()
             : 0;
 
+        $introducedPeersCount = DB::table('users')
+            ->where(function ($q) use ($memberId): void {
+                $q->where('introduced_by', $memberId);
+
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $q->orWhere('referred_by_user_id', $memberId);
+                }
+
+                if (Schema::hasTable('referraldata')) {
+                    $q->orWhereIn('id', function ($sub) use ($memberId): void {
+                        $sub->select('referred_user_id')
+                            ->from('referraldata')
+                            ->where('referrer_user_id', $memberId)
+                            ->whereNotNull('referred_user_id');
+                    });
+                }
+            })
+            ->where('id', '!=', $memberId)
+            ->whereNull('deleted_at')
+            ->count();
+
         return [
             'posts' => $postsCount,
             'creatives' => $creativesCount,
@@ -229,6 +250,219 @@ class LeaderMember360Service
             'coins_balance' => $coinsBalance,
             'app_subscriptions' => $appSubscriptionsCount,
             'circle_subscriptions' => $circleSubscriptionsCount,
+            'introduced_peers' => $introducedPeersCount,
+        ];
+    }
+
+    /**
+     * Return paginated peers introduced or referred by the member.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function getMemberIntroducedPeers(string $memberId, array $filters = []): array
+    {
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $perPage = min(100, max(1, (int) ($filters['per_page'] ?? $filters['limit'] ?? 20)));
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        $fromDate = isset($filters['from_date']) ? trim((string) $filters['from_date']) : null;
+        $toDate = isset($filters['to_date']) ? trim((string) $filters['to_date']) : null;
+
+        $query = User::query()
+            ->where(function ($q) use ($memberId): void {
+                $q->where('introduced_by', $memberId);
+
+                if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                    $q->orWhere('referred_by_user_id', $memberId);
+                }
+
+                if (Schema::hasTable('referraldata')) {
+                    $q->orWhereIn('id', function ($sub) use ($memberId): void {
+                        $sub->select('referred_user_id')
+                            ->from('referraldata')
+                            ->where('referrer_user_id', $memberId)
+                            ->whereNotNull('referred_user_id');
+                    });
+                }
+
+                if (Schema::hasTable('peer_recommendations')) {
+                    $q->orWhereIn('phone', function ($sub) use ($memberId): void {
+                        $sub->select('peer_mobile')
+                            ->from('peer_recommendations')
+                            ->where('user_id', $memberId)
+                            ->whereNotNull('peer_mobile');
+                    });
+                }
+            })
+            ->where('id', '!=', $memberId)
+            ->whereNull('deleted_at');
+
+        if ($search) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('display_name', 'like', "%{$search}%")
+                    ->orWhere('company_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        if ($fromDate) {
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($fromDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($toDate) {
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($toDate)->toDateString());
+            } catch (\Throwable) {
+            }
+        }
+
+        $query->with([
+            'city',
+            'profilePhotoFile',
+            'coverPhotoFile',
+            'introducedBy',
+            'level4Category',
+            'businessCategory',
+            'circleMembers.circle',
+            'activeCircle',
+        ]);
+
+        $paginator = $query->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $items = collect($paginator->items())
+            ->map(fn (User $user) => $this->formatPeer($user))
+            ->filter()
+            ->values()
+            ->all();
+
+        $memberUser = User::find($memberId);
+        $memberName = $memberUser ? trim(($memberUser->first_name ?? '').' '.($memberUser->last_name ?? '')) : null;
+        if (empty($memberName) && $memberUser) {
+            $memberName = (string) ($memberUser->display_name ?? '');
+        }
+
+        $memberData = $memberUser ? [
+            'id' => (string) $memberUser->id,
+            'name' => $memberName !== '' ? $memberName : null,
+            'first_name' => $memberUser->first_name,
+            'last_name' => $memberUser->last_name,
+            'city' => is_string($memberUser->city) ? $memberUser->city : ($memberUser->city?->name ?? null),
+            'business' => $memberUser->company_name ?? $memberUser->business_name,
+            'designation' => $memberUser->designation,
+            'profile_photo_image' => $memberUser->profile_photo_url,
+        ] : null;
+
+        return [
+            'data' => [
+                'member' => $memberData,
+                'introduced_peers_count' => $paginator->total(),
+                'introduced_peers' => $items,
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+            ],
+        ];
+    }
+
+    /**
+     * Format a peer user into standard peer card structure.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function formatPeer(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if ($fullName === '') {
+            $fullName = (string) ($user->display_name ?? 'Peer Member');
+        }
+
+        $avatarUrl = $user->profile_photo_url
+            ?: ($user->avatar_url
+            ?: ($user->avatar ? (str_starts_with((string) $user->avatar, 'http') ? (string) $user->avatar : url('storage/'.$user->avatar)) : null));
+
+        $city = (string) ($user->city ?: ($user->city_of_residence ?: ($user->location ?: 'Ahmedabad')));
+        $companyName = (string) ($user->company_name ?: ($user->business_name ?: ($user->company ?: 'Enterprise Services')));
+
+        $circleMemberL4 = null;
+        if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
+            $circleMemberL4 = $user->circleMembers->first()?->level4Category?->name;
+        }
+
+        $level4 = (string) ($circleMemberL4
+            ?: ($user->level4Category?->name
+            ?: ($user->business_sub_category
+            ?: ($user->category_name
+            ?: ($user->businessCategory?->name
+            ?: ($user->industry ?: 'Business Services'))))));
+
+        $circleName = '';
+        $circleId = (string) ($user->active_circle_id ?? '');
+
+        if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
+            $c = $user->circleMembers->first()?->circle;
+            if ($c) {
+                $circleName = (string) $c->name;
+                $circleId = (string) $c->id;
+            }
+        } elseif ($user->relationLoaded('activeCircle') && $user->activeCircle) {
+            $circleName = (string) $user->activeCircle->name;
+            $circleId = (string) $user->activeCircle->id;
+        }
+
+        return [
+            'id' => (string) $user->id,
+            'user_id' => (string) $user->id,
+            'peer_id' => (string) $user->id,
+            'name' => $fullName,
+            'peer_name' => $fullName,
+            'first_name' => (string) ($user->first_name ?? ''),
+            'last_name' => (string) ($user->last_name ?? ''),
+            'display_name' => (string) ($user->display_name ?? $fullName),
+            'email' => (string) ($user->email ?? ''),
+            'phone' => (string) ($user->phone ?? $user->mobile ?? ''),
+            'mobile' => (string) ($user->phone ?? $user->mobile ?? ''),
+            'profile_image' => $avatarUrl,
+            'profile_photo_url' => $avatarUrl,
+            'avatar_url' => $avatarUrl,
+            'avatar' => $avatarUrl,
+            'cover_photo_url' => $user->cover_photo_url ?? null,
+            'city' => $city,
+            'location' => $city,
+            'business_name' => $companyName,
+            'company_name' => $companyName,
+            'company' => $companyName,
+            'business' => $companyName,
+            'business_type' => (string) ($user->business_type ?? ''),
+            'category_level4' => $level4,
+            'level_4_category' => $level4,
+            'level4_category' => $level4,
+            'category' => $level4,
+            'industry' => (string) ($user->industry ?? $user->businessCategory?->name ?? 'Business Services'),
+            'designation' => (string) ($user->designation ?? $user->job_title ?? 'Member'),
+            'circle_name' => $circleName,
+            'circle_id' => $circleId,
+            'status' => (string) ($user->status ?? 'active'),
+            'membership_status' => (string) ($user->membership_status ?? 'active'),
+            'coins_balance' => (int) ($user->coins_balance ?? 0),
+            'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
+            'members_introduced_count' => (int) ($user->members_introduced_count ?? 0),
+            'introduced_peers_count' => (int) ($user->members_introduced_count ?? 0),
+            'created_at' => $user->created_at ? $user->created_at->toIso8601String() : null,
+            'introduced_at' => $user->created_at ? $user->created_at->toIso8601String() : null,
         ];
     }
 
@@ -2258,81 +2492,5 @@ class LeaderMember360Service
             }
         }
     }
-
-    /**
-     * Format a peer user into standard peer card structure.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function formatPeer(?User $user): ?array
-    {
-        if (! $user) {
-            return null;
-        }
-
-        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
-        if ($fullName === '') {
-            $fullName = (string) ($user->display_name ?? 'Peer Member');
-        }
-
-        $avatarUrl = $user->profile_photo_url
-            ?: ($user->avatar_url
-            ?: ($user->avatar ? (str_starts_with((string) $user->avatar, 'http') ? (string) $user->avatar : url('storage/'.$user->avatar)) : null));
-
-        $city = (string) ($user->city ?: ($user->city_of_residence ?: ($user->location ?: 'Ahmedabad')));
-        $companyName = (string) ($user->company_name ?: ($user->business_name ?: ($user->company ?: 'Enterprise Services')));
-
-        $circleMemberL4 = null;
-        if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
-            $circleMemberL4 = $user->circleMembers->first()?->level4Category?->name;
-        }
-
-        $level4 = (string) ($circleMemberL4
-            ?: ($user->level4Category?->name
-            ?: ($user->business_sub_category
-            ?: ($user->category_name
-            ?: ($user->businessCategory?->name
-            ?: ($user->industry ?: 'Business Services'))))));
-
-        $circleName = '';
-        $circleId = (string) ($user->active_circle_id ?? '');
-
-        if ($user->relationLoaded('circleMembers') && $user->circleMembers && $user->circleMembers->isNotEmpty()) {
-            $c = $user->circleMembers->first()?->circle;
-            if ($c) {
-                $circleName = (string) $c->name;
-                $circleId = (string) $c->id;
-            }
-        } elseif ($user->relationLoaded('activeCircle') && $user->activeCircle) {
-            $circleName = (string) $user->activeCircle->name;
-            $circleId = (string) $user->activeCircle->id;
-        }
-
-        return [
-            'id' => (string) $user->id,
-            'user_id' => (string) $user->id,
-            'peer_id' => (string) $user->id,
-            'name' => $fullName,
-            'peer_name' => $fullName,
-            'first_name' => (string) ($user->first_name ?? ''),
-            'last_name' => (string) ($user->last_name ?? ''),
-            'profile_image' => $avatarUrl,
-            'profile_photo_url' => $avatarUrl,
-            'avatar_url' => $avatarUrl,
-            'avatar' => $avatarUrl,
-            'city' => $city,
-            'location' => $city,
-            'business_name' => $companyName,
-            'company_name' => $companyName,
-            'company' => $companyName,
-            'category_level4' => $level4,
-            'level_4_category' => $level4,
-            'level4_category' => $level4,
-            'category' => $level4,
-            'designation' => (string) ($user->designation ?? $user->job_title ?? 'Member'),
-            'circle_name' => $circleName,
-            'circle_id' => $circleId,
-            'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
-        ];
-    }
 }
+
