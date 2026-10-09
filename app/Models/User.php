@@ -1376,6 +1376,12 @@ class User extends Authenticatable
             ->first();
 
         if (! $systemUser) {
+            $systemUser = static::query()
+                ->where('display_name', 'like', '%Genie%')
+                ->first();
+        }
+
+        if (! $systemUser) {
             $userData = [
                 'id' => (string) Str::uuid(),
                 'first_name' => 'Peers Global',
@@ -1406,6 +1412,56 @@ class User extends Authenticatable
         }
 
         return $systemUser;
+    }
+
+    public static function getSystemUserPhotoUrl(): string
+    {
+        static $cachedPhotoUrl = null;
+
+        if ($cachedPhotoUrl !== null) {
+            return $cachedPhotoUrl;
+        }
+
+        try {
+            $systemUser = static::getSystemUser();
+            if ($systemUser) {
+                $fileId = $systemUser->profile_photo_file_id
+                    ?? $systemUser->profile_photo_id
+                    ?? null;
+
+                if ($fileId) {
+                    return $cachedPhotoUrl = url('/api/v1/files/'.$fileId);
+                }
+
+                if ($systemUser->profile_photo_url) {
+                    return $cachedPhotoUrl = $systemUser->profile_photo_url;
+                }
+            }
+        } catch (Throwable) {
+            // fallback
+        }
+
+        return $cachedPhotoUrl = url('/images/peersglobal-icon.png');
+    }
+
+    public static function getSystemUserId(): string
+    {
+        static $cachedSystemUserId = null;
+
+        if ($cachedSystemUserId !== null) {
+            return $cachedSystemUserId;
+        }
+
+        try {
+            $systemUser = static::getSystemUser();
+            if ($systemUser) {
+                return $cachedSystemUserId = (string) $systemUser->id;
+            }
+        } catch (Throwable) {
+            // fallback
+        }
+
+        return $cachedSystemUserId = '';
     }
 
     public function isSystemUser(): bool
