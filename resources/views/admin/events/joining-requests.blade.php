@@ -138,6 +138,7 @@
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width: 160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Requested By</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 150px;">Referred By</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
@@ -169,15 +170,29 @@
                         $registration = $joinRequest->registration;
                         $modalId = 'joiningRequestModal'.$joinRequest->id;
 
-                        // Referral / Inviter resolution
+                        // 1. Check if referral/inviter was provided directly on this event join request
+                        $requestMeta = is_array($joinRequest->metadata) ? $joinRequest->metadata : [];
+                        $requestRefCode = $requestMeta['referral_code'] ?? $requestMeta['inviter_code'] ?? $requestMeta['invited_by_referral_code'] ?? null;
+                        $requestInviter = $joinRequest->invitedByUser;
+                        if (! $requestInviter && ! empty($requestMeta['invited_by_user_id'])) {
+                            $requestInviter = \App\Models\User::find($requestMeta['invited_by_user_id']);
+                        }
+                        if (! $requestInviter && ! empty($requestRefCode)) {
+                            $resolvedId = app(\App\Services\Events\EventFlowService::class)->resolveInviterUserId($requestRefCode);
+                            if ($resolvedId) {
+                                $requestInviter = \App\Models\User::find($resolvedId);
+                            }
+                        }
+
+                        // 2. Fallback to member's user profile referral if not provided on this request
                         $referralData = $user?->relationLoaded('referralData') ? $user?->referralData : null;
                         if (! $referralData && $user && \Illuminate\Support\Facades\Schema::hasTable('referraldata')) {
                             $referralData = $user->referralData;
                         }
-                        $referrer = $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
+                        $referrer = $requestInviter ?? $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
                         $referrerName = $referrer ? ($referrer->display_name ?: trim(($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? ''))) : null;
-                        $referralCode = $referralData?->referral_code;
-                        $referrerEmail = $referralData?->referrer_email ?? $referrer?->email;
+                        $referralCode = $requestRefCode ?: $referralData?->referral_code;
+                        $referrerEmail = $referrer?->email ?? $referralData?->referrer_email;
 
                         // Clean and deduplicate repeated text in location
                         $rawLoc = $event?->location_text ?? '';
@@ -197,16 +212,35 @@
                                         <a href="{{ route('admin.users.show', $user->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline text-xs block truncate">
                                             {{ $userName }}
                                         </a>
-                                        @if($referralCode || $referrer)
-                                            <span class="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded mt-0.5 whitespace-nowrap" title="Referred by {{ $referrerName ?: ($referrerEmail ?: 'code') }} ({{ $referralCode ?: 'Referral' }})">
-                                                <i class="bi bi-gift-fill text-[9px] text-emerald-600"></i>
-                                                {{ $referralCode ? 'Ref: '.$referralCode : ($referrerName ? 'By: '.$referrerName : 'Referred') }}
-                                            </span>
-                                        @endif
                                     </div>
                                 </div>
                             @else
                                 <span class="text-xs text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                            @if($referrer)
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($referrerName ?: 'P') }}">
+                                        {{ $getInitials($referrerName ?: 'P') }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <a href="{{ route('admin.users.show', $referrer->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline text-xs block truncate" title="{{ $referrerName }}">
+                                            {{ $referrerName ?: 'Peer' }}
+                                        </a>
+                                        @if($referralCode)
+                                            <span class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded mt-0.5">
+                                                <i class="bi bi-tag-fill text-[8px] text-emerald-600"></i> {{ $referralCode }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @elseif($referralCode)
+                                <span class="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                                    <i class="bi bi-tag-fill text-[9px]"></i> {{ $referralCode }}
+                                </span>
+                            @else
+                                <span class="text-slate-400 text-xs">—</span>
                             @endif
                         </td>
                         <td class="px-3 py-2.5 text-xs t2">{{ $userCompany }}</td>
@@ -294,7 +328,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="14" class="text-center text-slate-500 py-8">
+                        <td colspan="15" class="text-center text-slate-500 py-8">
                             <i class="bi bi-inbox text-3xl text-slate-300 block mb-2"></i>
                             <span>No event joining requests found matching your filters.</span>
                         </td>
@@ -321,15 +355,29 @@
             $registration = $joinRequest->registration;
             $modalId = 'joiningRequestModal'.$joinRequest->id;
 
-            // Referral / Inviter resolution
+            // 1. Check if referral/inviter was provided directly on this event join request
+            $requestMeta = is_array($joinRequest->metadata) ? $joinRequest->metadata : [];
+            $requestRefCode = $requestMeta['referral_code'] ?? $requestMeta['inviter_code'] ?? $requestMeta['invited_by_referral_code'] ?? null;
+            $requestInviter = $joinRequest->invitedByUser;
+            if (! $requestInviter && ! empty($requestMeta['invited_by_user_id'])) {
+                $requestInviter = \App\Models\User::find($requestMeta['invited_by_user_id']);
+            }
+            if (! $requestInviter && ! empty($requestRefCode)) {
+                $resolvedId = app(\App\Services\Events\EventFlowService::class)->resolveInviterUserId($requestRefCode);
+                if ($resolvedId) {
+                    $requestInviter = \App\Models\User::find($resolvedId);
+                }
+            }
+
+            // 2. Fallback to member's user profile referral if not provided on this request
             $referralData = $user?->relationLoaded('referralData') ? $user?->referralData : null;
             if (! $referralData && $user && \Illuminate\Support\Facades\Schema::hasTable('referraldata')) {
                 $referralData = $user->referralData;
             }
-            $referrer = $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
+            $referrer = $requestInviter ?? $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
             $referrerName = $referrer ? ($referrer->display_name ?: trim(($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? ''))) : null;
-            $referralCode = $referralData?->referral_code;
-            $referrerEmail = $referralData?->referrer_email ?? $referrer?->email;
+            $referralCode = $requestRefCode ?: $referralData?->referral_code;
+            $referrerEmail = $referrer?->email ?? $referralData?->referrer_email;
         @endphp
 
         <!-- View Details Modal -->

@@ -13,6 +13,8 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EventFlowService
@@ -354,7 +356,7 @@ class EventFlowService
      *
      * @return array{status: string}
      */
-    public function joinRequest(Event $event, User $user, ?string $note = null): array
+    public function joinRequest(Event $event, User $user, ?string $note = null, ?string $referralCode = null): array
     {
         $occurrence = $this->resolveActiveOccurrence($event);
 
@@ -387,28 +389,113 @@ class EventFlowService
             }
         }
 
-        $request = EventRegistrationRequest::query()->create([
+        $inviterUserId = ! empty($referralCode) ? $this->resolveInviterUserId($referralCode, (string) $user->id) : null;
+
+        $metadata = array_filter([
+            'note' => $note,
+            'source' => 'app',
+            'referral_code' => $referralCode,
+            'inviter_code' => $referralCode,
+            'invited_by_referral_code' => $referralCode,
+            'invited_by_user_id' => $inviterUserId,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        $createData = [
             'event_id' => $event->id,
             'occurrence_id' => $occurrence?->id,
             'user_id' => $user->id,
             'event_circle_id' => $event->circle_id,
             'status' => 'pending',
             'request_reason' => $note,
-            'metadata' => array_filter([
-                'note' => $note,
-                'source' => 'app',
-            ]),
-        ]);
+            'metadata' => $metadata,
+        ];
+
+        if ($inviterUserId && Schema::hasTable('event_registration_requests') && Schema::hasColumn('event_registration_requests', 'invited_by_user_id')) {
+            $createData['invited_by_user_id'] = $inviterUserId;
+        }
+        if (Schema::hasTable('event_registration_requests') && Schema::hasColumn('event_registration_requests', 'invited_by_type')) {
+            $createData['invited_by_type'] = 'circle_member_peer';
+        }
+
+        $request = EventRegistrationRequest::query()->create($createData);
 
         Log::info('event_join_request_created', [
             'event_id' => (string) $event->id,
             'user_id' => (string) $user->id,
             'request_id' => (string) $request->id,
+            'referral_code' => $referralCode,
+            'invited_by_user_id' => $inviterUserId,
         ]);
 
         return [
             'status' => 'PENDING',
         ];
+    }
+
+    public function resolveInviterUserId(?string $code, ?string $currentUserId = null): ?string
+    {
+        if (blank($code)) {
+            return null;
+        }
+
+        $code = trim($code);
+
+        if (Str::isUuid($code)) {
+            if ($currentUserId && $code === $currentUserId) {
+                return null;
+            }
+
+            return User::query()->where('id', $code)->exists() ? $code : null;
+        }
+
+        $normalized = strtoupper($code);
+
+        // 1. Resolve via ReferralService / referral_links
+        try {
+            $referralInfo = app(\App\Services\Referrals\ReferralService::class)->validateReferralCode($code);
+            if ($referralInfo && ! empty($referralInfo['referrer_user_id'])) {
+                $refUserId = (string) $referralInfo['referrer_user_id'];
+
+                return ($currentUserId && $refUserId === $currentUserId) ? null : $refUserId;
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // 2. Resolve via referraldata table
+        try {
+            if (Schema::hasTable('referraldata')) {
+                $row = DB::table('referraldata')
+                    ->whereRaw('UPPER(referral_code) = ?', [$normalized])
+                    ->first(['referrer_user_id']);
+                if ($row && ! empty($row->referrer_user_id)) {
+                    $refUserId = (string) $row->referrer_user_id;
+
+                    return ($currentUserId && $refUserId === $currentUserId) ? null : $refUserId;
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // 3. Resolve via users peer_id or referral columns
+        try {
+            if (Schema::hasTable('users')) {
+                $candidateCols = ['peer_id', 'referral_code', 'ref_code', 'invite_code'];
+                foreach ($candidateCols as $col) {
+                    if (Schema::hasColumn('users', $col)) {
+                        $u = DB::table('users')->whereRaw('UPPER('.$col.') = ?', [$normalized])->first(['id']);
+                        if ($u && ! empty($u->id)) {
+                            return ($currentUserId && (string) $u->id === $currentUserId) ? null : (string) $u->id;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return null;
     }
 
     /**
