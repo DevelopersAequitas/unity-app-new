@@ -26,32 +26,39 @@ class PendingRequestAdminController extends Controller
     /**
      * Authoritative breakdown and total counts computed strictly from the database
      */
-    public function getSummaryData(): array
+    public function getSummaryData(string $status = 'pending'): array
     {
+        $status = strtolower($status);
+        if (! in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
+            $status = 'pending';
+        }
+
         $breakdown = [
-            'visitor_registrations' => $this->getPendingCount('visitor_registrations'),
-            'coin_claims' => $this->getPendingCount('coin_claim_requests', 'coin_claims'),
-            'circle_joining_requests' => $this->getPendingCount('circle_join_requests'),
-            'certifications' => $this->getPendingCount('certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'),
-            'pending_impacts' => $this->getPendingCount('impacts', 'life_impacts'),
-            'ad_booking_requests' => $this->getPendingCount('ad_bookings'),
-            'account_deletion_requests' => $this->getPendingCount('account_deletion_requests'),
-            'account_deletion_emails' => $this->getPendingCount('account_deletion_emails'),
-            'introduction_requests' => $this->getPendingCount('introduction_requests'),
-            'circle_peer_referrals' => $this->getPendingCount('circle_peer_referrals', 'peer_referrals'),
-            'event_joining_requests' => $this->getPendingCount('event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
+            'visitor_registrations' => $this->getCategoryCount($status, 'visitor_registrations'),
+            'coin_claims' => $this->getCategoryCount($status, 'coin_claim_requests', 'coin_claims'),
+            'circle_joining_requests' => $this->getCategoryCount($status, 'circle_join_requests'),
+            'certifications' => $this->getCategoryCount($status, 'certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'),
+            'pending_impacts' => $this->getCategoryCount($status, 'impacts', 'life_impacts'),
+            'ad_booking_requests' => $this->getCategoryCount($status, 'ad_bookings'),
+            'account_deletion_requests' => $this->getCategoryCount($status, 'account_deletion_requests'),
+            'account_deletion_emails' => $this->getCategoryCount($status, 'account_deletion_emails'),
+            'introduction_requests' => $this->getCategoryCount($status, 'introduction_requests'),
+            'circle_peer_referrals' => $this->getCategoryCount($status, 'circle_peer_referrals', 'peer_referrals'),
+            'event_joining_requests' => $this->getCategoryCount($status, 'event_joining_requests', 'event_join_requests', 'event_registrations', 'event_registration_requests'),
         ];
 
-        // Total calculated strictly as unique pending categories without duplicate counting
-        $totalPending = array_sum($breakdown);
+        // Total calculated strictly as unique categories without duplicate counting
+        $total = array_sum($breakdown);
 
-        // Normalize aliases for frontend compatibility without inflating total_pending
+        // Normalize aliases for frontend compatibility without inflating total
         $breakdown['circle_join_requests'] = $breakdown['circle_joining_requests'];
         $breakdown['event_registrations'] = $breakdown['event_joining_requests'];
         $breakdown['visitors'] = $breakdown['visitor_registrations'];
 
         return [
-            'total_pending' => $totalPending,
+            'status' => $status,
+            'total' => $total,
+            'total_pending' => $status === 'pending' ? $total : $this->getCategoryCount('pending', 'visitor_registrations', 'coin_claims', 'circle_join_requests', 'impacts', 'ad_bookings'),
             'breakdown' => $breakdown,
         ];
     }
@@ -59,9 +66,10 @@ class PendingRequestAdminController extends Controller
     /**
      * Authoritative breakdown and total counts computed strictly from the database
      */
-    public function summary(): JsonResponse
+    public function summary(Request $request): JsonResponse
     {
-        $data = $this->getSummaryData();
+        $status = (string) ($request->input('status') ?? $request->query('status') ?? 'pending');
+        $data = $this->getSummaryData($status);
 
         return response()->json([
             'success' => true,
@@ -520,6 +528,35 @@ class PendingRequestAdminController extends Controller
             return $this->approveCertificationSubmission((string) $id);
         }
 
+        if (in_array($table, ['impacts', 'life_impacts'], true) || $category === 'pending_impacts') {
+            $impact = Impact::find($id);
+            if ($impact) {
+                $user = request()->user() ?? Auth::guard('admin')->user() ?? Auth::guard('sanctum')->user();
+                $actor = $user ?? (AdminUser::query()->first() ?? User::query()->where('role', 'admin')->first() ?? (string) $impact->user_id);
+                $remarks = request()->input('remarks') ?? request()->input('review_remarks') ?? request()->input('admin_note');
+                $approvedImpact = app(ImpactService::class)->approveImpact($impact, $actor, $remarks);
+
+                try {
+                    $summary = $this->getSummaryData();
+                    broadcast(new PendingRequestChangedEvent(
+                        action: 'approved',
+                        category: 'pending_impacts',
+                        requestId: (string) $id,
+                        itemData: ['id' => (string) $id, 'status' => 'approved'],
+                        summaryBreakdown: $summary['breakdown']
+                    ));
+                } catch (\Throwable) {
+                    // Non-blocking broadcast
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Impact clearance granted and notification dispatched successfully.',
+                    'data' => $approvedImpact,
+                ], 200);
+            }
+        }
+
         DB::beginTransaction();
         try {
             // 2. Mark status as approved
@@ -697,6 +734,34 @@ class PendingRequestAdminController extends Controller
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
         }
 
+        if (in_array($table, ['impacts', 'life_impacts'], true) || $category === 'pending_impacts') {
+            $impact = Impact::find($id);
+            if ($impact) {
+                $user = request()->user() ?? Auth::guard('admin')->user() ?? Auth::guard('sanctum')->user();
+                $actor = $user ?? (AdminUser::query()->first() ?? User::query()->where('role', 'admin')->first() ?? (string) $impact->user_id);
+                $rejectedImpact = app(ImpactService::class)->rejectImpact($impact, $actor, $reason);
+
+                try {
+                    $summary = $this->getSummaryData();
+                    broadcast(new PendingRequestChangedEvent(
+                        action: 'rejected',
+                        category: 'pending_impacts',
+                        requestId: (string) $id,
+                        itemData: ['id' => (string) $id, 'status' => 'rejected'],
+                        summaryBreakdown: $summary['breakdown']
+                    ));
+                } catch (\Throwable) {
+                    // Non-blocking broadcast
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Impact clearance declined.',
+                    'data' => $rejectedImpact,
+                ], 200);
+            }
+        }
+
         DB::beginTransaction();
         try {
             $payload = [];
@@ -852,26 +917,31 @@ class PendingRequestAdminController extends Controller
             return $query;
         }
 
+        $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+        $statusExpr = $isPgsql ? "LOWER(CAST({$tableName}.status AS TEXT))" : "LOWER({$tableName}.status)";
+        $cdStatusExpr = $isPgsql ? "LOWER(CAST(COALESCE({$tableName}.cd_status, '') AS TEXT))" : "LOWER(COALESCE({$tableName}.cd_status, ''))";
+        $dedStatusExpr = $isPgsql ? "LOWER(CAST(COALESCE({$tableName}.ded_status, '') AS TEXT))" : "LOWER(COALESCE({$tableName}.ded_status, ''))";
+
         if ($status === 'approved') {
-            return $query->where(function ($q) use ($tableName) {
-                $q->whereRaw("LOWER({$tableName}.status) IN ('approved', 'ded_approved', 'cd_approved', 'completed', 'verified', 'circle_member', 'paid', 'attended', 'converted_to_member')");
+            return $query->where(function ($q) use ($tableName, $statusExpr, $cdStatusExpr, $dedStatusExpr) {
+                $q->whereRaw("{$statusExpr} IN ('approved', 'ded_approved', 'cd_approved', 'completed', 'verified', 'circle_member', 'paid', 'attended', 'converted_to_member')");
                 if (Schema::hasColumn($tableName, 'cd_status')) {
-                    $q->orWhereRaw("LOWER({$tableName}.cd_status) = 'approved'");
+                    $q->orWhereRaw("{$cdStatusExpr} = 'approved'");
                 }
                 if (Schema::hasColumn($tableName, 'ded_status')) {
-                    $q->orWhereRaw("LOWER({$tableName}.ded_status) = 'approved'");
+                    $q->orWhereRaw("{$dedStatusExpr} = 'approved'");
                 }
             });
         }
 
         if ($status === 'rejected') {
-            return $query->where(function ($q) use ($tableName) {
-                $q->whereRaw("LOWER({$tableName}.status) IN ('rejected', 'declined', 'cancelled', 'no_show', 'rejected_by_cd', 'rejected_by_id')");
+            return $query->where(function ($q) use ($tableName, $statusExpr, $cdStatusExpr, $dedStatusExpr) {
+                $q->whereRaw("{$statusExpr} IN ('rejected', 'declined', 'cancelled', 'no_show', 'rejected_by_cd', 'rejected_by_id')");
                 if (Schema::hasColumn($tableName, 'cd_status')) {
-                    $q->orWhereRaw("LOWER({$tableName}.cd_status) IN ('rejected', 'declined')");
+                    $q->orWhereRaw("{$cdStatusExpr} IN ('rejected', 'declined')");
                 }
                 if (Schema::hasColumn($tableName, 'ded_status')) {
-                    $q->orWhereRaw("LOWER({$tableName}.ded_status) IN ('rejected', 'declined')");
+                    $q->orWhereRaw("{$dedStatusExpr} IN ('rejected', 'declined')");
                 }
             });
         }
@@ -881,43 +951,24 @@ class PendingRequestAdminController extends Controller
         }
 
         // Default: Pending
-        return $query->where(function ($q) use ($tableName) {
-            $q->whereRaw("LOWER({$tableName}.status) IN ('pending', 'pending_review', 'under_review', 'registered', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee', 'submitted', 'active', 'new')")
+        return $query->where(function ($q) use ($tableName, $statusExpr, $cdStatusExpr, $dedStatusExpr) {
+            $q->whereRaw("{$statusExpr} IN ('pending', 'pending_review', 'under_review', 'registered', 'pending_cd_approval', 'pending_id_approval', 'pending_circle_fee', 'submitted', 'active', 'new')")
                 ->orWhereNull("{$tableName}.status");
             if (Schema::hasColumn($tableName, 'cd_status') && Schema::hasColumn($tableName, 'ded_status')) {
-                $q->whereRaw("NOT (LOWER(COALESCE({$tableName}.cd_status, '')) = 'approved' AND LOWER(COALESCE({$tableName}.ded_status, '')) = 'approved')");
+                $q->whereRaw("NOT ({$cdStatusExpr} = 'approved' AND {$dedStatusExpr} = 'approved')");
             }
         });
     }
 
-    private function getPendingCount(string ...$tables): int
+    private function getCategoryCount(string $status, string ...$tables): int
     {
         $firstExistingCount = null;
 
         foreach ($tables as $tbl) {
             if (Schema::hasTable($tbl)) {
                 $query = DB::table($tbl);
-                $cnt = 0;
-                if (Schema::hasColumn($tbl, 'status')) {
-                    $cnt = $query->where(function ($q) use ($tbl) {
-                        $q->whereRaw("LOWER(status) IN ('pending', 'pending_review', 'under_review')")
-                            ->orWhereNull('status');
-                        if ($tbl === 'visitor_registrations') {
-                            $q->orWhereRaw("LOWER(status) = 'registered'");
-                        }
-                        if (in_array($tbl, ['certifications', 'certification_requests', 'user_certifications', 'diagnostic_submissions', 'certification_submissions'], true)) {
-                            $q->orWhereRaw("LOWER(status) IN ('submitted', 'completed', 'active', 'new')");
-                        }
-                        if ($tbl === 'circle_join_requests' || $tbl === 'circle_joining_requests') {
-                            $q->orWhereRaw("LOWER(status) IN ('pending_cd_approval', 'pending_id_approval', 'pending_circle_fee')");
-                            if (Schema::hasColumn($tbl, 'cd_status') && Schema::hasColumn($tbl, 'ded_status')) {
-                                $q->whereRaw("NOT (LOWER(COALESCE({$tbl}.cd_status, '')) = 'approved' AND LOWER(COALESCE({$tbl}.ded_status, '')) = 'approved')");
-                            }
-                        }
-                    })->count();
-                } else {
-                    $cnt = $query->count();
-                }
+                $this->applyStatusFilter($query, $tbl, $status);
+                $cnt = $query->count();
 
                 if ($cnt > 0) {
                     return $cnt;
@@ -930,6 +981,11 @@ class PendingRequestAdminController extends Controller
         }
 
         return $firstExistingCount ?? 0;
+    }
+
+    private function getPendingCount(string ...$tables): int
+    {
+        return $this->getCategoryCount('pending', ...$tables);
     }
 
     private function resolveCertificationTable(): ?string
