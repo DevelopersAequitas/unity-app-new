@@ -273,6 +273,22 @@ class CircleMemberController extends Controller
             $query['peer_email'] = $peerEmail;
         }
 
+        if ($request->filled('show_ded')) {
+            $query['show_ded'] = $request->input('show_ded');
+        }
+
+        if ($request->filled('show_id')) {
+            $query['show_id'] = $request->input('show_id');
+        }
+
+        if ($request->filled('show_ids')) {
+            $query['show_id'] = $request->input('show_ids');
+        }
+
+        if ($request->filled('show_ded_id')) {
+            $query['show_ded_id'] = $request->input('show_ded_id');
+        }
+
         if ($page > 1) {
             $query['page'] = $page;
         }
