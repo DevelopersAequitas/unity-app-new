@@ -94,7 +94,7 @@ class OrderLifecycleService
             $cancellableStatuses = [
                 'PENDING', 'PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'PROCESSING',
                 'PACKING', 'PACKED', 'SHIPPED', 'DISPATCHED', 'OUT_FOR_DELIVERY',
-                'READY_FOR_PICKUP', 'DELIVERED'
+                'READY_FOR_PICKUP', 'DELIVERED',
             ];
             $currentStatus = strtoupper((string) $order->status);
             if (! in_array($currentStatus, $cancellableStatuses, true) || in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true)) {

@@ -159,4 +159,95 @@ class FormBuilderController extends LeadershipBaseController
             return $this->error($e->getMessage(), 400);
         }
     }
+
+    /**
+     * List all form templates across campaigns.
+     */
+    public function allTemplates(Request $request): JsonResponse
+    {
+        $query = \App\Models\Leadership\LeadershipFormTemplate::query()
+            ->with(['campaign.role', 'sections.questions.options']);
+
+        if ($request->has('campaign_id') && ! empty($request->query('campaign_id'))) {
+            $query->where('campaign_id', $request->query('campaign_id'));
+        }
+
+        if ($request->has('form_type') && ! empty($request->query('form_type'))) {
+            $query->where('form_type', $request->query('form_type'));
+        }
+
+        return $this->success($query->orderBy('created_at', 'desc')->get(), 'Templates fetched successfully.');
+    }
+
+    /**
+     * Create template globally.
+     */
+    public function storeGlobal(Request $request): JsonResponse
+    {
+        $campaignId = $request->input('campaign_id') ?? \App\Models\Leadership\LeadershipCampaign::value('id');
+        if (! $campaignId) {
+            return $this->error('Please create at least one campaign before creating templates.', 400);
+        }
+
+        return $this->store($request, (string) $campaignId);
+    }
+
+    /**
+     * Add section with template_id in payload.
+     */
+    public function addSectionGeneric(Request $request): JsonResponse
+    {
+        $templateId = (string) ($request->input('template_id') ?? $request->input('form_template_id'));
+        if (! $templateId) {
+            return $this->error('template_id is required.', 422);
+        }
+
+        return $this->addSection($request, $templateId);
+    }
+
+    /**
+     * Update section directly.
+     */
+    public function updateSectionGeneric(Request $request, string $id): JsonResponse
+    {
+        $section = \App\Models\Leadership\LeadershipFormSection::findOrFail($id);
+        $section->update($request->all());
+
+        return $this->success($section, 'Section updated successfully.');
+    }
+
+    /**
+     * Delete section directly.
+     */
+    public function deleteSectionGeneric(string $id): JsonResponse
+    {
+        $section = \App\Models\Leadership\LeadershipFormSection::findOrFail($id);
+        $section->delete();
+
+        return $this->success(null, 'Section deleted successfully.');
+    }
+
+    /**
+     * Add question with section_id in payload.
+     */
+    public function addQuestionGeneric(Request $request): JsonResponse
+    {
+        $sectionId = (string) $request->input('section_id');
+        if (! $sectionId) {
+            return $this->error('section_id is required.', 422);
+        }
+
+        return $this->addQuestion($request, $sectionId);
+    }
+
+    /**
+     * Delete question directly.
+     */
+    public function deleteQuestionGeneric(string $id): JsonResponse
+    {
+        $question = \App\Models\Leadership\LeadershipFormQuestion::findOrFail($id);
+        $question->delete();
+
+        return $this->success(null, 'Question deleted successfully.');
+    }
 }

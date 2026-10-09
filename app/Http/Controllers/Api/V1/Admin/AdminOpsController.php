@@ -209,6 +209,7 @@ class AdminOpsController extends BaseApiController
         if ($request->filled('status') && $request->query('status') !== 'all') {
             $query->where('status', $request->query('status'));
         }
+
         return $this->success($query->paginate(20));
     }
 

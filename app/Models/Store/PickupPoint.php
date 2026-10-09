@@ -33,7 +33,7 @@ class PickupPoint extends Model
     {
         static::creating(function ($point) {
             if (empty($point->code)) {
-                $point->code = 'HUB-' . strtoupper(Str::random(6));
+                $point->code = 'HUB-'.strtoupper(Str::random(6));
             }
         });
     }

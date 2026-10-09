@@ -196,7 +196,7 @@ class AdminStoreOrderWebController extends Controller
 
             return back()->with('success', 'Order cancelled and coins refunded.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Order cancel failed: ' . $e->getMessage());
+            return back()->with('error', 'Order cancel failed: '.$e->getMessage());
         }
     }
 }
