@@ -186,4 +186,9 @@ class Product extends Model
     {
         return $query->where('is_featured', true);
     }
+
+    public function wishlists(): HasMany
+    {
+        return $this->hasMany(\App\Models\Store\Wishlist::class, 'product_id');
+    }
 }

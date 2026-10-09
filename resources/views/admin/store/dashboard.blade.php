@@ -309,49 +309,60 @@
         </div>
     </div>
 
-    <!-- Quick Hub Links (Animated) -->
-    <div class="row g-3 mb-4 anim-fade-4">
-        <div class="col-md-3">
+    <!-- Quick Hub Links (Animated - 5 in Single Line) -->
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-5 g-3 mb-4 anim-fade-4">
+        <div class="col">
             <a href="{{ route('admin.store.catalog.products') }}" class="store-hub-btn">
                 <div class="hub-icon-wrapper bg-gradient-blue shadow-sm">
                     <i class="bi bi-grid-fill"></i>
                 </div>
-                <div>
-                    <div class="fw-bold text-dark">Merchandise Catalog</div>
-                    <div class="text-muted extra-small">Manage SKUs &amp; pricing</div>
+                <div class="overflow-hidden">
+                    <div class="fw-bold text-dark text-truncate">Merchandise</div>
+                    <div class="text-muted extra-small text-truncate">Manage SKUs &amp; pricing</div>
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <a href="{{ route('admin.store.inventory.index') }}" class="store-hub-btn">
                 <div class="hub-icon-wrapper bg-gradient-emerald shadow-sm">
                     <i class="bi bi-boxes"></i>
                 </div>
-                <div>
-                    <div class="fw-bold text-dark">Inventory &amp; Stock</div>
-                    <div class="text-muted extra-small">Audit stock movements</div>
+                <div class="overflow-hidden">
+                    <div class="fw-bold text-dark text-truncate">Inventory &amp; Stock</div>
+                    <div class="text-muted extra-small text-truncate">Audit stock movements</div>
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col">
+            <a href="{{ route('admin.store.wishlists.index') }}" class="store-hub-btn">
+                <div class="hub-icon-wrapper shadow-sm" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); color: #ffffff;">
+                    <i class="bi bi-heart-fill"></i>
+                </div>
+                <div class="overflow-hidden">
+                    <div class="fw-bold text-dark text-truncate">Member Wishlists</div>
+                    <div class="text-muted extra-small text-truncate">Peer demand &amp; saves</div>
+                </div>
+            </a>
+        </div>
+        <div class="col">
             <a href="{{ route('admin.store.wallet.index') }}" class="store-hub-btn">
                 <div class="hub-icon-wrapper bg-gradient-cyan shadow-sm">
                     <i class="bi bi-people-fill"></i>
                 </div>
-                <div>
-                    <div class="fw-bold text-dark">Member Coin Wallets</div>
-                    <div class="text-muted extra-small">Lookup balances &amp; ledger</div>
+                <div class="overflow-hidden">
+                    <div class="fw-bold text-dark text-truncate">Coin Wallets</div>
+                    <div class="text-muted extra-small text-truncate">Balances &amp; ledger</div>
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <a href="{{ route('admin.store.wallet.adjustments') }}" class="store-hub-btn">
                 <div class="hub-icon-wrapper bg-gradient-amber shadow-sm">
                     <i class="bi bi-shield-lock-fill"></i>
                 </div>
-                <div>
-                    <div class="fw-bold text-dark">Coin Approval Queue</div>
-                    <div class="text-muted extra-small">{{ $pendingAdjustmentsCount }} Pending Approvals</div>
+                <div class="overflow-hidden">
+                    <div class="fw-bold text-dark text-truncate">Coin Approvals</div>
+                    <div class="text-muted extra-small text-truncate">{{ $pendingAdjustmentsCount }} Pending Approvals</div>
                 </div>
             </a>
         </div>
