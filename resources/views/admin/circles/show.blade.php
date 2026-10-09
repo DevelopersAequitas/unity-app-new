@@ -267,10 +267,27 @@ use Carbon\Carbon;
     $peerFilters = is_array($peerFilters ?? null) ? $peerFilters : [
         'peer_name' => request('peer_name', ''),
         'peer_email' => request('peer_email', ''),
+        'show_ded' => request('show_ded', ''),
+        'show_id' => request('show_id', request('show_ids', '')),
+        'show_ded_id' => request('show_ded_id', ''),
     ];
 
     $peerNameFilter = trim((string) ($peerFilters['peer_name'] ?? ''));
     $peerEmailFilter = trim((string) ($peerFilters['peer_email'] ?? ''));
+
+    $showDedFilter = ! empty($showDed)
+        || request('show_ded') === '1'
+        || request()->boolean('show_ded')
+        || (! request()->has('show_ded') && (! empty($showDedId) || request('show_ded_id') === '1' || request()->boolean('show_ded_id') || request()->boolean('include_ded_id')));
+
+    $showIdFilter = ! empty($showId)
+        || request('show_id') === '1'
+        || request('show_ids') === '1'
+        || request()->boolean('show_id')
+        || request()->boolean('show_ids')
+        || (! request()->has('show_id') && ! request()->has('show_ids') && (! empty($showDedId) || request('show_ded_id') === '1' || request()->boolean('show_ded_id') || request()->boolean('include_ded_id')));
+
+    $showDedIdFilter = $showDedFilter && $showIdFilter;
 
     $membersSource = $peerMembers ?? ($circle->members ?? collect());
 
@@ -285,6 +302,22 @@ use Carbon\Carbon;
         $peerHasPagination = true;
     } else {
         $peerItems = $membersSource instanceof Collection ? $membersSource : collect($membersSource);
+
+        if (! $showDedFilter || ! $showIdFilter) {
+            $excludedFallback = [];
+            if (! $showDedFilter) {
+                $excludedFallback[] = 'ded';
+            }
+            if (! $showIdFilter) {
+                $excludedFallback[] = 'industry_director';
+                $excludedFallback[] = 'id';
+            }
+            $peerItems = $peerItems->filter(function ($membership) use ($excludedFallback) {
+                $role = strtolower(trim((string) ($membership->role ?? '')));
+
+                return ! in_array($role, $excludedFallback, true);
+            })->values();
+        }
 
         if ($peerNameFilter !== '' || $peerEmailFilter !== '') {
             $peerItems = $peerItems->filter(function ($membership) use ($peerNameFilter, $peerEmailFilter) {
@@ -418,6 +451,7 @@ use Carbon\Carbon;
             'edit_url' => $editUrl,
             'avatar' => data_get($m, 'avatar_url'),
             'color' => '#6366F1',
+            'is_ded_id' => in_array(strtolower((string) ($membership->role ?? '')), ['ded', 'industry_director', 'id'], true),
         ];
     })->values();
     ?>
@@ -951,15 +985,63 @@ use Carbon\Carbon;
     <!-- PEERS CARD -->
     <div class="border bs rounded-xl p-4 surface mb-2">
         <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-            <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 m-0 flex items-center gap-1.5">
-                <i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i> Peers
-            </h3>
+            <div>
+                <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 m-0 flex items-center gap-1.5">
+                    <i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i> Circle Member List
+                </h3>
+                <p class="text-[11px] t3 m-0 mt-0.5">Circle members and leadership roster</p>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+                {{-- DED Display Toggle --}}
+                <label class="inline-flex items-center gap-2 cursor-pointer select-none bg-slate-50 border bs px-3 py-1.5 rounded-lg hover:bg-slate-100 transition shadow-sm" title="Toggle display of District Executive Director (DED) in member list">
+                    <span class="relative inline-flex items-center">
+                        <input type="checkbox" id="ded_toggle" name="show_ded" value="1"
+                               form="peerFilterForm"
+                               class="sr-only peer"
+                               @checked($showDedFilter)
+                               onchange="document.getElementById('hidden_show_ded').value = this.checked ? '1' : '0'; document.getElementById('peerFilterForm').submit()">
+                        <span class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></span>
+                    </span>
+                    <span class="text-xs font-semibold t1 flex items-center gap-1">
+                        <i class="bi bi-person-badge text-purple-600"></i> DED Display
+                    </span>
+                    @if($showDedFilter)
+                        <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-700">ON</span>
+                    @else
+                        <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-gray-200 text-gray-600">OFF</span>
+                    @endif
+                </label>
+
+                {{-- IDs Display Toggle --}}
+                <label class="inline-flex items-center gap-2 cursor-pointer select-none bg-slate-50 border bs px-3 py-1.5 rounded-lg hover:bg-slate-100 transition shadow-sm" title="Toggle display of Industry Director (IDs) in member list">
+                    <span class="relative inline-flex items-center">
+                        <input type="checkbox" id="id_toggle" name="show_id" value="1"
+                               form="peerFilterForm"
+                               class="sr-only peer"
+                               @checked($showIdFilter)
+                               onchange="document.getElementById('hidden_show_id').value = this.checked ? '1' : '0'; document.getElementById('peerFilterForm').submit()">
+                        <span class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></span>
+                    </span>
+                    <span class="text-xs font-semibold t1 flex items-center gap-1">
+                        <i class="bi bi-briefcase text-blue-600"></i> IDs Display
+                    </span>
+                    @if($showIdFilter)
+                        <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-700">ON</span>
+                    @else
+                        <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-gray-200 text-gray-600">OFF</span>
+                    @endif
+                </label>
+            </div>
         </div>
 
         <form id="add-peer-form" action="{{ route('admin.circles.members.store', $circle) }}" method="POST" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-4 p-3 border bs rounded-xl surface-2">
             @csrf
             <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
             <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+            <input type="hidden" name="show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
+            <input type="hidden" name="show_id" value="{{ $showIdFilter ? '1' : '0' }}">
+            <input type="hidden" name="show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
             <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
             <div class="md:col-span-3">
@@ -1030,7 +1112,42 @@ use Carbon\Carbon;
             </div>
         </form>
 
-        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}#peers-section" class="d-none"></form>
+        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}#peers-section" class="d-none">
+            <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
+            <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+            <input type="hidden" name="show_ded" id="hidden_show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
+            <input type="hidden" name="show_id" id="hidden_show_id" value="{{ $showIdFilter ? '1' : '0' }}">
+            <input type="hidden" name="show_ded_id" id="hidden_show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
+        </form>
+
+        @if ($showDedFilter || $showIdFilter)
+            <div class="mb-3 px-3.5 py-2.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-900 flex items-center justify-between shadow-sm flex-wrap gap-2">
+                <span class="flex items-center gap-2 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    <span>
+                        @if ($showDedFilter && $showIdFilter)
+                            Showing <strong>District Executive Director (DED)</strong> and <strong>Industry Director (IDs)</strong> in the member list.
+                        @elseif ($showDedFilter)
+                            Showing <strong>District Executive Director (DED)</strong> in the member list.
+                        @else
+                            Showing <strong>Industry Director (IDs)</strong> in the member list.
+                        @endif
+                    </span>
+                </span>
+                <div class="flex items-center gap-2">
+                    @if ($showDedFilter)
+                        <a href="{{ route('admin.circles.show', array_merge(['circle' => $circle], request()->except(['show_ded', 'show_ded_id']), ['show_ded' => '0'])) }}#peers-section" class="text-[11px] text-purple-700 hover:text-purple-900 font-semibold no-underline flex items-center gap-1 bg-purple-100 px-2 py-0.5 rounded">
+                            <i class="bi bi-x-circle"></i> Hide DED
+                        </a>
+                    @endif
+                    @if ($showIdFilter)
+                        <a href="{{ route('admin.circles.show', array_merge(['circle' => $circle], request()->except(['show_id', 'show_ids', 'show_ded_id']), ['show_id' => '0'])) }}#peers-section" class="text-[11px] text-blue-700 hover:text-blue-900 font-semibold no-underline flex items-center gap-1 bg-blue-100 px-2 py-0.5 rounded">
+                            <i class="bi bi-x-circle"></i> Hide IDs
+                        </a>
+                    @endif
+                </div>
+            </div>
+        @endif
 
         <div id="peers-section" class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
@@ -1072,7 +1189,7 @@ use Carbon\Carbon;
                             <th class="px-2 py-1"></th>
                             <th class="px-2 py-1 text-right">
                                 <div class="flex justify-end">
-                                    <a href="{{ route('admin.circles.show', $circle) }}#peers-section" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                                    <a href="{{ route('admin.circles.show', array_merge(['circle' => $circle], ($showDedFilter ? ['show_ded' => '1'] : []), ($showIdFilter ? ['show_id' => '1'] : []))) }}#peers-section" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                                 </div>
                             </th>
                         </tr>
@@ -1110,6 +1227,24 @@ use Carbon\Carbon;
                                 <td class="px-3 py-2.5 t1 text-[12.5px] font-mono">{{ $member->email ?? '—' }}</td>
 
                                 <td class="px-3 py-2.5" onclick="event.stopPropagation()">
+                                    @php
+                                        $roleSlug = strtolower(trim((string) ($membership->role ?? '')));
+                                        $isDedRole = $roleSlug === 'ded';
+                                        $isIdRole = in_array($roleSlug, ['industry_director', 'id'], true);
+                                    @endphp
+                                    @if ($isDedRole)
+                                        <div class="mb-1">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                                <i class="bi bi-shield-shaded"></i> DED
+                                            </span>
+                                        </div>
+                                    @elseif ($isIdRole)
+                                        <div class="mb-1">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                                <i class="bi bi-person-workspace"></i> Industry Director (ID)
+                                            </span>
+                                        </div>
+                                    @endif
                                     <form method="POST" action="{{ route('admin.circles.members.update', [$circle, $membership]) }}"
                                           class="flex items-center gap-2" onclick="event.stopPropagation()">
                                         @csrf
@@ -1117,6 +1252,9 @@ use Carbon\Carbon;
 
                                         <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
                                         <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                        <input type="hidden" name="show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
+                                        <input type="hidden" name="show_id" value="{{ $showIdFilter ? '1' : '0' }}">
+                                        <input type="hidden" name="show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
                                         <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
                                         <select name="role" class="px-2 py-1 rounded border bs surface text-xs t1 outline-none focus-ring" onclick="event.stopPropagation()">
@@ -1173,6 +1311,9 @@ use Carbon\Carbon;
 
                                             <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
                                             <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                            <input type="hidden" name="show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
+                                            <input type="hidden" name="show_id" value="{{ $showIdFilter ? '1' : '0' }}">
+                                            <input type="hidden" name="show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
                                             <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
                                             <button class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer" onclick="event.stopPropagation()">Remove</button>
@@ -1198,6 +1339,9 @@ use Carbon\Carbon;
                                                 @method('PATCH')
                                                 <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
                                                 <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
+                                                <input type="hidden" name="show_ded" value="{{ $showDedFilter ? '1' : '0' }}">
+                                                <input type="hidden" name="show_id" value="{{ $showIdFilter ? '1' : '0' }}">
+                                                <input type="hidden" name="show_ded_id" value="{{ $showDedIdFilter ? '1' : '0' }}">
                                                 <input type="hidden" name="page" value="{{ $peerCurrentPage }}">
 
                                                 <div class="mb-4">
