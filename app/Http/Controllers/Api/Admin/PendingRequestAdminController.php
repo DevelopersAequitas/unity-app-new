@@ -6,17 +6,20 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Events\PendingRequestChangedEvent;
 use App\Http\Controllers\Controller;
+use App\Models\Certification;
+use App\Models\CertificationSubmission;
+use App\Models\Notification;
+use App\Models\Post;
+use App\Models\User;
+use App\Services\Certifications\CertificateGeneratorService;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use App\Models\Certification;
-use App\Models\Post;
-use App\Models\Notification;
-use App\Models\User;
 
 class PendingRequestAdminController extends Controller
 {
@@ -313,10 +316,10 @@ class PendingRequestAdminController extends Controller
 
             // Execute dedicated CertificateGeneratorService if available for rich assets/images
             try {
-                if (Schema::hasTable('certification_submissions') && class_exists(\App\Models\CertificationSubmission::class) && class_exists(\App\Services\Certifications\CertificateGeneratorService::class)) {
-                    $certSubmission = \App\Models\CertificationSubmission::find($id);
-                    if ($certSubmission && $certSubmission->status !== \App\Models\CertificationSubmission::STATUS_APPROVED) {
-                        app(\App\Services\Certifications\CertificateGeneratorService::class)->approveSubmission(
+                if (Schema::hasTable('certification_submissions') && class_exists(CertificationSubmission::class) && class_exists(CertificateGeneratorService::class)) {
+                    $certSubmission = CertificationSubmission::find($id);
+                    if ($certSubmission && $certSubmission->status !== CertificationSubmission::STATUS_APPROVED) {
+                        app(CertificateGeneratorService::class)->approveSubmission(
                             $certSubmission,
                             'Approved via admin panel',
                             auth('admin')->id() ?? auth()->id()
@@ -324,7 +327,7 @@ class PendingRequestAdminController extends Controller
                     }
                 }
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Legacy CertificateGeneratorService execution skipped/failed: '.$e->getMessage());
+                Log::warning('Legacy CertificateGeneratorService execution skipped/failed: '.$e->getMessage());
             }
 
             // 3. Post to Timeline Feed (Match Old Admin Panel Post Creation)
@@ -378,7 +381,7 @@ class PendingRequestAdminController extends Controller
                 try {
                     DB::table('posts')->insert($postPayload);
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Failed inserting certification post to posts table: '.$e->getMessage());
+                    Log::warning('Failed inserting certification post to posts table: '.$e->getMessage());
                 }
             }
 
@@ -429,7 +432,7 @@ class PendingRequestAdminController extends Controller
                 try {
                     DB::table('notifications')->insert($notifPayload);
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Failed inserting notification: '.$e->getMessage());
+                    Log::warning('Failed inserting notification: '.$e->getMessage());
                 }
             }
 
@@ -693,8 +696,6 @@ class PendingRequestAdminController extends Controller
         if (! $table || ! $record) {
             return response()->json(['success' => false, 'message' => "Request #{$id} not found."], 404);
         }
-
-
 
         DB::beginTransaction();
         try {
@@ -1638,6 +1639,14 @@ class PendingRequestAdminController extends Controller
                 $impactStatus = 'rejected';
             }
 
+            $targetEntity = ! empty($r->action)
+                ? (string) $r->action
+                : (! empty($r->amount) ? '₹'.number_format((float) $r->amount) : 'Life Impact Proof');
+
+            $story = ! empty($r->story_to_share) ? (string) $r->story_to_share : null;
+            $remarks = ! empty($r->additional_remarks) ? (string) $r->additional_remarks : null;
+            $detailsText = $story ?? ($r->description ?? ($remarks ?? null));
+
             return [
                 'id' => (string) $r->id,
                 'category' => 'pending_impacts',
@@ -1646,8 +1655,12 @@ class PendingRequestAdminController extends Controller
                 'applicant_email' => $r->applicant_email ?? '',
                 'applicant_phone' => $r->applicant_phone ?? '',
                 'company_name' => $r->company_name ?? 'Member Partner',
-                'target_entity' => '₹'.number_format((float) ($r->amount ?? 0)),
-                'details' => $this->formatDetailsText($r->description ?? null, 'Life impact contract validation.'),
+                'target_entity' => $targetEntity,
+                'details' => $this->formatDetailsText($detailsText, 'Life impact contract validation.'),
+                'story_to_share' => $story,
+                'additional_remarks' => $remarks,
+                'action' => $r->action ?? null,
+                'life_impacted' => $r->life_impacted ?? null,
                 'submitted_at' => $r->created_at ?? now()->toISOString(),
                 'status' => $impactStatus,
             ];
