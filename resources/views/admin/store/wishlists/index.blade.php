@@ -44,71 +44,124 @@
         </div>
     @endif
 
-    {{-- 4 KPI Metric Cards --}}
+    <style>
+        .kpi-link-card {
+            text-decoration: none !important;
+            color: inherit !important;
+            display: block;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 2px solid transparent !important;
+            cursor: pointer;
+        }
+        .kpi-link-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.1) !important;
+            border-color: rgba(99, 102, 241, 0.3) !important;
+        }
+        .kpi-link-card.active-kpi-all {
+            border-color: #ef4444 !important;
+            background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%) !important;
+        }
+        .kpi-link-card.active-kpi-peer {
+            border-color: #3b82f6 !important;
+            background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%) !important;
+        }
+        .kpi-link-card.active-kpi-prod {
+            border-color: #10b981 !important;
+            background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%) !important;
+        }
+        .kpi-link-card.active-kpi-top {
+            border-color: #f59e0b !important;
+            background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%) !important;
+        }
+    </style>
+
+    {{-- 4 Clickable KPI Metric Cards --}}
     <div class="row g-3 mb-4">
+        {{-- Card 1: Total Wishlist Items -> All Items Tab --}}
         <div class="col-xl-3 col-md-6">
-            <div class="card shadow-sm border-0 rounded-4 p-3 bg-white h-100">
+            <a href="{{ route('admin.store.wishlists.index', ['tab' => 'all']) }}" class="card shadow-sm rounded-4 p-3 bg-white h-100 kpi-link-card {{ $tab === 'all' && empty($productId) ? 'active-kpi-all' : '' }}" title="Click to view All Wishlist Items">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs fw-bold text-uppercase text-danger letter-spacing-1 mb-1">Total Wishlist Items</div>
                         <div class="h3 mb-0 fw-bold text-dark">{{ number_format($totalItems) }}</div>
-                        <div class="text-muted extra-small mt-1">Saved across all peers</div>
+                        <div class="text-muted extra-small mt-1 d-flex align-items-center gap-1">
+                            <span>Saved across all peers</span>
+                            <i class="bi bi-arrow-right text-danger"></i>
+                        </div>
                     </div>
                     <div class="rounded-3 p-3 bg-danger bg-opacity-10 text-danger fs-4">
                         <i class="bi bi-heart-fill"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        {{-- Card 2: Active Peers -> Grouped by Peer Tab --}}
         <div class="col-xl-3 col-md-6">
-            <div class="card shadow-sm border-0 rounded-4 p-3 bg-white h-100">
+            <a href="{{ route('admin.store.wishlists.index', ['tab' => 'by_peer']) }}" class="card shadow-sm rounded-4 p-3 bg-white h-100 kpi-link-card {{ $tab === 'by_peer' ? 'active-kpi-peer' : '' }}" title="Click to view Wishlists Grouped by Peer">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs fw-bold text-uppercase text-primary letter-spacing-1 mb-1">Active Peers</div>
                         <div class="h3 mb-0 fw-bold text-dark">{{ number_format($uniqueUsers) }}</div>
-                        <div class="text-muted extra-small mt-1">Peers with saved items</div>
+                        <div class="text-muted extra-small mt-1 d-flex align-items-center gap-1">
+                            <span>Peers with saved items</span>
+                            <i class="bi bi-arrow-right text-primary"></i>
+                        </div>
                     </div>
                     <div class="rounded-3 p-3 bg-primary bg-opacity-10 text-primary fs-4">
                         <i class="bi bi-people-fill"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        {{-- Card 3: Unique Products -> Popular Products Tab --}}
         <div class="col-xl-3 col-md-6">
-            <div class="card shadow-sm border-0 rounded-4 p-3 bg-white h-100">
+            <a href="{{ route('admin.store.wishlists.index', ['tab' => 'top_products']) }}" class="card shadow-sm rounded-4 p-3 bg-white h-100 kpi-link-card {{ $tab === 'top_products' ? 'active-kpi-prod' : '' }}" title="Click to view Most In-Demand Products">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs fw-bold text-uppercase text-success letter-spacing-1 mb-1">Unique Products</div>
                         <div class="h3 mb-0 fw-bold text-dark">{{ number_format($uniqueProducts) }}</div>
-                        <div class="text-muted extra-small mt-1">Distinct items wishlisted</div>
+                        <div class="text-muted extra-small mt-1 d-flex align-items-center gap-1">
+                            <span>Distinct items wishlisted</span>
+                            <i class="bi bi-arrow-right text-success"></i>
+                        </div>
                     </div>
                     <div class="rounded-3 p-3 bg-success bg-opacity-10 text-success fs-4">
                         <i class="bi bi-grid-3x3-gap-fill"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        {{-- Card 4: Most Desired Item -> Filter by Top Product --}}
         <div class="col-xl-3 col-md-6">
-            <div class="card shadow-sm border-0 rounded-4 p-3 bg-white h-100">
+            @php
+                $topProductUrl = $topProductItem ? route('admin.store.wishlists.index', ['tab' => 'all', 'product_id' => $topProductItem->product_id]) : route('admin.store.wishlists.index', ['tab' => 'top_products']);
+                $isTopActive = !empty($productId) && $topProductItem && $productId === $topProductItem->product_id;
+            @endphp
+            <a href="{{ $topProductUrl }}" class="card shadow-sm rounded-4 p-3 bg-white h-100 kpi-link-card {{ $isTopActive ? 'active-kpi-top' : '' }}" title="Click to filter wishlists for {{ $topProductItem?->product?->name ?? 'top product' }}">
                 <div class="d-flex justify-content-between align-items-center">
-                    <div>
+                    <div style="min-width: 0;">
                         <div class="text-xs fw-bold text-uppercase text-warning-emphasis letter-spacing-1 mb-1">Most Desired Item</div>
                         <div class="h5 mb-0 fw-bold text-dark text-truncate" style="max-width: 170px;" title="{{ $topProductItem?->product?->name ?? 'None' }}">
                             {{ $topProductItem?->product?->name ?? 'None yet' }}
                         </div>
-                        <div class="text-muted extra-small mt-1">
+                        <div class="text-muted extra-small mt-1 d-flex align-items-center gap-1">
                             @if($topProductItem)
                                 <span class="badge bg-warning-subtle text-warning-emphasis fw-bold">{{ $topProductItem->count }} saves</span>
+                                <i class="bi bi-arrow-right text-warning"></i>
                             @else
-                                No wishlist activity
+                                <span>No wishlist activity</span>
                             @endif
                         </div>
                     </div>
-                    <div class="rounded-3 p-3 bg-warning bg-opacity-10 text-warning fs-4">
+                    <div class="rounded-3 p-3 bg-warning bg-opacity-10 text-warning fs-4 flex-shrink-0">
                         <i class="bi bi-fire"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
