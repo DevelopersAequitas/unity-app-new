@@ -123,6 +123,7 @@ Route::prefix('store')->name('store.')->group(function () {
         Route::get('/{id}', [AdminStoreOrderWebController::class, 'show'])->name('show');
         Route::post('/{id}/status', [AdminStoreOrderWebController::class, 'updateStatus'])->name('status');
         Route::get('/{id}/packing-slip', [AdminStoreOrderWebController::class, 'packingSlip'])->name('packing-slip');
+        Route::get('/{id}/packing-slip/download', [AdminStoreOrderWebController::class, 'downloadSlipPdf'])->name('packing-slip.download');
         Route::post('/{id}/courier/dispatch', [AdminStoreOrderWebController::class, 'dispatchShipment'])->name('courier.dispatch');
         Route::post('/{id}/pickup/verify-pin', [AdminStoreOrderWebController::class, 'verifyPickup'])->name('pickup.verify-pin');
         Route::post('/{id}/cancel', [AdminStoreOrderWebController::class, 'cancelOrder'])->name('cancel');

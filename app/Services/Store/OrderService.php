@@ -17,6 +17,7 @@ use App\Models\Store\PolicyPage;
 use App\Models\Store\Product;
 use App\Models\Store\ProductVariant;
 use App\Models\Store\Receipt;
+use App\Models\Store\StoreConfig;
 use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -181,6 +182,12 @@ class OrderService
                 ];
             }
 
+            // Check Minimum Coins Threshold set by Admin System Settings
+            $minRequiredCoins = (int) StoreConfig::getValue('min_member_coins_to_buy', 0);
+            if ($minRequiredCoins > 0 && (int) ($lockedUser->coins_balance ?? 0) < $minRequiredCoins) {
+                throw new Exception("You must have a minimum balance of " . number_format($minRequiredCoins) . " coins to purchase products from Peers Store. Your current balance is " . number_format($lockedUser->coins_balance ?? 0) . " coins.", 422);
+            }
+
             // Verify User Wallet Balance
             if ($lockedUser->coins_balance < $orderTotalCoins) {
                 throw new Exception(StoreErrorCodes::INSUFFICIENT_COINS, 400);
@@ -196,7 +203,7 @@ class OrderService
                 'ORDER',
                 $orderId,
                 $idempotencyKey,
-                "Order #{$orderNo}"
+                "Store Order #{$orderNo} placement"
             );
 
             // Fetch active policy page

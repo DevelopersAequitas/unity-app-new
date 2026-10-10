@@ -946,6 +946,11 @@
                                         App Store Banners
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config*') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
+                                        System Settings
+                                    </a>
+                                </li>
                                 {{-- Hidden as requested --}}
                                 {{-- 
                                 <li class="nav-item">

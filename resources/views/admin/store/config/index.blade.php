@@ -140,6 +140,17 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label fw-semibold small text-dark">Minimum Coins Balance Required to Purchase (Member Balance Threshold)</label>
+                        <div class="input-group">
+                            <input type="number" name="configs[min_member_coins_to_buy]" class="form-control" value="{{ $configs['min_member_coins_to_buy'] ?? ($configs['min_checkout_coins'] ?? 0) }}" min="0" step="100">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-coin"></i> Coins</span>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            A member must hold at least this many total coins in their wallet to be allowed to place orders in Peers Store (e.g. 1,00,000 coins). If their balance is lower, they cannot purchase any product even if the product cost is lower. (Set 0 for no minimum).
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label fw-semibold small text-dark">Minimum Coin Balance for Checkout</label>
                         <div class="input-group">
                             <input type="number" name="configs[min_checkout_coins]" class="form-control" value="{{ $configs['min_checkout_coins'] ?? 0 }}" min="0">

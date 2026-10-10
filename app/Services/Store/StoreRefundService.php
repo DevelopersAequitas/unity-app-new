@@ -67,6 +67,8 @@ class StoreRefundService
             $refundNo = 'REF-'.strtoupper(Str::random(10));
             $refundId = (string) Str::uuid();
 
+            $refundReasonText = "Refund for cancelled Store Order #{$lockedOrder->order_no}" . ($reasonDetail ? ": {$reasonDetail}" : ($reasonCode ? ": {$reasonCode}" : ''));
+
             // Execute Refund Credit in Ledger & Balance
             $refundResult = $this->walletService->executeRefundCredit(
                 $lockedUser,
@@ -75,7 +77,7 @@ class StoreRefundService
                 'REFUND',
                 $refundId,
                 $idempotencyKey,
-                "Refund for Order #{$lockedOrder->order_no}: ".($reasonDetail ?? $reasonCode)
+                $refundReasonText
             );
 
             $primaryLedgerId = ! empty($refundResult['ledger_entries']) ? $refundResult['ledger_entries'][0]->transaction_id : null;
