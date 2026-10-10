@@ -302,10 +302,10 @@ export const NominationsPage: React.FC = () => {
                                                     className="rounded-circle bg-light border d-flex align-items-center justify-content-center text-secondary fw-bold"
                                                     style={{ width: '36px', height: '36px', fontSize: '0.85rem' }}
                                                 >
-                                                    {nom.candidate_name ? nom.candidate_name.charAt(0).toUpperCase() : 'U'}
+                                                    {(nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : 'Hardik Chauhan').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div className="fw-semibold text-dark">{nom.candidate_name}</div>
+                                                    <div className="fw-semibold text-dark">{nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : (nom.user?.name || 'Hardik Chauhan')}</div>
                                                     <div className="text-muted small">{nom.email}</div>
                                                 </div>
                                             </div>
