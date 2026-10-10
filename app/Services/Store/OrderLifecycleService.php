@@ -23,7 +23,7 @@ class OrderLifecycleService
 
     public function getUserOrders(User $user, array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        $query = Order::with(['items.product.primaryImage', 'shipment', 'receipt'])
+        $query = Order::with(['items.product.primaryImage', 'shipment', 'receipt', 'returns'])
             ->where('user_id', $user->id);
 
         if (! empty($filters['status'])) {

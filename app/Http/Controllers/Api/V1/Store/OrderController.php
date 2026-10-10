@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Store;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Store\StoreCancelOrderRequest;
 use App\Http\Requests\Store\StorePlaceOrderRequest;
+use App\Models\Store\Order;
 use App\Services\Store\OrderLifecycleService;
 use App\Services\Store\OrderService;
 use Exception;
@@ -43,9 +44,16 @@ class OrderController extends BaseApiController
         $filters = $request->only(['status', 'delivery_type', 'from', 'to']);
         $perPage = (int) $request->input('per_page', 20);
 
-        $orders = $this->lifecycleService->getUserOrders($user, $filters, $perPage);
+        $paginatedOrders = $this->lifecycleService->getUserOrders($user, $filters, $perPage);
 
-        return $this->success($orders, 'Orders retrieved successfully');
+        $transformedItems = collect($paginatedOrders->items())->map(function ($order) {
+            return $this->formatOrderPayload($order);
+        });
+
+        $paginatedData = $paginatedOrders->toArray();
+        $paginatedData['data'] = $transformedItems->all();
+
+        return $this->success($paginatedData, 'Orders retrieved successfully');
     }
 
     public function show(Request $request, string $id): JsonResponse
@@ -54,40 +62,75 @@ class OrderController extends BaseApiController
             $user = $request->user();
             $order = $this->lifecycleService->getOrderDetails($user, $id);
 
-            // Fetch or generate slip URL if delivered or available
-            $slipUrl = $order->slip_url;
-            $stLower = strtolower($order->status);
-            if (! $slipUrl && in_array($stLower, ['delivered', 'completed', 'picked_up'])) {
-                try {
-                    $slipUrl = app(\App\Services\Store\OrderSlipService::class)->getOrGenerateSlipUrl($order);
-                } catch (\Throwable $e) {
-                    $slipUrl = route('admin.store.orders.packing-slip', $order->id);
-                }
-            }
-
-            // Add action flags for mobile / Flutter
-            $actionFlags = [
-                'can_cancel' => in_array($order->status, ['PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'processing'], true),
-                'can_return' => in_array($stLower, ['delivered', 'completed']),
-                'can_track' => (bool) ($order->shipment || $order->tracking_number || $order->delivery_person_phone),
-                'can_download_receipt' => (bool) $order->receipt,
-                'can_download_slip' => (bool) $slipUrl,
-                'can_pickup' => in_array(strtoupper($order->status), ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY']),
-            ];
-
-            $data = $order->toArray();
-            $data['courier_name'] = $order->courier_name;
-            $data['tracking_number'] = $order->tracking_number;
-            $data['delivery_person_name'] = $order->delivery_person_name ?: $order->courier_name;
-            $data['delivery_person_phone'] = $order->delivery_person_phone ?: $order->tracking_number;
-            $data['slip_url'] = $slipUrl;
-            $data['order_slip_url'] = $slipUrl;
-            $data['action_flags'] = $actionFlags;
+            $data = $this->formatOrderPayload($order);
 
             return $this->success($data, 'Order details retrieved');
         } catch (Exception $e) {
             return $this->error($e->getMessage(), $e->getCode() ?: 404);
         }
+    }
+
+    protected function formatOrderPayload(Order $order): array
+    {
+        $slipUrl = $order->slip_url;
+        $stLower = strtolower((string) $order->status);
+        if (! $slipUrl && in_array($stLower, ['delivered', 'completed', 'picked_up'])) {
+            try {
+                $slipUrl = app(\App\Services\Store\OrderSlipService::class)->getOrGenerateSlipUrl($order);
+            } catch (\Throwable $e) {
+                $slipUrl = route('admin.store.orders.packing-slip', $order->id);
+            }
+        }
+
+        // Check if an active or latest return exists for the order
+        $returns = $order->relationLoaded('returns') ? $order->returns : $order->returns()->get();
+        $latestReturn = $returns->sortByDesc('created_at')->first();
+
+        $activeReturn = $returns->first(function ($ret) {
+            return ! in_array(strtoupper((string) $ret->status), ['CANCELLED', 'REJECTED'], true);
+        });
+
+        $hasActiveReturn = (bool) $activeReturn;
+        $returnToExpose = $activeReturn ?: $latestReturn;
+
+        $returnStatus = $returnToExpose ? (string) $returnToExpose->status : null;
+        $returnNo = $returnToExpose ? (string) $returnToExpose->return_no : null;
+
+        $returnRequestObj = $returnToExpose ? [
+            'id' => (string) $returnToExpose->id,
+            'return_no' => (string) $returnToExpose->return_no,
+            'status' => (string) $returnToExpose->status,
+            'reason' => (string) ($returnToExpose->reason_code ?: $returnToExpose->reason ?: 'DEFECTIVE'),
+            'created_at' => $returnToExpose->created_at ? $returnToExpose->created_at->toISOString() : null,
+        ] : null;
+
+        // Action Flags
+        $currentStatus = strtoupper((string) $order->status);
+        $canCancel = in_array($currentStatus, ['PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'PROCESSING'], true);
+        $canReturn = ! $hasActiveReturn && in_array($stLower, ['delivered', 'completed']) && ! in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true);
+
+        $actionFlags = [
+            'can_cancel' => $canCancel,
+            'can_return' => $canReturn,
+            'can_track' => (bool) ($order->shipment || $order->tracking_number || $order->delivery_person_phone),
+            'can_download_receipt' => (bool) $order->receipt,
+            'can_download_slip' => (bool) $slipUrl,
+            'can_pickup' => in_array($currentStatus, ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY']),
+        ];
+
+        $data = $order->toArray();
+        $data['courier_name'] = $order->courier_name;
+        $data['tracking_number'] = $order->tracking_number;
+        $data['delivery_person_name'] = $order->delivery_person_name ?: $order->courier_name;
+        $data['delivery_person_phone'] = $order->delivery_person_phone ?: $order->tracking_number;
+        $data['slip_url'] = $slipUrl;
+        $data['order_slip_url'] = $slipUrl;
+        $data['return_status'] = $returnStatus;
+        $data['return_no'] = $returnNo;
+        $data['return_request'] = $returnRequestObj;
+        $data['action_flags'] = $actionFlags;
+
+        return $data;
     }
 
     public function slip(Request $request, string $id)
