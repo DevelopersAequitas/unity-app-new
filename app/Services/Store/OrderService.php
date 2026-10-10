@@ -164,7 +164,9 @@ class OrderService
                 // Validate stock
                 $qty = (int) $itemData['quantity'];
                 if ($product->track_inventory) {
-                    $availableStock = $variant ? $variant->stock_qty : $product->stock_qty;
+                    $availableStock = $variant
+                        ? (int) ($variant->stock_qty ?? $variant->stock_quantity ?? 0)
+                        : (int) ($product->stock_qty ?? $product->stock_quantity ?? 0);
                     if ($availableStock < $qty) {
                         throw new Exception(StoreErrorCodes::OUT_OF_STOCK, 422);
                     }
