@@ -11,6 +11,7 @@ use App\Services\Store\OrderLifecycleService;
 use App\Services\Store\OrderSlipService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -64,9 +65,12 @@ class AdminStoreOrderWebController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('order_no', 'ILIKE', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
-                        $uq->where('name', 'ILIKE', "%{$search}%")
-                            ->orWhere('phone_number', 'ILIKE', "%{$search}%")
-                            ->orWhere('email', 'ILIKE', "%{$search}%");
+                        $uq->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere(DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"), 'ILIKE', "%{$search}%");
                     });
             });
         }

@@ -46,7 +46,12 @@ class AdminStoreReturnWebController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('return_no', 'ILIKE', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
-                        $uq->where('name', 'ILIKE', "%{$search}%");
+                        $uq->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere(DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"), 'ILIKE', "%{$search}%");
                     });
             });
         }
@@ -144,7 +149,12 @@ class AdminStoreReturnWebController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('refund_no', 'ILIKE', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
-                        $uq->where('name', 'ILIKE', "%{$search}%");
+                        $uq->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere(DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"), 'ILIKE', "%{$search}%");
                     });
             });
         }
