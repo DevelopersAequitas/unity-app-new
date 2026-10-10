@@ -87,26 +87,6 @@
                     </div>
                 </div>
 
-                {{-- Delivery Partner / Courier Bar --}}
-                @if($order->courier_name || $order->tracking_number || $order->delivery_person_name)
-                    <div class="mt-3 pt-3 border-top d-flex flex-wrap align-items-center justify-content-between bg-white px-3 py-2 rounded border">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-truck text-primary fs-5 me-2"></i>
-                            <div>
-                                <span class="text-muted small d-block" style="font-size: 11px;">Delivery Partner / Courier</span>
-                                <strong class="text-dark">{{ $order->delivery_person_name ?: $order->courier_name }}</strong>
-                            </div>
-                        </div>
-                        @if($order->delivery_person_phone || $order->tracking_number)
-                            <div class="text-md-end mt-2 mt-md-0">
-                                <span class="text-muted small d-block" style="font-size: 11px;">Contact / AWB Number</span>
-                                <span class="badge bg-light text-dark border px-2 py-1 fw-bold fs-6">
-                                    {{ $order->delivery_person_phone ?: $order->tracking_number }}
-                                </span>
-                            </div>
-                        @endif
-                    </div>
-                @endif
             </div>
         </div>
 

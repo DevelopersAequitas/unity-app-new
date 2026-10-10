@@ -132,26 +132,6 @@
                     </span>
                 </td>
             </tr>
-            @if($order->courier_name || $order->tracking_number || $order->delivery_person_name)
-                <tr>
-                    <td colspan="2" style="border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 8px;">
-                        <table width="100%">
-                            <tr>
-                                <td width="50%">
-                                    <span style="color: #64748b; font-size: 10px; text-transform: uppercase;">Delivery Partner / Courier:</span><br>
-                                    <strong style="font-size: 11px; color: #0f172a;">{{ $order->delivery_person_name ?: $order->courier_name }}</strong>
-                                </td>
-                                @if($order->delivery_person_phone || $order->tracking_number)
-                                    <td width="50%" style="text-align: right;">
-                                        <span style="color: #64748b; font-size: 10px; text-transform: uppercase;">Contact / AWB Number:</span><br>
-                                        <strong style="font-size: 11px; color: #0f172a;">{{ $order->delivery_person_phone ?: $order->tracking_number }}</strong>
-                                    </td>
-                                @endif
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            @endif
         </table>
     </div>
 
