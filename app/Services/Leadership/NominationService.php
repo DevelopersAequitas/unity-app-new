@@ -15,6 +15,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class NominationService
@@ -372,5 +373,129 @@ class NominationService
         if (strtolower((string) $nomination->email) !== $contact && (string) $nomination->mobile !== $contact) {
             throw new RuntimeException('You are not authorized to view or edit this nomination.');
         }
+    }
+    /**
+     * Direct single-step nomination submission (C9).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{id: string, nomination_id: string, application_number: string, status: string, submitted_at: string}
+     */
+    public function directNominate(string $campaignId, array $data): array
+    {
+        $campaign = LeadershipCampaign::findOrFail($campaignId);
+
+        $candidateId = $data['candidate_id'] ?? null;
+        $scopeId = $data['scope_id'] ?? null;
+        if ($scopeId && ! Str::isUuid($scopeId)) {
+            $scopeId = null;
+        }
+
+        $profile = $data['profile'] ?? [];
+        $fullName = $profile['full_name'] ?? $data['full_name'] ?? 'Candidate';
+        $email = $profile['email'] ?? $data['email'] ?? null;
+        $mobile = $profile['mobile'] ?? $data['mobile'] ?? null;
+
+        $user = null;
+        if ($candidateId && Str::isUuid($candidateId)) {
+            $user = User::find($candidateId);
+        }
+        if (! $user && $email) {
+            $user = User::where('email', strtolower(trim((string) $email)))->first();
+        }
+        if (! $user && $mobile) {
+            $user = User::where('phone', trim((string) $mobile))->first();
+        }
+
+        if ($user) {
+            $userName = trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->display_name;
+            if ($userName && $fullName === 'Candidate') {
+                $fullName = $userName;
+            }
+            $email = $email ?: $user->email;
+            $mobile = $mobile ?: $user->phone;
+        }
+
+        $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
+        $now = Carbon::now();
+
+        return DB::transaction(function () use ($campaign, $scopeId, $user, $appNumber, $fullName, $email, $mobile, $profile, $data, $now): array {
+            /** @var LeadershipNomination $nomination */
+            $nomination = LeadershipNomination::create([
+                'campaign_id' => $campaign->id,
+                'scope_id' => $scopeId,
+                'user_id' => $user?->id,
+                'application_number' => $appNumber,
+                'full_name' => $fullName,
+                'email' => $email,
+                'mobile' => $mobile,
+                'profile_snapshot' => $profile,
+                'original_profile' => $user ? [
+                    'full_name' => $fullName,
+                    'email' => $email,
+                    'mobile' => $mobile,
+                ] : [],
+                'edited_profile' => $profile,
+                'profile_changes' => [],
+                'status' => 'submitted',
+                'submitted_at' => $now,
+            ]);
+
+            // Save answers
+            $answers = $data['answers'] ?? [];
+            if (is_array($answers)) {
+                foreach ($answers as $key => $val) {
+                    LeadershipNominationAnswer::create([
+                        'nomination_id' => $nomination->id,
+                        'question_key' => (string) $key,
+                        'answer' => is_array($val) ? $val : ['value' => $val],
+                    ]);
+                }
+            }
+
+            // Save documents
+            $documents = $data['documents'] ?? [];
+            if (is_array($documents)) {
+                foreach ($documents as $doc) {
+                    if (is_array($doc)) {
+                        LeadershipNominationDocument::create([
+                            'nomination_id' => $nomination->id,
+                            'document_type' => $doc['document_type'] ?? 'supporting_doc',
+                            'original_filename' => $doc['original_name'] ?? 'document.pdf',
+                            'storage_disk' => 'local',
+                            'storage_key' => $doc['file_url'] ?? '',
+                            'mime_type' => 'application/pdf',
+                            'file_size_bytes' => 1024,
+                            'verification_status' => 'pending',
+                            'uploaded_by' => $user?->id,
+                        ]);
+                    }
+                }
+            }
+
+            LeadershipNominationHistory::create([
+                'nomination_id' => $nomination->id,
+                'previous_status' => 'draft',
+                'new_status' => 'submitted',
+                'action' => 'submitted',
+                'remarks' => 'Nomination application submitted via website portal',
+                'changed_by' => $user?->id,
+            ]);
+
+            $this->auditService->log(
+                action: 'nomination.submitted',
+                entityType: 'LeadershipNomination',
+                entityId: $nomination->id,
+                campaignId: $nomination->campaign_id,
+                remarks: "Nomination {$nomination->application_number} submitted via website portal"
+            );
+
+            return [
+                'id' => $nomination->id,
+                'nomination_id' => $nomination->id,
+                'application_number' => $nomination->application_number,
+                'status' => 'submitted',
+                'submitted_at' => $now->toIso8601String(),
+            ];
+        });
     }
 }

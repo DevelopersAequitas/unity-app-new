@@ -172,4 +172,17 @@ class AdminNominationController extends LeadershipBaseController
 
         return $this->success($history, 'History fetched successfully.');
     }
+    /**
+     * F10. Manually send approval email & WhatsApp notification to candidate.
+     */
+    public function sendApprovalEmail(Request $request, string $id): JsonResponse
+    {
+        try {
+            $result = $this->nominationService->sendManualApprovalEmail($id);
+
+            return $this->success($result, 'Approval email and WhatsApp notifications dispatched successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
 }

@@ -4,7 +4,7 @@
     "name": "_commonjsHelpers"
   },
   "resources/css/app.css": {
-    "file": "assets/app-BvQ4d1wA.css",
+    "file": "assets/app-GzFLE4gZ.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -22,7 +22,7 @@
     ]
   },
   "resources/js/leadership-admin/main.tsx": {
-    "file": "assets/main-DvUy89ek.js",
+    "file": "assets/main-_r2nMs2k.js",
     "name": "main",
     "src": "resources/js/leadership-admin/main.tsx",
     "isEntry": true,
