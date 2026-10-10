@@ -6,6 +6,7 @@ use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
 use App\Models\Store\OrderPayment;
 use App\Models\Store\Refund;
+use App\Models\AdminUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -27,7 +28,7 @@ class StoreRefundService
         ?string $reasonDetail = null,
         ?string $returnId = null,
         ?string $idempotencyKey = null,
-        ?User $adminUser = null
+        User|AdminUser|null $adminUser = null
     ): Refund {
         return DB::transaction(function () use (
             $order,

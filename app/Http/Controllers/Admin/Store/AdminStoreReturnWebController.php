@@ -87,7 +87,10 @@ class AdminStoreReturnWebController extends Controller
             ]);
 
             if ($return->order && $return->user && $refundCoins > 0) {
-                $this->refundService->processOrderRefund(
+                // If StoreRefundService expects ?App\Models\User instead of AdminUser, pass $admin only if instance of User to avoid TypeError
+                $adminArg = ($admin instanceof \App\Models\User) ? $admin : null;
+
+                $refund = $this->refundService->processOrderRefund(
                     $return->order,
                     $return->user,
                     $refundCoins,
@@ -95,8 +98,13 @@ class AdminStoreReturnWebController extends Controller
                     $notes,
                     $return->id,
                     null,
-                    $admin
+                    $adminArg
                 );
+
+                if ($admin && empty($refund->processed_by)) {
+                    $refund->update(['processed_by' => $admin->id]);
+                }
+
                 $return->update(['status' => 'COMPLETED']);
             }
         });
