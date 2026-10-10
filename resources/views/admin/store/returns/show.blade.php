@@ -53,7 +53,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-sm-6">
                             <span class="text-muted small">Return Reason:</span>
-                            <div class="fw-bold text-dark fs-6">{{ ucfirst(str_replace('_', ' ', $return->reason)) }}</div>
+                            <div class="fw-bold text-dark fs-6">{{ ucfirst(str_replace('_', ' ', $return->reason_code ?: ($return->reason ?: '—'))) }}</div>
                         </div>
                         <div class="col-sm-6">
                             <span class="text-muted small">Requested Date:</span>
@@ -63,12 +63,23 @@
                     <div class="mb-3">
                         <span class="text-muted small">Customer Explanation / Notes:</span>
                         <div class="p-3 bg-light rounded border text-dark mt-1">
-                            {{ $return->notes ?: 'No additional notes provided by customer.' }}
+                            {{ $return->reason_detail ?: ($return->notes ?: 'No additional notes provided by customer.') }}
                         </div>
                     </div>
 
                     {{-- Attached Defect / Return Photos --}}
-                    @if(!empty($return->images) && is_array($return->images))
+                    @if($return->photos && $return->photos->isNotEmpty())
+                        <div class="border-top pt-3 mt-3">
+                            <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-camera text-primary me-1"></i> Defect / Inspection Images</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach($return->photos as $photo)
+                                    <a href="{{ $photo->file_url }}" target="_blank" class="rounded border d-inline-block overflow-hidden" style="width: 100px; height: 100px;">
+                                        <img src="{{ $photo->file_url }}" alt="Return proof" style="width: 100%; height: 100%; object-fit: cover;">
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @elseif(!empty($return->images) && is_array($return->images))
                         <div class="border-top pt-3 mt-3">
                             <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-camera text-primary me-1"></i> Defect / Inspection Images</h6>
                             <div class="d-flex flex-wrap gap-2">
@@ -127,60 +138,77 @@
         <div class="col-lg-4">
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white py-3">
-                    <h5 class="card-title fw-bold text-dark mb-0">Return Status & Decision</h5>
+                    <h5 class="card-title fw-bold text-dark mb-0">Return Status &amp; Decision</h5>
                 </div>
                 <div class="card-body">
+                    @php
+                        $st = strtoupper((string) $return->status);
+                    @endphp
                     <div class="text-center p-3 bg-light rounded mb-3">
-                        <span class="text-muted small d-block mb-1">Status</span>
-                        @if($return->status === 'pending')
-                            <span class="badge bg-warning text-dark fs-6 px-3 py-1.5">Pending Review</span>
-                        @elseif($return->status === 'approved' || $return->status === 'completed')
-                            <span class="badge bg-success text-white fs-6 px-3 py-1.5">Approved & Refunded</span>
-                        @elseif($return->status === 'rejected')
+                        <span class="text-muted small d-block mb-1">Current Status</span>
+                        @if(in_array($st, ['REQUESTED', 'PENDING', 'PENDING_REVIEW', 'PENDING_INSPECTION']))
+                            <span class="badge bg-warning text-dark fs-6 px-3 py-1.5">Pending Review / Requested</span>
+                        @elseif(in_array($st, ['APPROVED', 'COMPLETED', 'REFUNDED']))
+                            <span class="badge bg-success text-white fs-6 px-3 py-1.5">Approved &amp; Refunded</span>
+                        @elseif($st === 'REJECTED')
                             <span class="badge bg-danger text-white fs-6 px-3 py-1.5">Rejected</span>
+                        @elseif($st === 'CANCELLED')
+                            <span class="badge bg-secondary text-white fs-6 px-3 py-1.5">Cancelled by Customer</span>
                         @else
-                            <span class="badge bg-secondary fs-6 px-3 py-1.5">{{ ucfirst($return->status) }}</span>
+                            <span class="badge bg-secondary fs-6 px-3 py-1.5">{{ ucfirst(str_replace('_', ' ', $return->status)) }}</span>
                         @endif
                     </div>
 
-                    @if($return->status === 'pending')
-                        {{-- Approve & Refund Form --}}
-                        <form method="POST" action="{{ route('admin.store.returns.approve', $return->id) }}" class="mb-3" onsubmit="return confirm('Approve this return and credit coins back to user wallet?')">
+                    @if(in_array($st, ['REQUESTED', 'PENDING', 'PENDING_REVIEW', 'PENDING_INSPECTION']))
+                        {{-- Approve / Accept & Refund Form --}}
+                        <form method="POST" action="{{ route('admin.store.returns.approve', $return->id) }}" class="mb-3" onsubmit="return confirm('Accept this return request and refund coins to the peer wallet?')">
                             @csrf
                             <div class="p-3 border rounded bg-success bg-opacity-10 mb-3">
-                                <h6 class="fw-bold text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i> Approve & Refund</h6>
+                                <h6 class="fw-bold text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i> Accept &amp; Refund</h6>
                                 <p class="text-muted small mb-2">
                                     Total order coins: <strong>{{ number_format($return->order->total_coins ?? 0) }}</strong>.<br>
-                                    Exact Earned/Bonus proportion will be restored.
+                                    Coins will be refunded to member ledger.
                                 </p>
                                 <div class="mb-2">
                                     <label class="form-label small fw-semibold">Refund Amount (Coins)</label>
                                     <input type="number" name="refund_coins" class="form-control form-control-sm" value="{{ $return->order->total_coins ?? 0 }}" required min="1">
                                 </div>
-                                <div class="form-check form-switch mb-2">
-                                    <input class="form-check-input" type="checkbox" name="restock_inventory" value="1" id="restockCheck" checked>
-                                    <label class="form-check-label small" for="restockCheck">Restock returned items into inventory</label>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-semibold">Inspection / Acceptance Remarks</label>
+                                    <input type="text" name="inspection_notes" class="form-control form-control-sm" placeholder="Accepted & verified">
                                 </div>
                                 <button type="submit" class="btn btn-sm btn-success w-100">
-                                    <i class="bi bi-check2"></i> Approve & Issue Refund
+                                    <i class="bi bi-check-lg me-1"></i> Accept &amp; Issue Refund
                                 </button>
                             </div>
                         </form>
 
-                        {{-- Reject Form --}}
+                        {{-- Reject / Decline Form --}}
                         <form method="POST" action="{{ route('admin.store.returns.reject', $return->id) }}">
                             @csrf
                             <div class="p-3 border rounded bg-danger bg-opacity-10">
-                                <h6 class="fw-bold text-danger mb-2"><i class="bi bi-x-circle-fill me-1"></i> Reject Return Request</h6>
+                                <h6 class="fw-bold text-danger mb-2"><i class="bi bi-x-circle-fill me-1"></i> Decline / Reject Return</h6>
                                 <div class="mb-2">
-                                    <label class="form-label small fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
-                                    <textarea name="rejection_reason" class="form-control form-control-sm" rows="2" placeholder="Policy violation, missing items, damaged by user..." required></textarea>
+                                    <label class="form-label small fw-semibold">Decline Reason <span class="text-danger">*</span></label>
+                                    <textarea name="rejection_reason" class="form-control form-control-sm" rows="2" placeholder="Policy violation, item used, damaged by user..." required></textarea>
                                 </div>
                                 <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-                                    <i class="bi bi-x-lg"></i> Reject Request
+                                    <i class="bi bi-x-lg me-1"></i> Decline Request
                                 </button>
                             </div>
                         </form>
+                    @elseif($st === 'REJECTED' && $return->rejection_reason)
+                        <div class="p-3 border rounded bg-danger bg-opacity-10 text-danger small">
+                            <strong>Decline Reason:</strong><br>
+                            {{ $return->rejection_reason }}
+                        </div>
+                    @elseif(in_array($st, ['APPROVED', 'COMPLETED', 'REFUNDED']))
+                        <div class="p-3 border rounded bg-success bg-opacity-10 text-success small">
+                            <strong>Decision:</strong> Return approved and coins refunded.<br>
+                            @if($return->quality_check_notes)
+                                <span class="text-muted">Remarks: {{ $return->quality_check_notes }}</span>
+                            @endif
+                        </div>
                     @endif
                 </div>
             </div>

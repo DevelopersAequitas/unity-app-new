@@ -70,11 +70,35 @@ class AdminStoreReturnWebController extends Controller
 
         $validated = $request->validate([
             'inspection_notes' => 'nullable|string|max:500',
+            'refund_coins' => 'nullable|integer|min:1',
         ]);
 
-        DB::transaction(function () use ($return, $admin, $validated) {
-            $this->returnService->approveReturn($return, $validated['inspection_notes'] ?? 'Approved by '.$admin->name, $admin->id);
-            $this->refundService->processReturnRefund($return, $admin->id);
+        $refundCoins = (int) ($validated['refund_coins'] ?? ($return->order ? $return->order->total_coins : 0));
+
+        DB::transaction(function () use ($return, $admin, $validated, $refundCoins) {
+            $notes = $validated['inspection_notes'] ?? ('Approved by ' . ($admin ? $admin->name : 'Admin'));
+
+            $return->update([
+                'status' => 'APPROVED',
+                'reviewed_by' => $admin ? $admin->id : null,
+                'reviewed_at' => now(),
+                'quality_check_passed' => true,
+                'quality_check_notes' => $notes,
+            ]);
+
+            if ($return->order && $return->user && $refundCoins > 0) {
+                $this->refundService->processOrderRefund(
+                    $return->order,
+                    $return->user,
+                    $refundCoins,
+                    'RETURN_REFUND',
+                    $notes,
+                    $return->id,
+                    null,
+                    $admin
+                );
+                $return->update(['status' => 'COMPLETED']);
+            }
         });
 
         return back()->with('success', 'Return request approved. Refund coins credited back to peer wallet ledger.');
@@ -86,10 +110,16 @@ class AdminStoreReturnWebController extends Controller
         $admin = Auth::guard('admin')->user();
 
         $validated = $request->validate([
-            'rejection_reason' => 'required|string|min:5|max:500',
+            'rejection_reason' => 'required|string|min:3|max:500',
         ]);
 
-        $this->returnService->rejectReturn($return, $validated['rejection_reason'], $admin->id);
+        $return->update([
+            'status' => 'REJECTED',
+            'rejection_reason' => $validated['rejection_reason'],
+            'reviewed_by' => $admin ? $admin->id : null,
+            'reviewed_at' => now(),
+            'quality_check_passed' => false,
+        ]);
 
         return back()->with('success', 'Return request rejected with reason remarks.');
     }
