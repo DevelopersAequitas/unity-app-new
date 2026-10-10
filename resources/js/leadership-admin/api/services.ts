@@ -57,6 +57,7 @@ export const nominationApi = {
     reject: (id: string, rejection_reason: string) =>
         apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { rejection_reason }),
     shortlist: (id: string) => apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/shortlist`),
+    sendApprovalEmail: (id: string) => apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/send-approval-email`),
 };
 
 export const votingApi = {

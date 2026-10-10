@@ -56,6 +56,54 @@ class LeadershipNomination extends Model
         'shortlisted_at' => 'datetime',
     ];
 
+    
+    protected $appends = [
+        'candidate_name',
+        'campaign_name',
+        'applied_role_name',
+        'voting_link',
+    ];
+
+    public function getCandidateNameAttribute(): ?string
+    {
+        return $this->full_name
+            ?? $this->user?->name
+            ?? ($this->profile_snapshot['name'] ?? null)
+            ?? ($this->profile_snapshot['full_name'] ?? null)
+            ?? ($this->profile_snapshot['candidate_name'] ?? null)
+            ?? 'Candidate';
+    }
+
+    public function getEmailAttribute(): ?string
+    {
+        return $this->attributes['email']
+            ?? $this->user?->email
+            ?? ($this->profile_snapshot['email'] ?? null);
+    }
+
+    public function getMobileAttribute(): ?string
+    {
+        return $this->attributes['mobile']
+            ?? $this->user?->phone
+            ?? ($this->profile_snapshot['mobile'] ?? null)
+            ?? ($this->profile_snapshot['phone'] ?? null);
+    }
+
+    public function getCampaignNameAttribute(): ?string
+    {
+        return $this->campaign?->name;
+    }
+
+    public function getAppliedRoleNameAttribute(): ?string
+    {
+        return $this->campaign?->role?->name;
+    }
+
+    public function getVotingLinkAttribute(): string
+    {
+        return "https://peersglobal.com/leadership/campaigns/{$this->campaign_id}/vote?candidate={$this->id}";
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $model): void {

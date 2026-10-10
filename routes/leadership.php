@@ -141,6 +141,7 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('nominations/{id}/approve', [AdminNominationController::class, 'approve'])->whereUuid('id');
     Route::post('nominations/{id}/reject', [AdminNominationController::class, 'reject'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
+    Route::post('nominations/{id}/send-approval-email', [AdminNominationController::class, 'sendApprovalEmail'])->whereUuid('id');
     Route::get('nominations/{id}/history', [AdminNominationController::class, 'history'])->whereUuid('id');
 
     // Module G: Admin Voting Management

@@ -16,6 +16,10 @@ import {
     Check,
     X,
     Clock,
+    Link2,
+    Mail,
+    CheckCircle2,
+    Copy,
 } from 'lucide-react';
 
 export const NominationsPage: React.FC = () => {
@@ -26,6 +30,58 @@ export const NominationsPage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [campaignFilter, setCampaignFilter] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
+
+    // Shareable Voting Link & Manual Email States
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+    const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
+
+    const getNominationVotingLink = (nom: Nomination) => {
+        return nom.voting_link || `https://peersglobal.com/leadership/campaigns/${nom.campaign_id}/vote?candidate=${nom.id}`;
+    };
+
+    const handleCopyVotingLink = (nom: Nomination) => {
+        const link = getNominationVotingLink(nom);
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(link).catch(() => fallbackCopyText(link));
+        } else {
+            fallbackCopyText(link);
+        }
+        setCopiedId(nom.id);
+        setTimeout(() => setCopiedId(null), 2500);
+    };
+
+    const fallbackCopyText = (text: string) => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+        } catch (e) {
+            console.error('Fallback copy failed', e);
+        }
+        document.body.removeChild(textArea);
+    };
+
+    const handleSendManualEmail = async (nom: Nomination) => {
+        setSendingEmailId(nom.id);
+        setError(null);
+        try {
+            const res = await nominationApi.sendApprovalEmail(nom.id);
+            const target = nom.email || nom.candidate_name || 'candidate';
+            setEmailSuccessMsg(res.data?.message || `Approval email with voting link sent successfully to ${target}!`);
+            setTimeout(() => setEmailSuccessMsg(null), 6000);
+        } catch (err: any) {
+            setError(err?.response?.data?.message || 'Failed to send approval email.');
+        } finally {
+            setSendingEmailId(null);
+        }
+    };
 
     // Detail Modal State (6 Tabs)
     const [selectedNomination, setSelectedNomination] = useState<Nomination | null>(null);
@@ -127,6 +183,18 @@ export const NominationsPage: React.FC = () => {
                     </p>
                 </div>
             </div>
+
+            {emailSuccessMsg && (
+                <div className="alert alert-success rounded-4 border-0 shadow-xs p-3 mb-4 d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-2">
+                        <CheckCircle2 size={18} className="text-success flex-shrink-0" />
+                        <span>{emailSuccessMsg}</span>
+                    </div>
+                    <button className="btn btn-sm btn-outline-success" onClick={() => setEmailSuccessMsg(null)}>
+                        Dismiss
+                    </button>
+                </div>
+            )}
 
             {error && (
                 <div className="alert alert-danger rounded-4 border-0 shadow-xs p-3 mb-4 d-flex align-items-center justify-content-between">
@@ -272,6 +340,44 @@ export const NominationsPage: React.FC = () => {
                                                         </button>
                                                     </>
                                                 )}
+                                                {['approved', 'shortlisted'].includes(nom.status) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleCopyVotingLink(nom)}
+                                                            className={`btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs ${
+                                                                copiedId === nom.id ? 'btn-success text-white' : 'btn-outline-success'
+                                                            }`}
+                                                            title="Copy Shareable Voting Link"
+                                                        >
+                                                            {copiedId === nom.id ? (
+                                                                <>
+                                                                    <Check size={14} /> Copied!
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Link2 size={14} /> Copy Link
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleSendManualEmail(nom)}
+                                                            disabled={sendingEmailId === nom.id}
+                                                            className="btn btn-outline-secondary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Send Official Approval Email to Candidate"
+                                                        >
+                                                            {sendingEmailId === nom.id ? (
+                                                                <>
+                                                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                                    Sending...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Mail size={14} /> Send Mail
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </>
+                                                )}
                                                 <button
                                                     onClick={() => openDetailModal(nom)}
                                                     className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
@@ -370,6 +476,67 @@ export const NominationsPage: React.FC = () => {
                                         {/* Tab 1: Profile */}
                                         {activeTab === 'profile' && (
                                             <div className="row g-3">
+                                                {['approved', 'shortlisted'].includes(selectedNomination.status) && (
+                                                    <div className="col-12">
+                                                        <div className="p-3 rounded-3 bg-success bg-opacity-10 border border-success border-opacity-25">
+                                                            <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                                                                <div className="flex-grow-1">
+                                                                    <div className="d-flex align-items-center gap-2 text-success fw-bold">
+                                                                        <CheckCircle2 size={18} />
+                                                                        <span>Nomination Approved - Shareable Voting Link Ready</span>
+                                                                    </div>
+                                                                    <p className="text-secondary small mb-2 mt-1">
+                                                                        Direct voting link for voters to cast verified OTP votes for this candidate:
+                                                                    </p>
+                                                                    <div className="input-group input-group-sm" style={{ maxWidth: '640px' }}>
+                                                                        <span className="input-group-text bg-white text-muted">
+                                                                            <Link2 size={14} />
+                                                                        </span>
+                                                                        <input
+                                                                            type="text"
+                                                                            readOnly
+                                                                            className="form-control font-monospace bg-white"
+                                                                            value={getNominationVotingLink(selectedNomination)}
+                                                                        />
+                                                                        <button
+                                                                            className={`btn ${copiedId === selectedNomination.id ? 'btn-success' : 'btn-primary'} fw-semibold`}
+                                                                            onClick={() => handleCopyVotingLink(selectedNomination)}
+                                                                        >
+                                                                            {copiedId === selectedNomination.id ? 'Copied!' : 'Copy Link'}
+                                                                        </button>
+                                                                        <a
+                                                                            href={getNominationVotingLink(selectedNomination)}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="btn btn-outline-secondary"
+                                                                        >
+                                                                            <ExternalLink size={14} /> Open
+                                                                        </a>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="d-flex flex-column align-items-md-end gap-1 flex-shrink-0">
+                                                                    <span className="text-muted small">Need to notify candidate?</span>
+                                                                    <button
+                                                                        onClick={() => handleSendManualEmail(selectedNomination)}
+                                                                        disabled={sendingEmailId === selectedNomination.id}
+                                                                        className="btn btn-success btn-sm fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs"
+                                                                    >
+                                                                        {sendingEmailId === selectedNomination.id ? (
+                                                                            <>
+                                                                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                                                Sending...
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Mail size={14} /> Send Approval Email
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <div className="col-12 col-md-6">
                                                     <div className="p-3 rounded-3 bg-light border">
                                                         <span className="text-muted small">Full Name</span>
@@ -560,6 +727,25 @@ export const NominationsPage: React.FC = () => {
                                 </div>
 
                                 <div className="d-flex gap-2">
+                                    {['approved', 'shortlisted'].includes(selectedNomination.status) && (
+                                        <button
+                                            onClick={() => handleSendManualEmail(selectedNomination)}
+                                            disabled={sendingEmailId === selectedNomination.id}
+                                            className="btn btn-outline-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
+                                            title="Send or resend email notification to candidate"
+                                        >
+                                            {sendingEmailId === selectedNomination.id ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                    Sending...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Mail size={14} /> Resend Email
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => setActionModal({ type: 'approve', nomination: selectedNomination })}
                                         className="btn btn-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
