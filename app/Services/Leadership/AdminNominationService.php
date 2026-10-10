@@ -11,12 +11,16 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use App\Services\Notifications\WhatsappNotificationService;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class AdminNominationService
 {
     public function __construct(
-        protected AuditService $auditService
+        protected AuditService $auditService,
+        protected WhatsappNotificationService $whatsappService
     ) {}
 
     /**
@@ -212,7 +216,7 @@ class AdminNominationService
         $nomination = LeadershipNomination::findOrFail($nominationId);
         $validUser = $this->resolveValidUserId($userId);
 
-        return DB::transaction(function () use ($nomination, $remarks, $validUser): LeadershipNomination {
+        $approved = DB::transaction(function () use ($nomination, $remarks, $validUser): LeadershipNomination {
             $oldStatus = $nomination->status;
             $nomination->update([
                 'status' => 'approved',
@@ -238,8 +242,13 @@ class AdminNominationService
                 remarks: $remarks ?: 'Approved'
             );
 
-            return $nomination->fresh();
+            return $nomination->fresh(['campaign.role', 'scope']);
         });
+
+        // Trigger WhatsApp & Email notifications to candidate
+        $this->sendNominationApprovedNotification($approved);
+
+        return $approved;
     }
 
     /**
@@ -255,7 +264,7 @@ class AdminNominationService
         $nomination = LeadershipNomination::findOrFail($nominationId);
         $validUser = $this->resolveValidUserId($userId);
 
-        return DB::transaction(function () use ($nomination, $reason, $remarks, $validUser): LeadershipNomination {
+        $rejected = DB::transaction(function () use ($nomination, $reason, $remarks, $validUser): LeadershipNomination {
             $oldStatus = $nomination->status;
             $nomination->update([
                 'status' => 'rejected',
@@ -282,8 +291,13 @@ class AdminNominationService
                 remarks: "Rejected: {$reason}"
             );
 
-            return $nomination->fresh();
+            return $nomination->fresh(['campaign.role', 'scope']);
         });
+
+        // Trigger WhatsApp & Email notifications to candidate
+        $this->sendNominationRejectedNotification($rejected, $reason);
+
+        return $rejected;
     }
 
     /**
@@ -354,5 +368,142 @@ class AdminNominationService
             ->where('nomination_id', $nominationId)
             ->orderBy('created_at', 'desc')
             ->get();
+    }
+    protected function sendNominationApprovedNotification(LeadershipNomination $nomination): void
+    {
+        $nomination->loadMissing(['campaign.role', 'scope']);
+        $phone = $nomination->mobile;
+        $candidateName = $nomination->full_name ?: 'Candidate';
+        $campaignName = $nomination->campaign?->name ?? 'Leadership Campaign';
+        $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
+        $appNumber = $nomination->application_number;
+
+        // 1. Dispatch WhatsApp message
+        if ($phone) {
+            try {
+                $payload = [
+                    'name' => $candidateName,
+                    'candidate_name' => $candidateName,
+                    'campaign_name' => $campaignName,
+                    'role_name' => $roleName,
+                    'application_number' => $appNumber,
+                    'status' => 'Approved',
+                    'message' => "Congratulations {$candidateName}! Your nomination application ({$appNumber}) for {$roleName} in {$campaignName} has been officially APPROVED by the Election Governance Committee.",
+                ];
+
+                $this->whatsappService->send(
+                    templateKey: 'nomination_approved',
+                    phone: $phone,
+                    payload: $payload,
+                    userId: $nomination->user_id
+                );
+            } catch (\Throwable $e) {
+                Log::warning('WhatsApp nomination approval failed: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Dispatch Email
+        if ($nomination->email) {
+            try {
+                Mail::send([], [], function ($message) use ($nomination, $candidateName, $campaignName, $roleName, $appNumber) {
+                    $html = "
+                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;'>
+                        <div style='text-align: center; margin-bottom: 24px;'>
+                            <h2 style='color: #0f172a; margin-bottom: 4px;'>Nomination Application Approved</h2>
+                            <p style='color: #64748b; font-size: 14px;'>Peers Global Leadership Selection 2026</p>
+                        </div>
+                        <p style='color: #334155; font-size: 15px;'>Dear <strong>{$candidateName}</strong>,</p>
+                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
+                            We are pleased to inform you that your candidate nomination request for <strong>{$roleName}</strong> in <strong>{$campaignName}</strong> has been officially <strong>APPROVED</strong> by the Scrutiny and Election Governance Committee.
+                        </p>
+                        <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 20px 0;'>
+                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Application Number:</strong> {$appNumber}</p>
+                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Role:</strong> {$roleName}</p>
+                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Status:</strong> <span style='color: #16a34a; font-weight: bold;'>Approved</span></p>
+                        </div>
+                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
+                            Your profile has been advanced to the voter roster and jury assessment phase. You will receive further updates regarding voter interaction and ballot schedules.
+                        </p>
+                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />
+                        <p style='color: #94a3b8; font-size: 12px; text-align: center;'>
+                            Peers Global Unity Platform &bull; Election Governance Committee
+                        </p>
+                    </div>";
+
+                    $message->to($nomination->email)
+                        ->subject("Your Nomination Request is Approved - Peers Global ({$appNumber})")
+                        ->html($html);
+                });
+            } catch (\Throwable $e) {
+                Log::warning('Email nomination approval failed: ' . $e->getMessage());
+            }
+        }
+    }
+
+    protected function sendNominationRejectedNotification(LeadershipNomination $nomination, string $reason): void
+    {
+        $nomination->loadMissing(['campaign.role', 'scope']);
+        $phone = $nomination->mobile;
+        $candidateName = $nomination->full_name ?: 'Candidate';
+        $campaignName = $nomination->campaign?->name ?? 'Leadership Campaign';
+        $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
+        $appNumber = $nomination->application_number;
+
+        // 1. WhatsApp
+        if ($phone) {
+            try {
+                $payload = [
+                    'name' => $candidateName,
+                    'candidate_name' => $candidateName,
+                    'campaign_name' => $campaignName,
+                    'role_name' => $roleName,
+                    'application_number' => $appNumber,
+                    'status' => 'Rejected',
+                    'reason' => $reason,
+                    'message' => "Dear {$candidateName}, your nomination application ({$appNumber}) for {$roleName} has not been approved. Reason: {$reason}",
+                ];
+
+                $this->whatsappService->send(
+                    templateKey: 'nomination_rejected',
+                    phone: $phone,
+                    payload: $payload,
+                    userId: $nomination->user_id
+                );
+            } catch (\Throwable $e) {
+                Log::warning('WhatsApp nomination rejection failed: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Email
+        if ($nomination->email) {
+            try {
+                Mail::send([], [], function ($message) use ($nomination, $candidateName, $campaignName, $roleName, $appNumber, $reason) {
+                    $html = "
+                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;'>
+                        <div style='text-align: center; margin-bottom: 24px;'>
+                            <h2 style='color: #0f172a; margin-bottom: 4px;'>Nomination Application Update</h2>
+                            <p style='color: #64748b; font-size: 14px;'>Peers Global Leadership Selection 2026</p>
+                        </div>
+                        <p style='color: #334155; font-size: 15px;'>Dear <strong>{$candidateName}</strong>,</p>
+                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
+                            Thank you for your interest and nomination application for <strong>{$roleName}</strong> in <strong>{$campaignName}</strong>. Following review by the Scrutiny Committee, your application has not been approved at this stage.
+                        </p>
+                        <div style='background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; margin: 20px 0;'>
+                            <p style='margin: 4px 0; color: #991b1b; font-size: 14px;'><strong>Reason:</strong> {$reason}</p>
+                        </div>
+                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />
+                        <p style='color: #94a3b8; font-size: 12px; text-align: center;'>
+                            Peers Global Unity Platform &bull; Election Governance Committee
+                        </p>
+                    </div>";
+
+                    $message->to($nomination->email)
+                        ->subject("Update on Your Nomination Request - Peers Global ({$appNumber})")
+                        ->html($html);
+                });
+            } catch (\Throwable $e) {
+                Log::warning('Email nomination rejection failed: ' . $e->getMessage());
+            }
+        }
     }
 }

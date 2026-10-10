@@ -253,12 +253,32 @@ export const NominationsPage: React.FC = () => {
                                             <StatusBadge status={nom.status} />
                                         </td>
                                         <td className="text-end">
-                                            <button
-                                                onClick={() => openDetailModal(nom)}
-                                                className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
-                                            >
-                                                Review
-                                            </button>
+                                            <div className="d-flex align-items-center justify-content-end gap-1.5 flex-nowrap">
+                                                {['submitted', 'resubmitted', 'under_review'].includes(nom.status) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => setActionModal({ type: 'approve', nomination: nom, reason: '' })}
+                                                            className="btn btn-success btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Approve Nomination Request"
+                                                        >
+                                                            <Check size={14} /> Approve
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setActionModal({ type: 'reject', nomination: nom, reason: '' })}
+                                                            className="btn btn-outline-danger btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Reject Nomination Request"
+                                                        >
+                                                            <X size={14} /> Reject
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button
+                                                    onClick={() => openDetailModal(nom)}
+                                                    className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
+                                                >
+                                                    Review
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

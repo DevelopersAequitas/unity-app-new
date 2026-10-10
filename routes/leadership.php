@@ -54,6 +54,8 @@ Route::prefix('public')->group(function (): void {
     Route::post('nominations/{id}/documents', [NominationController::class, 'uploadDocument'])->whereUuid('id');
     Route::delete('nominations/{id}/documents/{documentId}', [NominationController::class, 'deleteDocument'])->whereUuid('id')->whereUuid('documentId');
     Route::post('nominations/{id}/submit', [NominationController::class, 'submit'])->whereUuid('id');
+    Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
+    Route::post('nominations', [NominationController::class, 'nominate']);
 
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
