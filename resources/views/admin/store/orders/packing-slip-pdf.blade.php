@@ -169,10 +169,6 @@
     @php
         $itemsTotalCoins = $order->items->sum(fn($i) => $i->total_coins);
         $totalCoins = $itemsTotalCoins > 0 ? $itemsTotalCoins : (int) $order->total_coins;
-        $bonusCoins = min((int) ($order->coins_from_bonus ?? 0), $totalCoins);
-        $earnedCoins = $order->coins_from_earned > 0 
-            ? min((int) $order->coins_from_earned, $totalCoins - $bonusCoins)
-            : ($totalCoins - $bonusCoins);
     @endphp
 
     {{-- Coins Balance & Deduction Breakdown --}}
@@ -186,13 +182,7 @@
             <tr>
                 <td width="70%" style="padding-top: 6px; color: #475569;">Coins Balance Deducted:</td>
                 <td width="30%" align="right" style="padding-top: 6px; font-weight: bold; color: #059669;">
-                    {{ number_format($earnedCoins) }} Coins
-                </td>
-            </tr>
-            <tr>
-                <td style="color: #475569;">Coins Balance Deducted:</td>
-                <td align="right" style="font-weight: bold; color: #0284c7;">
-                    {{ number_format($bonusCoins) }} Coins
+                    {{ number_format($totalCoins) }} Coins
                 </td>
             </tr>
             <tr style="border-top: 1px solid #cbd5e1;">
