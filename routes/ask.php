@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\AskManagementController;
 use App\Http\Controllers\Api\V1\Admin\AskAdminController;
 use App\Http\Controllers\Api\V1\Ask\AskConfigController;
 use App\Http\Controllers\Api\V1\Ask\AskController;
@@ -148,10 +149,25 @@ Route::middleware('auth:sanctum')->prefix('asks')->group(function (): void {
 Route::middleware(['auth:sanctum'])->prefix('admin/asks')->group(function (): void {
     Route::get('/', [AskAdminController::class, 'index']);
     Route::get('stats', [AskAdminController::class, 'stats']);
+    Route::get('config', [AskManagementController::class, 'config']);
+    Route::post('config/toggle', [AskManagementController::class, 'toggleConfigStatus']);
+    Route::post('config/group', [AskManagementController::class, 'storeOptionGroup']);
+    Route::post('config/option', [AskManagementController::class, 'storeOption']);
+    Route::get('export', [AskManagementController::class, 'export']);
 
     Route::prefix('{ask}')->whereUuid('ask')->group(function (): void {
         Route::get('/', [AskAdminController::class, 'show']);
         Route::patch('status', [AskAdminController::class, 'updateStatus']);
         Route::delete('/', [AskAdminController::class, 'destroy']);
     });
+});
+
+Route::middleware(['auth:sanctum'])->prefix('v1/admin/asks')->group(function (): void {
+    Route::get('/', [AskAdminController::class, 'index']);
+    Route::get('stats', [AskAdminController::class, 'stats']);
+    Route::get('config', [AskManagementController::class, 'config']);
+    Route::post('config/toggle', [AskManagementController::class, 'toggleConfigStatus']);
+    Route::post('config/group', [AskManagementController::class, 'storeOptionGroup']);
+    Route::post('config/option', [AskManagementController::class, 'storeOption']);
+    Route::get('export', [AskManagementController::class, 'export']);
 });
