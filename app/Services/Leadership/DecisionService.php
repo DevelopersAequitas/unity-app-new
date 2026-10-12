@@ -7,6 +7,7 @@ namespace App\Services\Leadership;
 use App\Models\Leadership\LeadershipCampaign;
 use App\Models\Leadership\LeadershipFinalDecision;
 use App\Models\Leadership\LeadershipNomination;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -154,7 +155,7 @@ class DecisionService
                         'is_winner' => $isWinner,
                         'decision_reason' => $item['decision_reason'],
                         'internal_remarks' => $item['internal_remarks'] ?? null,
-                        'decided_by' => ($userId && \App\Models\User::where('id', $userId)->exists()) ? (string) $userId : null,
+                        'decided_by' => ($userId && User::where('id', $userId)->exists()) ? (string) $userId : null,
                         'decided_at' => Carbon::now(),
                         'publication_status' => 'pending',
                     ]

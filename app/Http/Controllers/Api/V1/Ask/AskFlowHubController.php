@@ -57,6 +57,23 @@ class AskFlowHubController extends Controller
     }
 
     /**
+     * Get Single Ask Full Details
+     * GET /api/leader/asks/{flow}/{id} or GET /api/asks/{flow}/{id}
+     */
+    public function showAsk(Request $request, string $flow, string $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $data = $this->flowHubService->getAskDetails($user, $flow, $id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
      * Tab 3: Leaderboard for a specific Flow
      * GET /api/asks/{flow}/leaderboard
      */

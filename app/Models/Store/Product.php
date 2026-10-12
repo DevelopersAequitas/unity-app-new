@@ -196,6 +196,6 @@ class Product extends Model
 
     public function wishlists(): HasMany
     {
-        return $this->hasMany(\App\Models\Store\Wishlist::class, 'product_id');
+        return $this->hasMany(Wishlist::class, 'product_id');
     }
 }

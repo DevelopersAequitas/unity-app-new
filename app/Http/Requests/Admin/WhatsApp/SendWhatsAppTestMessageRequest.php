@@ -27,11 +27,11 @@ class SendWhatsAppTestMessageRequest extends FormRequest
             'language' => ['nullable', 'string', 'max:15'],
             'variables' => ['nullable', 'array'],
             'variables.*' => ['nullable', 'string'],
-            'header_image_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'header_image_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,mp4,3gp,mov,pdf', 'max:16384'],
             'header_image_url' => ['nullable', 'url', 'max:2048'],
-            'header_video_file' => ['nullable', 'file', 'mimes:mp4,3gp', 'max:16384'],
+            'header_video_file' => ['nullable', 'file', 'mimes:mp4,3gp,mov', 'max:16384'],
             'header_video_url' => ['nullable', 'url', 'max:2048'],
-            'header_document_file' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'header_document_file' => ['nullable', 'file', 'mimes:pdf', 'max:16384'],
             'header_document_url' => ['nullable', 'url', 'max:2048'],
         ];
     }

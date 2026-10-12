@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Certifications\CertificateGeneratorService;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Services\Coins\CoinsService;
+use App\Services\Impacts\ImpactService;
 use App\Services\Membership\MembershipUpgradeService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -746,7 +747,7 @@ class PendingRequestModerationService
         $oldValues = $impact->only(['status', 'approved_at', 'approved_by']);
         $remarks = $data['admin_note'] ?? ($data['notes'] ?? ($data['review_remarks'] ?? null));
 
-        $freshImpact = app(\App\Services\Impacts\ImpactService::class)->approveImpact($impact, $actor, $remarks);
+        $freshImpact = app(ImpactService::class)->approveImpact($impact, $actor, $remarks);
 
         $this->auditService->log(
             $actor,
@@ -905,7 +906,7 @@ class PendingRequestModerationService
     {
         $oldValues = $impact->only(['status', 'rejected_at', 'rejected_by']);
 
-        $freshImpact = app(\App\Services\Impacts\ImpactService::class)->rejectImpact($impact, $actor, $reason);
+        $freshImpact = app(ImpactService::class)->rejectImpact($impact, $actor, $reason);
 
         $this->auditService->log(
             $actor,

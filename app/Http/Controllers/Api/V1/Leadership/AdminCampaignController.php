@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Leadership;
 
+use App\Models\Leadership\LeadershipCampaign;
 use App\Services\Leadership\CampaignService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -199,7 +200,7 @@ class AdminCampaignController extends LeadershipBaseController
     public function toggleStatus(Request $request, string $id): JsonResponse
     {
         try {
-            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($id);
+            $campaign = LeadershipCampaign::findOrFail($id);
             if ($campaign->status === 'active') {
                 $updated = $this->campaignService->pauseCampaign($id, 'Closed by administrator via toggle', Auth::id());
 
@@ -220,7 +221,7 @@ class AdminCampaignController extends LeadershipBaseController
     public function destroy(string $id): JsonResponse
     {
         try {
-            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($id);
+            $campaign = LeadershipCampaign::findOrFail($id);
             if ($campaign->status !== 'draft') {
                 return $this->error('Only draft campaigns can be deleted. Published or active campaigns should be closed.', 400);
             }

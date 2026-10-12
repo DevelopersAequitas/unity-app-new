@@ -73,6 +73,10 @@ class MetaWhatsAppException extends Exception
      */
     public function getUserFriendlyMessage(): string
     {
+        if ($this->metaErrorSubcode === 2388124) {
+            return 'Meta 24-Hour Edit Limit: Meta permits editing an approved template only once every 24 hours (and up to 10 times per 30 days). Because this template was already edited earlier today, please wait 24 hours to edit it again, or create a new template with a new name.';
+        }
+
         return match ($this->metaErrorCode) {
             190 => 'The configured Meta WhatsApp Access Token is invalid or expired. Please generate a new System User access token.',
             100 => 'Invalid Meta parameter: '.$this->getMessage(),

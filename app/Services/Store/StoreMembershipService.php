@@ -5,6 +5,7 @@ namespace App\Services\Store;
 use App\Constants\StoreErrorCodes;
 use App\Models\Store\MembershipLedger;
 use App\Models\Store\NotificationEvent;
+use App\Models\Store\Product;
 use App\Models\Store\Receipt;
 use App\Models\Store\StoreConfig;
 use App\Models\Store\StoreMembershipPlan;
@@ -50,7 +51,7 @@ class StoreMembershipService
         $product = null;
 
         if (! empty($options['product_id'])) {
-            $product = \App\Models\Store\Product::find($options['product_id']);
+            $product = Product::find($options['product_id']);
         }
 
         if ($planId) {

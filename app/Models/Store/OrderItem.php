@@ -51,14 +51,14 @@ class OrderItem extends Model
 
     public function getProductNameAttribute(): string
     {
-        return $this->attributes['product_name'] 
-            ?? $this->attributes['name'] 
+        return $this->attributes['product_name']
+            ?? $this->attributes['name']
             ?? ($this->product_snapshot['name'] ?? ($this->product_snapshot['title'] ?? ($this->product?->name ?? 'Store Product')));
     }
 
     public function getSkuAttribute(): string
     {
-        return $this->attributes['sku'] 
+        return $this->attributes['sku']
             ?? ($this->variant?->sku ?? ($this->product?->sku ?? ($this->product_snapshot['sku'] ?? '—')));
     }
 

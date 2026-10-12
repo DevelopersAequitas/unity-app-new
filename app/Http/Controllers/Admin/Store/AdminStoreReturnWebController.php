@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Store;
 use App\Http\Controllers\Controller;
 use App\Models\Store\Refund;
 use App\Models\Store\StoreReturn;
+use App\Models\User;
 use App\Services\Store\StoreRefundService;
 use App\Services\Store\StoreReturnService;
 use Illuminate\Http\Request;
@@ -81,7 +82,7 @@ class AdminStoreReturnWebController extends Controller
         $refundCoins = (int) ($validated['refund_coins'] ?? ($return->order ? $return->order->total_coins : 0));
 
         DB::transaction(function () use ($return, $admin, $validated, $refundCoins) {
-            $notes = $validated['inspection_notes'] ?? ('Approved by ' . ($admin ? $admin->name : 'Admin'));
+            $notes = $validated['inspection_notes'] ?? ('Approved by '.($admin ? $admin->name : 'Admin'));
 
             $return->update([
                 'status' => 'APPROVED',
@@ -93,7 +94,7 @@ class AdminStoreReturnWebController extends Controller
 
             if ($return->order && $return->user && $refundCoins > 0) {
                 // If StoreRefundService expects ?App\Models\User instead of AdminUser, pass $admin only if instance of User to avoid TypeError
-                $adminArg = ($admin instanceof \App\Models\User) ? $admin : null;
+                $adminArg = ($admin instanceof User) ? $admin : null;
 
                 $refund = $this->refundService->processOrderRefund(
                     $return->order,

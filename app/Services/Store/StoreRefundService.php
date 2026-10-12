@@ -2,11 +2,11 @@
 
 namespace App\Services\Store;
 
+use App\Models\AdminUser;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
 use App\Models\Store\OrderPayment;
 use App\Models\Store\Refund;
-use App\Models\AdminUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -68,7 +68,7 @@ class StoreRefundService
             $refundNo = 'REF-'.strtoupper(Str::random(10));
             $refundId = (string) Str::uuid();
 
-            $refundReasonText = "Refund for cancelled Store Order #{$lockedOrder->order_no}" . ($reasonDetail ? ": {$reasonDetail}" : ($reasonCode ? ": {$reasonCode}" : ''));
+            $refundReasonText = "Refund for cancelled Store Order #{$lockedOrder->order_no}".($reasonDetail ? ": {$reasonDetail}" : ($reasonCode ? ": {$reasonCode}" : ''));
 
             // Execute Refund Credit in Ledger & Balance
             $refundResult = $this->walletService->executeRefundCredit(

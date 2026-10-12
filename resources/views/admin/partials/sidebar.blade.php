@@ -1145,6 +1145,11 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.journey*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.journey.index') }}">
+                                        <i class="bi bi-calendar-check me-1"></i> 30-Day Journey
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.test_message*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.test_message') }}">
                                         <i class="bi bi-send me-1"></i> Test Message
                                     </a>
