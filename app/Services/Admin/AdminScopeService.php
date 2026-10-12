@@ -8,6 +8,7 @@ use App\Models\CircleMember;
 use App\Models\Industry;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 
 class AdminScopeService
 {
@@ -49,7 +50,7 @@ class AdminScopeService
             return Industry::query()->pluck('id')->all();
         }
 
-        if (! \Illuminate\Support\Facades\Schema::hasColumn('circles', 'industry_id')) {
+        if (! Schema::hasColumn('circles', 'industry_id')) {
             return [];
         }
 

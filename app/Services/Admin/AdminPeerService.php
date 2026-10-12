@@ -240,7 +240,7 @@ class AdminPeerService
         }
 
         // 7. Active Status Filter
-        $hasIsActive = \Illuminate\Support\Facades\Schema::hasColumn('users', 'is_active');
+        $hasIsActive = Schema::hasColumn('users', 'is_active');
         if (isset($filters['is_active'])) {
             $isActive = filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN);
             if ($hasIsActive) {

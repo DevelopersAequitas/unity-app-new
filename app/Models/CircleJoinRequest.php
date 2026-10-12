@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\PendingRequestChangedEvent;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -96,14 +97,14 @@ class CircleJoinRequest extends Model
     protected static function booted(): void
     {
         static::creating(function (self $request): void {
-if (! $request->id) {
+            if (! $request->id) {
                 $request->id = (string) Str::uuid();
             }
         });
 
         static::created(function (self $request): void {
             try {
-                broadcast(new \App\Events\PendingRequestChangedEvent(
+                broadcast(new PendingRequestChangedEvent(
                     action: 'created',
                     category: 'circle_joining_requests',
                     requestId: (string) $request->id,
@@ -113,7 +114,8 @@ if (! $request->id) {
                         'submitted_at' => optional($request->created_at)->toISOString() ?? now()->toISOString(),
                     ]
                 ));
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         });
 
         static::saving(function (self $request): void {

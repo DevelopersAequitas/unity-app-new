@@ -149,7 +149,7 @@ class AdminStoreServiceabilityWebController extends Controller
 
         $isActive = $request->has('is_active');
         $status = $isActive ? 'ACTIVE' : 'INACTIVE';
-        $code = 'HUB-' . strtoupper(Str::random(6));
+        $code = 'HUB-'.strtoupper(Str::random(6));
 
         PickupPoint::create([
             'code' => $code,

@@ -111,6 +111,7 @@ use App\Http\Controllers\Admin\Web\WebOpportunityController;
 use App\Http\Controllers\Admin\Web\WebPageMediaController;
 use App\Http\Controllers\Admin\Web\WebPartnershipController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
+use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
@@ -815,6 +816,30 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/whatsapp-templates/{id}', [WhatsappTemplateController::class, 'update'])->name('whatsapp-templates.update');
         Route::post('/whatsapp-templates/{id}/toggle-status', [WhatsappTemplateController::class, 'toggleStatus'])->name('whatsapp-templates.toggle-status');
         Route::post('/whatsapp-templates/{id}/reveal-secret', [WhatsappTemplateController::class, 'revealSecret'])->name('whatsapp-templates.reveal-secret');
+
+        // Native Meta WhatsApp Cloud API Module
+        Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+            Route::get('/templates', [MetaWhatsAppAdminController::class, 'templates'])->name('templates');
+            Route::post('/templates/sync', [MetaWhatsAppAdminController::class, 'syncTemplates'])->name('templates.sync');
+            Route::get('/templates/create', [MetaWhatsAppAdminController::class, 'createTemplateView'])->name('templates.create');
+            Route::post('/templates', [MetaWhatsAppAdminController::class, 'storeTemplate'])->name('templates.store');
+            Route::get('/templates/{id}', [MetaWhatsAppAdminController::class, 'showTemplate'])->name('templates.show');
+            Route::delete('/templates/{id}', [MetaWhatsAppAdminController::class, 'deleteTemplate'])->name('templates.delete');
+
+            Route::get('/test-message', [MetaWhatsAppAdminController::class, 'testMessageView'])->name('test_message');
+            Route::post('/test-message', [MetaWhatsAppAdminController::class, 'sendTestMessage'])->name('test_message.send');
+
+            Route::get('/messages', [MetaWhatsAppAdminController::class, 'messages'])->name('messages');
+            Route::get('/messages/{id}', [MetaWhatsAppAdminController::class, 'showMessage'])->name('messages.show');
+            Route::get('/message-logs', [MetaWhatsAppAdminController::class, 'messages'])->name('message_logs');
+            Route::get('/message-logs/{id}', [MetaWhatsAppAdminController::class, 'showMessage'])->name('message_logs.show');
+            Route::post('/messages/{id}/simulate-status', [MetaWhatsAppAdminController::class, 'simulateStatus'])->name('messages.simulate_status');
+            Route::post('/messages/mark-all-read', [MetaWhatsAppAdminController::class, 'markAllDeliveredAsRead'])->name('messages.mark_all_read');
+
+            Route::get('/webhook-logs', [MetaWhatsAppAdminController::class, 'webhookLogs'])->name('webhook_logs');
+            Route::get('/settings', [MetaWhatsAppAdminController::class, 'settings'])->name('settings');
+            Route::get('/test-connection', [MetaWhatsAppAdminController::class, 'testConnection'])->name('test_connection');
+        });
 
         // App Notifications & Mobile Navigation Showcase Module
         Route::get('/app-notifications', [AppNotificationAdminController::class, 'index'])->name('app-notifications.index');
