@@ -109,14 +109,31 @@ class AskConfigController extends Controller
             ->with(['options' => function ($q) use ($flow, $type, $includeInactive): void {
                 $q->when(! $includeInactive, fn ($oq) => $oq->where('is_active', true))
                     ->where(function (Builder $oq) use ($flow, $type): void {
-                        $oq->where(function (Builder $sq): void {
-                            $sq->whereNull('flow_id')->whereNull('ask_type_id');
-                        });
-                        if ($flow) {
-                            $oq->orWhere('flow_id', $flow->id);
-                        }
                         if ($type) {
-                            $oq->orWhere('ask_type_id', $type->id);
+                            $oq->where('ask_type_id', $type->id)
+                                ->orWhere(function (Builder $sq) use ($flow, $type): void {
+                                    $sq->whereNull('ask_type_id')
+                                        ->where(function (Builder $sub) use ($flow): void {
+                                            $sub->whereNull('flow_id');
+                                            if ($flow) {
+                                                $sub->orWhere('flow_id', $flow->id);
+                                            }
+                                        })
+                                        ->whereNotExists(function ($subQ) use ($type): void {
+                                            $subQ->selectRaw(1)
+                                                ->from('ask_options as sub_opts')
+                                                ->whereColumn('sub_opts.option_group_id', 'ask_options.option_group_id')
+                                                ->where('sub_opts.ask_type_id', $type->id)
+                                                ->whereNull('sub_opts.deleted_at');
+                                        });
+                                });
+                        } elseif ($flow) {
+                            $oq->whereNull('ask_type_id')
+                                ->where(function (Builder $sq) use ($flow): void {
+                                    $sq->whereNull('flow_id')->orWhere('flow_id', $flow->id);
+                                });
+                        } else {
+                            $oq->whereNull('ask_type_id')->whereNull('flow_id');
                         }
                     })
                     ->orderBy('sort_order');

@@ -199,6 +199,32 @@
                 </button>
             </div>
 
+            @php
+                $collabFlow = $flows->firstWhere('code', 'collaboration');
+            @endphp
+
+            <!-- Sub-Type / Category Filter for Collaboration (e.g. Joint Venture, Co-Founder, etc.) -->
+            <div id="subTypeFilterRow" class="flex flex-wrap items-center gap-1.5 pt-2 pb-1 text-xs bg-slate-50/80 -mx-4 px-4 border-b border-slate-100">
+                <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider mr-1 flex items-center gap-1">
+                    <i class="bi bi-diagram-3-fill text-indigo-600"></i> Category / Sub-Type Filter:
+                </span>
+                <button type="button" onclick="filterBySubType('all', this)" id="subtype-tab-all" class="subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-semibold border bg-indigo-600 text-white border-indigo-600 transition shadow-2xs">
+                    All Categories
+                </button>
+                @if($collabFlow && $collabFlow->types->isNotEmpty())
+                    @foreach($collabFlow->types as $t)
+                        <button type="button" 
+                                onclick="filterBySubType('{{ $t->id }}', this)" 
+                                id="subtype-tab-{{ $t->id }}"
+                                data-type-id="{{ $t->id }}"
+                                data-type-code="{{ $t->code }}"
+                                class="subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition">
+                            {{ $t->name }}
+                        </button>
+                    @endforeach
+                @endif
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2" id="optionGroupsGrid">
                 @forelse($optionGroups as $group)
                     @php
@@ -237,10 +263,20 @@
                             <!-- Options List with Individual Toggles -->
                             <div class="pt-2 space-y-1.5 max-h-72 overflow-y-auto pr-1" id="options-list-{{ $group->id }}">
                                 @forelse($group->options as $option)
-                                    <div class="flex items-center justify-between p-2 rounded-lg border text-xs transition {{ $option->is_active ? 'bg-slate-50/80 border-slate-200 text-slate-800' : 'bg-slate-100/50 border-slate-200 text-slate-400' }}" id="option-row-{{ $option->id }}">
+                                    <div class="option-item flex items-center justify-between p-2 rounded-lg border text-xs transition {{ $option->is_active ? 'bg-slate-50/80 border-slate-200 text-slate-800' : 'bg-slate-100/50 border-slate-200 text-slate-400' }}" 
+                                         id="option-row-{{ $option->id }}"
+                                         data-type-id="{{ $option->ask_type_id ?? '' }}"
+                                         data-is-active="{{ $option->is_active ? '1' : '0' }}">
                                         <div class="overflow-hidden pr-2">
-                                            <div class="font-medium {{ $option->is_active ? 'text-slate-800' : 'line-through text-slate-400' }}">
-                                                {{ $option->label }}
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="font-medium {{ $option->is_active ? 'text-slate-800' : 'line-through text-slate-400' }}">
+                                                    {{ $option->label }}
+                                                </span>
+                                                @if($option->askType)
+                                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 flex-none subtype-badge">
+                                                        {{ $option->askType->name }}
+                                                    </span>
+                                                @endif
                                             </div>
                                             <span class="text-[10px] text-slate-400 font-mono">{{ $option->code }}</span>
                                         </div>
@@ -385,6 +421,21 @@
                     </div>
 
                     <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Target Category / Sub-Type (Optional)</label>
+                        <select id="optionAskTypeId" name="ask_type_id" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500">
+                            <option value="">-- General (Common across all categories) --</option>
+                            @if($collabFlow && $collabFlow->types->isNotEmpty())
+                                <optgroup label="Find a Collaborator Categories">
+                                    @foreach($collabFlow->types as $t)
+                                        <option value="{{ $t->id }}">{{ $t->name }}</option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
+                        </select>
+                        <span class="text-[10px] text-slate-400">Select which Sub-Type (e.g. Joint Venture) this option belongs to.</span>
+                    </div>
+
+                    <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Description (Optional)</label>
                         <input type="text" id="optionDescription" name="description" placeholder="Brief tooltip or description..." 
                                class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500 focus:ring-1 focus:ring-indigo-500">
@@ -409,6 +460,7 @@
         const TOGGLE_URL = '{{ route("admin.asks.config.toggle") }}';
         const STORE_GROUP_URL = '{{ route("admin.asks.config.group.store") }}';
         const STORE_OPTION_URL = '{{ route("admin.asks.config.option.store") }}';
+        let currentSelectedTypeId = 'all';
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -434,6 +486,10 @@
             document.getElementById('addOptionForm').reset();
             document.getElementById('optionGroupId').value = groupId;
             document.getElementById('modalGroupNameBadge').textContent = groupName;
+            const typeSelect = document.getElementById('optionAskTypeId');
+            if (typeSelect) {
+                typeSelect.value = (currentSelectedTypeId !== 'all') ? currentSelectedTypeId : '';
+            }
             document.getElementById('addOptionModal').classList.remove('hidden');
         }
 
@@ -504,6 +560,8 @@
             const label = document.getElementById('optionLabel').value.trim();
             const code = document.getElementById('optionCode').value.trim();
             const desc = document.getElementById('optionDescription').value.trim();
+            const typeSelect = document.getElementById('optionAskTypeId');
+            const askTypeId = typeSelect ? typeSelect.value : null;
 
             try {
                 const res = await fetch(STORE_OPTION_URL, {
@@ -515,6 +573,7 @@
                     },
                     body: JSON.stringify({
                         option_group_id: groupId,
+                        ask_type_id: askTypeId || null,
                         label: label,
                         code: code,
                         description: desc || null
@@ -549,11 +608,21 @@
             if (emptyNotice) emptyNotice.remove();
 
             const row = document.createElement('div');
-            row.className = 'flex items-center justify-between p-2 rounded-lg border text-xs transition bg-slate-50/80 border-slate-200 text-slate-800';
+            row.className = 'option-item flex items-center justify-between p-2 rounded-lg border text-xs transition bg-slate-50/80 border-slate-200 text-slate-800';
             row.id = 'option-row-' + opt.id;
+            row.setAttribute('data-type-id', opt.ask_type_id || '');
+            row.setAttribute('data-is-active', '1');
+
+            const badgeHtml = opt.ask_type_name 
+                ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 flex-none subtype-badge">${escapeHtml(opt.ask_type_name)}</span>`
+                : '';
+
             row.innerHTML = `
                 <div class="overflow-hidden pr-2">
-                    <div class="font-medium text-slate-800">${escapeHtml(opt.label)}</div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-medium text-slate-800">${escapeHtml(opt.label)}</span>
+                        ${badgeHtml}
+                    </div>
                     <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(opt.code)}</span>
                 </div>
                 <button type="button"
@@ -566,6 +635,10 @@
                 </button>
             `;
             list.appendChild(row);
+
+            if (currentSelectedTypeId !== 'all' && opt.ask_type_id !== currentSelectedTypeId) {
+                row.style.display = 'none';
+            }
 
             const totalEl = document.getElementById('group-total-' + groupId);
             const activeEl = document.getElementById('group-active-' + groupId);
@@ -706,6 +779,11 @@
                 tabElement.className = 'flow-tab-btn px-3 py-1 rounded-full text-xs font-semibold border bg-indigo-600 text-white border-indigo-600 transition shadow-xs';
             }
 
+            const subTypeRow = document.getElementById('subTypeFilterRow');
+            if (subTypeRow) {
+                subTypeRow.style.display = (flowCode === 'collaboration' || flowCode === 'all') ? '' : 'none';
+            }
+
             const cards = document.querySelectorAll('.option-group-card');
             cards.forEach(card => {
                 if (flowCode === 'all') {
@@ -718,6 +796,48 @@
                         card.style.display = 'none';
                     }
                 }
+            });
+        }
+
+        function filterBySubType(typeId, tabElement) {
+            currentSelectedTypeId = typeId;
+            document.querySelectorAll('.subtype-tab-btn').forEach(btn => {
+                btn.className = 'subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition';
+            });
+            if (tabElement) {
+                tabElement.className = 'subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-semibold border bg-indigo-600 text-white border-indigo-600 transition shadow-2xs';
+            }
+
+            const cards = document.querySelectorAll('.option-group-card');
+            cards.forEach(card => {
+                const optionRows = card.querySelectorAll('.option-item');
+                let visibleCount = 0;
+                let activeVisibleCount = 0;
+
+                optionRows.forEach(row => {
+                    const rowTypeId = row.getAttribute('data-type-id') || '';
+                    const isActive = row.getAttribute('data-is-active') === '1';
+
+                    if (typeId === 'all') {
+                        row.style.display = '';
+                        visibleCount++;
+                        if (isActive) activeVisibleCount++;
+                    } else {
+                        if (rowTypeId === typeId) {
+                            row.style.display = '';
+                            visibleCount++;
+                            if (isActive) activeVisibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    }
+                });
+
+                const groupId = card.id.replace('group-card-', '');
+                const totalEl = document.getElementById('group-total-' + groupId);
+                const activeEl = document.getElementById('group-active-' + groupId);
+                if (totalEl) totalEl.textContent = (typeId === 'all' ? 'Total Options: ' : 'Showing: ') + visibleCount;
+                if (activeEl) activeEl.textContent = 'Active: ' + activeVisibleCount;
             });
         }
     </script>
