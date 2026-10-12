@@ -172,6 +172,7 @@ class AdminNominationController extends LeadershipBaseController
 
         return $this->success($history, 'History fetched successfully.');
     }
+
     /**
      * F10. Manually send approval email & WhatsApp notification to candidate.
      */

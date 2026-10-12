@@ -15,6 +15,11 @@
             <a href="{{ route('admin.whatsapp.templates') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i>Back to Templates
             </a>
+            @if(!empty($template->meta_template_id))
+                <a href="{{ route('admin.whatsapp.templates.edit', $template->id) }}" class="btn btn-warning btn-sm">
+                    <i class="bi bi-pencil-square me-1"></i>Edit Template
+                </a>
+            @endif
             @if($template->isSendable())
                 <a href="{{ route('admin.whatsapp.test_message', ['template' => $template->name, 'language' => $template->language]) }}" class="btn btn-primary btn-sm">
                     <i class="bi bi-send me-1"></i>Send Test Message

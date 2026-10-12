@@ -187,7 +187,7 @@ class OrderService
             // Check Minimum Coins Threshold set by Admin System Settings
             $minRequiredCoins = (int) StoreConfig::getValue('min_member_coins_to_buy', 0);
             if ($minRequiredCoins > 0 && (int) ($lockedUser->coins_balance ?? 0) < $minRequiredCoins) {
-                throw new Exception("You must have a minimum balance of " . number_format($minRequiredCoins) . " coins to purchase products from Peers Store. Your current balance is " . number_format($lockedUser->coins_balance ?? 0) . " coins.", 422);
+                throw new Exception('You must have a minimum balance of '.number_format($minRequiredCoins).' coins to purchase products from Peers Store. Your current balance is '.number_format($lockedUser->coins_balance ?? 0).' coins.', 422);
             }
 
             // Verify User Wallet Balance

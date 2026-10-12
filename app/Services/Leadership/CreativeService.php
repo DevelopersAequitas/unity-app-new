@@ -6,6 +6,7 @@ namespace App\Services\Leadership;
 
 use App\Models\Leadership\LeadershipFinalDecision;
 use App\Models\Leadership\LeadershipWinnerCreative;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -69,7 +70,7 @@ class CreativeService
             'storage_disk' => 'local',
             'generation_status' => 'processing',
             'publication_status' => 'draft',
-            'generated_by' => ($userId && \App\Models\User::where('id', $userId)->exists()) ? (string) $userId : null,
+            'generated_by' => ($userId && User::where('id', $userId)->exists()) ? (string) $userId : null,
             'generated_at' => Carbon::now(),
         ]);
 

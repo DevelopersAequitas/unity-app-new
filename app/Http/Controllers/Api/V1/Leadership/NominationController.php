@@ -182,6 +182,7 @@ class NominationController extends LeadershipBaseController
             return $this->error($e->getMessage(), 400);
         }
     }
+
     /**
      * C9. Single-step nomination submission (POST /public/campaigns/{id}/nominate or POST /public/nominations).
      */

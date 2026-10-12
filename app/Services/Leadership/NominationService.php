@@ -374,6 +374,7 @@ class NominationService
             throw new RuntimeException('You are not authorized to view or edit this nomination.');
         }
     }
+
     /**
      * Direct single-step nomination submission (C9).
      *

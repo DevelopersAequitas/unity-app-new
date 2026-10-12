@@ -7,11 +7,12 @@ namespace App\Services\Leadership;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationDocument;
 use App\Models\Leadership\LeadershipNominationHistory;
+use App\Models\User;
+use App\Services\Notifications\WhatsappNotificationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -353,7 +354,7 @@ class AdminNominationService
 
     protected function resolveValidUserId(?string $userId): ?string
     {
-        return ($userId && \App\Models\User::where('id', $userId)->exists()) ? (string) $userId : null;
+        return ($userId && User::where('id', $userId)->exists()) ? (string) $userId : null;
     }
 
     /**
@@ -369,6 +370,7 @@ class AdminNominationService
             ->orderBy('created_at', 'desc')
             ->get();
     }
+
     /**
      * Send approval notifications (WhatsApp & Email) with official voting link.
      */
@@ -403,7 +405,7 @@ class AdminNominationService
                     userId: $nomination->user_id
                 );
             } catch (\Throwable $e) {
-                Log::warning('WhatsApp nomination approval failed: ' . $e->getMessage());
+                Log::warning('WhatsApp nomination approval failed: '.$e->getMessage());
             }
         }
 
@@ -448,7 +450,7 @@ class AdminNominationService
                         ->html($html);
                 });
             } catch (\Throwable $e) {
-                Log::warning('Email nomination approval failed: ' . $e->getMessage());
+                Log::warning('Email nomination approval failed: '.$e->getMessage());
             }
         }
     }
@@ -516,7 +518,7 @@ class AdminNominationService
                     userId: $nomination->user_id
                 );
             } catch (\Throwable $e) {
-                Log::warning('WhatsApp nomination rejection failed: ' . $e->getMessage());
+                Log::warning('WhatsApp nomination rejection failed: '.$e->getMessage());
             }
         }
 
@@ -548,7 +550,7 @@ class AdminNominationService
                         ->html($html);
                 });
             } catch (\Throwable $e) {
-                Log::warning('Email nomination rejection failed: ' . $e->getMessage());
+                Log::warning('Email nomination rejection failed: '.$e->getMessage());
             }
         }
     }

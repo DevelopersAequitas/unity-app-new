@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Schema;
 
 class MembershipsExpireUsers extends Command
 {
@@ -15,9 +16,19 @@ class MembershipsExpireUsers extends Command
     {
         $freePeerStatus = User::freePeerMembershipStatus();
 
+        $expiryColumn = Schema::hasColumn('users', 'membership_ends_at')
+            ? 'membership_ends_at'
+            : (Schema::hasColumn('users', 'membership_expiry') ? 'membership_expiry' : null);
+
+        if (! $expiryColumn) {
+            $this->info('No membership expiry column found on users table.');
+
+            return self::SUCCESS;
+        }
+
         $updated = User::query()
-            ->whereNotNull('membership_ends_at')
-            ->where('membership_ends_at', '<', now())
+            ->whereNotNull($expiryColumn)
+            ->where($expiryColumn, '<', now())
             ->where('membership_status', '!=', $freePeerStatus)
             ->update([
                 'membership_status' => $freePeerStatus,

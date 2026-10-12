@@ -39,6 +39,7 @@ use App\Services\Notifications\DailyHabitLoopService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
 use App\Services\Users\PublicProfileSlugService;
+use App\Services\WhatsApp\MemberJourney30DayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -198,6 +199,15 @@ class AuthController extends BaseApiController
             app(DailyHabitLoopService::class)->startJourney($persistedUser, $registrationTime);
         } catch (\Throwable $e) {
             Log::error('Failed starting Daily Habit Loop on registration.', [
+                'user_id' => (string) $persistedUser->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            app(MemberJourney30DayService::class)->initializeJourney($persistedUser, $registrationTime);
+        } catch (\Throwable $e) {
+            Log::error('Failed initializing 30-Day WhatsApp Journey on registration.', [
                 'user_id' => (string) $persistedUser->id,
                 'error' => $e->getMessage(),
             ]);

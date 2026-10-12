@@ -31,7 +31,7 @@
     <div class="row g-4">
         <!-- Template Builder Form -->
         <div class="col-lg-7">
-            <form action="{{ route('admin.whatsapp.templates.store') }}" method="POST" id="templateForm" enctype="multipart/form-data">
+            <form action="{{ route('admin.whatsapp.templates.store') }}" method="POST" id="templateForm" data-filter-form="false" enctype="multipart/form-data">
                 @csrf
 
                 <!-- Step 1: Basic Information -->
@@ -204,6 +204,30 @@
                     </div>
                 </div>
 
+                <!-- Step 5: Buttons (Optional) -->
+                @php
+                    $initialButtons = old('buttons', []);
+                @endphp
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0 fw-bold text-primary">
+                                <span class="badge bg-primary me-2">5</span>Buttons (Call-to-Action / Quick Reply)
+                            </h5>
+                            <small class="text-muted">Optional: Add up to 3 interactive buttons (Website URL, Phone Call, or Quick Reply)</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" id="btnAddButton">
+                            <i class="bi bi-plus-circle me-1"></i>Add Button
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="noButtonsNotice" class="alert alert-light border text-muted small py-3 mb-0 text-center">
+                            <i class="bi bi-info-circle me-1 text-primary"></i>No buttons configured. Click <strong>+ Add Button</strong> above to add interactive buttons (up to 3 buttons).
+                        </div>
+                        <div id="buttonsList" class="d-flex flex-column gap-3"></div>
+                    </div>
+                </div>
+
                 <!-- Submit Button -->
                 <div class="d-grid mb-5">
                     <button type="submit" class="btn btn-success btn-lg">
@@ -276,6 +300,8 @@
                                         <i class="bi bi-check2 text-muted" style="font-size: 13px;"></i>
                                     </div>
                                 </div>
+                                <!-- Buttons Preview Container -->
+                                <div id="previewButtonsContainer" class="wa-buttons-preview d-none"></div>
                             </div>
                         </div>
                     </div>
@@ -420,6 +446,25 @@
     color: #667781;
     margin-top: 2px;
 }
+.wa-buttons-preview {
+    border-top: 1px solid #f0f2f5;
+    background: #ffffff;
+}
+.wa-button-item {
+    border-top: 1px solid #e9edef;
+    padding: 8px 12px;
+    text-align: center;
+    color: #00a884;
+    font-weight: 500;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.wa-button-item:first-child {
+    border-top: 1px solid #e9edef;
+}
 </style>
 
 @push('scripts')
@@ -448,6 +493,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const previewHeader = document.getElementById('previewHeader');
     const previewBody = document.getElementById('previewBody');
     const previewFooter = document.getElementById('previewFooter');
+    const previewButtonsContainer = document.getElementById('previewButtonsContainer');
+
+    const btnAddButton = document.getElementById('btnAddButton');
+    const buttonsList = document.getElementById('buttonsList');
+    const noButtonsNotice = document.getElementById('noButtonsNotice');
 
     let uploadedImageDataUrl = null;
 
@@ -639,6 +689,197 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             previewFooter.classList.add('d-none');
         }
+
+        // Multi-Buttons Preview
+        if (previewButtonsContainer) {
+            previewButtonsContainer.innerHTML = '';
+            const rows = buttonsList ? buttonsList.querySelectorAll('.button-row') : [];
+            let hasAnyButton = false;
+
+            rows.forEach(row => {
+                const type = row.querySelector('.btn-type-select').value;
+                const text = row.querySelector('.btn-text-input').value.trim();
+                if (text !== '') {
+                    hasAnyButton = true;
+                    const item = document.createElement('div');
+                    item.className = 'wa-button-item';
+                    let iconHtml = '<i class="bi bi-box-arrow-up-right"></i>';
+                    if (type === 'PHONE_NUMBER') {
+                        iconHtml = '<i class="bi bi-telephone-fill"></i>';
+                    } else if (type === 'QUICK_REPLY') {
+                        iconHtml = '<i class="bi bi-reply-fill"></i>';
+                    }
+                    item.innerHTML = iconHtml + '<span>' + escapeHtml(text) + '</span>';
+                    previewButtonsContainer.appendChild(item);
+                }
+            });
+
+            if (hasAnyButton) {
+                previewButtonsContainer.classList.remove('d-none');
+            } else {
+                previewButtonsContainer.classList.add('d-none');
+            }
+        }
+    }
+
+    // Dynamic Multi-Button Management
+    function renumberButtons() {
+        const rows = buttonsList ? buttonsList.querySelectorAll('.button-row') : [];
+        rows.forEach((row, index) => {
+            row.setAttribute('data-index', index);
+            const label = row.querySelector('.button-row-num');
+            if (label) {
+                label.innerHTML = '<i class="bi bi-cursor-fill text-primary me-1"></i>Button #' + (index + 1);
+            }
+            const select = row.querySelector('.btn-type-select');
+            if (select) select.name = 'buttons[' + index + '][type]';
+
+            const textInput = row.querySelector('.btn-text-input');
+            if (textInput) textInput.name = 'buttons[' + index + '][text]';
+
+            const urlInput = row.querySelector('.btn-url-input');
+            if (urlInput) urlInput.name = 'buttons[' + index + '][url]';
+
+            const phoneInput = row.querySelector('.btn-phone-input');
+            if (phoneInput) phoneInput.name = 'buttons[' + index + '][phone_number]';
+        });
+
+        if (noButtonsNotice) {
+            if (rows.length === 0) {
+                noButtonsNotice.classList.remove('d-none');
+            } else {
+                noButtonsNotice.classList.add('d-none');
+            }
+        }
+
+        if (btnAddButton) {
+            if (rows.length >= 3) {
+                btnAddButton.disabled = true;
+                btnAddButton.classList.add('disabled');
+                btnAddButton.innerHTML = '<i class="bi bi-slash-circle me-1"></i>Max 3 Buttons';
+            } else {
+                btnAddButton.disabled = false;
+                btnAddButton.classList.remove('disabled');
+                btnAddButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Button';
+            }
+        }
+
+        updatePreview();
+    }
+
+    function addButtonRow(data = {}) {
+        if (!buttonsList) return;
+        const currentCount = buttonsList.querySelectorAll('.button-row').length;
+        if (currentCount >= 3) {
+            return;
+        }
+
+        const idx = currentCount;
+        const type = (data.type || 'URL').toUpperCase();
+        const text = data.text || '';
+        const url = data.url || '';
+        const phone = data.phone_number || '';
+
+        const card = document.createElement('div');
+        card.className = 'border rounded p-3 bg-white position-relative button-row shadow-sm';
+        card.setAttribute('data-index', idx);
+
+        card.innerHTML = 
+            '<div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">' +
+                '<span class="fw-bold small text-dark button-row-num">' +
+                    '<i class="bi bi-cursor-fill text-primary me-1"></i>Button #' + (idx + 1) +
+                '</span>' +
+                '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 btn-remove-button" title="Remove this button">' +
+                    '<i class="bi bi-trash3-fill me-1"></i>Delete' +
+                '</button>' +
+            '</div>' +
+            '<div class="row g-3">' +
+                '<div class="col-md-5">' +
+                    '<label class="form-label small fw-semibold mb-1 text-secondary">' +
+                        '<i class="bi bi-lightning-charge-fill text-warning me-1"></i>Action Type' +
+                    '</label>' +
+                    '<select name="buttons[' + idx + '][type]" class="form-select btn-type-select js-no-select2 js-no-searchable-select" style="height: 38px; font-size: 13px; font-weight: 500;">' +
+                        '<option value="URL"' + (type === 'URL' ? ' selected' : '') + '>🌐 Website URL</option>' +
+                        '<option value="PHONE_NUMBER"' + (type === 'PHONE_NUMBER' ? ' selected' : '') + '>📞 Phone Call</option>' +
+                        '<option value="QUICK_REPLY"' + (type === 'QUICK_REPLY' ? ' selected' : '') + '>💬 Quick Reply</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div class="col-md-7">' +
+                    '<label class="form-label small fw-semibold mb-1 text-secondary">' +
+                        '<i class="bi bi-fonts text-primary me-1"></i>Button Text <span class="text-danger">*</span>' +
+                        '<span class="text-muted fw-normal small"> (Max 25)</span>' +
+                    '</label>' +
+                    '<input type="text" name="buttons[' + idx + '][text]" class="form-control btn-text-input" placeholder="e.g. Visit Website / RSVP" maxlength="25" value="' + escapeHtml(text) + '" style="height: 38px; font-size: 13px;" required>' +
+                '</div>' +
+                '<div class="col-12 target-url-group' + (type === 'URL' ? '' : ' d-none') + '">' +
+                    '<label class="form-label small fw-semibold mb-1 text-secondary">' +
+                        '<i class="bi bi-link-45deg text-primary me-1"></i>Website URL <span class="text-danger">*</span>' +
+                    '</label>' +
+                    '<input type="url" name="buttons[' + idx + '][url]" class="form-control font-monospace btn-url-input" placeholder="https://example.com/page" value="' + escapeHtml(url) + '" style="height: 38px; font-size: 13px;">' +
+                '</div>' +
+                '<div class="col-12 target-phone-group' + (type === 'PHONE_NUMBER' ? '' : ' d-none') + '">' +
+                    '<label class="form-label small fw-semibold mb-1 text-secondary">' +
+                        '<i class="bi bi-telephone-fill text-primary me-1"></i>Phone Number with Country Code <span class="text-danger">*</span>' +
+                    '</label>' +
+                    '<input type="text" name="buttons[' + idx + '][phone_number]" class="form-control font-monospace btn-phone-input" placeholder="+919876543210" value="' + escapeHtml(phone) + '" style="height: 38px; font-size: 13px;">' +
+                '</div>' +
+                '<div class="col-12 target-qr-group' + (type === 'QUICK_REPLY' ? '' : ' d-none') + '">' +
+                    '<div class="alert alert-info py-2 px-3 mb-0 small border-0 bg-info-subtle text-info-emphasis d-flex align-items-center">' +
+                        '<i class="bi bi-info-circle-fill me-2 fs-6"></i>' +
+                        '<span><strong>Quick Reply:</strong> When tapped on WhatsApp, this button sends the button text back as an instant response to your webhook.</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+
+        buttonsList.appendChild(card);
+
+        // Bind events
+        const typeSelect = card.querySelector('.btn-type-select');
+        const textInp = card.querySelector('.btn-text-input');
+        const urlInp = card.querySelector('.btn-url-input');
+        const phoneInp = card.querySelector('.btn-phone-input');
+        const removeBtn = card.querySelector('.btn-remove-button');
+        const urlGrp = card.querySelector('.target-url-group');
+        const phoneGrp = card.querySelector('.target-phone-group');
+        const qrGrp = card.querySelector('.target-qr-group');
+
+        typeSelect.addEventListener('change', function() {
+            const val = this.value;
+            urlGrp.classList.toggle('d-none', val !== 'URL');
+            phoneGrp.classList.toggle('d-none', val !== 'PHONE_NUMBER');
+            qrGrp.classList.toggle('d-none', val !== 'QUICK_REPLY');
+            updatePreview();
+        });
+
+        textInp.addEventListener('input', updatePreview);
+        urlInp.addEventListener('input', updatePreview);
+        phoneInp.addEventListener('input', updatePreview);
+
+        removeBtn.addEventListener('click', function() {
+            card.remove();
+            renumberButtons();
+        });
+
+        renumberButtons();
+    }
+
+    if (btnAddButton) {
+        btnAddButton.addEventListener('click', function() {
+            addButtonRow({ type: 'URL', text: '', url: '' });
+            const lastRow = buttonsList.querySelector('.button-row:last-child');
+            if (lastRow) {
+                const textInput = lastRow.querySelector('.btn-text-input');
+                if (textInput) textInput.focus();
+            }
+        });
+    }
+
+    // Preload buttons from server
+    const initialButtons = @json($initialButtons ?? []);
+    if (Array.isArray(initialButtons) && initialButtons.length > 0) {
+        initialButtons.forEach(btn => addButtonRow(btn));
+    } else {
+        renumberButtons();
     }
 
     // Trigger initial calculation
