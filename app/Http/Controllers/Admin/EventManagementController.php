@@ -213,15 +213,24 @@ class EventManagementController extends Controller
             return view('admin.events.joining-requests', compact('requests', 'summary', 'events', 'status'));
         }
 
+        $withRelations = [
+            'user.circleMemberships.circle',
+            'user.introducedBy',
+            'user.referredByUser',
+            'invitedByUser.circleMemberships.circle',
+            'event.circle',
+            'occurrence',
+            'registration',
+            'approvedBy',
+            'rejectedBy',
+        ];
+
+        if (Schema::hasTable('referraldata')) {
+            $withRelations[] = 'user.referralData.referrer';
+        }
+
         $query = EventRegistrationRequest::query()
-            ->with([
-                'user.circleMemberships.circle',
-                'event.circle',
-                'occurrence',
-                'registration',
-                'approvedBy',
-                'rejectedBy',
-            ])
+            ->with($withRelations)
             ->when($status === 'checked_in', function ($q): void {
                 $q->whereHas('registration', function ($regQuery): void {
                     $regQuery->whereNotNull('checked_in_at');

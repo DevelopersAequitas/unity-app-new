@@ -138,6 +138,7 @@
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width: 160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Requested By</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 150px;">Referred By</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
@@ -169,6 +170,30 @@
                         $registration = $joinRequest->registration;
                         $modalId = 'joiningRequestModal'.$joinRequest->id;
 
+                        // 1. Check if referral/inviter was provided directly on this event join request
+                        $requestMeta = is_array($joinRequest->metadata) ? $joinRequest->metadata : [];
+                        $requestRefCode = $requestMeta['referral_code'] ?? $requestMeta['inviter_code'] ?? $requestMeta['invited_by_referral_code'] ?? null;
+                        $requestInviter = $joinRequest->invitedByUser;
+                        if (! $requestInviter && ! empty($requestMeta['invited_by_user_id'])) {
+                            $requestInviter = \App\Models\User::find($requestMeta['invited_by_user_id']);
+                        }
+                        if (! $requestInviter && ! empty($requestRefCode)) {
+                            $resolvedId = app(\App\Services\Events\EventFlowService::class)->resolveInviterUserId($requestRefCode);
+                            if ($resolvedId) {
+                                $requestInviter = \App\Models\User::find($resolvedId);
+                            }
+                        }
+
+                        // 2. Fallback to member's user profile referral if not provided on this request
+                        $referralData = $user?->relationLoaded('referralData') ? $user?->referralData : null;
+                        if (! $referralData && $user && \Illuminate\Support\Facades\Schema::hasTable('referraldata')) {
+                            $referralData = $user->referralData;
+                        }
+                        $referrer = $requestInviter ?? $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
+                        $referrerName = $referrer ? ($referrer->display_name ?: trim(($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? ''))) : null;
+                        $referralCode = $requestRefCode ?: $referralData?->referral_code;
+                        $referrerEmail = $referrer?->email ?? $referralData?->referrer_email;
+
                         // Clean and deduplicate repeated text in location
                         $rawLoc = $event?->location_text ?? '';
                         if ($rawLoc) {
@@ -183,12 +208,39 @@
                                     <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($userName) }}">
                                         {{ $getInitials($userName) }}
                                     </div>
-                                    <a href="{{ route('admin.users.show', $user->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline text-xs">
-                                        {{ $userName }}
-                                    </a>
+                                    <div class="min-w-0">
+                                        <a href="{{ route('admin.users.show', $user->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline text-xs block truncate">
+                                            {{ $userName }}
+                                        </a>
+                                    </div>
                                 </div>
                             @else
                                 <span class="text-xs text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                            @if($referrer)
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($referrerName ?: 'P') }}">
+                                        {{ $getInitials($referrerName ?: 'P') }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <a href="{{ route('admin.users.show', $referrer->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline text-xs block truncate" title="{{ $referrerName }}">
+                                            {{ $referrerName ?: 'Peer' }}
+                                        </a>
+                                        @if($referralCode)
+                                            <span class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded mt-0.5">
+                                                <i class="bi bi-tag-fill text-[8px] text-emerald-600"></i> {{ $referralCode }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @elseif($referralCode)
+                                <span class="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                                    <i class="bi bi-tag-fill text-[9px]"></i> {{ $referralCode }}
+                                </span>
+                            @else
+                                <span class="text-slate-400 text-xs">—</span>
                             @endif
                         </td>
                         <td class="px-3 py-2.5 text-xs t2">{{ $userCompany }}</td>
@@ -276,7 +328,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="14" class="text-center text-slate-500 py-8">
+                        <td colspan="15" class="text-center text-slate-500 py-8">
                             <i class="bi bi-inbox text-3xl text-slate-300 block mb-2"></i>
                             <span>No event joining requests found matching your filters.</span>
                         </td>
@@ -302,6 +354,30 @@
             $occurrence = $joinRequest->occurrence;
             $registration = $joinRequest->registration;
             $modalId = 'joiningRequestModal'.$joinRequest->id;
+
+            // 1. Check if referral/inviter was provided directly on this event join request
+            $requestMeta = is_array($joinRequest->metadata) ? $joinRequest->metadata : [];
+            $requestRefCode = $requestMeta['referral_code'] ?? $requestMeta['inviter_code'] ?? $requestMeta['invited_by_referral_code'] ?? null;
+            $requestInviter = $joinRequest->invitedByUser;
+            if (! $requestInviter && ! empty($requestMeta['invited_by_user_id'])) {
+                $requestInviter = \App\Models\User::find($requestMeta['invited_by_user_id']);
+            }
+            if (! $requestInviter && ! empty($requestRefCode)) {
+                $resolvedId = app(\App\Services\Events\EventFlowService::class)->resolveInviterUserId($requestRefCode);
+                if ($resolvedId) {
+                    $requestInviter = \App\Models\User::find($resolvedId);
+                }
+            }
+
+            // 2. Fallback to member's user profile referral if not provided on this request
+            $referralData = $user?->relationLoaded('referralData') ? $user?->referralData : null;
+            if (! $referralData && $user && \Illuminate\Support\Facades\Schema::hasTable('referraldata')) {
+                $referralData = $user->referralData;
+            }
+            $referrer = $requestInviter ?? $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
+            $referrerName = $referrer ? ($referrer->display_name ?: trim(($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? ''))) : null;
+            $referralCode = $requestRefCode ?: $referralData?->referral_code;
+            $referrerEmail = $referrer?->email ?? $referralData?->referrer_email;
         @endphp
 
         <!-- View Details Modal -->
@@ -366,6 +442,29 @@
 
                                     <dt class="text-slate-500 font-medium">User Circle:</dt>
                                     <dd class="col-span-2 text-indigo-600 font-semibold">{{ $userCircleName ?? '—' }}</dd>
+
+                                    <dt class="text-slate-500 font-medium">Invited By:</dt>
+                                    <dd class="col-span-2">
+                                        @if($referrer)
+                                            <a href="{{ route('admin.users.show', $referrer->id) }}" class="text-indigo-600 font-semibold hover:underline">
+                                                {{ $referrerName ?: ($referrerEmail ?: 'Peer #'.$referrer->id) }}
+                                            </a>
+                                            @if($referralCode)
+                                                <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono ms-1">
+                                                    {{ $referralCode }}
+                                                </span>
+                                            @endif
+                                        @elseif($referralCode)
+                                            <span class="font-semibold text-slate-800">
+                                                <span class="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">{{ $referralCode }}</span>
+                                            </span>
+                                            @if($referrerEmail)
+                                                <span class="text-slate-500 text-[11px] ms-1">({{ $referrerEmail }})</span>
+                                            @endif
+                                        @else
+                                            <span class="text-slate-400">Direct Signup</span>
+                                        @endif
+                                    </dd>
                                 </dl>
                             </div>
 
@@ -405,6 +504,77 @@
                                     <dd class="col-span-2 text-slate-800">{{ $registration?->checked_in_at ? 'Checked In' : 'Not Checked In' }}</dd>
                                 </dl>
                             </div>
+
+                            <!-- Referral & Inviter Details -->
+                            @if($referrer || $referralCode || $referrerEmail)
+                                <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-indigo-50/70 via-purple-50/40 to-slate-50 p-3.5 rounded-xl border border-indigo-200/80 shadow-xs">
+                                    <div class="flex items-center justify-between mb-2.5">
+                                        <h6 class="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5 mb-0">
+                                            <i class="bi bi-gift-fill text-indigo-600"></i> Referral & Inviter Details
+                                        </h6>
+                                        @if($referralCode)
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-600 text-white font-mono shadow-xs">
+                                                <i class="bi bi-qr-code text-[10px]"></i> Code: {{ $referralCode }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                        <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                                            <div class="text-[11px] text-slate-500 font-medium">Invited By (Referrer)</div>
+                                            <div class="font-bold text-slate-900 mt-1">
+                                                @if($referrer)
+                                                    <a href="{{ route('admin.users.show', $referrer->id) }}" class="text-indigo-600 hover:underline inline-flex items-center gap-1">
+                                                        <i class="bi bi-person-check text-indigo-500"></i>
+                                                        {{ $referrerName ?: 'Peer' }}
+                                                    </a>
+                                                @elseif($referrerEmail)
+                                                    <span class="text-slate-800">{{ $referrerEmail }}</span>
+                                                @else
+                                                    <span class="text-slate-500">—</span>
+                                                @endif
+                                            </div>
+                                            @if($referrer?->company_name)
+                                                <div class="text-[11px] text-slate-600 mt-0.5 truncate" title="{{ $referrer->company_name }}">
+                                                    <i class="bi bi-building text-slate-400"></i> {{ $referrer->company_name }}
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                                            <div class="text-[11px] text-slate-500 font-medium">Referrer Contact</div>
+                                            <div class="text-slate-800 font-medium mt-1 truncate" title="{{ $referrerEmail ?: ($referrer?->email ?? '—') }}">
+                                                <i class="bi bi-envelope text-slate-400"></i> {{ $referrerEmail ?: ($referrer?->email ?? '—') }}
+                                            </div>
+                                            @if($referrer?->phone)
+                                                <div class="text-[11px] text-slate-600 mt-0.5">
+                                                    <i class="bi bi-telephone text-slate-400"></i> {{ $referrer->phone }}
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                                            <div class="text-[11px] text-slate-500 font-medium">Reward & Joined Date</div>
+                                            <div class="mt-1 flex items-center gap-2">
+                                                @if($referralData?->coins)
+                                                    <span class="text-amber-700 font-bold inline-flex items-center gap-1">
+                                                        <i class="bi bi-coin text-amber-500"></i> {{ number_format($referralData->coins) }} coins
+                                                    </span>
+                                                @else
+                                                    <span class="text-slate-700 font-medium">Joined with code</span>
+                                                @endif
+                                                @if($referralData?->reward_status)
+                                                    <span class="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold bg-emerald-100 text-emerald-800">{{ $referralData->reward_status }}</span>
+                                                @endif
+                                            </div>
+                                            @if($referralData?->used_at ?? $referralData?->created_at)
+                                                <div class="text-[11px] text-slate-500 mt-0.5">
+                                                    <i class="bi bi-clock text-slate-400"></i> {{ optional($referralData->used_at ?? $referralData->created_at)->format('d M Y, h:i A') }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     </div>
                     <div class="modal-footer bg-slate-100 border-t border-slate-200 px-4 py-2.5 flex justify-between items-center">

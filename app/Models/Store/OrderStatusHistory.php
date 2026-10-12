@@ -17,12 +17,13 @@ class OrderStatusHistory extends Model
 
     protected $fillable = [
         'order_id',
-        'status',
-        'notes',
         'from_status',
         'to_status',
-        'changed_by',
+        'note',
         'reason',
+        'changed_by',
+        'actor_type',
+        'actor_id',
         'metadata',
         'created_at',
     ];
@@ -31,6 +32,16 @@ class OrderStatusHistory extends Model
         'metadata' => 'array',
         'created_at' => 'datetime',
     ];
+
+    public function getStatusAttribute(): ?string
+    {
+        return $this->to_status;
+    }
+
+    public function getNotesAttribute(): ?string
+    {
+        return $this->reason ?? $this->note;
+    }
 
     public function order(): BelongsTo
     {

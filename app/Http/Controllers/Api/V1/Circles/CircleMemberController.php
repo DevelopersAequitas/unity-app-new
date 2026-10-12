@@ -58,26 +58,82 @@ class CircleMemberController extends Controller
             }
         }
 
-        if ($request->filled('role')) {
+        $legacyDedIdToggle = $request->boolean('show_ded_id')
+            || $request->boolean('include_ded_id')
+            || $request->boolean('ded_id')
+            || $request->boolean('with_ded_id')
+            || $request->boolean('ded_id_toggle')
+            || $request->boolean('ded_id_display')
+            || $request->boolean('include_ded_and_id')
+            || $request->boolean('show_ded_and_id')
+            || in_array(strtolower(trim((string) $request->input('ded_id_toggle', ''))), ['1', 'true', 'on', 'yes'], true)
+            || in_array(strtolower(trim((string) $request->input('show_ded_id', ''))), ['1', 'true', 'on', 'yes'], true)
+            || in_array(strtolower(trim((string) $request->input('include_ded_id', ''))), ['1', 'true', 'on', 'yes'], true)
+            || in_array(strtolower(trim((string) $request->input('ded_id_display', ''))), ['1', 'true', 'on', 'yes'], true)
+            || in_array(strtolower(trim((string) $request->input('ded_id', ''))), ['1', 'true', 'on', 'yes'], true);
+
+        $showDed = $request->has('show_ded')
+            ? ($request->boolean('show_ded') || in_array(strtolower(trim((string) $request->input('show_ded', ''))), ['1', 'true', 'on', 'yes'], true))
+            : $legacyDedIdToggle;
+
+        $showId = ($request->has('show_id') || $request->has('show_ids'))
+            ? ($request->boolean('show_id') || $request->boolean('show_ids') || in_array(strtolower(trim((string) ($request->input('show_id') ?? $request->input('show_ids') ?? ''))), ['1', 'true', 'on', 'yes'], true))
+            : $legacyDedIdToggle;
+
+        $onlyDedId = $request->boolean('only_ded_id')
+            || $request->boolean('ded_id_only')
+            || strtolower(trim((string) $request->input('ded_id', ''))) === 'only';
+
+        if ($onlyDedId) {
+            $dedIdRoles = ['ded', 'industry_director', 'id'];
+            $query->where(function ($q) use ($dedIdRoles): void {
+                $q->whereIn(DB::raw('LOWER(circle_members.role::text)'), $dedIdRoles)
+                    ->orWhereHas('roleModel', function ($rq) use ($dedIdRoles): void {
+                        $rq->whereIn(DB::raw('LOWER(key)'), $dedIdRoles)
+                            ->orWhereIn(DB::raw('LOWER(name)'), $dedIdRoles);
+                    });
+            });
+        } elseif ($request->filled('role')) {
             $roleStr = strtolower(trim((string) $request->input('role')));
             if ($roleStr !== 'all' && $roleStr !== 'any') {
-                $mappedRole = match ($roleStr) {
-                    'founder', 'cf', 'circle_founder' => 'circle_founder',
-                    'director', 'cd', 'circle_director' => 'circle_director',
-                    'id', 'industry_director' => 'industry_director',
-                    default => $roleStr,
-                };
+                if (in_array($roleStr, ['ded_id', 'ded_and_id', 'ded,id', 'ded,industry_director'], true)) {
+                    $dedIdRoles = ['ded', 'industry_director', 'id'];
+                    $query->where(function ($q) use ($dedIdRoles): void {
+                        $q->whereIn(DB::raw('LOWER(circle_members.role::text)'), $dedIdRoles)
+                            ->orWhereHas('roleModel', function ($rq) use ($dedIdRoles): void {
+                                $rq->whereIn(DB::raw('LOWER(key)'), $dedIdRoles)
+                                    ->orWhereIn(DB::raw('LOWER(name)'), $dedIdRoles);
+                            });
+                    });
+                } else {
+                    $mappedRole = match ($roleStr) {
+                        'founder', 'cf', 'circle_founder' => 'circle_founder',
+                        'director', 'cd', 'circle_director' => 'circle_director',
+                        'id', 'industry_director' => 'industry_director',
+                        default => $roleStr,
+                    };
 
-                $query->where(function ($q) use ($mappedRole): void {
-                    $q->whereRaw('LOWER(circle_members.role::text) = ?', [$mappedRole])
-                        ->orWhereHas('roleModel', function ($rq) use ($mappedRole): void {
-                            $rq->whereRaw('LOWER(key) = ?', [$mappedRole])
-                                ->orWhereRaw('LOWER(name) = ?', [$mappedRole]);
-                        });
-                });
+                    $query->where(function ($q) use ($mappedRole): void {
+                        $q->whereRaw('LOWER(circle_members.role::text) = ?', [$mappedRole])
+                            ->orWhereHas('roleModel', function ($rq) use ($mappedRole): void {
+                                $rq->whereRaw('LOWER(key) = ?', [$mappedRole])
+                                    ->orWhereRaw('LOWER(name) = ?', [$mappedRole]);
+                            });
+                    });
+                }
             }
+        } elseif ($showDed || $showId) {
+            // Partial or full inclusion of DED / ID
+            $excludedRoles = CircleMember::REGIONAL_ROLES;
+            if ($showDed) {
+                $excludedRoles = array_values(array_diff($excludedRoles, ['ded']));
+            }
+            if ($showId) {
+                $excludedRoles = array_values(array_diff($excludedRoles, ['industry_director', 'id']));
+            }
+            $query->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), $excludedRoles);
         } else {
-            // Default: Filter out regional leaders from circle members list
+            // Toggle OFF (Default): Filter out all regional leaders including DED and ID from circle members list
             $query->whereNotIn(DB::raw('LOWER(circle_members.role::text)'), CircleMember::REGIONAL_ROLES);
         }
 
@@ -127,11 +183,33 @@ class CircleMemberController extends Controller
             }
         }
 
-        return response()->json([
+        $responsePayload = [
             'success' => true,
             'message' => null,
             'data' => CircleMemberResource::collection($members),
-        ]);
+            'show_ded' => $showDed,
+            'show_id' => $showId,
+            'show_ded_id' => $showDed && $showId,
+            'ded_id_toggle' => $showDed || $showId || $onlyDedId,
+        ];
+
+        if ($showDed || $onlyDedId) {
+            $dedMember = $members->first(fn ($m) => in_array(strtolower((string) ($m->role ?? '')), ['ded'], true)
+                || strtolower((string) ($m->roleModel?->key ?? '')) === 'ded'
+                || strtolower((string) ($m->roleModel?->name ?? '')) === 'ded');
+            $responsePayload['ded'] = $dedMember ? new CircleMemberResource($dedMember) : null;
+        }
+
+        if ($showId || $onlyDedId) {
+            $idMember = $members->first(fn ($m) => in_array(strtolower((string) ($m->role ?? '')), ['industry_director', 'id'], true)
+                || in_array(strtolower((string) ($m->roleModel?->key ?? '')), ['industry_director', 'id'], true)
+                || in_array(strtolower((string) ($m->roleModel?->name ?? '')), ['industry director', 'industry_director', 'id'], true));
+
+            $responsePayload['industry_director'] = $idMember ? new CircleMemberResource($idMember) : null;
+            $responsePayload['id'] = $idMember ? new CircleMemberResource($idMember) : null;
+        }
+
+        return response()->json($responsePayload);
     }
 
     private function ensureCircleMembersExist(Circle $circle): void
@@ -140,6 +218,8 @@ class CircleMemberController extends Controller
             'chair' => $circle->chair_user_id ?? null,
             'vice_chair' => $circle->vice_chair_user_id ?? null,
             'secretary' => $circle->secretary_user_id ?? null,
+            'ded' => $circle->ded_user_id ?? data_get($circle->calendar, 'leadership.ded_user_id') ?? data_get($circle->calendar, 'settings.ded_user_id'),
+            'industry_director' => $circle->industry_director_user_id ?? data_get($circle->calendar, 'leadership.industry_director_user_id') ?? data_get($circle->calendar, 'settings.industry_director_user_id'),
         ];
 
         foreach ($circleLeadershipRoles as $role => $userId) {
@@ -160,6 +240,12 @@ class CircleMemberController extends Controller
                 } elseif ($existing->trashed()) {
                     $existing->restore();
                     $existing->status = 'approved';
+                    if (empty($existing->role) || $existing->role === 'member') {
+                        $existing->role = $role;
+                    }
+                    $existing->save();
+                } elseif (in_array($role, ['ded', 'industry_director'], true) && (empty($existing->role) || $existing->role === 'member')) {
+                    $existing->role = $role;
                     $existing->save();
                 }
             }

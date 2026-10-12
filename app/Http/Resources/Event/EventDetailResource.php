@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Event;
 
 use App\Models\User;
+use App\Services\Events\EventFlowService;
 use App\Services\Events\EventService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -100,6 +101,9 @@ class EventDetailResource extends JsonResource
         $checkedInCount = (int) ($activeOccurrence?->checked_in_count ?? $this->checked_in_count ?? 0);
         $registrationLimit = $activeOccurrence?->registration_limit ?? $this->registration_limit;
 
+        $flowService = app(EventFlowService::class);
+        $flowData = $flowService->getUserContextAndAction($this->resource, $unityUser);
+
         $eventData = [
             'id' => $this->id,
             'occurrence_id' => $activeOccurrence?->id,
@@ -110,6 +114,7 @@ class EventDetailResource extends JsonResource
             'state_name' => $this->state_name,
             'mode' => $this->mode,
             'circle_id' => $this->circle_id,
+            'circle_name' => $this->circle?->name,
             'circle_ids' => collect($circles)->pluck('id')->values()->all(),
             'circles' => $circles,
             'circle' => $this->circle ? ['id' => $this->circle->id, 'name' => $this->circle->name, 'slug' => $this->circle->slug ?? null, 'state_name' => $this->circle->state_name ?? $this->circle->state ?? $this->circle->cityRef?->state_name ?? $this->circle->cityRef?->state ?? null] : null,
@@ -117,11 +122,16 @@ class EventDetailResource extends JsonResource
             'start_date' => optional($startLocal)->toDateString(),
             'start_time' => optional($startLocal)->format('H:i:s'),
             'end_at' => optional($endAtParsed)->toISOString(),
+            'end_time' => optional($endLocal)->format('H:i:s'),
             'formatted_start_at' => optional($startLocal)->format('d M Y h:i A'),
             'status' => $status,
             'group_status' => $groupStatus,
             'display_date' => optional($startLocal)->format('M d, Y'),
             'display_time' => trim(optional($startLocal)->format('h:i A').' - '.optional($endLocal)->format('h:i A'), ' -'),
+            'venue' => $flowData['venue'],
+            'pricing' => $flowData['pricing'],
+            'user_context' => $flowData['user_context'],
+            'action_button' => $flowData['action_button'],
             'location_text' => $this->location_text,
             'location' => [
                 'text' => $this->location_text,

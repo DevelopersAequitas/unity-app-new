@@ -82,20 +82,19 @@
                                 </td>
                                 <td>
                                     <div class="fw-bold text-dark">{{ $ref->user->name ?? 'Peer #' . $ref->user_id }}</div>
-                                    <small class="text-muted">Order: <code>#{{ $ref->order->order_number ?? $ref->order_id }}</code></small>
+                                    <small class="text-muted">Order: <code>#{{ $ref->order->order_no ?? $ref->order->order_number ?? $ref->order_id }}</code></small>
                                 </td>
                                 <td>
-                                    <span class="fs-6 fw-bold text-success">+{{ number_format($ref->coins_refunded ?? $ref->amount ?? 0) }}</span>
+                                    <span class="fs-6 fw-bold text-success">+{{ number_format($ref->refund_coins ?? $ref->coins_refunded ?? $ref->amount ?? 0) }}</span>
                                     <small class="text-muted">Coins</small>
                                 </td>
                                 <td>
-                                    <div class="small">
-                                        <span class="text-success fw-semibold">{{ number_format($ref->earned_coins_refunded ?? 0) }} Earned</span> &bull;
-                                        <span class="text-info fw-semibold">{{ number_format($ref->bonus_coins_refunded ?? 0) }} Bonus</span>
+                                    <div class="small text-muted">
+                                        <i class="bi bi-info-circle me-1"></i> {{ $ref->reason ?: 'Order Cancellation Refund' }}
                                     </div>
                                 </td>
                                 <td class="pe-4 text-end">
-                                    <span class="text-muted small">{{ $ref->processedBy->name ?? 'Admin #' . $ref->processed_by ?: 'System' }}</span>
+                                    <span class="text-muted small">{{ $ref->processor->name ?? ($ref->processed_by ? 'Admin #' . $ref->processed_by : 'System') }}</span>
                                 </td>
                             </tr>
                         @empty

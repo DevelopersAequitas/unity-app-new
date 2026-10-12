@@ -80,6 +80,19 @@ class StoreBanner extends Model
         return $query;
     }
 
+    public function getImageUrlAttribute($value): string
+    {
+        if (empty($value)) {
+            return 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&auto=format&fit=crop&q=60';
+        }
+
+        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            return $value;
+        }
+
+        return asset(ltrim($value, '/'));
+    }
+
     public function getIsActiveAttribute($value)
     {
         if ($value !== null) {

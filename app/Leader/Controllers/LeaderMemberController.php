@@ -190,6 +190,32 @@ class LeaderMemberController extends Controller
     }
 
     /**
+     * DELETE /api/v1/leader/members/{member_id}/creatives/{creative_id}
+     *
+     * Delete a creative associated with a member.
+     */
+    public function deleteCreative(string $memberId, string $creativeId, Request $request): JsonResponse
+    {
+        /** @var User $leader */
+        $leader = $request->user();
+
+        $result = $this->member360Service->deleteMemberCreative($memberId, $creativeId, $leader);
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'error_code' => $result['error_code'] ?? 'RESOURCE_NOT_FOUND',
+            ], $result['status_code']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'],
+        ]);
+    }
+
+    /**
      * GET /api/v1/leader/members/{member_id}/badges
      *
      * Return paginated earned badges/milestones for the member.
@@ -389,5 +415,43 @@ class LeaderMemberController extends Controller
     public function coins(string $memberId, Request $request): JsonResponse
     {
         return $this->fetchSpecificActivity($memberId, $request, 'coins');
+    }
+
+    /**
+     * GET /api/v1/leader/members/{member_id}/introduced-peers
+     *
+     * Return paginated peers introduced or referred by the member.
+     */
+    public function introducedPeers(string $memberId, Request $request): JsonResponse
+    {
+        /** @var User $leader */
+        $leader = $request->user();
+
+        $member = $this->member360Service->resolveMember($memberId, $leader);
+
+        if (! $member) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Member not found.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ], 404);
+        }
+
+        $filters = [
+            'page' => $request->query('page', 1),
+            'per_page' => $request->query('per_page', $request->query('limit', 20)),
+            'search' => $request->query('search'),
+            'from_date' => $request->query('from_date'),
+            'to_date' => $request->query('to_date'),
+        ];
+
+        $result = $this->member360Service->getMemberIntroducedPeers($memberId, $filters);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member introduced peers retrieved successfully.',
+            'data' => $result['data'],
+            'meta' => $result['meta'],
+        ]);
     }
 }

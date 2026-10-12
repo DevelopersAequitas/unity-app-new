@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\V1;
 
+use App\Models\User;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class PostResource extends JsonResource
@@ -24,41 +25,46 @@ class PostResource extends JsonResource
             ? (int) $this->saves_count
             : ($this->relationLoaded('saves') ? $this->saves->count() : 0);
 
+        $isSystemCreative = (method_exists($this->resource, 'isSystemCreativePost') && $this->resource->isSystemCreativePost());
+        $systemPhoto = (($this->relationLoaded('user') && $this->user?->isSystemUser() && $this->user?->profile_photo_url)
+            ? $this->user->profile_photo_url
+            : (($this->relationLoaded('author') && $this->author?->isSystemUser() && $this->author?->profile_photo_url)
+                ? $this->author->profile_photo_url
+                : User::getSystemUserPhotoUrl()));
+        $systemUserId = (string) (
+            ($this->relationLoaded('user') && $this->user?->isSystemUser()) ? $this->user->id : (
+                ($this->relationLoaded('author') && $this->author?->isSystemUser()) ? $this->author->id : (
+                    $this->user_id ?? $this->author?->id ?? User::getSystemUserId()
+                )
+            )
+        );
+
+        $systemAuthor = [
+            'id' => $systemUserId,
+            'name' => 'Peers Global Genie',
+            'display_name' => 'Peers Global Genie',
+            'first_name' => 'Peers Global',
+            'last_name' => 'Genie',
+            'company_name' => 'Peers Global',
+            'designation' => 'Peers Global Genie',
+            'profile_photo_url' => $systemPhoto,
+            'profile_photo_image' => $systemPhoto,
+            'is_online' => true,
+        ];
+
         return [
             'id' => $this->id,
             'caption' => $this->content_text,
             'content' => $this->content_text,
             'visibility' => $this->visibility,
             'created_at' => $this->created_at,
-            'author' => (method_exists($this->resource, 'isSystemCreativePost') && $this->resource->isSystemCreativePost())
-                ? [
-                    'id' => (string) ($this->user_id ?? ''),
-                    'name' => 'Peers Global Genie',
-                    'display_name' => 'Peers Global Genie',
-                    'first_name' => 'Peers Global',
-                    'last_name' => 'Genie',
-                    'company_name' => 'Peers Global',
-                    'designation' => 'Peers Global Genie',
-                    'profile_photo_url' => url('/images/peersglobal-icon.png'),
-                    'profile_photo_image' => url('/images/peersglobal-icon.png'),
-                    'is_online' => true,
-                ]
+            'author' => $isSystemCreative
+                ? $systemAuthor
                 : new UserMiniResource($this->whenLoaded('author')),
-            'user' => (method_exists($this->resource, 'isSystemCreativePost') && $this->resource->isSystemCreativePost())
-                ? [
-                    'id' => (string) ($this->user_id ?? ''),
-                    'name' => 'Peers Global Genie',
-                    'display_name' => 'Peers Global Genie',
-                    'first_name' => 'Peers Global',
-                    'last_name' => 'Genie',
-                    'company_name' => 'Peers Global',
-                    'designation' => 'Peers Global Genie',
-                    'profile_photo_url' => url('/images/peersglobal-icon.png'),
-                    'profile_photo_image' => url('/images/peersglobal-icon.png'),
-                    'is_online' => true,
-                ]
+            'user' => $isSystemCreative
+                ? $systemAuthor
                 : new UserMiniResource($this->whenLoaded('author') ?: $this->whenLoaded('user')),
-            'is_system_announcement' => method_exists($this->resource, 'isSystemCreativePost') ? $this->resource->isSystemCreativePost() : false,
+            'is_system_announcement' => $isSystemCreative,
             'media' => PostMediaResource::collection(collect($this->media ?? [])),
             'likes_count' => (int) ($this->likes_count ?? 0),
             'comments_count' => (int) ($this->comments_count ?? 0),

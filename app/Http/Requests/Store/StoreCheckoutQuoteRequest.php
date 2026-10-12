@@ -14,9 +14,9 @@ class StoreCheckoutQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'delivery_mode' => 'required|in:DELIVERY,PICKUP',
-            'address_id' => 'required_if:delivery_mode,DELIVERY|nullable|uuid',
-            'pickup_point_id' => 'required_if:delivery_mode,PICKUP|nullable|uuid',
+            'delivery_mode' => 'nullable|in:DELIVERY,PICKUP',
+            'address_id' => 'nullable|uuid',
+            'pickup_point_id' => 'nullable|uuid',
         ];
     }
 }

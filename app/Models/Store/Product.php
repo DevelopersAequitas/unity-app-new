@@ -78,13 +78,62 @@ class Product extends Model
 
     protected $appends = [
         'coin_price',
+        'price_coins',
     ];
 
     protected function coinPrice(): Attribute
     {
         return Attribute::make(
-            get: fn ($value, $attributes) => (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0)),
-            set: fn ($value) => ['price_coins' => (int) $value]
+            get: function ($value, $attributes) {
+                if ($this->relationLoaded('variants') && $this->variants->isNotEmpty()) {
+                    $activeVariants = $this->variants->filter(function ($v) {
+                        return (bool) ($v->is_active ?? ($v->status === 'ACTIVE'));
+                    });
+                    if ($activeVariants->isNotEmpty()) {
+                        $minPrice = $activeVariants->map(function ($v) {
+                            return (int) ($v->coin_price ?? ($v->price_coins ?? 0));
+                        })->filter(fn ($p) => $p > 0)->min();
+
+                        if ($minPrice !== null && $minPrice > 0) {
+                            return (int) $minPrice;
+                        }
+                    }
+                }
+
+                return (int) ($attributes['coin_price'] ?? ($attributes['price_coins'] ?? 0));
+            },
+            set: fn ($value) => [
+                'price_coins' => (int) $value,
+                'coin_price' => (int) $value,
+            ]
+        );
+    }
+
+    protected function priceCoins(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value, $attributes) {
+                if ($this->relationLoaded('variants') && $this->variants->isNotEmpty()) {
+                    $activeVariants = $this->variants->filter(function ($v) {
+                        return (bool) ($v->is_active ?? ($v->status === 'ACTIVE'));
+                    });
+                    if ($activeVariants->isNotEmpty()) {
+                        $minPrice = $activeVariants->map(function ($v) {
+                            return (int) ($v->coin_price ?? ($v->price_coins ?? 0));
+                        })->filter(fn ($p) => $p > 0)->min();
+
+                        if ($minPrice !== null && $minPrice > 0) {
+                            return (int) $minPrice;
+                        }
+                    }
+                }
+
+                return (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0));
+            },
+            set: fn ($value) => [
+                'price_coins' => (int) $value,
+                'coin_price' => (int) $value,
+            ]
         );
     }
 
@@ -136,5 +185,10 @@ class Product extends Model
     public function scopeFeatured($query)
     {
         return $query->where('is_featured', true);
+    }
+
+    public function wishlists(): HasMany
+    {
+        return $this->hasMany(\App\Models\Store\Wishlist::class, 'product_id');
     }
 }

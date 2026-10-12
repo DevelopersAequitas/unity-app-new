@@ -10,6 +10,7 @@ use App\Models\Store\StoreMembershipPlan;
 use App\Models\User;
 use App\Services\Store\EntitlementService;
 use App\Services\Store\StoreMembershipService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -129,22 +130,39 @@ class AdminStoreMembershipWebController extends Controller
     {
         $validated = $request->validate([
             'user_id' => 'required|uuid|exists:users,id',
-            'feature_key' => 'required|string|max:100',
-            'product_id' => 'nullable|uuid|exists:products,id',
+            'product_id' => 'required|uuid|exists:products,id',
+            'feature_key' => 'nullable|string|max:100',
             'expires_at' => 'nullable|date',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $admin = Auth::guard('admin')->user();
         $peer = User::findOrFail($validated['user_id']);
+        $product = Product::findOrFail($validated['product_id']);
 
-        $this->entitlementService->grantAccess(
-            $peer,
-            $validated['feature_key'],
-            $validated['product_id'] ?? null,
-            $validated['expires_at'] ? new \DateTime($validated['expires_at']) : null
-        );
+        $featureKey = ! empty($validated['feature_key'])
+            ? $validated['feature_key']
+            : ('PRODUCT_ACCESS_'.strtoupper($product->sku ?: substr($product->id, 0, 8)));
 
-        return back()->with('success', "Digital entitlement granted to {$peer->first_name} {$peer->last_name}.");
+        Entitlement::create([
+            'user_id' => $peer->id,
+            'product_id' => $product->id,
+            'feature_key' => $featureKey,
+            'source_type' => 'ADMIN_GRANT',
+            'source_id' => $admin ? (string) $admin->id : null,
+            'start_date' => now()->toDateString(),
+            'end_date' => ! empty($validated['expires_at']) ? Carbon::parse($validated['expires_at'])->toDateString() : null,
+            'status' => 'ACTIVE',
+            'is_active' => true,
+            'access_method' => 'DIGITAL_ACCESS',
+            'content_reference' => $product->digital_asset_url ?? $product->sku,
+            'metadata' => [
+                'notes' => $request->input('notes'),
+                'granted_by_admin' => $admin ? $admin->name : 'Admin',
+            ],
+        ]);
+
+        return back()->with('success', "Product access entitlement granted to {$peer->first_name} {$peer->last_name}.");
     }
 
     public function revokeEntitlement(Request $request, string $id)
@@ -152,7 +170,13 @@ class AdminStoreMembershipWebController extends Controller
         $entitlement = Entitlement::findOrFail($id);
         $admin = Auth::guard('admin')->user();
 
-        $this->entitlementService->revokeAccess($entitlement, $admin->id);
+        $entitlement->update([
+            'status' => 'REVOKED',
+            'is_active' => false,
+            'revoked_by' => $admin ? $admin->id : null,
+            'revoked_at' => now(),
+            'revoke_reason' => $request->input('reason', 'Revoked by admin'),
+        ]);
 
         return back()->with('success', 'Entitlement access revoked.');
     }

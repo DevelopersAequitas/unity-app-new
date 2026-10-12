@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreSupportController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreVariantController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreWalletAdjustmentController;
 use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreWalletController;
+use App\Http\Controllers\Api\V1\Admin\Store\AdminStoreWishlistController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -150,6 +151,14 @@ Route::prefix('admin/v1')->middleware(['auth:sanctum'])->group(function () {
         Route::post('/', [AdminStorePolicyController::class, 'store']);
         Route::put('/{id}', [AdminStorePolicyController::class, 'update'])->whereUuid('id');
         Route::post('/{id}/publish', [AdminStorePolicyController::class, 'publish'])->whereUuid('id');
+    });
+
+    // Wishlists (Rahul bhai's request)
+    Route::prefix('wishlists')->group(function () {
+        Route::get('/', [AdminStoreWishlistController::class, 'index']);
+        Route::get('stats', [AdminStoreWishlistController::class, 'stats']);
+        Route::get('user/{userId}', [AdminStoreWishlistController::class, 'userWishlist'])->whereUuid('userId');
+        Route::delete('{id}', [AdminStoreWishlistController::class, 'destroy'])->whereUuid('id');
     });
 
     // Reports

@@ -7,8 +7,11 @@ namespace App\Leader\Services;
 use App\Leader\Models\LeaderWish;
 use App\Models\AdminUser;
 use App\Models\Circle;
+use App\Models\CircleSubscription;
+use App\Models\Payment;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Models\UserMembership;
 use App\Services\Creative\LifeImpactCreativeGenerator;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
@@ -641,7 +644,276 @@ class LeaderPeersService
             'meetings' => $this->getPeerMeetings((string) $user->id),
             'activities' => $this->getPeerActivities((string) $user->id),
             'testimonials' => $this->getPeerTestimonials((string) $user->id),
+            'subscriptions' => $this->getPeerSubscriptions((string) $user->id, $user),
             'is_online' => (bool) ($user->is_online ?? false),
+        ];
+    }
+
+    /**
+     * Get app and circle subscription details for a peer.
+     *
+     * @return array<string, mixed>
+     */
+    public function getPeerSubscriptions(string $userId, ?User $user = null): array
+    {
+        $user ??= User::query()->find($userId);
+
+        $now = Carbon::now();
+
+        // 1. App Subscriptions (User Memberships / Base Subscriptions)
+        $appSubscriptions = [];
+        $activeAppSub = null;
+
+        if (Schema::hasTable('user_memberships')) {
+            $memberships = UserMembership::query()
+                ->with(['plan', 'payment'])
+                ->where('user_id', $userId)
+                ->orderBy('starts_at', 'desc')
+                ->get();
+
+            foreach ($memberships as $m) {
+                $startsAt = $m->starts_at;
+                $endsAt = $m->ends_at;
+
+                $durationMonths = $m->plan?->duration_months;
+                $durationDays = $m->plan?->duration_days;
+                $durationStr = $durationMonths ? "{$durationMonths} Months" : ($durationDays ? "{$durationDays} Days" : null);
+
+                $planName = $m->plan?->name ?? ($user?->zoho_plan_code ? "Pro Plan ({$user->zoho_plan_code})" : 'Unity Pro Plan');
+
+                $status = (string) ($m->status ?? 'active');
+                if ($endsAt && $endsAt->isPast()) {
+                    $status = 'expired';
+                } elseif ($startsAt && $startsAt->isFuture()) {
+                    $status = 'queued';
+                }
+
+                $daysLeft = ($endsAt && $endsAt->isFuture()) ? max(0, (int) ceil($now->floatDiffInDays($endsAt, false))) : 0;
+
+                $subData = [
+                    'id' => (string) $m->id,
+                    'user_id' => (string) $m->user_id,
+                    'membership_plan_id' => $m->membership_plan_id ? (string) $m->membership_plan_id : null,
+                    'plan_name' => $planName,
+                    'plan_slug' => $m->plan?->slug,
+                    'price' => $m->plan?->price !== null ? (float) $m->plan->price : null,
+                    'duration' => $durationStr,
+                    'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'started_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'start_date' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'startdate' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'ends_at' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'expires_at' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'end_date' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'enddate' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'status' => $status,
+                    'days_left' => $daysLeft,
+                    'payment_id' => $m->payment_id ? (string) $m->payment_id : null,
+                    'payment_status' => $m->payment?->status,
+                    'zoho_customer_id' => $user?->zoho_customer_id ? (string) $user->zoho_customer_id : null,
+                    'zoho_subscription_id' => $user?->zoho_subscription_id ? (string) $user->zoho_subscription_id : null,
+                    'created_at' => $m->created_at ? $m->created_at->toIso8601String() : null,
+                ];
+
+                $appSubscriptions[] = $subData;
+
+                if (! $activeAppSub && $status === 'active') {
+                    $activeAppSub = $subData;
+                }
+            }
+        }
+
+        // Fallback to payments table if user_memberships has no records
+        if (empty($appSubscriptions) && Schema::hasTable('payments')) {
+            $payments = Payment::query()
+                ->with('plan')
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($payments as $payment) {
+                $startsAt = $payment->paid_at ?? $payment->created_at;
+                $endsAt = $payment->paid_at ? $payment->paid_at->copy()->addYear() : null;
+                $durationStr = $payment->plan?->duration_months ? "{$payment->plan->duration_months} Months" : '1 Year';
+                $planName = $payment->plan?->name ?? 'Unity Pro Plan';
+
+                $status = in_array(strtolower((string) $payment->status), ['paid', 'success', 'completed'], true) ? 'active' : (string) $payment->status;
+                if ($endsAt && $endsAt->isPast()) {
+                    $status = 'expired';
+                }
+
+                $daysLeft = ($endsAt && $endsAt->isFuture()) ? max(0, (int) ceil($now->floatDiffInDays($endsAt, false))) : 0;
+
+                $subData = [
+                    'id' => (string) $payment->id,
+                    'user_id' => (string) $payment->user_id,
+                    'membership_plan_id' => $payment->membership_plan_id ? (string) $payment->membership_plan_id : null,
+                    'plan_name' => $planName,
+                    'plan_slug' => $payment->plan?->slug,
+                    'price' => (float) ($payment->amount ?? 0),
+                    'duration' => $durationStr,
+                    'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'ends_at' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'status' => $status,
+                    'days_left' => $daysLeft,
+                    'payment_id' => (string) ($payment->razorpay_payment_id ?? $payment->id),
+                    'payment_status' => (string) $payment->status,
+                    'zoho_customer_id' => $user?->zoho_customer_id ? (string) $user->zoho_customer_id : null,
+                    'zoho_subscription_id' => $user?->zoho_subscription_id ? (string) $user->zoho_subscription_id : null,
+                    'created_at' => $payment->created_at ? $payment->created_at->toIso8601String() : null,
+                ];
+
+                $appSubscriptions[] = $subData;
+
+                if (! $activeAppSub && $status === 'active') {
+                    $activeAppSub = $subData;
+                }
+            }
+        }
+
+        // Fallback using User attributes if still empty
+        if (empty($appSubscriptions) && $user) {
+            $membershipEndsAt = $user->membership_ends_at ? Carbon::parse((string) $user->membership_ends_at) : null;
+            $userStatus = strtolower((string) ($user->status ?? 'active'));
+            $status = ($membershipEndsAt && $membershipEndsAt->isPast()) ? 'expired' : ($userStatus === 'inactive' ? 'inactive' : 'active');
+            $daysLeft = ($membershipEndsAt && $membershipEndsAt->isFuture()) ? max(0, (int) ceil($now->floatDiffInDays($membershipEndsAt, false))) : 0;
+
+            $fallbackSub = [
+                'id' => (string) ($user->zoho_subscription_id ?? $user->id),
+                'user_id' => (string) $user->id,
+                'membership_plan_id' => null,
+                'plan_name' => $user->zoho_plan_code ? "Pro Plan ({$user->zoho_plan_code})" : 'Unity Base Membership',
+                'plan_slug' => $user->zoho_plan_code ?? null,
+                'price' => null,
+                'duration' => '1 Year',
+                'starts_at' => $user->created_at ? $user->created_at->toIso8601String() : null,
+                'ends_at' => $membershipEndsAt ? $membershipEndsAt->toIso8601String() : null,
+                'status' => $status,
+                'days_left' => $daysLeft,
+                'payment_id' => null,
+                'payment_status' => $status === 'active' ? 'paid' : $status,
+                'zoho_customer_id' => $user->zoho_customer_id ? (string) $user->zoho_customer_id : null,
+                'zoho_subscription_id' => $user->zoho_subscription_id ? (string) $user->zoho_subscription_id : null,
+                'created_at' => $user->created_at ? $user->created_at->toIso8601String() : null,
+            ];
+
+            $appSubscriptions[] = $fallbackSub;
+            if ($status === 'active') {
+                $activeAppSub = $fallbackSub;
+            }
+        }
+
+        if (! $activeAppSub && ! empty($appSubscriptions)) {
+            $activeAppSub = $appSubscriptions[0];
+        }
+
+        // 2. Circle Subscriptions
+        $circleSubscriptions = [];
+        $activeCircleSub = null;
+
+        if (Schema::hasTable('circle_subscriptions')) {
+            $cSubs = CircleSubscription::query()
+                ->with('circle')
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($cSubs as $sub) {
+                $startsAt = $sub->started_at ?? $sub->paid_at ?? $sub->created_at;
+                $endsAt = $sub->expires_at;
+
+                $circleName = $sub->circle?->name;
+                $addonName = $sub->zoho_addon_name;
+                $description = 'Circle Subscription';
+                if ($circleName && $addonName) {
+                    $description = "{$circleName} ({$addonName})";
+                } elseif ($circleName) {
+                    $description = "Subscription for {$circleName}";
+                } elseif ($addonName) {
+                    $description = "Circle Subscription - {$addonName}";
+                }
+
+                $status = strtolower((string) $sub->status);
+                if ($endsAt && $endsAt->isPast() && $status === 'active') {
+                    $status = 'expired';
+                }
+
+                $daysLeft = ($endsAt && $endsAt->isFuture()) ? max(0, (int) ceil($now->floatDiffInDays($endsAt, false))) : 0;
+
+                $subData = [
+                    'id' => (string) $sub->id,
+                    'user_id' => (string) $sub->user_id,
+                    'circle_id' => $sub->circle_id ? (string) $sub->circle_id : null,
+                    'circle_name' => $circleName,
+                    'zoho_addon_id' => $sub->zoho_addon_id ? (string) $sub->zoho_addon_id : null,
+                    'zoho_addon_code' => $sub->zoho_addon_code ? (string) $sub->zoho_addon_code : null,
+                    'zoho_addon_name' => $sub->zoho_addon_name ? (string) $sub->zoho_addon_name : null,
+                    'plan_name' => $description,
+                    'amount' => (float) ($sub->amount ?? $sub->paid_amount ?? 0),
+                    'paid_amount' => (float) ($sub->paid_amount ?? $sub->amount ?? 0),
+                    'currency' => (string) ($sub->paid_currency ?? $sub->currency_code ?? 'INR'),
+                    'status' => $status,
+                    'days_left' => $daysLeft,
+                    'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'started_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'start_date' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'startdate' => $startsAt ? $startsAt->toIso8601String() : null,
+                    'expires_at' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'ends_at' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'end_date' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'enddate' => $endsAt ? $endsAt->toIso8601String() : null,
+                    'paid_at' => $sub->paid_at ? $sub->paid_at->toIso8601String() : null,
+                    'zoho_customer_id' => $sub->zoho_customer_id ? (string) $sub->zoho_customer_id : null,
+                    'zoho_subscription_id' => $sub->zoho_subscription_id ? (string) $sub->zoho_subscription_id : null,
+                    'zoho_payment_id' => $sub->zoho_payment_id ? (string) $sub->zoho_payment_id : null,
+                    'zoho_invoice_id' => $sub->zoho_invoice_id ? (string) $sub->zoho_invoice_id : null,
+                    'hostedpage_id' => (string) ($sub->hostedpage_id ?? $sub->zoho_hosted_page_id ?? ''),
+                    'reference_id' => (string) ($sub->reference_id ?? ''),
+                    'created_at' => $sub->created_at ? $sub->created_at->toIso8601String() : null,
+                ];
+
+                $circleSubscriptions[] = $subData;
+
+                if (! $activeCircleSub && in_array($status, ['active', 'paid', 'success', 'completed'], true)) {
+                    $activeCircleSub = $subData;
+                }
+            }
+        }
+
+        if (! $activeCircleSub && ! empty($circleSubscriptions)) {
+            $activeCircleSub = $circleSubscriptions[0];
+        }
+
+        // Calculate overall validity metrics
+        $allEndsAt = collect($appSubscriptions)
+            ->merge($circleSubscriptions)
+            ->pluck('ends_at')
+            ->filter()
+            ->map(fn ($d) => Carbon::parse($d))
+            ->filter(fn (Carbon $d) => $d->isFuture());
+
+        $userMembershipEndsAt = $user?->membership_ends_at ? Carbon::parse((string) $user->membership_ends_at) : null;
+        if ($userMembershipEndsAt && $userMembershipEndsAt->isFuture()) {
+            $allEndsAt->push($userMembershipEndsAt);
+        }
+
+        $maxEnd = $allEndsAt->max();
+        $totalValidUntil = $maxEnd ? $maxEnd->toIso8601String() : null;
+        $daysRemaining = $maxEnd ? max(0, (int) ceil($now->floatDiffInDays($maxEnd, false))) : 0;
+
+        return [
+            'app_subscription' => $activeAppSub,
+            'circle_subscription' => $activeCircleSub,
+            'app_subscriptions' => $appSubscriptions,
+            'circle_subscriptions' => $circleSubscriptions,
+            'summary' => [
+                'has_active_app_subscription' => $activeAppSub !== null && $activeAppSub['status'] === 'active',
+                'has_active_circle_subscription' => $activeCircleSub !== null && in_array($activeCircleSub['status'], ['active', 'paid', 'success'], true),
+                'total_valid_until' => $totalValidUntil,
+                'days_remaining' => $daysRemaining,
+                'app_subscriptions_count' => count($appSubscriptions),
+                'circle_subscriptions_count' => count($circleSubscriptions),
+            ],
         ];
     }
 

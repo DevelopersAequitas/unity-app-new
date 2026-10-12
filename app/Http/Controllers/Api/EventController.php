@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Requests\Api\V1\EventJoinRequest;
 use App\Http\Requests\Api\V1\VerifyEventRazorpayPaymentRequest;
 use App\Http\Requests\Event\CirclePastEventsRequest;
 use App\Http\Requests\Event\EventCheckinRequest;
@@ -29,6 +30,7 @@ use App\Models\ScanAppUser;
 use App\Models\User;
 use App\Services\Events\EventCheckinService;
 use App\Services\Events\EventCouponService;
+use App\Services\Events\EventFlowService;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
 use App\Services\Events\EventQrService;
@@ -41,6 +43,7 @@ use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Services\Referrals\ReferralService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -62,6 +65,7 @@ class EventController extends BaseApiController
         private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
         private readonly EventCouponService $coupons,
+        private readonly EventFlowService $eventFlow,
     ) {}
 
     public function index(Request $request)
@@ -313,6 +317,65 @@ class EventController extends BaseApiController
         }
 
         return $this->success(new EventDetailResource($event), 'Event fetched successfully.');
+    }
+
+    public function attend(Request $request, string $id): JsonResponse
+    {
+        $event = Event::query()->with(['circle', 'circles'])->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        $ticket = $this->eventFlow->attend($event, $request->user());
+
+        return $this->success($ticket, 'Attendance confirmed!');
+    }
+
+    public function joinRequest(EventJoinRequest $request, string $id): JsonResponse
+    {
+        $event = Event::query()->with(['circle', 'circles'])->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        $note = $request->input('note') ?? $request->input('reason') ?? $request->input('request_reason');
+        $referralCode = $this->extractInviterCode($request);
+        $result = $this->eventFlow->joinRequest(
+            $event,
+            $request->user(),
+            $note ? (string) $note : null,
+            $referralCode ? (string) $referralCode : null
+        );
+
+        return $this->success($result, 'Join request sent to circle admin.');
+    }
+
+    public function paymentOrder(Request $request, string $id): JsonResponse
+    {
+        $event = Event::query()->with(['circle', 'circles'])->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        $order = $this->eventFlow->createPaymentOrder($event, $request->user());
+
+        return $this->success($order);
+    }
+
+    public function paymentVerify(VerifyEventRazorpayPaymentRequest $request, string $id): JsonResponse
+    {
+        $event = Event::query()->with(['circle', 'circles'])->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        $ticket = $this->eventFlow->verifyPayment($event, $request->user(), $request->validated());
+
+        return $this->success($ticket, 'Payment verified successfully.');
     }
 
     public function register(RegisterEventOccurrenceRequest $request, string $eventId, string $occurrenceId)
@@ -782,8 +845,13 @@ class EventController extends BaseApiController
 
     public function adminRegistrationRequests(Request $request)
     {
+        $requestRelations = ['event.circle', 'event.circles.cityRef', 'occurrence', 'user.circleMemberships.circle', 'user.introducedBy', 'registration'];
+        if (Schema::hasTable('referraldata')) {
+            $requestRelations[] = 'user.referralData.referrer';
+        }
+
         $query = EventRegistrationRequest::query()
-            ->with(['event.circle', 'event.circles.cityRef', 'occurrence', 'user.circleMemberships.circle', 'registration'])
+            ->with($requestRelations)
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
             ->when($request->occurrence_id, fn ($q, $v) => $q->where('occurrence_id', $v))
@@ -1674,6 +1742,11 @@ class EventController extends BaseApiController
         $event = $joiningRequest->event;
         $occurrence = $joiningRequest->occurrence;
         $registration = $joiningRequest->registration;
+        $referralData = $user?->relationLoaded('referralData') ? $user?->referralData : null;
+        if (! $referralData && $user && Schema::hasTable('referraldata')) {
+            $referralData = $user->referralData;
+        }
+        $referrer = $referralData?->referrer ?? $user?->introducedBy ?? $user?->referredByUser;
 
         return [
             'id' => $joiningRequest->id,
@@ -1712,6 +1785,14 @@ class EventController extends BaseApiController
                 'payment_required' => (bool) ($registration->payment_required ?? false),
                 'qr_code_url' => $registration->qr_code_url,
                 'checkin_status' => $registration->checkin_status,
+            ] : null,
+            'referral' => ($referralData || $referrer) ? [
+                'referral_code' => $referralData?->referral_code,
+                'referrer_user_id' => $referralData?->referrer_user_id ?? $referrer?->id,
+                'referrer_name' => $referrer ? ($referrer->display_name ?: trim(($referrer->first_name ?? '').' '.($referrer->last_name ?? ''))) : null,
+                'referrer_email' => $referralData?->referrer_email ?? $referrer?->email,
+                'coins' => $referralData?->coins,
+                'used_at' => optional($referralData?->used_at ?? $referralData?->created_at)->toISOString(),
             ] : null,
         ];
     }

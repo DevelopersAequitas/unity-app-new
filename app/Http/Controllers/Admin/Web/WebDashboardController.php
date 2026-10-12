@@ -12,6 +12,7 @@ use App\Models\Web\WebCompany;
 use App\Models\Web\WebOpportunity;
 use App\Models\Web\WebPageMedia;
 use App\Models\Web\WebPartnership;
+use App\Models\Web\WebSuccessStory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -95,6 +96,10 @@ class WebDashboardController extends Controller
             ],
         ];
 
+        $successStoriesCount = WebSuccessStory::count();
+        $activeStoriesCount = WebSuccessStory::where('is_active', true)->count();
+        $recentSuccessStories = WebSuccessStory::latest()->take(4)->get();
+
         return view('admin.web.dashboard', [
             'totalPeers' => $totalPeers,
             'activeCircles' => $activeCircles,
@@ -108,6 +113,9 @@ class WebDashboardController extends Controller
             'pageMediaCount' => $pageMediaCount,
             'topPartners' => $topPartners,
             'recentActivities' => $recentActivities,
+            'successStoriesCount' => $successStoriesCount,
+            'activeStoriesCount' => $activeStoriesCount,
+            'recentSuccessStories' => $recentSuccessStories,
         ]);
     }
 }

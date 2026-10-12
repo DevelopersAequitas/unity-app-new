@@ -15,6 +15,13 @@ use Throwable;
 
 class SendActivityEmails
 {
+    /**
+     * Cache of processed event keys in current lifecycle to prevent duplicate execution.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $processedActivityKeys = [];
+
     public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function handle(ActivityCreated $event): void
@@ -22,6 +29,20 @@ class SendActivityEmails
         if (! config('activity_emails.enabled')) {
             return;
         }
+
+        $activityId = (string) ($event->activityModel->getKey() ?? spl_object_hash($event->activityModel));
+        $dedupeKey = $event->activityType.':'.$activityId;
+
+        if (isset(static::$processedActivityKeys[$dedupeKey])) {
+            Log::info('Skipping duplicate activity email dispatch', [
+                'activity_type' => $event->activityType,
+                'activity_id' => $activityId,
+            ]);
+
+            return;
+        }
+
+        static::$processedActivityKeys[$dedupeKey] = true;
 
         try {
             $actor = User::find($event->actorUserId);
@@ -123,7 +144,7 @@ class SendActivityEmails
             return;
         }
 
-        if ($event->otherUserId === null) {
+        if ($event->otherUserId === null || (string) $event->otherUserId === (string) $event->actorUserId) {
             return;
         }
 

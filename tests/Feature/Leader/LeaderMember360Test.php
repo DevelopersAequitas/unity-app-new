@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Leader;
 
+use App\Models\ActivityCreative;
 use App\Models\Circle;
 use App\Models\MilestoneBadge;
 use App\Models\Post;
@@ -107,14 +108,55 @@ class LeaderMember360Test extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'id', 'name', 'circle_name',
+                    'subscriptions' => [
+                        'app_subscription',
+                        'circle_subscription',
+                        'app_subscriptions',
+                        'circle_subscriptions',
+                        'summary' => [
+                            'has_active_app_subscription',
+                            'has_active_circle_subscription',
+                            'total_valid_until',
+                            'days_remaining',
+                        ],
+                    ],
                     'summary' => [
                         'posts', 'creatives', 'badges',
                         'referrals_given', 'referrals_received',
                         'p2p_meetings', 'business_deals', 'life_impacts',
                         'event_registrations', 'coins_balance',
+                        'app_subscriptions', 'circle_subscriptions',
                     ],
                 ],
             ]);
+    }
+
+    /** @test */
+    public function it_returns_member_peer_subscriptions_details(): void
+    {
+        // Insert a circle subscription for the member
+        $subId = Str::uuid()->toString();
+        DB::table('circle_subscriptions')->insert([
+            'id' => $subId,
+            'user_id' => $this->member->id,
+            'circle_id' => $this->circle->id,
+            'status' => 'active',
+            'amount' => 5000.00,
+            'paid_amount' => 5000.00,
+            'zoho_addon_name' => 'Premium Circle Addon',
+            'started_at' => now(),
+            'expires_at' => now()->addYear(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/api/v1/leader/members/{$this->member->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.subscriptions.summary.has_active_circle_subscription', true)
+            ->assertJsonPath('data.subscriptions.circle_subscriptions.0.id', $subId)
+            ->assertJsonPath('data.subscriptions.circle_subscriptions.0.plan_name', 'Test Circle (Premium Circle Addon)');
     }
 
     /** @test */
@@ -415,5 +457,70 @@ class LeaderMember360Test extends TestCase
                 'success' => false,
                 'error_code' => 'RESOURCE_NOT_FOUND',
             ]);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Delete Creative Tests
+    // ────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function it_allows_leader_to_delete_member_creative(): void
+    {
+        $creative = ActivityCreative::create([
+            'id' => Str::uuid()->toString(),
+            'user_id' => $this->member->id,
+            'title' => 'Test Creative',
+            'description' => 'Test Description',
+            'activity_type' => 'p2p_meeting',
+            'status' => 'completed',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/creatives/{$creative->id}");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Member creative deleted successfully.',
+            ]);
+
+        $this->assertSoftDeleted('activity_creatives', [
+            'id' => $creative->id,
+        ]);
+    }
+
+    /** @test */
+    public function it_returns_404_when_deleting_non_existent_creative(): void
+    {
+        $fakeCreativeId = Str::uuid()->toString();
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/api/v1/leader/members/{$this->member->id}/creatives/{$fakeCreativeId}");
+
+        $response->assertStatus(404)
+            ->assertJson([
+                'success' => false,
+                'error_code' => 'RESOURCE_NOT_FOUND',
+            ]);
+    }
+
+    /** @test */
+    public function it_returns_introduced_peers_for_member(): void
+    {
+        $introducedPeer = User::factory()->create([
+            'id' => Str::uuid()->toString(),
+            'status' => 'active',
+            'introduced_by' => $this->member->id,
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/api/v1/leader/members/{$this->member->id}/introduced-peers");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.introduced_peers_count', 1)
+            ->assertJsonPath('data.introduced_peers.0.id', $introducedPeer->id);
     }
 }

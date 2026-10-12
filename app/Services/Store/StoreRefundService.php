@@ -6,6 +6,7 @@ use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
 use App\Models\Store\OrderPayment;
 use App\Models\Store\Refund;
+use App\Models\AdminUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -27,7 +28,7 @@ class StoreRefundService
         ?string $reasonDetail = null,
         ?string $returnId = null,
         ?string $idempotencyKey = null,
-        ?User $adminUser = null
+        User|AdminUser|null $adminUser = null
     ): Refund {
         return DB::transaction(function () use (
             $order,
@@ -67,6 +68,8 @@ class StoreRefundService
             $refundNo = 'REF-'.strtoupper(Str::random(10));
             $refundId = (string) Str::uuid();
 
+            $refundReasonText = "Refund for cancelled Store Order #{$lockedOrder->order_no}" . ($reasonDetail ? ": {$reasonDetail}" : ($reasonCode ? ": {$reasonCode}" : ''));
+
             // Execute Refund Credit in Ledger & Balance
             $refundResult = $this->walletService->executeRefundCredit(
                 $lockedUser,
@@ -75,7 +78,7 @@ class StoreRefundService
                 'REFUND',
                 $refundId,
                 $idempotencyKey,
-                "Refund for Order #{$lockedOrder->order_no}: ".($reasonDetail ?? $reasonCode)
+                $refundReasonText
             );
 
             $primaryLedgerId = ! empty($refundResult['ledger_entries']) ? $refundResult['ledger_entries'][0]->transaction_id : null;

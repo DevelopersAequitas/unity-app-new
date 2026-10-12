@@ -20,7 +20,16 @@ class AdminStoreVariantController extends BaseApiController
         $data = $request->validated();
         $data['product_id'] = $product->id;
 
+        $price = $data['price_coins'] ?? ($data['coin_price'] ?? ($product->price_coins ?: $product->coin_price));
+        if (! $price || $price <= 0) {
+            $price = (int) ($product->coin_price ?: ($product->price_coins ?: 1));
+        }
+        $data['price_coins'] = $price;
+        $data['coin_price'] = $price;
+
         $variant = ProductVariant::create($data);
+
+        $this->syncProductParentPrice($product);
 
         return $this->success($variant, 'Variant created successfully', 201);
     }
@@ -28,9 +37,52 @@ class AdminStoreVariantController extends BaseApiController
     public function update(Request $request, string $variantId): JsonResponse
     {
         $variant = ProductVariant::findOrFail($variantId);
-        $variant->update($request->all());
+        $data = $request->all();
+
+        if (isset($data['price_coins']) || isset($data['coin_price'])) {
+            $price = (int) ($data['price_coins'] ?? $data['coin_price']);
+            if ($price <= 0 && $variant->product) {
+                $price = (int) ($variant->product->coin_price ?: $variant->product->price_coins);
+            }
+            $data['price_coins'] = $price;
+            $data['coin_price'] = $price;
+        }
+
+        $variant->update($data);
+
+        if ($variant->product) {
+            $this->syncProductParentPrice($variant->product);
+        }
 
         return $this->success($variant, 'Variant updated successfully');
+    }
+
+    protected function syncProductParentPrice(Product $product): void
+    {
+        $activeVariants = ProductVariant::where('product_id', $product->id)
+            ->where(function ($q) {
+                $q->where('status', 'ACTIVE')
+                    ->orWhere('is_active', true)
+                    ->orWhereNull('status');
+            })
+            ->where(function ($q) {
+                $q->where('price_coins', '>', 0)
+                    ->orWhere('coin_price', '>', 0);
+            })
+            ->get();
+
+        if ($activeVariants->isNotEmpty()) {
+            $minPrice = $activeVariants->map(function ($v) {
+                return (int) ($v->coin_price ?: ($v->price_coins ?: 0));
+            })->filter(fn ($p) => $p > 0)->min();
+
+            if ($minPrice !== null && $minPrice > 0) {
+                $product->update([
+                    'price_coins' => (int) $minPrice,
+                    'coin_price' => (int) $minPrice,
+                ]);
+            }
+        }
     }
 
     public function adjustStock(AdminStockAdjustmentRequest $request, string $variantId): JsonResponse

@@ -23,7 +23,7 @@ class OrderLifecycleService
 
     public function getUserOrders(User $user, array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        $query = Order::with(['items.product.primaryImage', 'shipment', 'receipt'])
+        $query = Order::with(['items.product.primaryImage', 'shipment', 'receipt', 'returns'])
             ->where('user_id', $user->id);
 
         if (! empty($filters['status'])) {
@@ -91,8 +91,13 @@ class OrderLifecycleService
                 throw new Exception(StoreErrorCodes::ORDER_NOT_FOUND, 404);
             }
 
-            $cancellableStatuses = ['PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'DELIVERED', 'PROCESSING', 'READY_FOR_PICKUP'];
-            if (! in_array($order->status, $cancellableStatuses, true)) {
+            $cancellableStatuses = [
+                'PENDING', 'PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'PROCESSING',
+                'PACKING', 'PACKED', 'SHIPPED', 'DISPATCHED', 'OUT_FOR_DELIVERY',
+                'READY_FOR_PICKUP', 'DELIVERED',
+            ];
+            $currentStatus = strtoupper((string) $order->status);
+            if (! in_array($currentStatus, $cancellableStatuses, true) || in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true)) {
                 throw new Exception(StoreErrorCodes::ORDER_CANNOT_BE_CANCELLED, 422);
             }
 

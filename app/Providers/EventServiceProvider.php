@@ -2,17 +2,17 @@
 
 namespace App\Providers;
 
-use App\Events\ActivityCreated;
-use App\Listeners\SendActivityEmails;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
 {
-    protected $listen = [
-        ActivityCreated::class => [
-            SendActivityEmails::class,
-        ],
-    ];
+    /**
+     * The event to listener mappings for the application.
+     *
+     * In Laravel 11+, listeners in app/Listeners are auto-discovered.
+     * Keep manual mappings here empty to prevent duplicate listener execution.
+     */
+    protected $listen = [];
 
     public function shouldDiscoverEvents(): bool
     {

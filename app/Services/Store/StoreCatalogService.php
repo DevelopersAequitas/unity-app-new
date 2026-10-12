@@ -75,12 +75,27 @@ class StoreCatalogService
             default => $query->orderBy('created_at', 'desc'),
         };
 
-        return $query->paginate($perPage);
+        $products = $query->paginate($perPage);
+
+        $products->getCollection()->each(function ($product) {
+            $parentPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 0));
+            if ($product->relationLoaded('variants')) {
+                foreach ($product->variants as $variant) {
+                    $vPrice = (int) ($variant->coin_price ?: ($variant->price_coins ?: 0));
+                    if ($vPrice <= 0 && $parentPrice > 0) {
+                        $variant->coin_price = $parentPrice;
+                        $variant->price_coins = $parentPrice;
+                    }
+                }
+            }
+        });
+
+        return $products;
     }
 
     public function getProductById(string $id): ?Product
     {
-        return Product::query()
+        $product = Product::query()
             ->active()
             ->with([
                 'category',
@@ -92,6 +107,21 @@ class StoreCatalogService
             ])
             ->where('id', $id)
             ->first();
+
+        if ($product) {
+            $parentPrice = (int) ($product->coin_price ?: ($product->price_coins ?: 0));
+            if ($product->relationLoaded('variants')) {
+                foreach ($product->variants as $variant) {
+                    $vPrice = (int) ($variant->coin_price ?: ($variant->price_coins ?: 0));
+                    if ($vPrice <= 0 && $parentPrice > 0) {
+                        $variant->coin_price = $parentPrice;
+                        $variant->price_coins = $parentPrice;
+                    }
+                }
+            }
+        }
+
+        return $product;
     }
 
     public function getFeaturedProducts(int $limit = 10): Collection

@@ -47,9 +47,22 @@ class PostResource extends JsonResource
                 $this->relationLoaded('author') ? $this->author?->display_name : null
             );
 
-        $systemPhoto = url('/images/peersglobal-icon.png');
+        $systemPhoto = (($this->relationLoaded('user') && $this->user?->isSystemUser() && $this->user?->profile_photo_url)
+            ? $this->user->profile_photo_url
+            : (($this->relationLoaded('author') && $this->author?->isSystemUser() && $this->author?->profile_photo_url)
+                ? $this->author->profile_photo_url
+                : User::getSystemUserPhotoUrl()));
+
+        $systemUserId = (string) (
+            ($this->relationLoaded('user') && $this->user?->isSystemUser()) ? $this->user->id : (
+                ($this->relationLoaded('author') && $this->author?->isSystemUser()) ? $this->author->id : (
+                    $this->user_id ?? $this->author?->id ?? User::getSystemUserId()
+                )
+            )
+        );
+
         $systemAuthor = [
-            'id' => (string) ($this->user_id ?? $this->author?->id ?? ''),
+            'id' => $systemUserId,
             'display_name' => 'Peers Global Genie',
             'first_name' => 'Peers Global',
             'last_name' => 'Genie',
@@ -247,11 +260,12 @@ class PostResource extends JsonResource
 
         if ($isSystemPost || $isAnniversary) {
             $response['user'] = [
-                'id' => (string) ($this->user_id ?? $this->author?->id ?? ''),
+                'id' => $systemUserId,
                 'display_name' => 'Peers Global Genie',
                 'first_name' => 'Peers Global',
                 'last_name' => 'Genie',
                 'profile_photo_url' => $systemPhoto,
+                'profile_photo_image' => $systemPhoto,
             ];
             $response['author'] = $systemAuthor;
             $response['is_system_announcement'] = true;

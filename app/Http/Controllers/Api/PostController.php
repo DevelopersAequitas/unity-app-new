@@ -385,7 +385,9 @@ class PostController extends BaseApiController
                 'last_name',
                 'company_name',
                 'designation',
+                'email',
                 'profile_photo_file_id',
+                'profile_photo_url',
                 'business_category_id',
                 'main_business_category_id',
                 'business_sub_category',
@@ -722,9 +724,20 @@ class PostController extends BaseApiController
                 $author?->display_name ?? null
             );
 
-            $systemPhoto = url('/images/peersglobal-icon.png');
+            $authorPhoto = $author?->profile_photo_file_id
+                ? url('/api/v1/files/'.$author->profile_photo_file_id)
+                : ($author?->profile_photo_url ?? null);
+
+            $systemPhoto = ($author && $author->isSystemUser() && $authorPhoto)
+                ? $authorPhoto
+                : User::getSystemUserPhotoUrl();
+
+            $systemAuthorId = ($author && $author->isSystemUser())
+                ? (string) $author->id
+                : (string) ($author?->id ?? User::getSystemUserId());
+
             $systemAuthor = [
-                'id' => (string) ($author?->id ?? ''),
+                'id' => $systemAuthorId,
                 'display_name' => 'Peers Global Genie',
                 'first_name' => 'Peers Global',
                 'last_name' => 'Genie',
@@ -764,12 +777,8 @@ class PostController extends BaseApiController
                     'business_sub_category' => $author->level4Category?->name
                         ?? $author->business_sub_category
                         ?? null,
-                    'profile_photo_url' => $author->profile_photo_file_id
-                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
-                        : null,
-                    'profile_photo_image' => $author->profile_photo_file_id
-                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
-                        : null,
+                    'profile_photo_url' => $authorPhoto,
+                    'profile_photo_image' => $authorPhoto,
                 ] : null),
                 'user' => $isSystemCreative ? $systemAuthor : ($author ? [
                     'id' => (string) $author->id,
@@ -778,9 +787,8 @@ class PostController extends BaseApiController
                     'last_name' => $author->last_name,
                     'company_name' => $author->company_name ?: null,
                     'designation' => $author->designation ?? null,
-                    'profile_photo_url' => $author->profile_photo_file_id
-                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
-                        : null,
+                    'profile_photo_url' => $authorPhoto,
+                    'profile_photo_image' => $authorPhoto,
                 ] : null),
                 'circle' => $circle ? [
                     'id' => (string) $circle->id,
@@ -1309,6 +1317,42 @@ class PostController extends BaseApiController
             return $this->error('Post not found', 404);
         }
 
+        $isSystemPost = $post->isSystemCreativePost();
+        $systemPostPhoto = ($post->relationLoaded('user') && $post->user?->isSystemUser() && $post->user?->profile_photo_url)
+            ? $post->user->profile_photo_url
+            : User::getSystemUserPhotoUrl();
+        $systemPostAuthorId = (string) (
+            ($post->relationLoaded('user') && $post->user?->isSystemUser())
+                ? $post->user->id
+                : ($post->user_id ?? User::getSystemUserId())
+        );
+
+        $systemPostAuthor = [
+            'id' => $systemPostAuthorId,
+            'display_name' => 'Peers Global Genie',
+            'first_name' => 'Peers Global',
+            'last_name' => 'Genie',
+            'company_name' => 'Peers Global',
+            'designation' => 'Peers Global Genie',
+            'level4_category' => null,
+            'business_sub_category' => null,
+            'profile_photo_url' => $systemPostPhoto,
+            'profile_photo_image' => $systemPostPhoto,
+            'is_online' => true,
+        ];
+
+        $systemPostUser = [
+            'id' => $systemPostAuthorId,
+            'display_name' => 'Peers Global Genie',
+            'first_name' => 'Peers Global',
+            'last_name' => 'Genie',
+            'company_name' => 'Peers Global',
+            'designation' => 'Peers Global Genie',
+            'profile_photo_url' => $systemPostPhoto,
+            'profile_photo_image' => $systemPostPhoto,
+            'is_online' => true,
+        ];
+
         $responseData = [
             'id' => $post->id,
             'content_text' => $post->content_text,
@@ -1316,20 +1360,8 @@ class PostController extends BaseApiController
             'tags' => $post->tags ?? [],
             'mentions' => $this->formatPostMentions($post),
             'visibility' => $post->visibility,
-            'is_system_announcement' => $post->isSystemCreativePost(),
-            'author' => $post->isSystemCreativePost() ? [
-                'id' => (string) ($post->user_id ?? ''),
-                'display_name' => 'Peers Global Genie',
-                'first_name' => 'Peers Global',
-                'last_name' => 'Genie',
-                'company_name' => 'Peers Global',
-                'designation' => 'Peers Global Genie',
-                'level4_category' => null,
-                'business_sub_category' => null,
-                'profile_photo_url' => url('/images/peersglobal-icon.png'),
-                'profile_photo_image' => url('/images/peersglobal-icon.png'),
-                'is_online' => true,
-            ] : ($post->relationLoaded('user') && $post->user ? [
+            'is_system_announcement' => $isSystemPost,
+            'author' => $isSystemPost ? $systemPostAuthor : ($post->relationLoaded('user') && $post->user ? [
                 'id' => $post->user->id,
                 'display_name' => $post->user->display_name,
                 'first_name' => $post->user->first_name,
@@ -1347,17 +1379,7 @@ class PostController extends BaseApiController
                 'profile_photo_url' => $post->user->profile_photo_url,
                 'profile_photo_image' => $post->user->profile_photo_url,
             ] : null),
-            'user' => $post->isSystemCreativePost() ? [
-                'id' => (string) ($post->user_id ?? ''),
-                'display_name' => 'Peers Global Genie',
-                'first_name' => 'Peers Global',
-                'last_name' => 'Genie',
-                'company_name' => 'Peers Global',
-                'designation' => 'Peers Global Genie',
-                'profile_photo_url' => url('/images/peersglobal-icon.png'),
-                'profile_photo_image' => url('/images/peersglobal-icon.png'),
-                'is_online' => true,
-            ] : ($post->relationLoaded('user') && $post->user ? [
+            'user' => $isSystemPost ? $systemPostUser : ($post->relationLoaded('user') && $post->user ? [
                 'id' => $post->user->id,
                 'display_name' => $post->user->display_name,
                 'first_name' => $post->user->first_name,
