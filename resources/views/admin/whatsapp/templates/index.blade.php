@@ -41,47 +41,124 @@
         </div>
     @endif
 
-    <!-- Metrics Cards -->
+    @if(isset($dbError) && $dbError)
+        <div class="alert alert-danger shadow-sm border-danger alert-dismissible fade show" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-octagon-fill fs-3 me-3 text-danger"></i>
+                <div>
+                    <strong class="d-block">Database / Setup Notice:</strong>
+                    <span>{{ $dbError }}</span>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @php
+        $normalizedStatus = strtoupper((string)$status);
+        $baseParams = array_filter([
+            'search' => $search,
+            'category' => $category,
+            'language' => $language,
+        ]);
+    @endphp
+
+    <style>
+        .clickable-metric-card {
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+        }
+        .clickable-metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+        }
+    </style>
+
+    <!-- Metrics Cards (Clickable Quick Filters) -->
     <div class="row g-3 mb-4">
+        <!-- Total -->
         <div class="col-6 col-md-2">
-            <div class="card shadow-sm border-0 border-start border-primary border-4 h-100">
-                <div class="card-body p-3">
-                    <div class="text-muted small text-uppercase fw-semibold">Total</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800">{{ $stats['total'] }}</div>
+            <a href="{{ route('admin.whatsapp.templates', $baseParams) }}" class="text-decoration-none d-block h-100">
+                <div class="card shadow-sm border-0 border-start border-primary border-4 h-100 clickable-metric-card {{ empty($status) ? 'bg-primary-subtle shadow' : '' }}">
+                    <div class="card-body p-3">
+                        <div class="text-muted small text-uppercase fw-semibold d-flex justify-content-between align-items-center">
+                            <span>Total</span>
+                            @if(empty($status))
+                                <i class="bi bi-check-circle-fill text-primary small"></i>
+                            @endif
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-gray-800">{{ $stats['total'] }}</div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- Approved -->
         <div class="col-6 col-md-2">
-            <div class="card shadow-sm border-0 border-start border-success border-4 h-100">
-                <div class="card-body p-3">
-                    <div class="text-muted small text-uppercase fw-semibold">Approved</div>
-                    <div class="h4 mb-0 fw-bold text-success">{{ $stats['approved'] }}</div>
+            <a href="{{ route('admin.whatsapp.templates', array_merge($baseParams, ['status' => 'APPROVED'])) }}" class="text-decoration-none d-block h-100">
+                <div class="card shadow-sm border-0 border-start border-success border-4 h-100 clickable-metric-card {{ $normalizedStatus === 'APPROVED' ? 'bg-success-subtle shadow' : '' }}">
+                    <div class="card-body p-3">
+                        <div class="text-muted small text-uppercase fw-semibold d-flex justify-content-between align-items-center">
+                            <span>Approved</span>
+                            @if($normalizedStatus === 'APPROVED')
+                                <i class="bi bi-check-circle-fill text-success small"></i>
+                            @endif
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-success">{{ $stats['approved'] }}</div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- In Review / Pending -->
         <div class="col-6 col-md-2">
-            <div class="card shadow-sm border-0 border-start border-warning border-4 h-100">
-                <div class="card-body p-3">
-                    <div class="text-muted small text-uppercase fw-semibold">In Review</div>
-                    <div class="h4 mb-0 fw-bold text-warning">{{ $stats['in_review'] }}</div>
+            <a href="{{ route('admin.whatsapp.templates', array_merge($baseParams, ['status' => 'IN_REVIEW'])) }}" class="text-decoration-none d-block h-100">
+                <div class="card shadow-sm border-0 border-start border-warning border-4 h-100 clickable-metric-card {{ in_array($normalizedStatus, ['IN_REVIEW', 'PENDING'], true) ? 'bg-warning-subtle shadow' : '' }}">
+                    <div class="card-body p-3">
+                        <div class="text-muted small text-uppercase fw-semibold d-flex justify-content-between align-items-center">
+                            <span>In Review</span>
+                            @if(in_array($normalizedStatus, ['IN_REVIEW', 'PENDING'], true))
+                                <i class="bi bi-check-circle-fill text-warning small"></i>
+                            @endif
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-warning">{{ $stats['in_review'] }}</div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- Rejected -->
         <div class="col-6 col-md-2">
-            <div class="card shadow-sm border-0 border-start border-danger border-4 h-100">
-                <div class="card-body p-3">
-                    <div class="text-muted small text-uppercase fw-semibold">Rejected</div>
-                    <div class="h4 mb-0 fw-bold text-danger">{{ $stats['rejected'] }}</div>
+            <a href="{{ route('admin.whatsapp.templates', array_merge($baseParams, ['status' => 'REJECTED'])) }}" class="text-decoration-none d-block h-100">
+                <div class="card shadow-sm border-0 border-start border-danger border-4 h-100 clickable-metric-card {{ $normalizedStatus === 'REJECTED' ? 'bg-danger-subtle shadow' : '' }}">
+                    <div class="card-body p-3">
+                        <div class="text-muted small text-uppercase fw-semibold d-flex justify-content-between align-items-center">
+                            <span>Rejected</span>
+                            @if($normalizedStatus === 'REJECTED')
+                                <i class="bi bi-check-circle-fill text-danger small"></i>
+                            @endif
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-danger">{{ $stats['rejected'] }}</div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- Paused / Disabled -->
         <div class="col-6 col-md-2">
-            <div class="card shadow-sm border-0 border-start border-secondary border-4 h-100">
-                <div class="card-body p-3">
-                    <div class="text-muted small text-uppercase fw-semibold">Paused / Disabled</div>
-                    <div class="h4 mb-0 fw-bold text-secondary">{{ $stats['paused'] }}</div>
+            <a href="{{ route('admin.whatsapp.templates', array_merge($baseParams, ['status' => 'PAUSED'])) }}" class="text-decoration-none d-block h-100">
+                <div class="card shadow-sm border-0 border-start border-secondary border-4 h-100 clickable-metric-card {{ in_array($normalizedStatus, ['PAUSED', 'DISABLED'], true) ? 'bg-secondary-subtle shadow' : '' }}">
+                    <div class="card-body p-3">
+                        <div class="text-muted small text-uppercase fw-semibold d-flex justify-content-between align-items-center">
+                            <span>Paused / Disabled</span>
+                            @if(in_array($normalizedStatus, ['PAUSED', 'DISABLED'], true))
+                                <i class="bi bi-check-circle-fill text-secondary small"></i>
+                            @endif
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-secondary">{{ $stats['paused'] }}</div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
@@ -98,11 +175,10 @@
                 <div class="col-md-2">
                     <select name="status" class="form-select form-select-sm">
                         <option value="">All Statuses</option>
-                        <option value="APPROVED" {{ $status === 'APPROVED' ? 'selected' : '' }}>APPROVED</option>
-                        <option value="IN_REVIEW" {{ $status === 'IN_REVIEW' ? 'selected' : '' }}>IN_REVIEW</option>
-                        <option value="REJECTED" {{ $status === 'REJECTED' ? 'selected' : '' }}>REJECTED</option>
-                        <option value="PAUSED" {{ $status === 'PAUSED' ? 'selected' : '' }}>PAUSED</option>
-                        <option value="DISABLED" {{ $status === 'DISABLED' ? 'selected' : '' }}>DISABLED</option>
+                        <option value="APPROVED" {{ $normalizedStatus === 'APPROVED' ? 'selected' : '' }}>APPROVED</option>
+                        <option value="IN_REVIEW" {{ in_array($normalizedStatus, ['IN_REVIEW', 'PENDING'], true) ? 'selected' : '' }}>IN_REVIEW / PENDING</option>
+                        <option value="REJECTED" {{ $normalizedStatus === 'REJECTED' ? 'selected' : '' }}>REJECTED</option>
+                        <option value="PAUSED" {{ in_array($normalizedStatus, ['PAUSED', 'DISABLED'], true) ? 'selected' : '' }}>PAUSED / DISABLED</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -206,6 +282,11 @@
                                     <a href="{{ route('admin.whatsapp.templates.show', $item->id) }}" class="btn btn-outline-secondary" title="View Template Details">
                                         <i class="bi bi-eye"></i>
                                     </a>
+                                    @if(!empty($item->meta_template_id))
+                                        <a href="{{ route('admin.whatsapp.templates.edit', $item->id) }}" class="btn btn-outline-warning" title="Edit Template & Fix Typos">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    @endif
                                     @if($item->isSendable())
                                         <a href="{{ route('admin.whatsapp.test_message', ['template' => $item->name, 'language' => $item->language]) }}" class="btn btn-outline-primary" title="Test Send Template">
                                             <i class="bi bi-send"></i>

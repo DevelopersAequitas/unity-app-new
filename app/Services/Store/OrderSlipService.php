@@ -19,21 +19,21 @@ class OrderSlipService
             $order->loadMissing(['user', 'items.product', 'items.variant', 'payments.ledgerTransaction']);
 
             $orderNo = $order->order_no ?: $order->id;
-            $fileName = 'slip_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderNo) . '.pdf';
+            $fileName = 'slip_'.preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderNo).'.pdf';
             $storageDir = storage_path('app/public/slips');
 
             if (! File::exists($storageDir)) {
                 File::makeDirectory($storageDir, 0755, true);
             }
 
-            $filePath = $storageDir . DIRECTORY_SEPARATOR . $fileName;
+            $filePath = $storageDir.DIRECTORY_SEPARATOR.$fileName;
 
             // Render view to HTML
             $html = view('admin.store.orders.packing-slip-pdf', [
                 'order' => $order,
             ])->render();
 
-            $options = new Options();
+            $options = new Options;
             $options->set('isHtml5ParserEnabled', true);
             $options->set('isRemoteEnabled', true);
             $options->set('defaultFont', 'Helvetica');
@@ -45,7 +45,7 @@ class OrderSlipService
 
             file_put_contents($filePath, $dompdf->output());
 
-            $slipUrl = asset('storage/slips/' . $fileName);
+            $slipUrl = asset('storage/slips/'.$fileName);
             $order->update(['slip_url' => $slipUrl]);
 
             return $slipUrl;

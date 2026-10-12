@@ -59,6 +59,10 @@ export const nominationApi = {
         apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { rejection_reason }),
     shortlist: (id: string) => apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/shortlist`),
     sendApprovalEmail: (id: string) => apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/send-approval-email`),
+    proceedToJury: (id: string, remarks?: string) =>
+        apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/proceed-to-jury`, { remarks }),
+    batchProceedToJury: (ids: string[], remarks?: string) =>
+        apiClient.post<ApiResponse<any>>('/admin/nominations/batch-proceed-to-jury', { nomination_ids: ids, remarks }),
 };
 
 export const votingApi = {

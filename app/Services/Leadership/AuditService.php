@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Leadership;
 
 use App\Models\Leadership\LeadershipAuditLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -29,7 +30,7 @@ class AuditService
         ?Request $request = null
     ): LeadershipAuditLog {
         $rawActorId = Auth::id() ?? (Auth::guard('admin')->id() ?? Auth::guard('sanctum')->id());
-        $actorId = ($rawActorId && \App\Models\User::where('id', $rawActorId)->exists()) ? (string) $rawActorId : null;
+        $actorId = ($rawActorId && User::where('id', $rawActorId)->exists()) ? (string) $rawActorId : null;
 
         $ipAddress = null;
         $userAgent = null;

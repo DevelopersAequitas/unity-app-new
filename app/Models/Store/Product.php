@@ -33,6 +33,7 @@ class Product extends Model
         'compare_coin_price',
         'unit_cost_inr',
         'delivery_modes',
+        'min_quantity_per_order',
         'max_quantity_per_order',
         'max_quantity_per_peer_month',
         'eligibility',
@@ -69,12 +70,18 @@ class Product extends Model
         'price_coins' => 'integer',
         'compare_coin_price' => 'integer',
         'stock_qty' => 'integer',
+        'min_quantity_per_order' => 'integer',
         'max_quantity_per_order' => 'integer',
         'max_quantity_per_peer_month' => 'integer',
         'weight_grams' => 'integer',
         'sort_order' => 'integer',
         'published_at' => 'datetime',
     ];
+
+    public function getMinQuantityPerOrderAttribute($value): int
+    {
+        return (int) ($value ?: 1);
+    }
 
     protected $appends = [
         'coin_price',
@@ -189,6 +196,6 @@ class Product extends Model
 
     public function wishlists(): HasMany
     {
-        return $this->hasMany(\App\Models\Store\Wishlist::class, 'product_id');
+        return $this->hasMany(Wishlist::class, 'product_id');
     }
 }

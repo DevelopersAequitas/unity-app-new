@@ -258,7 +258,7 @@ class AskManagementController extends Controller
     /**
      * View Ask Configuration (Flows, Types, Option Groups, Options).
      */
-    public function config(): View
+    public function config(Request $request): View|JsonResponse
     {
         $flows = AskFlow::query()
             ->with(['types' => fn ($q) => $q->orderBy('sort_order')])
@@ -269,6 +269,16 @@ class AskManagementController extends Controller
             ->with(['options' => fn ($q) => $q->with('askType')->orderBy('sort_order')])
             ->orderBy('sort_order')
             ->get();
+
+        if ($request->wantsJson() || $request->expectsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'flows' => $flows,
+                    'option_groups' => $optionGroups,
+                ],
+            ]);
+        }
 
         return view('admin.asks.config', [
             'flows' => $flows,

@@ -56,6 +56,8 @@ Route::prefix('public')->group(function (): void {
     Route::post('nominations/{id}/submit', [NominationController::class, 'submit'])->whereUuid('id');
     Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
     Route::post('nominations', [NominationController::class, 'nominate']);
+    Route::post('nominations/{id}/form-2/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
 
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
@@ -142,6 +144,8 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('nominations/{id}/reject', [AdminNominationController::class, 'reject'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
     Route::post('nominations/{id}/send-approval-email', [AdminNominationController::class, 'sendApprovalEmail'])->whereUuid('id');
+    Route::post('nominations/{id}/proceed-to-jury', [AdminNominationController::class, 'proceedToJury'])->whereUuid('id');
+    Route::post('nominations/batch-proceed-to-jury', [AdminNominationController::class, 'batchProceedToJury']);
     Route::get('nominations/{id}/history', [AdminNominationController::class, 'history'])->whereUuid('id');
 
     // Module G: Admin Voting Management

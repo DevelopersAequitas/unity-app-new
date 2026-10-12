@@ -37,7 +37,7 @@ class CheckoutQuoteService
     {
         $minRequiredCoins = (int) StoreConfig::getValue('min_member_coins_to_buy', 0);
         if ($minRequiredCoins > 0 && (int) ($user->coins_balance ?? 0) < $minRequiredCoins) {
-            throw new Exception("You must have a minimum balance of " . number_format($minRequiredCoins) . " coins to purchase products from Peers Store. Your current balance is " . number_format($user->coins_balance ?? 0) . " coins.", 422);
+            throw new Exception('You must have a minimum balance of '.number_format($minRequiredCoins).' coins to purchase products from Peers Store. Your current balance is '.number_format($user->coins_balance ?? 0).' coins.', 422);
         }
 
         $cart = $this->cartService->getCartWithItems($user);
@@ -124,6 +124,15 @@ class CheckoutQuoteService
                 $cartItem->price_seen_coins = $unitPrice;
             }
 
+            // Validate product minimum and maximum purchase quantity limits
+            $minQty = (int) ($product->min_quantity_per_order ?: 1);
+            if ($cartItem->quantity < $minQty) {
+                throw new Exception("Minimum purchase quantity for {$product->name} is {$minQty}.", 422);
+            }
+            if ($product->max_quantity_per_order && $cartItem->quantity > $product->max_quantity_per_order) {
+                throw new Exception("Maximum purchase quantity for {$product->name} is {$product->max_quantity_per_order}.", 422);
+            }
+
             // Check stock
             if ($product->track_inventory) {
                 $availableStock = $variant ? ($variant->stock_quantity ?? $variant->stock_qty) : ($product->stock_qty ?? $product->stock_quantity);
@@ -144,6 +153,12 @@ class CheckoutQuoteService
                 'total_price_coins' => $lineTotal,
                 'image_url' => $product->primaryImage ? $product->primaryImage->image_url : null,
             ];
+        }
+
+        // Validate Minimum Total Coin Value Requirement for Orders
+        $minOrderCoins = (int) (StoreConfig::getValue('min_order_total_coins') ?? StoreConfig::getValue('min_order_coins', 0));
+        if ($minOrderCoins > 0 && $subtotalCoins < $minOrderCoins) {
+            throw new Exception("Your order must contain products worth at least " . number_format($minOrderCoins) . " coins. Please add more products to continue.", 422);
         }
 
         $deliveryCoins = 0;
@@ -240,8 +255,10 @@ class CheckoutQuoteService
                 'available' => $stockOk,
             ],
             'delivery_minimum_met' => $deliveryMinMet,
+            'min_order_total_coins' => $minOrderCoins,
+            'min_order_coins_met' => ($minOrderCoins <= 0 || $subtotalCoins >= $minOrderCoins),
             'otp_required' => $otpRequired,
-            'can_place_order' => $stockOk && $serviceable && $deliveryMinMet && ($shortfall === 0),
+            'can_place_order' => $stockOk && $serviceable && $deliveryMinMet && ($shortfall === 0) && ($minOrderCoins <= 0 || $subtotalCoins >= $minOrderCoins),
         ];
     }
 }

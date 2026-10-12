@@ -6,6 +6,7 @@ namespace App\Services\WhatsApp;
 
 use App\Exceptions\MetaWhatsAppException;
 use App\Models\WhatsappMessage;
+use App\Models\WhatsAppMessageLog;
 use App\Models\WhatsappTemplate;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -535,6 +536,57 @@ class MetaWhatsAppService
     }
 
     /**
+     * Update an existing WhatsApp template on Meta via Graph API.
+     * Endpoint: POST /{template_id}
+     *
+     * @param  array{components: list<array<string, mixed>>, category?: string}  $payload
+     * @return array<string, mixed>
+     */
+    public function updateTemplate(string $metaTemplateId, array $payload): array
+    {
+        $components = $payload['components'] ?? [];
+
+        Log::info('[MetaWhatsAppService] Updating Meta template request.', [
+            'meta_template_id' => $metaTemplateId,
+            'component_types' => array_column($components, 'type'),
+        ]);
+
+        $postData = [
+            'components' => $components,
+        ];
+
+        if (! empty($payload['category'])) {
+            $postData['category'] = strtoupper((string) $payload['category']);
+        }
+
+        $response = $this->client()->post("/{$metaTemplateId}", $postData);
+
+        if (! $response->successful()) {
+            $this->handleErrorResponse($response, "updateTemplate:{$metaTemplateId}");
+        }
+
+        $responseData = (array) $response->json();
+
+        // Update local template record
+        $localTemplate = WhatsappTemplate::where('meta_template_id', $metaTemplateId)->first();
+        if ($localTemplate) {
+            $localTemplate->update([
+                'components' => $components,
+                'status' => 'IN_REVIEW',
+                'meta_response' => array_merge($localTemplate->meta_response ?? [], $responseData),
+                'last_synced_at' => now(),
+            ]);
+        }
+
+        Log::info('[MetaWhatsAppService] Meta template updated successfully.', [
+            'meta_template_id' => $metaTemplateId,
+            'response' => $responseData,
+        ]);
+
+        return $responseData;
+    }
+
+    /**
      * Synchronize all Message Templates from Meta into the local database idempotently.
      *
      * @return array{total_synced: int, created: int, updated: int}
@@ -567,6 +619,8 @@ class MetaWhatsAppService
             $attributes = [
                 'meta_template_id' => $metaId,
                 'name' => $name,
+                'template_key' => $name,
+                'template_name' => $name,
                 'language' => $language,
                 'category' => $category,
                 'status' => $status,
@@ -698,6 +752,30 @@ class MetaWhatsAppService
                 'sent_at' => now(),
             ]);
 
+            try {
+                WhatsAppMessageLog::create([
+                    'whatsapp_template_id' => $template?->id,
+                    'template_key' => $templateName,
+                    'template_name' => $templateName,
+                    'event_key' => 'meta_whatsapp_dispatch',
+                    'user_id' => $userId,
+                    'recipient_phone' => $normalizedRecipient,
+                    'requested_recipient_phone' => $recipientPhone,
+                    'actual_recipient_phone' => $normalizedRecipient,
+                    'payload' => $payload,
+                    'request_payload' => $payload,
+                    'provider_response' => $responseData,
+                    'provider_message_id' => $metaMessageId ?: null,
+                    'status' => WhatsAppMessageLog::STATUS_SENT,
+                    'source' => 'meta_cloud_api',
+                    'environment' => app()->environment(),
+                    'is_test' => true,
+                    'sent_at' => now(),
+                ]);
+            } catch (Throwable $logEx) {
+                Log::warning('[MetaWhatsAppService] Could not write to WhatsAppMessageLog: '.$logEx->getMessage());
+            }
+
             Log::info('[MetaWhatsAppService] WhatsApp message accepted by Meta Cloud API.', [
                 'whatsapp_message_id' => $messageRecord->id,
                 'meta_message_id' => $metaMessageId,
@@ -719,6 +797,31 @@ class MetaWhatsAppService
                 'failed_at' => now(),
             ]);
 
+            try {
+                WhatsAppMessageLog::create([
+                    'whatsapp_template_id' => $template?->id,
+                    'template_key' => $templateName,
+                    'template_name' => $templateName,
+                    'event_key' => 'meta_whatsapp_dispatch',
+                    'user_id' => $userId,
+                    'recipient_phone' => $normalizedRecipient,
+                    'requested_recipient_phone' => $recipientPhone,
+                    'actual_recipient_phone' => $normalizedRecipient,
+                    'payload' => $payload,
+                    'request_payload' => $payload,
+                    'status' => WhatsAppMessageLog::STATUS_FAILED,
+                    'error_code' => (string) ($e->getMetaErrorCode() ?? $e->getHttpStatus()),
+                    'error_message' => $e->getUserFriendlyMessage(),
+                    'provider_response' => $e->getRawError(),
+                    'source' => 'meta_cloud_api',
+                    'environment' => app()->environment(),
+                    'is_test' => true,
+                    'failed_at' => now(),
+                ]);
+            } catch (Throwable $logEx) {
+                Log::warning('[MetaWhatsAppService] Could not write failed log to WhatsAppMessageLog: '.$logEx->getMessage());
+            }
+
             Log::error('[MetaWhatsAppService] Failed to send WhatsApp message.', [
                 'whatsapp_message_id' => $messageRecord->id,
                 'error_code' => $e->getMetaErrorCode(),
@@ -733,6 +836,30 @@ class MetaWhatsAppService
                 'error_message' => $e->getMessage(),
                 'failed_at' => now(),
             ]);
+
+            try {
+                WhatsAppMessageLog::create([
+                    'whatsapp_template_id' => $template?->id,
+                    'template_key' => $templateName,
+                    'template_name' => $templateName,
+                    'event_key' => 'meta_whatsapp_dispatch',
+                    'user_id' => $userId,
+                    'recipient_phone' => $normalizedRecipient,
+                    'requested_recipient_phone' => $recipientPhone,
+                    'actual_recipient_phone' => $normalizedRecipient,
+                    'payload' => $payload,
+                    'request_payload' => $payload,
+                    'status' => WhatsAppMessageLog::STATUS_FAILED,
+                    'error_code' => '500',
+                    'error_message' => $e->getMessage(),
+                    'source' => 'meta_cloud_api',
+                    'environment' => app()->environment(),
+                    'is_test' => true,
+                    'failed_at' => now(),
+                ]);
+            } catch (Throwable $logEx) {
+                Log::warning('[MetaWhatsAppService] Could not write generic error to WhatsAppMessageLog: '.$logEx->getMessage());
+            }
 
             Log::error('[MetaWhatsAppService] Unexpected exception sending WhatsApp message: '.$e->getMessage());
 

@@ -12,6 +12,8 @@ class StoreConfigService
         $storeEnabled = (bool) StoreConfig::getValue('store_enabled', true);
         $minAppVersion = (string) StoreConfig::getValue('min_app_version_for_store', '1.0.0');
         $minDeliveryCoins = (int) StoreConfig::getValue('min_delivery_order_coins', 100000);
+        $minOrderTotalCoins = (int) (StoreConfig::getValue('min_order_total_coins') ?? StoreConfig::getValue('min_order_coins', 0));
+        $minMemberCoins = (int) StoreConfig::getValue('min_member_coins_to_buy', 0);
         $returnWindowDays = (int) StoreConfig::getValue('return_window_days', 7);
         $pickupHoldDays = (int) StoreConfig::getValue('pickup_hold_days', 7);
 
@@ -37,6 +39,8 @@ class StoreConfigService
             'earned_coins' => $walletData['earned_coins'],
             'bonus_coins' => $walletData['bonus_coins'],
             'delivery_minimum_coins' => $minDeliveryCoins,
+            'min_order_total_coins' => $minOrderTotalCoins,
+            'min_member_coins_to_buy' => $minMemberCoins,
             'pickup_available' => true,
             'return_window_days' => $returnWindowDays,
             'pickup_hold_days' => $pickupHoldDays,

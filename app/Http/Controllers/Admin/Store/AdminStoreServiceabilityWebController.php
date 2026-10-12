@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Store\PickupPoint;
 use App\Models\Store\ServiceablePincode;
 use App\Models\Store\StoreBanner;
+use App\Services\Media\FileUploadService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -254,7 +256,7 @@ class AdminStoreServiceabilityWebController extends Controller
         $imageUrl = $request->input('image_url');
         if ($request->hasFile('image')) {
             try {
-                $fileModel = app(\App\Services\Media\FileUploadService::class)->store($request->file('image'), \Illuminate\Support\Facades\Auth::guard('admin')->user());
+                $fileModel = app(FileUploadService::class)->store($request->file('image'), Auth::guard('admin')->user());
                 $imageUrl = url('/api/v1/files/'.$fileModel->id);
             } catch (\Throwable $e) {
                 $file = $request->file('image');
@@ -317,7 +319,7 @@ class AdminStoreServiceabilityWebController extends Controller
         $imageUrl = $banner->getRawOriginal('image_url');
         if ($request->hasFile('image')) {
             try {
-                $fileModel = app(\App\Services\Media\FileUploadService::class)->store($request->file('image'), \Illuminate\Support\Facades\Auth::guard('admin')->user());
+                $fileModel = app(FileUploadService::class)->store($request->file('image'), Auth::guard('admin')->user());
                 $imageUrl = url('/api/v1/files/'.$fileModel->id);
             } catch (\Throwable $e) {
                 $file = $request->file('image');
