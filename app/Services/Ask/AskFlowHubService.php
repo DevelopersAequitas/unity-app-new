@@ -11,6 +11,7 @@ use App\Models\Ask\AskType;
 use App\Models\BusinessDeal;
 use App\Models\CircleMember;
 use App\Models\District;
+use App\Models\PeerReferral;
 use App\Models\PostSave;
 use App\Models\Referral;
 use App\Models\User;
@@ -121,7 +122,10 @@ class AskFlowHubService
         if ($normalizedFlow === 'referral') {
             // Also retrieve peer referrals from referrals table
             $refQuery = Referral::query()
-                ->where('is_deleted', false)
+                ->where(function (Builder $q): void {
+                    $q->where('is_deleted', false)
+                        ->orWhereNull('is_deleted');
+                })
                 ->whereNull('deleted_at')
                 ->with(['fromUser', 'toUser', 'status'])
                 ->orderByDesc('created_at');
@@ -423,7 +427,10 @@ class AskFlowHubService
     {
         $asks = Ask::query()
             ->where('user_id', $user->id)
-            ->whereHas('flow', fn (Builder $q) => $q->where('code', 'referral'))
+            ->where(function (Builder $q): void {
+                $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
+                    ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])));
+            })
             ->with(['responses.responder', 'responses.contact', 'responses.introducedUser'])
             ->orderByDesc('created_at')
             ->get();
@@ -469,7 +476,10 @@ class AskFlowHubService
         // Given Referrals from referrals table (where from_user_id = auth user)
         $givenReferralsQuery = Referral::query()
             ->where('from_user_id', $user->id)
-            ->where('is_deleted', false)
+            ->where(function (Builder $q): void {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
             ->whereNull('deleted_at')
             ->with(['toUser', 'status'])
             ->orderByDesc('created_at')
@@ -535,10 +545,82 @@ class AskFlowHubService
             $givenReferrals[] = $item;
         }
 
+        // Responses user provided to other peers' Referral Asks
+        $respondedAsks = AskResponse::query()
+            ->where('responder_user_id', $user->id)
+            ->where(function (Builder $q): void {
+                $q->whereHas('ask.flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
+                    ->orWhereIn('response_type', [AskResponse::TYPE_CAN_INTRODUCE_PEER, AskResponse::TYPE_KNOW_SOMEONE]);
+            })
+            ->with(['ask', 'contact', 'introducedUser'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        foreach ($respondedAsks as $resp) {
+            $ask = $resp->ask;
+            $contactName = $resp->contact?->full_name
+                ?? ($resp->introducedUser ? ($resp->introducedUser->display_name ?: trim(($resp->introducedUser->first_name ?? '').' '.($resp->introducedUser->last_name ?? ''))) : 'Contact Person');
+            $statusName = $resp->status ?? 'pending';
+
+            $givenReferrals[] = [
+                'id' => (string) $resp->id,
+                'ask_id' => $ask ? (string) $ask->id : null,
+                'flow_code' => 'referral',
+                'title' => (string) ($ask?->title ?: 'Referral Response'),
+                'referral_of' => (string) ($contactName ?: ($ask?->title ?? 'Business Referral')),
+                'description' => (string) ($resp->message ?: ('Introduction for '.($ask?->title ?? 'Ask'))),
+                'remarks' => (string) ($resp->message ?? ''),
+                'referral_type' => (string) ($resp->response_type ?? 'referral_response'),
+                'phone' => (string) ($resp->contact?->phone ?? ''),
+                'email' => (string) ($resp->contact?->email ?? ''),
+                'status' => in_array($resp->status, [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, 'connected'], true) ? 'connected' : (string) $resp->status,
+                'status_id' => 1,
+                'status_label' => ucfirst((string) $statusName),
+                'responses' => [],
+                'responses_count' => 0,
+                'created_at' => $resp->created_at?->toISOString() ?? now()->toISOString(),
+            ];
+        }
+
+        // Circle Peer Referrals (peer_referrals table)
+        if (Schema::hasTable('peer_referrals')) {
+            $peerRefs = PeerReferral::query()
+                ->where('referrer_user_id', $user->id)
+                ->with(['mainCircle', 'circle'])
+                ->orderByDesc('created_at')
+                ->get();
+
+            foreach ($peerRefs as $pRef) {
+                $statusName = $pRef->status ?? 'pending';
+                $givenReferrals[] = [
+                    'id' => (string) $pRef->id,
+                    'flow_code' => 'referral',
+                    'title' => (string) ($pRef->referred_name ? 'Peer Recommendation: '.$pRef->referred_name : 'Peer Recommendation'),
+                    'referral_of' => (string) ($pRef->referred_name ?? 'Peer Recommendation'),
+                    'description' => (string) ($pRef->message ?: ('Recommended peer '.($pRef->referred_name ?? ''))),
+                    'remarks' => (string) ($pRef->message ?? ''),
+                    'referral_type' => 'peer_recommendation',
+                    'phone' => (string) ($pRef->referred_phone ?? ''),
+                    'email' => (string) ($pRef->referred_email ?? ''),
+                    'company_name' => (string) ($pRef->referred_company_name ?? ''),
+                    'designation' => (string) ($pRef->referred_designation ?? ''),
+                    'status' => (string) $statusName,
+                    'status_id' => 1,
+                    'status_label' => ucfirst((string) $statusName),
+                    'responses' => [],
+                    'responses_count' => 0,
+                    'created_at' => $pRef->created_at?->toISOString() ?? now()->toISOString(),
+                ];
+            }
+        }
+
         // Received Introductions from referrals table (where to_user_id = auth user)
         $referrals = Referral::query()
             ->where('to_user_id', $user->id)
-            ->where('is_deleted', false)
+            ->where(function (Builder $q): void {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
             ->whereNull('deleted_at')
             ->with(['fromUser', 'status'])
             ->orderByDesc('created_at')
@@ -575,12 +657,61 @@ class AskFlowHubService
             ];
         }
 
-        $allMyAsks = array_merge($myAsks, $givenReferrals);
+        // Introductions received where auth user was introduced to an Ask
+        $introducedToMe = AskResponse::query()
+            ->where('introduced_user_id', $user->id)
+            ->with(['ask', 'responder'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        foreach ($introducedToMe as $resp) {
+            $ask = $resp->ask;
+            $responder = $resp->responder;
+            $receivedIntroductions[] = [
+                'id' => (string) $resp->id,
+                'ask_id' => $ask ? (string) $ask->id : null,
+                'flow_code' => 'referral',
+                'referral_of' => (string) ($ask?->title ?? 'Business Referral'),
+                'title' => (string) ($ask?->title ?? 'Business Referral'),
+                'remarks' => (string) ($resp->message ?? ''),
+                'phone' => '',
+                'email' => '',
+                'address' => '',
+                'hot_value' => 1,
+                'introduced_by' => [
+                    'id' => (string) ($responder?->id ?? ''),
+                    'display_name' => $responder ? ($responder->display_name ?: trim(($responder->first_name ?? '').' '.($responder->last_name ?? ''))) : 'Peer Member',
+                    'avatar_url' => $responder?->profile_photo_file_id
+                        ? url('/api/v1/files/'.$responder->profile_photo_file_id)
+                        : ($responder?->profile_photo_url ?? null),
+                ],
+                'status_id' => 1,
+                'status_label' => ucfirst((string) ($resp->status ?? 'pending')),
+                'status' => (string) ($resp->status ?? 'pending'),
+                'created_at' => $resp->created_at?->toISOString() ?? now()->toISOString(),
+            ];
+        }
+
+        $filter = strtolower(trim((string) ($params['filter'] ?? 'all')));
+
+        if ($filter === 'given') {
+            $allMyAsks = $givenReferrals;
+        } elseif ($filter === 'received' || $filter === 'introductions') {
+            $allMyAsks = $receivedIntroductions;
+        } elseif ($filter === 'asks' || $filter === 'requirements') {
+            $allMyAsks = $myAsks;
+        } else {
+            // Default: includes all requirements, given referrals, and received introductions so nothing is hidden
+            $allMyAsks = array_merge($myAsks, $givenReferrals, $receivedIntroductions);
+        }
+
         usort($allMyAsks, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        usort($givenReferrals, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        usort($receivedIntroductions, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
         return [
             'items' => $allMyAsks,
-            'my_asks' => $allMyAsks,
+            'my_asks' => $myAsks,
             'data' => $allMyAsks,
             'given_referrals' => $givenReferrals,
             'received_introductions' => $receivedIntroductions,
