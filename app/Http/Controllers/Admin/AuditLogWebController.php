@@ -9,7 +9,6 @@ use App\Models\ActivityLog;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuditLogWebController extends Controller
@@ -84,7 +83,7 @@ class AuditLogWebController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv; charset=utf-8',
-            'Content-Disposition' => 'attachment; filename="audit-logs-' . Carbon::now()->format('Y-m-d-His') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="audit-logs-'.Carbon::now()->format('Y-m-d-His').'.csv"',
         ];
 
         return response()->stream(function () use ($query): void {

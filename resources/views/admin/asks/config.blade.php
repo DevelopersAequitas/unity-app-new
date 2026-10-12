@@ -142,8 +142,8 @@
             $groupFlowMap = [
                 'collaboration_bring' => ['collaboration'],
                 'collaboration_need' => ['collaboration'],
-                'industry' => ['help'],
-                'geography' => ['help'],
+                'industry' => ['collaboration', 'referral', 'help'],
+                'geography' => ['collaboration', 'referral', 'help'],
                 'business_stage' => ['collaboration'],
                 'timeline' => ['collaboration'],
                 'expected_outcome' => ['collaboration'],
@@ -214,7 +214,7 @@
                 @if($collabFlow && $collabFlow->types->isNotEmpty())
                     @foreach($collabFlow->types as $t)
                         <button type="button" 
-                                onclick="filterBySubType('{{ $t->id }}', this)" 
+                                onclick="filterBySubType('{{ $t->id }}', this, '{{ $t->code }}')" 
                                 id="subtype-tab-{{ $t->id }}"
                                 data-type-id="{{ $t->id }}"
                                 data-type-code="{{ $t->code }}"
@@ -266,6 +266,7 @@
                                     <div class="option-item flex items-center justify-between p-2 rounded-lg border text-xs transition {{ $option->is_active ? 'bg-slate-50/80 border-slate-200 text-slate-800' : 'bg-slate-100/50 border-slate-200 text-slate-400' }}" 
                                          id="option-row-{{ $option->id }}"
                                          data-type-id="{{ $option->ask_type_id ?? '' }}"
+                                         data-type-code="{{ $option->askType?->code ?? '' }}"
                                          data-is-active="{{ $option->is_active ? '1' : '0' }}">
                                         <div class="overflow-hidden pr-2">
                                             <div class="flex items-center gap-1.5 flex-wrap">
@@ -461,6 +462,7 @@
         const STORE_GROUP_URL = '{{ route("admin.asks.config.group.store") }}';
         const STORE_OPTION_URL = '{{ route("admin.asks.config.option.store") }}';
         let currentSelectedTypeId = 'all';
+        let currentSelectedTypeCode = '';
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -799,8 +801,9 @@
             });
         }
 
-        function filterBySubType(typeId, tabElement) {
+        function filterBySubType(typeId, tabElement, typeCode) {
             currentSelectedTypeId = typeId;
+            currentSelectedTypeCode = typeCode || '';
             document.querySelectorAll('.subtype-tab-btn').forEach(btn => {
                 btn.className = 'subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition';
             });
@@ -814,8 +817,16 @@
                 let visibleCount = 0;
                 let activeVisibleCount = 0;
 
+                // Check if this group card contains ANY options explicitly tagged for this sub-type
+                const hasTypeSpecificOptions = (typeId !== 'all') && Array.from(optionRows).some(row => {
+                    const rId = row.getAttribute('data-type-id') || '';
+                    const rCode = row.getAttribute('data-type-code') || '';
+                    return (rId && rId === typeId) || (typeCode && rCode === typeCode);
+                });
+
                 optionRows.forEach(row => {
-                    const rowTypeId = row.getAttribute('data-type-id') || '';
+                    const rId = row.getAttribute('data-type-id') || '';
+                    const rCode = row.getAttribute('data-type-code') || '';
                     const isActive = row.getAttribute('data-is-active') === '1';
 
                     if (typeId === 'all') {
@@ -823,7 +834,12 @@
                         visibleCount++;
                         if (isActive) activeVisibleCount++;
                     } else {
-                        if (rowTypeId === typeId) {
+                        const matchesType = (rId && rId === typeId) || (typeCode && rCode === typeCode);
+                        const isGeneral = (!rId && !rCode);
+
+                        // If card has options specifically for this category (e.g. What I Bring, What I Need), show only those matching options.
+                        // If card is a shared section with no category-specific overrides (e.g. Business Stage, Timeline, Industry, Geography), keep all general options visible!
+                        if (matchesType || (!hasTypeSpecificOptions && isGeneral)) {
                             row.style.display = '';
                             visibleCount++;
                             if (isActive) activeVisibleCount++;
