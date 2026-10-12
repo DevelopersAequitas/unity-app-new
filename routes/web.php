@@ -114,6 +114,7 @@ use App\Http\Controllers\Admin\Web\WebPageMediaController;
 use App\Http\Controllers\Admin\Web\WebPartnershipController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
+use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
@@ -846,6 +847,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/templates/create', [MetaWhatsAppAdminController::class, 'createTemplateView'])->name('templates.create');
             Route::post('/templates', [MetaWhatsAppAdminController::class, 'storeTemplate'])->name('templates.store');
             Route::get('/templates/{id}', [MetaWhatsAppAdminController::class, 'showTemplate'])->name('templates.show');
+            Route::get('/templates/{id}/edit', [MetaWhatsAppAdminController::class, 'editTemplateView'])->name('templates.edit');
+            Route::put('/templates/{id}', [MetaWhatsAppAdminController::class, 'updateTemplate'])->name('templates.update');
             Route::delete('/templates/{id}', [MetaWhatsAppAdminController::class, 'deleteTemplate'])->name('templates.delete');
 
             Route::get('/test-message', [MetaWhatsAppAdminController::class, 'testMessageView'])->name('test_message');
@@ -861,6 +864,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/webhook-logs', [MetaWhatsAppAdminController::class, 'webhookLogs'])->name('webhook_logs');
             Route::get('/settings', [MetaWhatsAppAdminController::class, 'settings'])->name('settings');
             Route::get('/test-connection', [MetaWhatsAppAdminController::class, 'testConnection'])->name('test_connection');
+
+            // 30-Day Member Onboarding WhatsApp Journey
+            Route::get('/journey', [MemberJourneyAdminController::class, 'index'])->name('journey.index');
+            Route::get('/journey/user/{userId}', [MemberJourneyAdminController::class, 'show'])->whereUuid('userId')->name('journey.show');
+            Route::post('/journey/user/{userId}/initialize', [MemberJourneyAdminController::class, 'initialize'])->whereUuid('userId')->name('journey.initialize');
+            Route::post('/journey/initialize-all', [MemberJourneyAdminController::class, 'initializeAll'])->name('journey.initialize_all');
+            Route::post('/journey/send/{sendId}', [MemberJourneyAdminController::class, 'sendDay'])->whereUuid('sendId')->name('journey.send_day');
+            Route::post('/journey/process-due', [MemberJourneyAdminController::class, 'processDue'])->name('journey.process_due');
         });
 
         // App Notifications & Mobile Navigation Showcase Module

@@ -2,6 +2,7 @@
 
 namespace App\Models\Store;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -46,9 +47,9 @@ class ProductVariant extends Model
         'price_coins',
     ];
 
-    protected function coinPrice(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function coinPrice(): Attribute
     {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+        return Attribute::make(
             get: function ($value, $attributes) {
                 $val = (int) ($attributes['coin_price'] ?? ($attributes['price_coins'] ?? 0));
                 if ($val <= 0) {
@@ -72,9 +73,9 @@ class ProductVariant extends Model
         );
     }
 
-    protected function priceCoins(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function priceCoins(): Attribute
     {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+        return Attribute::make(
             get: function ($value, $attributes) {
                 $val = (int) ($attributes['price_coins'] ?? ($attributes['coin_price'] ?? 0));
                 if ($val <= 0) {

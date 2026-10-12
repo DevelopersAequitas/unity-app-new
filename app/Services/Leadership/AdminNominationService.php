@@ -7,6 +7,7 @@ namespace App\Services\Leadership;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationDocument;
 use App\Models\Leadership\LeadershipNominationHistory;
+use App\Models\User;
 use App\Services\Notifications\WhatsappNotificationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -408,7 +409,7 @@ class AdminNominationService
 
     protected function resolveValidUserId(?string $userId): ?string
     {
-        return ($userId && \App\Models\User::where('id', $userId)->exists()) ? (string) $userId : null;
+        return ($userId && User::where('id', $userId)->exists()) ? (string) $userId : null;
     }
 
     /**

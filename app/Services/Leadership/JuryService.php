@@ -81,7 +81,7 @@ class JuryService
                         'status' => 'assigned',
                         'due_at' => $dueAt ? Carbon::parse($dueAt) : null,
                         'assignment_remarks' => $remarks,
-                        'assigned_by' => ($assignedBy && \App\Models\User::where('id', $assignedBy)->exists()) ? (string) $assignedBy : null,
+                        'assigned_by' => ($assignedBy && User::where('id', $assignedBy)->exists()) ? (string) $assignedBy : null,
                     ]
                 );
 

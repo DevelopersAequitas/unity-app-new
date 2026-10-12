@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Leadership;
 
+use App\Models\Leadership\LeadershipCampaign;
 use App\Services\Leadership\ReportingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,7 +90,7 @@ class ReportController extends LeadershipBaseController
      */
     public function campaignDetailed(string $campaignId): JsonResponse
     {
-        $campaign = \App\Models\Leadership\LeadershipCampaign::with(['role', 'scopes'])
+        $campaign = LeadershipCampaign::with(['role', 'scopes'])
             ->withCount(['nominations', 'votes'])
             ->findOrFail($campaignId);
 

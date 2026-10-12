@@ -2211,10 +2211,18 @@ class UsersController extends Controller
             return;
         }
 
+        $expiryColumn = Schema::hasColumn('users', 'membership_ends_at')
+            ? 'membership_ends_at'
+            : (Schema::hasColumn('users', 'membership_expiry') ? 'membership_expiry' : null);
+
+        if (! $expiryColumn) {
+            return;
+        }
+
         User::query()
             ->where('membership_status', User::STATUS_FREE_TRIAL)
-            ->whereNotNull('membership_ends_at')
-            ->where('membership_ends_at', '<=', now())
+            ->whereNotNull($expiryColumn)
+            ->where($expiryColumn, '<=', now())
             ->update([
                 'membership_status' => User::STATUS_FREE,
             ]);
@@ -2222,9 +2230,10 @@ class UsersController extends Controller
 
     private function expireTrialUserForAdminPanel(User $user): void
     {
+        $expiryDate = $user->membership_ends_at ?? $user->membership_expiry ?? null;
         if ($user->membership_status === User::STATUS_FREE_TRIAL
-            && $user->membership_ends_at
-            && $user->membership_ends_at->lessThanOrEqualTo(now())) {
+            && $expiryDate
+            && Carbon::parse($expiryDate)->lessThanOrEqualTo(now())) {
             $user->membership_status = User::STATUS_FREE;
             $user->save();
         }
@@ -2504,13 +2513,14 @@ class UsersController extends Controller
             'welcome_membership_email_plan_code',
         ];
 
-        static $hasPeerId = null, $hasMainCat = null, $hasApprovalStatus = null, $hasBusinessSubCat = null, $hasExpiresAt = null;
+        static $hasPeerId = null, $hasMainCat = null, $hasApprovalStatus = null, $hasBusinessSubCat = null, $hasExpiresAt = null, $hasPaidEndsAt = null;
         if ($hasPeerId === null) {
             $hasPeerId = Schema::hasColumn('users', 'peer_id');
             $hasMainCat = Schema::hasColumn('users', 'main_business_category_id');
             $hasApprovalStatus = Schema::hasColumn('users', 'approval_status');
             $hasBusinessSubCat = Schema::hasColumn('users', 'business_sub_category');
             $hasExpiresAt = Schema::hasColumn('circle_members', 'expires_at');
+            $hasPaidEndsAt = Schema::hasColumn('circle_members', 'paid_ends_at');
         }
 
         if ($hasPeerId) {
@@ -2526,6 +2536,9 @@ class UsersController extends Controller
             $userSelectColumns[] = 'business_sub_category';
         }
 
+        $existingColumns = Schema::getColumnListing('users');
+        $userSelectColumns = array_values(array_intersect($userSelectColumns, $existingColumns));
+
         $query = User::withTrashed()
             ->select($userSelectColumns)
             ->withCount(['introducedMembers'])
@@ -2534,18 +2547,24 @@ class UsersController extends Controller
                 'introducedBy',
                 'mainBusinessCategory:id,name',
                 'businessCategory:id,name',
-                'circleMembers' => function ($circleMembersQuery) use ($joinedStatus, $hasExpiresAt) {
+                'circleMembers' => function ($circleMembersQuery) use ($joinedStatus, $hasExpiresAt, $hasPaidEndsAt) {
                     $circleMembersQuery
                         ->where('status', $joinedStatus)
                         ->whereNull('deleted_at')
-                        ->whereNull('left_at')
-                        ->where(function ($query) use ($hasExpiresAt): void {
-                            $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+                        ->whereNull('left_at');
 
+                    if ($hasPaidEndsAt || $hasExpiresAt) {
+                        $circleMembersQuery->where(function ($query) use ($hasExpiresAt, $hasPaidEndsAt): void {
+                            if ($hasPaidEndsAt) {
+                                $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+                            }
                             if ($hasExpiresAt) {
                                 $query->orWhere('expires_at', '>=', now());
                             }
-                        })
+                        });
+                    }
+
+                    $circleMembersQuery
                         ->orderByDesc('joined_at')
                         ->with(['circle:id,name', 'level1Category:id,name', 'level2Category:id,name', 'level3Category:id,name', 'level4Category:id,name']);
                 },

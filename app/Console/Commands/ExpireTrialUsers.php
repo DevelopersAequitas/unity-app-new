@@ -9,6 +9,7 @@ use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class ExpireTrialUsers extends Command
 {
@@ -18,10 +19,20 @@ class ExpireTrialUsers extends Command
 
     public function handle(): int
     {
+        $expiryColumn = Schema::hasColumn('users', 'membership_ends_at')
+            ? 'membership_ends_at'
+            : (Schema::hasColumn('users', 'membership_expiry') ? 'membership_expiry' : null);
+
+        if (! $expiryColumn) {
+            $this->info('No membership expiry column found on users table.');
+
+            return self::SUCCESS;
+        }
+
         $expiredUsers = User::query()
             ->where('membership_status', User::STATUS_FREE_TRIAL)
-            ->whereNotNull('membership_ends_at')
-            ->where('membership_ends_at', '<=', now())
+            ->whereNotNull($expiryColumn)
+            ->where($expiryColumn, '<=', now())
             ->get();
 
         $updated = 0;
