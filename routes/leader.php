@@ -188,10 +188,11 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('form-config', [LeaderAskFlowController::class, 'formConfig']);
     });
 
-    // 3 DEDICATED ASKS FLOWS: 9 CORE ENDPOINTS (Global Feed, My History, Leaderboard)
+    // 3 DEDICATED ASKS FLOWS: CORE ENDPOINTS (Global Feed, My History, Leaderboard, Detail)
     Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
+        Route::get('{id}', [AskFlowHubController::class, 'showAsk'])->whereUuid('id');
     });
 });

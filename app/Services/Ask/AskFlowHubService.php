@@ -348,18 +348,362 @@ class AskFlowHubService
     }
 
     /**
+     * Format comprehensive ask details for mobile, leader and admin flows.
+     *
+     * @return array<string, mixed>
+     */
+    public function formatFullAskDetails(
+        Ask $ask,
+        string $flowCode,
+        ?array $acceptedPeer = null,
+        ?array $fulfilledBy = null
+    ): array {
+        $answersGrouped = [];
+        $answersList = [];
+        $whatIBring = [];
+        $whatINeed = [];
+        $industryList = [];
+        $geographyList = [];
+        $businessStageList = [];
+        $timelineList = [];
+        $expectedOutcomeList = [];
+        $goal = null;
+        $description = null;
+
+        if ($ask->relationLoaded('answers')) {
+            foreach ($ask->answers as $answer) {
+                /** @var AskAnswer $answer */
+                $fieldKey = (string) $answer->field_key;
+                $opt = $answer->option;
+                $group = $answer->optionGroup;
+
+                $optLabel = $opt?->label ?? $opt?->name ?? $answer->value_text;
+                $optCode = $opt?->code;
+
+                $answersList[] = [
+                    'id' => (string) $answer->id,
+                    'field_key' => $fieldKey,
+                    'option_group_id' => $answer->option_group_id ? (string) $answer->option_group_id : null,
+                    'group_code' => $group?->code ?? $fieldKey,
+                    'group_name' => $group?->name ?? ucfirst(str_replace('_', ' ', $fieldKey)),
+                    'option_id' => $answer->option_id ? (string) $answer->option_id : null,
+                    'code' => $optCode,
+                    'label' => $optLabel,
+                    'value' => $optLabel ?? $answer->value_text ?? $answer->value_number ?? $answer->value_boolean ?? $answer->value_json,
+                    'value_text' => $answer->value_text,
+                    'value_number' => $answer->value_number !== null ? (float) $answer->value_number : null,
+                    'value_boolean' => $answer->value_boolean !== null ? (bool) $answer->value_boolean : null,
+                    'value_json' => $answer->value_json,
+                    'sort_order' => (int) $answer->sort_order,
+                ];
+
+                if ($answer->option_id && $opt) {
+                    if (! isset($answersGrouped[$fieldKey])) {
+                        $answersGrouped[$fieldKey] = [];
+                    }
+                    $answersGrouped[$fieldKey][] = [
+                        'option_id' => (string) $answer->option_id,
+                        'code' => $optCode,
+                        'label' => $optLabel,
+                    ];
+                } elseif ($answer->value_text !== null) {
+                    $answersGrouped[$fieldKey] = $answer->value_text;
+                } elseif ($answer->value_number !== null) {
+                    $answersGrouped[$fieldKey] = (float) $answer->value_number;
+                } elseif ($answer->value_boolean !== null) {
+                    $answersGrouped[$fieldKey] = (bool) $answer->value_boolean;
+                } elseif ($answer->value_json !== null) {
+                    $answersGrouped[$fieldKey] = $answer->value_json;
+                }
+
+                $isBringKey = in_array($fieldKey, ['what_i_bring', 'collaboration_bring', 'bring'], true)
+                    || (is_string($optCode) && (str_starts_with($optCode, 'cf_bring_') || str_starts_with($optCode, 'jv_bring_') || str_starts_with($optCode, 'sp_bring_')));
+
+                if ($isBringKey) {
+                    $whatIBring[] = [
+                        'id' => (string) ($opt?->id ?? $answer->id),
+                        'option_id' => (string) ($opt?->id ?? $answer->id),
+                        'code' => (string) ($optCode ?? ''),
+                        'label' => (string) ($optLabel ?? ''),
+                    ];
+                }
+
+                $isNeedKey = in_array($fieldKey, ['what_i_need', 'collaboration_need', 'need'], true)
+                    || (is_string($optCode) && (str_starts_with($optCode, 'cf_need_') || str_starts_with($optCode, 'jv_need_') || str_starts_with($optCode, 'sp_need_')));
+
+                if ($isNeedKey) {
+                    $whatINeed[] = [
+                        'id' => (string) ($opt?->id ?? $answer->id),
+                        'option_id' => (string) ($opt?->id ?? $answer->id),
+                        'code' => (string) ($optCode ?? ''),
+                        'label' => (string) ($optLabel ?? ''),
+                    ];
+                }
+
+                if ($fieldKey === 'industry' && filled($optLabel ?? $answer->value_text)) {
+                    $industryList[] = (string) ($optLabel ?? $answer->value_text);
+                }
+                if ($fieldKey === 'geography' && filled($optLabel ?? $answer->value_text)) {
+                    $geographyList[] = (string) ($optLabel ?? $answer->value_text);
+                }
+                if ($fieldKey === 'business_stage' && filled($optLabel ?? $answer->value_text)) {
+                    $businessStageList[] = (string) ($optLabel ?? $answer->value_text);
+                }
+                if ($fieldKey === 'timeline' && filled($optLabel ?? $answer->value_text)) {
+                    $timelineList[] = (string) ($optLabel ?? $answer->value_text);
+                }
+                if (in_array($fieldKey, ['expected_outcome', 'expected_impact', 'impact'], true) && filled($optLabel ?? $answer->value_text)) {
+                    $expectedOutcomeList[] = (string) ($optLabel ?? $answer->value_text);
+                }
+                if ($fieldKey === 'goal' && filled($answer->value_text ?: $optLabel)) {
+                    $goal = (string) ($answer->value_text ?: $optLabel);
+                }
+                if (in_array($fieldKey, ['description', 'details'], true) && filled($answer->value_text)) {
+                    $description = (string) $answer->value_text;
+                }
+            }
+        }
+
+        if (empty($description)) {
+            $description = $goal ?: ($ask->title ?: '');
+        }
+        if (empty($goal)) {
+            $goal = $description ?: $ask->title;
+        }
+
+        $formattedResponses = [];
+        if ($ask->relationLoaded('responses')) {
+            foreach ($ask->responses as $resp) {
+                /** @var AskResponse $resp */
+                $responder = $resp->responder;
+                $introduced = $resp->introducedUser;
+                $contact = $resp->contact;
+
+                $responderName = $responder ? ($responder->display_name ?: trim(($responder->first_name ?? '').' '.($responder->last_name ?? ''))) : 'Peer Member';
+                $introducedName = $introduced ? ($introduced->display_name ?: trim(($introduced->first_name ?? '').' '.($introduced->last_name ?? ''))) : ($contact?->full_name ?? null);
+
+                $formattedResponses[] = [
+                    'id' => (string) $resp->id,
+                    'response_id' => (string) $resp->id,
+                    'status' => (string) $resp->status,
+                    'response_type' => (string) ($resp->response_type ?? 'response'),
+                    'message' => (string) ($resp->message ?? ''),
+                    'responded_at' => $resp->responded_at?->toISOString() ?? $resp->created_at?->toISOString(),
+                    'responder' => $responder ? [
+                        'id' => (string) $responder->id,
+                        'display_name' => $responderName,
+                        'company_name' => (string) ($responder->company_name ?? ''),
+                        'designation' => (string) ($responder->designation ?? ''),
+                        'avatar_url' => $responder->profile_photo_file_id
+                            ? url('/api/v1/files/'.$responder->profile_photo_file_id)
+                            : ($responder->profile_photo_url ?? null),
+                    ] : null,
+                    'introduced_peer' => $introduced ? [
+                        'id' => (string) $introduced->id,
+                        'display_name' => $introducedName,
+                        'company_name' => (string) ($introduced->company_name ?? ''),
+                        'designation' => (string) ($introduced->designation ?? ''),
+                        'avatar_url' => $introduced->profile_photo_file_id
+                            ? url('/api/v1/files/'.$introduced->profile_photo_file_id)
+                            : ($introduced->profile_photo_url ?? null),
+                    ] : ($contact ? [
+                        'id' => (string) $contact->id,
+                        'display_name' => (string) $contact->full_name,
+                        'designation' => (string) ($contact->designation ?? ''),
+                        'company_name' => (string) ($contact->company_name ?? ''),
+                        'phone' => (string) ($contact->phone ?? ''),
+                        'email' => (string) ($contact->email ?? ''),
+                    ] : null),
+                ];
+            }
+        }
+
+        $responsesCount = (int) ($ask->responses_count ?? count($formattedResponses));
+        $matchesCount = (int) ($ask->matches_count ?? ($ask->relationLoaded('matches') ? $ask->matches->count() : 0));
+
+        $status = match ($ask->status) {
+            Ask::STATUS_FULFILLED => 'fulfilled',
+            Ask::STATUS_CLOSED => 'closed',
+            Ask::STATUS_IN_PROGRESS => 'in_progress',
+            default => ($acceptedPeer !== null || $fulfilledBy !== null ? 'in_progress' : 'open'),
+        };
+
+        $totalSteps = 4;
+        $progressStep = match ($status) {
+            'fulfilled', 'closed' => 4,
+            'in_progress' => 3,
+            default => ($responsesCount > 0 ? 2 : 1),
+        };
+
+        return [
+            // Core Identification
+            'id' => (string) $ask->id,
+            'flow_code' => $flowCode,
+            'flow' => $ask->flow ? [
+                'id' => (string) $ask->flow->id,
+                'code' => (string) $ask->flow->code,
+                'name' => (string) $ask->flow->name,
+                'description' => (string) ($ask->flow->description ?? ''),
+            ] : [
+                'id' => '',
+                'code' => $flowCode,
+                'name' => ucfirst($flowCode),
+                'description' => '',
+            ],
+            'type' => $ask->type ? [
+                'id' => (string) $ask->type->id,
+                'code' => (string) $ask->type->code,
+                'name' => (string) $ask->type->name,
+                'description' => (string) ($ask->type->description ?? ''),
+                'level' => (int) ($ask->type->level ?? 1),
+            ] : null,
+            'type_id' => $ask->type_id ? (string) $ask->type_id : null,
+            'category' => (string) ($ask->type?->name ?? ucfirst($flowCode)),
+            'category_name' => (string) ($ask->type?->name ?? ucfirst($flowCode)),
+            'sub_type' => (string) ($ask->type?->code ?? $flowCode),
+            'sub_type_name' => (string) ($ask->type?->name ?? ucfirst($flowCode)),
+            'title' => (string) $ask->title,
+            'description' => (string) $description,
+            'goal' => $goal,
+
+            // Status & Journey Progress
+            'status' => $status,
+            'raw_status' => (string) $ask->status,
+            'progress_step' => $progressStep,
+            'total_steps' => $totalSteps,
+            'responses_count' => $responsesCount,
+            'matches_count' => $matchesCount,
+            'accepted_peer' => $acceptedPeer,
+            'fulfilled_by' => $fulfilledBy ?? $acceptedPeer,
+
+            // Flow Structured Dynamic Options
+            'what_i_bring' => $whatIBring,
+            'what_i_need' => $whatINeed,
+            'collaboration_bring' => $whatIBring,
+            'collaboration_need' => $whatINeed,
+            'industry' => ! empty($industryList) ? implode(', ', $industryList) : null,
+            'industry_list' => $industryList,
+            'geography' => ! empty($geographyList) ? implode(', ', $geographyList) : null,
+            'geography_list' => $geographyList,
+            'business_stage' => ! empty($businessStageList) ? implode(', ', $businessStageList) : null,
+            'business_stage_list' => $businessStageList,
+            'timeline' => ! empty($timelineList) ? implode(', ', $timelineList) : null,
+            'timeline_list' => $timelineList,
+            'expected_outcome' => ! empty($expectedOutcomeList) ? implode(', ', $expectedOutcomeList) : null,
+            'expected_outcome_list' => $expectedOutcomeList,
+            'expected_impact' => ! empty($expectedOutcomeList) ? implode(', ', $expectedOutcomeList) : null,
+
+            // Dynamic Answers
+            'answers' => $answersList,
+            'answers_by_key' => $answersGrouped,
+
+            // Visibility
+            'visibility' => [
+                'visibility_type' => (string) ($ask->visibility_type ?? Ask::VISIBILITY_ALL_PEERS),
+                'district_id' => $ask->visibility_district_id ? (string) $ask->visibility_district_id : null,
+                'district' => $ask->district?->name,
+                'circle_id' => $ask->visibility_circle_id ? (string) $ask->visibility_circle_id : null,
+                'circle' => $ask->circle?->name,
+            ],
+            'visibility_type' => (string) ($ask->visibility_type ?? Ask::VISIBILITY_ALL_PEERS),
+            'publish_to_timeline' => (bool) $ask->publish_to_timeline,
+            'post_to_timeline' => (bool) $ask->publish_to_timeline,
+
+            // Responses
+            'responses' => $formattedResponses,
+
+            // Deal Info & Outcomes
+            'approx_deal_value' => $ask->approx_deal_value ?? ($ask->metadata['approx_value'] ?? null),
+            'approx_value' => $ask->approx_deal_value ?? ($ask->metadata['approx_value'] ?? null),
+            'outcome_status' => $ask->outcome_status ?? ($ask->metadata['outcome_status'] ?? null),
+            'outcome_notes' => $ask->outcome_notes ?? ($ask->metadata['outcome_notes'] ?? null),
+
+            // Author details
+            'author' => $this->formatAuthor($ask->user),
+            'user' => $this->formatAuthor($ask->user),
+
+            // Timestamps
+            'published_at' => $ask->published_at?->toISOString(),
+            'expires_at' => $ask->expires_at?->toISOString(),
+            'closed_at' => $ask->closed_at?->toISOString(),
+            'fulfilled_at' => $ask->fulfilled_at?->toISOString() ?? ($ask->metadata['fulfilled_at'] ?? null),
+            'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
+            'updated_at' => $ask->updated_at?->toISOString() ?? now()->toISOString(),
+        ];
+    }
+
+    /**
+     * Get single ask full details for a flow.
+     *
+     * @return array<string, mixed>
+     */
+    public function getAskDetails(User $user, string $flowCode, string $id): array
+    {
+        $normalizedFlow = $this->normalizeFlowCode($flowCode);
+
+        $ask = Ask::query()
+            ->where('id', $id)
+            ->with([
+                'flow',
+                'type',
+                'district',
+                'circle',
+                'user.city',
+                'answers.optionGroup',
+                'answers.option',
+                'responses.responder',
+                'responses.introducedUser',
+                'responses.contact',
+            ])
+            ->withCount(['responses', 'matches'])
+            ->firstOrFail();
+
+        $acceptedResponse = $ask->responses->firstWhere('status', AskResponse::STATUS_ACCEPTED)
+            ?? $ask->responses->firstWhere('status', AskResponse::STATUS_IN_PROGRESS)
+            ?? $ask->responses->firstWhere('status', AskResponse::STATUS_COMPLETED);
+
+        $acceptedPeer = null;
+        if ($acceptedResponse) {
+            $peerUser = $acceptedResponse->introducedUser ?? $acceptedResponse->responder;
+            if ($peerUser) {
+                $acceptedPeer = [
+                    'id' => (string) $peerUser->id,
+                    'display_name' => $peerUser->display_name ?: trim(($peerUser->first_name ?? '').' '.($peerUser->last_name ?? '')),
+                    'company_name' => (string) ($peerUser->company_name ?? ''),
+                    'avatar_url' => $peerUser->profile_photo_file_id
+                        ? url('/api/v1/files/'.$peerUser->profile_photo_file_id)
+                        : ($peerUser->profile_photo_url ?? null),
+                ];
+            }
+        }
+
+        return $this->formatFullAskDetails($ask, $normalizedFlow, $acceptedPeer);
+    }
+
+    /**
      * Collaboration: My Collaborations & History
      *
      * @param  array{page?: int, limit?: int}  $params
-     * @return array{items: array<int, mixed>}
+     * @return array{items: array<int, mixed>, data: array<int, mixed>}
      */
     protected function getMyCollaborationAsks(User $user, array $params = []): array
     {
         $asks = Ask::query()
             ->where('user_id', $user->id)
             ->whereHas('flow', fn (Builder $q) => $q->where('code', 'collaboration'))
-            ->with(['responses.responder', 'responses.introducedUser'])
-            ->withCount('responses')
+            ->with([
+                'flow',
+                'type',
+                'district',
+                'circle',
+                'user.city',
+                'answers.optionGroup',
+                'answers.option',
+                'responses.responder',
+                'responses.introducedUser',
+                'responses.contact',
+            ])
+            ->withCount(['responses', 'matches'])
             ->orderByDesc('created_at')
             ->get();
 
@@ -385,35 +729,12 @@ class AskFlowHubService
                 }
             }
 
-            $status = match ($ask->status) {
-                Ask::STATUS_FULFILLED => 'fulfilled',
-                Ask::STATUS_CLOSED => 'closed',
-                Ask::STATUS_IN_PROGRESS => 'in_progress',
-                default => ($acceptedPeer !== null ? 'in_progress' : 'open'),
-            };
-
-            $totalSteps = 4;
-            $progressStep = match ($status) {
-                'fulfilled', 'closed' => 4,
-                'in_progress' => 3,
-                default => ($ask->responses_count > 0 ? 2 : 1),
-            };
-
-            $items[] = [
-                'id' => (string) $ask->id,
-                'flow_code' => 'collaboration',
-                'title' => (string) $ask->title,
-                'status' => $status,
-                'responses_count' => (int) $ask->responses_count,
-                'accepted_peer' => $acceptedPeer,
-                'progress_step' => $progressStep,
-                'total_steps' => $totalSteps,
-                'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
-            ];
+            $items[] = $this->formatFullAskDetails($ask, 'collaboration', $acceptedPeer);
         }
 
         return [
             'items' => $items,
+            'data' => $items,
         ];
     }
 
@@ -431,46 +752,28 @@ class AskFlowHubService
                 $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
                     ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])));
             })
-            ->with(['responses.responder', 'responses.contact', 'responses.introducedUser'])
+            ->with([
+                'flow',
+                'type',
+                'district',
+                'circle',
+                'user.city',
+                'answers.optionGroup',
+                'answers.option',
+                'responses.responder',
+                'responses.contact',
+                'responses.introducedUser',
+            ])
+            ->withCount(['responses', 'matches'])
             ->orderByDesc('created_at')
             ->get();
 
         $myAsks = [];
         foreach ($asks as $ask) {
             /** @var Ask $ask */
-            $responsesList = [];
-            foreach ($ask->responses as $resp) {
-                /** @var AskResponse $resp */
-                $responder = $resp->responder;
-                $contactName = $resp->contact?->full_name
-                    ?? ($resp->introducedUser ? ($resp->introducedUser->display_name ?: trim(($resp->introducedUser->first_name ?? '').' '.($resp->introducedUser->last_name ?? ''))) : 'Contact Person');
-                $contactDesignation = $resp->contact?->designation ?? 'Key Contact';
-
-                $responsesList[] = [
-                    'response_id' => (string) $resp->id,
-                    'responder' => [
-                        'id' => (string) ($responder?->id ?? ''),
-                        'display_name' => $responder ? ($responder->display_name ?: trim(($responder->first_name ?? '').' '.($responder->last_name ?? ''))) : 'Peer Member',
-                        'avatar_url' => $responder?->profile_photo_file_id
-                            ? url('/api/v1/files/'.$responder->profile_photo_file_id)
-                            : ($responder?->profile_photo_url ?? null),
-                    ],
-                    'contact_name' => (string) $contactName,
-                    'contact_designation' => (string) $contactDesignation,
-                    'status' => in_array($resp->status, [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, 'connected'], true) ? 'connected' : (string) $resp->status,
-                ];
-            }
-
-            $myAsks[] = [
-                'id' => (string) $ask->id,
-                'flow_code' => 'referral',
-                'title' => (string) $ask->title,
-                'referral_of' => (string) $ask->title,
-                'status' => $ask->status === Ask::STATUS_FULFILLED ? 'fulfilled' : (count($responsesList) > 0 ? 'in_progress' : 'open'),
-                'responses' => $responsesList,
-                'responses_count' => count($responsesList),
-                'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
-            ];
+            $formatted = $this->formatFullAskDetails($ask, 'referral');
+            $formatted['referral_of'] = (string) $ask->title;
+            $myAsks[] = $formatted;
         }
 
         // Given Referrals from referrals table (where from_user_id = auth user)
@@ -723,14 +1026,26 @@ class AskFlowHubService
      * Help: My Help Requests & Guidance History
      *
      * @param  array{page?: int, limit?: int}  $params
-     * @return array{items: array<int, mixed>}
+     * @return array{items: array<int, mixed>, data: array<int, mixed>}
      */
     protected function getMyHelpAsks(User $user, array $params = []): array
     {
         $asks = Ask::query()
             ->where('user_id', $user->id)
             ->whereHas('flow', fn (Builder $q) => $q->where('code', 'help'))
-            ->with(['responses.responder'])
+            ->with([
+                'flow',
+                'type',
+                'district',
+                'circle',
+                'user.city',
+                'answers.optionGroup',
+                'answers.option',
+                'responses.responder',
+                'responses.introducedUser',
+                'responses.contact',
+            ])
+            ->withCount(['responses', 'matches'])
             ->orderByDesc('created_at')
             ->get();
 
@@ -762,18 +1077,12 @@ class AskFlowHubService
                 }
             }
 
-            $items[] = [
-                'id' => (string) $ask->id,
-                'flow_code' => 'help',
-                'title' => (string) $ask->title,
-                'status' => $ask->status === Ask::STATUS_FULFILLED ? 'fulfilled' : (string) $ask->status,
-                'fulfilled_by' => $fulfilledBy,
-                'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
-            ];
+            $items[] = $this->formatFullAskDetails($ask, 'help', null, $fulfilledBy);
         }
 
         return [
             'items' => $items,
+            'data' => $items,
         ];
     }
 
