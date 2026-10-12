@@ -98,6 +98,7 @@ class NominationService
             ->first();
 
         $profileData = $data['profile'] ?? [];
+        $profileData['form_type'] = $data['form_type'] ?? 'main_form_1';
         $answers = $data['answers'] ?? [];
 
         return DB::transaction(function () use ($existingDraft, $campaign, $user, $data, $contact, $tokenData, $profileData, $answers): array {
@@ -105,7 +106,8 @@ class NominationService
                 $existingDraft->update([
                     'scope_id' => $data['scope_id'] ?? $existingDraft->scope_id,
                     'full_name' => $profileData['full_name'] ?? $existingDraft->full_name,
-                    'edited_profile' => array_merge($existingDraft->edited_profile, $profileData),
+                    'profile_snapshot' => array_merge((array) ($existingDraft->profile_snapshot ?? []), $profileData),
+                    'edited_profile' => array_merge((array) ($existingDraft->edited_profile ?? []), $profileData),
                     'profile_changes' => $this->computeProfileDiff($existingDraft->original_profile, $profileData),
                 ]);
 
@@ -132,6 +134,7 @@ class NominationService
                     'full_name' => $profileData['full_name'] ?? ($origProfile['full_name'] ?? 'Candidate'),
                     'email' => $tokenData['contact_type'] === 'email' ? $contact : ($profileData['email'] ?? null),
                     'mobile' => $tokenData['contact_type'] === 'mobile' ? $contact : ($profileData['mobile'] ?? null),
+                    'profile_snapshot' => $profileData,
                     'original_profile' => $origProfile,
                     'edited_profile' => $profileData,
                     'profile_changes' => $this->computeProfileDiff($origProfile, $profileData),
@@ -374,6 +377,7 @@ class NominationService
             throw new RuntimeException('You are not authorized to view or edit this nomination.');
         }
     }
+
     /**
      * Direct single-step nomination submission (C9).
      *
@@ -417,6 +421,7 @@ class NominationService
 
         $appNumber = $this->generateApplicationNumber($campaign->campaign_year);
         $now = Carbon::now();
+        $profile['form_type'] = $data['form_type'] ?? 'main_form_1';
 
         return DB::transaction(function () use ($campaign, $scopeId, $user, $appNumber, $fullName, $email, $mobile, $profile, $data, $now): array {
             /** @var LeadershipNomination $nomination */

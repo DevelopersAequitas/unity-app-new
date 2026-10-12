@@ -7,11 +7,11 @@ namespace App\Services\Leadership;
 use App\Models\Leadership\LeadershipNomination;
 use App\Models\Leadership\LeadershipNominationDocument;
 use App\Models\Leadership\LeadershipNominationHistory;
+use App\Services\Notifications\WhatsappNotificationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -44,8 +44,61 @@ class AdminNominationService
             $query->where('scope_id', $filters['scope_id']);
         }
 
-        if (! empty($filters['role_id'])) {
+        // Role filtering: supports role_id, role key, or role name (e.g. DED)
+        if (! empty($filters['role_id']) && \Illuminate\Support\Str::isUuid((string) $filters['role_id'])) {
             $query->whereHas('campaign', fn ($q) => $q->where('role_id', $filters['role_id']));
+        }
+
+        if (! empty($filters['role_key'])) {
+            $query->whereHas('campaign.role', fn ($q) => $q->where('key', $filters['role_key']));
+        }
+
+        if (! empty($filters['role'])) {
+            $roleTerm = trim((string) $filters['role']);
+            $isUuid = \Illuminate\Support\Str::isUuid($roleTerm);
+            $query->where(function ($q) use ($roleTerm, $isUuid): void {
+                $q->whereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
+                    if ($isUuid) {
+                        $cq->where('role_id', $roleTerm)
+                            ->orWhereHas('role', fn ($rq) => $rq->where('id', $roleTerm));
+                    } else {
+                        $cq->whereHas('role', function ($rq) use ($roleTerm): void {
+                            $rq->where('key', $roleTerm)
+                                ->orWhere('name', 'ilike', '%'.$roleTerm.'%');
+                        });
+                    }
+                });
+            });
+        }
+
+        // Form Type filtering: Main form 1 vs Sub form 2
+        if (! empty($filters['form_type'])) {
+            $formType = trim((string) $filters['form_type']);
+            if (in_array($formType, ['sub_form_2', 'sub', '2'], true)) {
+                $query->where(function ($q): void {
+                    $hasCol = \Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type');
+                    if ($hasCol) {
+                        $q->where('form_type', 'sub_form_2')
+                            ->orWhere('profile_snapshot->form_type', 'sub_form_2');
+                    } else {
+                        $q->where('profile_snapshot->form_type', 'sub_form_2');
+                    }
+                });
+            } else {
+                // Default to main_form_1: all website nominations
+                $query->where(function ($q): void {
+                    $hasCol = \Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type');
+                    if ($hasCol) {
+                        $q->where('form_type', 'main_form_1')
+                            ->orWhereNull('form_type')
+                            ->orWhere('profile_snapshot->form_type', 'main_form_1')
+                            ->orWhereNull('profile_snapshot->form_type');
+                    } else {
+                        $q->where('profile_snapshot->form_type', 'main_form_1')
+                            ->orWhereNull('profile_snapshot->form_type');
+                    }
+                });
+            }
         }
 
         if (! empty($filters['status'])) {
@@ -369,6 +422,7 @@ class AdminNominationService
             ->orderBy('created_at', 'desc')
             ->get();
     }
+
     /**
      * Send approval notifications (WhatsApp & Email) with official voting link.
      */
@@ -403,7 +457,7 @@ class AdminNominationService
                     userId: $nomination->user_id
                 );
             } catch (\Throwable $e) {
-                Log::warning('WhatsApp nomination approval failed: ' . $e->getMessage());
+                Log::warning('WhatsApp nomination approval failed: '.$e->getMessage());
             }
         }
 
@@ -448,7 +502,7 @@ class AdminNominationService
                         ->html($html);
                 });
             } catch (\Throwable $e) {
-                Log::warning('Email nomination approval failed: ' . $e->getMessage());
+                Log::warning('Email nomination approval failed: '.$e->getMessage());
             }
         }
     }
@@ -516,7 +570,7 @@ class AdminNominationService
                     userId: $nomination->user_id
                 );
             } catch (\Throwable $e) {
-                Log::warning('WhatsApp nomination rejection failed: ' . $e->getMessage());
+                Log::warning('WhatsApp nomination rejection failed: '.$e->getMessage());
             }
         }
 
@@ -548,7 +602,7 @@ class AdminNominationService
                         ->html($html);
                 });
             } catch (\Throwable $e) {
-                Log::warning('Email nomination rejection failed: ' . $e->getMessage());
+                Log::warning('Email nomination rejection failed: '.$e->getMessage());
             }
         }
     }
