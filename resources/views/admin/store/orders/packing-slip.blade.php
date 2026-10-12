@@ -123,42 +123,29 @@
             </table>
         </div>
 
+        @php
+            $itemsTotalCoins = $order->items->sum(fn($i) => $i->total_coins);
+            $totalCoins = $itemsTotalCoins > 0 ? $itemsTotalCoins : (int) $order->total_coins;
+        @endphp
+
         {{-- Coins Balance & Deduction Breakdown Section --}}
         <div class="balance-card p-3 mb-4">
             <h6 class="fw-bold text-dark mb-3 text-uppercase small border-bottom pb-2">
                 <i class="bi bi-coin text-warning me-1"></i> Coins Balance &amp; Payment Summary
             </h6>
             <div class="row g-3">
-                <div class="col-sm-4">
+                <div class="col-sm-6">
                     <div class="bg-white p-2.5 rounded border">
-                        <span class="text-muted small d-block">Earned Coins Used</span>
-                        <strong class="text-success fs-6">{{ number_format($order->coins_from_earned ?: $order->total_coins) }} Coins</strong>
+                        <span class="text-muted small d-block">Coins Balance Deducted</span>
+                        <strong class="text-success fs-6">{{ number_format($totalCoins) }} Coins</strong>
                     </div>
                 </div>
-                <div class="col-sm-4">
+                <div class="col-sm-6">
                     <div class="bg-white p-2.5 rounded border">
-                        <span class="text-muted small d-block">Bonus Coins Used</span>
-                        <strong class="text-info fs-6">{{ number_format($order->coins_from_bonus ?: 0) }} Coins</strong>
+                        <span class="text-muted small d-block">Total Order Coins Deducted</span>
+                        <strong class="text-primary fs-6">{{ number_format($totalCoins) }} Coins</strong>
                     </div>
                 </div>
-                <div class="col-sm-4">
-                    <div class="bg-white p-2.5 rounded border">
-                        <span class="text-muted small d-block">Total Coins Deducted</span>
-                        <strong class="text-primary fs-6">{{ number_format($order->total_coins) }} Coins</strong>
-                    </div>
-                </div>
-            </div>
-
-            @php
-                $remainingCoins = $order->user ? (int) $order->user->coins_balance : 0;
-            @endphp
-            <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-                <span class="text-muted small">
-                    <i class="bi bi-wallet2 text-primary me-1"></i> Member Current Coins Balance:
-                </span>
-                <span class="fw-bold fs-6 text-dark">
-                    {{ number_format($remainingCoins) }} Coins
-                </span>
             </div>
         </div>
 

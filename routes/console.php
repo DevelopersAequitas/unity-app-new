@@ -53,3 +53,6 @@ Schedule::command('circle-recommendation:send-reminders')->dailyAt('10:00')->tim
 
 // Phase 2: 30-Day Daily Habit Loop (WhatsApp checked every 15 minutes)
 Schedule::command('habit-loop:send-daily')->everyFifteenMinutes()->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+
+// 30-Day Member Onboarding WhatsApp Journey (checked every 15 minutes)
+Schedule::command('whatsapp:journey:process')->everyFifteenMinutes()->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();

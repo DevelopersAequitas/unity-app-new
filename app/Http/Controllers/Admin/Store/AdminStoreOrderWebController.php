@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Store;
 
 use App\Http\Controllers\Controller;
 use App\Mail\StoreOrderStatusMail;
+use App\Models\Notifications\AppNotification;
 use App\Models\Store\Order;
 use App\Models\Store\OrderStatusHistory;
 use App\Services\PushNotificationService;
@@ -349,7 +350,7 @@ class AdminStoreOrderWebController extends Controller
 
             // Directly insert into app_notifications so it is always stored with proper category & type
             try {
-                \App\Models\Notifications\AppNotification::create([
+                AppNotification::create([
                     'user_id' => $user->id,
                     'type' => 'store_order_status',
                     'category' => 'store',

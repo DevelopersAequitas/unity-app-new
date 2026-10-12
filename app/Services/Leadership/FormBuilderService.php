@@ -9,6 +9,7 @@ use App\Models\Leadership\LeadershipFormOption;
 use App\Models\Leadership\LeadershipFormQuestion;
 use App\Models\Leadership\LeadershipFormSection;
 use App\Models\Leadership\LeadershipFormTemplate;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -51,7 +52,7 @@ class FormBuilderService
         $data['campaign_id'] = $campaign->id;
         $data['version'] = $latestVersion + 1;
         $data['status'] = 'draft';
-        $data['created_by'] = ($userId && \App\Models\User::where('id', $userId)->exists()) ? (string) $userId : null;
+        $data['created_by'] = ($userId && User::where('id', $userId)->exists()) ? (string) $userId : null;
 
         /** @var LeadershipFormTemplate $template */
         $template = LeadershipFormTemplate::create($data);

@@ -119,6 +119,11 @@ export interface Nomination {
     created_at: string;
     submitted_at?: string;
     voting_link?: string;
+    form_type?: string;
+    form_2_link?: string;
+    form_2_status?: string;
+    form_2_data?: any;
+    profile_snapshot?: any;
 }
 
 export interface NominationAnswer {

@@ -2,6 +2,7 @@
 
 namespace App\Models\Store;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,9 +37,9 @@ class StoreMembershipPlan extends Model
         'duration_months',
     ];
 
-    protected function priceCoins(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function priceCoins(): Attribute
     {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+        return Attribute::make(
             get: function ($value, $attributes) {
                 $val = (int) ($attributes['price_coins'] ?? ($attributes['coins'] ?? ($attributes['coins_price'] ?? 0)));
                 if ($val <= 0 && isset($attributes['price']) && (float) $attributes['price'] > 0) {
@@ -51,9 +52,9 @@ class StoreMembershipPlan extends Model
         );
     }
 
-    protected function durationMonths(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function durationMonths(): Attribute
     {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+        return Attribute::make(
             get: function ($value, $attributes) {
                 $val = (int) ($attributes['duration_months'] ?? 0);
                 if ($val <= 0 && isset($attributes['duration_days']) && (int) $attributes['duration_days'] > 0) {

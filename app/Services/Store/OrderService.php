@@ -161,8 +161,18 @@ class OrderService
                     }
                 }
 
+                $qty = (int) ($itemData['quantity'] ?? 1);
+
+                // Validate product minimum and maximum purchase quantity limits
+                $minQty = (int) ($product->min_quantity_per_order ?: 1);
+                if ($qty < $minQty) {
+                    throw new Exception("Minimum purchase quantity for {$product->name} is {$minQty}.", 422);
+                }
+                if ($product->max_quantity_per_order && $qty > $product->max_quantity_per_order) {
+                    throw new Exception("Maximum purchase quantity for {$product->name} is {$product->max_quantity_per_order}.", 422);
+                }
+
                 // Validate stock
-                $qty = (int) $itemData['quantity'];
                 if ($product->track_inventory) {
                     $availableStock = $variant
                         ? (int) ($variant->stock_qty ?? $variant->stock_quantity ?? 0)
@@ -184,10 +194,16 @@ class OrderService
                 ];
             }
 
+            // Check Minimum Total Coin Value Requirement for Orders
+            $minOrderCoins = (int) (StoreConfig::getValue('min_order_total_coins') ?? StoreConfig::getValue('min_order_coins', 0));
+            if ($minOrderCoins > 0 && $orderTotalCoins < $minOrderCoins) {
+                throw new Exception("Your order must contain products worth at least " . number_format($minOrderCoins) . " coins. Please add more products to continue.", 422);
+            }
+
             // Check Minimum Coins Threshold set by Admin System Settings
             $minRequiredCoins = (int) StoreConfig::getValue('min_member_coins_to_buy', 0);
             if ($minRequiredCoins > 0 && (int) ($lockedUser->coins_balance ?? 0) < $minRequiredCoins) {
-                throw new Exception("You must have a minimum balance of " . number_format($minRequiredCoins) . " coins to purchase products from Peers Store. Your current balance is " . number_format($lockedUser->coins_balance ?? 0) . " coins.", 422);
+                throw new Exception('You must have a minimum balance of '.number_format($minRequiredCoins).' coins to purchase products from Peers Store. Your current balance is '.number_format($lockedUser->coins_balance ?? 0).' coins.', 422);
             }
 
             // Verify User Wallet Balance

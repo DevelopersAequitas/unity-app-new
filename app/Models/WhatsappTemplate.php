@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class WhatsappTemplate extends Model
 {
@@ -42,6 +43,21 @@ class WhatsappTemplate extends Model
         'description',
         'is_active',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (WhatsappTemplate $template): void {
+            if (empty($template->id)) {
+                $template->id = (string) Str::uuid();
+            }
+            if (empty($template->template_key)) {
+                $template->template_key = $template->name ?: (string) $template->id;
+            }
+            if (empty($template->template_name)) {
+                $template->template_name = $template->name ?: $template->template_key;
+            }
+        });
+    }
 
     /**
      * @return array<string, string>

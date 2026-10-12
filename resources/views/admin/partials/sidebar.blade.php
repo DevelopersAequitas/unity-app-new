@@ -978,10 +978,36 @@
                                         App Store Banners
                                     </a>
                                 </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config*') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
-                                        System Settings
+                                @php
+                                    $systemSettingsActive = request()->routeIs('admin.store.config.index') || request()->routeIs('admin.store.config.policies*') || request()->routeIs('admin.store.config.system-health*');
+                                @endphp
+                                <li class="nav-item store-nested-menu {{ $systemSettingsActive ? 'open' : '' }}">
+                                    <a class="nav-link d-flex align-items-center justify-content-between" 
+                                       href="javascript:void(0)" 
+                                       onclick="const el = document.getElementById('storeSystemSettingsCollapse'); const isOpen = el.classList.toggle('show'); this.querySelector('.bi-chevron-down').style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';"
+                                       style="cursor: pointer;">
+                                        <span class="menu-text">System Settings</span>
+                                        <i class="bi bi-chevron-down ms-auto" style="font-size: 0.7rem; transition: transform 0.2s; {{ $systemSettingsActive ? 'transform: rotate(180deg);' : '' }}"></i>
                                     </a>
+                                    <div class="collapse {{ $systemSettingsActive ? 'show' : '' }}" id="storeSystemSettingsCollapse">
+                                        <ul class="nav flex-column ms-2 mt-1">
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs('admin.store.config.index') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
+                                                    Store Configuration
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs('admin.store.config.policies*') ? 'active' : '' }}" href="{{ route('admin.store.config.policies') }}">
+                                                    Store Terms &amp; Policies
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs('admin.store.config.system-health*') ? 'active' : '' }}" href="{{ route('admin.store.config.system-health') }}">
+                                                    System Health
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </li>
                                 {{-- Hidden as requested --}}
                                 {{-- 
@@ -1032,22 +1058,7 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.index') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
-                                        Store Configuration
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.policies*') ? 'active' : '' }}" href="{{ route('admin.store.config.policies') }}">
-                                        Store Terms &amp; Policies
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.system-health') ? 'active' : '' }}" href="{{ route('admin.store.config.system-health') }}">
-                                        System Health
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.audit-log') ? 'active' : '' }}" href="{{ route('admin.store.config.audit-log') }}">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config.audit-log*') ? 'active' : '' }}" href="{{ route('admin.store.config.audit-log') }}">
                                         Admin Action Logs
                                     </a>
                                 </li>
@@ -1131,6 +1142,11 @@
                                 <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.templates*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.templates') }}">
                                         <i class="bi bi-file-earmark-text me-1"></i> Templates
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.journey*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.journey.index') }}">
+                                        <i class="bi bi-calendar-check me-1"></i> 30-Day Journey
                                     </a>
                                 </li>
                                 <li class="nav-item">

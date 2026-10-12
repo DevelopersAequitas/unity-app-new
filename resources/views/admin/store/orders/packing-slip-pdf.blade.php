@@ -166,6 +166,11 @@
         </tbody>
     </table>
 
+    @php
+        $itemsTotalCoins = $order->items->sum(fn($i) => $i->total_coins);
+        $totalCoins = $itemsTotalCoins > 0 ? $itemsTotalCoins : (int) $order->total_coins;
+    @endphp
+
     {{-- Coins Balance & Deduction Breakdown --}}
     <div class="coins-box">
         <table class="coins-table">
@@ -175,30 +180,15 @@
                 </td>
             </tr>
             <tr>
-                <td width="70%" style="padding-top: 6px; color: #475569;">Earned Coins Deducted:</td>
+                <td width="70%" style="padding-top: 6px; color: #475569;">Coins Balance Deducted:</td>
                 <td width="30%" align="right" style="padding-top: 6px; font-weight: bold; color: #059669;">
-                    {{ number_format($order->coins_from_earned ?: $order->total_coins) }} Coins
-                </td>
-            </tr>
-            <tr>
-                <td style="color: #475569;">Bonus Coins Deducted:</td>
-                <td align="right" style="font-weight: bold; color: #0284c7;">
-                    {{ number_format($order->coins_from_bonus ?: 0) }} Coins
+                    {{ number_format($totalCoins) }} Coins
                 </td>
             </tr>
             <tr style="border-top: 1px solid #cbd5e1;">
-                <td style="font-weight: bold; color: #0f172a; padding-top: 4px;">Total Order Coins Paid:</td>
+                <td style="font-weight: bold; color: #0f172a; padding-top: 4px;">Total Order Coins Deducted:</td>
                 <td align="right" style="font-weight: bold; color: #2563eb; font-size: 13px; padding-top: 4px;">
-                    {{ number_format($order->total_coins) }} Coins
-                </td>
-            </tr>
-            @php
-                $remainingCoins = $order->user ? (int) $order->user->coins_balance : 0;
-            @endphp
-            <tr style="border-top: 1px dashed #cbd5e1;">
-                <td style="padding-top: 6px; color: #475569;">Member Remaining Coins Balance:</td>
-                <td align="right" style="padding-top: 6px; font-weight: bold; color: #0f172a; font-size: 12px;">
-                    {{ number_format($remainingCoins) }} Coins
+                    {{ number_format($totalCoins) }} Coins
                 </td>
             </tr>
         </table>

@@ -10,6 +10,7 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\User;
+use App\Services\Referrals\ReferralService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -452,7 +453,7 @@ class EventFlowService
 
         // 1. Resolve via ReferralService / referral_links
         try {
-            $referralInfo = app(\App\Services\Referrals\ReferralService::class)->validateReferralCode($code);
+            $referralInfo = app(ReferralService::class)->validateReferralCode($code);
             if ($referralInfo && ! empty($referralInfo['referrer_user_id'])) {
                 $refUserId = (string) $referralInfo['referrer_user_id'];
 

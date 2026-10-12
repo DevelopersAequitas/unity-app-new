@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Leadership;
 
+use App\Models\Leadership\LeadershipCampaign;
+use App\Models\Leadership\LeadershipFormQuestion;
+use App\Models\Leadership\LeadershipFormSection;
+use App\Models\Leadership\LeadershipFormTemplate;
 use App\Services\Leadership\FormBuilderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -165,7 +169,7 @@ class FormBuilderController extends LeadershipBaseController
      */
     public function allTemplates(Request $request): JsonResponse
     {
-        $query = \App\Models\Leadership\LeadershipFormTemplate::query()
+        $query = LeadershipFormTemplate::query()
             ->with(['campaign.role', 'sections.questions.options']);
 
         if ($request->has('campaign_id') && ! empty($request->query('campaign_id'))) {
@@ -184,7 +188,7 @@ class FormBuilderController extends LeadershipBaseController
      */
     public function storeGlobal(Request $request): JsonResponse
     {
-        $campaignId = $request->input('campaign_id') ?? \App\Models\Leadership\LeadershipCampaign::value('id');
+        $campaignId = $request->input('campaign_id') ?? LeadershipCampaign::value('id');
         if (! $campaignId) {
             return $this->error('Please create at least one campaign before creating templates.', 400);
         }
@@ -210,7 +214,7 @@ class FormBuilderController extends LeadershipBaseController
      */
     public function updateSectionGeneric(Request $request, string $id): JsonResponse
     {
-        $section = \App\Models\Leadership\LeadershipFormSection::findOrFail($id);
+        $section = LeadershipFormSection::findOrFail($id);
         $section->update($request->all());
 
         return $this->success($section, 'Section updated successfully.');
@@ -221,7 +225,7 @@ class FormBuilderController extends LeadershipBaseController
      */
     public function deleteSectionGeneric(string $id): JsonResponse
     {
-        $section = \App\Models\Leadership\LeadershipFormSection::findOrFail($id);
+        $section = LeadershipFormSection::findOrFail($id);
         $section->delete();
 
         return $this->success(null, 'Section deleted successfully.');
@@ -245,7 +249,7 @@ class FormBuilderController extends LeadershipBaseController
      */
     public function deleteQuestionGeneric(string $id): JsonResponse
     {
-        $question = \App\Models\Leadership\LeadershipFormQuestion::findOrFail($id);
+        $question = LeadershipFormQuestion::findOrFail($id);
         $question->delete();
 
         return $this->success(null, 'Question deleted successfully.');

@@ -8,6 +8,7 @@ use App\Http\Requests\Store\StorePlaceOrderRequest;
 use App\Models\Store\Order;
 use App\Services\Store\OrderLifecycleService;
 use App\Services\Store\OrderService;
+use App\Services\Store\OrderSlipService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,7 +77,7 @@ class OrderController extends BaseApiController
         $stLower = strtolower((string) $order->status);
         if (! $slipUrl && in_array($stLower, ['delivered', 'completed', 'picked_up'])) {
             try {
-                $slipUrl = app(\App\Services\Store\OrderSlipService::class)->getOrGenerateSlipUrl($order);
+                $slipUrl = app(OrderSlipService::class)->getOrGenerateSlipUrl($order);
             } catch (\Throwable $e) {
                 $slipUrl = route('admin.store.orders.packing-slip', $order->id);
             }
@@ -138,12 +139,12 @@ class OrderController extends BaseApiController
         try {
             $user = $request->user();
             $order = $this->lifecycleService->getOrderDetails($user, $id);
-            $slipService = app(\App\Services\Store\OrderSlipService::class);
+            $slipService = app(OrderSlipService::class);
             $slipUrl = $slipService->getOrGenerateSlipUrl($order);
 
             $orderNo = $order->order_no ?: $order->id;
-            $fileName = 'slip_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderNo) . '.pdf';
-            $filePath = storage_path('app/public/slips' . DIRECTORY_SEPARATOR . $fileName);
+            $fileName = 'slip_'.preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderNo).'.pdf';
+            $filePath = storage_path('app/public/slips'.DIRECTORY_SEPARATOR.$fileName);
 
             if (file_exists($filePath)) {
                 return response()->download($filePath, $fileName);

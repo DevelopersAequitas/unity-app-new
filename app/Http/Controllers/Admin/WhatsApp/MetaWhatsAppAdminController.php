@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\WhatsApp\MetaWhatsAppWebhookController;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\WhatsApp\CreateMetaWhatsAppTemplateRequest;
 use App\Http\Requests\Admin\WhatsApp\SendWhatsAppTestMessageRequest;
+use App\Http\Requests\Admin\WhatsApp\UpdateMetaWhatsAppTemplateRequest;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsAppMessageLog;
 use App\Models\WhatsappTemplate;
@@ -18,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -40,58 +42,102 @@ class MetaWhatsAppAdminController extends Controller
         $category = trim((string) $request->query('category', ''));
         $language = trim((string) $request->query('language', ''));
 
-        $query = WhatsappTemplate::query()
-            ->where(function ($q) {
-                $q->whereNotNull('meta_template_id')
-                    ->orWhereNotNull('components');
-            });
+        try {
+            $query = WhatsappTemplate::query()
+                ->where(function ($q) {
+                    $q->whereNotNull('meta_template_id')
+                        ->orWhereNotNull('components');
+                });
 
-        if ($search !== '') {
-            $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-            $query->where(function ($q) use ($search, $like) {
-                $q->where('name', $like, "%{$search}%")
-                    ->orWhere('meta_template_id', $like, "%{$search}%");
-            });
-        }
+            if ($search !== '') {
+                $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+                $query->where(function ($q) use ($search, $like) {
+                    $q->where('name', $like, "%{$search}%")
+                        ->orWhere('meta_template_id', $like, "%{$search}%");
+                });
+            }
 
-        if ($status !== '') {
-            $query->where('status', strtoupper($status));
-        }
+            if ($status !== '') {
+                $normalizedStatus = strtoupper($status);
+                if ($normalizedStatus === 'APPROVED') {
+                    $query->whereIn('status', ['APPROVED', 'ACTIVE']);
+                } elseif (in_array($normalizedStatus, ['IN_REVIEW', 'PENDING'], true)) {
+                    $query->whereIn('status', ['IN_REVIEW', 'PENDING']);
+                } elseif (in_array($normalizedStatus, ['PAUSED', 'DISABLED'], true)) {
+                    $query->whereIn('status', ['PAUSED', 'DISABLED']);
+                } else {
+                    $query->where('status', $normalizedStatus);
+                }
+            }
 
-        if ($category !== '') {
-            $query->where('category', strtoupper($category));
-        }
+            if ($category !== '') {
+                $query->where('category', strtoupper($category));
+            }
 
-        if ($language !== '') {
-            $query->where('language', $language);
-        }
+            if ($language !== '') {
+                $query->where('language', $language);
+            }
 
-        $templates = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(20)->withQueryString();
+            $templates = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(20)->withQueryString();
 
-        $stats = [
-            'total' => WhatsappTemplate::whereNotNull('meta_template_id')->count(),
-            'approved' => WhatsappTemplate::whereIn('status', ['APPROVED', 'ACTIVE'])->count(),
-            'in_review' => WhatsappTemplate::whereIn('status', ['IN_REVIEW', 'PENDING'])->count(),
-            'rejected' => WhatsappTemplate::where('status', 'REJECTED')->count(),
-            'paused' => WhatsappTemplate::whereIn('status', ['PAUSED', 'DISABLED'])->count(),
-        ];
+            $baseStatsQuery = WhatsappTemplate::query()
+                ->where(function ($q) {
+                    $q->whereNotNull('meta_template_id')
+                        ->orWhereNotNull('components');
+                });
 
-        if ($request->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'stats' => $stats,
+            $stats = [
+                'total' => (clone $baseStatsQuery)->count(),
+                'approved' => (clone $baseStatsQuery)->whereIn('status', ['APPROVED', 'ACTIVE'])->count(),
+                'in_review' => (clone $baseStatsQuery)->whereIn('status', ['IN_REVIEW', 'PENDING'])->count(),
+                'rejected' => (clone $baseStatsQuery)->where('status', 'REJECTED')->count(),
+                'paused' => (clone $baseStatsQuery)->whereIn('status', ['PAUSED', 'DISABLED'])->count(),
+            ];
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'stats' => $stats,
+                    'templates' => $templates,
+                ]);
+            }
+
+            return view('admin.whatsapp.templates.index', [
                 'templates' => $templates,
+                'stats' => $stats,
+                'search' => $search,
+                'status' => $status,
+                'category' => $category,
+                'language' => $language,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('[MetaWhatsAppAdminController] Failed to load templates: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to load WhatsApp templates: '.$e->getMessage(),
+                ], 500);
+            }
+
+            return view('admin.whatsapp.templates.index', [
+                'templates' => new LengthAwarePaginator([], 0, 20),
+                'stats' => [
+                    'total' => 0,
+                    'approved' => 0,
+                    'in_review' => 0,
+                    'rejected' => 0,
+                    'paused' => 0,
+                ],
+                'search' => $search,
+                'status' => $status,
+                'category' => $category,
+                'language' => $language,
+                'dbError' => 'Database tables or configuration not ready: '.$e->getMessage().'. Please ensure database migrations or DDL queries have been executed on the production server.',
             ]);
         }
-
-        return view('admin.whatsapp.templates.index', [
-            'templates' => $templates,
-            'stats' => $stats,
-            'search' => $search,
-            'status' => $status,
-            'category' => $category,
-            'language' => $language,
-        ]);
     }
 
     /**
@@ -339,6 +385,222 @@ class MetaWhatsAppAdminController extends Controller
     }
 
     /**
+     * Show Template Edit Form.
+     */
+    public function editTemplateView(string $id): View
+    {
+        $template = WhatsappTemplate::findOrFail($id);
+
+        $bodyText = '';
+        $headerText = '';
+        $headerType = 'NONE';
+        $headerMediaUrl = null;
+        $footerText = '';
+        $buttons = [];
+        $sampleVariables = [];
+
+        foreach ($template->components ?? [] as $component) {
+            $type = strtoupper((string) ($component['type'] ?? ''));
+            if ($type === 'BODY') {
+                $bodyText = (string) ($component['text'] ?? '');
+                $exampleValues = $component['example']['body_text'][0] ?? [];
+                if (! empty($exampleValues)) {
+                    $sampleVariables = $exampleValues;
+                }
+            } elseif ($type === 'HEADER') {
+                $format = strtoupper((string) ($component['format'] ?? 'TEXT'));
+                $headerType = $format;
+                $headerText = (string) ($component['text'] ?? '');
+                $headerMediaUrl = $component['example']['header_handle'][0] ?? $component['example']['header_url'][0] ?? null;
+            } elseif ($type === 'FOOTER') {
+                $footerText = (string) ($component['text'] ?? '');
+            } elseif ($type === 'BUTTONS') {
+                $buttons = (array) ($component['buttons'] ?? []);
+            }
+        }
+
+        return view('admin.whatsapp.templates.edit', [
+            'template' => $template,
+            'bodyText' => $bodyText,
+            'headerType' => $headerType,
+            'headerText' => $headerText,
+            'headerMediaUrl' => $headerMediaUrl,
+            'footerText' => $footerText,
+            'buttons' => $buttons,
+            'sampleVariables' => $sampleVariables,
+        ]);
+    }
+
+    /**
+     * Update an existing WhatsApp template on Meta and local database.
+     */
+    public function updateTemplate(UpdateMetaWhatsAppTemplateRequest $request, string $id): RedirectResponse|JsonResponse
+    {
+        $template = WhatsappTemplate::findOrFail($id);
+
+        if (empty($template->meta_template_id)) {
+            return redirect()->back()->with('error', 'Cannot edit template without a valid Meta Template ID. Please sync first.');
+        }
+
+        $validated = $request->validated();
+        $components = [];
+
+        // 1. Header (Text or Media: Image, Video, Document)
+        $headerType = strtoupper((string) ($validated['header_type'] ?? 'NONE'));
+        if ($headerType === 'TEXT' && filled($validated['header_text'] ?? null)) {
+            $components[] = [
+                'type' => 'HEADER',
+                'format' => 'TEXT',
+                'text' => trim((string) $validated['header_text']),
+            ];
+        } elseif (in_array($headerType, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
+            $file = null;
+            if ($headerType === 'IMAGE' && $request->hasFile('header_image_file')) {
+                $file = $request->file('header_image_file');
+            } elseif ($headerType === 'VIDEO' && $request->hasFile('header_video_file')) {
+                $file = $request->file('header_video_file');
+            } elseif ($headerType === 'DOCUMENT' && $request->hasFile('header_document_file')) {
+                $file = $request->file('header_document_file');
+            }
+
+            $handle = null;
+            if ($file instanceof UploadedFile) {
+                // Upload new media sample to Meta App
+                $handle = $this->whatsAppService->uploadTemplateMediaSample($file);
+            } elseif (! empty($validated['existing_header_handle'])) {
+                // Keep existing sample media handle/URL
+                $handle = (string) $validated['existing_header_handle'];
+            } else {
+                // Retain existing header handle from template components
+                foreach ($template->components ?? [] as $comp) {
+                    if (strtoupper((string) ($comp['type'] ?? '')) === 'HEADER') {
+                        $handle = $comp['example']['header_handle'][0] ?? $comp['example']['header_url'][0] ?? null;
+                        break;
+                    }
+                }
+            }
+
+            $headerComponent = [
+                'type' => 'HEADER',
+                'format' => $headerType,
+            ];
+            if ($handle) {
+                $headerComponent['example'] = [
+                    'header_handle' => [$handle],
+                ];
+            }
+            $components[] = $headerComponent;
+        }
+
+        // 2. Body
+        $bodyText = trim((string) $validated['body_text']);
+        preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
+        $uniqueVars = ! empty($matches[1]) ? array_unique($matches[1]) : [];
+        sort($uniqueVars);
+
+        $bodyComponent = [
+            'type' => 'BODY',
+            'text' => $bodyText,
+        ];
+
+        if (! empty($uniqueVars)) {
+            $samples = [];
+            foreach ($uniqueVars as $varIndex) {
+                $sampleVal = trim((string) $request->input("body_sample_{$varIndex}", $validated['body_sample'] ?? 'Harsh'));
+                $samples[] = $sampleVal !== '' ? $sampleVal : 'Harsh';
+            }
+            $bodyComponent['example'] = [
+                'body_text' => [$samples],
+            ];
+        }
+        $components[] = $bodyComponent;
+
+        // 3. Footer
+        if (filled($validated['footer_text'] ?? null)) {
+            $components[] = [
+                'type' => 'FOOTER',
+                'text' => trim((string) $validated['footer_text']),
+            ];
+        }
+
+        // 4. Buttons
+        $incomingButtons = $request->input('buttons', []);
+        if (is_array($incomingButtons) && ! empty($incomingButtons)) {
+            $metaButtons = [];
+            foreach ($incomingButtons as $btn) {
+                $btnType = strtoupper((string) ($btn['type'] ?? 'QUICK_REPLY'));
+                $btnText = trim((string) ($btn['text'] ?? ''));
+                if ($btnText === '') {
+                    continue;
+                }
+
+                if ($btnType === 'URL') {
+                    $metaButtons[] = [
+                        'type' => 'URL',
+                        'text' => $btnText,
+                        'url' => trim((string) ($btn['url'] ?? '')),
+                    ];
+                } elseif ($btnType === 'PHONE_NUMBER') {
+                    $metaButtons[] = [
+                        'type' => 'PHONE_NUMBER',
+                        'text' => $btnText,
+                        'phone_number' => trim((string) ($btn['phone_number'] ?? '')),
+                    ];
+                } else {
+                    $metaButtons[] = [
+                        'type' => 'QUICK_REPLY',
+                        'text' => $btnText,
+                    ];
+                }
+            }
+
+            if (! empty($metaButtons)) {
+                $components[] = [
+                    'type' => 'BUTTONS',
+                    'buttons' => $metaButtons,
+                ];
+            }
+        }
+
+        $payload = [
+            'components' => $components,
+        ];
+        if (! empty($validated['category'])) {
+            $payload['category'] = $validated['category'];
+        }
+
+        try {
+            $result = $this->whatsAppService->updateTemplate($template->meta_template_id, $payload);
+
+            $msg = "WhatsApp template '{$template->name}' updated and submitted to Meta. Status: IN_REVIEW. Meta AI auto-reviews minor typo/punctuation edits usually within 5 to 15 minutes.";
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $msg,
+                    'data' => $result,
+                ]);
+            }
+
+            return redirect()->route('admin.whatsapp.templates.show', $template->id)->with('success', $msg);
+        } catch (MetaWhatsAppException $e) {
+            $errorMsg = 'Meta rejected template edit: '.$e->getUserFriendlyMessage();
+
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $errorMsg], $e->getHttpStatus());
+            }
+
+            return redirect()->back()->withInput()->with('error', $errorMsg);
+        } catch (Throwable $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+
+            return redirect()->back()->withInput()->with('error', 'Error updating template: '.$e->getMessage());
+        }
+    }
+
+    /**
      * Show Test Message screen.
      */
     public function testMessageView(): View
@@ -395,11 +657,14 @@ class MetaWhatsAppAdminController extends Controller
 
             if ($format === 'IMAGE') {
                 $imageObject = null;
-                if ($request->hasFile('header_image_file')) {
-                    $mediaId = $this->whatsAppService->uploadMedia($request->file('header_image_file'));
+                $file = $request->file('header_image_file') ?? $request->file('header_video_file') ?? $request->file('header_document_file');
+                $url = $validated['header_image_url'] ?? $validated['header_video_url'] ?? $validated['header_document_url'] ?? null;
+
+                if ($file) {
+                    $mediaId = $this->whatsAppService->uploadMedia($file);
                     $imageObject = ['id' => $mediaId];
-                } elseif (! empty($validated['header_image_url'])) {
-                    $imageObject = ['link' => (string) $validated['header_image_url']];
+                } elseif (! empty($url)) {
+                    $imageObject = ['link' => (string) $url];
                 } elseif (! empty($headerDef['example']['header_handle'][0])) {
                     $sampleHandle = (string) $headerDef['example']['header_handle'][0];
                     if (str_starts_with($sampleHandle, 'http://') || str_starts_with($sampleHandle, 'https://')) {
@@ -420,11 +685,14 @@ class MetaWhatsAppAdminController extends Controller
                 }
             } elseif ($format === 'VIDEO') {
                 $videoObject = null;
-                if ($request->hasFile('header_video_file')) {
-                    $mediaId = $this->whatsAppService->uploadMedia($request->file('header_video_file'));
+                $file = $request->file('header_video_file') ?? $request->file('header_image_file');
+                $url = $validated['header_video_url'] ?? $validated['header_image_url'] ?? null;
+
+                if ($file) {
+                    $mediaId = $this->whatsAppService->uploadMedia($file);
                     $videoObject = ['id' => $mediaId];
-                } elseif (! empty($validated['header_video_url'])) {
-                    $videoObject = ['link' => (string) $validated['header_video_url']];
+                } elseif (! empty($url)) {
+                    $videoObject = ['link' => (string) $url];
                 } elseif (! empty($headerDef['example']['header_handle'][0])) {
                     $sampleHandle = (string) $headerDef['example']['header_handle'][0];
                     if (str_starts_with($sampleHandle, 'http://') || str_starts_with($sampleHandle, 'https://')) {
@@ -445,11 +713,14 @@ class MetaWhatsAppAdminController extends Controller
                 }
             } elseif ($format === 'DOCUMENT') {
                 $docObject = null;
-                if ($request->hasFile('header_document_file')) {
-                    $mediaId = $this->whatsAppService->uploadMedia($request->file('header_document_file'));
+                $file = $request->file('header_document_file') ?? $request->file('header_image_file');
+                $url = $validated['header_document_url'] ?? $validated['header_image_url'] ?? null;
+
+                if ($file) {
+                    $mediaId = $this->whatsAppService->uploadMedia($file);
                     $docObject = ['id' => $mediaId];
-                } elseif (! empty($validated['header_document_url'])) {
-                    $docObject = ['link' => (string) $validated['header_document_url']];
+                } elseif (! empty($url)) {
+                    $docObject = ['link' => (string) $url];
                 } elseif (! empty($headerDef['example']['header_handle'][0])) {
                     $sampleHandle = (string) $headerDef['example']['header_handle'][0];
                     if (str_starts_with($sampleHandle, 'http://') || str_starts_with($sampleHandle, 'https://')) {

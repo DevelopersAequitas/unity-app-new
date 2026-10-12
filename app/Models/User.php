@@ -8,6 +8,7 @@ use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\LifeImpact\LifeImpactService;
 use App\Services\MilestoneBadgeService;
 use App\Services\Notifications\WearTheBadgeWhatsappService;
+use App\Services\WhatsApp\MemberJourney30DayService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Builder;
@@ -376,6 +377,15 @@ class User extends Authenticatable
                 app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
             } catch (Throwable) {
                 // Safeguard: User creation completes safely even if image generation encounters an error
+            }
+
+            // Automatically initialize the 30-Day WhatsApp Onboarding Journey for NEW registered members
+            try {
+                app(MemberJourney30DayService::class)->initializeJourney($user, baseDate: now());
+            } catch (Throwable $e) {
+                Log::warning('[User] Auto-initialize 30-day journey on new member register failed: '.$e->getMessage(), [
+                    'user_id' => $user->id,
+                ]);
             }
         });
 
@@ -1485,5 +1495,10 @@ class User extends Authenticatable
     public function wishlists(): HasMany
     {
         return $this->hasMany(Wishlist::class, 'user_id');
+    }
+
+    public function memberJourneySends(): HasMany
+    {
+        return $this->hasMany(MemberJourneySend::class, 'user_id', 'id');
     }
 }

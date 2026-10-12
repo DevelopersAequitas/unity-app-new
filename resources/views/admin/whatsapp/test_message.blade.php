@@ -124,12 +124,13 @@
                                 </span>
                             </div>
 
-                            <!-- Sample Image Detected Alert -->
+                            <!-- Sample Media Detected Alert -->
                             <div id="sampleMediaAlert" class="alert alert-info py-2 px-3 small d-none mb-3">
                                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                     <div>
                                         <i class="bi bi-check-circle-fill text-info me-1"></i>
-                                        <strong>Meta Approved Sample Image Available:</strong> The approved sample image will be automatically sent if no custom image is selected.
+                                        <strong id="sampleMediaAlertTitle">Meta Approved Sample Media Available:</strong> 
+                                        <span id="sampleMediaAlertDesc">The approved sample media will be automatically sent if no custom file is selected.</span>
                                     </div>
                                     <button type="button" class="btn btn-xs btn-outline-primary btn-sm py-0 px-2" id="useSampleMediaBtn">
                                         <i class="bi bi-arrow-counterclockwise me-1"></i>Use Approved Sample
@@ -137,25 +138,25 @@
                                 </div>
                             </div>
 
-                            <!-- Options to Select/Upload Image -->
+                            <!-- Options to Select/Upload Media -->
                             <div class="card border-0 bg-white p-3 shadow-sm mb-2">
                                 <div class="row g-2">
                                     <div class="col-md-6">
-                                        <label class="form-label small fw-semibold text-dark mb-1">
-                                            <i class="bi bi-upload me-1 text-primary"></i>Upload Image File
+                                        <label class="form-label small fw-semibold text-dark mb-1" id="headerFileLabel">
+                                            <i class="bi bi-upload me-1 text-primary"></i>Upload Media File
                                         </label>
-                                        <input type="file" name="header_image_file" id="headerImageFileInput" class="form-control form-control-sm" accept="image/png,image/jpeg,image/jpg">
-                                        <div class="form-text small text-muted">Supports JPG, PNG (Max 5MB). Uploads directly to Meta.</div>
+                                        <input type="file" name="header_image_file" id="headerImageFileInput" class="form-control form-control-sm" accept="image/png,image/jpeg,image/jpg,video/mp4,video/3gpp,application/pdf">
+                                        <div class="form-text small text-muted" id="headerFileHelp">Supports JPG, PNG (Max 5MB), MP4 (Max 16MB). Uploads directly to Meta.</div>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label small fw-semibold text-dark mb-1">
-                                            <i class="bi bi-link-45deg me-1 text-primary"></i>Or Enter Public Image URL
+                                        <label class="form-label small fw-semibold text-dark mb-1" id="headerUrlLabel">
+                                            <i class="bi bi-link-45deg me-1 text-primary"></i>Or Enter Public Media URL
                                         </label>
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text bg-white"><i class="bi bi-globe"></i></span>
-                                            <input type="url" name="header_image_url" id="headerImageUrlInput" class="form-control" placeholder="https://example.com/banner.jpg" value="{{ old('header_image_url') }}">
+                                            <input type="url" name="header_image_url" id="headerImageUrlInput" class="form-control" placeholder="https://example.com/media" value="{{ old('header_image_url') }}">
                                         </div>
-                                        <div class="form-text small text-muted">Direct public HTTPS image link.</div>
+                                        <div class="form-text small text-muted" id="headerUrlHelp">Direct public HTTPS link.</div>
                                     </div>
                                 </div>
                             </div>
@@ -428,7 +429,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const languageInput = document.getElementById('templateLanguageInput');
     const headerMediaContainer = document.getElementById('headerMediaContainer');
     const headerMediaTypeLabel = document.getElementById('headerMediaTypeLabel');
+    const headerFileLabel = document.getElementById('headerFileLabel');
+    const headerFileHelp = document.getElementById('headerFileHelp');
+    const headerUrlLabel = document.getElementById('headerUrlLabel');
+    const headerUrlHelp = document.getElementById('headerUrlHelp');
     const sampleMediaAlert = document.getElementById('sampleMediaAlert');
+    const sampleMediaAlertTitle = document.getElementById('sampleMediaAlertTitle');
+    const sampleMediaAlertDesc = document.getElementById('sampleMediaAlertDesc');
     const useSampleMediaBtn = document.getElementById('useSampleMediaBtn');
     const headerImageFileInput = document.getElementById('headerImageFileInput');
     const headerImageUrlInput = document.getElementById('headerImageUrlInput');
@@ -525,7 +532,55 @@ document.addEventListener('DOMContentLoaded', function() {
         const headerComp = components.find(c => c.type === 'HEADER');
         if (headerComp && headerComp.format && headerComp.format !== 'TEXT') {
             headerMediaContainer.classList.remove('d-none');
-            headerMediaTypeLabel.textContent = 'Header ' + headerComp.format + ' Selection';
+            const fmt = headerComp.format.toUpperCase();
+            headerMediaTypeLabel.textContent = 'Header ' + fmt + ' Selection';
+
+            if (fmt === 'VIDEO') {
+                if (headerFileLabel) headerFileLabel.innerHTML = '<i class="bi bi-camera-video me-1 text-primary"></i>Upload Video File (MP4, 3GP)';
+                if (headerImageFileInput) {
+                    headerImageFileInput.name = 'header_video_file';
+                    headerImageFileInput.accept = 'video/mp4,video/3gpp,video/quicktime';
+                }
+                if (headerFileHelp) headerFileHelp.textContent = 'Supports MP4, 3GP (Max 16MB). Uploads directly to Meta Cloud API.';
+                if (headerUrlLabel) headerUrlLabel.innerHTML = '<i class="bi bi-link-45deg me-1 text-primary"></i>Or Enter Public Video URL (MP4)';
+                if (headerImageUrlInput) {
+                    headerImageUrlInput.name = 'header_video_url';
+                    headerImageUrlInput.placeholder = 'https://example.com/video.mp4';
+                }
+                if (headerUrlHelp) headerUrlHelp.textContent = 'Direct public HTTPS video link (MP4).';
+                if (sampleMediaAlertTitle) sampleMediaAlertTitle.textContent = 'Meta Approved Sample Video Available:';
+                if (sampleMediaAlertDesc) sampleMediaAlertDesc.textContent = 'The approved sample video will be automatically sent if no custom video is selected.';
+            } else if (fmt === 'DOCUMENT') {
+                if (headerFileLabel) headerFileLabel.innerHTML = '<i class="bi bi-file-earmark-pdf me-1 text-primary"></i>Upload Document (PDF)';
+                if (headerImageFileInput) {
+                    headerImageFileInput.name = 'header_document_file';
+                    headerImageFileInput.accept = 'application/pdf';
+                }
+                if (headerFileHelp) headerFileHelp.textContent = 'Supports PDF (Max 16MB). Uploads directly to Meta Cloud API.';
+                if (headerUrlLabel) headerUrlLabel.innerHTML = '<i class="bi bi-link-45deg me-1 text-primary"></i>Or Enter Public Document URL';
+                if (headerImageUrlInput) {
+                    headerImageUrlInput.name = 'header_document_url';
+                    headerImageUrlInput.placeholder = 'https://example.com/document.pdf';
+                }
+                if (headerUrlHelp) headerUrlHelp.textContent = 'Direct public HTTPS document link (PDF).';
+                if (sampleMediaAlertTitle) sampleMediaAlertTitle.textContent = 'Meta Approved Sample Document Available:';
+                if (sampleMediaAlertDesc) sampleMediaAlertDesc.textContent = 'The approved sample document will be automatically sent if no custom document is selected.';
+            } else {
+                if (headerFileLabel) headerFileLabel.innerHTML = '<i class="bi bi-upload me-1 text-primary"></i>Upload Image File (JPG, PNG)';
+                if (headerImageFileInput) {
+                    headerImageFileInput.name = 'header_image_file';
+                    headerImageFileInput.accept = 'image/png,image/jpeg,image/jpg,image/webp';
+                }
+                if (headerFileHelp) headerFileHelp.textContent = 'Supports JPG, PNG (Max 16MB). Uploads directly to Meta Cloud API.';
+                if (headerUrlLabel) headerUrlLabel.innerHTML = '<i class="bi bi-link-45deg me-1 text-primary"></i>Or Enter Public Image URL';
+                if (headerImageUrlInput) {
+                    headerImageUrlInput.name = 'header_image_url';
+                    headerImageUrlInput.placeholder = 'https://example.com/banner.jpg';
+                }
+                if (headerUrlHelp) headerUrlHelp.textContent = 'Direct public HTTPS image link.';
+                if (sampleMediaAlertTitle) sampleMediaAlertTitle.textContent = 'Meta Approved Sample Image Available:';
+                if (sampleMediaAlertDesc) sampleMediaAlertDesc.textContent = 'The approved sample image will be automatically sent if no custom image is selected.';
+            }
 
             // Check if sample media exists in template definition
             if (headerComp.example && Array.isArray(headerComp.example.header_handle) && headerComp.example.header_handle[0]) {
@@ -629,13 +684,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     mediaBox.innerHTML = '<i class="bi bi-image fs-4 d-block mb-1"></i>[IMAGE Header]';
                     waHeaderContainer.appendChild(mediaBox);
                 }
+            } else if (headerComp.format === 'VIDEO') {
+                const activeVid = customSelectedMediaSrc || currentTemplateSampleUrl;
+                if (activeVid) {
+                    const vid = document.createElement('video');
+                    vid.src = activeVid;
+                    vid.controls = true;
+                    vid.className = 'w-100 rounded mb-2';
+                    vid.style.maxHeight = '200px';
+                    vid.style.objectFit = 'cover';
+                    vid.style.border = '1px solid #d1d7db';
+                    waHeaderContainer.appendChild(vid);
+                } else {
+                    const mediaBox = document.createElement('div');
+                    mediaBox.className = 'wa-header-media';
+                    mediaBox.innerHTML = '<i class="bi bi-play-btn-fill fs-4 d-block mb-1"></i>[VIDEO Header]';
+                    waHeaderContainer.appendChild(mediaBox);
+                }
             } else if (headerComp.format && headerComp.format !== 'TEXT') {
                 const mediaBox = document.createElement('div');
                 mediaBox.className = 'wa-header-media';
-                let icon = 'bi-image';
-                if (headerComp.format === 'VIDEO') icon = 'bi-play-btn-fill';
-                if (headerComp.format === 'DOCUMENT') icon = 'bi-file-earmark-pdf-fill';
-                mediaBox.innerHTML = '<i class="bi ' + icon + ' fs-4 d-block mb-1"></i>[' + headerComp.format + ' Header]';
+                mediaBox.innerHTML = '<i class="bi bi-file-earmark-pdf-fill fs-4 d-block mb-1"></i>[' + headerComp.format + ' Header]';
                 waHeaderContainer.appendChild(mediaBox);
             }
         }
