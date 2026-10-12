@@ -28,6 +28,7 @@ export const campaignApi = {
     getScopes: (campaignId: string) => apiClient.get<ApiResponse<Scope[]>>(`/admin/campaigns/${campaignId}/scopes`),
     addScope: (campaignId: string, data: any) => apiClient.post<ApiResponse<Scope>>(`/admin/campaigns/${campaignId}/scopes`, data),
     deleteScope: (campaignId: string, scopeId: string) => apiClient.delete<ApiResponse<any>>(`/admin/campaigns/${campaignId}/scopes/${scopeId}`),
+    getRoles: () => apiClient.get<ApiResponse<any[]>>('/admin/roles'),
 };
 
 export const formApi = {
@@ -58,6 +59,10 @@ export const nominationApi = {
         apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { rejection_reason }),
     shortlist: (id: string) => apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/shortlist`),
     sendApprovalEmail: (id: string) => apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/send-approval-email`),
+    proceedToJury: (id: string, remarks?: string) =>
+        apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/proceed-to-jury`, { remarks }),
+    batchProceedToJury: (ids: string[], remarks?: string) =>
+        apiClient.post<ApiResponse<any>>('/admin/nominations/batch-proceed-to-jury', { nomination_ids: ids, remarks }),
 };
 
 export const votingApi = {

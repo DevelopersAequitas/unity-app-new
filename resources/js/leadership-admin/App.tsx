@@ -23,6 +23,10 @@ export const App: React.FC = () => {
                 <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/forms" element={<FormBuilderPage />} />
                 <Route path="/nominations" element={<NominationsPage />} />
+                <Route path="/nominations/main" element={<NominationsPage />} />
+                <Route path="/nominations/main-form-1" element={<NominationsPage />} />
+                <Route path="/nominations/sub-form-2" element={<NominationsPage />} />
+                <Route path="/nominations/sub" element={<NominationsPage />} />
                 <Route path="/voting" element={<VotingPage />} />
                 <Route path="/jury" element={<JuryPage />} />
                 <Route path="/jury-evaluations" element={<JuryEvaluationsPage />} />

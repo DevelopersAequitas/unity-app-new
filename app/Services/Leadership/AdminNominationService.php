@@ -12,10 +12,12 @@ use App\Services\Notifications\WhatsappNotificationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AdminNominationService
 {
@@ -45,8 +47,61 @@ class AdminNominationService
             $query->where('scope_id', $filters['scope_id']);
         }
 
-        if (! empty($filters['role_id'])) {
+        // Role filtering: supports role_id, role key, or role name (e.g. DED)
+        if (! empty($filters['role_id']) && \Illuminate\Support\Str::isUuid((string) $filters['role_id'])) {
             $query->whereHas('campaign', fn ($q) => $q->where('role_id', $filters['role_id']));
+        }
+
+        if (! empty($filters['role_key'])) {
+            $query->whereHas('campaign.role', fn ($q) => $q->where('key', $filters['role_key']));
+        }
+
+        if (! empty($filters['role'])) {
+            $roleTerm = trim((string) $filters['role']);
+            $isUuid = \Illuminate\Support\Str::isUuid($roleTerm);
+            $query->where(function ($q) use ($roleTerm, $isUuid): void {
+                $q->whereHas('campaign', function ($cq) use ($roleTerm, $isUuid): void {
+                    if ($isUuid) {
+                        $cq->where('role_id', $roleTerm)
+                            ->orWhereHas('role', fn ($rq) => $rq->where('id', $roleTerm));
+                    } else {
+                        $cq->whereHas('role', function ($rq) use ($roleTerm): void {
+                            $rq->where('key', $roleTerm)
+                                ->orWhere('name', 'ilike', '%'.$roleTerm.'%');
+                        });
+                    }
+                });
+            });
+        }
+
+        // Form Type filtering: Main form 1 vs Sub form 2
+        if (! empty($filters['form_type'])) {
+            $formType = trim((string) $filters['form_type']);
+            if (in_array($formType, ['sub_form_2', 'sub', '2'], true)) {
+                $query->where(function ($q): void {
+                    $hasCol = \Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type');
+                    if ($hasCol) {
+                        $q->where('form_type', 'sub_form_2')
+                            ->orWhere('profile_snapshot->form_type', 'sub_form_2');
+                    } else {
+                        $q->where('profile_snapshot->form_type', 'sub_form_2');
+                    }
+                });
+            } else {
+                // Default to main_form_1: all website nominations
+                $query->where(function ($q): void {
+                    $hasCol = \Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type');
+                    if ($hasCol) {
+                        $q->where('form_type', 'main_form_1')
+                            ->orWhereNull('form_type')
+                            ->orWhere('profile_snapshot->form_type', 'main_form_1')
+                            ->orWhereNull('profile_snapshot->form_type');
+                    } else {
+                        $q->where('profile_snapshot->form_type', 'main_form_1')
+                            ->orWhereNull('profile_snapshot->form_type');
+                    }
+                });
+            }
         }
 
         if (! empty($filters['status'])) {
@@ -553,5 +608,298 @@ class AdminNominationService
                 Log::warning('Email nomination rejection failed: '.$e->getMessage());
             }
         }
+    }
+
+    /**
+     * Send Form 2 (Jury Evaluation Data) link to nominee and advance status to shortlisted.
+     *
+     * @return array<string, mixed>
+     */
+    public function proceedToJury(string $nominationId, ?string $adminRemarks = null): array
+    {
+        /** @var LeadershipNomination $nomination */
+        $nomination = LeadershipNomination::with(['campaign.role', 'scope', 'user'])->findOrFail($nominationId);
+
+        $fromStatus = $nomination->status;
+        if ($nomination->status !== 'shortlisted') {
+            $nomination->status = 'shortlisted';
+            $nomination->shortlisted_at = Carbon::now();
+        }
+
+        $form2Link = url("/leadership/form-2/{$nomination->id}");
+
+        $snapshot = (array) ($nomination->profile_snapshot ?? []);
+        $snapshot['form_2_link'] = $form2Link;
+        $snapshot['form_2_link_sent_at'] = Carbon::now()->toIso8601String();
+        $snapshot['form_2_status'] = $snapshot['form_2_status'] ?? 'pending_submission';
+        if ($adminRemarks) {
+            $snapshot['jury_proceed_remarks'] = $adminRemarks;
+        }
+
+        $nomination->profile_snapshot = $snapshot;
+        $nomination->save();
+
+        LeadershipNominationHistory::create([
+            'id' => (string) Str::uuid(),
+            'nomination_id' => $nomination->id,
+            'actor_id' => $this->resolveValidUserId(Auth::id()),
+            'action' => 'proceed_to_jury',
+            'from_status' => $fromStatus,
+            'to_status' => 'shortlisted',
+            'remarks' => $adminRemarks ?? 'Candidate proceeded to Jury Evaluation phase and Form 2 link dispatched.',
+            'metadata' => [
+                'form_2_link' => $form2Link,
+                'email' => $nomination->email,
+            ],
+        ]);
+
+        $this->sendJuryForm2Notification($nomination, $form2Link);
+
+        $this->auditService->log(
+            action: 'nomination.proceed_to_jury',
+            entityType: 'LeadershipNomination',
+            entityId: $nomination->id,
+            campaignId: $nomination->campaign_id,
+            remarks: "Candidate proceeded to Jury; Form 2 link sent to {$nomination->email}"
+        );
+
+        return [
+            'nomination_id' => $nomination->id,
+            'application_number' => $nomination->application_number,
+            'candidate_name' => $nomination->candidate_name,
+            'email' => $nomination->email,
+            'mobile' => $nomination->mobile,
+            'form_2_link' => $form2Link,
+            'status' => $nomination->status,
+            'sent_at' => Carbon::now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Batch dispatch proceed to jury links.
+     *
+     * @param  array<int, string>  $nominationIds
+     * @return array<string, mixed>
+     */
+    public function batchProceedToJury(array $nominationIds, ?string $adminRemarks = null): array
+    {
+        $successful = [];
+        $failed = [];
+
+        foreach ($nominationIds as $id) {
+            try {
+                $successful[] = $this->proceedToJury((string) $id, $adminRemarks);
+            } catch (\Throwable $e) {
+                $failed[] = [
+                    'id' => $id,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'total' => count($nominationIds),
+            'processed_count' => count($successful),
+            'failed_count' => count($failed),
+            'successful' => $successful,
+            'failed' => $failed,
+        ];
+    }
+
+    /**
+     * Send Jury Form 2 notification via WhatsApp and Email.
+     */
+    protected function sendJuryForm2Notification(LeadershipNomination $nomination, string $form2Link): void
+    {
+        $nomination->loadMissing(['campaign.role', 'scope']);
+        $phone = $nomination->mobile;
+        $candidateName = $nomination->candidate_name ?: 'Candidate';
+        $campaignName = $nomination->campaign?->name ?? 'Leadership Selection 2026';
+        $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
+        $appNumber = $nomination->application_number;
+
+        // 1. WhatsApp notification
+        if ($phone) {
+            try {
+                $payload = [
+                    'name' => $candidateName,
+                    'candidate_name' => $candidateName,
+                    'campaign_name' => $campaignName,
+                    'role_name' => $roleName,
+                    'application_number' => $appNumber,
+                    'form_2_link' => $form2Link,
+                    'message' => "Congratulations {$candidateName}! You have been shortlisted for the Jury Evaluation phase for {$roleName} in {$campaignName}. Please complete your detailed Form 2 (Jury Evaluation Data Form): {$form2Link}",
+                ];
+
+                $this->whatsappService->send(
+                    templateKey: 'nomination_proceed_jury',
+                    phone: $phone,
+                    payload: $payload,
+                    userId: $nomination->user_id
+                );
+            } catch (\Throwable $e) {
+                Log::warning('WhatsApp Form 2 notification failed: '.$e->getMessage());
+            }
+        }
+
+        // 2. Email notification
+        if ($nomination->email) {
+            try {
+                Mail::send([], [], function ($message) use ($nomination, $candidateName, $campaignName, $roleName, $appNumber, $form2Link): void {
+                    $html = "
+                    <div style='font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;'>
+                        <div style='text-align: center; margin-bottom: 24px;'>
+                            <h2 style='color: #0f172a; margin-bottom: 4px; font-size: 22px;'>Shortlisted for Jury Evaluation</h2>
+                            <p style='color: #64748b; font-size: 14px; margin-top: 0;'>Peers Global Leadership Selection 2026</p>
+                        </div>
+                        <p style='color: #334155; font-size: 15px;'>Dear <strong>{$candidateName}</strong>,</p>
+                        <p style='color: #334155; font-size: 15px; line-height: 1.6;'>
+                            Congratulations! Your candidacy for <strong>{$roleName}</strong> in <strong>{$campaignName}</strong> has been <strong>SHORTLISTED</strong> by the Scrutiny and Governance Committee to proceed directly to the <strong>Jury Evaluation & Interview Phase</strong>.
+                        </p>
+                        <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;'>
+                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Application Number:</strong> {$appNumber}</p>
+                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Position:</strong> {$roleName}</p>
+                            <p style='margin: 4px 0; color: #475569; font-size: 14px;'><strong>Status:</strong> <span style='color: #2563eb; font-weight: bold;'>Shortlisted for Jury</span></p>
+                        </div>
+                        
+                        <div style='background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px; margin: 24px 0; text-align: center;'>
+                            <h3 style='margin: 0 0 8px 0; color: #1e3a8a; font-size: 17px;'>Action Required: Complete Form 2 (Jury Evaluation Data)</h3>
+                            <p style='color: #475569; font-size: 13.5px; margin-bottom: 16px; line-height: 1.5;'>
+                                The Jury Panel requires detailed operational and bench data (business credibility, track record, leadership bench, and 12-month vision) to score your candidacy.
+                            </p>
+                            <a href='{$form2Link}' target='_blank' style='display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 15px; box-shadow: 0 2px 4px rgba(37,99,235,0.2);'>Open Form 2: Jury Evaluation Form &rarr;</a>
+                            <p style='margin-top: 14px; font-size: 12px; color: #64748b;'>
+                                Or open directly in browser: <br/><a href='{$form2Link}' style='color: #2563eb; word-break: break-all;'>{$form2Link}</a>
+                            </p>
+                        </div>
+
+                        <div style='background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 14px; margin: 20px 0;'>
+                            <p style='margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;'>
+                                <strong>Important Security Note:</strong> When you open the form, you will be prompted to enter your registered email address (<code>{$nomination->email}</code>) to verify your identity and prevent application mismatch.
+                            </p>
+                        </div>
+
+                        <p style='color: #334155; font-size: 14.5px; line-height: 1.6;'>
+                            Please complete Form 2 at your earliest convenience so your file can be scheduled for Jury Board review.
+                        </p>
+                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />
+                        <p style='color: #94a3b8; font-size: 12px; text-align: center; margin: 0;'>
+                            Peers Global Unity Platform &bull; Scrutiny & Election Governance Committee
+                        </p>
+                    </div>";
+
+                    $message->to($nomination->email)
+                        ->subject("Shortlisted: Please Complete Form 2 (Jury Evaluation Data) - Peers Global ({$appNumber})")
+                        ->html($html);
+                });
+            } catch (\Throwable $e) {
+                Log::warning('Email Form 2 dispatch failed: '.$e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Submit Form 2 (Jury Evaluation Data Form) filled by nominee.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function submitForm2(string $nominationId, array $payload): LeadershipNomination
+    {
+        /** @var LeadershipNomination $nomination */
+        $nomination = LeadershipNomination::with(['campaign.role', 'scope', 'user'])->findOrFail($nominationId);
+
+        // Prevent mismatch: verify email address
+        $submittedEmail = trim((string) ($payload['email'] ?? ''));
+        $nomineeEmail = trim((string) ($nomination->email ?? ''));
+
+        if (strtolower($submittedEmail) !== strtolower($nomineeEmail)) {
+            throw new \InvalidArgumentException("Email mismatch: The entered email ({$submittedEmail}) does not match the nominee application email ({$nomineeEmail}).");
+        }
+
+        return DB::transaction(function () use ($nomination, $payload): LeadershipNomination {
+            $f2AppNumber = $nomination->application_number.'-F2';
+
+            // Find existing Sub Form 2 nomination or create new
+            $subNomination = LeadershipNomination::where('application_number', $f2AppNumber)
+                ->orWhere(function ($q) use ($nomination): void {
+                    $q->where('campaign_id', $nomination->campaign_id)
+                        ->where('profile_snapshot->parent_nomination_id', $nomination->id);
+                })
+                ->first();
+
+            $f2Data = [
+                'form_type' => 'sub_form_2',
+                'parent_nomination_id' => $nomination->id,
+                'parent_application_number' => $nomination->application_number,
+                'candidate_name' => $nomination->candidate_name,
+                'applied_role_name' => $nomination->campaign?->role?->name ?? 'Leadership Role',
+                'campaign_name' => $nomination->campaign?->name,
+                'email' => $nomination->email,
+                'mobile' => $nomination->mobile,
+                'submitted_at' => Carbon::now()->toIso8601String(),
+                'form_2' => $payload,
+            ];
+
+            if ($subNomination) {
+                $subNomination->profile_snapshot = $f2Data;
+                $subNomination->status = 'submitted';
+                $subNomination->submitted_at = Carbon::now();
+                if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                    $subNomination->form_type = 'sub_form_2';
+                }
+                $subNomination->save();
+            } else {
+                $subNomination = new LeadershipNomination;
+                $subNomination->id = (string) Str::uuid();
+                $subNomination->campaign_id = $nomination->campaign_id;
+                $subNomination->scope_id = $nomination->scope_id;
+                $subNomination->user_id = $nomination->user_id;
+                $subNomination->application_number = $f2AppNumber;
+                $subNomination->full_name = $nomination->full_name;
+                $subNomination->email = $nomination->email;
+                $subNomination->mobile = $nomination->mobile;
+                $subNomination->status = 'submitted';
+                $subNomination->submitted_at = Carbon::now();
+                $subNomination->profile_snapshot = $f2Data;
+                if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                    $subNomination->form_type = 'sub_form_2';
+                }
+                $subNomination->save();
+            }
+
+            // Update parent nomination status and snapshot
+            $parentSnapshot = (array) ($nomination->profile_snapshot ?? []);
+            $parentSnapshot['form_2_status'] = 'submitted';
+            $parentSnapshot['form_2_submitted_at'] = Carbon::now()->toIso8601String();
+            $parentSnapshot['form_2_sub_nomination_id'] = $subNomination->id;
+            $parentSnapshot['form_2'] = $payload;
+
+            $nomination->profile_snapshot = $parentSnapshot;
+            $nomination->save();
+
+            LeadershipNominationHistory::create([
+                'id' => (string) Str::uuid(),
+                'nomination_id' => $nomination->id,
+                'actor_id' => $this->resolveValidUserId($nomination->user_id),
+                'action' => 'form_2_submitted',
+                'from_status' => $nomination->status,
+                'to_status' => $nomination->status,
+                'remarks' => 'Nominee successfully submitted Form 2: Jury Evaluation Data Form.',
+                'metadata' => [
+                    'sub_nomination_id' => $subNomination->id,
+                    'f2_application_number' => $f2AppNumber,
+                ],
+            ]);
+
+            $this->auditService->log(
+                action: 'nomination.form_2_submitted',
+                entityType: 'LeadershipNomination',
+                entityId: $subNomination->id,
+                campaignId: $nomination->campaign_id,
+                remarks: "Form 2 submitted by {$nomination->email} (App: {$f2AppNumber})"
+            );
+
+            return $subNomination;
+        });
     }
 }

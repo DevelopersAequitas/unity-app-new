@@ -258,7 +258,7 @@ class AskManagementController extends Controller
     /**
      * View Ask Configuration (Flows, Types, Option Groups, Options).
      */
-    public function config(): View
+    public function config(Request $request): View|JsonResponse
     {
         $flows = AskFlow::query()
             ->with(['types' => fn ($q) => $q->orderBy('sort_order')])
@@ -266,9 +266,19 @@ class AskManagementController extends Controller
             ->get();
 
         $optionGroups = AskOptionGroup::query()
-            ->with(['options' => fn ($q) => $q->orderBy('sort_order')])
+            ->with(['options' => fn ($q) => $q->with('askType')->orderBy('sort_order')])
             ->orderBy('sort_order')
             ->get();
+
+        if ($request->wantsJson() || $request->expectsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'flows' => $flows,
+                    'option_groups' => $optionGroups,
+                ],
+            ]);
+        }
 
         return view('admin.asks.config', [
             'flows' => $flows,
@@ -343,12 +353,16 @@ class AskManagementController extends Controller
     {
         $option = $this->optionService->createOption($request->validated());
 
+        $option->load('askType');
+
         return response()->json([
             'success' => true,
             'message' => 'Option created successfully.',
             'data' => [
                 'id' => $option->id,
                 'option_group_id' => $option->option_group_id,
+                'ask_type_id' => $option->ask_type_id,
+                'ask_type_name' => $option->askType?->name,
                 'label' => $option->label,
                 'code' => $option->code,
                 'is_active' => (bool) $option->is_active,

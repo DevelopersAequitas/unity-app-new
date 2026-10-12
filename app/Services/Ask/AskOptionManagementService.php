@@ -60,7 +60,7 @@ class AskOptionManagementService
     /**
      * Create a new Option inside a Group.
      *
-     * @param  array{option_group_id: string, label: string, code: string, description?: ?string, sort_order?: ?int}  $data
+     * @param  array{option_group_id: string, label: string, code: string, description?: ?string, sort_order?: ?int, ask_type_id?: ?string, flow_id?: ?string}  $data
      */
     public function createOption(array $data): AskOption
     {
@@ -70,12 +70,15 @@ class AskOptionManagementService
         if ($sortOrder === null) {
             $maxSortOrder = (int) AskOption::query()
                 ->where('option_group_id', $data['option_group_id'])
+                ->when(! empty($data['ask_type_id']), fn ($q) => $q->where('ask_type_id', $data['ask_type_id']))
                 ->max('sort_order');
             $sortOrder = $maxSortOrder + 1;
         }
 
         return AskOption::create([
             'option_group_id' => $data['option_group_id'],
+            'ask_type_id' => $data['ask_type_id'] ?? null,
+            'flow_id' => $data['flow_id'] ?? null,
             'code' => $code,
             'label' => trim($data['label']),
             'description' => $data['description'] ?? null,

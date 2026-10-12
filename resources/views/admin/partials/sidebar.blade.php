@@ -82,6 +82,7 @@
                 ['icon' => 'bi-send-check', 'label' => 'Contact Invitations', 'route' => 'admin.contact-invitations.index', 'active_routes' => ['admin.contact-invitations.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
+                ['icon' => 'bi-shield-check', 'label' => 'Activity & Audit Logs', 'route' => 'admin.audit-logs.index', 'active_routes' => ['admin.audit-logs.*']],
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
@@ -482,12 +483,40 @@
                                     <span class="menu-text">Dynamic Form Builder</span>
                                 </a>
                             </li>
+                            @php
+                                $isNominationsActive = request()->is('admin/web/leadership/nominations*');
+                            @endphp
                             <li class="nav-item">
-                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/nominations*') ? 'active' : '' }}" 
-                                   href="{{ url('admin/web/leadership/nominations') }}" title="Nominations">
-                                    <i class="bi bi-person-lines-fill me-2 text-success"></i>
-                                    <span class="menu-text">Nominations</span>
+                                <a class="nav-link py-1.5 d-flex align-items-center justify-content-between {{ $isNominationsActive ? 'active' : '' }}" 
+                                   data-bs-toggle="collapse" 
+                                   href="#collapseLeadershipNominations" 
+                                   role="button" 
+                                   aria-expanded="{{ $isNominationsActive ? 'true' : 'false' }}"
+                                   title="Nominations">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-person-lines-fill me-2 text-success"></i>
+                                        <span class="menu-text">Nominations</span>
+                                    </div>
+                                    <i class="bi bi-chevron-down small text-muted"></i>
                                 </a>
+                                <div class="collapse {{ $isNominationsActive ? 'show' : '' }}" id="collapseLeadershipNominations">
+                                    <ul class="nav flex-column ps-3 mt-1">
+                                        <li class="nav-item">
+                                            <a class="nav-link py-1 {{ (!request()->is('admin/web/leadership/nominations/sub*') && request()->get('form') !== 'sub_form_2') ? 'active' : '' }}" 
+                                               href="{{ url('admin/web/leadership/nominations') }}" title="Main form 1">
+                                                <i class="bi bi-file-earmark-text me-2 text-primary"></i>
+                                                <span class="menu-text">Main form 1</span>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link py-1 {{ (request()->is('admin/web/leadership/nominations/sub*') || request()->get('form') === 'sub_form_2') ? 'active' : '' }}" 
+                                               href="{{ url('admin/web/leadership/nominations/sub-form-2') }}" title="Sub form 2">
+                                                <i class="bi bi-file-earmark-ruled me-2 text-info"></i>
+                                                <span class="menu-text">Sub form 2</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/voting*') ? 'active' : '' }}" 
@@ -949,10 +978,36 @@
                                         App Store Banners
                                     </a>
                                 </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config*') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
-                                        System Settings
+                                @php
+                                    $systemSettingsActive = request()->routeIs('admin.store.config.index') || request()->routeIs('admin.store.config.policies*') || request()->routeIs('admin.store.config.system-health*');
+                                @endphp
+                                <li class="nav-item store-nested-menu {{ $systemSettingsActive ? 'open' : '' }}">
+                                    <a class="nav-link d-flex align-items-center justify-content-between" 
+                                       href="javascript:void(0)" 
+                                       onclick="const el = document.getElementById('storeSystemSettingsCollapse'); const isOpen = el.classList.toggle('show'); this.querySelector('.bi-chevron-down').style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';"
+                                       style="cursor: pointer;">
+                                        <span class="menu-text">System Settings</span>
+                                        <i class="bi bi-chevron-down ms-auto" style="font-size: 0.7rem; transition: transform 0.2s; {{ $systemSettingsActive ? 'transform: rotate(180deg);' : '' }}"></i>
                                     </a>
+                                    <div class="collapse {{ $systemSettingsActive ? 'show' : '' }}" id="storeSystemSettingsCollapse">
+                                        <ul class="nav flex-column ms-2 mt-1">
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs('admin.store.config.index') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
+                                                    Store Configuration
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs('admin.store.config.policies*') ? 'active' : '' }}" href="{{ route('admin.store.config.policies') }}">
+                                                    Store Terms &amp; Policies
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs('admin.store.config.system-health*') ? 'active' : '' }}" href="{{ route('admin.store.config.system-health') }}">
+                                                    System Health
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </li>
                                 {{-- Hidden as requested --}}
                                 {{-- 
@@ -1003,22 +1058,7 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.index') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
-                                        Store Configuration
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.policies*') ? 'active' : '' }}" href="{{ route('admin.store.config.policies') }}">
-                                        Store Terms &amp; Policies
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.system-health') ? 'active' : '' }}" href="{{ route('admin.store.config.system-health') }}">
-                                        System Health
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.store.config.audit-log') ? 'active' : '' }}" href="{{ route('admin.store.config.audit-log') }}">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config.audit-log*') ? 'active' : '' }}" href="{{ route('admin.store.config.audit-log') }}">
                                         Admin Action Logs
                                     </a>
                                 </li>

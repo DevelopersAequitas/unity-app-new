@@ -7,6 +7,7 @@ use App\Http\Requests\Api\CircleJoinRequests\AdminListCircleJoinRequests;
 use App\Http\Requests\Api\CircleJoinRequests\RejectCircleJoinRequest;
 use App\Models\CircleJoinRequest;
 use App\Models\Role;
+use App\Services\Audit\ActivityLoggerService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,7 +95,16 @@ class CircleJoinRequestAdminController extends BaseApiController
         $this->ensureCanApproveCd($request->user(), $record);
 
         try {
-            return $this->success($this->service->approveByCd($record, $request->user(), $request->input('circle_id')), 'Circle Director approval completed.');
+            $result = $this->service->approveByCd($record, $request->user(), $request->input('circle_id'));
+            ActivityLoggerService::logCircle(
+                (string) $record->user_id,
+                'circle.cd_approved',
+                'Circle Director approved circle join request',
+                (string) $request->user()->id,
+                $record,
+                ['circle_id' => $record->circle_id]
+            );
+            return $this->success($result, 'Circle Director approval completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
@@ -106,7 +116,16 @@ class CircleJoinRequestAdminController extends BaseApiController
         $this->ensureCanApproveCd($request->user(), $record);
 
         try {
-            return $this->success($this->service->rejectByCd($record, $request->user(), $request->validated('reason')), 'Circle Director rejection completed.');
+            $result = $this->service->rejectByCd($record, $request->user(), $request->validated('reason'));
+            ActivityLoggerService::logCircle(
+                (string) $record->user_id,
+                'circle.cd_rejected',
+                'Circle Director rejected circle join request',
+                (string) $request->user()->id,
+                $record,
+                ['reason' => $request->validated('reason')]
+            );
+            return $this->success($result, 'Circle Director rejection completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
@@ -118,7 +137,16 @@ class CircleJoinRequestAdminController extends BaseApiController
         $this->ensureCanApproveId($request->user(), $record);
 
         try {
-            return $this->success($this->service->approveById($record, $request->user(), $request->input('circle_id')), 'Industry Director approval completed.');
+            $result = $this->service->approveById($record, $request->user(), $request->input('circle_id'));
+            ActivityLoggerService::logCircle(
+                (string) $record->user_id,
+                'circle.id_approved',
+                'Industry Director approved circle join request',
+                (string) $request->user()->id,
+                $record,
+                ['circle_id' => $record->circle_id]
+            );
+            return $this->success($result, 'Industry Director approval completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
@@ -130,7 +158,16 @@ class CircleJoinRequestAdminController extends BaseApiController
         $this->ensureCanApproveId($request->user(), $record);
 
         try {
-            return $this->success($this->service->rejectById($record, $request->user(), $request->validated('reason')), 'Industry Director rejection completed.');
+            $result = $this->service->rejectById($record, $request->user(), $request->validated('reason'));
+            ActivityLoggerService::logCircle(
+                (string) $record->user_id,
+                'circle.id_rejected',
+                'Industry Director rejected circle join request',
+                (string) $request->user()->id,
+                $record,
+                ['reason' => $request->validated('reason')]
+            );
+            return $this->success($result, 'Industry Director rejection completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }

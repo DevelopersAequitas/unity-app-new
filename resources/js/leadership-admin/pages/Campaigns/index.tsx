@@ -90,18 +90,15 @@ export const CampaignsPage: React.FC = () => {
 
     const loadRoles = async () => {
         try {
-            // Fetch roles from the existing system roles table endpoint
+            // Fetch roles from the system roles table endpoint (excluding global_admin)
             const res = await apiClient.get('/admin/roles').catch(() => ({ data: { data: [] } }));
-            if (res.data?.data && res.data.data.length > 0) {
-                setRoles(res.data.data);
-            } else {
-                // Fallback roles query if specific admin route differs
-                setRoles([
-                    { id: '11111111-1111-1111-1111-111111111111', name: 'District Executive Director (DED)' },
-                    { id: '22222222-2222-2222-2222-222222222222', name: 'Executive Director (ED)' },
-                    { id: '33333333-3333-3333-3333-333333333333', name: 'Circle Chair' },
-                    { id: '44444444-4444-4444-4444-444444444444', name: 'Industry Director (ID)' },
-                ]);
+            if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+                const filtered = res.data.data.filter(
+                    (r: RoleOption) =>
+                        r.key !== 'global_admin' &&
+                        !r.name?.toLowerCase().includes('global admin')
+                );
+                setRoles(filtered);
             }
         } catch {
             // Keep default graceful fallback
@@ -128,10 +125,10 @@ export const CampaignsPage: React.FC = () => {
             description: '',
             nomination_start_at: new Date().toISOString().slice(0, 16),
             nomination_end_at: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 16),
-            voting_start_at: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 16),
-            voting_end_at: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 16),
-            jury_start_at: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 16),
-            jury_end_at: new Date(Date.now() + 28 * 86400000).toISOString().slice(0, 16),
+            voting_start_at: '',
+            voting_end_at: '',
+            jury_start_at: '',
+            jury_end_at: '',
             scope_type: 'territory',
             scope_value: 'National',
         });
@@ -372,12 +369,6 @@ export const CampaignsPage: React.FC = () => {
                                                 <strong>Nom:</strong> {camp.nomination_start_at ? new Date(camp.nomination_start_at).toLocaleDateString() : 'N/A'} -{' '}
                                                 {camp.nomination_end_at ? new Date(camp.nomination_end_at).toLocaleDateString() : 'N/A'}
                                             </div>
-                                            {camp.voting_start_at && (
-                                                <div>
-                                                    <strong>Vote:</strong> {new Date(camp.voting_start_at).toLocaleDateString()} -{' '}
-                                                    {camp.voting_end_at ? new Date(camp.voting_end_at).toLocaleDateString() : 'N/A'}
-                                                </div>
-                                            )}
                                         </td>
                                         <td className="text-end">
                                             <div className="btn-group btn-group-sm">
@@ -510,7 +501,7 @@ export const CampaignsPage: React.FC = () => {
 
                                         {/* Timelines */}
                                         <div className="col-12 mt-4">
-                                            <h6 className="fw-bold text-dark border-bottom pb-2">Campaign Timeline Windows</h6>
+                                            <h6 className="fw-bold text-dark border-bottom pb-2">Campaign Nomination Window</h6>
                                         </div>
 
                                         <div className="col-12 col-md-6">
@@ -532,46 +523,6 @@ export const CampaignsPage: React.FC = () => {
                                                 value={formData.nomination_end_at}
                                                 onChange={(e) => setFormData({ ...formData, nomination_end_at: e.target.value })}
                                                 required
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Voting Start Date & Time</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.voting_start_at}
-                                                onChange={(e) => setFormData({ ...formData, voting_start_at: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Voting End Date & Time</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.voting_end_at}
-                                                onChange={(e) => setFormData({ ...formData, voting_end_at: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Jury Evaluation Start</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.jury_start_at}
-                                                onChange={(e) => setFormData({ ...formData, jury_start_at: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Jury Evaluation End</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.jury_end_at}
-                                                onChange={(e) => setFormData({ ...formData, jury_end_at: e.target.value })}
                                             />
                                         </div>
                                     </div>

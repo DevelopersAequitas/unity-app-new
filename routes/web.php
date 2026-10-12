@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\ActivityVideoController;
+use App\Http\Controllers\Admin\AuditLogWebController;
 use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AdBookingAdminWebController;
 use App\Http\Controllers\Admin\AdController;
@@ -183,6 +184,20 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
 Route::get('/account-deletion-request', [AccountDeletionController::class, 'show'])->name('account-deletion.show');
 Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
 
+// Leadership Form 2 (Jury Evaluation Data Form) Public Access
+Route::get('/leadership/form-2/{id}', [\App\Http\Controllers\LeadershipForm2Controller::class, 'show'])
+    ->whereUuid('id')
+    ->name('leadership.form2.show');
+Route::post('/leadership/form-2/{id}/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])
+    ->whereUuid('id')
+    ->name('leadership.form2.verify-email');
+Route::post('/leadership/form-2/{id}/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])
+    ->whereUuid('id')
+    ->name('leadership.form2.submit');
+Route::post('/leadership/form-2/{id}/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])
+    ->whereUuid('id')
+    ->name('leadership.form2.upload');
+
 Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
 
 Route::prefix('admin')->name('admin.')->group(function () {
@@ -279,6 +294,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+
+        // Central Activity Logs & Audit Trail
+        Route::get('/audit-logs', [AuditLogWebController::class, 'index'])->name('audit-logs.index');
+        Route::get('/audit-logs/export', [AuditLogWebController::class, 'export'])->name('audit-logs.export');
 
         // Campaigns routes
         Route::get('/campaigns', [AdminCampaignController::class, 'index']);

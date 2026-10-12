@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\ActivityVideoApiController;
+use App\Http\Controllers\Api\Admin\AuditLogAdminController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\Admin\PendingRequestAdminController;
 use App\Http\Controllers\Api\Admin\RbacController;
@@ -876,6 +877,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/forms/recommend-peer/{id}', [AdminOpsController::class, 'recommendPeerFormShow'])->whereUuid('id');
             Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
 
+            // Central User Activity Log & Audit Trail Endpoints
+            Route::get('/audit-logs', [AuditLogAdminController::class, 'index']);
+            Route::get('/audit-logs/stats', [AuditLogAdminController::class, 'stats']);
+            Route::get('/audit-logs/modules', [AuditLogAdminController::class, 'modules']);
+            Route::get('/audit-logs/export', [AuditLogAdminController::class, 'export']);
+            Route::get('/audit-logs/{id}', [AuditLogAdminController::class, 'show'])->whereUuid('id');
+
             // Section 25: Activities Endpoints
             Route::get('/activities', [App\Http\Controllers\Api\Admin\ActivityController::class, 'index']);
             Route::get('/activities/stats', [App\Http\Controllers\Api\Admin\ActivityController::class, 'stats']);
@@ -1583,4 +1591,11 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::post('pending-requests/{id}/approve', [PendingRequestAdminController::class, 'approveDirect']);
     Route::post('pending-requests/{category}/{id}/reject', [PendingRequestAdminController::class, 'reject']);
     Route::post('pending-requests/{id}/reject', [PendingRequestAdminController::class, 'rejectDirect']);
+
+    // Central User Activity Log & Audit Trail Endpoints
+    Route::get('audit-logs', [AuditLogAdminController::class, 'index']);
+    Route::get('audit-logs/stats', [AuditLogAdminController::class, 'stats']);
+    Route::get('audit-logs/modules', [AuditLogAdminController::class, 'modules']);
+    Route::get('audit-logs/export', [AuditLogAdminController::class, 'export']);
+    Route::get('audit-logs/{id}', [AuditLogAdminController::class, 'show'])->whereUuid('id');
 });

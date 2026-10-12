@@ -29,6 +29,7 @@ use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
+use App\Services\Audit\ActivityLoggerService;
 use App\Services\Auth\OtpService;
 use App\Services\Auth\SocialAuthService;
 use App\Services\Coins\CoinsService;
@@ -234,6 +235,13 @@ class AuthController extends BaseApiController
             'email' => (string) $persistedUser->email,
             'has_referral_meta' => $referralMeta !== null,
         ]);
+
+        ActivityLoggerService::logAuth(
+            (string) $persistedUser->id,
+            'auth.registered',
+            'Peer registered successfully on platform',
+            ['email' => (string) $persistedUser->email]
+        );
 
         return response()->json([
             'success' => true,
@@ -1299,6 +1307,13 @@ class AuthController extends BaseApiController
             ]);
         }
 
+        ActivityLoggerService::logAuth(
+            (string) $user->id,
+            'auth.login',
+            'Peer authenticated successfully',
+            ['email' => (string) $user->email, 'login_method' => 'password']
+        );
+
         // If you already have a UserResource, you can use it here instead of returning $user directly
         return response()->json([
             'success' => true,
@@ -1789,6 +1804,12 @@ class AuthController extends BaseApiController
         $user->password_hash = Hash::make($data['password']);
         $user->save();
 
+        ActivityLoggerService::logAuth(
+            (string) $user->id,
+            'auth.password_reset',
+            'Peer credentials reset via verified OTP'
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Password reset successfully.',
@@ -1817,6 +1838,12 @@ class AuthController extends BaseApiController
                 app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
                 $user->currentAccessToken()->delete();
             }
+
+            ActivityLoggerService::logAuth(
+                (string) $user->id,
+                'auth.logout',
+                'Peer signed out and invalidated current session token'
+            );
         }
 
         return $this->success(null, 'Logged out successfully');

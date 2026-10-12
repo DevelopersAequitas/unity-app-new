@@ -186,4 +186,42 @@ class AdminNominationController extends LeadershipBaseController
             return $this->error($e->getMessage(), 400);
         }
     }
+
+    /**
+     * F11. Proceed selected nominee to Jury (shortlist and send Form 2 link).
+     */
+    public function proceedToJury(Request $request, string $id): JsonResponse
+    {
+        try {
+            $remarks = $request->input('remarks');
+            $result = $this->nominationService->proceedToJury($id, $remarks);
+
+            return $this->success($result, 'Nominee proceeded to Jury Evaluation. Form 2 link dispatched successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * F12. Batch proceed selected nominees to Jury.
+     */
+    public function batchProceedToJury(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'nomination_ids' => 'required|array|min:1',
+            'nomination_ids.*' => 'required|uuid',
+            'remarks' => 'nullable|string',
+        ]);
+
+        try {
+            $result = $this->nominationService->batchProceedToJury(
+                $validated['nomination_ids'],
+                $validated['remarks'] ?? null
+            );
+
+            return $this->success($result, "Processed {$result['processed_count']} nominees for Jury Evaluation.");
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
 }

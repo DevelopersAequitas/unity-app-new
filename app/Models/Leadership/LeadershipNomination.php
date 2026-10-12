@@ -44,6 +44,7 @@ class LeadershipNomination extends Model
         'reviewed_at',
         'reviewed_by',
         'shortlisted_at',
+        'form_type',
     ];
 
     protected $casts = [
@@ -67,7 +68,53 @@ class LeadershipNomination extends Model
         'photo_url',
         'bio',
         'vision_statement',
+        'form_type',
+        'form_2_link',
+        'form_2_status',
+        'form_2_data',
     ];
+
+    public function getForm2LinkAttribute(): string
+    {
+        return url('/leadership/form-2/'.$this->id);
+    }
+
+    public function getForm2StatusAttribute(): string
+    {
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['form_2_status'])) {
+            return (string) $snapshot['form_2_status'];
+        }
+
+        return 'not_sent';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getForm2DataAttribute(): ?array
+    {
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && isset($snapshot['form_2']) && is_array($snapshot['form_2'])) {
+            return $snapshot['form_2'];
+        }
+
+        return null;
+    }
+
+    public function getFormTypeAttribute(): string
+    {
+        if (isset($this->attributes['form_type']) && ! empty($this->attributes['form_type'])) {
+            return (string) $this->attributes['form_type'];
+        }
+
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['form_type'])) {
+            return (string) $snapshot['form_type'];
+        }
+
+        return 'main_form_1';
+    }
 
     public function getCandidateNameAttribute(): ?string
     {
