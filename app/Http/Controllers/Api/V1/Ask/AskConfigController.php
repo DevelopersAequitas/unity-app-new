@@ -153,7 +153,7 @@ class AskConfigController extends Controller
                 'filters' => ['referral_industry', 'referral_geography'],
             ],
             'help' => [
-                'details' => ['mentorship_subtype', 'help_topic', 'what_needed', 'done_definition', 'help_duration', 'help_timing'],
+                'details' => ['help_subtype', 'help_topic', 'mentorship_subtype', 'what_needed', 'done_definition', 'help_duration', 'help_timing'],
                 'filters' => ['industry', 'geography'],
             ],
             default => [

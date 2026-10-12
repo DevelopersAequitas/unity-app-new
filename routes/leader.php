@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
 use App\Leader\Controllers\LeaderActivitiesController;
+use App\Leader\Controllers\LeaderAskFlowController;
 use App\Leader\Controllers\LeaderAuthController;
 use App\Leader\Controllers\LeaderDashboardController;
 use App\Leader\Controllers\LeaderFinanceController;
@@ -177,6 +178,15 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/members/{member_id}/coins', [LeaderMemberController::class, 'coins'])->whereUuid('member_id');
     Route::get('/leader/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
     Route::get('/members/{member_id}/introduced-peers', [LeaderMemberController::class, 'introducedPeers'])->whereUuid('member_id');
+
+    // ── 3 Core Ask Flows: Discovery, Master Data & Configuration ────────────
+    Route::prefix('/leader/asks')->group(function (): void {
+        Route::get('summary', [LeaderAskFlowController::class, 'summary']);
+        Route::get('all-data', [LeaderAskFlowController::class, 'allData']);
+        Route::get('flows', [LeaderAskFlowController::class, 'flows']);
+        Route::get('flows/{flow}', [LeaderAskFlowController::class, 'flowDetails'])->whereIn('flow', ['collaboration', 'referral', 'help']);
+        Route::get('form-config', [LeaderAskFlowController::class, 'formConfig']);
+    });
 
     // 3 DEDICATED ASKS FLOWS: 9 CORE ENDPOINTS (Global Feed, My History, Leaderboard)
     Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {

@@ -142,8 +142,8 @@
             $groupFlowMap = [
                 'collaboration_bring' => ['collaboration'],
                 'collaboration_need' => ['collaboration'],
-                'industry' => ['help'],
-                'geography' => ['help'],
+                'industry' => ['collaboration', 'referral', 'help'],
+                'geography' => ['collaboration', 'referral', 'help'],
                 'business_stage' => ['collaboration'],
                 'timeline' => ['collaboration'],
                 'expected_outcome' => ['collaboration'],
@@ -153,6 +153,7 @@
                 'ideal_profile' => ['referral'],
                 'referral_reason' => ['referral'],
                 'what_i_offer' => ['referral'],
+                'help_subtype' => ['help'],
                 'mentorship_subtype' => ['help'],
                 'help_topic' => ['help'],
                 'help_duration' => ['help'],
@@ -203,26 +204,28 @@
                 $collabFlow = $flows->firstWhere('code', 'collaboration');
             @endphp
 
-            <!-- Sub-Type / Category Filter for Collaboration (e.g. Joint Venture, Co-Founder, etc.) -->
+            <!-- Sub-Type / Category Filter for Collaboration, Referral, and Help -->
             <div id="subTypeFilterRow" class="flex flex-wrap items-center gap-1.5 pt-2 pb-1 text-xs bg-slate-50/80 -mx-4 px-4 border-b border-slate-100">
                 <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider mr-1 flex items-center gap-1">
                     <i class="bi bi-diagram-3-fill text-indigo-600"></i> Category / Sub-Type Filter:
                 </span>
-                <button type="button" onclick="filterBySubType('all', this)" id="subtype-tab-all" class="subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-semibold border bg-indigo-600 text-white border-indigo-600 transition shadow-2xs">
+                <button type="button" onclick="filterBySubType('all', this)" id="subtype-tab-all" class="subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-semibold border bg-indigo-600 text-white border-indigo-600 transition shadow-2xs" data-flow="all">
                     All Categories
                 </button>
-                @if($collabFlow && $collabFlow->types->isNotEmpty())
-                    @foreach($collabFlow->types as $t)
+                @foreach($flows as $f)
+                    @foreach($f->types as $t)
                         <button type="button" 
-                                onclick="filterBySubType('{{ $t->id }}', this)" 
+                                onclick="filterBySubType('{{ $t->id }}', this, '{{ $t->code }}')" 
                                 id="subtype-tab-{{ $t->id }}"
+                                data-flow="{{ $f->code }}"
                                 data-type-id="{{ $t->id }}"
                                 data-type-code="{{ $t->code }}"
-                                class="subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition">
+                                class="subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition"
+                                style="{{ $f->code === 'collaboration' ? '' : 'display: none;' }}">
                             {{ $t->name }}
                         </button>
                     @endforeach
-                @endif
+                @endforeach
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2" id="optionGroupsGrid">
@@ -266,6 +269,7 @@
                                     <div class="option-item flex items-center justify-between p-2 rounded-lg border text-xs transition {{ $option->is_active ? 'bg-slate-50/80 border-slate-200 text-slate-800' : 'bg-slate-100/50 border-slate-200 text-slate-400' }}" 
                                          id="option-row-{{ $option->id }}"
                                          data-type-id="{{ $option->ask_type_id ?? '' }}"
+                                         data-type-code="{{ $option->askType?->code ?? '' }}"
                                          data-is-active="{{ $option->is_active ? '1' : '0' }}">
                                         <div class="overflow-hidden pr-2">
                                             <div class="flex items-center gap-1.5 flex-wrap">
@@ -424,13 +428,15 @@
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Target Category / Sub-Type (Optional)</label>
                         <select id="optionAskTypeId" name="ask_type_id" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-indigo-500">
                             <option value="">-- General (Common across all categories) --</option>
-                            @if($collabFlow && $collabFlow->types->isNotEmpty())
-                                <optgroup label="Find a Collaborator Categories">
-                                    @foreach($collabFlow->types as $t)
-                                        <option value="{{ $t->id }}">{{ $t->name }}</option>
-                                    @endforeach
-                                </optgroup>
-                            @endif
+                            @foreach($flows as $f)
+                                @if($f->types->isNotEmpty())
+                                    <optgroup label="{{ $f->name }} Categories">
+                                        @foreach($f->types as $t)
+                                            <option value="{{ $t->id }}">{{ $t->name }} ({{ $f->name }})</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                            @endforeach
                         </select>
                         <span class="text-[10px] text-slate-400">Select which Sub-Type (e.g. Joint Venture) this option belongs to.</span>
                     </div>
@@ -461,6 +467,7 @@
         const STORE_GROUP_URL = '{{ route("admin.asks.config.group.store") }}';
         const STORE_OPTION_URL = '{{ route("admin.asks.config.option.store") }}';
         let currentSelectedTypeId = 'all';
+        let currentSelectedTypeCode = '';
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -779,9 +786,30 @@
                 tabElement.className = 'flow-tab-btn px-3 py-1 rounded-full text-xs font-semibold border bg-indigo-600 text-white border-indigo-600 transition shadow-xs';
             }
 
+            // Show/hide sub-type buttons matching this flow
+            const subTypeButtons = document.querySelectorAll('.subtype-tab-btn');
+            let hasVisibleSubTypes = false;
+            subTypeButtons.forEach(btn => {
+                const btnFlow = btn.getAttribute('data-flow');
+                if (btnFlow === 'all') {
+                    btn.style.display = '';
+                } else if (flowCode === 'all' || btnFlow === flowCode) {
+                    btn.style.display = '';
+                    hasVisibleSubTypes = true;
+                } else {
+                    btn.style.display = 'none';
+                }
+            });
+
             const subTypeRow = document.getElementById('subTypeFilterRow');
             if (subTypeRow) {
-                subTypeRow.style.display = (flowCode === 'collaboration' || flowCode === 'all') ? '' : 'none';
+                subTypeRow.style.display = (flowCode === 'all' || hasVisibleSubTypes) ? '' : 'none';
+            }
+
+            // Reset sub-type filter to "All Categories" when switching flows
+            const allBtn = document.getElementById('subtype-tab-all');
+            if (allBtn) {
+                filterBySubType('all', allBtn);
             }
 
             const cards = document.querySelectorAll('.option-group-card');
@@ -799,8 +827,9 @@
             });
         }
 
-        function filterBySubType(typeId, tabElement) {
+        function filterBySubType(typeId, tabElement, typeCode) {
             currentSelectedTypeId = typeId;
+            currentSelectedTypeCode = typeCode || '';
             document.querySelectorAll('.subtype-tab-btn').forEach(btn => {
                 btn.className = 'subtype-tab-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 transition';
             });
@@ -814,8 +843,16 @@
                 let visibleCount = 0;
                 let activeVisibleCount = 0;
 
+                // Check if this group card contains ANY options explicitly tagged for this sub-type
+                const hasTypeSpecificOptions = (typeId !== 'all') && Array.from(optionRows).some(row => {
+                    const rId = row.getAttribute('data-type-id') || '';
+                    const rCode = row.getAttribute('data-type-code') || '';
+                    return (rId && rId === typeId) || (typeCode && rCode === typeCode);
+                });
+
                 optionRows.forEach(row => {
-                    const rowTypeId = row.getAttribute('data-type-id') || '';
+                    const rId = row.getAttribute('data-type-id') || '';
+                    const rCode = row.getAttribute('data-type-code') || '';
                     const isActive = row.getAttribute('data-is-active') === '1';
 
                     if (typeId === 'all') {
@@ -823,7 +860,12 @@
                         visibleCount++;
                         if (isActive) activeVisibleCount++;
                     } else {
-                        if (rowTypeId === typeId) {
+                        const matchesType = (rId && rId === typeId) || (typeCode && rCode === typeCode);
+                        const isGeneral = (!rId && !rCode);
+
+                        // If card has options specifically for this category (e.g. What I Bring, What I Need), show only those matching options.
+                        // If card is a shared section with no category-specific overrides (e.g. Business Stage, Timeline, Industry, Geography), keep all general options visible!
+                        if (matchesType || (!hasTypeSpecificOptions && isGeneral)) {
                             row.style.display = '';
                             visibleCount++;
                             if (isActive) activeVisibleCount++;
