@@ -112,7 +112,7 @@
 
                         <!-- Delivery Modes & Limits -->
                         <div class="row g-3 mb-3 p-3 bg-light rounded border">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label small fw-bold">Permitted Delivery Modes *</label>
                                 @php
                                     $modes = (array)(old('delivery_modes', $product->delivery_modes ?? ['DELIVERY', 'PICKUP']));
@@ -128,13 +128,20 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold">Min Qty / Order</label>
+                                <input type="number" name="min_quantity_per_order" class="form-control form-control-sm" value="{{ old('min_quantity_per_order', $product->min_quantity_per_order ?? 1) }}" min="1">
+                                <small class="text-muted d-block" style="font-size: 10px;">Min units allowed</small>
+                            </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold">Max Qty / Order</label>
-                                <input type="number" name="max_quantity_per_order" class="form-control form-control-sm" value="{{ old('max_quantity_per_order', $product->max_quantity_per_order ?? 5) }}">
+                                <input type="number" name="max_quantity_per_order" class="form-control form-control-sm" value="{{ old('max_quantity_per_order', $product->max_quantity_per_order ?? 5) }}" min="1">
+                                <small class="text-muted d-block" style="font-size: 10px;">Max units allowed</small>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold">Max Qty / Peer Month</label>
-                                <input type="number" name="max_quantity_per_peer_month" class="form-control form-control-sm" value="{{ old('max_quantity_per_peer_month', $product->max_quantity_per_peer_month ?? 10) }}">
+                                <input type="number" name="max_quantity_per_peer_month" class="form-control form-control-sm" value="{{ old('max_quantity_per_peer_month', $product->max_quantity_per_peer_month ?? 10) }}" min="1">
+                                <small class="text-muted d-block" style="font-size: 10px;">Monthly limit</small>
                             </div>
                         </div>
 

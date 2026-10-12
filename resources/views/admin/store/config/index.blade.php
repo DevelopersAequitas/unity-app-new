@@ -151,6 +151,17 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label fw-semibold small text-dark">Minimum Order Value in Coins (Cart Total Threshold)</label>
+                        <div class="input-group">
+                            <input type="number" name="configs[min_order_total_coins]" class="form-control" value="{{ $configs['min_order_total_coins'] ?? ($configs['min_order_coins'] ?? 0) }}" min="0" step="100">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-cart-check"></i> Coins</span>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            The combined coin value of products in the cart must meet or exceed this amount to proceed with checkout (e.g. 3,000 coins). Users cannot order unless their cart items total at least this many coins. (Set 0 to disable).
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label fw-semibold small text-dark">Minimum Coin Balance for Checkout</label>
                         <div class="input-group">
                             <input type="number" name="configs[min_checkout_coins]" class="form-control" value="{{ $configs['min_checkout_coins'] ?? 0 }}" min="0">

@@ -7,6 +7,7 @@ use App\Models\Store\Cart;
 use App\Models\Store\CartItem;
 use App\Models\Store\Product;
 use App\Models\Store\ProductVariant;
+use App\Models\Store\StoreConfig;
 use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -102,8 +103,13 @@ class CartService
                 $newQty = $item->quantity + $quantity;
             }
 
+            $minQty = (int) ($product->min_quantity_per_order ?: 1);
+            if ($newQty < $minQty) {
+                throw new Exception("Minimum purchase quantity for {$product->name} is {$minQty}.", 422);
+            }
+
             if ($product->max_quantity_per_order && $newQty > $product->max_quantity_per_order) {
-                throw new Exception(StoreErrorCodes::QUANTITY_LIMIT_EXCEEDED, 422);
+                throw new Exception("Maximum purchase quantity for {$product->name} is {$product->max_quantity_per_order}.", 422);
             }
 
             if ($item) {
@@ -144,8 +150,14 @@ class CartService
         }
 
         $product = Product::find($item->product_id);
+        $minQty = (int) ($product ? ($product->min_quantity_per_order ?: 1) : 1);
+
+        if ($quantity < $minQty) {
+            throw new Exception("Minimum purchase quantity for " . ($product ? $product->name : 'this product') . " is {$minQty}.", 422);
+        }
+
         if ($product && $product->max_quantity_per_order && $quantity > $product->max_quantity_per_order) {
-            throw new Exception(StoreErrorCodes::QUANTITY_LIMIT_EXCEEDED, 422);
+            throw new Exception("Maximum purchase quantity for {$product->name} is {$product->max_quantity_per_order}.", 422);
         }
 
         $item->update([
@@ -188,6 +200,15 @@ class CartService
             $itemStatus = 'OK';
             $currentPrice = $product->coin_price;
 
+            $minQty = (int) ($product->min_quantity_per_order ?: 1);
+            if ($item->quantity < $minQty) {
+                $itemStatus = 'QUANTITY_BELOW_MIN';
+                $isValid = false;
+            } elseif ($product->max_quantity_per_order && $item->quantity > $product->max_quantity_per_order) {
+                $itemStatus = 'QUANTITY_LIMIT_EXCEEDED';
+                $isValid = false;
+            }
+
             if ($variant) {
                 if ($variant->coin_price !== null && $variant->coin_price > 0) {
                     $currentPrice = $variant->coin_price;
@@ -216,10 +237,19 @@ class CartService
                 'product_id' => $item->product_id,
                 'variant_id' => $item->variant_id,
                 'status' => $itemStatus,
+                'quantity' => $item->quantity,
+                'min_quantity_per_order' => $minQty,
+                'max_quantity_per_order' => $product->max_quantity_per_order,
                 'price_seen' => (int) $item->unit_coin_price,
                 'current_price' => $currentPrice,
                 'price_changed' => $priceChanged,
             ];
+        }
+
+        $minOrderCoins = (int) (StoreConfig::getValue('min_order_total_coins') ?? StoreConfig::getValue('min_order_coins', 0));
+        $minOrderMet = ($minOrderCoins <= 0) || ($totalCoins >= $minOrderCoins);
+        if (! $minOrderMet) {
+            $isValid = false;
         }
 
         $sufficientBalance = ($user->coins_balance ?? 0) >= $totalCoins;
@@ -232,6 +262,9 @@ class CartService
             'total_coins' => $totalCoins,
             'user_coins_balance' => (int) ($user->coins_balance ?? 0),
             'sufficient_balance' => $sufficientBalance,
+            'min_order_total_coins' => $minOrderCoins,
+            'min_order_met' => $minOrderMet,
+            'min_order_message' => (! $minOrderMet) ? "Your order must contain products worth at least " . number_format($minOrderCoins) . " coins. Please add more products to continue." : null,
             'items' => $issues,
         ];
     }
