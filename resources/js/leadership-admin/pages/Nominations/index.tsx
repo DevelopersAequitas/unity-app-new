@@ -73,7 +73,7 @@ export const NominationsPage: React.FC = () => {
     };
 
     const getNominationForm2Link = (nom: Nomination) => {
-        return nom.form_2_link || `${window.location.origin}/leadership/form-2/${nom.id}`;
+        return nom.form_2_link || `https://peersglobal.com/leadership/campaigns/${nom.campaign_id}/form-2?nomination=${nom.id}`;
     };
 
     const handleCopyVotingLink = (nom: Nomination) => {

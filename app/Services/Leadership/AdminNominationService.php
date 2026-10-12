@@ -625,7 +625,8 @@ class AdminNominationService
             $nomination->shortlisted_at = Carbon::now();
         }
 
-        $form2Link = url("/leadership/form-2/{$nomination->id}");
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $form2Link = "{$frontendUrl}/leadership/campaigns/{$nomination->campaign_id}/form-2?nomination={$nomination->id}";
 
         $snapshot = (array) ($nomination->profile_snapshot ?? []);
         $snapshot['form_2_link'] = $form2Link;

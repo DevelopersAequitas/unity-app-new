@@ -77,4 +77,6 @@ return [
         'redirect_uri' => env('LINKEDIN_REDIRECT_URI'),
     ],
 
+    'frontend_url' => env('FRONTEND_URL', 'https://peersglobal.com'),
+
 ];
