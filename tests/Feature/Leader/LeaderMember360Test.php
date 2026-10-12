@@ -444,7 +444,6 @@ class LeaderMember360Test extends TestCase
         ]);
     }
 
-
     /** @test */
     public function it_returns_404_when_deleting_non_existent_post(): void
     {
@@ -525,4 +524,3 @@ class LeaderMember360Test extends TestCase
             ->assertJsonPath('data.introduced_peers.0.id', $introducedPeer->id);
     }
 }
-

@@ -35,6 +35,11 @@ class CheckoutQuoteService
 
     public function createQuote(User $user, array $data): array
     {
+        $minRequiredCoins = (int) StoreConfig::getValue('min_member_coins_to_buy', 0);
+        if ($minRequiredCoins > 0 && (int) ($user->coins_balance ?? 0) < $minRequiredCoins) {
+            throw new Exception("You must have a minimum balance of " . number_format($minRequiredCoins) . " coins to purchase products from Peers Store. Your current balance is " . number_format($user->coins_balance ?? 0) . " coins.", 422);
+        }
+
         $cart = $this->cartService->getCartWithItems($user);
 
         if ($cart->items->isEmpty()) {

@@ -83,4 +83,16 @@ class ReportController extends LeadershipBaseController
 
         return $this->success($export, 'Report export queued.', 202);
     }
+
+    /**
+     * Get detailed campaign report.
+     */
+    public function campaignDetailed(string $campaignId): JsonResponse
+    {
+        $campaign = \App\Models\Leadership\LeadershipCampaign::with(['role', 'scopes'])
+            ->withCount(['nominations', 'votes'])
+            ->findOrFail($campaignId);
+
+        return $this->success($campaign, 'Campaign detailed report fetched successfully.');
+    }
 }

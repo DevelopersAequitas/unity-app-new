@@ -253,13 +253,14 @@
                 <table class="table table-hover align-middle mb-0" id="templatesTable">
                     <thead class="bg-light text-uppercase text-secondary" style="font-size: 11px; letter-spacing: 0.6px; font-weight: 600;">
                         <tr>
-                            <th class="ps-3 ps-md-4 py-3" style="width: 26%;">Template</th>
-                            <th class="py-3" style="width: 15%;">Key</th>
-                            <th class="py-3" style="width: 13%;">Category</th>
-                            <th class="py-3" style="width: 21%;">Trigger / When Sent</th>
-                            <th class="py-3 text-center" style="width: 9%;">Status</th>
-                            <th class="py-3" style="width: 8%;">Updated</th>
-                            <th class="pe-3 pe-md-4 py-3 text-end" style="width: 8%;">Actions</th>
+                            <th class="ps-3 ps-md-4 py-3" style="width: 24%;">Template</th>
+                            <th class="py-3" style="width: 14%;">Key</th>
+                            <th class="py-3" style="width: 12%;">Category</th>
+                            <th class="py-3" style="width: 19%;">Trigger / When Sent</th>
+                            <th class="py-3 text-center" style="width: 10%;">Delivery</th>
+                            <th class="py-3 text-center" style="width: 7%;">Status</th>
+                            <th class="py-3" style="width: 7%;">Updated</th>
+                            <th class="pe-3 pe-md-4 py-3 text-end" style="width: 7%;">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -329,6 +330,21 @@
                                             {{ Str::limit($tpl['when_sent'], 65) }}
                                         </span>
                                     </div>
+                                </td>
+
+                                <!-- Delivery Method -->
+                                <td class="py-3 text-center">
+                                    @if($tpl['is_migrated'] ?? false)
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1" style="font-size: 10px;" title="Direct Meta WhatsApp Cloud API Delivery">
+                                            <i class="bi bi-clouds-fill me-1"></i>Cloud API
+                                        </span>
+                                        <div class="text-success fw-semibold mt-0.5" style="font-size: 9.5px;">Migrated</div>
+                                    @else
+                                        <span class="badge bg-light text-muted border rounded-pill px-2 py-1" style="font-size: 10px;" title="Legacy Webhook Delivery">
+                                            <i class="bi bi-link-45deg me-1"></i>Webhook
+                                        </span>
+                                        <div class="text-muted mt-0.5" style="font-size: 9.5px;">Legacy</div>
+                                    @endif
                                 </td>
 
                                 <!-- Status (Toggle + Badge) -->

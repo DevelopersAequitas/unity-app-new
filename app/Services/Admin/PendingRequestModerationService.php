@@ -744,16 +744,9 @@ class PendingRequestModerationService
     private function approveImpact(Impact $impact, array $data, User|AdminUser $actor, ?Request $request): array
     {
         $oldValues = $impact->only(['status', 'approved_at', 'approved_by']);
+        $remarks = $data['admin_note'] ?? ($data['notes'] ?? ($data['review_remarks'] ?? null));
 
-        $impact->status = 'approved';
-        $impact->approved_by = $this->resolveUserActorId($actor);
-        $impact->approved_at = now();
-        if (isset($data['admin_note']) || isset($data['notes'])) {
-            $impact->review_remarks = $data['admin_note'] ?? $data['notes'];
-        }
-        $impact->save();
-
-        $freshImpact = $impact->fresh(['user', 'impactedPeer']);
+        $freshImpact = app(\App\Services\Impacts\ImpactService::class)->approveImpact($impact, $actor, $remarks);
 
         $this->auditService->log(
             $actor,
@@ -912,13 +905,7 @@ class PendingRequestModerationService
     {
         $oldValues = $impact->only(['status', 'rejected_at', 'rejected_by']);
 
-        $impact->status = 'rejected';
-        $impact->rejected_by = $this->resolveUserActorId($actor);
-        $impact->rejected_at = now();
-        $impact->review_remarks = $reason;
-        $impact->save();
-
-        $freshImpact = $impact->fresh(['user', 'impactedPeer']);
+        $freshImpact = app(\App\Services\Impacts\ImpactService::class)->rejectImpact($impact, $actor, $reason);
 
         $this->auditService->log(
             $actor,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { nominationApi, campaignApi } from '../../api/services';
 import { Nomination, Campaign } from '../../types';
 import { StatusBadge } from '../../components/common/Badge';
@@ -16,16 +17,86 @@ import {
     Check,
     X,
     Clock,
+    Link2,
+    Mail,
+    CheckCircle2,
+    Copy,
+    Filter,
+    FolderKanban,
 } from 'lucide-react';
 
 export const NominationsPage: React.FC = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    // Check whether current view is Main form 1 or Sub form 2
+    const isSubForm2 =
+        location.pathname.includes('sub-form-2') ||
+        location.pathname.includes('/sub') ||
+        new URLSearchParams(location.search).get('form') === 'sub_form_2';
+    const activeForm: 'main_form_1' | 'sub_form_2' = isSubForm2 ? 'sub_form_2' : 'main_form_1';
+
     const [nominations, setNominations] = useState<Nomination[]>([]);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [roles, setRoles] = useState<{ id: string; key: string; name: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [search, setSearch] = useState<string>('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [campaignFilter, setCampaignFilter] = useState<string>('');
+    const [roleFilter, setRoleFilter] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
+
+    // Shareable Voting Link & Manual Email States
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+    const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
+
+    const getNominationVotingLink = (nom: Nomination) => {
+        return nom.voting_link || `https://peersglobal.com/leadership/campaigns/${nom.campaign_id}/vote?candidate=${nom.id}`;
+    };
+
+    const handleCopyVotingLink = (nom: Nomination) => {
+        const link = getNominationVotingLink(nom);
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(link).catch(() => fallbackCopyText(link));
+        } else {
+            fallbackCopyText(link);
+        }
+        setCopiedId(nom.id);
+        setTimeout(() => setCopiedId(null), 2500);
+    };
+
+    const fallbackCopyText = (text: string) => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+        } catch (e) {
+            console.error('Fallback copy failed', e);
+        }
+        document.body.removeChild(textArea);
+    };
+
+    const handleSendManualEmail = async (nom: Nomination) => {
+        setSendingEmailId(nom.id);
+        setError(null);
+        try {
+            const res = await nominationApi.sendApprovalEmail(nom.id);
+            const target = nom.email || nom.candidate_name || 'candidate';
+            setEmailSuccessMsg(res.data?.message || `Approval email with voting link sent successfully to ${target}!`);
+            setTimeout(() => setEmailSuccessMsg(null), 6000);
+        } catch (err: any) {
+            setError(err?.response?.data?.message || 'Failed to send approval email.');
+        } finally {
+            setSendingEmailId(null);
+        }
+    };
 
     // Detail Modal State (6 Tabs)
     const [selectedNomination, setSelectedNomination] = useState<Nomination | null>(null);
@@ -40,6 +111,30 @@ export const NominationsPage: React.FC = () => {
     } | null>(null);
     const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
 
+    // Initial load of campaigns & roles
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const [campRes, roleRes] = await Promise.all([
+                    campaignApi.getAll(),
+                    campaignApi.getRoles(),
+                ]);
+                setCampaigns(campRes.data.data || []);
+                const fetchedRoles = roleRes.data?.data || [];
+                setRoles(
+                    fetchedRoles.filter(
+                        (r: any) =>
+                            r.key !== 'global_admin' &&
+                            !r.name?.toLowerCase().includes('global admin')
+                    )
+                );
+            } catch (err: any) {
+                console.error('Failed to load campaigns or roles:', err);
+            }
+        };
+        fetchInitialData();
+    }, []);
+
     const loadNominations = async () => {
         setIsLoading(true);
         setError(null);
@@ -48,13 +143,11 @@ export const NominationsPage: React.FC = () => {
             if (search) params.search = search;
             if (statusFilter) params.status = statusFilter;
             if (campaignFilter) params.campaign_id = campaignFilter;
+            if (roleFilter) params.role = roleFilter;
+            params.form_type = activeForm;
 
-            const [nomRes, campRes] = await Promise.all([
-                nominationApi.getAll(params),
-                campaignApi.getAll(),
-            ]);
+            const nomRes = await nominationApi.getAll(params);
             setNominations(nomRes.data.data || []);
-            setCampaigns(campRes.data.data || []);
         } catch (err: any) {
             setError(err?.response?.data?.message || 'Failed to load nominations from server.');
         } finally {
@@ -64,7 +157,7 @@ export const NominationsPage: React.FC = () => {
 
     useEffect(() => {
         loadNominations();
-    }, [statusFilter, campaignFilter]);
+    }, [statusFilter, campaignFilter, roleFilter, activeForm]);
 
     const openDetailModal = async (nom: Nomination) => {
         setIsLoadingDetail(true);
@@ -121,12 +214,65 @@ export const NominationsPage: React.FC = () => {
             {/* Header Toolbar */}
             <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-4 bg-white rounded-4 border shadow-xs mb-4">
                 <div>
-                    <h1 className="h4 fw-bold text-dark mb-0 tracking-tight">Nomination Management</h1>
-                    <p className="text-muted small mb-0 mt-0.5">
-                        Review candidate profiles, dynamic form answers, document verifications, and shortlisting
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                        <h1 className="h4 fw-bold text-dark mb-0 tracking-tight">Nomination Management</h1>
+                        <span
+                            className={`badge rounded-pill px-3 py-1.5 fw-semibold ${
+                                activeForm === 'main_form_1'
+                                    ? 'bg-primary-subtle text-primary border border-primary-subtle'
+                                    : 'bg-info-subtle text-info border border-info-subtle'
+                            }`}
+                        >
+                            {activeForm === 'main_form_1' ? 'Main form 1' : 'Sub form 2'}
+                        </span>
+                    </div>
+                    <p className="text-muted small mb-0">
+                        {activeForm === 'main_form_1'
+                            ? 'All primary candidate nominations submitted directly from the website portal.'
+                            : 'Secondary nomination applications and supplemental forms.'}
                     </p>
                 </div>
+
+                {/* Submenu form switcher tabs */}
+                <div className="d-flex align-items-center bg-light p-1 rounded-3 border">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/nominations/main-form-1')}
+                        className={`btn btn-sm rounded-3 px-3 py-1.5 fw-semibold transition-all ${
+                            activeForm === 'main_form_1'
+                                ? 'bg-white text-primary shadow-xs'
+                                : 'text-muted border-0 bg-transparent'
+                        }`}
+                    >
+                        <FileText size={14} className="me-1.5 d-inline" />
+                        Main form 1
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/nominations/sub-form-2')}
+                        className={`btn btn-sm rounded-3 px-3 py-1.5 fw-semibold transition-all ${
+                            activeForm === 'sub_form_2'
+                                ? 'bg-white text-info shadow-xs'
+                                : 'text-muted border-0 bg-transparent'
+                        }`}
+                    >
+                        <FolderKanban size={14} className="me-1.5 d-inline" />
+                        Sub form 2
+                    </button>
+                </div>
             </div>
+
+            {emailSuccessMsg && (
+                <div className="alert alert-success rounded-4 border-0 shadow-xs p-3 mb-4 d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-2">
+                        <CheckCircle2 size={18} className="text-success flex-shrink-0" />
+                        <span>{emailSuccessMsg}</span>
+                    </div>
+                    <button className="btn btn-sm btn-outline-success" onClick={() => setEmailSuccessMsg(null)}>
+                        Dismiss
+                    </button>
+                </div>
+            )}
 
             {error && (
                 <div className="alert alert-danger rounded-4 border-0 shadow-xs p-3 mb-4 d-flex align-items-center justify-content-between">
@@ -140,7 +286,7 @@ export const NominationsPage: React.FC = () => {
             {/* Filter Bar */}
             <div className="card border-0 shadow-xs rounded-4 bg-white p-3 mb-4">
                 <div className="row g-2 align-items-center">
-                    <div className="col-12 col-md-4">
+                    <div className="col-12 col-md-3">
                         <div className="input-group input-group-sm">
                             <span className="input-group-text bg-white border-end-0">
                                 <Search size={14} className="text-muted" />
@@ -171,7 +317,22 @@ export const NominationsPage: React.FC = () => {
                         </select>
                     </div>
 
-                    <div className="col-12 col-md-3">
+                    <div className="col-12 col-md-2">
+                        <select
+                            className="form-select form-select-sm"
+                            value={roleFilter}
+                            onChange={(e) => setRoleFilter(e.target.value)}
+                        >
+                            <option value="">All Roles</option>
+                            {roles.map((r) => (
+                                <option key={r.id} value={r.name}>
+                                    {r.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="col-12 col-md-2">
                         <select
                             className="form-select form-select-sm"
                             value={statusFilter}
@@ -188,10 +349,63 @@ export const NominationsPage: React.FC = () => {
                     </div>
 
                     <div className="col-12 col-md-2 d-flex gap-2">
-                        <button onClick={loadNominations} className="btn btn-light border btn-sm flex-grow-1 fw-semibold">
+                        <button onClick={loadNominations} className="btn btn-primary btn-sm flex-grow-1 fw-semibold shadow-xs">
                             Filter
                         </button>
+                        {(search || statusFilter || campaignFilter || roleFilter) && (
+                            <button
+                                onClick={() => {
+                                    setSearch('');
+                                    setStatusFilter('');
+                                    setCampaignFilter('');
+                                    setRoleFilter('');
+                                }}
+                                className="btn btn-outline-secondary btn-sm"
+                                title="Reset all filters"
+                            >
+                                Reset
+                            </button>
+                        )}
                     </div>
+                </div>
+
+                {/* Role Quick Filter Pills (Matches Red Box in Screenshot 1) */}
+                <div className="d-flex align-items-center gap-1.5 flex-wrap pt-3 mt-3 border-top">
+                    <span className="text-muted small fw-semibold d-flex align-items-center gap-1 me-2">
+                        <Filter size={13} className="text-primary" />
+                        Role Filter:
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setRoleFilter('')}
+                        className={`btn btn-sm rounded-pill px-3 py-1 fs-12 fw-medium transition-all ${
+                            roleFilter === ''
+                                ? 'btn-dark text-white shadow-xs'
+                                : 'btn-outline-secondary bg-white text-dark'
+                        }`}
+                    >
+                        All Roles
+                    </button>
+                    {roles.map((r) => {
+                        const isSelected =
+                            roleFilter === r.id ||
+                            roleFilter === r.key ||
+                            roleFilter === r.name;
+                        return (
+                            <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => setRoleFilter(isSelected ? '' : r.name)}
+                                className={`btn btn-sm rounded-pill px-3 py-1 fs-12 fw-medium transition-all ${
+                                    isSelected
+                                        ? 'btn-primary text-white shadow-xs'
+                                        : 'btn-outline-secondary bg-white text-dark'
+                                }`}
+                            >
+                                {r.name}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -234,10 +448,10 @@ export const NominationsPage: React.FC = () => {
                                                     className="rounded-circle bg-light border d-flex align-items-center justify-content-center text-secondary fw-bold"
                                                     style={{ width: '36px', height: '36px', fontSize: '0.85rem' }}
                                                 >
-                                                    {nom.candidate_name ? nom.candidate_name.charAt(0).toUpperCase() : 'U'}
+                                                    {(nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : 'Hardik Chauhan').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div className="fw-semibold text-dark">{nom.candidate_name}</div>
+                                                    <div className="fw-semibold text-dark">{nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : (nom.user?.name || 'Hardik Chauhan')}</div>
                                                     <div className="text-muted small">{nom.email}</div>
                                                 </div>
                                             </div>
@@ -253,12 +467,70 @@ export const NominationsPage: React.FC = () => {
                                             <StatusBadge status={nom.status} />
                                         </td>
                                         <td className="text-end">
-                                            <button
-                                                onClick={() => openDetailModal(nom)}
-                                                className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
-                                            >
-                                                Review
-                                            </button>
+                                            <div className="d-flex align-items-center justify-content-end gap-1.5 flex-nowrap">
+                                                {['submitted', 'resubmitted', 'under_review'].includes(nom.status) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => setActionModal({ type: 'approve', nomination: nom, reason: '' })}
+                                                            className="btn btn-success btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Approve Nomination Request"
+                                                        >
+                                                            <Check size={14} /> Approve
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setActionModal({ type: 'reject', nomination: nom, reason: '' })}
+                                                            className="btn btn-outline-danger btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Reject Nomination Request"
+                                                        >
+                                                            <X size={14} /> Reject
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {['approved', 'shortlisted'].includes(nom.status) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleCopyVotingLink(nom)}
+                                                            className={`btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs ${
+                                                                copiedId === nom.id ? 'btn-success text-white' : 'btn-outline-success'
+                                                            }`}
+                                                            title="Copy Shareable Voting Link"
+                                                        >
+                                                            {copiedId === nom.id ? (
+                                                                <>
+                                                                    <Check size={14} /> Copied!
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Link2 size={14} /> Copy Link
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleSendManualEmail(nom)}
+                                                            disabled={sendingEmailId === nom.id}
+                                                            className="btn btn-outline-secondary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Send Official Approval Email to Candidate"
+                                                        >
+                                                            {sendingEmailId === nom.id ? (
+                                                                <>
+                                                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                                    Sending...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Mail size={14} /> Send Mail
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button
+                                                    onClick={() => openDetailModal(nom)}
+                                                    className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
+                                                >
+                                                    Review
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -350,6 +622,67 @@ export const NominationsPage: React.FC = () => {
                                         {/* Tab 1: Profile */}
                                         {activeTab === 'profile' && (
                                             <div className="row g-3">
+                                                {['approved', 'shortlisted'].includes(selectedNomination.status) && (
+                                                    <div className="col-12">
+                                                        <div className="p-3 rounded-3 bg-success bg-opacity-10 border border-success border-opacity-25">
+                                                            <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                                                                <div className="flex-grow-1">
+                                                                    <div className="d-flex align-items-center gap-2 text-success fw-bold">
+                                                                        <CheckCircle2 size={18} />
+                                                                        <span>Nomination Approved - Shareable Voting Link Ready</span>
+                                                                    </div>
+                                                                    <p className="text-secondary small mb-2 mt-1">
+                                                                        Direct voting link for voters to cast verified OTP votes for this candidate:
+                                                                    </p>
+                                                                    <div className="input-group input-group-sm" style={{ maxWidth: '640px' }}>
+                                                                        <span className="input-group-text bg-white text-muted">
+                                                                            <Link2 size={14} />
+                                                                        </span>
+                                                                        <input
+                                                                            type="text"
+                                                                            readOnly
+                                                                            className="form-control font-monospace bg-white"
+                                                                            value={getNominationVotingLink(selectedNomination)}
+                                                                        />
+                                                                        <button
+                                                                            className={`btn ${copiedId === selectedNomination.id ? 'btn-success' : 'btn-primary'} fw-semibold`}
+                                                                            onClick={() => handleCopyVotingLink(selectedNomination)}
+                                                                        >
+                                                                            {copiedId === selectedNomination.id ? 'Copied!' : 'Copy Link'}
+                                                                        </button>
+                                                                        <a
+                                                                            href={getNominationVotingLink(selectedNomination)}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="btn btn-outline-secondary"
+                                                                        >
+                                                                            <ExternalLink size={14} /> Open
+                                                                        </a>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="d-flex flex-column align-items-md-end gap-1 flex-shrink-0">
+                                                                    <span className="text-muted small">Need to notify candidate?</span>
+                                                                    <button
+                                                                        onClick={() => handleSendManualEmail(selectedNomination)}
+                                                                        disabled={sendingEmailId === selectedNomination.id}
+                                                                        className="btn btn-success btn-sm fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs"
+                                                                    >
+                                                                        {sendingEmailId === selectedNomination.id ? (
+                                                                            <>
+                                                                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                                                Sending...
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Mail size={14} /> Send Approval Email
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <div className="col-12 col-md-6">
                                                     <div className="p-3 rounded-3 bg-light border">
                                                         <span className="text-muted small">Full Name</span>
@@ -540,6 +873,25 @@ export const NominationsPage: React.FC = () => {
                                 </div>
 
                                 <div className="d-flex gap-2">
+                                    {['approved', 'shortlisted'].includes(selectedNomination.status) && (
+                                        <button
+                                            onClick={() => handleSendManualEmail(selectedNomination)}
+                                            disabled={sendingEmailId === selectedNomination.id}
+                                            className="btn btn-outline-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"
+                                            title="Send or resend email notification to candidate"
+                                        >
+                                            {sendingEmailId === selectedNomination.id ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                    Sending...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Mail size={14} /> Resend Email
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => setActionModal({ type: 'approve', nomination: selectedNomination })}
                                         className="btn btn-success btn-sm rounded-3 px-3 d-flex align-items-center gap-1.5 fw-semibold"

@@ -20,6 +20,8 @@ class StoreAskOptionRequest extends FormRequest
     {
         return [
             'option_group_id' => ['required', 'string', 'uuid', 'exists:ask_option_groups,id'],
+            'ask_type_id' => ['nullable', 'string', 'uuid', 'exists:ask_types,id'],
+            'flow_id' => ['nullable', 'string', 'uuid', 'exists:ask_flows,id'],
             'label' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:500'],

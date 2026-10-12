@@ -7,6 +7,8 @@ namespace App\Services\Notifications;
 use App\Models\User;
 use App\Models\WhatsappMessageDeliveryLog;
 use App\Models\WhatsappTemplate;
+use App\Services\WhatsApp\WhatsAppMessageService;
+use App\Services\WhatsApp\WhatsAppTemplatePayloadBuilder;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -42,6 +44,24 @@ class WhatsappNotificationService
         $customLogId = isset($payload['delivery_log_id']) && is_string($payload['delivery_log_id']) && trim($payload['delivery_log_id']) !== ''
             ? trim($payload['delivery_log_id'])
             : null;
+
+        // DIRECT CLOUD API MIGRATION:
+        // If the template has been migrated to Meta WhatsApp Cloud API, route delivery through WhatsAppMessageService.
+        if (WhatsAppTemplatePayloadBuilder::isMigrated($templateKey)) {
+            $messageService = app(WhatsAppMessageService::class);
+            $result = $messageService->send(
+                templateKey: $templateKey,
+                phone: $phone,
+                payload: $payload,
+                userId: $userId,
+                eventKey: $notificationId
+            );
+
+            self::$lastResponse = WhatsAppMessageService::$lastResponse;
+            self::$lastError = WhatsAppMessageService::$lastError;
+
+            return $result['success'];
+        }
 
         try {
             $template = WhatsappTemplate::query()

@@ -31,22 +31,48 @@ class AdminCampaignController extends LeadershipBaseController
      */
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
+        $input = $request->all();
+        if (isset($input['year']) && ! isset($input['campaign_year'])) {
+            $input['campaign_year'] = (int) $input['year'];
+        }
+        if (isset($input['code']) && ! isset($input['slug'])) {
+            $input['slug'] = (string) $input['code'];
+        }
+        if (isset($input['nomination_start_at']) && ! isset($input['nomination_starts_at'])) {
+            $input['nomination_starts_at'] = $input['nomination_start_at'];
+        }
+        if (isset($input['nomination_end_at']) && ! isset($input['nomination_ends_at'])) {
+            $input['nomination_ends_at'] = $input['nomination_end_at'];
+        }
+        if (isset($input['voting_start_at']) && ! isset($input['voting_starts_at'])) {
+            $input['voting_starts_at'] = $input['voting_start_at'];
+        }
+        if (isset($input['voting_end_at']) && ! isset($input['voting_ends_at'])) {
+            $input['voting_ends_at'] = $input['voting_end_at'];
+        }
+        if (isset($input['jury_start_at']) && ! isset($input['jury_starts_at'])) {
+            $input['jury_starts_at'] = $input['jury_start_at'];
+        }
+        if (isset($input['jury_end_at']) && ! isset($input['jury_ends_at'])) {
+            $input['jury_ends_at'] = $input['jury_end_at'];
+        }
+
+        $validated = validator($input, [
             'role_id' => 'required|uuid',
             'name' => 'required|string|max:200',
             'slug' => 'nullable|string|max:220',
             'description' => 'nullable|string',
             'campaign_year' => 'required|integer',
             'nomination_starts_at' => 'nullable|date',
-            'nomination_ends_at' => 'nullable|date|after_or_equal:nomination_starts_at',
+            'nomination_ends_at' => 'nullable|date',
             'voting_starts_at' => 'nullable|date',
-            'voting_ends_at' => 'nullable|date|after_or_equal:voting_starts_at',
+            'voting_ends_at' => 'nullable|date',
             'jury_starts_at' => 'nullable|date',
-            'jury_ends_at' => 'nullable|date|after_or_equal:jury_starts_at',
+            'jury_ends_at' => 'nullable|date',
             'allow_multiple_winners' => 'nullable|boolean',
             'eligibility_rules' => 'nullable|array',
             'settings' => 'nullable|array',
-        ]);
+        ])->validate();
 
         try {
             $campaign = $this->campaignService->createCampaign($validated, Auth::id());
@@ -76,8 +102,34 @@ class AdminCampaignController extends LeadershipBaseController
      */
     public function update(Request $request, string $id): JsonResponse
     {
+        $input = $request->all();
+        if (isset($input['year']) && ! isset($input['campaign_year'])) {
+            $input['campaign_year'] = (int) $input['year'];
+        }
+        if (isset($input['code']) && ! isset($input['slug'])) {
+            $input['slug'] = (string) $input['code'];
+        }
+        if (isset($input['nomination_start_at']) && ! isset($input['nomination_starts_at'])) {
+            $input['nomination_starts_at'] = $input['nomination_start_at'];
+        }
+        if (isset($input['nomination_end_at']) && ! isset($input['nomination_ends_at'])) {
+            $input['nomination_ends_at'] = $input['nomination_end_at'];
+        }
+        if (isset($input['voting_start_at']) && ! isset($input['voting_starts_at'])) {
+            $input['voting_starts_at'] = $input['voting_start_at'];
+        }
+        if (isset($input['voting_end_at']) && ! isset($input['voting_ends_at'])) {
+            $input['voting_ends_at'] = $input['voting_end_at'];
+        }
+        if (isset($input['jury_start_at']) && ! isset($input['jury_starts_at'])) {
+            $input['jury_starts_at'] = $input['jury_start_at'];
+        }
+        if (isset($input['jury_end_at']) && ! isset($input['jury_ends_at'])) {
+            $input['jury_ends_at'] = $input['jury_end_at'];
+        }
+
         try {
-            $campaign = $this->campaignService->updateCampaign($id, $request->all(), Auth::id());
+            $campaign = $this->campaignService->updateCampaign($id, $input, Auth::id());
 
             return $this->success($campaign, 'Campaign updated successfully.');
         } catch (\Throwable $e) {
@@ -134,11 +186,63 @@ class AdminCampaignController extends LeadershipBaseController
     }
 
     /**
-     * D8. Get dynamic roles.
+     * Close campaign (alias of pause).
+     */
+    public function close(Request $request, string $id): JsonResponse
+    {
+        return $this->pause($request, $id);
+    }
+
+    /**
+     * Toggle campaign active/paused status.
+     */
+    public function toggleStatus(Request $request, string $id): JsonResponse
+    {
+        try {
+            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($id);
+            if ($campaign->status === 'active') {
+                $updated = $this->campaignService->pauseCampaign($id, 'Closed by administrator via toggle', Auth::id());
+
+                return $this->success($updated, 'Campaign closed successfully. It is now inactive on the website.');
+            } else {
+                $updated = $this->campaignService->publishCampaign($id, 'Opened by administrator via toggle', Auth::id());
+
+                return $this->success($updated, 'Campaign opened successfully. It is now live on the website.');
+            }
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * Delete campaign (draft only).
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            $campaign = \App\Models\Leadership\LeadershipCampaign::findOrFail($id);
+            if ($campaign->status !== 'draft') {
+                return $this->error('Only draft campaigns can be deleted. Published or active campaigns should be closed.', 400);
+            }
+            $campaign->delete();
+
+            return $this->success(null, 'Draft campaign deleted successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * D8. Get available roles for campaigns (from roles table, excluding global_admin).
      */
     public function roles(): JsonResponse
     {
-        $roles = $this->campaignService->getDynamicRoles();
+        $roles = \App\Models\Role::query()
+            ->where('key', '!=', 'global_admin')
+            ->whereRaw('LOWER(name) NOT LIKE ?', ['%global admin%'])
+            ->select(['id', 'key', 'name', 'description'])
+            ->orderBy('name', 'asc')
+            ->get();
 
         return $this->success($roles, 'Roles fetched successfully.');
     }

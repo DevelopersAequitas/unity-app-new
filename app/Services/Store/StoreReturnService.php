@@ -39,6 +39,15 @@ class StoreReturnService
             throw new Exception(StoreErrorCodes::RETURN_WINDOW_EXPIRED, 422);
         }
 
+        // Guard against duplicate active return submissions for the same order
+        $existingActiveReturn = StoreReturn::where('order_id', $order->id)
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED'])
+            ->first();
+
+        if ($existingActiveReturn) {
+            throw new Exception('A return request has already been submitted for this order.', 422);
+        }
+
         // Validate products in return
         foreach ($order->items as $item) {
             if ($item->product && ! $item->product->return_allowed) {

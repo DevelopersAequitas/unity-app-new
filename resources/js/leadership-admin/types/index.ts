@@ -118,6 +118,7 @@ export interface Nomination {
     history?: NominationHistory[];
     created_at: string;
     submitted_at?: string;
+    voting_link?: string;
 }
 
 export interface NominationAnswer {

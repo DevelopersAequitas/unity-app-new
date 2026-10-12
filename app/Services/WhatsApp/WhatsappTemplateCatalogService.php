@@ -1211,7 +1211,7 @@ class WhatsappTemplateCatalogService
         $result = [];
 
         foreach ($dbTemplates as $dbModel) {
-            $key = $dbModel->template_key;
+            $key = (string) ($dbModel->template_key ?: $dbModel->name ?: $dbModel->id);
             $catItem = self::CATALOG[$key] ?? $this->deriveMetadataForUnknownTemplate($dbModel);
 
             $item = $this->buildUnifiedTemplateItem($key, $catItem, $dbModel);
@@ -1357,6 +1357,8 @@ class WhatsappTemplateCatalogService
             'milestone_title' => $catItem['milestone_title'] ?? null,
             'impact_count' => $catItem['impact_count'] ?? null,
             'impact_title' => $catItem['impact_title'] ?? null,
+            'is_migrated' => WhatsAppTemplatePayloadBuilder::isMigrated($key),
+            'delivery_method' => WhatsAppTemplatePayloadBuilder::isMigrated($key) ? 'Cloud API' : 'Legacy Webhook',
             'db_record' => $dbModel,
         ];
     }
@@ -1416,8 +1418,8 @@ class WhatsappTemplateCatalogService
      */
     private function deriveMetadataForUnknownTemplate(WhatsappTemplate $model): array
     {
-        $key = $model->template_key;
-        $name = $model->template_name ?: Str::headline($key);
+        $key = (string) ($model->template_key ?: $model->name ?: '');
+        $name = (string) ($model->template_name ?: ($model->name ? Str::headline((string) $model->name) : ($key !== '' ? Str::headline($key) : 'Custom Template')));
 
         $category = 'Other';
         $badge = 'secondary';

@@ -19,6 +19,8 @@ export const CampaignsPage: React.FC = () => {
     const [search, setSearch] = useState<string>('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
 
     // Modal state for Create / Edit
     const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
@@ -48,6 +50,27 @@ export const CampaignsPage: React.FC = () => {
     } | null>(null);
     const [isConfirming, setIsConfirming] = useState<boolean>(false);
 
+    const handleToggleCampaign = async (camp: Campaign) => {
+        setTogglingId(camp.id);
+        setError(null);
+        setSuccessMessage(null);
+        try {
+            const res = await campaignApi.toggleStatus(camp.id);
+            const updated = res.data?.data;
+            const newStatus = updated?.status || (camp.status === 'active' ? 'paused' : 'active');
+            setCampaigns((prev) =>
+                prev.map((c) => (c.id === camp.id ? { ...c, status: newStatus } : c))
+            );
+            setSuccessMessage(
+                `Campaign "${camp.name}" is now ${newStatus === 'active' ? 'OPEN & LIVE on website nominations' : 'CLOSED & HIDDEN from public website'}.`
+            );
+        } catch (err: any) {
+            setError(err?.response?.data?.message || 'Failed to toggle campaign status.');
+        } finally {
+            setTogglingId(null);
+        }
+    };
+
     const loadCampaigns = async () => {
         setIsLoading(true);
         setError(null);
@@ -67,18 +90,15 @@ export const CampaignsPage: React.FC = () => {
 
     const loadRoles = async () => {
         try {
-            // Fetch roles from the existing system roles table endpoint
+            // Fetch roles from the system roles table endpoint (excluding global_admin)
             const res = await apiClient.get('/admin/roles').catch(() => ({ data: { data: [] } }));
-            if (res.data?.data && res.data.data.length > 0) {
-                setRoles(res.data.data);
-            } else {
-                // Fallback roles query if specific admin route differs
-                setRoles([
-                    { id: '11111111-1111-1111-1111-111111111111', name: 'District Executive Director (DED)' },
-                    { id: '22222222-2222-2222-2222-222222222222', name: 'Executive Director (ED)' },
-                    { id: '33333333-3333-3333-3333-333333333333', name: 'Circle Chair' },
-                    { id: '44444444-4444-4444-4444-444444444444', name: 'Industry Director (ID)' },
-                ]);
+            if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+                const filtered = res.data.data.filter(
+                    (r: RoleOption) =>
+                        r.key !== 'global_admin' &&
+                        !r.name?.toLowerCase().includes('global admin')
+                );
+                setRoles(filtered);
             }
         } catch {
             // Keep default graceful fallback
@@ -105,10 +125,10 @@ export const CampaignsPage: React.FC = () => {
             description: '',
             nomination_start_at: new Date().toISOString().slice(0, 16),
             nomination_end_at: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 16),
-            voting_start_at: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 16),
-            voting_end_at: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 16),
-            jury_start_at: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 16),
-            jury_end_at: new Date(Date.now() + 28 * 86400000).toISOString().slice(0, 16),
+            voting_start_at: '',
+            voting_end_at: '',
+            jury_start_at: '',
+            jury_end_at: '',
             scope_type: 'territory',
             scope_value: 'National',
         });
@@ -204,6 +224,18 @@ export const CampaignsPage: React.FC = () => {
                 </div>
             )}
 
+            {successMessage && (
+                <div className="alert alert-success rounded-4 shadow-xs border-0 p-3 mb-4 d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-2">
+                        <CheckCircle2 size={18} className="text-success" />
+                        <span>{successMessage}</span>
+                    </div>
+                    <button className="btn btn-sm btn-outline-success" onClick={() => setSuccessMessage(null)}>
+                        Dismiss
+                    </button>
+                </div>
+            )}
+
             {/* Filters Bar */}
             <div className="card border-0 shadow-xs rounded-4 bg-white p-3 mb-4">
                 <form onSubmit={handleSearchSubmit} className="row g-2 align-items-center">
@@ -228,11 +260,9 @@ export const CampaignsPage: React.FC = () => {
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
                             <option value="">All Statuses</option>
+                            <option value="active">Active (Open on Website)</option>
+                            <option value="paused">Paused / Closed</option>
                             <option value="draft">Draft</option>
-                            <option value="published">Published</option>
-                            <option value="nomination_closed">Nomination Closed</option>
-                            <option value="voting_open">Voting Open</option>
-                            <option value="voting_closed">Voting Closed</option>
                             <option value="completed">Completed</option>
                         </select>
                     </div>
@@ -263,7 +293,7 @@ export const CampaignsPage: React.FC = () => {
                             <tr>
                                 <th>Campaign</th>
                                 <th>Role</th>
-                                <th>Year</th>
+                                <th>Live on Site</th>
                                 <th>Status</th>
                                 <th>Nominations</th>
                                 <th>Votes</th>
@@ -295,7 +325,36 @@ export const CampaignsPage: React.FC = () => {
                                         <td>
                                             <span className="badge bg-light text-dark border">{camp.role_name || 'Dynamic Role'}</span>
                                         </td>
-                                        <td>{camp.year}</td>
+                                        <td>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <div className="form-check form-switch mb-0">
+                                                    <input
+                                                        className="form-check-input"
+                                                        type="checkbox"
+                                                        role="switch"
+                                                        id={`switch-campaign-${camp.id}`}
+                                                        checked={camp.status === 'active'}
+                                                        disabled={togglingId === camp.id}
+                                                        onChange={() => handleToggleCampaign(camp)}
+                                                        style={{ cursor: 'pointer', width: '2.4rem', height: '1.25rem' }}
+                                                        title={camp.status === 'active' ? 'Click to Close nominations on website' : 'Click to Open nominations on website'}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    {togglingId === camp.id ? (
+                                                        <span className="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                                    ) : camp.status === 'active' ? (
+                                                        <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                                            ● Open (Live)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                                                            ○ Closed
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
                                         <td>
                                             <StatusBadge status={camp.status} />
                                         </td>
@@ -307,15 +366,9 @@ export const CampaignsPage: React.FC = () => {
                                         </td>
                                         <td className="small text-muted">
                                             <div>
-                                                <strong>Nom:</strong> {new Date(camp.nomination_start_at).toLocaleDateString()} -{' '}
-                                                {new Date(camp.nomination_end_at).toLocaleDateString()}
+                                                <strong>Nom:</strong> {camp.nomination_start_at ? new Date(camp.nomination_start_at).toLocaleDateString() : 'N/A'} -{' '}
+                                                {camp.nomination_end_at ? new Date(camp.nomination_end_at).toLocaleDateString() : 'N/A'}
                                             </div>
-                                            {camp.voting_start_at && (
-                                                <div>
-                                                    <strong>Vote:</strong> {new Date(camp.voting_start_at).toLocaleDateString()} -{' '}
-                                                    {new Date(camp.voting_end_at!).toLocaleDateString()}
-                                                </div>
-                                            )}
                                         </td>
                                         <td className="text-end">
                                             <div className="btn-group btn-group-sm">
@@ -327,21 +380,21 @@ export const CampaignsPage: React.FC = () => {
                                                     Edit
                                                 </button>
 
-                                                {camp.status === 'draft' && (
+                                                {(camp.status === 'draft' || camp.status === 'paused') && (
                                                     <button
                                                         onClick={() => setConfirmAction({ type: 'publish', campaign: camp })}
                                                         className="btn btn-outline-success py-1 px-2"
-                                                        title="Publish to Website"
+                                                        title="Open campaign nominations on website"
                                                     >
-                                                        Publish
+                                                        Open
                                                     </button>
                                                 )}
 
-                                                {camp.status === 'published' && (
+                                                {camp.status === 'active' && (
                                                     <button
                                                         onClick={() => setConfirmAction({ type: 'close', campaign: camp })}
                                                         className="btn btn-outline-warning py-1 px-2"
-                                                        title="Close nominations"
+                                                        title="Close campaign nominations"
                                                     >
                                                         Close
                                                     </button>
@@ -448,7 +501,7 @@ export const CampaignsPage: React.FC = () => {
 
                                         {/* Timelines */}
                                         <div className="col-12 mt-4">
-                                            <h6 className="fw-bold text-dark border-bottom pb-2">Campaign Timeline Windows</h6>
+                                            <h6 className="fw-bold text-dark border-bottom pb-2">Campaign Nomination Window</h6>
                                         </div>
 
                                         <div className="col-12 col-md-6">
@@ -470,46 +523,6 @@ export const CampaignsPage: React.FC = () => {
                                                 value={formData.nomination_end_at}
                                                 onChange={(e) => setFormData({ ...formData, nomination_end_at: e.target.value })}
                                                 required
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Voting Start Date & Time</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.voting_start_at}
-                                                onChange={(e) => setFormData({ ...formData, voting_start_at: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Voting End Date & Time</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.voting_end_at}
-                                                onChange={(e) => setFormData({ ...formData, voting_end_at: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Jury Evaluation Start</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.jury_start_at}
-                                                onChange={(e) => setFormData({ ...formData, jury_start_at: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="col-12 col-md-6">
-                                            <label className="form-label small fw-semibold text-dark">Jury Evaluation End</label>
-                                            <input
-                                                type="datetime-local"
-                                                className="form-control"
-                                                value={formData.jury_end_at}
-                                                onChange={(e) => setFormData({ ...formData, jury_end_at: e.target.value })}
                                             />
                                         </div>
                                     </div>

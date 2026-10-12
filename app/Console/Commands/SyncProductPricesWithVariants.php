@@ -146,7 +146,7 @@ class SyncProductPricesWithVariants extends Command
         }
         $this->info("✓ Refreshed {$updatedCartItemsCount} cart items with live pricing.");
 
-        $this->info("All store pricing and cart synchronizations completed successfully!");
+        $this->info('All store pricing and cart synchronizations completed successfully!');
 
         return Command::SUCCESS;
     }

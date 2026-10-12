@@ -8,6 +8,8 @@ use App\Models\OtpCode;
 use App\Models\User;
 use App\Models\WhatsappTemplate;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -19,6 +21,15 @@ class WhatsAppOtpApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set('database.default', 'sqlite');
+        Config::set('database.connections.sqlite', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'foreign_key_constraints' => false,
+        ]);
+        DB::purge();
 
         Schema::dropIfExists('circle_members');
         Schema::dropIfExists('otp_codes');
@@ -72,6 +83,33 @@ class WhatsAppOtpApiTest extends TestCase
             $table->string('webhook_secret');
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('whatsapp_message_logs', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('whatsapp_template_id')->nullable();
+            $table->string('template_key');
+            $table->string('template_name');
+            $table->string('event_key')->nullable();
+            $table->uuid('user_id')->nullable();
+            $table->string('recipient_phone');
+            $table->string('requested_recipient_phone')->nullable();
+            $table->string('actual_recipient_phone')->nullable();
+            $table->json('payload');
+            $table->json('template_variables')->nullable();
+            $table->json('request_payload')->nullable();
+            $table->json('provider_response')->nullable();
+            $table->string('provider_message_id')->nullable();
+            $table->string('status')->default('pending');
+            $table->string('error_code')->nullable();
+            $table->text('error_message')->nullable();
+            $table->string('source')->nullable();
+            $table->string('environment')->nullable();
+            $table->boolean('is_test')->default(false);
+            $table->string('idempotency_key')->nullable();
+            $table->timestamp('sent_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
             $table->timestamps();
         });
 

@@ -37,6 +37,11 @@ class Order extends Model
         'pickup_expires_at',
         'pickup_code_hash',
         'notes',
+        'courier_name',
+        'tracking_number',
+        'delivery_person_name',
+        'delivery_person_phone',
+        'slip_url',
     ];
 
     protected $casts = [
@@ -114,5 +119,88 @@ class Order extends Model
     public function getOrderNumberAttribute(): ?string
     {
         return $this->order_no;
+    }
+
+    public function address(): BelongsTo
+    {
+        return $this->belongsTo(Address::class, 'address_id');
+    }
+
+    public function getResolvedAddressAttribute(): array
+    {
+        if (!empty($this->shipping_address) && is_array($this->shipping_address)) {
+            return $this->shipping_address;
+        }
+
+        if (!empty($this->address_snapshot) && is_array($this->address_snapshot)) {
+            return $this->address_snapshot;
+        }
+
+        if ($this->relationLoaded('address') && $this->address) {
+            return $this->address->toArray();
+        }
+
+        if ($this->address_id) {
+            $addr = Address::find($this->address_id);
+            if ($addr) {
+                return $addr->toArray();
+            }
+        }
+
+        return [];
+    }
+
+    public function getShippingAddressLine1Attribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['line1'] ?? $addr['address_line1'] ?? null;
+    }
+
+    public function getShippingAddressLine2Attribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['line2'] ?? $addr['address_line2'] ?? null;
+    }
+
+    public function getShippingLandmarkAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['landmark'] ?? null;
+    }
+
+    public function getShippingCityAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['city'] ?? null;
+    }
+
+    public function getShippingStateAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['state'] ?? null;
+    }
+
+    public function getShippingPincodeAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['pincode'] ?? $addr['postal_code'] ?? null;
+    }
+
+    public function getShippingCountryAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['country'] ?? 'India';
+    }
+
+    public function getShippingPhoneAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['phone'] ?? $addr['phone_number'] ?? $this->user?->phone_number;
+    }
+
+    public function getShippingRecipientNameAttribute(): ?string
+    {
+        $addr = $this->resolved_address;
+        return $addr['name'] ?? $addr['full_name'] ?? $this->user?->name;
     }
 }

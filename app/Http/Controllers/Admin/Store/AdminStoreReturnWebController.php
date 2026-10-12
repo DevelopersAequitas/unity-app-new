@@ -46,7 +46,12 @@ class AdminStoreReturnWebController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('return_no', 'ILIKE', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
-                        $uq->where('name', 'ILIKE', "%{$search}%");
+                        $uq->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere(DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"), 'ILIKE', "%{$search}%");
                     });
             });
         }
@@ -70,11 +75,43 @@ class AdminStoreReturnWebController extends Controller
 
         $validated = $request->validate([
             'inspection_notes' => 'nullable|string|max:500',
+            'refund_coins' => 'nullable|integer|min:1',
         ]);
 
-        DB::transaction(function () use ($return, $admin, $validated) {
-            $this->returnService->approveReturn($return, $validated['inspection_notes'] ?? 'Approved by '.$admin->name, $admin->id);
-            $this->refundService->processReturnRefund($return, $admin->id);
+        $refundCoins = (int) ($validated['refund_coins'] ?? ($return->order ? $return->order->total_coins : 0));
+
+        DB::transaction(function () use ($return, $admin, $validated, $refundCoins) {
+            $notes = $validated['inspection_notes'] ?? ('Approved by ' . ($admin ? $admin->name : 'Admin'));
+
+            $return->update([
+                'status' => 'APPROVED',
+                'reviewed_by' => $admin ? $admin->id : null,
+                'reviewed_at' => now(),
+                'quality_check_passed' => true,
+                'quality_check_notes' => $notes,
+            ]);
+
+            if ($return->order && $return->user && $refundCoins > 0) {
+                // If StoreRefundService expects ?App\Models\User instead of AdminUser, pass $admin only if instance of User to avoid TypeError
+                $adminArg = ($admin instanceof \App\Models\User) ? $admin : null;
+
+                $refund = $this->refundService->processOrderRefund(
+                    $return->order,
+                    $return->user,
+                    $refundCoins,
+                    'RETURN_REFUND',
+                    $notes,
+                    $return->id,
+                    null,
+                    $adminArg
+                );
+
+                if ($admin && empty($refund->processed_by)) {
+                    $refund->update(['processed_by' => $admin->id]);
+                }
+
+                $return->update(['status' => 'COMPLETED']);
+            }
         });
 
         return back()->with('success', 'Return request approved. Refund coins credited back to peer wallet ledger.');
@@ -86,10 +123,16 @@ class AdminStoreReturnWebController extends Controller
         $admin = Auth::guard('admin')->user();
 
         $validated = $request->validate([
-            'rejection_reason' => 'required|string|min:5|max:500',
+            'rejection_reason' => 'required|string|min:3|max:500',
         ]);
 
-        $this->returnService->rejectReturn($return, $validated['rejection_reason'], $admin->id);
+        $return->update([
+            'status' => 'REJECTED',
+            'rejection_reason' => $validated['rejection_reason'],
+            'reviewed_by' => $admin ? $admin->id : null,
+            'reviewed_at' => now(),
+            'quality_check_passed' => false,
+        ]);
 
         return back()->with('success', 'Return request rejected with reason remarks.');
     }
@@ -106,7 +149,12 @@ class AdminStoreReturnWebController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('refund_no', 'ILIKE', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
-                        $uq->where('name', 'ILIKE', "%{$search}%");
+                        $uq->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('display_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('phone', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
+                            ->orWhere(DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"), 'ILIKE', "%{$search}%");
                     });
             });
         }

@@ -149,9 +149,9 @@ class CampaignService
      */
     public function createCampaign(array $data, ?string $userId = null): LeadershipCampaign
     {
-        $role = Role::query()->where('id', $data['role_id'])->where('status', 'active')->first();
+        $role = Role::query()->where('id', $data['role_id'])->where('key', '!=', 'global_admin')->first();
         if (! $role) {
-            throw new RuntimeException('Selected role does not exist or is inactive.');
+            throw new RuntimeException('Selected role does not exist or is not eligible for campaigns.');
         }
 
         $slug = $data['slug'] ?? Str::slug($data['name'].'-'.($data['campaign_year'] ?? date('Y')));
@@ -205,9 +205,9 @@ class CampaignService
 
         // Validate role if changing
         if (! empty($data['role_id']) && $data['role_id'] !== $campaign->role_id) {
-            $role = Role::query()->where('id', $data['role_id'])->where('status', 'active')->first();
+            $role = Role::query()->where('id', $data['role_id'])->where('key', '!=', 'global_admin')->first();
             if (! $role) {
-                throw new RuntimeException('Selected role is invalid.');
+                throw new RuntimeException('Selected role is invalid or not eligible for campaigns.');
             }
         }
 

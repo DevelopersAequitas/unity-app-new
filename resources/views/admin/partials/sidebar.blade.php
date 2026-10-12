@@ -35,6 +35,7 @@
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index', 'active_routes' => ['admin.life-impact.*', 'admin.life-impact-recognitions.*', 'admin.impact-guidelines.*']],
             ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*', 'admin.activity-reminders.*', 'admin.app-notifications.*', 'admin.whatsapp-templates.*', 'admin.notifications.monitoring*']],
             ['icon' => 'bi-whatsapp', 'label' => 'WhatsApp Templates', 'route' => 'admin.whatsapp-templates.index', 'active_routes' => ['admin.whatsapp-templates.*']],
+            ['icon' => 'bi-whatsapp', 'label' => 'Meta WhatsApp', 'route' => 'admin.whatsapp.templates', 'active_routes' => ['admin.whatsapp.*']],
             ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
         : (($isCircleScoped || $isDed)
@@ -58,6 +59,7 @@
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
                     ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-whatsapp', 'label' => 'WhatsApp Templates', 'route' => 'admin.whatsapp-templates.index', 'active_routes' => ['admin.whatsapp-templates.*']],
+                    ['icon' => 'bi-whatsapp', 'label' => 'Meta WhatsApp', 'route' => 'admin.whatsapp.templates', 'active_routes' => ['admin.whatsapp.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events') ? [
@@ -80,6 +82,7 @@
                 ['icon' => 'bi-send-check', 'label' => 'Contact Invitations', 'route' => 'admin.contact-invitations.index', 'active_routes' => ['admin.contact-invitations.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
+                ['icon' => 'bi-shield-check', 'label' => 'Activity & Audit Logs', 'route' => 'admin.audit-logs.index', 'active_routes' => ['admin.audit-logs.*']],
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
@@ -91,6 +94,7 @@
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
                     ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-whatsapp', 'label' => 'WhatsApp Templates', 'route' => 'admin.whatsapp-templates.index', 'active_routes' => ['admin.whatsapp-templates.*']],
+                    ['icon' => 'bi-whatsapp', 'label' => 'Meta WhatsApp', 'route' => 'admin.whatsapp.templates', 'active_routes' => ['admin.whatsapp.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') ? [
@@ -479,12 +483,40 @@
                                     <span class="menu-text">Dynamic Form Builder</span>
                                 </a>
                             </li>
+                            @php
+                                $isNominationsActive = request()->is('admin/web/leadership/nominations*');
+                            @endphp
                             <li class="nav-item">
-                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/nominations*') ? 'active' : '' }}" 
-                                   href="{{ url('admin/web/leadership/nominations') }}" title="Nominations">
-                                    <i class="bi bi-person-lines-fill me-2 text-success"></i>
-                                    <span class="menu-text">Nominations</span>
+                                <a class="nav-link py-1.5 d-flex align-items-center justify-content-between {{ $isNominationsActive ? 'active' : '' }}" 
+                                   data-bs-toggle="collapse" 
+                                   href="#collapseLeadershipNominations" 
+                                   role="button" 
+                                   aria-expanded="{{ $isNominationsActive ? 'true' : 'false' }}"
+                                   title="Nominations">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-person-lines-fill me-2 text-success"></i>
+                                        <span class="menu-text">Nominations</span>
+                                    </div>
+                                    <i class="bi bi-chevron-down small text-muted"></i>
                                 </a>
+                                <div class="collapse {{ $isNominationsActive ? 'show' : '' }}" id="collapseLeadershipNominations">
+                                    <ul class="nav flex-column ps-3 mt-1">
+                                        <li class="nav-item">
+                                            <a class="nav-link py-1 {{ (!request()->is('admin/web/leadership/nominations/sub*') && request()->get('form') !== 'sub_form_2') ? 'active' : '' }}" 
+                                               href="{{ url('admin/web/leadership/nominations') }}" title="Main form 1">
+                                                <i class="bi bi-file-earmark-text me-2 text-primary"></i>
+                                                <span class="menu-text">Main form 1</span>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link py-1 {{ (request()->is('admin/web/leadership/nominations/sub*') || request()->get('form') === 'sub_form_2') ? 'active' : '' }}" 
+                                               href="{{ url('admin/web/leadership/nominations/sub-form-2') }}" title="Sub form 2">
+                                                <i class="bi bi-file-earmark-ruled me-2 text-info"></i>
+                                                <span class="menu-text">Sub form 2</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/voting*') ? 'active' : '' }}" 
@@ -946,6 +978,11 @@
                                         App Store Banners
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.store.config*') ? 'active' : '' }}" href="{{ route('admin.store.config.index') }}">
+                                        System Settings
+                                    </a>
+                                </li>
                                 {{-- Hidden as requested --}}
                                 {{-- 
                                 <li class="nav-item">
@@ -1080,6 +1117,45 @@
                     </li>
                 @elseif ($item['label'] === 'Contact Invitations')
                     {{-- Rendered inside Contacts submenu above — skip standalone render --}}
+                @elseif ($item['label'] === 'Meta WhatsApp')
+                    @php
+                        $metaWhatsAppActive = request()->routeIs('admin.whatsapp.*');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $metaWhatsAppActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex align-items-center justify-content-between {{ $metaWhatsAppActive ? 'active' : '' }}" href="javascript:void(0)" title="Meta WhatsApp">
+                            <i class="bi bi-whatsapp me-2 text-success"></i><span class="menu-text me-auto text-start">Meta WhatsApp</span>
+                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
+                        </a>
+                        <div class="collapse {{ $metaWhatsAppActive ? 'show' : '' }}" id="metaWhatsAppSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.templates*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.templates') }}">
+                                        <i class="bi bi-file-earmark-text me-1"></i> Templates
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.test_message*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.test_message') }}">
+                                        <i class="bi bi-send me-1"></i> Test Message
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.messages*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.messages') }}">
+                                        <i class="bi bi-chat-dots me-1"></i> Message Logs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.webhook_logs*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.webhook_logs') }}">
+                                        <i class="bi bi-arrow-left-right me-1"></i> Webhook Logs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.settings*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.settings') }}">
+                                        <i class="bi bi-gear me-1"></i> Settings & Health
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')

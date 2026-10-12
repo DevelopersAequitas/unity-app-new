@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\PendingRequestChangedEvent;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -36,11 +37,11 @@ class CoinClaimRequest extends Model
         'coins_awarded' => 'integer',
     ];
 
-protected static function booted(): void
+    protected static function booted(): void
     {
         static::created(function (self $request): void {
             try {
-                broadcast(new \App\Events\PendingRequestChangedEvent(
+                broadcast(new PendingRequestChangedEvent(
                     action: 'created',
                     category: 'coin_claims',
                     requestId: (string) $request->id,
@@ -50,7 +51,8 @@ protected static function booted(): void
                         'submitted_at' => optional($request->created_at)->toISOString() ?? now()->toISOString(),
                     ]
                 ));
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         });
     }
 

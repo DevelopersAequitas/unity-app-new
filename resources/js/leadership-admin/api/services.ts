@@ -20,11 +20,15 @@ export const campaignApi = {
     create: (data: any) => apiClient.post<ApiResponse<Campaign>>('/admin/campaigns', data),
     update: (id: string, data: any) => apiClient.put<ApiResponse<Campaign>>(`/admin/campaigns/${id}`, data),
     publish: (id: string) => apiClient.post<ApiResponse<Campaign>>(`/admin/campaigns/${id}/publish`),
+    pause: (id: string) => apiClient.post<ApiResponse<Campaign>>(`/admin/campaigns/${id}/pause`),
     close: (id: string) => apiClient.post<ApiResponse<Campaign>>(`/admin/campaigns/${id}/close`),
+    resume: (id: string) => apiClient.post<ApiResponse<Campaign>>(`/admin/campaigns/${id}/resume`),
+    toggleStatus: (id: string) => apiClient.post<ApiResponse<Campaign>>(`/admin/campaigns/${id}/toggle-status`),
     delete: (id: string) => apiClient.delete<ApiResponse<any>>(`/admin/campaigns/${id}`),
     getScopes: (campaignId: string) => apiClient.get<ApiResponse<Scope[]>>(`/admin/campaigns/${campaignId}/scopes`),
     addScope: (campaignId: string, data: any) => apiClient.post<ApiResponse<Scope>>(`/admin/campaigns/${campaignId}/scopes`, data),
     deleteScope: (campaignId: string, scopeId: string) => apiClient.delete<ApiResponse<any>>(`/admin/campaigns/${campaignId}/scopes/${scopeId}`),
+    getRoles: () => apiClient.get<ApiResponse<any[]>>('/admin/roles'),
 };
 
 export const formApi = {
@@ -54,6 +58,7 @@ export const nominationApi = {
     reject: (id: string, rejection_reason: string) =>
         apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { rejection_reason }),
     shortlist: (id: string) => apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/shortlist`),
+    sendApprovalEmail: (id: string) => apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/send-approval-email`),
 };
 
 export const votingApi = {

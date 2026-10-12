@@ -182,4 +182,22 @@ class NominationController extends LeadershipBaseController
             return $this->error($e->getMessage(), 400);
         }
     }
+    /**
+     * C9. Single-step nomination submission (POST /public/campaigns/{id}/nominate or POST /public/nominations).
+     */
+    public function nominate(Request $request, ?string $campaignId = null): JsonResponse
+    {
+        $cId = $campaignId ?: (string) $request->input('campaign_id');
+        if (! $cId) {
+            return $this->error('Campaign ID is required.', 422);
+        }
+
+        try {
+            $result = $this->nominationService->directNominate($cId, $request->all());
+
+            return $this->success($result, 'Nomination submitted successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
 }

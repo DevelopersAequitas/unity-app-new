@@ -122,6 +122,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/cancel', [OrderController::class, 'cancel'])->whereUuid('id');
             Route::get('/{id}/status-history', [OrderController::class, 'statusHistory'])->whereUuid('id');
             Route::get('/{id}/receipt', [OrderController::class, 'receipt'])->whereUuid('id');
+            Route::get('/{id}/slip', [OrderController::class, 'slip'])->whereUuid('id');
             Route::get('/{id}/tracking', [OrderController::class, 'tracking'])->whereUuid('id');
             Route::post('/{id}/return', [ReturnController::class, 'requestReturn'])->whereUuid('id');
         };

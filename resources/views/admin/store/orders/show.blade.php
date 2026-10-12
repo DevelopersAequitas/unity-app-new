@@ -19,6 +19,11 @@
             </h1>
         </div>
         <div class="d-flex gap-2">
+            @if($order->slip_url)
+                <a href="{{ $order->slip_url }}" target="_blank" download class="btn btn-outline-primary d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-pdf"></i> Download Slip (PDF)
+                </a>
+            @endif
             <a href="{{ route('admin.store.orders.packing-slip', $order->id) }}" target="_blank" class="btn btn-outline-secondary d-flex align-items-center gap-2">
                 <i class="bi bi-printer"></i> Print Packing Slip
             </a>
@@ -185,41 +190,55 @@
                         <span class="badge {{ $badgeColor }} fs-6 px-3 py-1.5">{{ ucfirst(str_replace('_', ' ', $order->status)) }}</span>
                     </div>
 
-                    {{-- Next Status Transition Form --}}
-                    @if(!empty($validNextTransitions))
-                        <form method="POST" action="{{ route('admin.store.orders.status', $order->id) }}" class="mb-3">
-                            @csrf
-                            <label class="form-label fw-semibold small text-muted">Advance to Next Status</label>
-                            <div class="input-group mb-2">
-                                <select name="status" class="form-select" required>
-                                    @foreach($validNextTransitions as $statusKey)
-                                        <option value="{{ $statusKey }}">{{ ucfirst(str_replace('_', ' ', $statusKey)) }}</option>
-                                    @endforeach
-                                </select>
-                                <button type="submit" class="btn btn-primary">Update</button>
-                            </div>
-                            <textarea name="notes" class="form-control form-control-sm" rows="1" placeholder="Optional transition notes..."></textarea>
-                        </form>
-                    @endif
-
-                    {{-- Courier Dispatch Section (if Doorstep Delivery) --}}
-                    @if($order->delivery_method !== 'pickup' && in_array($stLower, ['processing', 'pending', 'placed', 'confirmed', 'packing', 'packed']))
-                        <div class="border-top pt-3 mt-3">
-                            <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-truck text-primary me-1"></i> Courier Dispatch & AWB</h6>
-                            <form method="POST" action="{{ route('admin.store.orders.courier.dispatch', $order->id) }}">
-                                @csrf
-                                <div class="mb-2">
-                                    <input type="text" name="courier_name" class="form-control form-control-sm" placeholder="Courier (BlueDart, Delhivery...)" required value="{{ $order->courier_name }}">
-                                </div>
-                                <div class="mb-2">
-                                    <input type="text" name="tracking_number" class="form-control form-control-sm" placeholder="AWB / Tracking Number" required value="{{ $order->tracking_number }}">
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-primary w-100">
-                                    <i class="bi bi-send"></i> Save AWB & Dispatch
-                                </button>
-                            </form>
+                    {{-- Status Transition Form --}}
+                    @php
+                        $statuses = $allStatuses ?? [
+                            'processing' => 'Processing',
+                            'shipped' => 'Shipped',
+                            'out_for_delivery' => 'Out for Delivery',
+                            'delivered' => 'Delivered',
+                        ];
+                    @endphp
+                    <form method="POST" action="{{ route('admin.store.orders.status', $order->id) }}" id="updateStatusForm" class="mb-3">
+                        @csrf
+                        <label class="form-label fw-semibold small text-muted">Update Order Status</label>
+                        <div class="mb-3">
+                            <select name="status" id="orderStatusSelect" class="form-select" required>
+                                @foreach($statuses as $statusKey => $statusLabel)
+                                    <option value="{{ $statusKey }}" {{ ($stLower === $statusKey || ($statusKey === 'out_for_delivery' && $stLower === 'ready_for_pickup')) ? 'selected' : '' }}>
+                                        {{ $statusLabel }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
-                    @endif
+
+                        {{-- Dynamic Out for Delivery / Courier Information (Hidden for other statuses) --}}
+                        <div id="outForDeliveryFields" class="p-3 mb-3 bg-light rounded border" style="display: none;">
+                            <h6 class="fw-bold text-dark small mb-2">
+                                <i class="bi bi-truck text-primary me-1"></i> Delivery Partner &amp; Contact Details <span class="text-danger">*</span>
+                            </h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold text-muted mb-1">Courier / Delivery Person Name <span class="text-danger">*</span></label>
+                                <input type="text" name="delivery_person_name" id="delivery_person_name" class="form-control form-control-sm" placeholder="e.g. BlueDart / Rahul Sharma" value="{{ $order->delivery_person_name ?: $order->courier_name }}">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold text-muted mb-1">AWB / Contact Mobile Number <span class="text-danger">*</span></label>
+                                <input type="text" name="delivery_person_phone" id="delivery_person_phone" class="form-control form-control-sm" placeholder="e.g. 9876543210 / AWB12345678" value="{{ $order->delivery_person_phone ?: $order->tracking_number }}">
+                            </div>
+                            <small class="text-muted d-block" style="font-size: 11px;">
+                                <i class="bi bi-info-circle me-1"></i> Both fields are mandatory before advancing to Out for Delivery. They will be saved to database, visible in member API, and sent via SMS/Email.
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small text-muted">Transition Notes (Optional)</label>
+                            <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Optional notes for history timeline..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                            <i class="bi bi-check2-circle"></i> Update Status
+                        </button>
+                    </form>
 
                     {{-- Pickup PIN Verification (if Hub Pickup) --}}
                     @if($order->delivery_method === 'pickup' && $stLower === 'ready_for_pickup')
@@ -305,4 +324,49 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const statusSelect = document.getElementById('orderStatusSelect');
+    const deliveryFields = document.getElementById('outForDeliveryFields');
+    const personNameInput = document.getElementById('delivery_person_name');
+    const personPhoneInput = document.getElementById('delivery_person_phone');
+    const statusForm = document.getElementById('updateStatusForm');
+
+    function toggleDeliveryFields() {
+        if (!statusSelect || !deliveryFields) return;
+        const selected = statusSelect.value;
+        if (selected === 'out_for_delivery') {
+            deliveryFields.style.display = 'block';
+            if (personNameInput) personNameInput.setAttribute('required', 'required');
+            if (personPhoneInput) personPhoneInput.setAttribute('required', 'required');
+        } else {
+            deliveryFields.style.display = 'none';
+            if (personNameInput) personNameInput.removeAttribute('required');
+            if (personPhoneInput) personPhoneInput.removeAttribute('required');
+        }
+    }
+
+    if (statusSelect) {
+        statusSelect.addEventListener('change', toggleDeliveryFields);
+        toggleDeliveryFields();
+    }
+
+    if (statusForm) {
+        statusForm.addEventListener('submit', function (e) {
+            if (statusSelect && statusSelect.value === 'out_for_delivery') {
+                const nameVal = personNameInput ? personNameInput.value.trim() : '';
+                const phoneVal = personPhoneInput ? personPhoneInput.value.trim() : '';
+                if (!nameVal || !phoneVal) {
+                    e.preventDefault();
+                    alert('Please enter both Delivery Person/Courier Name and Contact Number/AWB before advancing to Out for Delivery.');
+                    if (!nameVal && personNameInput) personNameInput.focus();
+                    else if (personPhoneInput) personPhoneInput.focus();
+                    return false;
+                }
+            }
+        });
+    }
+});
+</script>
 @endsection
