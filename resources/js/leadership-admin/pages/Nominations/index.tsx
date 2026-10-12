@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { nominationApi, campaignApi } from '../../api/services';
 import { Nomination, Campaign } from '../../types';
 import { StatusBadge } from '../../components/common/Badge';
@@ -20,15 +21,29 @@ import {
     Mail,
     CheckCircle2,
     Copy,
+    Filter,
+    FolderKanban,
 } from 'lucide-react';
 
 export const NominationsPage: React.FC = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    // Check whether current view is Main form 1 or Sub form 2
+    const isSubForm2 =
+        location.pathname.includes('sub-form-2') ||
+        location.pathname.includes('/sub') ||
+        new URLSearchParams(location.search).get('form') === 'sub_form_2';
+    const activeForm: 'main_form_1' | 'sub_form_2' = isSubForm2 ? 'sub_form_2' : 'main_form_1';
+
     const [nominations, setNominations] = useState<Nomination[]>([]);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [roles, setRoles] = useState<{ id: string; key: string; name: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [search, setSearch] = useState<string>('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [campaignFilter, setCampaignFilter] = useState<string>('');
+    const [roleFilter, setRoleFilter] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
     // Shareable Voting Link & Manual Email States
@@ -96,6 +111,30 @@ export const NominationsPage: React.FC = () => {
     } | null>(null);
     const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
 
+    // Initial load of campaigns & roles
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const [campRes, roleRes] = await Promise.all([
+                    campaignApi.getAll(),
+                    campaignApi.getRoles(),
+                ]);
+                setCampaigns(campRes.data.data || []);
+                const fetchedRoles = roleRes.data?.data || [];
+                setRoles(
+                    fetchedRoles.filter(
+                        (r: any) =>
+                            r.key !== 'global_admin' &&
+                            !r.name?.toLowerCase().includes('global admin')
+                    )
+                );
+            } catch (err: any) {
+                console.error('Failed to load campaigns or roles:', err);
+            }
+        };
+        fetchInitialData();
+    }, []);
+
     const loadNominations = async () => {
         setIsLoading(true);
         setError(null);
@@ -104,13 +143,11 @@ export const NominationsPage: React.FC = () => {
             if (search) params.search = search;
             if (statusFilter) params.status = statusFilter;
             if (campaignFilter) params.campaign_id = campaignFilter;
+            if (roleFilter) params.role = roleFilter;
+            params.form_type = activeForm;
 
-            const [nomRes, campRes] = await Promise.all([
-                nominationApi.getAll(params),
-                campaignApi.getAll(),
-            ]);
+            const nomRes = await nominationApi.getAll(params);
             setNominations(nomRes.data.data || []);
-            setCampaigns(campRes.data.data || []);
         } catch (err: any) {
             setError(err?.response?.data?.message || 'Failed to load nominations from server.');
         } finally {
@@ -120,7 +157,7 @@ export const NominationsPage: React.FC = () => {
 
     useEffect(() => {
         loadNominations();
-    }, [statusFilter, campaignFilter]);
+    }, [statusFilter, campaignFilter, roleFilter, activeForm]);
 
     const openDetailModal = async (nom: Nomination) => {
         setIsLoadingDetail(true);
@@ -177,10 +214,51 @@ export const NominationsPage: React.FC = () => {
             {/* Header Toolbar */}
             <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-4 bg-white rounded-4 border shadow-xs mb-4">
                 <div>
-                    <h1 className="h4 fw-bold text-dark mb-0 tracking-tight">Nomination Management</h1>
-                    <p className="text-muted small mb-0 mt-0.5">
-                        Review candidate profiles, dynamic form answers, document verifications, and shortlisting
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                        <h1 className="h4 fw-bold text-dark mb-0 tracking-tight">Nomination Management</h1>
+                        <span
+                            className={`badge rounded-pill px-3 py-1.5 fw-semibold ${
+                                activeForm === 'main_form_1'
+                                    ? 'bg-primary-subtle text-primary border border-primary-subtle'
+                                    : 'bg-info-subtle text-info border border-info-subtle'
+                            }`}
+                        >
+                            {activeForm === 'main_form_1' ? 'Main form 1' : 'Sub form 2'}
+                        </span>
+                    </div>
+                    <p className="text-muted small mb-0">
+                        {activeForm === 'main_form_1'
+                            ? 'All primary candidate nominations submitted directly from the website portal.'
+                            : 'Secondary nomination applications and supplemental forms.'}
                     </p>
+                </div>
+
+                {/* Submenu form switcher tabs */}
+                <div className="d-flex align-items-center bg-light p-1 rounded-3 border">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/nominations/main-form-1')}
+                        className={`btn btn-sm rounded-3 px-3 py-1.5 fw-semibold transition-all ${
+                            activeForm === 'main_form_1'
+                                ? 'bg-white text-primary shadow-xs'
+                                : 'text-muted border-0 bg-transparent'
+                        }`}
+                    >
+                        <FileText size={14} className="me-1.5 d-inline" />
+                        Main form 1
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/nominations/sub-form-2')}
+                        className={`btn btn-sm rounded-3 px-3 py-1.5 fw-semibold transition-all ${
+                            activeForm === 'sub_form_2'
+                                ? 'bg-white text-info shadow-xs'
+                                : 'text-muted border-0 bg-transparent'
+                        }`}
+                    >
+                        <FolderKanban size={14} className="me-1.5 d-inline" />
+                        Sub form 2
+                    </button>
                 </div>
             </div>
 
@@ -208,7 +286,7 @@ export const NominationsPage: React.FC = () => {
             {/* Filter Bar */}
             <div className="card border-0 shadow-xs rounded-4 bg-white p-3 mb-4">
                 <div className="row g-2 align-items-center">
-                    <div className="col-12 col-md-4">
+                    <div className="col-12 col-md-3">
                         <div className="input-group input-group-sm">
                             <span className="input-group-text bg-white border-end-0">
                                 <Search size={14} className="text-muted" />
@@ -239,7 +317,22 @@ export const NominationsPage: React.FC = () => {
                         </select>
                     </div>
 
-                    <div className="col-12 col-md-3">
+                    <div className="col-12 col-md-2">
+                        <select
+                            className="form-select form-select-sm"
+                            value={roleFilter}
+                            onChange={(e) => setRoleFilter(e.target.value)}
+                        >
+                            <option value="">All Roles</option>
+                            {roles.map((r) => (
+                                <option key={r.id} value={r.name}>
+                                    {r.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="col-12 col-md-2">
                         <select
                             className="form-select form-select-sm"
                             value={statusFilter}
@@ -256,10 +349,63 @@ export const NominationsPage: React.FC = () => {
                     </div>
 
                     <div className="col-12 col-md-2 d-flex gap-2">
-                        <button onClick={loadNominations} className="btn btn-light border btn-sm flex-grow-1 fw-semibold">
+                        <button onClick={loadNominations} className="btn btn-primary btn-sm flex-grow-1 fw-semibold shadow-xs">
                             Filter
                         </button>
+                        {(search || statusFilter || campaignFilter || roleFilter) && (
+                            <button
+                                onClick={() => {
+                                    setSearch('');
+                                    setStatusFilter('');
+                                    setCampaignFilter('');
+                                    setRoleFilter('');
+                                }}
+                                className="btn btn-outline-secondary btn-sm"
+                                title="Reset all filters"
+                            >
+                                Reset
+                            </button>
+                        )}
                     </div>
+                </div>
+
+                {/* Role Quick Filter Pills (Matches Red Box in Screenshot 1) */}
+                <div className="d-flex align-items-center gap-1.5 flex-wrap pt-3 mt-3 border-top">
+                    <span className="text-muted small fw-semibold d-flex align-items-center gap-1 me-2">
+                        <Filter size={13} className="text-primary" />
+                        Role Filter:
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setRoleFilter('')}
+                        className={`btn btn-sm rounded-pill px-3 py-1 fs-12 fw-medium transition-all ${
+                            roleFilter === ''
+                                ? 'btn-dark text-white shadow-xs'
+                                : 'btn-outline-secondary bg-white text-dark'
+                        }`}
+                    >
+                        All Roles
+                    </button>
+                    {roles.map((r) => {
+                        const isSelected =
+                            roleFilter === r.id ||
+                            roleFilter === r.key ||
+                            roleFilter === r.name;
+                        return (
+                            <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => setRoleFilter(isSelected ? '' : r.name)}
+                                className={`btn btn-sm rounded-pill px-3 py-1 fs-12 fw-medium transition-all ${
+                                    isSelected
+                                        ? 'btn-primary text-white shadow-xs'
+                                        : 'btn-outline-secondary bg-white text-dark'
+                                }`}
+                            >
+                                {r.name}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 

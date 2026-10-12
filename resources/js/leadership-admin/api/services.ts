@@ -28,6 +28,7 @@ export const campaignApi = {
     getScopes: (campaignId: string) => apiClient.get<ApiResponse<Scope[]>>(`/admin/campaigns/${campaignId}/scopes`),
     addScope: (campaignId: string, data: any) => apiClient.post<ApiResponse<Scope>>(`/admin/campaigns/${campaignId}/scopes`, data),
     deleteScope: (campaignId: string, scopeId: string) => apiClient.delete<ApiResponse<any>>(`/admin/campaigns/${campaignId}/scopes/${scopeId}`),
+    getRoles: () => apiClient.get<ApiResponse<any[]>>('/admin/roles'),
 };
 
 export const formApi = {

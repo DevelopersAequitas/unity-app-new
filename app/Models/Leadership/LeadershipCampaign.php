@@ -64,7 +64,61 @@ class LeadershipCampaign extends Model
         'nomination_open',
         'voting_open',
         'jury_open',
+        'role_name',
+        'code',
+        'year',
+        'nomination_start_at',
+        'nomination_end_at',
+        'voting_start_at',
+        'voting_end_at',
+        'jury_start_at',
+        'jury_end_at',
     ];
+
+    public function getRoleNameAttribute(): ?string
+    {
+        return $this->role?->name;
+    }
+
+    public function getCodeAttribute(): ?string
+    {
+        return $this->slug;
+    }
+
+    public function getYearAttribute(): ?int
+    {
+        return $this->campaign_year;
+    }
+
+    public function getNominationStartAtAttribute(): ?string
+    {
+        return $this->nomination_starts_at?->toISOString();
+    }
+
+    public function getNominationEndAtAttribute(): ?string
+    {
+        return $this->nomination_ends_at?->toISOString();
+    }
+
+    public function getVotingStartAtAttribute(): ?string
+    {
+        return $this->voting_starts_at?->toISOString();
+    }
+
+    public function getVotingEndAtAttribute(): ?string
+    {
+        return $this->voting_ends_at?->toISOString();
+    }
+
+    public function getJuryStartAtAttribute(): ?string
+    {
+        return $this->jury_starts_at?->toISOString();
+    }
+
+    public function getJuryEndAtAttribute(): ?string
+    {
+        return $this->jury_ends_at?->toISOString();
+    }
 
     public function getNominationOpenAttribute(): bool
     {

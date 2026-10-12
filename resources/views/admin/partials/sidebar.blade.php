@@ -482,12 +482,40 @@
                                     <span class="menu-text">Dynamic Form Builder</span>
                                 </a>
                             </li>
+                            @php
+                                $isNominationsActive = request()->is('admin/web/leadership/nominations*');
+                            @endphp
                             <li class="nav-item">
-                                <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/nominations*') ? 'active' : '' }}" 
-                                   href="{{ url('admin/web/leadership/nominations') }}" title="Nominations">
-                                    <i class="bi bi-person-lines-fill me-2 text-success"></i>
-                                    <span class="menu-text">Nominations</span>
+                                <a class="nav-link py-1.5 d-flex align-items-center justify-content-between {{ $isNominationsActive ? 'active' : '' }}" 
+                                   data-bs-toggle="collapse" 
+                                   href="#collapseLeadershipNominations" 
+                                   role="button" 
+                                   aria-expanded="{{ $isNominationsActive ? 'true' : 'false' }}"
+                                   title="Nominations">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-person-lines-fill me-2 text-success"></i>
+                                        <span class="menu-text">Nominations</span>
+                                    </div>
+                                    <i class="bi bi-chevron-down small text-muted"></i>
                                 </a>
+                                <div class="collapse {{ $isNominationsActive ? 'show' : '' }}" id="collapseLeadershipNominations">
+                                    <ul class="nav flex-column ps-3 mt-1">
+                                        <li class="nav-item">
+                                            <a class="nav-link py-1 {{ (!request()->is('admin/web/leadership/nominations/sub*') && request()->get('form') !== 'sub_form_2') ? 'active' : '' }}" 
+                                               href="{{ url('admin/web/leadership/nominations') }}" title="Main form 1">
+                                                <i class="bi bi-file-earmark-text me-2 text-primary"></i>
+                                                <span class="menu-text">Main form 1</span>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link py-1 {{ (request()->is('admin/web/leadership/nominations/sub*') || request()->get('form') === 'sub_form_2') ? 'active' : '' }}" 
+                                               href="{{ url('admin/web/leadership/nominations/sub-form-2') }}" title="Sub form 2">
+                                                <i class="bi bi-file-earmark-ruled me-2 text-info"></i>
+                                                <span class="menu-text">Sub form 2</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link py-1.5 {{ request()->is('admin/web/leadership/voting*') ? 'active' : '' }}" 

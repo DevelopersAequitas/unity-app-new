@@ -44,6 +44,7 @@ class LeadershipNomination extends Model
         'reviewed_at',
         'reviewed_by',
         'shortlisted_at',
+        'form_type',
     ];
 
     protected $casts = [
@@ -56,7 +57,6 @@ class LeadershipNomination extends Model
         'shortlisted_at' => 'datetime',
     ];
 
-    
     protected $appends = [
         'candidate_name',
         'campaign_name',
@@ -68,36 +68,52 @@ class LeadershipNomination extends Model
         'photo_url',
         'bio',
         'vision_statement',
+        'form_type',
     ];
+
+    public function getFormTypeAttribute(): string
+    {
+        if (isset($this->attributes['form_type']) && ! empty($this->attributes['form_type'])) {
+            return (string) $this->attributes['form_type'];
+        }
+
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['form_type'])) {
+            return (string) $snapshot['form_type'];
+        }
+
+        return 'main_form_1';
+    }
 
     public function getCandidateNameAttribute(): ?string
     {
         $raw = $this->attributes['full_name'] ?? null;
-        if (!empty($raw) && strtolower(trim((string)$raw)) !== 'candidate') {
+        if (! empty($raw) && strtolower(trim((string) $raw)) !== 'candidate') {
             return $raw;
         }
 
         $snapshot = $this->profile_snapshot;
         if (is_array($snapshot)) {
             $snapName = $snapshot['full_name'] ?? $snapshot['fullName'] ?? $snapshot['name'] ?? $snapshot['candidate_name'] ?? null;
-            if (!empty($snapName) && strtolower(trim((string)$snapName)) !== 'candidate') {
+            if (! empty($snapName) && strtolower(trim((string) $snapName)) !== 'candidate') {
                 return $snapName;
             }
         }
 
-        $userName = $this->user?->name ?? trim(($this->user?->first_name ?? '') . ' ' . ($this->user?->last_name ?? '')) ?: $this->user?->display_name;
-        if (!empty($userName) && strtolower(trim((string)$userName)) !== 'candidate') {
+        $userName = $this->user?->name ?? trim(($this->user?->first_name ?? '').' '.($this->user?->last_name ?? '')) ?: $this->user?->display_name;
+        if (! empty($userName) && strtolower(trim((string) $userName)) !== 'candidate') {
             return $userName;
         }
 
-        return !empty($raw) ? $raw : 'Hardik Chauhan';
+        return ! empty($raw) ? $raw : 'Hardik Chauhan';
     }
 
     public function getFullNameAttribute($value): ?string
     {
-        if (empty($value) || strtolower(trim((string)$value)) === 'candidate') {
+        if (empty($value) || strtolower(trim((string) $value)) === 'candidate') {
             return $this->getCandidateNameAttribute();
         }
+
         return $value;
     }
 
@@ -107,27 +123,30 @@ class LeadershipNomination extends Model
         if (is_array($snapshot)) {
             return $snapshot['company_name'] ?? $snapshot['company'] ?? 'Aequitas IT Solutions';
         }
+
         return 'Aequitas IT Solutions';
     }
 
     public function getDesignationAttribute(): string
     {
         $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot) && !empty($snapshot['designation'])) {
+        if (is_array($snapshot) && ! empty($snapshot['designation'])) {
             return $snapshot['designation'];
         }
+
         return $this->campaign?->role?->name ?? 'District Executive Director (DED)';
     }
 
     public function getScopeNameAttribute(): string
     {
-        if (!empty($this->scope?->name)) {
+        if (! empty($this->scope?->name)) {
             return $this->scope->name;
         }
         $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot) && !empty($snapshot['scope_name'])) {
+        if (is_array($snapshot) && ! empty($snapshot['scope_name'])) {
             return $snapshot['scope_name'];
         }
+
         return 'Surat District';
     }
 
@@ -137,24 +156,27 @@ class LeadershipNomination extends Model
         if (is_array($snapshot)) {
             return $snapshot['photo_url'] ?? $snapshot['profile_photo_url'] ?? null;
         }
+
         return null;
     }
 
     public function getBioAttribute(): string
     {
         $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot) && !empty($snapshot['bio'])) {
+        if (is_array($snapshot) && ! empty($snapshot['bio'])) {
             return $snapshot['bio'];
         }
+
         return 'Dedicated business leader stewarding strategic ecosystem collaboration, ethical enterprise governance, and peer growth across the District.';
     }
 
     public function getVisionStatementAttribute(): string
     {
         $snapshot = $this->profile_snapshot;
-        if (is_array($snapshot) && !empty($snapshot['vision_statement'])) {
+        if (is_array($snapshot) && ! empty($snapshot['vision_statement'])) {
             return $snapshot['vision_statement'];
         }
+
         return 'To build an interconnected, high-trust leadership ecosystem that scales regional enterprises and unlocks multi-generational collaboration.';
     }
 
