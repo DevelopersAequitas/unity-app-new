@@ -126,10 +126,6 @@
         @php
             $itemsTotalCoins = $order->items->sum(fn($i) => $i->total_coins);
             $totalCoins = $itemsTotalCoins > 0 ? $itemsTotalCoins : (int) $order->total_coins;
-            $bonusCoins = min((int) ($order->coins_from_bonus ?? 0), $totalCoins);
-            $earnedCoins = $order->coins_from_earned > 0 
-                ? min((int) $order->coins_from_earned, $totalCoins - $bonusCoins)
-                : ($totalCoins - $bonusCoins);
         @endphp
 
         {{-- Coins Balance & Deduction Breakdown Section --}}
@@ -138,19 +134,13 @@
                 <i class="bi bi-coin text-warning me-1"></i> Coins Balance &amp; Payment Summary
             </h6>
             <div class="row g-3">
-                <div class="col-sm-4">
+                <div class="col-sm-6">
                     <div class="bg-white p-2.5 rounded border">
                         <span class="text-muted small d-block">Coins Balance Deducted</span>
-                        <strong class="text-success fs-6">{{ number_format($earnedCoins) }} Coins</strong>
+                        <strong class="text-success fs-6">{{ number_format($totalCoins) }} Coins</strong>
                     </div>
                 </div>
-                <div class="col-sm-4">
-                    <div class="bg-white p-2.5 rounded border">
-                        <span class="text-muted small d-block">Coins Balance Deducted</span>
-                        <strong class="text-info fs-6">{{ number_format($bonusCoins) }} Coins</strong>
-                    </div>
-                </div>
-                <div class="col-sm-4">
+                <div class="col-sm-6">
                     <div class="bg-white p-2.5 rounded border">
                         <span class="text-muted small d-block">Total Order Coins Deducted</span>
                         <strong class="text-primary fs-6">{{ number_format($totalCoins) }} Coins</strong>
