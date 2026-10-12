@@ -616,10 +616,32 @@ class MetaWhatsAppService
                 })
                 ->first();
 
+            // If an orphan legacy record exists with the same template_key and no meta_template_id
+            $legacyConflict = WhatsappTemplate::query()
+                ->where('template_key', $name)
+                ->whereNull('meta_template_id')
+                ->first();
+
+            if (! $local && $legacyConflict) {
+                $local = $legacyConflict;
+            } elseif ($local && $legacyConflict && $legacyConflict->id !== $local->id) {
+                $legacyConflict->delete();
+            }
+
+            $targetKey = $name;
+            $conflictKeyExists = WhatsappTemplate::query()
+                ->where('template_key', $targetKey)
+                ->when($local, fn ($q) => $q->where('id', '!=', $local->id))
+                ->exists();
+
+            if ($conflictKeyExists) {
+                $targetKey = $name.'_'.strtolower($language);
+            }
+
             $attributes = [
                 'meta_template_id' => $metaId,
                 'name' => $name,
-                'template_key' => $name,
+                'template_key' => $targetKey,
                 'template_name' => $name,
                 'language' => $language,
                 'category' => $category,
@@ -631,12 +653,27 @@ class MetaWhatsAppService
                 'last_synced_at' => now(),
             ];
 
-            if ($local) {
-                $local->update($attributes);
-                $updated++;
-            } else {
-                WhatsappTemplate::create($attributes);
-                $created++;
+            try {
+                if ($local) {
+                    $local->update($attributes);
+                    $updated++;
+                } else {
+                    WhatsappTemplate::create($attributes);
+                    $created++;
+                }
+            } catch (Throwable $e) {
+                if (str_contains($e->getMessage(), 'whatsapp_templates_template_key_key') || str_contains($e->getMessage(), '23505')) {
+                    $attributes['template_key'] = $name.'_'.strtolower($language).'_'.substr(md5($metaId ?: $name), 0, 4);
+                    if ($local) {
+                        $local->update($attributes);
+                        $updated++;
+                    } else {
+                        WhatsappTemplate::create($attributes);
+                        $created++;
+                    }
+                } else {
+                    throw $e;
+                }
             }
         }
 
