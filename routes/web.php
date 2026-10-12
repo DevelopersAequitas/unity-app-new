@@ -182,6 +182,20 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
 Route::get('/account-deletion-request', [AccountDeletionController::class, 'show'])->name('account-deletion.show');
 Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
 
+// Leadership Form 2 (Jury Evaluation Data Form) Public Access
+Route::get('/leadership/form-2/{id}', [\App\Http\Controllers\LeadershipForm2Controller::class, 'show'])
+    ->whereUuid('id')
+    ->name('leadership.form2.show');
+Route::post('/leadership/form-2/{id}/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])
+    ->whereUuid('id')
+    ->name('leadership.form2.verify-email');
+Route::post('/leadership/form-2/{id}/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])
+    ->whereUuid('id')
+    ->name('leadership.form2.submit');
+Route::post('/leadership/form-2/{id}/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])
+    ->whereUuid('id')
+    ->name('leadership.form2.upload');
+
 Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
 
 Route::prefix('admin')->name('admin.')->group(function () {
