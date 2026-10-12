@@ -36,6 +36,7 @@ class LeaderAskFlowService
         'ideal_profile' => ['referral'],
         'referral_reason' => ['referral'],
         'what_i_offer' => ['referral'],
+        'help_subtype' => ['help'],
         'mentorship_subtype' => ['help'],
         'help_topic' => ['help'],
         'help_duration' => ['help'],
@@ -59,7 +60,7 @@ class LeaderAskFlowService
             'filters' => ['referral_industry', 'referral_geography', 'timeline'],
         ],
         'help' => [
-            'details' => ['help_topic', 'mentorship_subtype', 'what_needed', 'done_definition'],
+            'details' => ['help_subtype', 'help_topic', 'mentorship_subtype', 'what_needed', 'done_definition'],
             'filters' => ['industry', 'geography', 'help_duration', 'help_timing'],
         ],
     ];

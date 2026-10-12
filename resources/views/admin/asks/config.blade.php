@@ -153,6 +153,7 @@
                 'ideal_profile' => ['referral'],
                 'referral_reason' => ['referral'],
                 'what_i_offer' => ['referral'],
+                'help_subtype' => ['help'],
                 'mentorship_subtype' => ['help'],
                 'help_topic' => ['help'],
                 'help_duration' => ['help'],
