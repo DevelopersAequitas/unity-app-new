@@ -161,6 +161,8 @@ class OrderService
                     }
                 }
 
+                $qty = (int) ($itemData['quantity'] ?? 1);
+
                 // Validate product minimum and maximum purchase quantity limits
                 $minQty = (int) ($product->min_quantity_per_order ?: 1);
                 if ($qty < $minQty) {
