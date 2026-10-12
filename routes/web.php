@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\ActivityVideoController;
+use App\Http\Controllers\Admin\AuditLogWebController;
 use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AdBookingAdminWebController;
 use App\Http\Controllers\Admin\AdController;
@@ -278,6 +279,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+
+        // Central Activity Logs & Audit Trail
+        Route::get('/audit-logs', [AuditLogWebController::class, 'index'])->name('audit-logs.index');
+        Route::get('/audit-logs/export', [AuditLogWebController::class, 'export'])->name('audit-logs.export');
 
         // Campaigns routes
         Route::get('/campaigns', [AdminCampaignController::class, 'index']);

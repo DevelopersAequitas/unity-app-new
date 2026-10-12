@@ -82,6 +82,7 @@
                 ['icon' => 'bi-send-check', 'label' => 'Contact Invitations', 'route' => 'admin.contact-invitations.index', 'active_routes' => ['admin.contact-invitations.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
+                ['icon' => 'bi-shield-check', 'label' => 'Activity & Audit Logs', 'route' => 'admin.audit-logs.index', 'active_routes' => ['admin.audit-logs.*']],
                 ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index', 'active_routes' => ['admin.coins.*', 'admin.coin-guidelines.*']],
