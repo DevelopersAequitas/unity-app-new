@@ -521,12 +521,12 @@ export const NominationsPage: React.FC = () => {
             )}
 
             {/* Nominations Table */}
-            <div className="card border-0 shadow-xs rounded-4 bg-white p-4">
+            <div className="card border-0 shadow-xs rounded-4 bg-white overflow-hidden">
                 <div className="table-responsive">
-                    <table className="table table-hover align-middle mb-0">
-                        <thead className="table-light">
-                            <tr>
-                                <th style={{ width: '40px' }} className="text-center">
+                    <table className="table table-hover align-middle mb-0" style={{ minWidth: '940px' }}>
+                        <thead className="table-light border-bottom">
+                            <tr className="text-secondary small">
+                                <th style={{ width: '40px' }} className="text-center py-3">
                                     <input
                                         type="checkbox"
                                         className="form-check-input"
@@ -535,13 +535,13 @@ export const NominationsPage: React.FC = () => {
                                         title="Select all nominees"
                                     />
                                 </th>
-                                <th>App #</th>
-                                <th>Candidate</th>
-                                <th>Applied Role</th>
-                                <th>Campaign</th>
-                                <th>Submitted At</th>
-                                <th>Status</th>
-                                <th className="text-end">Actions</th>
+                                <th style={{ width: '120px' }} className="py-3">App #</th>
+                                <th style={{ minWidth: '180px', maxWidth: '220px' }} className="py-3">Candidate</th>
+                                <th style={{ width: '160px' }} className="py-3">Applied Role</th>
+                                <th style={{ minWidth: '160px', maxWidth: '200px' }} className="py-3">Campaign</th>
+                                <th style={{ width: '110px' }} className="py-3">Submitted At</th>
+                                <th style={{ width: '135px' }} className="py-3">Status</th>
+                                <th style={{ width: '310px' }} className="text-end py-3 pe-3">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -561,7 +561,7 @@ export const NominationsPage: React.FC = () => {
                             ) : (
                                 nominations.map((nom) => (
                                     <tr key={nom.id}>
-                                        <td className="text-center">
+                                        <td className="text-center py-3">
                                             <input
                                                 type="checkbox"
                                                 className="form-check-input"
@@ -569,62 +569,86 @@ export const NominationsPage: React.FC = () => {
                                                 onChange={() => toggleSelectNomination(nom.id)}
                                             />
                                         </td>
-                                        <td className="font-monospace small text-primary fw-semibold">{nom.application_number}</td>
-                                        <td>
+                                        <td className="py-3">
+                                            <span className="font-monospace small text-primary fw-semibold px-2 py-1 rounded bg-primary-subtle text-nowrap">
+                                                {nom.application_number}
+                                            </span>
+                                        </td>
+                                        <td className="py-3">
                                             <div className="d-flex align-items-center gap-2">
                                                 <div
-                                                    className="rounded-circle bg-light border d-flex align-items-center justify-content-center text-secondary fw-bold"
-                                                    style={{ width: '36px', height: '36px', fontSize: '0.85rem' }}
+                                                    className="rounded-circle bg-primary-subtle text-primary border border-primary-subtle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+                                                    style={{ width: '34px', height: '34px', fontSize: '0.8rem' }}
                                                 >
                                                     {(nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : 'Hardik Chauhan').charAt(0).toUpperCase()}
                                                 </div>
-                                                <div>
-                                                    <div className="fw-semibold text-dark">{nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : (nom.user?.name || 'Hardik Chauhan')}</div>
-                                                    <div className="text-muted small">{nom.email}</div>
+                                                <div style={{ maxWidth: '170px' }}>
+                                                    <div className="fw-semibold text-dark text-truncate" title={nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : (nom.user?.name || 'Hardik Chauhan')}>
+                                                        {nom.candidate_name && nom.candidate_name.toLowerCase() !== 'candidate' ? nom.candidate_name : (nom.user?.name || 'Hardik Chauhan')}
+                                                    </div>
+                                                    <div className="text-muted small text-truncate" title={nom.email}>
+                                                        {nom.email}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <span className="badge bg-light text-dark border">{nom.applied_role_name || 'Candidate Role'}</span>
+                                        <td className="py-3">
+                                            <span
+                                                className="badge bg-light text-secondary border px-2 py-1 fw-medium text-truncate d-inline-block"
+                                                style={{ maxWidth: '150px', fontSize: '0.75rem' }}
+                                                title={nom.applied_role_name || 'Candidate Role'}
+                                            >
+                                                {nom.applied_role_name || 'Candidate Role'}
+                                            </span>
                                         </td>
-                                        <td className="small text-muted">{nom.campaign_name || 'Campaign'}</td>
-                                        <td className="small text-muted">
+                                        <td className="py-3">
+                                            <div
+                                                className="small text-muted text-truncate"
+                                                style={{ maxWidth: '170px' }}
+                                                title={nom.campaign_name || 'Campaign'}
+                                            >
+                                                {nom.campaign_name || 'Campaign'}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 small text-muted text-nowrap">
                                             {nom.submitted_at ? new Date(nom.submitted_at).toLocaleDateString() : 'Draft'}
                                         </td>
-                                        <td>
-                                            <div className="d-flex align-items-center gap-1 flex-wrap">
+                                        <td className="py-3">
+                                            <div className="d-flex flex-column align-items-start gap-1">
                                                 <StatusBadge status={nom.status} />
                                                 {nom.form_2_status === 'submitted' && (
-                                                    <span className="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5 fs-11" title="Form 2 Submitted">
-                                                        F2 Done
+                                                    <span className="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-2 py-0.5 d-inline-flex align-items-center gap-1" style={{ fontSize: '0.68rem', fontWeight: 600 }} title="Form 2 Submitted">
+                                                        <Check size={10} /> F2 Done
                                                     </span>
                                                 )}
                                                 {nom.form_2_status === 'pending_submission' && (
-                                                    <span className="badge bg-warning-subtle text-warning border border-warning-subtle py-0.5 px-1.5 fs-11" title="Form 2 Link Sent">
-                                                        F2 Sent
+                                                    <span className="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-0.5 d-inline-flex align-items-center gap-1" style={{ fontSize: '0.68rem', fontWeight: 600 }} title="Form 2 Link Sent">
+                                                        <Clock size={10} /> F2 Sent
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="text-end">
-                                            <div className="d-flex align-items-center justify-content-end gap-1.5 flex-nowrap">
+                                        <td className="text-end py-3 pe-3">
+                                            <div className="d-flex align-items-center justify-content-end gap-1 flex-nowrap">
                                                 {activeForm === 'sub_form_2' ? (
-                                                    <div className="d-flex align-items-center justify-content-end gap-1.5 flex-nowrap">
+                                                    <div className="d-flex align-items-center justify-content-end gap-1 flex-nowrap">
                                                         {nom.form_2_status === 'pending_submission' && (
                                                             <button
                                                                 onClick={() => handleCopyForm2Link(nom)}
-                                                                className="btn btn-outline-secondary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2.5 fw-medium d-inline-flex align-items-center gap-1 shadow-xs"
                                                                 title="Copy Form 2 Link to Clipboard"
                                                             >
-                                                                {copiedForm2Id === nom.id ? <Check size={14} className="text-success" /> : <Copy size={14} />}
-                                                                {copiedForm2Id === nom.id ? 'Copied' : 'Copy Form 2'}
+                                                                {copiedForm2Id === nom.id ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+                                                                <span className="fs-12">{copiedForm2Id === nom.id ? 'Copied' : 'Copy Form 2'}</span>
                                                             </button>
                                                         )}
                                                         <button
                                                             onClick={() => openDetailModal(nom)}
-                                                            className="btn btn-primary btn-sm rounded-2 py-1 px-3 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            className="btn btn-primary btn-sm rounded-2 py-1 px-3 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs"
+                                                            title="Review full Form 2 submission"
                                                         >
-                                                            <FileText size={14} /> Review Form 2
+                                                            <FileText size={13} />
+                                                            <span className="fs-12">Review Form 2</span>
                                                         </button>
                                                     </div>
                                                 ) : (
@@ -636,14 +660,14 @@ export const NominationsPage: React.FC = () => {
                                                                     className="btn btn-success btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
                                                                     title="Approve Nomination Request"
                                                                 >
-                                                                    <Check size={14} /> Approve
+                                                                    <Check size={13} /> <span className="fs-12">Approve</span>
                                                                 </button>
                                                                 <button
                                                                     onClick={() => setActionModal({ type: 'reject', nomination: nom, reason: '' })}
                                                                     className="btn btn-outline-danger btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
                                                                     title="Reject Nomination Request"
                                                                 >
-                                                                    <X size={14} /> Reject
+                                                                    <X size={13} /> <span className="fs-12">Reject</span>
                                                                 </button>
                                                             </>
                                                         )}
@@ -651,52 +675,63 @@ export const NominationsPage: React.FC = () => {
                                                             <>
                                                                 <button
                                                                     onClick={() => handleCopyVotingLink(nom)}
-                                                                    className={`btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs ${
-                                                                        copiedId === nom.id ? 'btn-success text-white' : 'btn-outline-success'
+                                                                    className={`btn btn-sm rounded-2 py-1 px-2 fw-medium d-inline-flex align-items-center gap-1 border shadow-xs ${
+                                                                        copiedId === nom.id ? 'btn-success text-white' : 'btn-light text-secondary bg-white'
                                                                     }`}
                                                                     title="Copy Shareable Voting Link"
                                                                 >
                                                                     {copiedId === nom.id ? (
                                                                         <>
-                                                                            <Check size={14} /> Copied!
+                                                                            <Check size={13} className="text-white" />
+                                                                            <span className="fs-12 fw-semibold">Copied</span>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <Link2 size={14} /> Copy Link
+                                                                            <Link2 size={13} className="text-muted" />
+                                                                            <span className="fs-12">Link</span>
                                                                         </>
                                                                     )}
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleSendManualEmail(nom)}
                                                                     disabled={sendingEmailId === nom.id}
-                                                                    className="btn btn-outline-secondary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                    className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 fw-medium d-inline-flex align-items-center gap-1 shadow-xs"
                                                                     title="Send Official Approval Email to Candidate"
                                                                 >
                                                                     {sendingEmailId === nom.id ? (
                                                                         <>
-                                                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                                            Sending...
+                                                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
+                                                                            <span className="fs-12">Sending...</span>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <Mail size={14} /> Send Mail
+                                                                            <Mail size={13} className="text-muted" />
+                                                                            <span className="fs-12">Mail</span>
                                                                         </>
                                                                     )}
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleOpenProceedJuryModal([nom])}
-                                                                    className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                    className="btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs border"
+                                                                    style={{
+                                                                        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                                                        borderColor: 'rgba(59, 130, 246, 0.3)',
+                                                                        color: '#1d4ed8',
+                                                                    }}
                                                                     title="Proceed Candidate to Jury & Send Form 2 Registration Link"
                                                                 >
-                                                                    <Award size={14} className="text-primary" /> Proceed to Jury
+                                                                    <Award size={13} className="text-primary" />
+                                                                    <span className="fs-12">Proceed to Jury</span>
                                                                 </button>
                                                             </>
                                                         )}
                                                         <button
                                                             onClick={() => openDetailModal(nom)}
-                                                            className="btn btn-outline-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold"
+                                                            className="btn btn-primary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title="Review full nomination submission"
                                                         >
-                                                            Review
+                                                            <FileText size={13} />
+                                                            <span className="fs-12">Review</span>
                                                         </button>
                                                     </>
                                                 )}
