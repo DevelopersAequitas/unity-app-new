@@ -472,7 +472,45 @@ class MetaWhatsAppService
      */
     public function uploadMedia(UploadedFile $file): string
     {
-        $mimeType = $file->getMimeType() ?: 'image/jpeg';
+        $extension = strtolower($file->getClientOriginalExtension());
+        $detectedMime = strtolower($file->getMimeType() ?: '');
+
+        // Normalize strictly to Meta WhatsApp Cloud API supported MIME types
+        if (in_array($extension, ['mp4', 'm4v', 'mov', '3gp', 'avi', 'webm'], true) || str_starts_with($detectedMime, 'video/')) {
+            $mimeType = 'video/mp4';
+        } elseif (in_array($extension, ['jpg', 'jpeg'], true) || in_array($detectedMime, ['image/jpg', 'image/jpeg'], true)) {
+            $mimeType = 'image/jpeg';
+        } elseif ($extension === 'png' || $detectedMime === 'image/png') {
+            $mimeType = 'image/png';
+        } elseif ($extension === 'webp' || $detectedMime === 'image/webp') {
+            $mimeType = 'image/webp';
+        } elseif ($extension === 'pdf' || $detectedMime === 'application/pdf') {
+            $mimeType = 'application/pdf';
+        } else {
+            $mimeType = $detectedMime ?: 'application/octet-stream';
+        }
+
+        // WhatsApp Cloud API enforces 16MB max for videos, 5MB for images, 100MB for docs
+        if ($mimeType === 'video/mp4' && $file->getSize() > 16 * 1024 * 1024) {
+            $mb = round($file->getSize() / (1024 * 1024), 1);
+            throw new MetaWhatsAppException(
+                "Video file size is {$mb}MB. WhatsApp Cloud API enforces a maximum limit of 16MB for video uploads. Please use a video under 16MB.",
+                422,
+                100,
+                'VideoSizeExceeded'
+            );
+        }
+
+        if (str_starts_with($mimeType, 'image/') && $file->getSize() > 5 * 1024 * 1024) {
+            $mb = round($file->getSize() / (1024 * 1024), 1);
+            throw new MetaWhatsAppException(
+                "Image file size is {$mb}MB. WhatsApp Cloud API enforces a maximum limit of 5MB for images.",
+                422,
+                100,
+                'ImageSizeExceeded'
+            );
+        }
+
         $fileContents = file_get_contents($file->getRealPath());
 
         if ($fileContents === false || $file->getSize() === 0) {
@@ -484,8 +522,17 @@ class MetaWhatsAppService
             );
         }
 
+        $safeFilename = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $file->getClientOriginalName()) ?: "media.{$extension}";
+
+        Log::info('[MetaWhatsAppService] Uploading media to WhatsApp Cloud API.', [
+            'original_name' => $file->getClientOriginalName(),
+            'safe_filename' => $safeFilename,
+            'mime_type' => $mimeType,
+            'size_bytes' => $file->getSize(),
+        ]);
+
         $response = Http::withToken($this->accessToken)
-            ->attach('file', $fileContents, $file->getClientOriginalName(), ['Content-Type' => $mimeType])
+            ->attach('file', $fileContents, $safeFilename, ['Content-Type' => $mimeType])
             ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->phoneNumberId}/media", [
                 'messaging_product' => 'whatsapp',
                 'type' => $mimeType,
@@ -790,6 +837,21 @@ class MetaWhatsAppService
             ]);
 
             try {
+                // Extract discrete template variables from components for clean display
+                $extractedVariables = [];
+                foreach ($components as $component) {
+                    $cType = strtolower((string) ($component['type'] ?? 'body'));
+                    foreach ($component['parameters'] ?? [] as $idx => $param) {
+                        $pType = (string) ($param['type'] ?? 'text');
+                        $val = $param[$pType] ?? ($param['text'] ?? null);
+                        if ($val !== null) {
+                            $extractedVariables["{$cType}_".($idx + 1)] = $val;
+                        }
+                    }
+                }
+
+                $isTestMode = (bool) Config::get('whatsapp.testing.test_mode', false) || $this->restrictToTestRecipient;
+
                 WhatsAppMessageLog::create([
                     'whatsapp_template_id' => $template?->id,
                     'template_key' => $templateName,
@@ -799,14 +861,15 @@ class MetaWhatsAppService
                     'recipient_phone' => $normalizedRecipient,
                     'requested_recipient_phone' => $recipientPhone,
                     'actual_recipient_phone' => $normalizedRecipient,
-                    'payload' => $payload,
+                    'payload' => ! empty($extractedVariables) ? $extractedVariables : $payload,
+                    'template_variables' => ! empty($extractedVariables) ? $extractedVariables : null,
                     'request_payload' => $payload,
                     'provider_response' => $responseData,
                     'provider_message_id' => $metaMessageId ?: null,
                     'status' => WhatsAppMessageLog::STATUS_SENT,
                     'source' => 'meta_cloud_api',
                     'environment' => app()->environment(),
-                    'is_test' => true,
+                    'is_test' => $isTestMode,
                     'sent_at' => now(),
                 ]);
             } catch (Throwable $logEx) {
@@ -969,6 +1032,10 @@ class MetaWhatsAppService
         $error = $body['error'] ?? [];
 
         $message = (string) ($error['message'] ?? $response->body() ?: 'Meta Graph API error');
+        $detail = $error['error_data']['details'] ?? $error['error_user_msg'] ?? $error['error_user_title'] ?? null;
+        if ($detail && ! str_contains($message, (string) $detail)) {
+            $message .= " — {$detail}";
+        }
         $code = isset($error['code']) ? (int) $error['code'] : null;
         $type = isset($error['type']) ? (string) $error['type'] : null;
         $subcode = isset($error['error_subcode']) ? (int) $error['error_subcode'] : null;
@@ -981,6 +1048,7 @@ class MetaWhatsAppService
             'meta_subcode' => $subcode,
             'meta_message' => $message,
             'fbtrace_id' => $fbtraceId,
+            'raw_error' => $error,
         ]);
 
         throw new MetaWhatsAppException(

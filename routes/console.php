@@ -56,3 +56,6 @@ Schedule::command('habit-loop:send-daily')->everyFifteenMinutes()->timezone(conf
 
 // 30-Day Member Onboarding WhatsApp Journey (checked every 15 minutes)
 Schedule::command('whatsapp:journey:process')->everyFifteenMinutes()->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+
+// WhatsApp Bulk Campaigns Scheduled Dispatch (checked every minute)
+Schedule::command('whatsapp:dispatch-scheduled-campaigns')->everyMinute()->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();

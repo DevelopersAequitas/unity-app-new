@@ -16,7 +16,6 @@ use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\ActivityReminderSettingController;
 use App\Http\Controllers\Admin\ActivityVideoController;
-use App\Http\Controllers\Admin\AuditLogWebController;
 use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AdBookingAdminWebController;
 use App\Http\Controllers\Admin\AdController;
@@ -28,6 +27,7 @@ use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\AskManagementController;
+use App\Http\Controllers\Admin\AuditLogWebController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BirthdayCreativeController;
 use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
@@ -116,8 +116,11 @@ use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
 use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
+use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
+use App\Http\Controllers\Api\WhatsApp\MetaWhatsAppWebhookController;
+use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\ShareController;
@@ -142,6 +145,12 @@ Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
+// Direct WhatsApp Webhook fallbacks (in case Meta is configured without /api prefix)
+Route::get('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
 
 Route::get('/api/v1/events/checkin/qr/{token}', function (Request $request, string $token) {
     $service = app(EventCheckinService::class);
@@ -185,16 +194,16 @@ Route::get('/account-deletion-request', [AccountDeletionController::class, 'show
 Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
 
 // Leadership Form 2 (Jury Evaluation Data Form) Public Access
-Route::get('/leadership/form-2/{id}', [\App\Http\Controllers\LeadershipForm2Controller::class, 'show'])
+Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])
     ->whereUuid('id')
     ->name('leadership.form2.show');
-Route::post('/leadership/form-2/{id}/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])
+Route::post('/leadership/form-2/{id}/verify-email', [LeadershipForm2Controller::class, 'verifyEmail'])
     ->whereUuid('id')
     ->name('leadership.form2.verify-email');
-Route::post('/leadership/form-2/{id}/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])
+Route::post('/leadership/form-2/{id}/submit', [LeadershipForm2Controller::class, 'submit'])
     ->whereUuid('id')
     ->name('leadership.form2.submit');
-Route::post('/leadership/form-2/{id}/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])
+Route::post('/leadership/form-2/{id}/upload', [LeadershipForm2Controller::class, 'upload'])
     ->whereUuid('id')
     ->name('leadership.form2.upload');
 
@@ -872,6 +881,19 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/journey/initialize-all', [MemberJourneyAdminController::class, 'initializeAll'])->name('journey.initialize_all');
             Route::post('/journey/send/{sendId}', [MemberJourneyAdminController::class, 'sendDay'])->whereUuid('sendId')->name('journey.send_day');
             Route::post('/journey/process-due', [MemberJourneyAdminController::class, 'processDue'])->name('journey.process_due');
+
+            // Bulk Campaigns Module
+            Route::get('/campaigns', [WhatsAppBulkCampaignAdminController::class, 'index'])->name('campaigns.index');
+            Route::get('/campaigns/create', [WhatsAppBulkCampaignAdminController::class, 'create'])->name('campaigns.create');
+            Route::post('/campaigns/upload-csv', [WhatsAppBulkCampaignAdminController::class, 'uploadCsv'])->name('campaigns.upload_csv');
+            Route::get('/campaigns/sample-csv', [WhatsAppBulkCampaignAdminController::class, 'downloadSampleCsv'])->name('campaigns.sample_csv');
+            Route::get('/campaigns/errors/{importId}', [WhatsAppBulkCampaignAdminController::class, 'downloadErrors'])->name('campaigns.errors');
+            Route::post('/campaigns/preview', [WhatsAppBulkCampaignAdminController::class, 'previewMessage'])->name('campaigns.preview');
+            Route::post('/campaigns', [WhatsAppBulkCampaignAdminController::class, 'store'])->name('campaigns.store');
+            Route::get('/campaigns/{id}', [WhatsAppBulkCampaignAdminController::class, 'show'])->whereUuid('id')->name('campaigns.show');
+            Route::post('/campaigns/{id}/cancel', [WhatsAppBulkCampaignAdminController::class, 'cancel'])->whereUuid('id')->name('campaigns.cancel');
+            Route::post('/campaigns/{id}/retry', [WhatsAppBulkCampaignAdminController::class, 'retry'])->whereUuid('id')->name('campaigns.retry');
+            Route::get('/campaigns/{id}/export', [WhatsAppBulkCampaignAdminController::class, 'export'])->whereUuid('id')->name('campaigns.export');
         });
 
         // App Notifications & Mobile Navigation Showcase Module

@@ -143,6 +143,16 @@
                 </div>
             </div>
         </div>
+    @elseif(strtolower((string)$message->status) === 'sent')
+        <div class="alert alert-info border-info mb-4 shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-clock-history fs-2 me-3 text-info"></i>
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading fw-bold mb-0">Dispatched &amp; Accepted by Meta Cloud API</h5>
+                    <div class="small">The message was successfully enqueued and accepted by Meta (Message ID: <code>{{ $message->provider_message_id }}</code>). Delivery state (<code>DELIVERED</code>, <code>READ</code>, or <code>FAILED</code>) updates automatically when Meta delivers the message to the device and sends its Webhook notification.</div>
+                </div>
+            </div>
+        </div>
     @elseif(strtolower((string)$message->status) === 'dry_run')
         <div class="alert alert-secondary border mb-4 shadow-sm">
             <div class="d-flex align-items-center">
@@ -186,20 +196,32 @@
                         <tr>
                             <td class="text-muted">Target Phone:</td>
                             <td>
-                                @if($message->is_test)
+                                @php
+                                    $isRedirected = ! empty($message->actual_recipient_phone)
+                                        && ! empty($message->requested_recipient_phone)
+                                        && ($message->actual_recipient_phone !== $message->requested_recipient_phone);
+                                @endphp
+                                @if($isRedirected)
                                     <div>
                                         <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-0.5 px-2 font-monospace" style="font-size: 11px;">
                                             <i class="bi bi-shield-exclamation me-1"></i>TEST ROUTE APPLIED
                                         </span>
                                         <div class="font-monospace fw-bold text-dark mt-1">
-                                            Actual Sent: {{ $message->actual_recipient_phone ?: $message->recipient_phone }}
+                                            Actual Sent: {{ $message->actual_recipient_phone }}
                                         </div>
                                         <div class="text-muted small">
-                                            Requested Recipient: <span class="font-monospace">{{ $message->requested_recipient_phone ?: $message->recipient_phone }}</span>
+                                            Requested Recipient: <span class="font-monospace">{{ $message->requested_recipient_phone }}</span>
                                         </div>
                                     </div>
+                                @elseif($message->is_test)
+                                    <div>
+                                        <span class="badge bg-secondary-subtle text-secondary border py-0.5 px-2 font-monospace" style="font-size: 11px;">
+                                            <i class="bi bi-vial me-1"></i>TEST MODE
+                                        </span>
+                                        <span class="font-monospace fw-bold ms-1">{{ $message->actual_recipient_phone ?: $message->recipient_phone }}</span>
+                                    </div>
                                 @else
-                                    <span class="font-monospace fw-bold">{{ $message->recipient_phone }}</span>
+                                    <span class="font-monospace fw-bold">{{ $message->actual_recipient_phone ?: $message->recipient_phone }}</span>
                                 @endif
                             </td>
                         </tr>
