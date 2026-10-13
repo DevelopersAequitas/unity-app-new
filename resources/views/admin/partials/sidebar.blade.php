@@ -1140,6 +1140,11 @@
                         <div class="collapse {{ $metaWhatsAppActive ? 'show' : '' }}" id="metaWhatsAppSubmenu">
                             <ul class="nav flex-column ms-3">
                                 <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.campaigns*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.campaigns.index') }}">
+                                        <i class="bi bi-broadcast-pin me-1"></i> Bulk Campaigns
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.templates*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.templates') }}">
                                         <i class="bi bi-file-earmark-text me-1"></i> Templates
                                     </a>
