@@ -1656,9 +1656,9 @@ export const NominationsPage: React.FC = () => {
                                     {proceedJuryModal.nominations.map((n) => (
                                         <div key={n.id} className="list-group-item d-flex justify-content-between align-items-center py-2.5">
                                             <div>
-                                                <div className="fw-semibold text-dark">{n.candidate_name}</div>
+                                                <div className="fw-semibold text-dark">{n.candidate_name && n.candidate_name.toLowerCase() !== 'candidate' ? n.candidate_name : (n.user?.name || 'Candidate')}</div>
                                                 <div className="text-muted small">
-                                                    {n.application_number} • {n.applied_role_name || n.campaign?.role?.name || 'Leadership Role'} • {n.email || 'No email'}
+                                                    {n.email || 'No email'} • {n.applied_role_name || n.campaign?.role?.name || 'Leadership Role'}
                                                 </div>
                                             </div>
                                             <div className="d-flex align-items-center gap-1.5">
