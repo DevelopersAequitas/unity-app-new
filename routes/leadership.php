@@ -56,7 +56,9 @@ Route::prefix('public')->group(function (): void {
     Route::post('nominations/{id}/submit', [NominationController::class, 'submit'])->whereUuid('id');
     Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
     Route::post('nominations', [NominationController::class, 'nominate']);
+    Route::get('nominations/{id}/form-2', [\App\Http\Controllers\LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
+    Route::post('nominations/{id}/form-2/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
 
     // Module G: Public Voting & Private Results
