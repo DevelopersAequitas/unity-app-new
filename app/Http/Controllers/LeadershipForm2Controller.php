@@ -20,11 +20,19 @@ class LeadershipForm2Controller extends Controller
 
     /**
      * Show public Form 2 (Jury Evaluation Data Form).
+     * Redirects to peersglobal.com frontend portal, or renders blade if explicitly requested.
      */
-    public function show(string $id): View
+    public function show(string $id): View|RedirectResponse
     {
         /** @var LeadershipNomination $nomination */
         $nomination = LeadershipNomination::with(['campaign.role', 'scope'])->findOrFail($id);
+
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $targetUrl = "{$frontendUrl}/leadership/campaigns/{$nomination->campaign_id}/form-2?nomination={$nomination->id}";
+
+        if (request()->query('render_blade') !== '1') {
+            return redirect()->away($targetUrl);
+        }
 
         $roleName = $nomination->campaign?->role?->name ?? 'Leadership Candidate';
         $campaignName = $nomination->campaign?->name ?? 'Peers Global Leadership Selection 2026';
@@ -46,6 +54,48 @@ class LeadershipForm2Controller extends Controller
             'benchRequirement' => $benchRequirement,
             'existingData' => $nomination->form_2_data,
         ]);
+    }
+
+    /**
+     * Public API endpoint to get candidate & campaign details for Form 2 on peersglobal.com.
+     */
+    public function apiDetails(string $id): JsonResponse
+    {
+        /** @var LeadershipNomination $nomination */
+        $nomination = LeadershipNomination::with(['campaign.role', 'scope'])->findOrFail($id);
+
+        $roleName = $nomination->campaign?->role?->name ?? 'Leadership Candidate';
+        $campaignName = $nomination->campaign?->name ?? 'Peers Global Leadership Selection 2026';
+        $benchRequirement = $this->resolveBenchRequirement($roleName);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'nomination_id' => $nomination->id,
+                'application_number' => $nomination->application_number,
+                'candidate_name' => $nomination->candidate_name,
+                'campaign_id' => $nomination->campaign_id,
+                'campaign_name' => $campaignName,
+                'role_name' => $roleName,
+                'masked_email' => $this->maskEmail((string) $nomination->email),
+                'status' => $nomination->status,
+                'form_2_status' => $nomination->form_2_status,
+                'is_submitted' => $nomination->form_2_status === 'submitted',
+                'bench_requirement' => $benchRequirement,
+                'existing_data' => $nomination->form_2_data,
+            ],
+        ]);
+    }
+
+    protected function maskEmail(string $email): string
+    {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return '****@****.com';
+        }
+        [$name, $domain] = explode('@', $email, 2);
+        $maskedName = substr($name, 0, 2).str_repeat('*', max(1, strlen($name) - 3)).substr($name, -1);
+
+        return $maskedName.'@'.$domain;
     }
 
     /**

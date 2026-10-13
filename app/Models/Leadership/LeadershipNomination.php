@@ -76,7 +76,15 @@ class LeadershipNomination extends Model
 
     public function getForm2LinkAttribute(): string
     {
-        return url('/leadership/form-2/'.$this->id);
+        $snapshot = $this->profile_snapshot;
+        if (is_array($snapshot) && ! empty($snapshot['form_2_link'])) {
+            return (string) $snapshot['form_2_link'];
+        }
+
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $campaignId = $this->campaign_id;
+
+        return "{$frontendUrl}/leadership/campaigns/{$campaignId}/form-2?nomination={$this->id}";
     }
 
     public function getForm2StatusAttribute(): string
