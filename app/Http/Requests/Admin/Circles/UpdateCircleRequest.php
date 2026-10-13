@@ -44,7 +44,7 @@ class UpdateCircleRequest extends FormRequest
             'status' => ['required', Rule::in(Circle::STATUS_OPTIONS)],
             'circle_stage' => ['nullable', Rule::in(Circle::STAGE_OPTIONS)],
             'industry_tags' => ['nullable', 'array'],
-            'industry_tags.*' => ['string', 'max:50'],
+            'industry_tags.*' => ['string', 'max:100'],
             'meeting_mode' => ['nullable', Rule::in(Circle::MEETING_MODE_OPTIONS)],
             'meeting_frequency' => ['nullable', Rule::in(Circle::MEETING_FREQUENCY_OPTIONS)],
             'meeting_link' => ['nullable', 'string', 'max:1000'],
@@ -127,12 +127,28 @@ class UpdateCircleRequest extends FormRequest
         });
     }
 
+    public function attributes(): array
+    {
+        return [
+            'industry_tags' => 'industry tags',
+            'industry_tags.*' => 'industry tag',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'industry_tags.*.max' => 'Each industry tag may not be greater than :max characters.',
+            'industry_tags.*.string' => 'Each industry tag must be a valid text string.',
+        ];
+    }
+
     protected function prepareForValidation(): void
     {
         $payload = [];
 
-        if ($this->filled('industry_tags') && is_string($this->input('industry_tags'))) {
-            $payload['industry_tags'] = array_values(array_filter(array_map('trim', explode(',', $this->input('industry_tags')))));
+        if ($this->has('industry_tags')) {
+            $payload['industry_tags'] = StoreCircleRequest::parseIndustryTags($this->input('industry_tags'));
         }
 
         if ($this->filled('meeting_repeat') && is_string($this->input('meeting_repeat'))) {

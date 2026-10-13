@@ -878,17 +878,9 @@ class CircleController extends Controller
 
     private function normalizeIndustryTags(null|string|array $tags): ?array
     {
-        if (is_array($tags)) {
-            return array_values(array_filter(array_map('trim', $tags)));
-        }
+        $parsed = StoreCircleRequest::parseIndustryTags($tags);
 
-        if (is_string($tags)) {
-            $trimmed = array_filter(array_map('trim', explode(',', $tags)));
-
-            return $trimmed ? array_values($trimmed) : null;
-        }
-
-        return null;
+        return $parsed !== [] ? $parsed : null;
     }
 
     private function formatMeetingScheduleEntry(array $meeting): string
