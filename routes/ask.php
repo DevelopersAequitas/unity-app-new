@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->prefix('v1/asks')->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
+        Route::get('{id}', [AskFlowHubController::class, 'showAsk'])->whereUuid('id');
         Route::match(['patch', 'post'], '{id}/status', [AskFlowHubController::class, 'updateFlowItemStatus'])->whereUuid('id');
     });
     Route::get('categories', [AskFlowHubController::class, 'categories']);

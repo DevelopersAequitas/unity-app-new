@@ -24,7 +24,7 @@ class StoreCircleRequest extends FormRequest
             'city_id' => 'nullable|uuid|exists:cities,id',
             'type' => ['nullable', Rule::in(Circle::TYPE_OPTIONS)],
             'industry_tags' => 'sometimes|array',
-            'industry_tags.*' => 'string|max:50',
+            'industry_tags.*' => 'string|max:100',
             'calendar' => 'sometimes|array',
             'meeting_mode' => ['nullable', Rule::in(Circle::MEETING_MODE_OPTIONS)],
             'meeting_frequency' => ['nullable', Rule::in(Circle::MEETING_FREQUENCY_OPTIONS)],
@@ -36,5 +36,30 @@ class StoreCircleRequest extends FormRequest
             'cover_file_id' => 'nullable|uuid',
             'circle_image_file_id' => 'nullable|uuid',
         ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'industry_tags' => 'industry tags',
+            'industry_tags.*' => 'industry tag',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'industry_tags.*.max' => 'Each industry tag may not be greater than :max characters.',
+            'industry_tags.*.string' => 'Each industry tag must be a valid text string.',
+        ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('industry_tags')) {
+            $this->merge([
+                'industry_tags' => \App\Http\Requests\Admin\Circles\StoreCircleRequest::parseIndustryTags($this->input('industry_tags')),
+            ]);
+        }
     }
 }

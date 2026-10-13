@@ -325,8 +325,14 @@
                         </div>
                         <div class="col-md-12">
                             <label class="form-label fw-semibold">Industry Tags</label>
-                            <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail, Healthcare">
-                            <div class="form-text">Separate tags with commas.</div>
+                            <input type="text" name="industry_tags" class="form-control @error('industry_tags') is-invalid @enderror @error('industry_tags.*') is-invalid @enderror" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail, Healthcare">
+                            <div class="form-text">Separate tags with commas or bullets (•).</div>
+                            @error('industry_tags')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            @error('industry_tags.*')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
                         </div>
                         <div class="col-md-12 mt-3">
                             <label class="form-label fw-semibold">Circle Categories</label>
@@ -1044,6 +1050,20 @@
 
     togglePaymentGatewayUI();
     updateCircleTotalAmount();
+
+    const industryTagsInput = document.querySelector('input[name="industry_tags"]');
+    if (industryTagsInput) {
+        industryTagsInput.addEventListener('blur', function () {
+            if (!this.value.trim()) return;
+            const tags = this.value
+                .split(/[,;\r\n|•·●○▪▫■‣⁃∙]+/)
+                .map(t => t.trim())
+                .filter(t => t.length > 0);
+            if (tags.length > 0) {
+                this.value = tags.join(', ');
+            }
+        });
+    }
 </script>
 @endpush
 
