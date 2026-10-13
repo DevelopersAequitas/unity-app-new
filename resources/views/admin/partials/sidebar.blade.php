@@ -1150,6 +1150,11 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.awards*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.awards.index') }}">
+                                        <i class="bi bi-award me-1"></i> Award Recognitions
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.test_message*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.test_message') }}">
                                         <i class="bi bi-send me-1"></i> Test Message
                                     </a>

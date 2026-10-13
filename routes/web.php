@@ -114,6 +114,7 @@ use App\Http\Controllers\Admin\Web\WebPageMediaController;
 use App\Http\Controllers\Admin\Web\WebPartnershipController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
+use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
@@ -872,6 +873,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/journey/initialize-all', [MemberJourneyAdminController::class, 'initializeAll'])->name('journey.initialize_all');
             Route::post('/journey/send/{sendId}', [MemberJourneyAdminController::class, 'sendDay'])->whereUuid('sendId')->name('journey.send_day');
             Route::post('/journey/process-due', [MemberJourneyAdminController::class, 'processDue'])->name('journey.process_due');
+
+            // Award Recognitions WhatsApp (Track 1 Growth & Track 2 Life Impact)
+            Route::get('/awards', [AwardRecognitionAdminController::class, 'index'])->name('awards.index');
+            Route::get('/awards/{id}', [AwardRecognitionAdminController::class, 'show'])->whereUuid('id')->name('awards.show');
+            Route::post('/awards/{id}/resend', [AwardRecognitionAdminController::class, 'resend'])->whereUuid('id')->name('awards.resend');
+            Route::post('/awards/test-send', [AwardRecognitionAdminController::class, 'sendTest'])->name('awards.test_send');
         });
 
         // App Notifications & Mobile Navigation Showcase Module
