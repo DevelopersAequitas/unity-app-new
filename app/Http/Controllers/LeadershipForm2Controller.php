@@ -20,11 +20,19 @@ class LeadershipForm2Controller extends Controller
 
     /**
      * Show public Form 2 (Jury Evaluation Data Form).
+     * Redirects to peersglobal.com frontend portal, or renders blade if explicitly requested.
      */
-    public function show(string $id): View
+    public function show(string $id): View|RedirectResponse
     {
         /** @var LeadershipNomination $nomination */
         $nomination = LeadershipNomination::with(['campaign.role', 'scope'])->findOrFail($id);
+
+        $frontendUrl = rtrim((string) config('services.frontend_url', env('FRONTEND_URL', 'https://peersglobal.com')), '/');
+        $targetUrl = "{$frontendUrl}/leadership/campaigns/{$nomination->campaign_id}/form-2?nomination={$nomination->id}";
+
+        if (request()->query('render_blade') !== '1') {
+            return redirect()->away($targetUrl);
+        }
 
         $roleName = $nomination->campaign?->role?->name ?? 'Leadership Candidate';
         $campaignName = $nomination->campaign?->name ?? 'Peers Global Leadership Selection 2026';

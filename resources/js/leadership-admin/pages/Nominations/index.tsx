@@ -609,12 +609,24 @@ export const NominationsPage: React.FC = () => {
                                         <td className="text-end">
                                             <div className="d-flex align-items-center justify-content-end gap-1.5 flex-nowrap">
                                                 {activeForm === 'sub_form_2' ? (
-                                                    <button
-                                                        onClick={() => openDetailModal(nom)}
-                                                        className="btn btn-primary btn-sm rounded-2 py-1 px-3 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
-                                                    >
-                                                        <FileText size={14} /> Review Form 2
-                                                    </button>
+                                                    <div className="d-flex align-items-center justify-content-end gap-1.5 flex-nowrap">
+                                                        {nom.form_2_status === 'pending_submission' && (
+                                                            <button
+                                                                onClick={() => handleCopyForm2Link(nom)}
+                                                                className="btn btn-outline-secondary btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                title="Copy Form 2 Link to Clipboard"
+                                                            >
+                                                                {copiedForm2Id === nom.id ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+                                                                {copiedForm2Id === nom.id ? 'Copied' : 'Copy Form 2'}
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => openDetailModal(nom)}
+                                                            className="btn btn-primary btn-sm rounded-2 py-1 px-3 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                        >
+                                                            <FileText size={14} /> Review Form 2
+                                                        </button>
+                                                    </div>
                                                 ) : (
                                                     <>
                                                         {['submitted', 'resubmitted', 'under_review'].includes(nom.status) && (

@@ -79,26 +79,27 @@ class AdminNominationService
             $formType = trim((string) $filters['form_type']);
             if (in_array($formType, ['sub_form_2', 'sub', '2'], true)) {
                 $query->where(function ($q): void {
-                    $hasCol = \Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type');
-                    if ($hasCol) {
-                        $q->where('form_type', 'sub_form_2')
-                            ->orWhere('profile_snapshot->form_type', 'sub_form_2');
-                    } else {
-                        $q->where('profile_snapshot->form_type', 'sub_form_2');
+                    // 1. All submitted Form 2 child records
+                    $q->where('application_number', 'LIKE', '%-F2%')
+                        ->orWhere('profile_snapshot->form_type', 'sub_form_2')
+                        // 2. Or candidates proceeded to Jury whose Form 2 submission is pending
+                        ->orWhere(function ($subQ): void {
+                            $subQ->where('profile_snapshot->form_2_status', 'pending_submission')
+                                ->where('application_number', 'NOT LIKE', '%-F2%');
+                        });
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                        $q->orWhere('form_type', 'sub_form_2');
                     }
                 });
             } else {
-                // Default to main_form_1: all website nominations
+                // Default to main_form_1: all primary website nominations
                 $query->where(function ($q): void {
-                    $hasCol = \Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type');
-                    if ($hasCol) {
-                        $q->where('form_type', 'main_form_1')
-                            ->orWhereNull('form_type')
-                            ->orWhere('profile_snapshot->form_type', 'main_form_1')
-                            ->orWhereNull('profile_snapshot->form_type');
-                    } else {
-                        $q->where('profile_snapshot->form_type', 'main_form_1')
-                            ->orWhereNull('profile_snapshot->form_type');
+                    $q->where('application_number', 'NOT LIKE', '%-F2%');
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                        $q->where(function ($sub): void {
+                            $sub->where('form_type', 'main_form_1')
+                                ->orWhereNull('form_type');
+                        });
                     }
                 });
             }
