@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->prefix('v1/asks')->group(function (): void {
     Route::prefix('{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
+        Route::get('user/{userId}', [AskFlowHubController::class, 'userAsks'])->whereUuid('userId');
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
         Route::get('{id}', [AskFlowHubController::class, 'showAsk'])->whereUuid('id');
         Route::match(['patch', 'post'], '{id}/status', [AskFlowHubController::class, 'updateFlowItemStatus'])->whereUuid('id');
@@ -87,6 +88,7 @@ Route::middleware('auth:sanctum')->prefix('asks')->group(function (): void {
     Route::prefix('{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
+        Route::get('user/{userId}', [AskFlowHubController::class, 'userAsks'])->whereUuid('userId');
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
         Route::match(['patch', 'post'], '{id}/status', [AskFlowHubController::class, 'updateFlowItemStatus'])->whereUuid('id');
     });
