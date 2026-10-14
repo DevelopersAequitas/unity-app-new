@@ -29,8 +29,8 @@ Route::middleware('auth:sanctum')->prefix('v1/asks')->group(function (): void {
     Route::post('{id}/save', [AskFeedController::class, 'save'])->whereUuid('id');
     Route::post('{id}/close-and-thank', [AskFeedController::class, 'closeAndThank'])->whereUuid('id');
 
-    // 3 Asks Flows Engine Hub Routes (collaboration, referral, help)
-    Route::prefix('{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
+    // 3 Asks Flows Engine Hub Routes (collaboration, referral, help, all)
+    Route::prefix('{flow}')->whereIn('flow', ['collaboration', 'referral', 'help', 'all'])->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
         Route::get('user/{userId}', [AskFlowHubController::class, 'userAsks'])->whereUuid('userId');

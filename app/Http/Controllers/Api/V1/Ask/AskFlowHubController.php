@@ -41,6 +41,31 @@ class AskFlowHubController extends Controller
     }
 
     /**
+     * All User Asks across flows (collaboration, referral, help) in short form
+     * GET /api/v1/leader/asks/my
+     */
+    public function myAllAsks(Request $request): JsonResponse
+    {
+        /** @var User $currentUser */
+        $currentUser = $request->user();
+        $targetUserId = $request->query('user_id');
+        $targetUser = ($targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId))
+            ? (User::find($targetUserId) ?? $currentUser)
+            : $currentUser;
+
+        $params = array_merge($request->query(), [
+            'user_id' => (string) $targetUser->id,
+        ]);
+
+        $data = $this->flowHubService->getMyAllAsks($targetUser, $params);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
      * Tab 2: My Asks & History for a specific Flow (supports ?user_id=...)
      * GET /api/v1/leader/asks/{flow}/my or GET /api/asks/{flow}/my
      */

@@ -336,7 +336,7 @@ class AskFlowHubService
     }
 
     /**
-     * 2. My Asks & History API for a specific Flow
+     * 2. My Asks & History API for a specific Flow or All Flows
      *
      * @param  array{page?: int, limit?: int}  $params
      * @return array<string, mixed>
@@ -344,6 +344,10 @@ class AskFlowHubService
     public function getMyAsks(User $user, string $flowCode, array $params = []): array
     {
         $normalizedFlow = $this->normalizeFlowCode($flowCode);
+
+        if ($normalizedFlow === 'all') {
+            return $this->getMyAllAsks($user, $params);
+        }
 
         if ($normalizedFlow === 'referral') {
             return $this->getMyReferralAsks($user, $params);
@@ -354,6 +358,197 @@ class AskFlowHubService
         }
 
         return $this->getMyHelpAsks($user, $params);
+    }
+
+    /**
+     * Get asks across all 3 flows (collaboration, referral, help) in short form with limited data
+     *
+     * @param  array{page?: int, limit?: int}  $params
+     * @return array<string, mixed>
+     */
+    public function getMyAllAsks(User $user, array $params = []): array
+    {
+        $statusFilter = strtolower(trim((string) ($params['status'] ?? 'all')));
+        $categoryId = filled($params['category_id'] ?? null) ? trim((string) $params['category_id']) : null;
+        $search = filled($params['search'] ?? null) ? trim((string) $params['search']) : null;
+        $districtId = filled($params['district_id'] ?? null) ? trim((string) $params['district_id']) : null;
+        $circleId = filled($params['circle_id'] ?? null) ? trim((string) $params['circle_id']) : null;
+        $page = max(1, (int) ($params['page'] ?? 1));
+        $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
+
+        $targetUserId = filled($params['user_id'] ?? null) && Str::isUuid((string) $params['user_id'])
+            ? (string) $params['user_id']
+            : (string) $user->id;
+
+        $buildAllQuery = function (bool $includeDeleted = false) use (
+            $targetUserId,
+            $statusFilter,
+            $categoryId,
+            $search,
+            $districtId,
+            $circleId
+        ): Builder {
+            $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
+
+            $q->where('user_id', $targetUserId)
+                ->with(['flow', 'type', 'user.city'])
+                ->withCount(['responses', 'matches'])
+                ->orderByDesc('created_at');
+
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                match ($statusFilter) {
+                    'closed' => $q->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
+                    'fulfilled' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
+                            ->orWhereNotNull('fulfilled_at');
+                    }),
+                    'in_progress' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                            ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
+                    }),
+                    'open' => $q->where(function (Builder $sq): void {
+                        $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                    }),
+                    default => $q->whereRaw('LOWER(status) = ?', [$statusFilter]),
+                };
+            }
+
+            if ($categoryId !== null) {
+                $isUuid = Str::isUuid($categoryId);
+                $q->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                    if ($isUuid) {
+                        $cq->where('type_id', $categoryId)
+                            ->orWhere('flow_id', $categoryId)
+                            ->orWhereHas('type', fn (Builder $tq) => $tq->where('code', $categoryId)->orWhere('name', 'ILIKE', '%'.$categoryId.'%'));
+                    } else {
+                        $cq->whereHas('flow', fn (Builder $fq) => $fq->whereRaw('LOWER(code) = ?', [strtolower($categoryId)]))
+                            ->orWhereHas('type', fn (Builder $tq) => $tq->where('code', $categoryId)->orWhere('name', 'ILIKE', '%'.$categoryId.'%'));
+                    }
+                });
+            }
+
+            if ($search !== null) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $q->where(function (Builder $sq) use ($like): void {
+                    $sq->where('title', 'ILIKE', $like);
+                });
+            }
+
+            if ($districtId !== null && Str::isUuid($districtId)) {
+                $q->where('visibility_district_id', $districtId);
+            }
+
+            if ($circleId !== null && Str::isUuid($circleId)) {
+                $q->where('visibility_circle_id', $circleId);
+            }
+
+            return $q;
+        };
+
+        $asks = $buildAllQuery(false)->get();
+        if ($asks->isEmpty()) {
+            $trashed = $buildAllQuery(true)->get();
+            if ($trashed->isNotEmpty()) {
+                $asks = $trashed;
+            }
+        }
+
+        $items = [];
+        $isFull = ($params['format'] ?? null) === 'full';
+        foreach ($asks as $ask) {
+            /** @var Ask $ask */
+            $code = strtolower((string) ($ask->flow?->code ?? ''));
+            $flowCode = match ($code) {
+                'referral', 'referrals', 'ask_for_referral' => 'referral',
+                'help', 'get_help', 'guidance', 'mentorship' => 'help',
+                default => 'collaboration',
+            };
+
+            $formatted = $isFull
+                ? $this->formatFullAskDetails($ask, $flowCode)
+                : $this->formatShortAskItem($ask, $flowCode);
+
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                if ($formatted['status'] !== $statusFilter && (string) $ask->status !== $statusFilter) {
+                    continue;
+                }
+            }
+
+            $items[] = $formatted;
+        }
+
+        $total = count($items);
+        $pagedItems = array_slice($items, ($page - 1) * $limit, $limit);
+
+        return [
+            'items' => $pagedItems,
+            'data' => $pagedItems,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'has_more' => ($page * $limit) < $total,
+                'total' => $total,
+                'last_page' => (int) ceil($total / $limit),
+                'authenticated_user_id' => $targetUserId,
+            ],
+        ];
+    }
+
+    /**
+     * Format a compact / short-form Ask item with limited data for list and feed views.
+     *
+     * @return array<string, mixed>
+     */
+    public function formatShortAskItem(Ask $ask, string $flowCode): array
+    {
+        $status = match (strtolower((string) $ask->status)) {
+            Ask::STATUS_PUBLISHED, 'active', 'open' => 'open',
+            'fulfilled', 'completed' => 'fulfilled',
+            Ask::STATUS_CLOSED, 'cancelled', 'expired', 'archived' => 'closed',
+            'in_progress', 'review', 'pending' => 'in_progress',
+            default => (string) ($ask->status ?: 'open'),
+        };
+
+        // Extract clean description / goal
+        $description = $ask->description;
+        if (empty($description) && $ask->relationLoaded('answers')) {
+            $descAnswer = $ask->answers->firstWhere('field_key', 'description')
+                ?? $ask->answers->firstWhere('field_key', 'goal')
+                ?? $ask->answers->firstWhere('field_key', 'what_needed');
+            $description = $descAnswer?->value_text;
+        }
+        if (empty($description)) {
+            $description = (string) $ask->title;
+        }
+
+        $authorUser = $ask->relationLoaded('user') ? $ask->user : null;
+        $author = $authorUser ? [
+            'id' => (string) $authorUser->id,
+            'name' => $authorUser->display_name ?: trim(($authorUser->first_name ?? '').' '.($authorUser->last_name ?? '')),
+            'display_name' => $authorUser->display_name ?: trim(($authorUser->first_name ?? '').' '.($authorUser->last_name ?? '')),
+            'company_name' => (string) ($authorUser->company_name ?? ''),
+            'avatar_url' => $authorUser->profile_photo_file_id
+                ? url('/api/v1/files/'.$authorUser->profile_photo_file_id)
+                : ($authorUser->profile_photo_url ?? null),
+        ] : null;
+
+        return [
+            'id' => (string) $ask->id,
+            'flow_id' => (string) ($ask->flow_id ?? $ask->flow?->id ?? ''),
+            'flow_code' => $flowCode,
+            'flow_name' => (string) ($ask->flow?->name ?? ucfirst($flowCode)),
+            'type_id' => $ask->type_id ? (string) $ask->type_id : null,
+            'category_name' => (string) ($ask->type?->name ?? ucfirst($flowCode)),
+            'title' => (string) $ask->title,
+            'description' => (string) $description,
+            'status' => $status,
+            'status_label' => ucfirst(str_replace('_', ' ', $status)),
+            'responses_count' => (int) ($ask->responses_count ?? ($ask->relationLoaded('responses') ? $ask->responses->count() : 0)),
+            'matches_count' => (int) ($ask->matches_count ?? ($ask->relationLoaded('matches') ? $ask->matches->count() : 0)),
+            'author' => $author,
+            'user' => $author,
+            'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
+        ];
     }
 
     /**
@@ -849,7 +1044,10 @@ class AskFlowHubService
                 }
             }
 
-            $formatted = $this->formatFullAskDetails($ask, 'collaboration', $acceptedPeer);
+            $isFull = ($params['format'] ?? null) === 'full';
+            $formatted = $isFull
+                ? $this->formatFullAskDetails($ask, 'collaboration', $acceptedPeer)
+                : $this->formatShortAskItem($ask, 'collaboration');
 
             // Double check in-memory status filter to ensure 100% precision
             if ($statusFilter !== '' && $statusFilter !== 'all') {
@@ -896,7 +1094,7 @@ class AskFlowHubService
         $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
 
         $refFlowIds = DB::table('ask_flows')
-            ->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])
+            ->whereIn(DB::raw('LOWER(code)'), ['referral', 'referrals', 'ask_for_referral'])
             ->pluck('id')
             ->filter()
             ->all();
@@ -1004,9 +1202,12 @@ class AskFlowHubService
         }
 
         $myAsks = [];
+        $isFull = ($params['format'] ?? null) === 'full';
         foreach ($asks as $ask) {
             /** @var Ask $ask */
-            $formatted = $this->formatFullAskDetails($ask, 'referral');
+            $formatted = $isFull
+                ? $this->formatFullAskDetails($ask, 'referral')
+                : $this->formatShortAskItem($ask, 'referral');
             $formatted['referral_of'] = (string) $ask->title;
 
             if ($statusFilter !== '' && $statusFilter !== 'all') {
@@ -1018,9 +1219,9 @@ class AskFlowHubService
             $myAsks[] = $formatted;
         }
 
-        // Given Referrals from referrals table (where from_user_id = auth user)
+        // Given Referrals from referrals table (where from_user_id = target user)
         $givenReferralsQuery = Referral::query()
-            ->where('from_user_id', $user->id)
+            ->where('from_user_id', $targetUserId)
             ->where(function (Builder $q): void {
                 $q->where('is_deleted', false)
                     ->orWhereNull('is_deleted');
@@ -1237,17 +1438,17 @@ class AskFlowHubService
             ];
         }
 
-        $filter = strtolower(trim((string) ($params['filter'] ?? 'all')));
+        $filter = strtolower(trim((string) ($params['filter'] ?? 'asks')));
 
         if ($filter === 'given') {
             $allMyAsks = $givenReferrals;
         } elseif ($filter === 'received' || $filter === 'introductions') {
             $allMyAsks = $receivedIntroductions;
-        } elseif ($filter === 'asks' || $filter === 'requirements') {
-            $allMyAsks = $myAsks;
-        } else {
-            // Default: includes all requirements, given referrals, and received introductions so nothing is hidden
+        } elseif ($filter === 'all' || $filter === 'everything') {
             $allMyAsks = array_merge($myAsks, $givenReferrals, $receivedIntroductions);
+        } else {
+            // Default: show the user's referral asks in short form
+            $allMyAsks = $myAsks;
         }
 
         usort($allMyAsks, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
@@ -1271,7 +1472,7 @@ class AskFlowHubService
                 'has_more' => $hasMore,
                 'total' => $total,
                 'last_page' => (int) ceil($total / $limit),
-                'authenticated_user_id' => (string) $user->id,
+                'authenticated_user_id' => $targetUserId,
             ],
         ];
     }
@@ -1293,7 +1494,7 @@ class AskFlowHubService
         $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
 
         $helpFlowIds = DB::table('ask_flows')
-            ->whereIn('code', ['help', 'get_help', 'guidance'])
+            ->whereIn(DB::raw('LOWER(code)'), ['help', 'get_help', 'guidance', 'mentorship'])
             ->pluck('id')
             ->filter()
             ->all();
@@ -1426,7 +1627,10 @@ class AskFlowHubService
                 }
             }
 
-            $formatted = $this->formatFullAskDetails($ask, 'help', null, $fulfilledBy);
+            $isFull = ($params['format'] ?? null) === 'full';
+            $formatted = $isFull
+                ? $this->formatFullAskDetails($ask, 'help', null, $fulfilledBy)
+                : $this->formatShortAskItem($ask, 'help');
 
             if ($statusFilter !== '' && $statusFilter !== 'all') {
                 if ($formatted['status'] !== $statusFilter && (string) $ask->status !== $statusFilter) {
@@ -1450,7 +1654,7 @@ class AskFlowHubService
                 'has_more' => $hasMore,
                 'total' => $total,
                 'last_page' => (int) ceil($total / $limit),
-                'authenticated_user_id' => (string) $user->id,
+                'authenticated_user_id' => $targetUserId,
             ],
         ];
     }
@@ -1773,7 +1977,8 @@ class AskFlowHubService
         return match (strtolower(trim($flow))) {
             'collaboration', 'collaborator', 'find_a_collaborator', 'collab' => 'collaboration',
             'referral', 'referrals', 'ask_for_referral' => 'referral',
-            'help', 'get_help' => 'help',
+            'help', 'get_help', 'guidance', 'mentorship' => 'help',
+            'all', 'asks', 'my' => 'all',
             default => strtolower(trim($flow)),
         };
     }
