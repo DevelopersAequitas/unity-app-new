@@ -521,7 +521,8 @@ class AskFlowHubService
         $responsesCount = (int) ($ask->responses_count ?? count($formattedResponses));
         $matchesCount = (int) ($ask->matches_count ?? ($ask->relationLoaded('matches') ? $ask->matches->count() : 0));
 
-        $status = match ($ask->status) {
+        $rawStatus = strtolower(trim((string) $ask->status));
+        $status = match ($rawStatus) {
             Ask::STATUS_FULFILLED, 'fulfilled', 'completed' => 'fulfilled',
             Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived' => 'closed',
             Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending' => 'in_progress',
@@ -698,7 +699,10 @@ class AskFlowHubService
 
         $query = Ask::query()
             ->where('user_id', $user->id)
-            ->whereHas('flow', fn (Builder $q) => $q->where('code', 'collaboration'))
+            ->where(function (Builder $q): void {
+                $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
+                    ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab'])));
+            })
             ->with([
                 'flow',
                 'type',
@@ -716,19 +720,19 @@ class AskFlowHubService
 
         if ($statusFilter !== '' && $statusFilter !== 'all') {
             match ($statusFilter) {
-                'closed' => $query->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived']),
+                'closed' => $query->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
                 'fulfilled' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn('status', [Ask::STATUS_FULFILLED, 'fulfilled', 'completed'])
+                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
                         ->orWhereNotNull('fulfilled_at');
                 }),
                 'in_progress' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn('status', [Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending'])
-                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED]));
+                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
                 }),
-                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
-                    ->whereNotIn('status', [Ask::STATUS_FULFILLED, Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'fulfilled', 'completed', 'cancelled', 'expired', 'archived'])
-                    ->whereDoesntHave('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED])),
-                default => $query->where('status', $statusFilter),
+                'open' => $query->where(function (Builder $sq): void {
+                    $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                }),
+                default => $query->whereRaw('LOWER(status) = ?', [$statusFilter]),
             };
         }
 
@@ -850,19 +854,19 @@ class AskFlowHubService
 
         if ($statusFilter !== '' && $statusFilter !== 'all') {
             match ($statusFilter) {
-                'closed' => $askQuery->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived']),
+                'closed' => $askQuery->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
                 'fulfilled' => $askQuery->where(function (Builder $sq): void {
-                    $sq->whereIn('status', [Ask::STATUS_FULFILLED, 'fulfilled', 'completed'])
+                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
                         ->orWhereNotNull('fulfilled_at');
                 }),
                 'in_progress' => $askQuery->where(function (Builder $sq): void {
-                    $sq->whereIn('status', [Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending'])
-                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED]));
+                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
                 }),
-                'open' => $askQuery->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
-                    ->whereNotIn('status', [Ask::STATUS_FULFILLED, Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'fulfilled', 'completed', 'cancelled', 'expired', 'archived'])
-                    ->whereDoesntHave('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED])),
-                default => $askQuery->where('status', $statusFilter),
+                'open' => $askQuery->where(function (Builder $sq): void {
+                    $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                }),
+                default => $askQuery->whereRaw('LOWER(status) = ?', [$statusFilter]),
             };
         }
 
@@ -1184,7 +1188,10 @@ class AskFlowHubService
 
         $query = Ask::query()
             ->where('user_id', $user->id)
-            ->whereHas('flow', fn (Builder $q) => $q->where('code', 'help'))
+            ->where(function (Builder $q): void {
+                $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['help', 'get_help', 'guidance']))
+                    ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['help', 'get_help', 'guidance'])));
+            })
             ->with([
                 'flow',
                 'type',
@@ -1202,19 +1209,19 @@ class AskFlowHubService
 
         if ($statusFilter !== '' && $statusFilter !== 'all') {
             match ($statusFilter) {
-                'closed' => $query->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived']),
+                'closed' => $query->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
                 'fulfilled' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn('status', [Ask::STATUS_FULFILLED, 'fulfilled', 'completed'])
+                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
                         ->orWhereNotNull('fulfilled_at');
                 }),
                 'in_progress' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn('status', [Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending'])
-                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED]));
+                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
                 }),
-                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
-                    ->whereNotIn('status', [Ask::STATUS_FULFILLED, Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'fulfilled', 'completed', 'cancelled', 'expired', 'archived'])
-                    ->whereDoesntHave('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED])),
-                default => $query->where('status', $statusFilter),
+                'open' => $query->where(function (Builder $sq): void {
+                    $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                }),
+                default => $query->whereRaw('LOWER(status) = ?', [$statusFilter]),
             };
         }
 
