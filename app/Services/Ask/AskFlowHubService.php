@@ -722,8 +722,12 @@ class AskFlowHubService
         $excludeFlowIds[] = 'bdab6003-95a6-4102-b235-f3461773cd0d';
         $excludeFlowIds = array_values(array_unique($excludeFlowIds));
 
+        $targetUserId = filled($params['user_id'] ?? null) && Str::isUuid((string) $params['user_id'])
+            ? (string) $params['user_id']
+            : (string) $user->id;
+
         $query = Ask::query()
-            ->where('user_id', $user->id)
+            ->where('user_id', $targetUserId)
             ->where(function (Builder $q) use ($collabFlowIds, $excludeFlowIds): void {
                 $q->whereIn('flow_id', $collabFlowIds)
                     ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
@@ -877,8 +881,12 @@ class AskFlowHubService
         $refFlowIds[] = 'bdab6003-95a6-4102-b235-f3461773cd0d';
         $refFlowIds = array_values(array_unique($refFlowIds));
 
+        $targetUserId = filled($params['user_id'] ?? null) && Str::isUuid((string) $params['user_id'])
+            ? (string) $params['user_id']
+            : (string) $user->id;
+
         $askQuery = Ask::query()
-            ->where('user_id', $user->id)
+            ->where('user_id', $targetUserId)
             ->where(function (Builder $q) use ($refFlowIds): void {
                 $q->whereIn('flow_id', $refFlowIds)
                     ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
@@ -1248,8 +1256,12 @@ class AskFlowHubService
             ->filter()
             ->all();
 
+        $targetUserId = filled($params['user_id'] ?? null) && Str::isUuid((string) $params['user_id'])
+            ? (string) $params['user_id']
+            : (string) $user->id;
+
         $query = Ask::query()
-            ->where('user_id', $user->id)
+            ->where('user_id', $targetUserId)
             ->where(function (Builder $q) use ($helpFlowIds): void {
                 $q->whereIn('flow_id', $helpFlowIds)
                     ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['help', 'get_help', 'guidance']))
