@@ -29,6 +29,12 @@
                     <i class="bi bi-magic me-1"></i>Initialize All Existing Peers
                 </button>
             </form>
+            <form action="{{ route('admin.whatsapp.journey.sync_statuses') }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-outline-success btn-sm" title="Sync live delivery and read receipts from Meta">
+                    <i class="bi bi-arrow-repeat me-1"></i>Sync Status
+                </button>
+            </form>
             <a href="{{ route('admin.whatsapp.templates') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-file-earmark-text me-1"></i>Templates
             </a>

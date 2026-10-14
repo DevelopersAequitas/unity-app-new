@@ -239,6 +239,10 @@ class MetaWhatsAppWebhookController extends Controller
                     'status' => 'failed',
                     'error_message' => $errorMessage,
                 ]);
+                \App\Models\MemberJourneySend::where('provider_message_id', $wamid)->update([
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                ]);
             } catch (\Throwable) {}
 
             Log::error('[MetaWhatsAppWebhookController] WhatsApp message marked FAILED.', [
@@ -282,6 +286,9 @@ class MetaWhatsAppWebhookController extends Controller
                     'read_at' => $eventTime,
                     'delivered_at' => \Illuminate\Support\Facades\DB::raw('COALESCE(delivered_at, NOW())'),
                 ]);
+                \App\Models\MemberJourneySend::where('provider_message_id', $wamid)->update([
+                    'status' => 'read',
+                ]);
             } catch (\Throwable) {}
 
             Log::info('[MetaWhatsAppWebhookController] WhatsApp message marked READ.', [
@@ -323,6 +330,11 @@ class MetaWhatsAppWebhookController extends Controller
                     ->update([
                         'status' => 'delivered',
                         'delivered_at' => $eventTime,
+                    ]);
+                \App\Models\MemberJourneySend::where('provider_message_id', $wamid)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
                     ]);
             } catch (\Throwable) {}
 

@@ -7,7 +7,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ContactInvitation;
 use App\Models\User;
+use App\Services\Notifications\ReferralInvitationWhatsappService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -71,6 +73,17 @@ class ContactInvitationController extends Controller
             ->orderBy('first_name')
             ->get();
 
+        // User Sharing Breakdown ("ko ne keta ketla ne message share kraya che")
+        $userShares = ContactInvitation::query()
+            ->selectRaw('user_id, count(*) as total_shared, 
+                sum(case when whatsapp_status = \'completed\' then 1 else 0 end) as sent_count,
+                sum(case when whatsapp_status != \'completed\' then 1 else 0 end) as pending_failed_count')
+            ->groupBy('user_id')
+            ->orderByDesc('total_shared')
+            ->with('user')
+            ->limit(15)
+            ->get();
+
         return view('admin.contact-invitations.index', [
             'invitations' => $invitations,
             'filters' => $filters,
@@ -78,12 +91,93 @@ class ContactInvitationController extends Controller
             'activePreset' => $activePreset,
             'activeStatus' => $filters['status'] ?? '',
             'users' => $users,
+            'userShares' => $userShares,
             'stats' => [
                 'total_invitations' => $totalInvitations,
                 'total_completed' => $totalCompleted,
                 'total_not_completed' => $totalNotCompleted,
                 'total_referrers' => $totalUniqueReferrers,
             ],
+        ]);
+    }
+
+    /**
+     * Resend WhatsApp referral invitation to a specific contact.
+     */
+    public function resend(string $id, ReferralInvitationWhatsappService $whatsappService): JsonResponse
+    {
+        $invitation = ContactInvitation::with('user')->find($id);
+        if (! $invitation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invitation record not found.',
+            ], 404);
+        }
+
+        if (! $invitation->user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sender user not found for this invitation.',
+            ], 422);
+        }
+
+        $sent = $whatsappService->sendInvitation($invitation, $invitation->user);
+        $invitation->refresh();
+
+        if ($sent) {
+            return response()->json([
+                'success' => true,
+                'message' => "WhatsApp invitation resent successfully to {$invitation->contact_name} ({$invitation->contact_phone})!",
+                'invitation' => [
+                    'id' => $invitation->id,
+                    'status' => $invitation->status,
+                    'whatsapp_status' => $invitation->whatsapp_status,
+                    'whatsapp_sent_at' => $invitation->whatsapp_sent_at?->format('d M Y, h:i:s A'),
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to resend WhatsApp invitation: ' . ($invitation->error_message ?? 'Unknown error'),
+        ], 500);
+    }
+
+    /**
+     * Bulk resend failed / pending WhatsApp invitations.
+     */
+    public function bulkResend(Request $request, ReferralInvitationWhatsappService $whatsappService): JsonResponse
+    {
+        $ids = $request->input('ids', []);
+        if (empty($ids) || ! is_array($ids)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No invitations selected for resend.',
+            ], 422);
+        }
+
+        $invitations = ContactInvitation::with('user')->whereIn('id', $ids)->get();
+        $successCount = 0;
+        $failedCount = 0;
+
+        foreach ($invitations as $invitation) {
+            if (! $invitation->user) {
+                $failedCount++;
+                continue;
+            }
+
+            if ($whatsappService->sendInvitation($invitation, $invitation->user)) {
+                $successCount++;
+            } else {
+                $failedCount++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Bulk resend completed: {$successCount} sent successfully, {$failedCount} failed.",
+            'success_count' => $successCount,
+            'failed_count' => $failedCount,
         ]);
     }
 

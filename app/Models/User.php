@@ -1501,4 +1501,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(MemberJourneySend::class, 'user_id', 'id');
     }
+
+    public function memberAwardSends(): HasMany
+    {
+        return $this->hasMany(MemberAwardSend::class, 'user_id', 'id');
+    }
 }

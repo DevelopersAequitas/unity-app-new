@@ -497,6 +497,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Referral Contact Invitations Admin Routes
         Route::get('/contact-invitations', [ContactInvitationController::class, 'index'])->name('contact-invitations.index');
         Route::get('/contact-invitations/export', [ContactInvitationController::class, 'export'])->name('contact-invitations.export');
+        Route::post('/contact-invitations/bulk-resend', [ContactInvitationController::class, 'bulkResend'])->name('contact-invitations.bulk-resend');
+        Route::post('/contact-invitations/{id}/resend', [ContactInvitationController::class, 'resend'])->name('contact-invitations.resend');
         Route::get('/contact-invitations/{id}', [ContactInvitationController::class, 'show'])->name('contact-invitations.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
@@ -882,9 +884,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/journey/initialize-all', [MemberJourneyAdminController::class, 'initializeAll'])->name('journey.initialize_all');
             Route::post('/journey/send/{sendId}', [MemberJourneyAdminController::class, 'sendDay'])->whereUuid('sendId')->name('journey.send_day');
             Route::post('/journey/process-due', [MemberJourneyAdminController::class, 'processDue'])->name('journey.process_due');
+            Route::post('/journey/sync-statuses', [MemberJourneyAdminController::class, 'syncStatuses'])->name('journey.sync_statuses');
 
             // Award Recognitions WhatsApp (Track 1 Growth & Track 2 Life Impact)
             Route::get('/awards', [AwardRecognitionAdminController::class, 'index'])->name('awards.index');
+            Route::get('/awards/user/{userId}', [AwardRecognitionAdminController::class, 'userTimeline'])->whereUuid('userId')->name('awards.user_timeline');
+            Route::post('/awards/user/{userId}/send-milestone', [AwardRecognitionAdminController::class, 'sendUserMilestone'])->whereUuid('userId')->name('awards.send_user_milestone');
+            Route::post('/awards/sync-statuses', [AwardRecognitionAdminController::class, 'syncStatuses'])->name('awards.sync_statuses');
             Route::get('/awards/{id}', [AwardRecognitionAdminController::class, 'show'])->whereUuid('id')->name('awards.show');
             Route::post('/awards/{id}/resend', [AwardRecognitionAdminController::class, 'resend'])->whereUuid('id')->name('awards.resend');
             Route::post('/awards/test-send', [AwardRecognitionAdminController::class, 'sendTest'])->name('awards.test_send');
