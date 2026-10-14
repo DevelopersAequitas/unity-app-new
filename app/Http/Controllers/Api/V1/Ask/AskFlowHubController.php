@@ -53,7 +53,7 @@ class AskFlowHubController extends Controller
             ? (User::find($targetUserId) ?? $currentUser)
             : $currentUser;
 
-        $params = array_merge($request->all(), [
+        $params = array_merge($request->query(), [
             'user_id' => (string) $targetUser->id,
         ]);
 
@@ -75,7 +75,7 @@ class AskFlowHubController extends Controller
         $currentUser = $request->user();
         $targetUser = User::find($userId) ?? $currentUser;
 
-        $params = array_merge($request->all(), [
+        $params = array_merge($request->query(), [
             'user_id' => $userId,
         ]);
 

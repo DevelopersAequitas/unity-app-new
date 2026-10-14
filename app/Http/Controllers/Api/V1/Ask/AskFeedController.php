@@ -60,7 +60,7 @@ class AskFeedController extends Controller
         if ($request->filled('flow')) {
             $flow = (string) $request->input('flow');
             $hubService = app(AskFlowHubService::class);
-            $result = $hubService->getMyAsks($user, $flow, $request->all());
+            $result = $hubService->getMyAsks($user, $flow, $request->query());
 
             return response()->json([
                 'success' => true,

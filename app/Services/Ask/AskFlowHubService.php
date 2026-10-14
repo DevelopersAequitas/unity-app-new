@@ -726,84 +726,106 @@ class AskFlowHubService
             ? (string) $params['user_id']
             : (string) $user->id;
 
-        $query = Ask::query()
-            ->where('user_id', $targetUserId)
-            ->where(function (Builder $q) use ($collabFlowIds, $excludeFlowIds): void {
-                $q->whereIn('flow_id', $collabFlowIds)
-                    ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
-                    ->orWhere(function (Builder $sq) use ($excludeFlowIds): void {
-                        $sq->whereNotIn('flow_id', $excludeFlowIds)
-                            ->orWhereNull('flow_id');
-                    });
-            })
-            ->with([
-                'flow',
-                'type',
-                'district',
-                'circle',
-                'user.city',
-                'answers.optionGroup',
-                'answers.option',
-                'responses.responder',
-                'responses.introducedUser',
-                'responses.contact',
-            ])
-            ->withCount(['responses', 'matches'])
-            ->orderByDesc('created_at');
+        $buildCollabQuery = function (bool $includeDeleted = false) use (
+            $targetUserId,
+            $collabFlowIds,
+            $excludeFlowIds,
+            $statusFilter,
+            $categoryId,
+            $search,
+            $districtId,
+            $circleId
+        ): Builder {
+            $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
-        if ($statusFilter !== '' && $statusFilter !== 'all') {
-            match ($statusFilter) {
-                'closed' => $query->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
-                'fulfilled' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
-                        ->orWhereNotNull('fulfilled_at');
-                }),
-                'in_progress' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
-                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
-                }),
-                'open' => $query->where(function (Builder $sq): void {
-                    $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
-                }),
-                default => $query->whereRaw('LOWER(status) = ?', [$statusFilter]),
-            };
-        }
+            $q->where('user_id', $targetUserId)
+                ->where(function (Builder $sq) use ($collabFlowIds, $excludeFlowIds): void {
+                    $sq->whereIn('flow_id', $collabFlowIds)
+                        ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn(DB::raw('LOWER(code)'), ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
+                        ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $collabFlowIds)->orWhereHas('flow', fn (Builder $tfq) => $tfq->whereIn(DB::raw('LOWER(code)'), ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab'])))
+                        ->orWhere(function (Builder $nq) use ($excludeFlowIds): void {
+                            $nq->whereNotIn('flow_id', $excludeFlowIds)
+                                ->orWhereNull('flow_id');
+                        });
+                })
+                ->with([
+                    'flow',
+                    'type',
+                    'district',
+                    'circle',
+                    'user.city',
+                    'answers.optionGroup',
+                    'answers.option',
+                    'responses.responder',
+                    'responses.introducedUser',
+                    'responses.contact',
+                ])
+                ->withCount(['responses', 'matches'])
+                ->orderByDesc('created_at');
 
-        if ($categoryId !== null) {
-            $isUuid = Str::isUuid($categoryId);
-            $query->where(function (Builder $cq) use ($categoryId, $isUuid): void {
-                if ($isUuid) {
-                    $cq->where('type_id', $categoryId)
-                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                match ($statusFilter) {
+                    'closed' => $q->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
+                    'fulfilled' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
+                            ->orWhereNotNull('fulfilled_at');
+                    }),
+                    'in_progress' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                            ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
+                    }),
+                    'open' => $q->where(function (Builder $sq): void {
+                        $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                    }),
+                    default => $q->whereRaw('LOWER(status) = ?', [$statusFilter]),
+                };
+            }
+
+            if ($categoryId !== null) {
+                $isUuid = Str::isUuid($categoryId);
+                $q->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                    if ($isUuid) {
+                        $cq->where('type_id', $categoryId)
+                            ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                                $tq->where('code', $categoryId)
+                                    ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                            });
+                    } else {
+                        $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                             $tq->where('code', $categoryId)
                                 ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                         });
-                } else {
-                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
-                        $tq->where('code', $categoryId)
-                            ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
-                    });
-                }
-            });
-        }
+                    }
+                });
+            }
 
-        if ($search !== null) {
-            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
-            $query->where(function (Builder $sq) use ($like): void {
-                $sq->where('title', 'ILIKE', $like)
-                    ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
-            });
-        }
+            if ($search !== null) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $q->where(function (Builder $sq) use ($like): void {
+                    $sq->where('title', 'ILIKE', $like)
+                        ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
+                });
+            }
 
-        if ($districtId !== null && Str::isUuid($districtId)) {
-            $query->where('visibility_district_id', $districtId);
-        }
+            if ($districtId !== null && Str::isUuid($districtId)) {
+                $q->where('visibility_district_id', $districtId);
+            }
 
-        if ($circleId !== null && Str::isUuid($circleId)) {
-            $query->where('visibility_circle_id', $circleId);
-        }
+            if ($circleId !== null && Str::isUuid($circleId)) {
+                $q->where('visibility_circle_id', $circleId);
+            }
 
-        $asks = $query->get();
+            return $q;
+        };
+
+        $asks = $buildCollabQuery(false)->get();
+
+        if ($asks->isEmpty()) {
+            $trashedAsks = $buildCollabQuery(true)->get();
+            if ($trashedAsks->isNotEmpty()) {
+                $asks = $trashedAsks;
+            }
+        }
 
         $items = [];
         foreach ($asks as $ask) {
@@ -885,81 +907,101 @@ class AskFlowHubService
             ? (string) $params['user_id']
             : (string) $user->id;
 
-        $askQuery = Ask::query()
-            ->where('user_id', $targetUserId)
-            ->where(function (Builder $q) use ($refFlowIds): void {
-                $q->whereIn('flow_id', $refFlowIds)
-                    ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
-                    ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $refFlowIds)->orWhere('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])));
-            })
-            ->with([
-                'flow',
-                'type',
-                'district',
-                'circle',
-                'user.city',
-                'answers.optionGroup',
-                'answers.option',
-                'responses.responder',
-                'responses.contact',
-                'responses.introducedUser',
-            ])
-            ->withCount(['responses', 'matches'])
-            ->orderByDesc('created_at');
+        $buildRefQuery = function (bool $includeDeleted = false) use (
+            $targetUserId,
+            $refFlowIds,
+            $statusFilter,
+            $categoryId,
+            $search,
+            $districtId,
+            $circleId
+        ): Builder {
+            $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
-        if ($statusFilter !== '' && $statusFilter !== 'all') {
-            match ($statusFilter) {
-                'closed' => $askQuery->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
-                'fulfilled' => $askQuery->where(function (Builder $sq): void {
-                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
-                        ->orWhereNotNull('fulfilled_at');
-                }),
-                'in_progress' => $askQuery->where(function (Builder $sq): void {
-                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
-                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
-                }),
-                'open' => $askQuery->where(function (Builder $sq): void {
-                    $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
-                }),
-                default => $askQuery->whereRaw('LOWER(status) = ?', [$statusFilter]),
-            };
-        }
+            $q->where('user_id', $targetUserId)
+                ->where(function (Builder $sq) use ($refFlowIds): void {
+                    $sq->whereIn('flow_id', $refFlowIds)
+                        ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn(DB::raw('LOWER(code)'), ['referral', 'referrals', 'ask_for_referral']))
+                        ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $refFlowIds)->orWhereHas('flow', fn (Builder $tfq) => $tfq->whereIn(DB::raw('LOWER(code)'), ['referral', 'referrals', 'ask_for_referral'])));
+                })
+                ->with([
+                    'flow',
+                    'type',
+                    'district',
+                    'circle',
+                    'user.city',
+                    'answers.optionGroup',
+                    'answers.option',
+                    'responses.responder',
+                    'responses.contact',
+                    'responses.introducedUser',
+                ])
+                ->withCount(['responses', 'matches'])
+                ->orderByDesc('created_at');
 
-        if ($categoryId !== null) {
-            $isUuid = Str::isUuid($categoryId);
-            $askQuery->where(function (Builder $cq) use ($categoryId, $isUuid): void {
-                if ($isUuid) {
-                    $cq->where('type_id', $categoryId)
-                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                match ($statusFilter) {
+                    'closed' => $q->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
+                    'fulfilled' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
+                            ->orWhereNotNull('fulfilled_at');
+                    }),
+                    'in_progress' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                            ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
+                    }),
+                    'open' => $q->where(function (Builder $sq): void {
+                        $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                    }),
+                    default => $q->whereRaw('LOWER(status) = ?', [$statusFilter]),
+                };
+            }
+
+            if ($categoryId !== null) {
+                $isUuid = Str::isUuid($categoryId);
+                $q->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                    if ($isUuid) {
+                        $cq->where('type_id', $categoryId)
+                            ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                                $tq->where('code', $categoryId)
+                                    ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                            });
+                    } else {
+                        $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                             $tq->where('code', $categoryId)
                                 ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                         });
-                } else {
-                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
-                        $tq->where('code', $categoryId)
-                            ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
-                    });
-                }
-            });
-        }
+                    }
+                });
+            }
 
-        if ($search !== null) {
-            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
-            $askQuery->where(function (Builder $sq) use ($like): void {
-                $sq->where('title', 'ILIKE', $like)
-                    ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
-            });
-        }
+            if ($search !== null) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $q->where(function (Builder $sq) use ($like): void {
+                    $sq->where('title', 'ILIKE', $like)
+                        ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
+                });
+            }
 
-        if ($districtId !== null && Str::isUuid($districtId)) {
-            $askQuery->where('visibility_district_id', $districtId);
-        }
+            if ($districtId !== null && Str::isUuid($districtId)) {
+                $q->where('visibility_district_id', $districtId);
+            }
 
-        if ($circleId !== null && Str::isUuid($circleId)) {
-            $askQuery->where('visibility_circle_id', $circleId);
-        }
+            if ($circleId !== null && Str::isUuid($circleId)) {
+                $q->where('visibility_circle_id', $circleId);
+            }
 
-        $asks = $askQuery->get();
+            return $q;
+        };
+
+        $asks = $buildRefQuery(false)->get();
+
+        if ($asks->isEmpty()) {
+            $trashedRefAsks = $buildRefQuery(true)->get();
+            if ($trashedRefAsks->isNotEmpty()) {
+                $asks = $trashedRefAsks;
+            }
+        }
 
         $myAsks = [];
         foreach ($asks as $ask) {
@@ -1260,81 +1302,101 @@ class AskFlowHubService
             ? (string) $params['user_id']
             : (string) $user->id;
 
-        $query = Ask::query()
-            ->where('user_id', $targetUserId)
-            ->where(function (Builder $q) use ($helpFlowIds): void {
-                $q->whereIn('flow_id', $helpFlowIds)
-                    ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['help', 'get_help', 'guidance']))
-                    ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $helpFlowIds)->orWhere('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['help', 'get_help', 'guidance'])));
-            })
-            ->with([
-                'flow',
-                'type',
-                'district',
-                'circle',
-                'user.city',
-                'answers.optionGroup',
-                'answers.option',
-                'responses.responder',
-                'responses.introducedUser',
-                'responses.contact',
-            ])
-            ->withCount(['responses', 'matches'])
-            ->orderByDesc('created_at');
+        $buildHelpQuery = function (bool $includeDeleted = false) use (
+            $targetUserId,
+            $helpFlowIds,
+            $statusFilter,
+            $categoryId,
+            $search,
+            $districtId,
+            $circleId
+        ): Builder {
+            $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
-        if ($statusFilter !== '' && $statusFilter !== 'all') {
-            match ($statusFilter) {
-                'closed' => $query->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
-                'fulfilled' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
-                        ->orWhereNotNull('fulfilled_at');
-                }),
-                'in_progress' => $query->where(function (Builder $sq): void {
-                    $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
-                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
-                }),
-                'open' => $query->where(function (Builder $sq): void {
-                    $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
-                }),
-                default => $query->whereRaw('LOWER(status) = ?', [$statusFilter]),
-            };
-        }
+            $q->where('user_id', $targetUserId)
+                ->where(function (Builder $sq) use ($helpFlowIds): void {
+                    $sq->whereIn('flow_id', $helpFlowIds)
+                        ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn(DB::raw('LOWER(code)'), ['help', 'get_help', 'guidance']))
+                        ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $helpFlowIds)->orWhereHas('flow', fn (Builder $tfq) => $tfq->whereIn(DB::raw('LOWER(code)'), ['help', 'get_help', 'guidance'])));
+                })
+                ->with([
+                    'flow',
+                    'type',
+                    'district',
+                    'circle',
+                    'user.city',
+                    'answers.optionGroup',
+                    'answers.option',
+                    'responses.responder',
+                    'responses.introducedUser',
+                    'responses.contact',
+                ])
+                ->withCount(['responses', 'matches'])
+                ->orderByDesc('created_at');
 
-        if ($categoryId !== null) {
-            $isUuid = Str::isUuid($categoryId);
-            $query->where(function (Builder $cq) use ($categoryId, $isUuid): void {
-                if ($isUuid) {
-                    $cq->where('type_id', $categoryId)
-                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                match ($statusFilter) {
+                    'closed' => $q->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived']),
+                    'fulfilled' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['fulfilled', 'completed'])
+                            ->orWhereNotNull('fulfilled_at');
+                    }),
+                    'in_progress' => $q->where(function (Builder $sq): void {
+                        $sq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['in_progress', 'review', 'pending'])
+                            ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['accepted', 'in_progress', 'completed']));
+                    }),
+                    'open' => $q->where(function (Builder $sq): void {
+                        $sq->whereNotIn(DB::raw('LOWER(COALESCE(status, \'\'))'), ['closed', 'cancelled', 'expired', 'archived', 'fulfilled', 'completed']);
+                    }),
+                    default => $q->whereRaw('LOWER(status) = ?', [$statusFilter]),
+                };
+            }
+
+            if ($categoryId !== null) {
+                $isUuid = Str::isUuid($categoryId);
+                $q->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                    if ($isUuid) {
+                        $cq->where('type_id', $categoryId)
+                            ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                                $tq->where('code', $categoryId)
+                                    ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                            });
+                    } else {
+                        $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                             $tq->where('code', $categoryId)
                                 ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                         });
-                } else {
-                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
-                        $tq->where('code', $categoryId)
-                            ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
-                    });
-                }
-            });
-        }
+                    }
+                });
+            }
 
-        if ($search !== null) {
-            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
-            $query->where(function (Builder $sq) use ($like): void {
-                $sq->where('title', 'ILIKE', $like)
-                    ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
-            });
-        }
+            if ($search !== null) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $q->where(function (Builder $sq) use ($like): void {
+                    $sq->where('title', 'ILIKE', $like)
+                        ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
+                });
+            }
 
-        if ($districtId !== null && Str::isUuid($districtId)) {
-            $query->where('visibility_district_id', $districtId);
-        }
+            if ($districtId !== null && Str::isUuid($districtId)) {
+                $q->where('visibility_district_id', $districtId);
+            }
 
-        if ($circleId !== null && Str::isUuid($circleId)) {
-            $query->where('visibility_circle_id', $circleId);
-        }
+            if ($circleId !== null && Str::isUuid($circleId)) {
+                $q->where('visibility_circle_id', $circleId);
+            }
 
-        $asks = $query->get();
+            return $q;
+        };
+
+        $asks = $buildHelpQuery(false)->get();
+
+        if ($asks->isEmpty()) {
+            $trashedHelpAsks = $buildHelpQuery(true)->get();
+            if ($trashedHelpAsks->isNotEmpty()) {
+                $asks = $trashedHelpAsks;
+            }
+        }
 
         $items = [];
         foreach ($asks as $ask) {
