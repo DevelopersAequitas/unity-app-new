@@ -714,12 +714,23 @@ class AskFlowHubService
         $collabFlowIds[] = '96f66560-416d-4993-8cf5-aa1ba2c59dd9';
         $collabFlowIds = array_values(array_unique($collabFlowIds));
 
+        $excludeFlowIds = DB::table('ask_flows')
+            ->whereIn('code', ['referral', 'referrals', 'ask_for_referral', 'help', 'get_help', 'guidance'])
+            ->pluck('id')
+            ->filter()
+            ->all();
+        $excludeFlowIds[] = 'bdab6003-95a6-4102-b235-f3461773cd0d';
+        $excludeFlowIds = array_values(array_unique($excludeFlowIds));
+
         $query = Ask::query()
             ->where('user_id', $user->id)
-            ->where(function (Builder $q) use ($collabFlowIds): void {
+            ->where(function (Builder $q) use ($collabFlowIds, $excludeFlowIds): void {
                 $q->whereIn('flow_id', $collabFlowIds)
                     ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
-                    ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $collabFlowIds)->orWhere('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab'])));
+                    ->orWhere(function (Builder $sq) use ($excludeFlowIds): void {
+                        $sq->whereNotIn('flow_id', $excludeFlowIds)
+                            ->orWhereNull('flow_id');
+                    });
             })
             ->with([
                 'flow',
