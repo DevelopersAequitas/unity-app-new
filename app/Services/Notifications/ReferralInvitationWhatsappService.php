@@ -93,24 +93,37 @@ class ReferralInvitationWhatsappService
                 'mobile_normalized' => $normalizedPhone,
             ]);
 
-            // Resolve Referral Link
+            // Resolve Sender's Personal Referral Link with Referral Code
             $referralLink = null;
-            if (! empty($invitation->invitation_message) && preg_match('/https?:\/\/[^\s]+/', $invitation->invitation_message, $urlMatch)) {
+            if (! empty($invitation->invitation_message) && preg_match('/https?:\/\/[^\s]+[?&]ref=[^\s]+/i', $invitation->invitation_message, $urlMatch)) {
                 $referralLink = rtrim($urlMatch[0], '.,!?:;');
             }
 
             if (empty($referralLink)) {
                 try {
                     $referralService = app(\App\Services\Referrals\ReferralService::class);
-                    $refData = $referralService->getOrCreateUserReferralLink($sender);
+                    $refData = $referralService->generateOrGetReferral($sender);
                     $referralLink = $refData['referral_link'] ?? null;
+
+                    if (empty($referralLink) && ! empty($refData['referral_code'])) {
+                        $base = rtrim((string) config('referrals.register_url', config('app.url', 'https://peersunity.com').'/register'), '/');
+                        $referralLink = "{$base}?ref={$refData['referral_code']}";
+                    }
                 } catch (Throwable $refEx) {
                     Log::warning('[ReferralInvitationWhatsappService] Could not generate dynamic referral link: ' . $refEx->getMessage());
                 }
             }
 
-            if (empty($referralLink)) {
-                $referralLink = rtrim((string) config('app.url', 'https://peersunity.com'), '/') . '/register';
+            // Reliable fallback ensuring referral code is always present in link
+            if (empty($referralLink) || ! str_contains($referralLink, 'ref=')) {
+                $prefix = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $sender->first_name ?: $sender->adminDisplayName()), 0, 5));
+                if (strlen($prefix) < 5) {
+                    $prefix = str_pad($prefix, 5, 'X');
+                }
+                $suffix = substr(preg_replace('/[^A-Za-z0-9]/', '', (string) $sender->id), 0, 5);
+                $fallbackCode = $prefix . $suffix;
+                $base = rtrim((string) config('referrals.register_url', 'https://peersunity.com/register'), '/');
+                $referralLink = "{$base}?ref={$fallbackCode}";
             }
 
             $customMessage = $invitation->invitation_message ?: "Hello {$contactName}, {$senderName} has invited you to Peers Global! Join using: {$referralLink}";
