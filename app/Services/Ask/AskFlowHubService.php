@@ -94,12 +94,20 @@ class AskFlowHubService
         $this->applyVisibilityScope($query, $user);
 
         if ($categoryId !== null) {
-            $query->where(function (Builder $cq) use ($categoryId): void {
-                $cq->where('type_id', $categoryId)
-                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            $isUuid = Str::isUuid($categoryId);
+            $query->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                if ($isUuid) {
+                    $cq->where('type_id', $categoryId)
+                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                            $tq->where('code', $categoryId)
+                                ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                        });
+                } else {
+                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                         $tq->where('code', $categoryId)
                             ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                     });
+                }
             });
         }
 
@@ -737,12 +745,20 @@ class AskFlowHubService
         }
 
         if ($categoryId !== null) {
-            $query->where(function (Builder $cq) use ($categoryId): void {
-                $cq->where('type_id', $categoryId)
-                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            $isUuid = Str::isUuid($categoryId);
+            $query->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                if ($isUuid) {
+                    $cq->where('type_id', $categoryId)
+                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                            $tq->where('code', $categoryId)
+                                ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                        });
+                } else {
+                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                         $tq->where('code', $categoryId)
                             ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                     });
+                }
             });
         }
 
@@ -754,11 +770,11 @@ class AskFlowHubService
             });
         }
 
-        if ($districtId !== null) {
+        if ($districtId !== null && Str::isUuid($districtId)) {
             $query->where('visibility_district_id', $districtId);
         }
 
-        if ($circleId !== null) {
+        if ($circleId !== null && Str::isUuid($circleId)) {
             $query->where('visibility_circle_id', $circleId);
         }
 
@@ -871,12 +887,20 @@ class AskFlowHubService
         }
 
         if ($categoryId !== null) {
-            $askQuery->where(function (Builder $cq) use ($categoryId): void {
-                $cq->where('type_id', $categoryId)
-                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            $isUuid = Str::isUuid($categoryId);
+            $askQuery->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                if ($isUuid) {
+                    $cq->where('type_id', $categoryId)
+                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                            $tq->where('code', $categoryId)
+                                ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                        });
+                } else {
+                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                         $tq->where('code', $categoryId)
                             ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                     });
+                }
             });
         }
 
@@ -888,11 +912,11 @@ class AskFlowHubService
             });
         }
 
-        if ($districtId !== null) {
+        if ($districtId !== null && Str::isUuid($districtId)) {
             $askQuery->where('visibility_district_id', $districtId);
         }
 
-        if ($circleId !== null) {
+        if ($circleId !== null && Str::isUuid($circleId)) {
             $askQuery->where('visibility_circle_id', $circleId);
         }
 
@@ -1226,12 +1250,20 @@ class AskFlowHubService
         }
 
         if ($categoryId !== null) {
-            $query->where(function (Builder $cq) use ($categoryId): void {
-                $cq->where('type_id', $categoryId)
-                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+            $isUuid = Str::isUuid($categoryId);
+            $query->where(function (Builder $cq) use ($categoryId, $isUuid): void {
+                if ($isUuid) {
+                    $cq->where('type_id', $categoryId)
+                        ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                            $tq->where('code', $categoryId)
+                                ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                        });
+                } else {
+                    $cq->whereHas('type', function (Builder $tq) use ($categoryId): void {
                         $tq->where('code', $categoryId)
                             ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
                     });
+                }
             });
         }
 
@@ -1243,11 +1275,11 @@ class AskFlowHubService
             });
         }
 
-        if ($districtId !== null) {
+        if ($districtId !== null && Str::isUuid($districtId)) {
             $query->where('visibility_district_id', $districtId);
         }
 
-        if ($circleId !== null) {
+        if ($circleId !== null && Str::isUuid($circleId)) {
             $query->where('visibility_circle_id', $circleId);
         }
 
