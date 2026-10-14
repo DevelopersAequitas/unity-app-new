@@ -254,7 +254,17 @@ class AdminStoreServiceabilityWebController extends Controller
         ]);
 
         $imageUrl = $request->input('image_url');
-        if ($request->hasFile('image')) {
+        if ($request->filled('image_data') && str_starts_with($request->image_data, 'data:image')) {
+            $parts = explode(',', $request->image_data);
+            $decoded = base64_decode(end($parts));
+            $filename = 'banner_'.time().'_'.Str::random(8).'.jpg';
+            $path = public_path('uploads/store/banners');
+            if (! file_exists($path)) {
+                @mkdir($path, 0755, true);
+            }
+            file_put_contents($path.'/'.$filename, $decoded);
+            $imageUrl = asset('uploads/store/banners/'.$filename);
+        } elseif ($request->hasFile('image')) {
             try {
                 $fileModel = app(FileUploadService::class)->store($request->file('image'), Auth::guard('admin')->user());
                 $imageUrl = url('/api/v1/files/'.$fileModel->id);
@@ -317,7 +327,17 @@ class AdminStoreServiceabilityWebController extends Controller
         ]);
 
         $imageUrl = $banner->getRawOriginal('image_url');
-        if ($request->hasFile('image')) {
+        if ($request->filled('image_data') && str_starts_with($request->image_data, 'data:image')) {
+            $parts = explode(',', $request->image_data);
+            $decoded = base64_decode(end($parts));
+            $filename = 'banner_'.time().'_'.Str::random(8).'.jpg';
+            $path = public_path('uploads/store/banners');
+            if (! file_exists($path)) {
+                @mkdir($path, 0755, true);
+            }
+            file_put_contents($path.'/'.$filename, $decoded);
+            $imageUrl = asset('uploads/store/banners/'.$filename);
+        } elseif ($request->hasFile('image')) {
             try {
                 $fileModel = app(FileUploadService::class)->store($request->file('image'), Auth::guard('admin')->user());
                 $imageUrl = url('/api/v1/files/'.$fileModel->id);

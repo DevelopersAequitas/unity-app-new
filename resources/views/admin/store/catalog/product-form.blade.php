@@ -274,27 +274,147 @@
 @if($isEdit)
 <!-- Add Image Modal -->
 <div class="modal fade" id="addImageModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ route('admin.store.products.images.store', $product->id) }}" method="POST">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form action="{{ route('admin.store.products.images.store', $product->id) }}" method="POST" enctype="multipart/form-data" id="addProductImageForm">
                 @csrf
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Add Product Image</h5>
+                <input type="hidden" name="image_data" id="prodImgData">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold text-dark">
+                        <i class="bi bi-card-image me-2 text-primary"></i>Add Product Image
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Image URL *</label>
-                        <input type="url" name="image_url" class="form-control" placeholder="https://images.unsplash.com/photo-..." required>
+                <div class="modal-body p-4">
+                    <!-- Source Selection Nav -->
+                    <ul class="nav nav-pills nav-fill mb-3 bg-light p-1 rounded-3" id="prodImageSourceTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-2 fw-semibold" id="prodTabDeviceBtn" type="button" onclick="switchProdImgMode('device')">
+                                <i class="bi bi-laptop me-1"></i> Browse Device / Upload
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 fw-semibold" id="prodTabUrlBtn" type="button" onclick="switchProdImgMode('url')">
+                                <i class="bi bi-link-45deg me-1"></i> Paste Image Web URL
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Device Upload Dropzone -->
+                    <div id="prodDeviceBox">
+                        <div class="img-adjuster-dropzone p-4 text-center mb-3" id="prodDropzone" onclick="document.getElementById('prodImgFileInput').click()">
+                            <i class="bi bi-cloud-arrow-up display-5 text-primary d-block mb-2"></i>
+                            <h6 class="fw-bold mb-1">Click to browse or drag & drop image here</h6>
+                            <p class="text-muted extra-small mb-2">Supports JPG, PNG, WEBP, GIF up to 10MB</p>
+                            <button type="button" class="btn btn-sm btn-outline-primary px-3 rounded-pill">
+                                <i class="bi bi-folder2-open me-1"></i> Browse from Device
+                            </button>
+                            <input type="file" id="prodImgFileInput" name="image_file" accept="image/*" class="d-none">
+                        </div>
                     </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" name="is_primary" id="isPrimaryCheck" value="1">
-                        <label class="form-check-label small" for="isPrimaryCheck">Set as Primary Display Image</label>
+
+                    <!-- URL Input Box (Hidden by default) -->
+                    <div id="prodUrlBox" class="mb-3 d-none">
+                        <label class="form-label small fw-bold">Image Web URL</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-link-45deg"></i></span>
+                            <input type="url" name="image_url" id="prodImgUrlInput" class="form-control" placeholder="https://images.unsplash.com/photo-...">
+                            <button class="btn btn-outline-primary" type="button" onclick="loadProdImgFromUrl()">
+                                <i class="bi bi-box-arrow-in-down me-1"></i> Load & Adjust
+                            </button>
+                        </div>
+                        <div class="form-text extra-small">Paste image URL and click "Load & Adjust" to preview and adjust.</div>
+                    </div>
+
+                    <!-- Live Adjustment Studio (Cropper + Controls) -->
+                    <div id="prodCropperStudio" class="d-none border rounded-3 p-3 bg-light mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-bold text-dark">
+                                <i class="bi bi-crop me-1 text-primary"></i> Adjust & Crop Image Before Upload
+                            </span>
+                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 extra-small" onclick="window.prodCropperInstance.clear()">
+                                <i class="bi bi-x-circle me-1"></i> Choose Different Image
+                            </button>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Cropper Canvas -->
+                            <div class="col-md-8">
+                                <div class="cropper-container-box">
+                                    <img id="prodImageEl" src="" alt="To Crop" style="max-width: 100%; display: block;">
+                                </div>
+                            </div>
+
+                            <!-- Controls & Live Preview -->
+                            <div class="col-md-4 d-flex flex-column justify-content-between">
+                                <div>
+                                    <label class="form-label extra-small fw-bold text-muted text-uppercase mb-1">Live Store Preview</label>
+                                    <div class="d-flex align-items-center gap-2 mb-3">
+                                        <div class="crop-preview-box shadow-sm">
+                                            <img id="prodPreviewBox" src="" alt="Preview">
+                                        </div>
+                                        <div class="small">
+                                            <div class="fw-semibold text-dark">Product View</div>
+                                            <div class="text-muted extra-small">Square format</div>
+                                            <span class="badge bg-success-subtle text-success extra-small mt-1">Adjusted & Ready</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Aspect Ratio Presets -->
+                                    <label class="form-label extra-small fw-bold text-muted text-uppercase mb-1">Aspect Ratio</label>
+                                    <div class="btn-group btn-group-sm w-100 mb-3" role="group">
+                                        <button type="button" class="btn btn-outline-secondary active" id="btnRatio1" onclick="setProdRatio(1, this)">1:1</button>
+                                        <button type="button" class="btn btn-outline-secondary" id="btnRatio43" onclick="setProdRatio(4/3, this)">4:3</button>
+                                        <button type="button" class="btn btn-outline-secondary" id="btnRatio169" onclick="setProdRatio(16/9, this)">16:9</button>
+                                        <button type="button" class="btn btn-outline-secondary" id="btnRatioFree" onclick="setProdRatio(NaN, this)">Free</button>
+                                    </div>
+
+                                    <!-- Zoom & Rotate Controls -->
+                                    <label class="form-label extra-small fw-bold text-muted text-uppercase mb-1">Zoom & Rotate</label>
+                                    <div class="d-flex gap-1 mb-2">
+                                        <button type="button" class="btn btn-sm btn-light border flex-fill" title="Zoom Out" onclick="window.prodCropperInstance.zoom(-0.1)">
+                                            <i class="bi bi-zoom-out"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light border flex-fill" title="Zoom In" onclick="window.prodCropperInstance.zoom(0.1)">
+                                            <i class="bi bi-zoom-in"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light border flex-fill" title="Rotate Left (-90°)" onclick="window.prodCropperInstance.rotate(-90)">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light border flex-fill" title="Rotate Right (+90°)" onclick="window.prodCropperInstance.rotate(90)">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                    <div class="d-flex gap-1 mb-2">
+                                        <button type="button" class="btn btn-sm btn-light border flex-fill" title="Flip Horizontal" onclick="window.prodCropperInstance.flipH()">
+                                            <i class="bi bi-symmetry-vertical"></i> Flip H
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light border flex-fill" title="Reset" onclick="window.prodCropperInstance.reset()">
+                                            <i class="bi bi-arrow-repeat"></i> Reset
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="text-muted extra-small mt-2">
+                                    <i class="bi bi-arrows-move me-1"></i> Drag to reposition or pan image inside box.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Primary Switch -->
+                    <div class="form-check form-switch p-3 bg-light rounded-3 mt-3">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" name="is_primary" id="isPrimaryCheck" value="1">
+                        <label class="form-check-label small fw-bold" for="isPrimaryCheck">
+                            Set as Primary Display Image (Main thumbnail for product)
+                        </label>
                     </div>
                 </div>
-                <div class="modal-footer">
+
+                <div class="modal-footer bg-light border-top">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Add Image</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-3 shadow-sm" id="btnSubmitProdImage">
+                        <i class="bi bi-cloud-arrow-up me-1"></i> Upload & Add Image
+                    </button>
                 </div>
             </form>
         </div>
@@ -351,6 +471,109 @@
             </form>
         </div>
     </div>
-</div>
 @endif
 @endsection
+
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/cropper.min.css') }}">
+<style>
+.img-adjuster-dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    background-color: #f8fafc;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+.img-adjuster-dropzone:hover, .img-adjuster-dropzone.border-primary {
+    border-color: #3b82f6 !important;
+    background-color: #eff6ff !important;
+}
+.cropper-container-box {
+    height: 340px;
+    background-color: #0f172a;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.crop-preview-box {
+    width: 100px;
+    height: 100px;
+    border-radius: 8px;
+    border: 2px solid #cbd5e1;
+    overflow: hidden;
+    background: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.crop-preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+</style>
+@endpush
+
+@push('scripts')
+<script src="{{ asset('js/cropper.min.js') }}"></script>
+<script src="{{ asset('js/store-image-adjuster.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    window.prodCropperInstance = StoreImageAdjuster.init({
+        id: 'product_image',
+        fileInputId: 'prodImgFileInput',
+        urlInputId: 'prodImgUrlInput',
+        hiddenDataId: 'prodImgData',
+        dropzoneId: 'prodDropzone',
+        cropperContainerId: 'prodCropperStudio',
+        imageElementId: 'prodImageEl',
+        previewBoxId: 'prodPreviewBox',
+        aspectRatio: 1,
+        formId: 'addProductImageForm'
+    });
+});
+
+function switchProdImgMode(mode) {
+    const devBox = document.getElementById('prodDeviceBox');
+    const urlBox = document.getElementById('prodUrlBox');
+    const tabDev = document.getElementById('prodTabDeviceBtn');
+    const tabUrl = document.getElementById('prodTabUrlBtn');
+
+    if (mode === 'device') {
+        if (devBox) devBox.classList.remove('d-none');
+        if (urlBox) urlBox.classList.add('d-none');
+        if (tabDev) tabDev.classList.add('active');
+        if (tabUrl) tabUrl.classList.remove('active');
+    } else {
+        if (devBox) devBox.classList.add('d-none');
+        if (urlBox) urlBox.classList.remove('d-none');
+        if (tabDev) tabDev.classList.remove('active');
+        if (tabUrl) tabUrl.classList.add('active');
+    }
+}
+
+function loadProdImgFromUrl() {
+    const url = document.getElementById('prodImgUrlInput').value.trim();
+    if (!url) {
+        alert('Please enter a valid image URL first.');
+        return;
+    }
+    if (window.prodCropperInstance) {
+        window.prodCropperInstance.loadFromUrl(url);
+    }
+}
+
+function setProdRatio(ratio, btn) {
+    if (window.prodCropperInstance) {
+        window.prodCropperInstance.setRatio(ratio);
+    }
+    const group = btn.closest('.btn-group');
+    if (group) {
+        group.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+}
+</script>
+@endpush

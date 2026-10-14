@@ -9,6 +9,7 @@ use App\Models\Store\ProductVariant;
 use App\Models\Store\StoreCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AdminStoreCatalogWebController extends Controller
@@ -38,9 +39,22 @@ class AdminStoreCatalogWebController extends Controller
             'slug' => 'nullable|string|max:120|unique:store_categories,slug',
             'description' => 'nullable|string|max:500',
             'image_url' => 'nullable|string|max:500',
+            'image_file' => 'nullable|image|max:10240',
+            'image_data' => 'nullable|string',
             'sort_order' => 'nullable|integer',
             'status' => 'nullable|string|in:ACTIVE,INACTIVE',
         ]);
+
+        if (!empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
+            $parts = explode(',', $request->image_data);
+            $decoded = base64_decode(end($parts));
+            $filename = 'store/categories/' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($filename, $decoded);
+            $validated['image_url'] = '/storage/' . $filename;
+        } elseif ($request->hasFile('image_file')) {
+            $path = $request->file('image_file')->store('store/categories', 'public');
+            $validated['image_url'] = '/storage/'.$path;
+        }
 
         if (empty($validated['slug'])) {
             $validated['slug'] = Str::slug($validated['name']);
@@ -48,6 +62,7 @@ class AdminStoreCatalogWebController extends Controller
         $validated['status'] = $validated['status'] ?? 'ACTIVE';
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
+        unset($validated['image_file'], $validated['image_data']);
         StoreCategory::create($validated);
 
         return redirect()->route('admin.store.categories.index')->with('success', 'Category created successfully.');
@@ -62,14 +77,28 @@ class AdminStoreCatalogWebController extends Controller
             'slug' => 'nullable|string|max:120|unique:store_categories,slug,'.$id,
             'description' => 'nullable|string|max:500',
             'image_url' => 'nullable|string|max:500',
+            'image_file' => 'nullable|image|max:10240',
+            'image_data' => 'nullable|string',
             'sort_order' => 'nullable|integer',
             'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
+
+        if (!empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
+            $parts = explode(',', $request->image_data);
+            $decoded = base64_decode(end($parts));
+            $filename = 'store/categories/' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($filename, $decoded);
+            $validated['image_url'] = '/storage/' . $filename;
+        } elseif ($request->hasFile('image_file')) {
+            $path = $request->file('image_file')->store('store/categories', 'public');
+            $validated['image_url'] = '/storage/'.$path;
+        }
 
         if (empty($validated['slug'])) {
             $validated['slug'] = Str::slug($validated['name']);
         }
 
+        unset($validated['image_file'], $validated['image_data']);
         $category->update($validated);
 
         return redirect()->route('admin.store.categories.index')->with('success', 'Category updated successfully.');
@@ -422,9 +451,28 @@ class AdminStoreCatalogWebController extends Controller
         $product = Product::findOrFail($productId);
 
         $request->validate([
-            'image_url' => 'required|string|max:500',
+            'image_url' => 'nullable|string|max:500',
+            'image_file' => 'nullable|image|max:10240',
+            'image_data' => 'nullable|string',
             'is_primary' => 'nullable|boolean',
         ]);
+
+        $imageUrl = $request->image_url;
+
+        if (!empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
+            $parts = explode(',', $request->image_data);
+            $decoded = base64_decode(end($parts));
+            $filename = 'store/products/' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($filename, $decoded);
+            $imageUrl = '/storage/' . $filename;
+        } elseif ($request->hasFile('image_file')) {
+            $path = $request->file('image_file')->store('store/products', 'public');
+            $imageUrl = '/storage/'.$path;
+        }
+
+        if (empty($imageUrl)) {
+            return back()->with('error', 'Please provide an image file or URL.');
+        }
 
         $isPrimary = $request->has('is_primary');
         if ($isPrimary) {
@@ -433,12 +481,12 @@ class AdminStoreCatalogWebController extends Controller
 
         ProductImage::create([
             'product_id' => $product->id,
-            'image_url' => $request->image_url,
+            'image_url' => $imageUrl,
             'is_primary' => $isPrimary,
             'sort_order' => ProductImage::where('product_id', $product->id)->count() + 1,
         ]);
 
-        return back()->with('success', 'Product image added.');
+        return back()->with('success', 'Product image added successfully.');
     }
 
     public function deleteImage(string $imageId)
