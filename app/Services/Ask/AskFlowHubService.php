@@ -522,9 +522,9 @@ class AskFlowHubService
         $matchesCount = (int) ($ask->matches_count ?? ($ask->relationLoaded('matches') ? $ask->matches->count() : 0));
 
         $status = match ($ask->status) {
-            Ask::STATUS_FULFILLED => 'fulfilled',
-            Ask::STATUS_CLOSED => 'closed',
-            Ask::STATUS_IN_PROGRESS => 'in_progress',
+            Ask::STATUS_FULFILLED, 'fulfilled', 'completed' => 'fulfilled',
+            Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived' => 'closed',
+            Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending' => 'in_progress',
             default => ($acceptedPeer !== null || $fulfilledBy !== null ? 'in_progress' : 'open'),
         };
 
@@ -688,7 +688,15 @@ class AskFlowHubService
      */
     protected function getMyCollaborationAsks(User $user, array $params = []): array
     {
-        $asks = Ask::query()
+        $statusFilter = strtolower(trim((string) ($params['status'] ?? 'all')));
+        $categoryId = filled($params['category_id'] ?? null) ? trim((string) $params['category_id']) : null;
+        $search = filled($params['search'] ?? null) ? trim((string) $params['search']) : null;
+        $districtId = filled($params['district_id'] ?? null) ? trim((string) $params['district_id']) : null;
+        $circleId = filled($params['circle_id'] ?? null) ? trim((string) $params['circle_id']) : null;
+        $page = max(1, (int) ($params['page'] ?? 1));
+        $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
+
+        $query = Ask::query()
             ->where('user_id', $user->id)
             ->whereHas('flow', fn (Builder $q) => $q->where('code', 'collaboration'))
             ->with([
@@ -704,8 +712,53 @@ class AskFlowHubService
                 'responses.contact',
             ])
             ->withCount(['responses', 'matches'])
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
+
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
+            match ($statusFilter) {
+                'closed' => $query->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived']),
+                'fulfilled' => $query->where(function (Builder $sq): void {
+                    $sq->whereIn('status', [Ask::STATUS_FULFILLED, 'fulfilled', 'completed'])
+                        ->orWhereNotNull('fulfilled_at');
+                }),
+                'in_progress' => $query->where(function (Builder $sq): void {
+                    $sq->whereIn('status', [Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending'])
+                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED]));
+                }),
+                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
+                    ->whereNotIn('status', [Ask::STATUS_FULFILLED, Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'fulfilled', 'completed', 'cancelled', 'expired', 'archived'])
+                    ->whereDoesntHave('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED])),
+                default => $query->where('status', $statusFilter),
+            };
+        }
+
+        if ($categoryId !== null) {
+            $query->where(function (Builder $cq) use ($categoryId): void {
+                $cq->where('type_id', $categoryId)
+                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                        $tq->where('code', $categoryId)
+                            ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                    });
+            });
+        }
+
+        if ($search !== null) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+            $query->where(function (Builder $sq) use ($like): void {
+                $sq->where('title', 'ILIKE', $like)
+                    ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
+            });
+        }
+
+        if ($districtId !== null) {
+            $query->where('visibility_district_id', $districtId);
+        }
+
+        if ($circleId !== null) {
+            $query->where('visibility_circle_id', $circleId);
+        }
+
+        $asks = $query->get();
 
         $items = [];
         foreach ($asks as $ask) {
@@ -729,12 +782,32 @@ class AskFlowHubService
                 }
             }
 
-            $items[] = $this->formatFullAskDetails($ask, 'collaboration', $acceptedPeer);
+            $formatted = $this->formatFullAskDetails($ask, 'collaboration', $acceptedPeer);
+
+            // Double check in-memory status filter to ensure 100% precision
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                if ($formatted['status'] !== $statusFilter && (string) $ask->status !== $statusFilter) {
+                    continue;
+                }
+            }
+
+            $items[] = $formatted;
         }
 
+        $total = count($items);
+        $pagedItems = array_slice($items, ($page - 1) * $limit, $limit);
+        $hasMore = ($page * $limit) < $total;
+
         return [
-            'items' => $items,
-            'data' => $items,
+            'items' => $pagedItems,
+            'data' => $pagedItems,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'has_more' => $hasMore,
+                'total' => $total,
+                'last_page' => (int) ceil($total / $limit),
+            ],
         ];
     }
 
@@ -746,7 +819,15 @@ class AskFlowHubService
      */
     protected function getMyReferralAsks(User $user, array $params = []): array
     {
-        $asks = Ask::query()
+        $statusFilter = strtolower(trim((string) ($params['status'] ?? 'all')));
+        $categoryId = filled($params['category_id'] ?? null) ? trim((string) $params['category_id']) : null;
+        $search = filled($params['search'] ?? null) ? trim((string) $params['search']) : null;
+        $districtId = filled($params['district_id'] ?? null) ? trim((string) $params['district_id']) : null;
+        $circleId = filled($params['circle_id'] ?? null) ? trim((string) $params['circle_id']) : null;
+        $page = max(1, (int) ($params['page'] ?? 1));
+        $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
+
+        $askQuery = Ask::query()
             ->where('user_id', $user->id)
             ->where(function (Builder $q): void {
                 $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
@@ -765,14 +846,66 @@ class AskFlowHubService
                 'responses.introducedUser',
             ])
             ->withCount(['responses', 'matches'])
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
+
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
+            match ($statusFilter) {
+                'closed' => $askQuery->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived']),
+                'fulfilled' => $askQuery->where(function (Builder $sq): void {
+                    $sq->whereIn('status', [Ask::STATUS_FULFILLED, 'fulfilled', 'completed'])
+                        ->orWhereNotNull('fulfilled_at');
+                }),
+                'in_progress' => $askQuery->where(function (Builder $sq): void {
+                    $sq->whereIn('status', [Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending'])
+                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED]));
+                }),
+                'open' => $askQuery->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
+                    ->whereNotIn('status', [Ask::STATUS_FULFILLED, Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'fulfilled', 'completed', 'cancelled', 'expired', 'archived'])
+                    ->whereDoesntHave('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED])),
+                default => $askQuery->where('status', $statusFilter),
+            };
+        }
+
+        if ($categoryId !== null) {
+            $askQuery->where(function (Builder $cq) use ($categoryId): void {
+                $cq->where('type_id', $categoryId)
+                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                        $tq->where('code', $categoryId)
+                            ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                    });
+            });
+        }
+
+        if ($search !== null) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+            $askQuery->where(function (Builder $sq) use ($like): void {
+                $sq->where('title', 'ILIKE', $like)
+                    ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
+            });
+        }
+
+        if ($districtId !== null) {
+            $askQuery->where('visibility_district_id', $districtId);
+        }
+
+        if ($circleId !== null) {
+            $askQuery->where('visibility_circle_id', $circleId);
+        }
+
+        $asks = $askQuery->get();
 
         $myAsks = [];
         foreach ($asks as $ask) {
             /** @var Ask $ask */
             $formatted = $this->formatFullAskDetails($ask, 'referral');
             $formatted['referral_of'] = (string) $ask->title;
+
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                if ($formatted['status'] !== $statusFilter && (string) $ask->status !== $statusFilter) {
+                    continue;
+                }
+            }
+
             $myAsks[] = $formatted;
         }
 
@@ -1012,13 +1145,24 @@ class AskFlowHubService
         usort($givenReferrals, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
         usort($receivedIntroductions, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
+        $total = count($allMyAsks);
+        $pagedAll = array_slice($allMyAsks, ($page - 1) * $limit, $limit);
+        $hasMore = ($page * $limit) < $total;
+
         return [
-            'items' => $allMyAsks,
+            'items' => $pagedAll,
             'my_asks' => $myAsks,
-            'data' => $allMyAsks,
+            'data' => $pagedAll,
             'given_referrals' => $givenReferrals,
             'received_introductions' => $receivedIntroductions,
-            'referrals' => $allMyAsks,
+            'referrals' => $pagedAll,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'has_more' => $hasMore,
+                'total' => $total,
+                'last_page' => (int) ceil($total / $limit),
+            ],
         ];
     }
 
@@ -1030,7 +1174,15 @@ class AskFlowHubService
      */
     protected function getMyHelpAsks(User $user, array $params = []): array
     {
-        $asks = Ask::query()
+        $statusFilter = strtolower(trim((string) ($params['status'] ?? 'all')));
+        $categoryId = filled($params['category_id'] ?? null) ? trim((string) $params['category_id']) : null;
+        $search = filled($params['search'] ?? null) ? trim((string) $params['search']) : null;
+        $districtId = filled($params['district_id'] ?? null) ? trim((string) $params['district_id']) : null;
+        $circleId = filled($params['circle_id'] ?? null) ? trim((string) $params['circle_id']) : null;
+        $page = max(1, (int) ($params['page'] ?? 1));
+        $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
+
+        $query = Ask::query()
             ->where('user_id', $user->id)
             ->whereHas('flow', fn (Builder $q) => $q->where('code', 'help'))
             ->with([
@@ -1046,8 +1198,53 @@ class AskFlowHubService
                 'responses.contact',
             ])
             ->withCount(['responses', 'matches'])
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
+
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
+            match ($statusFilter) {
+                'closed' => $query->whereIn('status', [Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'cancelled', 'expired', 'archived']),
+                'fulfilled' => $query->where(function (Builder $sq): void {
+                    $sq->whereIn('status', [Ask::STATUS_FULFILLED, 'fulfilled', 'completed'])
+                        ->orWhereNotNull('fulfilled_at');
+                }),
+                'in_progress' => $query->where(function (Builder $sq): void {
+                    $sq->whereIn('status', [Ask::STATUS_IN_PROGRESS, 'in_progress', 'review', 'pending'])
+                        ->orWhereHas('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED]));
+                }),
+                'open' => $query->whereIn('status', [Ask::STATUS_PUBLISHED, 'open', 'active', Ask::STATUS_DRAFT])
+                    ->whereNotIn('status', [Ask::STATUS_FULFILLED, Ask::STATUS_CLOSED, Ask::STATUS_CANCELLED, Ask::STATUS_EXPIRED, 'closed', 'fulfilled', 'completed', 'cancelled', 'expired', 'archived'])
+                    ->whereDoesntHave('responses', fn (Builder $rq) => $rq->whereIn('status', [AskResponse::STATUS_ACCEPTED, AskResponse::STATUS_IN_PROGRESS, AskResponse::STATUS_COMPLETED])),
+                default => $query->where('status', $statusFilter),
+            };
+        }
+
+        if ($categoryId !== null) {
+            $query->where(function (Builder $cq) use ($categoryId): void {
+                $cq->where('type_id', $categoryId)
+                    ->orWhereHas('type', function (Builder $tq) use ($categoryId): void {
+                        $tq->where('code', $categoryId)
+                            ->orWhere('name', 'ILIKE', '%'.$categoryId.'%');
+                    });
+            });
+        }
+
+        if ($search !== null) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+            $query->where(function (Builder $sq) use ($like): void {
+                $sq->where('title', 'ILIKE', $like)
+                    ->orWhereHas('answers', fn (Builder $aq) => $aq->where('value_text', 'ILIKE', $like));
+            });
+        }
+
+        if ($districtId !== null) {
+            $query->where('visibility_district_id', $districtId);
+        }
+
+        if ($circleId !== null) {
+            $query->where('visibility_circle_id', $circleId);
+        }
+
+        $asks = $query->get();
 
         $items = [];
         foreach ($asks as $ask) {
@@ -1077,12 +1274,31 @@ class AskFlowHubService
                 }
             }
 
-            $items[] = $this->formatFullAskDetails($ask, 'help', null, $fulfilledBy);
+            $formatted = $this->formatFullAskDetails($ask, 'help', null, $fulfilledBy);
+
+            if ($statusFilter !== '' && $statusFilter !== 'all') {
+                if ($formatted['status'] !== $statusFilter && (string) $ask->status !== $statusFilter) {
+                    continue;
+                }
+            }
+
+            $items[] = $formatted;
         }
 
+        $total = count($items);
+        $pagedItems = array_slice($items, ($page - 1) * $limit, $limit);
+        $hasMore = ($page * $limit) < $total;
+
         return [
-            'items' => $items,
-            'data' => $items,
+            'items' => $pagedItems,
+            'data' => $pagedItems,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'has_more' => $hasMore,
+                'total' => $total,
+                'last_page' => (int) ceil($total / $limit),
+            ],
         ];
     }
 
