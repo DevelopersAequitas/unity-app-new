@@ -391,7 +391,14 @@ class AskFlowHubService
             $q = $includeDeleted ? Ask::withTrashed() : Ask::query();
 
             $q->where('user_id', $targetUserId)
-                ->with(['flow', 'type', 'user.city'])
+                ->with([
+                    'flow',
+                    'type',
+                    'user.city',
+                    'responses.responder',
+                    'responses.introducedUser',
+                    'responses.contact',
+                ])
                 ->withCount(['responses', 'matches'])
                 ->orderByDesc('created_at');
 
@@ -532,6 +539,66 @@ class AskFlowHubService
                 : ($authorUser->profile_photo_url ?? null),
         ] : null;
 
+        $formattedResponses = [];
+        if ($ask->relationLoaded('responses')) {
+            foreach ($ask->responses as $resp) {
+                /** @var AskResponse $resp */
+                $responder = $resp->responder;
+                $introduced = $resp->introducedUser;
+                $contact = $resp->contact;
+
+                $responderName = $responder ? ($responder->display_name ?: trim(($responder->first_name ?? '').' '.($responder->last_name ?? ''))) : 'Peer Member';
+                $introducedName = $introduced ? ($introduced->display_name ?: trim(($introduced->first_name ?? '').' '.($introduced->last_name ?? ''))) : ($contact?->full_name ?? null);
+
+                $formattedResponses[] = [
+                    'id' => (string) $resp->id,
+                    'response_id' => (string) $resp->id,
+                    'status' => (string) $resp->status,
+                    'status_label' => ucfirst(str_replace('_', ' ', (string) $resp->status)),
+                    'response_type' => (string) ($resp->response_type ?? 'response'),
+                    'message' => (string) ($resp->message ?? ''),
+                    'responded_at' => $resp->responded_at?->toISOString() ?? $resp->created_at?->toISOString(),
+                    'responder' => $responder ? [
+                        'id' => (string) $responder->id,
+                        'name' => $responderName,
+                        'display_name' => $responderName,
+                        'company_name' => (string) ($responder->company_name ?? ''),
+                        'designation' => (string) ($responder->designation ?? ''),
+                        'avatar_url' => $responder->profile_photo_file_id
+                            ? url('/api/v1/files/'.$responder->profile_photo_file_id)
+                            : ($responder->profile_photo_url ?? null),
+                    ] : null,
+                    'introduced_peer' => $introduced ? [
+                        'id' => (string) $introduced->id,
+                        'name' => $introducedName,
+                        'display_name' => $introducedName,
+                        'company_name' => (string) ($introduced->company_name ?? ''),
+                        'designation' => (string) ($introduced->designation ?? ''),
+                        'avatar_url' => $introduced->profile_photo_file_id
+                            ? url('/api/v1/files/'.$introduced->profile_photo_file_id)
+                            : ($introduced->profile_photo_url ?? null),
+                    ] : ($contact ? [
+                        'id' => (string) $contact->id,
+                        'name' => (string) $contact->full_name,
+                        'display_name' => (string) $contact->full_name,
+                        'designation' => (string) ($contact->designation ?? ''),
+                        'company_name' => (string) ($contact->company_name ?? ''),
+                        'phone' => (string) ($contact->phone ?? ''),
+                        'email' => (string) ($contact->email ?? ''),
+                    ] : null),
+                    'created_at' => $resp->created_at?->toISOString() ?? now()->toISOString(),
+                ];
+            }
+        }
+
+        $acceptedPeer = null;
+        if (! empty($formattedResponses)) {
+            $accepted = collect($formattedResponses)->first(fn ($r) => in_array(strtolower((string) $r['status']), ['accepted', 'completed'], true));
+            if ($accepted) {
+                $acceptedPeer = $accepted['responder'];
+            }
+        }
+
         return [
             'id' => (string) $ask->id,
             'flow_id' => (string) ($ask->flow_id ?? $ask->flow?->id ?? ''),
@@ -543,8 +610,10 @@ class AskFlowHubService
             'description' => (string) $description,
             'status' => $status,
             'status_label' => ucfirst(str_replace('_', ' ', $status)),
-            'responses_count' => (int) ($ask->responses_count ?? ($ask->relationLoaded('responses') ? $ask->responses->count() : 0)),
+            'responses_count' => (int) ($ask->responses_count ?? count($formattedResponses)),
             'matches_count' => (int) ($ask->matches_count ?? ($ask->relationLoaded('matches') ? $ask->matches->count() : 0)),
+            'accepted_peer' => $acceptedPeer,
+            'responses' => $formattedResponses,
             'author' => $author,
             'user' => $author,
             'created_at' => $ask->created_at?->toISOString() ?? now()->toISOString(),
