@@ -245,7 +245,7 @@ class AwardRecognitionWhatsappService
             $sendRecord->update([
                 'status' => 'sent',
                 'sent_at' => now(),
-                'provider_message_id' => $result['whatsapp_message_id'] ?? ($result['meta_message_id'] ?? null),
+                'provider_message_id' => ! empty($result['meta_message_id']) ? $result['meta_message_id'] : ($result['whatsapp_message_id'] ?? null),
                 'provider_response_json' => $result,
             ]);
 

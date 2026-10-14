@@ -235,13 +235,13 @@ class MetaWhatsAppWebhookController extends Controller
             ]);
 
             try {
-                \App\Models\MemberAwardSend::where('provider_message_id', $wamid)->update([
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)->update([
                     'status' => 'failed',
                     'error_message' => $errorMessage,
                 ]);
-                \App\Models\MemberJourneySend::where('provider_message_id', $wamid)->update([
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
                     'status' => 'failed',
-                    'error_message' => $errorMessage,
                 ]);
             } catch (\Throwable) {}
 
@@ -281,12 +281,13 @@ class MetaWhatsAppWebhookController extends Controller
             ]);
 
             try {
-                \App\Models\MemberAwardSend::where('provider_message_id', $wamid)->update([
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)->update([
                     'status' => 'read',
                     'read_at' => $eventTime,
                     'delivered_at' => \Illuminate\Support\Facades\DB::raw('COALESCE(delivered_at, NOW())'),
                 ]);
-                \App\Models\MemberJourneySend::where('provider_message_id', $wamid)->update([
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
                     'status' => 'read',
                 ]);
             } catch (\Throwable) {}
@@ -325,13 +326,14 @@ class MetaWhatsAppWebhookController extends Controller
                 ]);
 
             try {
-                \App\Models\MemberAwardSend::where('provider_message_id', $wamid)
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)
                     ->where('status', '!=', 'read')
                     ->update([
                         'status' => 'delivered',
                         'delivered_at' => $eventTime,
                     ]);
-                \App\Models\MemberJourneySend::where('provider_message_id', $wamid)
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)
                     ->where('status', '!=', 'read')
                     ->update([
                         'status' => 'delivered',

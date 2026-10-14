@@ -171,6 +171,13 @@ class AdminStoreCatalogWebController extends Controller
         $validated['stock_qty'] = $validated['stock_qty'] ?? 0;
         $validated['coin_price'] = $validated['price_coins'];
         $validated['created_by'] = Auth::guard('admin')->id();
+        $validated['track_inventory'] = true;
+        $validated['allow_backorder'] = false;
+        $validated['sort_order'] = 0;
+        $validated['eligibility'] = ['all'];
+        $validated['min_quantity_per_order'] = $validated['min_quantity_per_order'] ?? 1;
+        $validated['max_quantity_per_order'] = $validated['max_quantity_per_order'] ?? 10;
+        $validated['delivery_modes'] = ! empty($request->delivery_modes) ? (array) $request->delivery_modes : ['COURIER'];
 
         $product = Product::create($validated);
 
@@ -180,10 +187,15 @@ class AdminStoreCatalogWebController extends Controller
                 'product_id' => $product->id,
                 'sku' => $product->sku.'-STD',
                 'name' => $request->initial_variant_name,
+                'attributes' => ['default' => true],
                 'price_coins' => $product->price_coins,
                 'coin_price' => $product->price_coins,
                 'stock_quantity' => $product->stock_qty,
                 'stock_qty' => $product->stock_qty,
+                'reserved_quantity' => 0,
+                'low_stock_threshold' => 5,
+                'allow_backorder' => false,
+                'is_active' => true,
                 'status' => 'ACTIVE',
             ]);
         }

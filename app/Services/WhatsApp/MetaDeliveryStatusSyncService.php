@@ -39,12 +39,18 @@ class MetaDeliveryStatusSyncService
             $wamids = $sends->pluck('provider_message_id')->unique()->filter()->values()->all();
 
             $metaMessages = WhatsappMessage::whereIn('meta_message_id', $wamids)->get()->keyBy('meta_message_id');
+            $metaMessagesById = WhatsappMessage::whereIn('id', $wamids)->get()->keyBy('id');
             $messageLogs = WhatsAppMessageLog::whereIn('provider_message_id', $wamids)->get()->keyBy('provider_message_id');
 
             foreach ($sends as $send) {
                 $wamid = $send->provider_message_id;
-                $metaMsg = $metaMessages->get($wamid);
+                $metaMsg = $metaMessages->get($wamid) ?? $metaMessagesById->get($wamid);
                 $logMsg = $messageLogs->get($wamid);
+
+                // Auto-upgrade stored internal ID to real meta_message_id
+                if ($metaMsg && ! empty($metaMsg->meta_message_id) && $send->provider_message_id !== $metaMsg->meta_message_id) {
+                    $send->provider_message_id = $metaMsg->meta_message_id;
+                }
 
                 $resolvedStatus = null;
                 $deliveredAt = null;
