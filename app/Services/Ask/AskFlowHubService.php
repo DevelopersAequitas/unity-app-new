@@ -706,11 +706,20 @@ class AskFlowHubService
         $page = max(1, (int) ($params['page'] ?? 1));
         $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
 
+        $collabFlowIds = DB::table('ask_flows')
+            ->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab'])
+            ->pluck('id')
+            ->filter()
+            ->all();
+        $collabFlowIds[] = '96f66560-416d-4993-8cf5-aa1ba2c59dd9';
+        $collabFlowIds = array_values(array_unique($collabFlowIds));
+
         $query = Ask::query()
             ->where('user_id', $user->id)
-            ->where(function (Builder $q): void {
-                $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
-                    ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab'])));
+            ->where(function (Builder $q) use ($collabFlowIds): void {
+                $q->whereIn('flow_id', $collabFlowIds)
+                    ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab']))
+                    ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $collabFlowIds)->orWhere('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['collaboration', 'collaborations', 'collaborator', 'find_a_collaborator', 'collab'])));
             })
             ->with([
                 'flow',
@@ -828,6 +837,7 @@ class AskFlowHubService
                 'has_more' => $hasMore,
                 'total' => $total,
                 'last_page' => (int) ceil($total / $limit),
+                'authenticated_user_id' => (string) $user->id,
             ],
         ];
     }
@@ -848,11 +858,20 @@ class AskFlowHubService
         $page = max(1, (int) ($params['page'] ?? 1));
         $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
 
+        $refFlowIds = DB::table('ask_flows')
+            ->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])
+            ->pluck('id')
+            ->filter()
+            ->all();
+        $refFlowIds[] = 'bdab6003-95a6-4102-b235-f3461773cd0d';
+        $refFlowIds = array_values(array_unique($refFlowIds));
+
         $askQuery = Ask::query()
             ->where('user_id', $user->id)
-            ->where(function (Builder $q): void {
-                $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
-                    ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])));
+            ->where(function (Builder $q) use ($refFlowIds): void {
+                $q->whereIn('flow_id', $refFlowIds)
+                    ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['referral', 'referrals', 'ask_for_referral']))
+                    ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $refFlowIds)->orWhere('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['referral', 'referrals', 'ask_for_referral'])));
             })
             ->with([
                 'flow',
@@ -1191,6 +1210,7 @@ class AskFlowHubService
                 'has_more' => $hasMore,
                 'total' => $total,
                 'last_page' => (int) ceil($total / $limit),
+                'authenticated_user_id' => (string) $user->id,
             ],
         ];
     }
@@ -1211,11 +1231,18 @@ class AskFlowHubService
         $page = max(1, (int) ($params['page'] ?? 1));
         $limit = max(1, min(100, (int) ($params['limit'] ?? ($params['per_page'] ?? 20))));
 
+        $helpFlowIds = DB::table('ask_flows')
+            ->whereIn('code', ['help', 'get_help', 'guidance'])
+            ->pluck('id')
+            ->filter()
+            ->all();
+
         $query = Ask::query()
             ->where('user_id', $user->id)
-            ->where(function (Builder $q): void {
-                $q->whereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['help', 'get_help', 'guidance']))
-                    ->orWhereHas('type', fn (Builder $tq) => $tq->where('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['help', 'get_help', 'guidance'])));
+            ->where(function (Builder $q) use ($helpFlowIds): void {
+                $q->whereIn('flow_id', $helpFlowIds)
+                    ->orWhereHas('flow', fn (Builder $fq) => $fq->whereIn('code', ['help', 'get_help', 'guidance']))
+                    ->orWhereHas('type', fn (Builder $tq) => $tq->whereIn('flow_id', $helpFlowIds)->orWhere('flow_id', fn ($sub) => $sub->select('id')->from('ask_flows')->whereIn('code', ['help', 'get_help', 'guidance'])));
             })
             ->with([
                 'flow',
@@ -1338,6 +1365,7 @@ class AskFlowHubService
                 'has_more' => $hasMore,
                 'total' => $total,
                 'last_page' => (int) ceil($total / $limit),
+                'authenticated_user_id' => (string) $user->id,
             ],
         ];
     }
