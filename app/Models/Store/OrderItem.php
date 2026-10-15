@@ -24,6 +24,7 @@ class OrderItem extends Model
         'total_coin_price',
         'status',
         'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class OrderItem extends Model
         'unit_coin_price' => 'integer',
         'total_coin_price' => 'integer',
         'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function order(): BelongsTo
