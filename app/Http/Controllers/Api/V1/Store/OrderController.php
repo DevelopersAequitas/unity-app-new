@@ -129,21 +129,35 @@ class OrderController extends BaseApiController
 
                 $itemReturnRequest = null;
                 if ($itemReturn) {
+                    $itemCoins = (int) ($itemData['total_coin_price'] ?? ($itemData['unit_coin_price'] ?? 0));
+                    $itemRefundCoins = $itemReturn->refund_coins_amount !== null
+                        ? (int) $itemReturn->refund_coins_amount
+                        : ($itemReturn->refund_coins !== null ? (int) $itemReturn->refund_coins : $itemCoins);
+
                     $itemReturnRequest = [
                         'id' => (string) $itemReturn->id,
                         'return_no' => (string) $itemReturn->return_no,
                         'order_item_id' => $itemId,
                         'status' => (string) $itemReturn->status,
-                        'refund_coins_amount' => (int) ($itemReturn->refund_coins_amount ?? ($itemReturn->refund_coins ?? 0)),
-                        'refund_coins' => (int) ($itemReturn->refund_coins ?? 0),
+                        'refund_coins_amount' => $itemRefundCoins,
+                        'refund_coins' => $itemRefundCoins,
                         'reason' => (string) ($itemReturn->reason_code ?: $itemReturn->reason ?: 'DEFECTIVE'),
                         'created_at' => $itemReturn->created_at ? $itemReturn->created_at->toISOString() : null,
                     ];
                 }
 
                 $itemStatus = $itemData['status'] ?? null;
-                if ($itemReturn && (! $itemStatus || in_array(strtoupper((string) $itemStatus), ['DELIVERED', 'COMPLETED'], true))) {
-                    $itemStatus = strtoupper((string) $itemReturn->status) === 'REQUESTED' ? 'RETURN_REQUESTED' : (string) $itemReturn->status;
+                if ($itemReturn) {
+                    $retStatusUpper = strtoupper((string) $itemReturn->status);
+                    if ($retStatusUpper === 'REQUESTED') {
+                        $itemStatus = 'RETURN_REQUESTED';
+                    } elseif ($retStatusUpper === 'APPROVED') {
+                        $itemStatus = 'RETURN_APPROVED';
+                    } elseif ($retStatusUpper === 'REJECTED') {
+                        $itemStatus = 'RETURN_REJECTED';
+                    } else {
+                        $itemStatus = (string) $itemReturn->status;
+                    }
                 }
 
                 $isCustomized = ! empty($itemData['is_customized']) || ! empty($itemData['customised']);

@@ -587,6 +587,7 @@ class EventRegistrationWhatsappService
 
         try {
             NotificationDeliveryLog::query()->create([
+                'notification_id' => (string) Str::uuid(),
                 'user_id' => (string) ($registration->user_id ?: null),
                 'channel' => 'whatsapp',
                 'provider' => 'event_registration_qr_pass',
