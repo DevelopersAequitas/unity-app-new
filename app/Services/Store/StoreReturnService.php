@@ -108,7 +108,7 @@ class StoreReturnService
                 'reason_code' => $data['reason'] ?? 'DAMAGED',
                 'reason_detail' => $data['description'] ?? null,
                 'status' => 'REQUESTED',
-                'refund_coins' => $refundCoins,
+                'refund_coins_amount' => $refundCoins,
                 'created_at' => now(),
             ];
 
@@ -116,8 +116,8 @@ class StoreReturnService
                 $attributes['order_item_id'] = $targetItem->id;
             }
 
-            if (Schema::hasColumn('returns', 'refund_coins_amount')) {
-                $attributes['refund_coins_amount'] = $refundCoins;
+            if (Schema::hasColumn('returns', 'refund_coins')) {
+                $attributes['refund_coins'] = $refundCoins;
             }
 
             $return = StoreReturn::create($attributes);
