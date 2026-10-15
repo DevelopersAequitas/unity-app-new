@@ -89,20 +89,72 @@ class LeaderPeersService
         }
 
         if ($role === 'industryDirector') {
-            $assignedIndustryIds = DB::table('industry_director_assignments')
-                ->where('admin_user_id', $userId)
-                ->where('is_active', true)
-                ->pluck('industry_id')
-                ->filter()
-                ->all();
+            $adminUser = AdminUser::query()->where('id', $userId)
+                ->orWhere('email', $user->email)
+                ->first();
+            $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
 
-            $circleQuery = Circle::query()->where('industry_director_user_id', $userId);
-            if (! empty($assignedIndustryIds)) {
-                $circleQuery->orWhereIn('circle_category_id', $assignedIndustryIds)
-                    ->orWhereIn('industry_tags', $assignedIndustryIds);
+            $assignedIndustryIds = [];
+            $assignedIndustryNames = [];
+            if (Schema::hasTable('industry_director_assignments')) {
+                $assignmentRows = DB::table('industry_director_assignments')
+                    ->where(function ($q) use ($adminUserIds): void {
+                        $q->whereIn('admin_user_id', $adminUserIds);
+                        if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
+                            $q->orWhereIn('user_id', $adminUserIds);
+                        }
+                    })
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($assignmentRows as $row) {
+                    foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
+                        if (! empty($row->{$col})) {
+                            $assignedIndustryIds[] = (string) $row->{$col};
+                        }
+                    }
+                    if (! empty($row->industry_name)) {
+                        $assignedIndustryNames[] = (string) $row->industry_name;
+                    }
+                }
+            }
+
+            if (! empty($user->main_business_category_id)) {
+                $assignedIndustryIds[] = (string) $user->main_business_category_id;
+            }
+            if (! empty($user->business_category_id)) {
+                $assignedIndustryIds[] = (string) $user->business_category_id;
+            }
+
+            $assignedIndustryIds = array_values(array_unique(array_filter($assignedIndustryIds)));
+            $assignedIndustryNames = array_values(array_unique(array_filter($assignedIndustryNames)));
+
+            $circleQuery = Circle::query()->whereNull('deleted_at')
+                ->where('industry_director_user_id', $userId);
+
+            if (! empty($assignedIndustryIds) || ! empty($assignedIndustryNames)) {
+                $circleQuery->orWhere(function ($q) use ($assignedIndustryIds, $assignedIndustryNames): void {
+                    if (Schema::hasColumn('circles', 'circle_category_id') && ! empty($assignedIndustryIds)) {
+                        $q->orWhereIn('circle_category_id', $assignedIndustryIds);
+                    }
+                    if (Schema::hasColumn('circles', 'industry_tags')) {
+                        foreach ($assignedIndustryIds as $indId) {
+                            $q->orWhere('industry_tags', 'like', '%'.$indId.'%');
+                        }
+                        foreach ($assignedIndustryNames as $indName) {
+                            $q->orWhereRaw('LOWER(CAST(industry_tags AS TEXT)) LIKE ?', ['%'.strtolower($indName).'%']);
+                        }
+                    }
+                    foreach ($assignedIndustryNames as $indName) {
+                        $q->orWhereRaw('LOWER(name) LIKE ?', ['%'.strtolower($indName).'%']);
+                    }
+                });
             }
 
             $circleIds = $circleQuery->pluck('id')->all();
+            if (! empty($joinedCircleIds)) {
+                $circleIds = array_values(array_unique(array_merge($circleIds, $joinedCircleIds)));
+            }
 
             return ! empty($circleIds) ? $circleIds : [];
         }
@@ -240,26 +292,223 @@ class LeaderPeersService
                         ->orWhereIn('active_circle_id', $districtCircleIds);
                 });
             }
-        } elseif (! $isAdmin && ! $isGlobalRequested && $scopedCircleIds !== null && ! empty($scopedCircleIds)) {
-            // For circle-scoped leaders, restrict to their scoped circles
-            $query->where(function (Builder $q) use ($scopedCircleIds): void {
-                $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
-                    ->orWhereIn('active_circle_id', $scopedCircleIds)
-                    ->orWhereExists(function ($sq) use ($scopedCircleIds): void {
-                        $sq->selectRaw(1)
-                            ->from('circles')
-                            ->whereIn('circles.id', $scopedCircleIds)
-                            ->whereNull('circles.deleted_at')
-                            ->where(function ($lq): void {
-                                $this->applyCircleLeadershipColumnsCondition($lq);
+        } elseif (! $isAdmin) {
+            $role = $roleInfo['role'];
+            $userId = (string) ($user?->id ?? '');
+            $adminUser = ($user && Schema::hasTable('admin_users'))
+                ? AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first()
+                : null;
+
+            if ($role === 'districtExecDirector' || ($adminUser && AdminAccess::isDed($adminUser))) {
+                // Restrict to DED district circles and district city peers
+                $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+                $districtCircleIds = [];
+                if ($resolvedDistrictId) {
+                    $districtCircleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
+                }
+                if (! empty($scopedCircleIds)) {
+                    $districtCircleIds = array_values(array_unique(array_merge($districtCircleIds, $scopedCircleIds)));
+                }
+
+                $districtName = null;
+                if ($resolvedDistrictId && Schema::hasTable('districts')) {
+                    $districtName = District::query()->where('id', $resolvedDistrictId)->value('name');
+                }
+                if (! $districtName && $adminUser) {
+                    $districtName = AdminAccess::assignedDedDistrictName($adminUser);
+                }
+                if (! $districtName && Schema::hasTable('admin_ded_districts') && $user) {
+                    $districtName = DB::table('admin_ded_districts')
+                        ->where('admin_user_id', $user->id)
+                        ->orWhere('user_id', $user->id)
+                        ->value('district_name');
+                }
+                if (! $districtName && ! empty($districtCircleIds)) {
+                    $firstCircle = Circle::query()->whereIn('id', $districtCircleIds)->first();
+                    if ($firstCircle && preg_match('/^(Ahmedabad|Mumbai|Pune|Delhi|Surat|Bangalore|Bengaluru|Vadodara|Rajkot)/i', (string) $firstCircle->name, $matches)) {
+                        $districtName = ucfirst(strtolower($matches[1]));
+                    }
+                }
+                if (! $districtName && $user) {
+                    $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
+                    if (str_contains($userCity, 'ahmedabad')) {
+                        $districtName = 'Ahmedabad';
+                    }
+                }
+
+                if (empty($districtCircleIds) && ! empty($districtName)) {
+                    $dName = strtolower(trim((string) $districtName));
+                    $districtCircleIds = Circle::query()
+                        ->whereNull('deleted_at')
+                        ->where(function (Builder $q) use ($dName): void {
+                            $q->whereRaw('LOWER(name) LIKE ?', ['%'.$dName.'%']);
+                            if (Schema::hasColumn('circles', 'city')) {
+                                $q->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dName])
+                                    ->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) LIKE ?", ['%'.$dName.'%']);
+                            }
+                        })
+                        ->pluck('id')
+                        ->all();
+                }
+
+                $query->where(function (Builder $q) use ($districtCircleIds, $districtName, $adminUser): void {
+                    $hasCondition = false;
+                    if (! empty($districtCircleIds)) {
+                        $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $districtCircleIds)->whereNull('deleted_at'))
+                            ->orWhereIn('active_circle_id', $districtCircleIds)
+                            ->orWhereExists(function ($sq) use ($districtCircleIds): void {
+                                $sq->selectRaw(1)
+                                    ->from('circles')
+                                    ->whereIn('circles.id', $districtCircleIds)
+                                    ->whereNull('circles.deleted_at')
+                                    ->where(function ($lq): void {
+                                        $this->applyCircleLeadershipColumnsCondition($lq);
+                                    });
+                            });
+                        $hasCondition = true;
+                    }
+
+                    if ($adminUser && AdminAccess::isDed($adminUser)) {
+                        $dedQ = User::query()->whereNull('deleted_at');
+                        AdminCircleScope::applyDedDistrictScope($dedQ, $adminUser);
+                        $dedUserIds = $dedQ->pluck('id')->all();
+                        if (! empty($dedUserIds)) {
+                            $q->orWhereIn('users.id', $dedUserIds);
+                            $hasCondition = true;
+                        }
+                    } elseif (! empty($districtName)) {
+                        $dName = strtolower(trim((string) $districtName));
+                        $q->orWhereRaw("LOWER(NULLIF(TRIM(users.city), '')) = ?", [$dName])
+                            ->orWhereRaw("LOWER(NULLIF(TRIM(users.city_of_residence), '')) = ?", [$dName]);
+                        $hasCondition = true;
+                    }
+
+                    if (! $hasCondition) {
+                        $q->whereRaw('1 = 0');
+                    }
+                });
+            } elseif ($role === 'industryDirector') {
+                // Restrict to Industry Director's assigned industries & circles
+                $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
+                $assignedIndustryIds = [];
+                $assignedIndustryNames = [];
+
+                if (Schema::hasTable('industry_director_assignments')) {
+                    $assignmentRows = DB::table('industry_director_assignments')
+                        ->where(function ($q) use ($adminUserIds): void {
+                            $q->whereIn('admin_user_id', $adminUserIds);
+                            if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
+                                $q->orWhereIn('user_id', $adminUserIds);
+                            }
+                        })
+                        ->where('is_active', true)
+                        ->get();
+
+                    foreach ($assignmentRows as $row) {
+                        foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
+                            if (! empty($row->{$col})) {
+                                $assignedIndustryIds[] = (string) $row->{$col};
+                            }
+                        }
+                        if (! empty($row->industry_name)) {
+                            $assignedIndustryNames[] = (string) $row->industry_name;
+                        }
+                    }
+                }
+
+                if ($user) {
+                    if (! empty($user->main_business_category_id)) {
+                        $assignedIndustryIds[] = (string) $user->main_business_category_id;
+                    }
+                    if (! empty($user->business_category_id)) {
+                        $assignedIndustryIds[] = (string) $user->business_category_id;
+                    }
+                }
+
+                $assignedIndustryIds = array_values(array_unique(array_filter($assignedIndustryIds)));
+                $assignedIndustryNames = array_values(array_unique(array_filter($assignedIndustryNames)));
+
+                $industryCircleIds = $scopedCircleIds ?? [];
+                if (empty($industryCircleIds)) {
+                    $industryCircleIds = Circle::query()->whereNull('deleted_at')
+                        ->where('industry_director_user_id', $userId)
+                        ->pluck('id')
+                        ->all();
+                }
+
+                $query->where(function (Builder $q) use ($industryCircleIds, $assignedIndustryIds, $assignedIndustryNames): void {
+                    $hasCondition = false;
+
+                    if (! empty($industryCircleIds)) {
+                        $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $industryCircleIds)->whereNull('deleted_at'))
+                            ->orWhereIn('active_circle_id', $industryCircleIds)
+                            ->orWhereExists(function ($sq) use ($industryCircleIds): void {
+                                $sq->selectRaw(1)
+                                    ->from('circles')
+                                    ->whereIn('circles.id', $industryCircleIds)
+                                    ->whereNull('circles.deleted_at')
+                                    ->where(function ($lq): void {
+                                        $this->applyCircleLeadershipColumnsCondition($lq);
+                                    });
+                            });
+                        $hasCondition = true;
+                    }
+
+                    if (! empty($assignedIndustryIds)) {
+                        if (Schema::hasColumn('users', 'business_category_id')) {
+                            $q->orWhereIn('users.business_category_id', $assignedIndustryIds);
+                            $hasCondition = true;
+                        }
+                        if (Schema::hasColumn('users', 'main_business_category_id')) {
+                            $q->orWhereIn('users.main_business_category_id', $assignedIndustryIds);
+                            $hasCondition = true;
+                        }
+                        foreach ($assignedIndustryIds as $indId) {
+                            if (Schema::hasColumn('users', 'industry_tags')) {
+                                $q->orWhere('users.industry_tags', 'like', '%'.$indId.'%');
+                                $hasCondition = true;
+                            }
+                        }
+                    }
+
+                    foreach ($assignedIndustryNames as $indName) {
+                        $lowerName = strtolower($indName);
+                        if (Schema::hasColumn('users', 'business_sub_category')) {
+                            $q->orWhereRaw('LOWER(users.business_sub_category) LIKE ?', ['%'.$lowerName.'%']);
+                            $hasCondition = true;
+                        }
+                        if (Schema::hasColumn('users', 'industry_tags')) {
+                            $q->orWhereRaw('LOWER(CAST(users.industry_tags AS TEXT)) LIKE ?', ['%'.$lowerName.'%']);
+                            $hasCondition = true;
+                        }
+                    }
+
+                    if (! $hasCondition) {
+                        $q->whereRaw('1 = 0');
+                    }
+                });
+            } else {
+                // Own-circle roles (circleFounder, circleDirector, circleChair, chairBusinessGrowth, chairMembership, chairEventsPrograms, viceChair, secretary, member)
+                if (! empty($scopedCircleIds)) {
+                    $query->where(function (Builder $q) use ($scopedCircleIds): void {
+                        $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
+                            ->orWhereIn('active_circle_id', $scopedCircleIds)
+                            ->orWhereExists(function ($sq) use ($scopedCircleIds): void {
+                                $sq->selectRaw(1)
+                                    ->from('circles')
+                                    ->whereIn('circles.id', $scopedCircleIds)
+                                    ->whereNull('circles.deleted_at')
+                                    ->where(function ($lq): void {
+                                        $this->applyCircleLeadershipColumnsCondition($lq);
+                                    });
                             });
                     });
-            });
-        } elseif (! $isAdmin && ! $isGlobalRequested && $scopedCircleIds !== null && empty($scopedCircleIds)) {
-            // Non-admin leader without any assigned circle
-            $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            }
         } else {
-            // Global Admin or global platform scope:
+            // Global Admin or country director:
             // All peers across the platform are accessible (no circle-member restriction)
         }
 

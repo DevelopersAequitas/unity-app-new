@@ -142,7 +142,48 @@ Route::get('/storage/{path}', [PublicStorageController::class, 'serve'])
     ->where('path', '.*')
     ->name('public.storage.serve');
 
+Route::get('/.well-known/assetlinks.json', function () {
+    $filePath = public_path('.well-known/assetlinks.json');
+
+    if (file_exists($filePath)) {
+        return response()->file($filePath, [
+            'Content-Type' => 'application/json',
+        ]);
+    }
+
+    return response()->json([
+        [
+            'relation' => ['delegate_permission/common.handle_all_urls'],
+            'target' => [
+                'namespace' => 'android_app',
+                'package_name' => 'com.peers.peersunity',
+                'sha256_cert_fingerprints' => [
+                    '2F:D1:36:38:DA:E1:D8:07:CB:F0:07:DE:A7:E6:60:30:EB:44:B2:1D:49:A9:2F:A3:18:B0:09:05:15:20:27:32',
+                ],
+            ],
+        ],
+    ], 200, ['Content-Type' => 'application/json']);
+});
+
 Route::get('/share', [ShareController::class, 'handle'])->name('share');
+
+Route::get('/register/{code?}', function (Request $request, ?string $code = null) {
+    $refCode = $code ?? $request->query('ref') ?? $request->query('code') ?? '';
+
+    return view('register', ['serverRefCode' => $refCode]);
+})->name('register.page');
+
+Route::get('/invite/{code?}', function (Request $request, ?string $code = null) {
+    $refCode = $code ?? $request->query('ref') ?? $request->query('code') ?? '';
+
+    return view('register', ['serverRefCode' => $refCode]);
+})->name('invite.page');
+
+Route::get('/join/{code?}', function (Request $request, ?string $code = null) {
+    $refCode = $code ?? $request->query('ref') ?? $request->query('code') ?? '';
+
+    return view('register', ['serverRefCode' => $refCode]);
+})->name('join.page');
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');

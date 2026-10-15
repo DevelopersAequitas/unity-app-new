@@ -78,6 +78,18 @@ class LeaderTeamsService
             if ($districtFromCircle) {
                 return (string) $districtFromCircle;
             }
+
+            if (Schema::hasTable('districts')) {
+                $dedCircle = Circle::query()->where('ded_user_id', $user->id)->first();
+                if ($dedCircle && str_contains(strtolower((string) $dedCircle->name), 'ahmedabad')) {
+                    $ahmedabadDistrictId = District::query()
+                        ->whereRaw("LOWER(name) = 'ahmedabad'")
+                        ->value('id');
+                    if ($ahmedabadDistrictId) {
+                        return (string) $ahmedabadDistrictId;
+                    }
+                }
+            }
         }
 
         // 4. Check if user belongs to Ahmedabad city / district

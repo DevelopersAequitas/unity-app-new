@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.peers.peersunity",
+      "sha256_cert_fingerprints": [
+        "2F:D1:36:38:DA:E1:D8:07:CB:F0:07:DE:A7:E6:60:30:EB:44:B2:1D:49:A9:2F:A3:18:B0:09:05:15:20:27:32"
+      ]
+    }
+  }
+]
