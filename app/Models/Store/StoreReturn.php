@@ -20,7 +20,6 @@ class StoreReturn extends Model
         'order_id',
         'order_item_id',
         'user_id',
-        'refund_coins',
         'refund_coins_amount',
         'reason_code',
         'reason_detail',
@@ -36,11 +35,10 @@ class StoreReturn extends Model
     ];
 
     protected $appends = [
-        'refund_coins_amount',
+        'refund_coins',
     ];
 
     protected $casts = [
-        'refund_coins' => 'integer',
         'refund_coins_amount' => 'integer',
         'quality_check_passed' => 'boolean',
         'pickup_scheduled_at' => 'datetime',
@@ -85,6 +83,11 @@ class StoreReturn extends Model
     }
 
     public function getRefundCoinsAmountAttribute(): int
+    {
+        return (int) ($this->attributes['refund_coins_amount'] ?? ($this->attributes['refund_coins'] ?? 0));
+    }
+
+    public function getRefundCoinsAttribute(): int
     {
         return (int) ($this->attributes['refund_coins_amount'] ?? ($this->attributes['refund_coins'] ?? 0));
     }

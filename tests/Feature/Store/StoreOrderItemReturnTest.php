@@ -121,7 +121,6 @@ class StoreOrderItemReturnTest extends TestCase
             $table->string('reason_code')->default('DAMAGED');
             $table->text('reason_detail')->nullable();
             $table->string('status')->default('REQUESTED');
-            $table->integer('refund_coins')->default(0);
             $table->integer('refund_coins_amount')->default(0);
             $table->timestamps();
         });
@@ -287,7 +286,7 @@ class StoreOrderItemReturnTest extends TestCase
             'order_item_id' => $this->returnableItem->id,
             'user_id' => $this->user->id,
             'reason_code' => 'DEFECTIVE',
-            'refund_coins' => 1500,
+            'refund_coins_amount' => 1500,
         ]);
 
         $this->assertEquals(1500, $response->json('data.refund_coins_amount'));

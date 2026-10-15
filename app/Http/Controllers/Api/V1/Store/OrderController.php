@@ -97,14 +97,28 @@ class OrderController extends BaseApiController
         $returnStatus = $returnToExpose ? (string) $returnToExpose->status : null;
         $returnNo = $returnToExpose ? (string) $returnToExpose->return_no : null;
 
+        $rootRefundCoins = (int) ($returnToExpose->refund_coins_amount ?? 0);
+        if ($rootRefundCoins <= 0) {
+            $rootRefundCoins = (int) ($returnToExpose->refund_coins ?? 0);
+        }
+        if ($rootRefundCoins <= 0 && ! empty($returnToExpose->order_item_id)) {
+            $matchedItem = collect($order->items ?? [])->firstWhere('id', $returnToExpose->order_item_id);
+            if ($matchedItem) {
+                $rootRefundCoins = (int) ($matchedItem->total_coin_price ?? ($matchedItem->unit_coin_price ?? 0));
+            }
+        }
+        if ($rootRefundCoins <= 0) {
+            $rootRefundCoins = (int) ($order->total_coins ?? 0);
+        }
+
         $returnRequestObj = $returnToExpose ? [
             'id' => (string) $returnToExpose->id,
             'return_no' => (string) $returnToExpose->return_no,
             'order_id' => (string) $order->id,
             'order_item_id' => $returnToExpose->order_item_id ? (string) $returnToExpose->order_item_id : null,
             'status' => (string) $returnToExpose->status,
-            'refund_coins_amount' => (int) ($returnToExpose->refund_coins_amount ?? ($returnToExpose->refund_coins ?? 0)),
-            'refund_coins' => (int) ($returnToExpose->refund_coins ?? 0),
+            'refund_coins_amount' => $rootRefundCoins,
+            'refund_coins' => $rootRefundCoins,
             'reason' => (string) ($returnToExpose->reason_code ?: $returnToExpose->reason ?: 'DEFECTIVE'),
             'created_at' => $returnToExpose->created_at ? $returnToExpose->created_at->toISOString() : null,
         ] : null;
@@ -129,21 +143,39 @@ class OrderController extends BaseApiController
 
                 $itemReturnRequest = null;
                 if ($itemReturn) {
+                    $itemCoins = (int) ($itemData['total_coin_price'] ?? ($itemData['unit_coin_price'] ?? 0));
+                    $itemRefundCoins = (int) ($itemReturn->refund_coins_amount ?? 0);
+                    if ($itemRefundCoins <= 0) {
+                        $itemRefundCoins = (int) ($itemReturn->refund_coins ?? 0);
+                    }
+                    if ($itemRefundCoins <= 0) {
+                        $itemRefundCoins = $itemCoins;
+                    }
+
                     $itemReturnRequest = [
                         'id' => (string) $itemReturn->id,
                         'return_no' => (string) $itemReturn->return_no,
                         'order_item_id' => $itemId,
                         'status' => (string) $itemReturn->status,
-                        'refund_coins_amount' => (int) ($itemReturn->refund_coins_amount ?? ($itemReturn->refund_coins ?? 0)),
-                        'refund_coins' => (int) ($itemReturn->refund_coins ?? 0),
+                        'refund_coins_amount' => $itemRefundCoins,
+                        'refund_coins' => $itemRefundCoins,
                         'reason' => (string) ($itemReturn->reason_code ?: $itemReturn->reason ?: 'DEFECTIVE'),
                         'created_at' => $itemReturn->created_at ? $itemReturn->created_at->toISOString() : null,
                     ];
                 }
 
                 $itemStatus = $itemData['status'] ?? null;
-                if ($itemReturn && (! $itemStatus || in_array(strtoupper((string) $itemStatus), ['DELIVERED', 'COMPLETED'], true))) {
-                    $itemStatus = strtoupper((string) $itemReturn->status) === 'REQUESTED' ? 'RETURN_REQUESTED' : (string) $itemReturn->status;
+                if ($itemReturn) {
+                    $retStatusUpper = strtoupper((string) $itemReturn->status);
+                    if ($retStatusUpper === 'REQUESTED') {
+                        $itemStatus = 'RETURN_REQUESTED';
+                    } elseif ($retStatusUpper === 'APPROVED') {
+                        $itemStatus = 'RETURN_APPROVED';
+                    } elseif ($retStatusUpper === 'REJECTED') {
+                        $itemStatus = 'RETURN_REJECTED';
+                    } else {
+                        $itemStatus = (string) $itemReturn->status;
+                    }
                 }
 
                 $isCustomized = ! empty($itemData['is_customized']) || ! empty($itemData['customised']);
@@ -185,6 +217,28 @@ class OrderController extends BaseApiController
         $data['slip_url'] = $slipUrl;
         $data['order_slip_url'] = $slipUrl;
         $data['return_status'] = $returnStatus;
+        if (! empty($data['returns'])) {
+            $data['returns'] = collect($data['returns'])->map(function ($retData) use ($order) {
+                $refAmount = (int) ($retData['refund_coins_amount'] ?? 0);
+                if ($refAmount <= 0) {
+                    $refAmount = (int) ($retData['refund_coins'] ?? 0);
+                }
+                if ($refAmount <= 0 && ! empty($retData['order_item_id'])) {
+                    $mItem = collect($order->items ?? [])->firstWhere('id', $retData['order_item_id']);
+                    if ($mItem) {
+                        $refAmount = (int) ($mItem->total_coin_price ?? ($mItem->unit_coin_price ?? 0));
+                    }
+                }
+                if ($refAmount <= 0) {
+                    $refAmount = (int) ($order->total_coins ?? 0);
+                }
+                $retData['refund_coins_amount'] = $refAmount;
+                $retData['refund_coins'] = $refAmount;
+
+                return $retData;
+            })->all();
+        }
+
         $data['return_no'] = $returnNo;
         $data['return_request'] = $returnRequestObj;
         $data['action_flags'] = $actionFlags;
