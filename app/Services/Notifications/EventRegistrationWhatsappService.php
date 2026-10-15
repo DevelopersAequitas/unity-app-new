@@ -14,6 +14,8 @@ use App\Services\Events\EventRegistrationQrService;
 use App\Services\WhatsApp\MetaWhatsAppService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 
 class EventRegistrationWhatsappService
@@ -200,8 +202,42 @@ class EventRegistrationWhatsappService
                 return false;
             }
 
-            // Resolve image header url for Meta (handling localhost/dev gracefully)
+            // Resolve image header for Meta:
+            // 1. Try uploading local QR code file directly to Meta for reliable delivery (no external URL dependency)
+            $mediaId = null;
+            $localQrPath = null;
+            if (! empty($registration->qr_code_path)) {
+                $candidatePath = Storage::disk('public')->path($registration->qr_code_path);
+                if (file_exists($candidatePath)) {
+                    $localQrPath = $candidatePath;
+                }
+            }
+            if (! $localQrPath && ! empty($registration->id) && ! empty($registration->event_id)) {
+                $candidatePath = storage_path('app/public/event-qrcodes/' . $registration->event_id . '/' . $registration->id . '.png');
+                if (file_exists($candidatePath)) {
+                    $localQrPath = $candidatePath;
+                }
+            }
+
+            if ($localQrPath && ! app()->environment('testing')) {
+                try {
+                    $mediaId = $this->metaWhatsAppService->uploadMediaFromPath($localQrPath);
+                } catch (Throwable $uploadEx) {
+                    Log::warning('[EventRegistrationWhatsappService] Failed to upload local QR code to Meta Cloud API: ' . $uploadEx->getMessage());
+                }
+            }
+
+            // Fallback image URL for Meta (handling localhost/ngrok gracefully)
             $headerImageUrl = $this->resolveHeaderImageUrl($template, $qrCodeUrl);
+
+            // Clean entry pass url so it never points to dead local/ngrok urls
+            if (str_contains($entryPassUrl, 'ngrok') || str_contains($entryPassUrl, 'localhost') || str_contains($entryPassUrl, '127.0.0.1')) {
+                $entryPassUrl = str_replace(
+                    ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost', 'http://127.0.0.1', (string) config('app.url')],
+                    'https://dev.peersunity.com',
+                    $entryPassUrl
+                );
+            }
 
             // Build dynamic components according to template
             $components = $this->buildComponents(
@@ -213,7 +249,8 @@ class EventRegistrationWhatsappService
                 eventDate: $eventDate,
                 eventTime: $eventTime,
                 venue: $venue,
-                entryPassUrl: $entryPassUrl
+                entryPassUrl: $entryPassUrl,
+                mediaId: $mediaId
             );
 
             $payload = [
@@ -328,12 +365,25 @@ class EventRegistrationWhatsappService
         string $eventDate,
         string $eventTime,
         string $venue,
-        string $entryPassUrl
+        string $entryPassUrl,
+        ?string $mediaId = null
     ): array {
         $components = [];
 
-        // 1. HEADER (Image component with QR Code)
-        if (! empty($headerImageUrl)) {
+        // 1. HEADER (Direct Meta Media ID if uploaded, or public image URL)
+        if (! empty($mediaId)) {
+            $components[] = [
+                'type' => 'header',
+                'parameters' => [
+                    [
+                        'type' => 'image',
+                        'image' => [
+                            'id' => $mediaId,
+                        ],
+                    ],
+                ],
+            ];
+        } elseif (! empty($headerImageUrl)) {
             $components[] = [
                 'type' => 'header',
                 'parameters' => [
@@ -392,11 +442,12 @@ class EventRegistrationWhatsappService
      */
     protected function resolveHeaderImageUrl(WhatsappTemplate $template, string $qrCodeUrl): string
     {
-        $isLocal = empty($qrCodeUrl)
+        $isLocalOrTunnel = empty($qrCodeUrl)
             || str_contains($qrCodeUrl, 'localhost')
-            || str_contains($qrCodeUrl, '127.0.0.1');
+            || str_contains($qrCodeUrl, '127.0.0.1')
+            || str_contains($qrCodeUrl, 'ngrok');
 
-        if ($isLocal) {
+        if ($isLocalOrTunnel) {
             // Extract approved example header handle from template definition if present
             $exampleHandle = null;
             if (! empty($template->components) && is_array($template->components)) {
@@ -416,7 +467,7 @@ class EventRegistrationWhatsappService
 
             if (! empty($qrCodeUrl)) {
                 return str_replace(
-                    ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost', 'http://127.0.0.1'],
+                    ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost', 'http://127.0.0.1', (string) config('app.url')],
                     'https://dev.peersunity.com',
                     $qrCodeUrl
                 );
