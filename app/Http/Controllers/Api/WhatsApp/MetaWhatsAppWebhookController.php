@@ -9,6 +9,7 @@ use App\Models\WhatsappMessage;
 use App\Models\WhatsAppMessageLog;
 use App\Models\WhatsappTemplate;
 use App\Models\WhatsappWebhookEvent;
+use App\Services\WhatsApp\WhatsAppBulkCampaignService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -177,6 +178,19 @@ class MetaWhatsAppWebhookController extends Controller
         $messageLog = WhatsAppMessageLog::where('provider_message_id', $wamid)->first();
 
         if (! $message && ! $messageLog) {
+            try {
+                $errCode = isset($statusItem['errors'][0]['code']) ? (string) $statusItem['errors'][0]['code'] : null;
+                $errMsg = isset($statusItem['errors'][0]['title']) ? (string) $statusItem['errors'][0]['title'] : null;
+                app(WhatsAppBulkCampaignService::class)->handleWebhookStatus(
+                    $wamid,
+                    $rawStatus,
+                    $errCode,
+                    $errMsg
+                );
+            } catch (Throwable $bulkEx) {
+                Log::debug('[MetaWhatsAppWebhookController] Bulk campaign sync error on unlinked message: '.$bulkEx->getMessage());
+            }
+
             Log::warning('[MetaWhatsAppWebhookController] No matching message records found for meta_message_id.', [
                 'meta_message_id' => $wamid,
                 'status' => $rawStatus,
@@ -220,11 +234,33 @@ class MetaWhatsAppWebhookController extends Controller
                 'failed_at' => $eventTime,
             ]);
 
+            try {
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                ]);
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'failed',
+                ]);
+            } catch (\Throwable) {}
+
             Log::error('[MetaWhatsAppWebhookController] WhatsApp message marked FAILED.', [
                 'meta_message_id' => $wamid,
                 'error_code' => $errorCode,
                 'error_message' => $errorMessage,
             ]);
+
+            try {
+                app(WhatsAppBulkCampaignService::class)->handleWebhookStatus(
+                    $wamid,
+                    'failed',
+                    $errorCode,
+                    $errorMessage
+                );
+            } catch (Throwable $bulkEx) {
+                Log::debug('[MetaWhatsAppWebhookController] Bulk campaign sync skipped: '.$bulkEx->getMessage());
+            }
 
             return;
         }
@@ -244,9 +280,30 @@ class MetaWhatsAppWebhookController extends Controller
                 'provider_response' => $updatedResponse,
             ]);
 
+            try {
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'read',
+                    'read_at' => $eventTime,
+                    'delivered_at' => \Illuminate\Support\Facades\DB::raw('COALESCE(delivered_at, NOW())'),
+                ]);
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'read',
+                ]);
+            } catch (\Throwable) {}
+
             Log::info('[MetaWhatsAppWebhookController] WhatsApp message marked READ.', [
                 'meta_message_id' => $wamid,
             ]);
+
+            try {
+                app(WhatsAppBulkCampaignService::class)->handleWebhookStatus(
+                    $wamid,
+                    'read'
+                );
+            } catch (Throwable $bulkEx) {
+                Log::debug('[MetaWhatsAppWebhookController] Bulk campaign sync skipped: '.$bulkEx->getMessage());
+            }
 
             return;
         }
@@ -268,9 +325,33 @@ class MetaWhatsAppWebhookController extends Controller
                     'provider_response' => $updatedResponse,
                 ]);
 
+            try {
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
+                        'delivered_at' => $eventTime,
+                    ]);
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
+                    ]);
+            } catch (\Throwable) {}
+
             Log::info('[MetaWhatsAppWebhookController] WhatsApp message marked DELIVERED.', [
                 'meta_message_id' => $wamid,
             ]);
+
+            try {
+                app(WhatsAppBulkCampaignService::class)->handleWebhookStatus(
+                    $wamid,
+                    'delivered'
+                );
+            } catch (Throwable $bulkEx) {
+                Log::debug('[MetaWhatsAppWebhookController] Bulk campaign sync skipped: '.$bulkEx->getMessage());
+            }
 
             return;
         }
@@ -292,6 +373,15 @@ class MetaWhatsAppWebhookController extends Controller
                     'sent_at' => $eventTime,
                     'provider_response' => $updatedResponse,
                 ]);
+
+            try {
+                app(WhatsAppBulkCampaignService::class)->handleWebhookStatus(
+                    $wamid,
+                    'sent'
+                );
+            } catch (Throwable $bulkEx) {
+                Log::debug('[MetaWhatsAppWebhookController] Bulk campaign sync skipped: '.$bulkEx->getMessage());
+            }
 
             return;
         }

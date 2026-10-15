@@ -453,6 +453,13 @@ class LifeImpactService
                                 'status' => 'active',
                             ]);
 
+                            // Native Meta WhatsApp Cloud API Award Recognition
+                            try {
+                                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleImpactAward($user, (int) $threshold, $creativeImageUrl);
+                            } catch (\Throwable $waAwardEx) {
+                                Log::error('[LifeImpactService] Failed triggering Meta WhatsApp impact award: '.$waAwardEx->getMessage());
+                            }
+
                             Log::info("[LifeImpactService] Automatically published Life Impact recognition post for user {$user->id} reaching level {$meta['title']} ({$threshold} lives)");
                         }
                     }

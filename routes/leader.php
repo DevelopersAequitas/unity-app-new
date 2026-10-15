@@ -186,12 +186,14 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('flows', [LeaderAskFlowController::class, 'flows']);
         Route::get('flows/{flow}', [LeaderAskFlowController::class, 'flowDetails'])->whereIn('flow', ['collaboration', 'referral', 'help']);
         Route::get('form-config', [LeaderAskFlowController::class, 'formConfig']);
+        Route::get('my', [AskFlowHubController::class, 'myAllAsks']);
     });
 
-    // 3 DEDICATED ASKS FLOWS: CORE ENDPOINTS (Global Feed, My History, Leaderboard, Detail)
-    Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
+    // 3 DEDICATED ASKS FLOWS: CORE ENDPOINTS (Global Feed, My History, User History, Leaderboard, Detail)
+    Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help', 'all'])->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
+        Route::get('user/{userId}', [AskFlowHubController::class, 'userAsks'])->whereUuid('userId');
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
         Route::get('{id}', [AskFlowHubController::class, 'showAsk'])->whereUuid('id');
     });

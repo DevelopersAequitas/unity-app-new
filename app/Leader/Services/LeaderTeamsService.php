@@ -1146,6 +1146,10 @@ class LeaderTeamsService
             ->where('circle_id', $circleId)
             ->whereNull('deleted_at');
 
+        if (Schema::hasColumn('events', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
         if ($filter === 'upcoming') {
             $query->where('start_at', '>=', now());
         } elseif ($filter === 'completed') {

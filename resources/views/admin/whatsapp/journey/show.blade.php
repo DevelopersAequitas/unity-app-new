@@ -21,10 +21,16 @@
             <a href="{{ route('admin.whatsapp.journey.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i>Back to Journey List
             </a>
+            <form action="{{ route('admin.whatsapp.journey.sync_statuses') }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-outline-success btn-sm" title="Sync live delivery and read receipts from Meta">
+                    <i class="bi bi-arrow-repeat me-1"></i>Sync Delivery Status
+                </button>
+            </form>
             <form action="{{ route('admin.whatsapp.journey.initialize', $user->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Re-initialize 30-day journey schedule for this member? Existing entries will be preserved.');">
                 @csrf
                 <button type="submit" class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-arrow-repeat me-1"></i>Re-initialize Journey
+                    <i class="bi bi-magic me-1"></i>Re-initialize Journey
                 </button>
             </form>
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
@@ -247,12 +253,20 @@
                             <td>
                                 @if(!$send)
                                     <span class="badge bg-secondary">Uninitialized</span>
-                                @elseif($send->status === 'sent')
+                                @elseif($send->status === 'delivered')
                                     <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                        <i class="bi bi-check2-all me-1"></i>Sent
+                                        <i class="bi bi-check2-all me-1"></i>Delivered
+                                    </span>
+                                @elseif($send->status === 'read')
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                        <i class="bi bi-eye me-1"></i>Read
+                                    </span>
+                                @elseif($send->status === 'sent')
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1">
+                                        <i class="bi bi-check me-1"></i>Sent
                                     </span>
                                 @elseif($send->status === 'skipped')
-                                    <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1" title="{{ $send->skip_reason }}">
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" title="{{ $send->skip_reason }}">
                                         <i class="bi bi-skip-forward me-1"></i>Skipped
                                     </span>
                                 @elseif($send->status === 'failed')
@@ -266,8 +280,10 @@
                                 @endif
                             </td>
                             <td>
-                                @if($send && $send->status === 'sent')
-                                    <div class="small text-success">{{ $send->sent_at ? $send->sent_at->format('d M, h:i A') : 'Sent' }}</div>
+                                @if($send && in_array($send->status, ['sent', 'delivered', 'read']))
+                                    <div class="small {{ in_array($send->status, ['delivered', 'read']) ? 'text-success fw-semibold' : 'text-primary' }}">
+                                        {{ $send->sent_at ? $send->sent_at->format('d M, h:i A') : ucfirst($send->status) }}
+                                    </div>
                                     @if($send->provider_message_id)
                                         <div class="font-monospace text-muted small" style="font-size: 0.72rem;" title="{{ $send->provider_message_id }}">
                                             {{ Str::limit($send->provider_message_id, 16) }}

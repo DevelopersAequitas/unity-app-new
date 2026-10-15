@@ -14,6 +14,7 @@ use App\Services\Ask\AskResponseService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AskFlowHubController extends Controller
 {
@@ -40,15 +41,70 @@ class AskFlowHubController extends Controller
     }
 
     /**
-     * Tab 2: My Asks & History for a specific Flow
-     * GET /api/asks/{flow}/my
+     * All User Asks across flows (collaboration, referral, help) in short form
+     * GET /api/v1/leader/asks/my
+     */
+    public function myAllAsks(Request $request): JsonResponse
+    {
+        /** @var User $currentUser */
+        $currentUser = $request->user();
+        $targetUserId = $request->query('user_id');
+        $targetUser = ($targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId))
+            ? (User::find($targetUserId) ?? $currentUser)
+            : $currentUser;
+
+        $params = array_merge($request->query(), [
+            'user_id' => (string) $targetUser->id,
+        ]);
+
+        $data = $this->flowHubService->getMyAllAsks($targetUser, $params);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Tab 2: My Asks & History for a specific Flow (supports ?user_id=...)
+     * GET /api/v1/leader/asks/{flow}/my or GET /api/asks/{flow}/my
      */
     public function myAsks(Request $request, string $flow): JsonResponse
     {
-        /** @var User $user */
-        $user = $request->user();
+        /** @var User $currentUser */
+        $currentUser = $request->user();
+        $targetUserId = $request->query('user_id');
+        $targetUser = ($targetUserId && is_string($targetUserId) && Str::isUuid($targetUserId))
+            ? (User::find($targetUserId) ?? $currentUser)
+            : $currentUser;
 
-        $data = $this->flowHubService->getMyAsks($user, $flow, $request->all());
+        $params = array_merge($request->query(), [
+            'user_id' => (string) $targetUser->id,
+        ]);
+
+        $data = $this->flowHubService->getMyAsks($targetUser, $flow, $params);
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Specific User's Asks & History for a Flow
+     * GET /api/v1/leader/asks/{flow}/user/{userId}
+     */
+    public function userAsks(Request $request, string $flow, string $userId): JsonResponse
+    {
+        /** @var User $currentUser */
+        $currentUser = $request->user();
+        $targetUser = User::find($userId) ?? $currentUser;
+
+        $params = array_merge($request->query(), [
+            'user_id' => $userId,
+        ]);
+
+        $data = $this->flowHubService->getMyAsks($targetUser, $flow, $params);
 
         return response()->json([
             'success' => true,

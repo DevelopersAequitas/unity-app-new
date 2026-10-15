@@ -322,7 +322,10 @@ class UsersController extends Controller
             }
         }
 
-        $upcomingEvents = Event::where('start_at', '>=', now())->orderBy('start_at', 'asc')->get(['id', 'title', 'start_at']);
+        $upcomingEvents = Event::where('start_at', '>=', now())
+            ->when(Schema::hasColumn('events', 'is_active'), fn ($q) => $q->where('is_active', true))
+            ->orderBy('start_at', 'asc')
+            ->get(['id', 'title', 'start_at']);
         $upcomingEventsCount = $upcomingEvents->count();
         $nextUpcomingEventTitle = $upcomingEvents->first()?->title ?? '';
 

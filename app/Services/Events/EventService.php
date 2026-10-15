@@ -529,6 +529,10 @@ class EventService
 
     public function canRegister(Event $event, ?User $user): array
     {
+        if (! (bool) ($event->is_active ?? true)) {
+            return ['can_register' => false, 'reason' => 'This event is currently inactive.'];
+        }
+
         if ($user && ! $this->memberRegistrationEnabled($event) && ! $this->visitorRegistrationEnabled($event) && ! $this->isAdmin($user)) {
             return ['can_register' => false, 'reason' => 'Registration is not enabled for this event.'];
         }

@@ -51,6 +51,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn (Request $request) => route('admin.login'));
         $middleware->validateCsrfTokens(except: [
             'admin/pending-requests/certifications/*',
+            'whatsapp/webhook',
+            'v1/whatsapp/webhook',
         ]);
         $middleware->alias([
             'admin.auth' => EnsureAdminAuthenticated::class,

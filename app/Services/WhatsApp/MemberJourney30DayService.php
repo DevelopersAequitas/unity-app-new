@@ -6,6 +6,7 @@ namespace App\Services\WhatsApp;
 
 use App\Models\MemberJourneySend;
 use App\Models\User;
+use App\Models\WhatsappTemplate;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
@@ -266,11 +267,6 @@ class MemberJourney30DayService
             ];
         }
 
-        // Backfill user phone if missing and override phone was supplied
-        if (! empty($overridePhone) && empty($user->phone)) {
-            $user->update(['phone' => $overridePhone]);
-        }
-
         // Resolve First Name for dynamic parameter {{1}}
         $firstName = trim((string) ($user->first_name ?? ''));
         if ($firstName === '') {
@@ -286,8 +282,21 @@ class MemberJourney30DayService
         $templateName = $templateInfo['name'];
         $languageCode = $templateInfo['language'];
 
-        $components = [
-            [
+        $dbTemplate = WhatsappTemplate::where('name', $templateName)->first();
+        $hasBodyParams = true;
+        if ($dbTemplate && is_array($dbTemplate->components)) {
+            $hasBodyParams = false;
+            foreach ($dbTemplate->components as $c) {
+                if (strtoupper((string) ($c['type'] ?? '')) === 'BODY') {
+                    $hasBodyParams = str_contains((string) ($c['text'] ?? ''), '{{1}}');
+                    break;
+                }
+            }
+        }
+
+        $components = [];
+        if ($hasBodyParams) {
+            $components[] = [
                 'type' => 'body',
                 'parameters' => [
                     [
@@ -295,8 +304,8 @@ class MemberJourney30DayService
                         'text' => $firstName,
                     ],
                 ],
-            ],
-        ];
+            ];
+        }
 
         $payloadJson = [
             'FirstName' => $firstName,

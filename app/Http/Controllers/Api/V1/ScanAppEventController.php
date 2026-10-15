@@ -10,6 +10,7 @@ use App\Models\ScanAppUser;
 use App\Services\Events\EventScannerQrScanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ScanAppEventController extends BaseApiController
 {
@@ -23,6 +24,7 @@ class ScanAppEventController extends BaseApiController
         }
 
         $events = Event::query()
+            ->when(Schema::hasColumn('events', 'is_active'), fn ($q) => $q->where('is_active', true))
             ->when($scanner->event_id, fn ($q) => $q->where('id', $scanner->event_id))
             ->when(! $scanner->event_id, fn ($q) => $q->where('start_at', '>=', now()->subDay())->orderBy('start_at'))
             ->get();

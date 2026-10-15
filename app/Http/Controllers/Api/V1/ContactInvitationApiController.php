@@ -45,15 +45,44 @@ class ContactInvitationApiController extends BaseApiController
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        // Resolve Sender User
+        // Resolve Sender User (by ID, email, or phone)
         $userId = $request->input('user_id') ?? optional($request->user())->id;
-        if (! $userId) {
-            return $this->error('User ID is required.', 422);
+        $userEmail = $request->input('email');
+        $userPhone = $request->input('phone') ?? $request->input('mobile');
+
+        if (! $userId && ! $userEmail && ! $userPhone) {
+            return $this->error('User ID, email, or phone is required.', 422);
         }
 
-        $sender = User::query()->find($userId);
+        $sender = null;
+        if ($userId) {
+            $sender = User::query()->find($userId);
+            if (! $sender) {
+                $sender = User::query()->where('email', $userId)->first();
+            }
+            if (! $sender) {
+                $norm = preg_replace('/[^\d]/', '', (string) $userId);
+                $sender = User::query()
+                    ->where('phone', $userId)
+                    ->orWhere('phone', 'LIKE', "%{$norm}%")
+                    ->first();
+            }
+        }
+
+        if (! $sender && $userEmail) {
+            $sender = User::query()->where('email', $userEmail)->first();
+        }
+
+        if (! $sender && $userPhone) {
+            $norm = preg_replace('/[^\d]/', '', (string) $userPhone);
+            $sender = User::query()
+                ->where('phone', $userPhone)
+                ->orWhere('phone', 'LIKE', "%{$norm}%")
+                ->first();
+        }
+
         if (! $sender) {
-            return $this->error('Sender user not found.', 404);
+            return $this->error('Sender user not found. Please provide a valid user_id, email, or phone.', 404);
         }
 
         $incomingContacts = $request->input('contacts', []);
