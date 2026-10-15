@@ -158,11 +158,26 @@ class CircleManagementController extends BaseApiController
     public function addMember(Request $request, string $id): JsonResponse
     {
         $v = $request->validate(['user_id' => ['required', 'uuid', 'exists:users,id'], 'role' => ['nullable', 'string']]);
-        $member = CircleMember::query()->firstOrCreate(['circle_id' => $id, 'user_id' => $v['user_id']], ['id' => (string) Str::uuid(), 'status' => 'approved', 'joined_at' => now(), 'role' => $v['role'] ?? 'member']);
-        if ($member->deleted_at) {
-            $member->deleted_at = null;
+        $member = CircleMember::withTrashed()->where('circle_id', $id)->where('user_id', $v['user_id'])->first();
+        if ($member) {
+            if ($member->trashed()) {
+                $member->restore();
+            }
             $member->status = 'approved';
+            $member->left_at = null;
+            if (! empty($v['role'])) {
+                $member->role = $v['role'];
+            }
             $member->save();
+        } else {
+            $member = CircleMember::query()->create([
+                'id' => (string) Str::uuid(),
+                'circle_id' => $id,
+                'user_id' => $v['user_id'],
+                'status' => 'approved',
+                'joined_at' => now(),
+                'role' => $v['role'] ?? 'member',
+            ]);
         }
 
         return $this->success($member);

@@ -298,7 +298,7 @@ class RazorpayWebhookController extends Controller
                     ]);
                 }
 
-                $circleMember = CircleMember::query()
+                $circleMember = CircleMember::withTrashed()
                     ->where('user_id', $lockedPayment->user_id)
                     ->where('circle_id', $circleId)
                     ->first();
@@ -312,9 +312,11 @@ class RazorpayWebhookController extends Controller
                         'joined_at' => $now,
                     ]);
                 } else {
+                    if ($circleMember->trashed()) {
+                        $circleMember->restore();
+                    }
                     $circleMember->update([
                         'status' => 'approved',
-                        'deleted_at' => null,
                         'left_at' => null,
                     ]);
                 }
