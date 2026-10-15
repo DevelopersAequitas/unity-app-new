@@ -79,7 +79,18 @@ class AdminStoreReturnWebController extends Controller
             'refund_coins' => 'nullable|integer|min:1',
         ]);
 
-        $refundCoins = (int) ($validated['refund_coins'] ?? ($return->order ? $return->order->total_coins : 0));
+        $defaultCoins = (int) ($return->refund_coins_amount ?? 0);
+        if ($defaultCoins <= 0 && ! empty($return->order_item_id) && $return->order) {
+            $mItem = $return->order->items->firstWhere('id', $return->order_item_id);
+            if ($mItem) {
+                $defaultCoins = (int) ($mItem->total_coins ?? ($mItem->total_coin_price ?? ($mItem->unit_coin_price ?? 0)));
+            }
+        }
+        if ($defaultCoins <= 0) {
+            $defaultCoins = (int) ($return->order ? $return->order->total_coins : 0);
+        }
+
+        $refundCoins = (int) ($validated['refund_coins'] ?? $defaultCoins);
 
         DB::transaction(function () use ($return, $admin, $validated, $refundCoins) {
             $notes = $validated['inspection_notes'] ?? ('Approved by '.($admin ? $admin->name : 'Admin'));

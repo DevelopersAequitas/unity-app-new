@@ -161,17 +161,33 @@
 
                     @if(in_array($st, ['REQUESTED', 'PENDING', 'PENDING_REVIEW', 'PENDING_INSPECTION']))
                         {{-- Approve / Accept & Refund Form --}}
+                        @php
+                            $itemRefundAmount = (int) ($return->refund_coins_amount ?? 0);
+                            if ($itemRefundAmount <= 0 && !empty($return->order_item_id) && $return->order) {
+                                $matchedItem = $return->order->items->firstWhere('id', $return->order_item_id);
+                                if ($matchedItem) {
+                                    $itemRefundAmount = (int) ($matchedItem->total_coins ?? ($matchedItem->total_coin_price ?? ($matchedItem->unit_coin_price ?? 0)));
+                                }
+                            }
+                            if ($itemRefundAmount <= 0) {
+                                $itemRefundAmount = (int) ($return->order->total_coins ?? 0);
+                            }
+                        @endphp
                         <form method="POST" action="{{ route('admin.store.returns.approve', $return->id) }}" class="mb-3" onsubmit="return confirm('Accept this return request and refund coins to the peer wallet?')">
                             @csrf
                             <div class="p-3 border rounded bg-success bg-opacity-10 mb-3">
                                 <h6 class="fw-bold text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i> Accept &amp; Refund</h6>
                                 <p class="text-muted small mb-2">
-                                    Total order coins: <strong>{{ number_format($return->order->total_coins ?? 0) }}</strong>.<br>
+                                    @if($return->order_item_id)
+                                        Item return coins: <strong>{{ number_format($itemRefundAmount) }}</strong> (Total order coins: {{ number_format($return->order->total_coins ?? 0) }}).<br>
+                                    @else
+                                        Total order coins: <strong>{{ number_format($return->order->total_coins ?? 0) }}</strong>.<br>
+                                    @endif
                                     Coins will be refunded to member ledger.
                                 </p>
                                 <div class="mb-2">
                                     <label class="form-label small fw-semibold">Refund Amount (Coins)</label>
-                                    <input type="number" name="refund_coins" class="form-control form-control-sm" value="{{ $return->order->total_coins ?? 0 }}" required min="1">
+                                    <input type="number" name="refund_coins" class="form-control form-control-sm" value="{{ $itemRefundAmount }}" required min="1">
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label small fw-semibold">Inspection / Acceptance Remarks</label>
