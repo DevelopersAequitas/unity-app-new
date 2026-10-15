@@ -98,26 +98,9 @@ class LeaderDashboardService
 
         // 1. Total Peers Count
         if ($isGlobalScope) {
-            // Global Scope includes all circle peers across circles (members + direct leaders)
-            $circleMemberUserIds = CircleMember::query()
+            // Global Scope (Global Admin / All Circles) includes all registered peers in the platform
+            $totalPeers = User::query()
                 ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
-                ->pluck('user_id')
-                ->all();
-
-            $directLeaderIds = Circle::query()
-                ->whereNull('deleted_at')
-                ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
-                ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
-                ->unique()
-                ->all();
-
-            $totalCirclePeers = count(array_unique(array_filter(array_merge($circleMemberUserIds, $directLeaderIds))));
-
-            $totalPeers = $totalCirclePeers > 0 ? $totalCirclePeers : User::query()
-                ->whereNull('deleted_at')
-                ->where('email', 'not like', '%devtestpeer%')
-                ->where('first_name', 'not like', 'Test Peer%')
                 ->count();
         } elseif (! empty($targetCircleIds)) {
             $totalPeers = CircleMember::query()
@@ -157,12 +140,33 @@ class LeaderDashboardService
                 ->whereNull('deleted_at')
                 ->where('status', 'pending')
                 ->count();
+
+            if (Schema::hasTable('circle_join_requests')) {
+                $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                    ->where(function ($q): void {
+                        $q->where('status', 'like', 'pending%')
+                            ->orWhere('status', 'awaiting_review');
+                    })
+                    ->count();
+                $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+            }
         } elseif (! empty($targetCircleIds)) {
             $pendingPeersCount = CircleMember::query()
                 ->whereNull('deleted_at')
                 ->where('status', 'pending')
                 ->whereIn('circle_id', $targetCircleIds)
                 ->count();
+
+            if (Schema::hasTable('circle_join_requests')) {
+                $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                    ->whereIn('circle_id', $targetCircleIds)
+                    ->where(function ($q): void {
+                        $q->where('status', 'like', 'pending%')
+                            ->orWhere('status', 'awaiting_review');
+                    })
+                    ->count();
+                $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+            }
         } else {
             $pendingPeersCount = 0;
         }
@@ -323,6 +327,13 @@ class LeaderDashboardService
             ? '₹'.round($revSum / 10000000, 2).'Cr'
             : ($revSum >= 100000 ? '₹'.round($revSum / 100000, 1).'L' : '₹'.number_format($revSum, 0));
 
+        // 30-day peers growth
+        $growthQuery = User::query()->whereNull('deleted_at')->where('created_at', '>=', now()->subDays(30));
+        if (! $isGlobalScope && ! empty($scopedMemberUserIds)) {
+            $growthQuery->whereIn('id', $scopedMemberUserIds);
+        }
+        $totalPeersGrowth = $growthQuery->count();
+
         return [
             'circle_id' => $resolvedCircleId,
             'circle_name' => $resolvedCircleName,
@@ -332,7 +343,7 @@ class LeaderDashboardService
             'deals' => $dealsFormatted,
             'p2p_meetings' => $p2pCount,
             'total_peers' => $totalPeers,
-            'total_peers_growth' => 4,
+            'total_peers_growth' => $totalPeersGrowth,
             'referrals' => $referralsCount,
             'testimonials' => $testimonialsCount,
             'coins' => $coinsSum,
