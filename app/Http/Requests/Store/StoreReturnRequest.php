@@ -14,6 +14,7 @@ class StoreReturnRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'order_item_id' => 'nullable|string',
             'reason' => 'required|string|in:DEFECTIVE,WRONG_ITEM,SIZE_MISFIT,QUALITY_ISSUE,DAMAGED,OTHER',
             'description' => 'nullable|string|max:1000',
             'photos' => 'nullable|array',

@@ -18,6 +18,7 @@ class StoreReturn extends Model
     protected $fillable = [
         'return_no',
         'order_id',
+        'order_item_id',
         'user_id',
         'reason_code',
         'reason_detail',
@@ -43,6 +44,16 @@ class StoreReturn extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class, 'order_id');
+    }
+
+    public function orderItem(): BelongsTo
+    {
+        return $this->belongsTo(OrderItem::class, 'order_item_id');
+    }
+
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(OrderItem::class, 'order_item_id');
     }
 
     public function user(): BelongsTo

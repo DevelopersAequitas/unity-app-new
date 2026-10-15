@@ -27,7 +27,12 @@ class ReturnController extends BaseApiController
 
             return $this->success($return, 'Return request submitted successfully', 201);
         } catch (Exception $e) {
-            return $this->error($e->getMessage(), $e->getCode() ?: 400);
+            $message = $e->getMessage();
+            if ($message === \App\Constants\StoreErrorCodes::CUSTOMIZED_PRODUCT_NON_RETURNABLE) {
+                $message = 'Customized product cannot be returned.';
+            }
+
+            return $this->error($message, $e->getCode() ?: 400);
         }
     }
 

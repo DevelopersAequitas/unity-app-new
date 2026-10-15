@@ -98,6 +98,10 @@ class EventRegistration extends Model
         'coupon_code',
         'original_amount',
         'discount_amount',
+        'whatsapp_status',
+        'whatsapp_sent_at',
+        'whatsapp_provider_id',
+        'whatsapp_response_payload',
     ];
 
     protected $casts = [
@@ -110,6 +114,7 @@ class EventRegistration extends Model
         'qr_generated_at' => 'datetime',
         'metadata' => 'array',
         'zoho_payment_webhook_payload' => 'array',
+        'whatsapp_response_payload' => 'array',
         'payment_completed_at' => 'datetime',
         'amount' => 'decimal:2',
         'payment_amount' => 'decimal:2',

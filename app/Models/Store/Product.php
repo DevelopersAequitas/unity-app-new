@@ -198,4 +198,9 @@ class Product extends Model
     {
         return $this->hasMany(Wishlist::class, 'product_id');
     }
+
+    public function getIsCustomizedAttribute(): bool
+    {
+        return (bool) ($this->attributes['customised'] ?? ($this->attributes['is_customized'] ?? false));
+    }
 }

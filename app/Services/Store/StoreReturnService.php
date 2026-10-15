@@ -5,6 +5,7 @@ namespace App\Services\Store;
 use App\Constants\StoreErrorCodes;
 use App\Models\Store\NotificationEvent;
 use App\Models\Store\Order;
+use App\Models\Store\OrderItem;
 use App\Models\Store\ReturnPhoto;
 use App\Models\Store\StoreConfig;
 use App\Models\Store\StoreReturn;
@@ -12,6 +13,7 @@ use App\Models\User;
 use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class StoreReturnService
@@ -39,29 +41,54 @@ class StoreReturnService
             throw new Exception(StoreErrorCodes::RETURN_WINDOW_EXPIRED, 422);
         }
 
-        // Guard against duplicate active return submissions for the same order
-        $existingActiveReturn = StoreReturn::where('order_id', $order->id)
-            ->whereNotIn('status', ['CANCELLED', 'REJECTED'])
-            ->first();
+        // If app sends order_item_id, target only that specific item
+        $orderItemId = ! empty($data['order_item_id']) ? (string) $data['order_item_id'] : null;
+        $targetItem = null;
 
-        if ($existingActiveReturn) {
-            throw new Exception('A return request has already been submitted for this order.', 422);
+        if ($orderItemId !== null) {
+            $targetItem = $order->items->first(function ($item) use ($orderItemId) {
+                return (string) $item->id === $orderItemId;
+            });
+
+            if (! $targetItem) {
+                throw new Exception('Selected order item was not found in this order.', 422);
+            }
         }
 
-        // Validate products in return
-        foreach ($order->items as $item) {
-            if ($item->product && ! $item->product->return_allowed) {
+        // Guard against duplicate active return submissions
+        $returnQuery = StoreReturn::where('order_id', $order->id)
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED']);
+
+        if ($targetItem !== null && Schema::hasColumn('returns', 'order_item_id')) {
+            $returnQuery->where('order_item_id', $targetItem->id);
+        }
+
+        $existingActiveReturn = $returnQuery->first();
+
+        if ($existingActiveReturn) {
+            $duplicateMsg = $targetItem !== null
+                ? 'A return request has already been submitted for this item.'
+                : 'A return request has already been submitted for this order.';
+            throw new Exception($duplicateMsg, 422);
+        }
+
+        // Validate products in return:
+        // Check only target item if order_item_id provided, otherwise check all order items
+        $itemsToValidate = $targetItem ? collect([$targetItem]) : $order->items;
+
+        foreach ($itemsToValidate as $item) {
+            if (! $this->isItemReturnAllowed($item)) {
                 throw new Exception(StoreErrorCodes::RETURN_NOT_ALLOWED, 422);
             }
-            if ($item->product && $item->product->customised) {
-                throw new Exception(StoreErrorCodes::CUSTOMIZED_PRODUCT_NON_RETURNABLE, 422);
+            if ($this->isItemCustomized($item)) {
+                throw new Exception('Customized product cannot be returned.', 422);
             }
         }
 
         $returnNo = 'RET-'.strtoupper(Str::random(10));
 
-        return DB::transaction(function () use ($user, $order, $returnNo, $data) {
-            $return = StoreReturn::create([
+        return DB::transaction(function () use ($user, $order, $returnNo, $data, $targetItem) {
+            $attributes = [
                 'return_no' => $returnNo,
                 'order_id' => $order->id,
                 'user_id' => $user->id,
@@ -69,7 +96,13 @@ class StoreReturnService
                 'reason_detail' => $data['description'] ?? null,
                 'status' => 'REQUESTED',
                 'created_at' => now(),
-            ]);
+            ];
+
+            if ($targetItem && Schema::hasColumn('returns', 'order_item_id')) {
+                $attributes['order_item_id'] = $targetItem->id;
+            }
+
+            $return = StoreReturn::create($attributes);
 
             if (! empty($data['photos']) && is_array($data['photos'])) {
                 foreach ($data['photos'] as $photoUrl) {
@@ -95,6 +128,46 @@ class StoreReturnService
 
             return $return->load(['photos', 'order']);
         });
+    }
+
+    public function isItemCustomized(OrderItem $item): bool
+    {
+        if (isset($item->is_customized) && (bool) $item->is_customized) {
+            return true;
+        }
+
+        if (isset($item->customised) && (bool) $item->customised) {
+            return true;
+        }
+
+        if ($item->product) {
+            if (! empty($item->product->customised) || ! empty($item->product->is_customized)) {
+                return true;
+            }
+        }
+
+        $snapshot = $item->product_snapshot;
+        if (is_array($snapshot)) {
+            if (! empty($snapshot['customised']) || ! empty($snapshot['is_customized'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function isItemReturnAllowed(OrderItem $item): bool
+    {
+        if ($item->product && isset($item->product->return_allowed)) {
+            return (bool) $item->product->return_allowed;
+        }
+
+        $snapshot = $item->product_snapshot;
+        if (is_array($snapshot) && isset($snapshot['return_allowed'])) {
+            return (bool) $snapshot['return_allowed'];
+        }
+
+        return true;
     }
 
     public function getUserReturns(User $user, int $perPage = 20): LengthAwarePaginator

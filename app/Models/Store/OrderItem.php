@@ -76,4 +76,16 @@ class OrderItem extends Model
     {
         return $this->variant?->name ?? ($this->variant_snapshot['name'] ?? ($this->variant_snapshot['title'] ?? null));
     }
+
+    public function getIsCustomizedAttribute(): bool
+    {
+        return (bool) (
+            $this->attributes['is_customized']
+            ?? ($this->attributes['customised']
+                ?? ($this->product?->customised
+                    ?? ($this->product?->is_customized
+                        ?? ($this->product_snapshot['customised']
+                            ?? ($this->product_snapshot['is_customized'] ?? false)))))
+        );
+    }
 }
