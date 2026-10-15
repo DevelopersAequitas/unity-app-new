@@ -938,8 +938,42 @@ class RoleHierarchyController extends Controller
 
             if ($isDed) {
                 DB::table('admin_ded_districts')->where('admin_user_id', $userId)->delete();
+                $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+                if ($appUser) {
+                    DB::table('admin_ded_districts')->where('user_id', $appUser->id)->delete();
+                    DB::table('circles')->where('ded_user_id', $appUser->id)->update([
+                        'ded_user_id' => null,
+                        'updated_at' => now(),
+                    ]);
+                    DB::table('circle_members')->where('user_id', $appUser->id)->where('role', 'ded')->update([
+                        'role' => 'member',
+                        'updated_at' => now(),
+                    ]);
+                }
+                DB::table('circles')->where('ded_user_id', $userId)->update([
+                    'ded_user_id' => null,
+                    'updated_at' => now(),
+                ]);
             } elseif ($isId) {
                 DB::table('industry_director_assignments')->where('admin_user_id', $userId)->delete();
+                $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+                if ($appUser && Schema::hasColumn('industry_director_assignments', 'user_id')) {
+                    DB::table('industry_director_assignments')->where('user_id', $appUser->id)->delete();
+                }
+                if ($appUser) {
+                    DB::table('circles')->where('industry_director_user_id', $appUser->id)->update([
+                        'industry_director_user_id' => null,
+                        'updated_at' => now(),
+                    ]);
+                    DB::table('circle_members')->where('user_id', $appUser->id)->where('role', 'industry_director')->update([
+                        'role' => 'member',
+                        'updated_at' => now(),
+                    ]);
+                }
+                DB::table('circles')->where('industry_director_user_id', $userId)->update([
+                    'industry_director_user_id' => null,
+                    'updated_at' => now(),
+                ]);
             } elseif ($isCircle) {
                 $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
                 if ($appUser) {
@@ -986,6 +1020,10 @@ class RoleHierarchyController extends Controller
             }
 
             AdminAccess::clearAdminUserCache($userId);
+            ScopeCascadeResolver::invalidateCache($userId);
+            Cache::forget('admin-access:ded-location:'.$userId);
+            Cache::forget('admin-access:primary-role:'.$userId);
+            Cache::forget('admin-access:primary-role-label:'.$userId);
 
             $admin = auth('admin')->user();
             if ($admin) {
@@ -1074,14 +1112,49 @@ class RoleHierarchyController extends Controller
                 str_contains($roleKey, 'secretary') ||
                 str_contains($roleKey, 'committee');
 
+            $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+
             if ($isDed) {
+                // Remove conflicting Industry Director roles and records
+                $idRoleIds = DB::table('roles')->whereIn('key', ['industry_director', 'id', 'ied'])->pluck('id')->all();
+                if (! empty($idRoleIds)) {
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUserId)
+                        ->whereIn('role_id', $idRoleIds)
+                        ->delete();
+                }
+
+                if (Schema::hasTable('industry_director_assignments')) {
+                    DB::table('industry_director_assignments')
+                        ->where('admin_user_id', $adminUserId)
+                        ->when($appUser && Schema::hasColumn('industry_director_assignments', 'user_id'), fn ($q) => $q->orWhere('user_id', $appUser->id))
+                        ->delete();
+                }
+
+                DB::table('circles')->where('industry_director_user_id', $adminUserId)->update([
+                    'industry_director_user_id' => null,
+                    'updated_at' => now(),
+                ]);
+                if ($appUser) {
+                    DB::table('circles')->where('industry_director_user_id', $appUser->id)->update([
+                        'industry_director_user_id' => null,
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                if (Schema::hasColumn('admin_users', 'role')) {
+                    DB::table('admin_users')->where('id', $adminUserId)->update([
+                        'role' => 'ded',
+                        'updated_at' => now(),
+                    ]);
+                }
+
                 if ($scopeId) {
                     $district = DB::table('districts')->where('id', $scopeId)->first();
                     if (! $district) {
                         $district = DB::table('districts')->whereRaw('LOWER(TRIM(name)) = ?', [strtolower(trim($scopeId))])->first();
                     }
                     $state = $district && ! empty($district->state_id) ? DB::table('states')->where('id', $district->state_id)->first() : null;
-                    $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
 
                     $resolvedDistrictId = $district->id ?? $scopeId;
                     $resolvedDistrictName = $district->name ?? $scopeId;
@@ -1113,6 +1186,47 @@ class RoleHierarchyController extends Controller
                     }
                 }
             } elseif ($isId) {
+                // Remove conflicting DED roles and stale DED records
+                $dedRoleIds = DB::table('roles')->whereIn('key', ['ded', 'district_exec_director', 'district_director'])->pluck('id')->all();
+                if (! empty($dedRoleIds)) {
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUserId)
+                        ->whereIn('role_id', $dedRoleIds)
+                        ->delete();
+                }
+
+                if (Schema::hasTable('admin_ded_districts')) {
+                    DB::table('admin_ded_districts')
+                        ->where('admin_user_id', $adminUserId)
+                        ->when($appUser, fn ($q) => $q->orWhere('user_id', $appUser->id))
+                        ->delete();
+                }
+
+                DB::table('circles')->where('ded_user_id', $adminUserId)->update([
+                    'ded_user_id' => null,
+                    'updated_at' => now(),
+                ]);
+                if ($appUser) {
+                    DB::table('circles')->where('ded_user_id', $appUser->id)->update([
+                        'ded_user_id' => null,
+                        'updated_at' => now(),
+                    ]);
+                    DB::table('circle_members')
+                        ->where('user_id', $appUser->id)
+                        ->where('role', 'ded')
+                        ->update([
+                            'role' => 'industry_director',
+                            'updated_at' => now(),
+                        ]);
+                }
+
+                if (Schema::hasColumn('admin_users', 'role')) {
+                    DB::table('admin_users')->where('id', $adminUserId)->update([
+                        'role' => 'industry_director',
+                        'updated_at' => now(),
+                    ]);
+                }
+
                 if ($scopeId) {
                     $industryName = '';
                     if (Schema::hasTable('circle_categories')) {
@@ -1273,6 +1387,10 @@ class RoleHierarchyController extends Controller
             }
 
             AdminAccess::clearAdminUserCache($adminUserId);
+            ScopeCascadeResolver::invalidateCache($adminUserId);
+            Cache::forget('admin-access:ded-location:'.$adminUserId);
+            Cache::forget('admin-access:primary-role:'.$adminUserId);
+            Cache::forget('admin-access:primary-role-label:'.$adminUserId);
 
             $admin = auth('admin')->user();
             if ($admin) {
