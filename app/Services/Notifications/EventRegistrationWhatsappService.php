@@ -96,7 +96,7 @@ class EventRegistrationWhatsappService
             $paymentStatus = strtolower((string) ($registration->payment_status ?? ''));
             $paymentRequired = (bool) ($registration->payment_required ?? false);
 
-            if ($status !== 'registered') {
+            if (! $force && $status !== 'registered') {
                 Log::info('[EventRegistrationWhatsappService] Skipped: Status is not registered.', [
                     'registration_id' => (string) $registration->id,
                     'status' => $status,
@@ -105,8 +105,8 @@ class EventRegistrationWhatsappService
                 return false;
             }
 
-            // Strictly require payment to be completed if payment was required
-            if ($paymentRequired && ! in_array($paymentStatus, ['paid', 'success', 'completed'], true)) {
+            // Strictly require payment to be completed if payment was required (unless manually forced by admin)
+            if (! $force && $paymentRequired && ! in_array($paymentStatus, ['paid', 'success', 'completed'], true)) {
                 Log::info('[EventRegistrationWhatsappService] Skipped: Payment required but not completed yet.', [
                     'registration_id' => (string) $registration->id,
                     'payment_status' => $paymentStatus,

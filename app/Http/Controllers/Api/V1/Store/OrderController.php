@@ -100,15 +100,74 @@ class OrderController extends BaseApiController
         $returnRequestObj = $returnToExpose ? [
             'id' => (string) $returnToExpose->id,
             'return_no' => (string) $returnToExpose->return_no,
+            'order_id' => (string) $order->id,
+            'order_item_id' => $returnToExpose->order_item_id ? (string) $returnToExpose->order_item_id : null,
             'status' => (string) $returnToExpose->status,
+            'refund_coins_amount' => (int) ($returnToExpose->refund_coins_amount ?? ($returnToExpose->refund_coins ?? 0)),
+            'refund_coins' => (int) ($returnToExpose->refund_coins ?? 0),
             'reason' => (string) ($returnToExpose->reason_code ?: $returnToExpose->reason ?: 'DEFECTIVE'),
             'created_at' => $returnToExpose->created_at ? $returnToExpose->created_at->toISOString() : null,
         ] : null;
 
+        $data = $order->toArray();
+
+        // Attach item-level return status, return_request, and can_return
+        $itemsCollection = collect($data['items'] ?? []);
+        $anyItemCanReturn = false;
+
+        if ($itemsCollection->isNotEmpty()) {
+            $data['items'] = $itemsCollection->map(function ($itemData) use ($returns, $stLower, &$anyItemCanReturn) {
+                $itemId = (string) ($itemData['id'] ?? '');
+
+                // Find active or latest return for this specific item
+                $itemReturn = $returns->first(function ($ret) use ($itemId) {
+                    return (string) ($ret->order_item_id ?? '') === $itemId
+                        && ! in_array(strtoupper((string) $ret->status), ['CANCELLED', 'REJECTED'], true);
+                }) ?: $returns->first(function ($ret) use ($itemId) {
+                    return (string) ($ret->order_item_id ?? '') === $itemId;
+                });
+
+                $itemReturnRequest = null;
+                if ($itemReturn) {
+                    $itemReturnRequest = [
+                        'id' => (string) $itemReturn->id,
+                        'return_no' => (string) $itemReturn->return_no,
+                        'order_item_id' => $itemId,
+                        'status' => (string) $itemReturn->status,
+                        'refund_coins_amount' => (int) ($itemReturn->refund_coins_amount ?? ($itemReturn->refund_coins ?? 0)),
+                        'refund_coins' => (int) ($itemReturn->refund_coins ?? 0),
+                        'reason' => (string) ($itemReturn->reason_code ?: $itemReturn->reason ?: 'DEFECTIVE'),
+                        'created_at' => $itemReturn->created_at ? $itemReturn->created_at->toISOString() : null,
+                    ];
+                }
+
+                $itemStatus = $itemData['status'] ?? null;
+                if ($itemReturn && (! $itemStatus || in_array(strtoupper((string) $itemStatus), ['DELIVERED', 'COMPLETED'], true))) {
+                    $itemStatus = strtoupper((string) $itemReturn->status) === 'REQUESTED' ? 'RETURN_REQUESTED' : (string) $itemReturn->status;
+                }
+
+                $isCustomized = ! empty($itemData['is_customized']) || ! empty($itemData['customised']);
+                $canReturnThisItem = ! $itemReturn
+                    && in_array($stLower, ['delivered', 'completed'])
+                    && ! $isCustomized;
+
+                if ($canReturnThisItem) {
+                    $anyItemCanReturn = true;
+                }
+
+                $itemData['status'] = $itemStatus;
+                $itemData['return_status'] = $itemReturn ? (string) $itemReturn->status : null;
+                $itemData['return_request'] = $itemReturnRequest;
+                $itemData['can_return'] = $canReturnThisItem;
+
+                return $itemData;
+            })->all();
+        }
+
         // Action Flags
         $currentStatus = strtoupper((string) $order->status);
         $canCancel = in_array($currentStatus, ['PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'PROCESSING'], true);
-        $canReturn = ! $hasActiveReturn && in_array($stLower, ['delivered', 'completed']) && ! in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true);
+        $canReturn = $anyItemCanReturn || (! $hasActiveReturn && in_array($stLower, ['delivered', 'completed']) && ! in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true));
 
         $actionFlags = [
             'can_cancel' => $canCancel,
@@ -119,7 +178,6 @@ class OrderController extends BaseApiController
             'can_pickup' => in_array($currentStatus, ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY']),
         ];
 
-        $data = $order->toArray();
         $data['courier_name'] = $order->courier_name;
         $data['tracking_number'] = $order->tracking_number;
         $data['delivery_person_name'] = $order->delivery_person_name ?: $order->courier_name;

@@ -85,9 +85,22 @@ class StoreReturnService
             }
         }
 
+        // Calculate refund coins for ONLY the selected item (or full order if whole order return)
+        if ($targetItem) {
+            $totalCoins = (int) ($targetItem->total_coins ?? ($targetItem->total_coin_price ?? ($targetItem->total_price_coins ?? 0)));
+            if ($totalCoins <= 0) {
+                $unitCoins = (int) ($targetItem->unit_coins ?? ($targetItem->unit_coin_price ?? ($targetItem->unit_price_coins ?? 0)));
+                $qty = (int) ($targetItem->quantity ?? 1);
+                $totalCoins = $unitCoins * $qty;
+            }
+            $refundCoins = $totalCoins;
+        } else {
+            $refundCoins = (int) ($order->total_coins ?? 0);
+        }
+
         $returnNo = 'RET-'.strtoupper(Str::random(10));
 
-        return DB::transaction(function () use ($user, $order, $returnNo, $data, $targetItem) {
+        return DB::transaction(function () use ($user, $order, $returnNo, $data, $targetItem, $refundCoins) {
             $attributes = [
                 'return_no' => $returnNo,
                 'order_id' => $order->id,
@@ -95,6 +108,7 @@ class StoreReturnService
                 'reason_code' => $data['reason'] ?? 'DAMAGED',
                 'reason_detail' => $data['description'] ?? null,
                 'status' => 'REQUESTED',
+                'refund_coins' => $refundCoins,
                 'created_at' => now(),
             ];
 
@@ -102,7 +116,30 @@ class StoreReturnService
                 $attributes['order_item_id'] = $targetItem->id;
             }
 
+            if (Schema::hasColumn('returns', 'refund_coins_amount')) {
+                $attributes['refund_coins_amount'] = $refundCoins;
+            }
+
             $return = StoreReturn::create($attributes);
+
+            // Update item-level status to RETURN_REQUESTED
+            if ($targetItem) {
+                $targetItem->update(['status' => 'RETURN_REQUESTED']);
+
+                // Only set entire order status to RETURN_REQUESTED if all items in order are now returned
+                $allItemsReturned = $order->items->every(function ($it) use ($targetItem) {
+                    return (string) $it->id === (string) $targetItem->id || strtoupper((string) $it->status) === 'RETURN_REQUESTED';
+                });
+
+                if ($allItemsReturned) {
+                    $order->update(['status' => 'RETURN_REQUESTED']);
+                }
+            } else {
+                foreach ($order->items as $it) {
+                    $it->update(['status' => 'RETURN_REQUESTED']);
+                }
+                $order->update(['status' => 'RETURN_REQUESTED']);
+            }
 
             if (! empty($data['photos']) && is_array($data['photos'])) {
                 foreach ($data['photos'] as $photoUrl) {

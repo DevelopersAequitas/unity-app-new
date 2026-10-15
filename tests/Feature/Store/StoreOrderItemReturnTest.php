@@ -80,6 +80,14 @@ class StoreOrderItemReturnTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('product_images', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('product_id');
+            $table->text('image_url')->nullable();
+            $table->boolean('is_primary')->default(false);
+            $table->timestamps();
+        });
+
         Schema::create('orders', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('order_no');
@@ -113,6 +121,8 @@ class StoreOrderItemReturnTest extends TestCase
             $table->string('reason_code')->default('DAMAGED');
             $table->text('reason_detail')->nullable();
             $table->string('status')->default('REQUESTED');
+            $table->integer('refund_coins')->default(0);
+            $table->integer('refund_coins_amount')->default(0);
             $table->timestamps();
         });
 
@@ -141,6 +151,45 @@ class StoreOrderItemReturnTest extends TestCase
             $table->json('config_value')->nullable();
             $table->text('description')->nullable();
             $table->timestamp('updated_at')->nullable();
+        });
+
+        Schema::create('order_payments', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('order_id');
+            $table->timestamps();
+        });
+
+        Schema::create('order_status_history', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('order_id');
+            $table->string('status')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('shipments', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('order_id');
+            $table->timestamps();
+        });
+
+        Schema::create('refunds', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('order_id')->nullable();
+            $table->uuid('return_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('receipts', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('order_id');
+            $table->timestamps();
+        });
+
+        Schema::create('product_variants', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('product_id')->nullable();
+            $table->string('name')->nullable();
+            $table->timestamps();
         });
 
         $this->user = User::create([
@@ -238,7 +287,28 @@ class StoreOrderItemReturnTest extends TestCase
             'order_item_id' => $this->returnableItem->id,
             'user_id' => $this->user->id,
             'reason_code' => 'DEFECTIVE',
+            'refund_coins' => 1500,
         ]);
+
+        $this->assertEquals(1500, $response->json('data.refund_coins_amount'));
+
+        // Item status is now RETURN_REQUESTED
+        $this->returnableItem->refresh();
+        $this->assertEquals('RETURN_REQUESTED', $this->returnableItem->status);
+
+        // Multi-product order: Order status remains DELIVERED (not overwritten)
+        $this->order->refresh();
+        $this->assertEquals('DELIVERED', $this->order->status);
+
+        // GET /api/v1/orders/{order_id} returns item-level status and return_request
+        $getOrderResponse = $this->getJson("/api/v1/orders/{$this->order->id}");
+        $getOrderResponse->assertStatus(200);
+        $returnedItemData = collect($getOrderResponse->json('data.items'))->firstWhere('id', $this->returnableItem->id);
+        $this->assertNotNull($returnedItemData);
+        $this->assertEquals('RETURN_REQUESTED', $returnedItemData['status']);
+        $this->assertNotNull($returnedItemData['return_request']);
+        $this->assertEquals($this->returnableItem->id, $returnedItemData['return_request']['order_item_id']);
+        $this->assertEquals(1500, $returnedItemData['return_request']['refund_coins_amount']);
     }
 
     public function test_rejects_return_when_returning_customized_order_item(): void
