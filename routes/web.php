@@ -625,6 +625,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->whereUuid('id')->name('events.edit');
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->whereUuid('id')->name('events.update');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->whereUuid('id')->name('events.show');
+        Route::post('/events/{id}/toggle-status', [EventManagementController::class, 'toggleStatus'])->whereUuid('id')->name('events.toggle-status');
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
         Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');

@@ -120,6 +120,7 @@ class EventOccurrenceListResource extends JsonResource
             'speakers' => $event->speakers,
             'what_youll_gain' => array_values((array) data_get($metadata, 'what_youll_gain', [])),
             'organizer' => data_get($metadata, 'organizer'),
+            'is_active' => (bool) ($event->is_active ?? true),
             'is_paid' => (bool) $event->is_paid,
             'ticket_price' => $event->ticket_price !== null ? (string) $event->ticket_price : null,
             'registration_limit' => $limit,

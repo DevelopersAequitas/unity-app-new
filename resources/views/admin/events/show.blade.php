@@ -18,11 +18,25 @@
         </div>
     @endif
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0 fw-bold">{{ $event->title }}</h1>
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h4 mb-0 fw-bold">{{ $event->title }}</h1>
+            @if((bool) ($event->is_active ?? true))
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 rounded-pill">Active</span>
+            @else
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 rounded-pill">Inactive</span>
+            @endif
+        </div>
         <div class="d-flex gap-2 align-items-center">
             <a href="{{ route('admin.events.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
+            <form action="{{ route('admin.events.toggle-status', $event->id) }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn {{ (bool) ($event->is_active ?? true) ? 'btn-outline-danger' : 'btn-outline-success' }}">
+                    <i class="bi {{ (bool) ($event->is_active ?? true) ? 'bi-x-circle' : 'bi-check-circle' }} me-1"></i>
+                    {{ (bool) ($event->is_active ?? true) ? 'Deactivate Event' : 'Activate Event' }}
+                </button>
+            </form>
             <a href="{{ route('admin.events.edit', $event->id) }}" class="btn btn-primary">Edit</a>
         </div>
     </div>

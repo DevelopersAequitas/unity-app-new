@@ -609,6 +609,7 @@
                             <input class="form-control" name="zoho_form_url" value="{{ old('zoho_form_url', $event->zoho_form_url ?? data_get($metadata, 'zoho_form_url')) }}">
                         </div>
                         @foreach([
+                            'is_active' => ['Active Event', 'Control visibility of this event. Inactive events will be hidden from all app and public event listings.'],
                             'qr_checkin_enabled' => ['QR Check-in', 'Members get a QR code after registration. Scan it at event entry.'],
                             'visitor_registration_enabled' => ['Visitor Registration', 'Allow non-members/visitors to register for this event.'],
                             'member_registration_enabled' => ['Member Registration', 'Allow Unity members to register from the app.'],

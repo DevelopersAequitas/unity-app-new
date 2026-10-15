@@ -152,6 +152,9 @@ class EventController extends BaseApiController
                     $computedEventStatus = strtolower((string) ($event->computed_status ?? ''));
 
                     $excludedStatuses = ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete'];
+                    if (! (bool) ($event->is_active ?? true)) {
+                        return null;
+                    }
                     if (in_array($occurrenceStatus, $excludedStatuses, true)) {
                         return null;
                     }
@@ -312,7 +315,7 @@ class EventController extends BaseApiController
             ->with(['circle', 'circles.cityRef', 'occurrences' => fn ($q) => $q->with(['event.circle', 'event.circles.cityRef', 'registrations' => fn ($r) => $r->where('user_id', $request->user()?->id)])->withCount(['registrations as registered_count' => fn ($r) => $r->where('status', '!=', 'cancelled')])->orderBy('start_at')])
             ->find($id);
 
-        if (! $event) {
+        if (! $event || (! (bool) ($event->is_active ?? true) && ! $this->events->isAdmin($request->user()))) {
             return $this->error('Event not found', 404);
         }
 
@@ -1348,7 +1351,7 @@ class EventController extends BaseApiController
             ->findOrFail($occurrenceId);
         $event = $occurrence->event;
 
-        if (! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
+        if (! (bool) ($event->is_active ?? true) || ! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
             return $this->error('Event is not available for public registration.', 403);
         }
 
@@ -1377,7 +1380,7 @@ class EventController extends BaseApiController
             ->findOrFail($occurrenceId);
         $event = $occurrence->event;
 
-        if (! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
+        if (! (bool) ($event->is_active ?? true) || ! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
             return $this->error('Event is not available for public registration.', 403);
         }
 
@@ -1387,6 +1390,9 @@ class EventController extends BaseApiController
     public function publicRegister(VisitorEventRegistrationRequest $request, string $eventId, string $occurrenceId)
     {
         $event = Event::query()->findOrFail($eventId);
+        if (! (bool) ($event->is_active ?? true)) {
+            return $this->error('This event is inactive and not available for registration.', 422);
+        }
         if (! $this->events->visitorRegistrationEnabled($event)) {
             return $this->error('Visitor registration is not enabled for this event.', 403);
         }

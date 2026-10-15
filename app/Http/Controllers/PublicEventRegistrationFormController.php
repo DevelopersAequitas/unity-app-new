@@ -266,6 +266,8 @@ class PublicEventRegistrationFormController extends Controller
             ->findOrFail($occurrenceId);
         $event = $occurrence->event ?: Event::query()->findOrFail($eventId);
 
+        abort_if(! (bool) ($event->is_active ?? true), 404, 'This event is currently inactive.');
+
         abort_unless(
             $event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event),
             403,

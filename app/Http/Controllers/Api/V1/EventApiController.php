@@ -98,6 +98,10 @@ class EventApiController extends BaseApiController
 
     private function expandEventItems(Event $event, string $timezone): Collection
     {
+        if (! (bool) ($event->is_active ?? true)) {
+            return collect();
+        }
+
         if ($event->occurrences->isNotEmpty()) {
             $now = Carbon::now($timezone);
             $eventStartUtc = $event->start_at ? Carbon::parse($event->start_at) : null;
