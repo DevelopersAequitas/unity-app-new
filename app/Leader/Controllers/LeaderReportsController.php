@@ -93,13 +93,25 @@ class LeaderReportsController extends Controller
     /**
      * Get report dynamic pre-signed / download link.
      */
-    public function download(string $id): JsonResponse
+    public function download(Request $request, string $id): JsonResponse|\Symfony\Component\HttpFoundation\Response
     {
+        if ($request->boolean('stream') || ($request->query('type') === 'pdf' && ! $request->expectsJson() && ! $request->isJson())) {
+            return $this->reportsService->downloadReportPdf($id, $request);
+        }
+
         $data = $this->reportsService->getDownloadUrl($id);
 
         return response()->json([
             'success' => true,
             'data' => $data,
         ]);
+    }
+
+    /**
+     * Directly stream/download the report PDF file.
+     */
+    public function downloadPdf(Request $request, string $id): \Symfony\Component\HttpFoundation\Response
+    {
+        return $this->reportsService->downloadReportPdf($id, $request);
     }
 }

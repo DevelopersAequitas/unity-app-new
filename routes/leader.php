@@ -104,6 +104,8 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/reports/{id}', [LeaderReportsController::class, 'show']);
     Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
     Route::get('/leader/reports/{id}/download', [LeaderReportsController::class, 'download']);
+    Route::get('/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+    Route::get('/leader/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
 
     // Activities (Scoped under /leader/ to avoid colliding with Peer/Member App APIs)
     Route::get('/leader/referrals', [LeaderActivitiesController::class, 'referrals']);

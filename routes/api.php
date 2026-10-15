@@ -1317,6 +1317,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
     Route::post('/webhooks/zoho/circle-subscription', [ZohoBillingWebhookController::class, 'handleCircleSubscription']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
+    Route::get('/files/{id}/download', [FileController::class, 'download']);
     Route::get('/files/{id}', [FileController::class, 'show'])->where('id', '.*');
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);
     Route::get('/event-galleries/{id}', [EventGalleryApiController::class, 'show']);
