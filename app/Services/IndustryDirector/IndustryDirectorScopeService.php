@@ -19,15 +19,21 @@ class IndustryDirectorScopeService
             return [];
         }
 
-        return DB::table('industry_director_assignments')
+        $rows = DB::table('industry_director_assignments')
             ->where('admin_user_id', $adminUserId)
             ->where('is_active', true)
-            ->pluck('industry_id')
-            ->map(fn ($id) => (string) $id)
-            ->filter(fn (string $id) => $id !== '')
-            ->unique()
-            ->values()
-            ->all();
+            ->get();
+
+        $ids = [];
+        foreach ($rows as $row) {
+            foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
+                if (! empty($row->{$col})) {
+                    $ids[] = (string) $row->{$col};
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 
     public function assignedIndustryIdForAdmin($adminUserId): ?string

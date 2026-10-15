@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Rbac;
 
 use App\Http\Controllers\Controller;
+use App\Leader\Services\LeaderTeamsService;
 use App\Models\Role;
 use App\Models\RoleHierarchy;
 use App\Services\Admin\AdminAuditService;
@@ -13,6 +14,7 @@ use App\Support\ScopeCascadeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -57,7 +59,7 @@ class RoleHierarchyController extends Controller
         $peers = DB::table('admin_users')->orderBy('name')->get();
         $peers = $this->enrichPeersWithScopes($peers);
         $districts = DB::table('districts')->orderBy('name')->get();
-        $industries = DB::table('industries')->orderBy('name')->get();
+        $industries = $this->getIndustriesList();
         $circles = DB::table('circles')->orderBy('name')->get();
 
         if ($request->wantsJson()) {
@@ -565,8 +567,10 @@ class RoleHierarchyController extends Controller
                         ->where('is_active', true)
                         ->first();
                     if ($scope) {
-                        $scopeId = $scope->industry_id;
-                        $scopeName = 'Industry: '.$scope->industry_name;
+                        $scopeId = $scope->industry_category_id
+                            ?: ($scope->main_business_category_id
+                                ?: ($scope->industry_id ?? null));
+                        $scopeName = 'Industry: '.($scope->industry_name ?: 'Assigned');
                     }
                 } elseif ($isCircle) {
                     $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($assign->email)])->first();
@@ -699,8 +703,11 @@ class RoleHierarchyController extends Controller
                 ->where('is_active', true)
                 ->get();
             foreach ($idRows as $row) {
-                if (! empty($row->industry_id)) {
-                    $industryMap[$row->admin_user_id] = $row->industry_id;
+                $scopeVal = $row->industry_category_id
+                    ?: ($row->main_business_category_id
+                        ?: ($row->industry_id ?? null));
+                if (! empty($scopeVal)) {
+                    $industryMap[$row->admin_user_id] = (string) $scopeVal;
                 }
             }
         }
@@ -820,8 +827,6 @@ class RoleHierarchyController extends Controller
             $industryMap,
             $emailToAppUser,
             $cityDistrictMap,
-            $industryIdsFromDb,
-            $industryNamesMap,
             $circleMemberships
         ) {
             $adminUserId = $peer->id ?? null;
@@ -848,17 +853,7 @@ class RoleHierarchyController extends Controller
             if (! $industryId && $appUser) {
                 $catId = $appUser->main_business_category_id ?: ($appUser->business_category_id ?? null);
                 if ($catId) {
-                    if (in_array($catId, $industryIdsFromDb, true)) {
-                        $industryId = $catId;
-                    } elseif (Schema::hasTable('circle_categories')) {
-                        $cat = DB::table('circle_categories')->where('id', $catId)->first();
-                        if ($cat && ! empty($cat->name)) {
-                            $catName = strtolower(trim((string) $cat->name));
-                            if (isset($industryNamesMap[$catName])) {
-                                $industryId = $industryNamesMap[$catName];
-                            }
-                        }
-                    }
+                    $industryId = (string) $catId;
                 }
             }
 
@@ -1119,22 +1114,53 @@ class RoleHierarchyController extends Controller
                 }
             } elseif ($isId) {
                 if ($scopeId) {
-                    $industry = DB::table('industries')->where('id', $scopeId)->first();
+                    $industryName = '';
+                    if (Schema::hasTable('circle_categories')) {
+                        $cat = DB::table('circle_categories')->where('id', $scopeId)->first();
+                        if ($cat) {
+                            $industryName = $cat->name ?? ($cat->category_name ?? '');
+                        }
+                    }
+                    if ($industryName === '' && Schema::hasTable('industries')) {
+                        $ind = DB::table('industries')->where('id', $scopeId)->first();
+                        if ($ind) {
+                            $industryName = $ind->name ?? '';
+                        }
+                    }
+                    if ($industryName === '') {
+                        $official = collect(app(LeaderTeamsService::class)->getOfficialCircleCategories())
+                            ->firstWhere('id', (string) $scopeId);
+                        if ($official) {
+                            $industryName = $official['name'] ?? '';
+                        }
+                    }
 
                     DB::table('industry_director_assignments')
                         ->where('admin_user_id', $adminUserId)
                         ->delete();
 
-                    DB::table('industry_director_assignments')->insert([
+                    $isScopeUuid = Str::isUuid((string) $scopeId);
+                    $payload = [
                         'id' => (string) Str::uuid(),
                         'admin_user_id' => $adminUserId,
-                        'industry_id' => $scopeId,
-                        'industry_name' => $industry->name ?? '',
+                        'industry_id' => $isScopeUuid ? $scopeId : null,
                         'assigned_by' => auth('admin')->id(),
                         'is_active' => true,
                         'created_at' => now(),
                         'updated_at' => now(),
-                    ]);
+                    ];
+
+                    if (Schema::hasColumn('industry_director_assignments', 'industry_name')) {
+                        $payload['industry_name'] = $industryName;
+                    }
+                    if (Schema::hasColumn('industry_director_assignments', 'industry_category_id')) {
+                        $payload['industry_category_id'] = is_numeric($scopeId) ? (int) $scopeId : null;
+                    }
+                    if (Schema::hasColumn('industry_director_assignments', 'main_business_category_id')) {
+                        $payload['main_business_category_id'] = is_numeric($scopeId) ? (int) $scopeId : null;
+                    }
+
+                    DB::table('industry_director_assignments')->insert($payload);
                 }
             } elseif ($isCircle) {
                 if ($scopeId) {
@@ -1416,5 +1442,40 @@ class RoleHierarchyController extends Controller
         } catch (\Throwable) {
             // Ignore if columns differ or conflict
         }
+    }
+
+    protected function getIndustriesList(): Collection
+    {
+        $industries = collect();
+
+        if (Schema::hasTable('circle_categories')) {
+            $industries = DB::table('circle_categories')
+                ->where(function ($q) {
+                    $q->where('level', 1)
+                        ->orWhereNull('parent_id');
+                })
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->selectRaw("id, COALESCE(NULLIF(name, ''), category_name) as name")
+                ->get();
+        }
+
+        if ($industries->isEmpty() && Schema::hasTable('industries')) {
+            $industries = DB::table('industries')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        if ($industries->isEmpty()) {
+            $industries = collect(app(LeaderTeamsService::class)->getOfficialCircleCategories())
+                ->map(fn ($item) => (object) [
+                    'id' => (string) $item['id'],
+                    'name' => $item['name'],
+                ]);
+        }
+
+        return $industries;
     }
 }
