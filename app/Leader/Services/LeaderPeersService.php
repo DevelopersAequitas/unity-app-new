@@ -198,6 +198,9 @@ class LeaderPeersService
         $roleInfo = $user ? $this->permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
 
+        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
+            || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
+
         // If a specific circle is requested, filter strictly to that circle
         if ($circleId && Str::isUuid($circleId)) {
             $query->where(function (Builder $q) use ($circleId): void {
@@ -237,39 +240,27 @@ class LeaderPeersService
                         ->orWhereIn('active_circle_id', $districtCircleIds);
                 });
             }
-        } else {
-            // Only show users who have joined a circle (circle members, active circle, circle leaders, joined categories)
-            $query->where(function (Builder $q): void {
-                $q->whereHas('circleMembers', function (Builder $cq): void {
-                    $cq->whereNull('deleted_at');
-                });
-
-                if (Schema::hasColumn('users', 'active_circle_id')) {
-                    $q->orWhere(function (Builder $aq): void {
-                        $aq->whereNotNull('active_circle_id')
-                            ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
-                    });
-                }
-
-                $q->orWhereExists(function ($sq): void {
-                    $sq->selectRaw(1)
-                        ->from('circles')
-                        ->whereNull('circles.deleted_at')
-                        ->where(function ($lq): void {
-                            $this->applyCircleLeadershipColumnsCondition($lq);
-                        });
-                });
-
-                if (Schema::hasTable('joined_circle_categories')) {
-                    $q->orWhereExists(function ($jq): void {
-                        $jq->selectRaw(1)
-                            ->from('joined_circle_categories')
-                            ->join('circles', 'circles.id', '=', 'joined_circle_categories.circle_id')
+        } elseif (! $isAdmin && ! $isGlobalRequested && $scopedCircleIds !== null && ! empty($scopedCircleIds)) {
+            // For circle-scoped leaders, restrict to their scoped circles
+            $query->where(function (Builder $q) use ($scopedCircleIds): void {
+                $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
+                    ->orWhereIn('active_circle_id', $scopedCircleIds)
+                    ->orWhereExists(function ($sq) use ($scopedCircleIds): void {
+                        $sq->selectRaw(1)
+                            ->from('circles')
+                            ->whereIn('circles.id', $scopedCircleIds)
                             ->whereNull('circles.deleted_at')
-                            ->whereColumn('joined_circle_categories.user_id', 'users.id');
+                            ->where(function ($lq): void {
+                                $this->applyCircleLeadershipColumnsCondition($lq);
+                            });
                     });
-                }
             });
+        } elseif (! $isAdmin && ! $isGlobalRequested && $scopedCircleIds !== null && empty($scopedCircleIds)) {
+            // Non-admin leader without any assigned circle
+            $query->whereRaw('1 = 0');
+        } else {
+            // Global Admin or global platform scope:
+            // All peers across the platform are accessible (no circle-member restriction)
         }
 
         if ($search) {
@@ -606,7 +597,7 @@ class LeaderPeersService
                 'hashtag' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['hashtag'],
                 'quote' => app(LifeImpactCreativeGenerator::class)->getRecognitionMeta((int) $impact)['quote'],
             ],
-            'circle_name' => $circleName,
+            'circle_name' => $circleName !== '' ? $circleName : 'Peers Global',
             'circle_id' => $circleId,
             'status' => $status,
             'is_verified' => (bool) ($user->is_verified ?? true),
@@ -981,17 +972,10 @@ class LeaderPeersService
     ): array {
         $scopedCircleIds = $this->resolveScopedCircleIds($user, $districtId);
 
-        $baseQuery = fn () => User::query()
-            ->whereNull('deleted_at')
-            ->where(function (Builder $q): void {
-                $q->whereHas('circleMembers', function (Builder $cq): void {
-                    $cq->whereNull('deleted_at')
-                        ->whereHas('circle', fn (Builder $c) => $c->whereNull('deleted_at'));
-                })->orWhere(function (Builder $aq): void {
-                    $aq->whereNotNull('active_circle_id')
-                        ->whereHas('activeCircle', fn (Builder $c) => $c->whereNull('deleted_at'));
-                });
-            });
+        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
+            || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
+
+        $baseQuery = fn () => User::query()->whereNull('deleted_at');
 
         $query = $baseQuery();
 
@@ -1007,7 +991,15 @@ class LeaderPeersService
                         ->orWhere('active_circle_id', $circleId);
                 });
             }
-        } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds)) {
+        } elseif ($districtId && Str::isUuid($districtId)) {
+            $districtCircleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
+            if (! empty($districtCircleIds)) {
+                $query->where(function (Builder $q) use ($districtCircleIds): void {
+                    $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $districtCircleIds)->whereNull('deleted_at'))
+                        ->orWhereIn('active_circle_id', $districtCircleIds);
+                });
+            }
+        } elseif (! $isAdmin && ! $isGlobalRequested && $scopedCircleIds !== null && ! empty($scopedCircleIds)) {
             $query->where(function (Builder $q) use ($scopedCircleIds): void {
                 $q->whereHas('circleMembers', fn ($cm) => $cm->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
                     ->orWhereIn('active_circle_id', $scopedCircleIds);
