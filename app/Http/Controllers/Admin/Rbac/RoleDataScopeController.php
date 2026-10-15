@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Rbac;
 
 use App\Http\Controllers\Controller;
+use App\Leader\Services\LeaderTeamsService;
 use App\Models\Circle;
 use App\Models\District;
 use App\Models\Industry;
@@ -14,6 +15,7 @@ use App\Services\Admin\PermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -38,7 +40,29 @@ class RoleDataScopeController extends Controller
             ->get();
 
         $circles = Circle::query()->orderBy('name')->limit(200)->get(['id', 'name']);
-        $industries = Industry::query()->orderBy('name')->get(['id', 'name']);
+        $industries = collect();
+        if (Schema::hasTable('circle_categories')) {
+            $industries = DB::table('circle_categories')
+                ->where(function ($q) {
+                    $q->where('level', 1)
+                        ->orWhereNull('parent_id');
+                })
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->selectRaw("id, COALESCE(NULLIF(name, ''), category_name) as name")
+                ->get();
+        }
+        if ($industries->isEmpty() && Schema::hasTable('industries')) {
+            $industries = Industry::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        }
+        if ($industries->isEmpty()) {
+            $industries = collect(app(LeaderTeamsService::class)->getOfficialCircleCategories())
+                ->map(fn ($item) => (object) [
+                    'id' => (string) $item['id'],
+                    'name' => $item['name'],
+                ]);
+        }
         $districts = Schema::hasTable('districts')
             ? District::query()->orderBy('name')->get(['id', 'name'])
             : collect();

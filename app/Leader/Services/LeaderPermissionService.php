@@ -9,6 +9,7 @@ use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\IndustryDirector\IndustryDirectorScopeService;
 use App\Shared\Services\UserRoleResolverService;
 use App\Support\AdminCircleScope;
 use Illuminate\Support\Facades\DB;
@@ -471,9 +472,22 @@ class LeaderPermissionService
                 })->get();
             }
         } elseif ($role === 'industryDirector') {
-            $circles = $query->where('industry_director_user_id', $userId)
-                ->orWhere('chair_user_id', $userId)
-                ->get();
+            $admin = AdminUser::query()->where('id', $userId)->orWhere('email', $user->email)->first();
+            $adminUserId = (string) ($admin?->id ?? $userId);
+            $assignedIndustryIds = app(IndustryDirectorScopeService::class)->assignedIndustryIdsForAdmin($adminUserId);
+
+            $circles = $query->where(function ($q) use ($userId, $assignedIndustryIds): void {
+                $q->where('industry_director_user_id', $userId)
+                    ->orWhere('chair_user_id', $userId);
+                if (! empty($assignedIndustryIds)) {
+                    $q->orWhere(function ($sub) use ($assignedIndustryIds): void {
+                        foreach ($assignedIndustryIds as $indId) {
+                            $sub->orWhereJsonContains('industry_tags', $indId)
+                                ->orWhere('industry_tags', 'like', '%'.$indId.'%');
+                        }
+                    });
+                }
+            })->get();
         } else {
             $circles = $query->where('chair_user_id', $userId)
                 ->orWhere('circle_founder_user_id', $userId)
