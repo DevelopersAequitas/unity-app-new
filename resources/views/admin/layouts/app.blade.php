@@ -179,6 +179,76 @@
         });
     </script>
 
+    {{-- Global Real-time WhatsApp Unread Counter Poller (WhatsApp Web Style) --}}
+    <script>
+        (function() {
+            const originalDocTitle = document.title;
+            const unreadCountUrl = "{{ route('admin.whatsapp.chat.unread_count') }}";
+
+            function updateGlobalUnreadCounters(count) {
+                const num = parseInt(count, 10) || 0;
+                
+                // Topbar pill
+                const topbarPill = document.getElementById('whatsapp-topbar-unread-pill');
+                const topbarCount = document.getElementById('whatsapp-topbar-unread-count');
+                if (topbarPill && topbarCount) {
+                    if (num > 0) {
+                        topbarCount.textContent = num;
+                        topbarPill.classList.remove('d-none');
+                        topbarPill.classList.add('d-inline-flex');
+                    } else {
+                        topbarPill.classList.remove('d-inline-flex');
+                        topbarPill.classList.add('d-none');
+                    }
+                }
+
+                // Sidebar badge
+                const sidebarBadge = document.getElementById('sidebar-whatsapp-unread-badge');
+                if (sidebarBadge) {
+                    if (num > 0) {
+                        sidebarBadge.textContent = num;
+                        sidebarBadge.style.display = 'inline-block';
+                    } else {
+                        sidebarBadge.style.display = 'none';
+                    }
+                }
+
+                // Dynamic document title
+                if (num > 0) {
+                    document.title = `(${num}) Peers Unity Admin`;
+                } else {
+                    document.title = originalDocTitle;
+                }
+            }
+
+            // Expose globally so chat view can instantly update or reset
+            window.updateWhatsAppGlobalBadge = updateGlobalUnreadCounters;
+
+            // Poll every 3 seconds
+            function pollUnread() {
+                fetch(unreadCountUrl, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data && typeof data.total_unread !== 'undefined') {
+                        updateGlobalUnreadCounters(data.total_unread);
+                    }
+                })
+                .catch(() => {});
+            }
+
+            // Initial poll and recurring interval
+            document.addEventListener('DOMContentLoaded', function() {
+                pollUnread();
+                setInterval(pollUnread, 3000);
+            });
+        })();
+    </script>
+
     @include('admin.activities.partials.peer-modal')
 </body>
 </html>

@@ -53,6 +53,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin/pending-requests/certifications/*',
             'whatsapp/webhook',
             'v1/whatsapp/webhook',
+            'api/whatsapp/webhook',
+            'api/whatsapp/*',
         ]);
         $middleware->alias([
             'admin.auth' => EnsureAdminAuthenticated::class,

@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\WhatsApp\SendJourneyDayRequest;
 use App\Models\MemberJourneySend;
 use App\Models\User;
 use App\Services\WhatsApp\MemberJourney30DayService;
+use App\Services\WhatsApp\MetaDeliveryStatusSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -125,8 +126,9 @@ class MemberJourneyAdminController extends Controller
 
         // Auto-sync delivery statuses from meta message logs
         try {
-            app(\App\Services\WhatsApp\MetaDeliveryStatusSyncService::class)->syncJourneyDeliveries($userId);
-        } catch (\Throwable) {}
+            app(MetaDeliveryStatusSyncService::class)->syncJourneyDeliveries($userId);
+        } catch (\Throwable) {
+        }
 
         $sends = $this->journeyService->getMemberJourney($userId);
 
@@ -270,7 +272,7 @@ class MemberJourneyAdminController extends Controller
      */
     public function syncStatuses(Request $request): RedirectResponse|JsonResponse
     {
-        $updated = app(\App\Services\WhatsApp\MetaDeliveryStatusSyncService::class)->syncJourneyDeliveries();
+        $updated = app(MetaDeliveryStatusSyncService::class)->syncJourneyDeliveries();
 
         $message = "Synced WhatsApp delivery statuses. {$updated} journey message(s) updated.";
 

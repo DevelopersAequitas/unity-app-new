@@ -284,7 +284,7 @@ class EventFlowService
             ],
             'APPROVED' => $pricing['applicable_price'] > 0 ? [
                 'action_type' => 'PAY_NOW',
-                'label' => 'Pay Now (₹'.number_format($pricing['applicable_price'], 0).')',
+                'label' => 'Pay Now',
                 'is_enabled' => true,
                 'helper_text' => 'Your request has been approved! Complete payment to get your QR ticket.',
             ] : [
