@@ -104,6 +104,8 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
     Route::get('/leader/reports/{id}', [LeaderReportsController::class, 'show']);
     Route::get('/reports/{id}/download', [LeaderReportsController::class, 'download']);
     Route::get('/leader/reports/{id}/download', [LeaderReportsController::class, 'download']);
+    Route::get('/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
+    Route::get('/leader/reports/{id}/file', [LeaderReportsController::class, 'downloadPdf']);
 
     // Activities (Scoped under /leader/ to avoid colliding with Peer/Member App APIs)
     Route::get('/leader/referrals', [LeaderActivitiesController::class, 'referrals']);
@@ -186,12 +188,14 @@ Route::middleware(['auth:sanctum', 'leader.user'])->group(function () {
         Route::get('flows', [LeaderAskFlowController::class, 'flows']);
         Route::get('flows/{flow}', [LeaderAskFlowController::class, 'flowDetails'])->whereIn('flow', ['collaboration', 'referral', 'help']);
         Route::get('form-config', [LeaderAskFlowController::class, 'formConfig']);
+        Route::get('my', [AskFlowHubController::class, 'myAllAsks']);
     });
 
-    // 3 DEDICATED ASKS FLOWS: CORE ENDPOINTS (Global Feed, My History, Leaderboard, Detail)
-    Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help'])->group(function (): void {
+    // 3 DEDICATED ASKS FLOWS: CORE ENDPOINTS (Global Feed, My History, User History, Leaderboard, Detail)
+    Route::prefix('/leader/asks/{flow}')->whereIn('flow', ['collaboration', 'referral', 'help', 'all'])->group(function (): void {
         Route::get('global', [AskFlowHubController::class, 'globalFeed']);
         Route::get('my', [AskFlowHubController::class, 'myAsks']);
+        Route::get('user/{userId}', [AskFlowHubController::class, 'userAsks'])->whereUuid('userId');
         Route::get('leaderboard', [AskFlowHubController::class, 'leaderboard']);
         Route::get('{id}', [AskFlowHubController::class, 'showAsk'])->whereUuid('id');
     });

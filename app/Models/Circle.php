@@ -401,6 +401,18 @@ class Circle extends Model
         return is_string($calendarValue) && trim($calendarValue) !== '' ? trim($calendarValue) : null;
     }
 
+    public function getCircleImageFileIdAttribute($value): ?string
+    {
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        $calendarValue = $this->calendarGet('circle_image.file_id')
+            ?? $this->calendarGet('circle_image_file_id');
+
+        return is_string($calendarValue) && trim($calendarValue) !== '' ? trim($calendarValue) : null;
+    }
+
     public function getMeetingScheduleAttribute(): array
     {
         $value = $this->calendarGet('meeting_schedule', []);
@@ -595,15 +607,27 @@ class Circle extends Model
 
     public function getCircleImageUrlAttribute(): ?string
     {
-        if (! $this->circle_image_file_id) {
-            return null;
+        if ($this->circle_image_file_id) {
+            if ($this->relationLoaded('circleImageFile') && $this->circleImageFile && isset($this->circleImageFile->url)) {
+                return $this->circleImageFile->url;
+            }
+
+            return url('/api/v1/files/'.$this->circle_image_file_id);
         }
 
-        if ($this->relationLoaded('circleImageFile') && $this->circleImageFile && isset($this->circleImageFile->url)) {
-            return $this->circleImageFile->url;
+        $calendarUrl = $this->calendarGet('circle_image.url')
+            ?? $this->calendarGet('circle_image_url')
+            ?? $this->calendarGet('image_url');
+
+        if (is_string($calendarUrl) && trim($calendarUrl) !== '') {
+            return trim($calendarUrl);
         }
 
-        return url('/api/v1/files/'.$this->circle_image_file_id);
+        if ($this->cover_file_id) {
+            return $this->cover_image_url;
+        }
+
+        return null;
     }
 
     public static function generateUniqueSlug(string $name, ?string $ignoreId = null): string

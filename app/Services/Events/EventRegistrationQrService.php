@@ -17,11 +17,11 @@ class EventRegistrationQrService
 {
     public function __construct(private readonly EventQrService $qr) {}
 
-    public function ensureQrGenerated(EventRegistration $registration): EventRegistration
+    public function ensureQrGenerated(EventRegistration $registration, bool $force = false): EventRegistration
     {
         $registration = $registration->fresh() ?? $registration;
 
-        if (! $this->canGenerate($registration)) {
+        if (! $force && ! $this->canGenerate($registration)) {
             Log::info('event_registration_qr_generation_skipped_until_payment_complete', [
                 'registration_id' => (string) $registration->id,
                 'payment_required' => (bool) ($registration->payment_required ?? false),
@@ -127,7 +127,35 @@ class EventRegistrationQrService
             $this->sendVisitorQrEmailSafely($registration);
         }
 
+        if ($this->hasUsableQr($registration)) {
+            $this->sendVisitorQrWhatsappSafely($registration);
+        }
+
         return $registration;
+    }
+
+    public function sendVisitorQrWhatsappSafely(EventRegistration $registration): void
+    {
+        static $inProgress = [];
+        $id = (string) $registration->id;
+        if (isset($inProgress[$id])) {
+            return;
+        }
+
+        $inProgress[$id] = true;
+        try {
+            $service = app(\App\Services\Notifications\EventRegistrationWhatsappService::class);
+            if (! $service->isAlreadySent($registration)) {
+                $service->sendNotification($registration);
+            }
+        } catch (Throwable $exception) {
+            Log::error('event_visitor_qr_whatsapp_send_failed', [
+                'registration_id' => $id,
+                'error' => $exception->getMessage(),
+            ]);
+        } finally {
+            unset($inProgress[$id]);
+        }
     }
 
     public function sendVisitorQrEmailSafely(EventRegistration $registration): void
@@ -234,7 +262,7 @@ class EventRegistrationQrService
 
     private function canGenerate(EventRegistration $registration): bool
     {
-        if (in_array(strtolower((string) ($registration->status ?? '')), ['cancelled', 'canceled', 'payment_failed'], true)) {
+        if (in_array(strtolower((string) ($registration->status ?? '')), ['cancelled', 'canceled', 'payment_failed', 'pending_payment'], true)) {
             return false;
         }
 

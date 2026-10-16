@@ -499,7 +499,7 @@ class CircleSubscriptionController extends BaseApiController
             }
 
             // Assign Circle Member
-            $circleMember = CircleMember::query()
+            $circleMember = CircleMember::withTrashed()
                 ->where('user_id', $user->id)
                 ->where('circle_id', $circle->id)
                 ->first();
@@ -513,9 +513,11 @@ class CircleSubscriptionController extends BaseApiController
                     'joined_at' => $now,
                 ]);
             } else {
+                if ($circleMember->trashed()) {
+                    $circleMember->restore();
+                }
                 $circleMember->update([
                     'status' => 'approved',
-                    'deleted_at' => null,
                     'left_at' => null,
                 ]);
             }

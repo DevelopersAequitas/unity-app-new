@@ -78,6 +78,18 @@ class LeaderTeamsService
             if ($districtFromCircle) {
                 return (string) $districtFromCircle;
             }
+
+            if (Schema::hasTable('districts')) {
+                $dedCircle = Circle::query()->where('ded_user_id', $user->id)->first();
+                if ($dedCircle && str_contains(strtolower((string) $dedCircle->name), 'ahmedabad')) {
+                    $ahmedabadDistrictId = District::query()
+                        ->whereRaw("LOWER(name) = 'ahmedabad'")
+                        ->value('id');
+                    if ($ahmedabadDistrictId) {
+                        return (string) $ahmedabadDistrictId;
+                    }
+                }
+            }
         }
 
         // 4. Check if user belongs to Ahmedabad city / district
@@ -879,7 +891,7 @@ class LeaderTeamsService
             $query->where('status', strtolower($status));
         }
 
-        $circles = $query->with(['city', 'chairUser', 'founderUser', 'director', 'members', 'categories', 'circleCategory'])->orderBy('name')->take(50)->get();
+        $circles = $query->with(['city', 'chairUser', 'founderUser', 'director', 'members', 'categories', 'circleCategory', 'circleImageFile', 'coverFile'])->orderBy('name')->take(50)->get();
 
         return $circles->map(function (Circle $c): array {
             $peersCount = CircleMember::query()
@@ -900,6 +912,12 @@ class LeaderTeamsService
             $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($c, $peersCount) : '₹0.0';
             $launchDate = $c->launch_date ? (is_string($c->launch_date) ? substr($c->launch_date, 0, 10) : $c->launch_date->format('Y-m-d')) : ($c->created_at ? $c->created_at->format('Y-m-d') : '2026-08-26');
 
+            $imageMeta = $this->resolveCircleImage($c);
+            $circleImage = [
+                'id' => $imageMeta['id'],
+                'url' => $imageMeta['url'],
+            ];
+
             return [
                 'id' => (string) $c->id,
                 'name' => (string) $c->name,
@@ -911,11 +929,49 @@ class LeaderTeamsService
                 'status' => (string) ucfirst((string) ($c->status ?: 'Active')),
                 'launch_date' => $launchDate,
                 'tags' => array_values($tags),
+                'circle_image' => $circleImage,
                 'chairs' => $this->resolveCircleChairs($c),
                 'founders' => $this->resolveCircleFounders($c),
                 'directors' => $this->resolveCircleDirectors($c),
             ];
         })->values()->all();
+    }
+
+    /**
+     * Resolve circle image object, URL, and collection with fallback to dev/prod default asset.
+     *
+     * @return array{id: string|null, url: string}
+     */
+    public function resolveCircleImage(Circle $circle): array
+    {
+        $fileId = $circle->circle_image_file_id
+            ?? $circle->calendarGet('circle_image.file_id')
+            ?? $circle->calendarGet('circle_image_file_id')
+            ?? $circle->cover_file_id
+            ?? $circle->calendarGet('cover.file_id');
+
+        $imageUrl = null;
+
+        if ($fileId) {
+            $imageUrl = url('/api/v1/files/'.$fileId);
+        } else {
+            $imageUrl = $circle->circle_image_url
+                ?? $circle->cover_image_url
+                ?? $circle->calendarGet('circle_image.url')
+                ?? $circle->calendarGet('circle_image_url')
+                ?? $circle->calendarGet('image_url');
+        }
+
+        if (empty($imageUrl)) {
+            $defaultFileId = '01a0f23b-0472-713a-be9b-652bf3bed62d';
+            $fileId = $defaultFileId;
+            $imageUrl = url('/api/v1/files/'.$defaultFileId);
+        }
+
+        return [
+            'id' => $fileId ? (string) $fileId : null,
+            'url' => (string) $imageUrl,
+        ];
     }
 
     /**
@@ -925,7 +981,7 @@ class LeaderTeamsService
      */
     public function getCircleDetails(string $circleId): ?array
     {
-        $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'founderUser', 'director', 'members.user', 'categories', 'circleCategory'])->first();
+        $circle = Circle::query()->where('id', $circleId)->with(['city', 'chairUser', 'founderUser', 'director', 'members.user', 'categories', 'circleCategory', 'circleImageFile', 'coverFile'])->first();
 
         if (! $circle) {
             return null;
@@ -949,6 +1005,12 @@ class LeaderTeamsService
         $revenue = $peersCount > 0 ? $this->calculateCircleRevenue($circle, $peersCount) : '₹0.0';
         $launchDate = $circle->launch_date ? (is_string($circle->launch_date) ? substr($circle->launch_date, 0, 10) : $circle->launch_date->format('Y-m-d')) : ($circle->created_at ? $circle->created_at->format('Y-m-d') : '2026-01-15');
 
+        $imageMeta = $this->resolveCircleImage($circle);
+        $circleImage = [
+            'id' => $imageMeta['id'],
+            'url' => $imageMeta['url'],
+        ];
+
         return [
             'id' => (string) $circle->id,
             'name' => (string) $circle->name,
@@ -960,6 +1022,7 @@ class LeaderTeamsService
             'status' => (string) ucfirst((string) ($circle->status ?: 'Active')),
             'launch_date' => $launchDate,
             'tags' => array_values($tags),
+            'circle_image' => $circleImage,
             'chairs' => $this->resolveCircleChairs($circle, true),
             'founders' => $this->resolveCircleFounders($circle),
             'directors' => $this->resolveCircleDirectors($circle),
@@ -1145,6 +1208,10 @@ class LeaderTeamsService
         $query = DB::table('events')
             ->where('circle_id', $circleId)
             ->whereNull('deleted_at');
+
+        if (Schema::hasColumn('events', 'is_active')) {
+            $query->where('is_active', true);
+        }
 
         if ($filter === 'upcoming') {
             $query->where('start_at', '>=', now());

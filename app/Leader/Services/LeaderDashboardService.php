@@ -8,6 +8,7 @@ use App\Models\AdminUser;
 use App\Models\BusinessDeal;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\District;
 use App\Models\Impact;
 use App\Models\P2pMeeting;
 use App\Models\Referral;
@@ -31,11 +32,18 @@ class LeaderDashboardService
     ) {}
 
     /**
-     * Get aggregated metrics for dashboard scoped to circle or district.
+     * Resolve the leader's scope, including target circle IDs, resolved circle names,
+     * whether the request has global scope, and the exact set of scoped member user IDs.
      *
-     * @return array<string, mixed>
+     * @return array{
+     *     is_global_scope: bool,
+     *     resolved_circle_id: ?string,
+     *     resolved_circle_name: string,
+     *     target_circle_ids: array<string>,
+     *     scoped_member_user_ids: ?array<string>
+     * }
      */
-    public function getMetrics(
+    public function resolveLeaderScope(
         ?string $circleId = null,
         ?string $districtId = null,
         ?User $user = null,
@@ -47,9 +55,11 @@ class LeaderDashboardService
         $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'guest'];
         $role = $roleInfo['role'];
         $isAdminRole = in_array($role, ['superAdmin', 'countryDirector'], true);
+        $admin = ($user && Schema::hasTable('admin_users'))
+            ? AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first()
+            : null;
 
-        $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
-            || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
+        $userId = (string) ($user?->id ?? '');
 
         $circle = null;
         $resolvedCircleId = null;
@@ -59,12 +69,10 @@ class LeaderDashboardService
 
         // 1. If explicit circle_id is provided in request and valid UUID
         if ($circleId && Str::isUuid($circleId)) {
-            // Super admins can view any circle by ID; other roles must be within scope
             if ($isAdminRole || $scopedCircleIds === null || in_array($circleId, $scopedCircleIds, true)) {
                 $circle = Circle::query()->where('id', $circleId)->whereNull('deleted_at')->first();
             }
         } elseif (! empty($circleId) && in_array(strtolower(trim((string) $circleId)), ['mine', 'my_circle', 'own'], true) && $scopedCircleIds !== null && count($scopedCircleIds) >= 1) {
-            // Explicitly requested own circle
             $circle = Circle::query()->where('id', $scopedCircleIds[0])->whereNull('deleted_at')->first();
         }
 
@@ -78,100 +86,147 @@ class LeaderDashboardService
             $targetCircleIds = [(string) $circle->id];
             $isGlobalScope = false;
         } else {
-            // All Circles / Global view: User requested all circles or browsing global peers
-            $resolvedDistrictId = (! $isGlobalRequested && ! $isAdminRole && $districtId) ? $this->teamsService->resolveDedDistrictId($districtId, $user) : null;
-            if ($resolvedDistrictId) {
-                $targetCircleIds = Circle::query()->where('district_id', $resolvedDistrictId)->whereNull('deleted_at')->pluck('id')->all();
-                if (empty($targetCircleIds)) {
+            // No specific circle requested (e.g. default dashboard view, all, global)
+            if ($isAdminRole) {
+                if ($districtId && Str::isUuid($districtId)) {
+                    $targetCircleIds = Circle::query()->where('district_id', $districtId)->whereNull('deleted_at')->pluck('id')->all();
+                    $isGlobalScope = false;
+                } else {
                     $targetCircleIds = Circle::query()->whereNull('deleted_at')->pluck('id')->all();
                     $isGlobalScope = true;
-                } else {
-                    $isGlobalScope = false;
                 }
+                $resolvedCircleId = null;
+                $resolvedCircleName = 'All Circles';
             } else {
-                $targetCircleIds = Circle::query()->whereNull('deleted_at')->pluck('id')->all();
-                $isGlobalScope = true;
+                // Scoped leader: DED, Industry Director, Circle Founder, Circle Director, Chairs
+                // Restrict strictly to role scope; NEVER leak global platform data.
+                $isGlobalScope = false;
+                $resolvedCircleId = null;
+                $resolvedCircleName = 'All Circles';
+                $targetCircleIds = [];
+                $districtName = null;
+                $assignedIndustryIds = [];
+                $assignedIndustryNames = [];
+
+                if ($role === 'districtExecDirector' || ($admin && AdminAccess::isDed($admin))) {
+                    $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
+                    if ($resolvedDistrictId) {
+                        $targetCircleIds = Circle::query()
+                            ->where('district_id', $resolvedDistrictId)
+                            ->whereNull('deleted_at')
+                            ->pluck('id')
+                            ->all();
+                    }
+
+                    if (! empty($scopedCircleIds)) {
+                        $targetCircleIds = array_values(array_unique(array_merge($targetCircleIds, $scopedCircleIds)));
+                    }
+
+                    if ($admin && AdminAccess::isDed($admin)) {
+                        $dedCircleIds = AdminCircleScope::getDedCircleIds($admin);
+                        if (! empty($dedCircleIds)) {
+                            $targetCircleIds = array_values(array_unique(array_merge($targetCircleIds, $dedCircleIds)));
+                        }
+                    }
+
+                    if ($resolvedDistrictId && Schema::hasTable('districts')) {
+                        $districtName = District::query()->where('id', $resolvedDistrictId)->value('name');
+                    }
+                    if (! $districtName && $admin) {
+                        $districtName = AdminAccess::assignedDedDistrictName($admin);
+                    }
+                    if (! $districtName && Schema::hasTable('admin_ded_districts') && $user) {
+                        $districtName = DB::table('admin_ded_districts')
+                            ->where('admin_user_id', $user->id)
+                            ->orWhere('user_id', $user->id)
+                            ->value('district_name');
+                    }
+                    if (! $districtName && ! empty($targetCircleIds)) {
+                        $firstCircle = Circle::query()->whereIn('id', $targetCircleIds)->first();
+                        if ($firstCircle && preg_match('/^(Ahmedabad|Mumbai|Pune|Delhi|Surat|Bangalore|Bengaluru|Vadodara|Rajkot)/i', (string) $firstCircle->name, $matches)) {
+                            $districtName = ucfirst(strtolower($matches[1]));
+                        }
+                    }
+                    if (! $districtName && $user) {
+                        $userCity = strtolower(trim((string) ($user->city ?? $user->city_of_residence ?? '')));
+                        if (str_contains($userCity, 'ahmedabad')) {
+                            $districtName = 'Ahmedabad';
+                        }
+                    }
+
+                    if (empty($targetCircleIds) && ! empty($districtName)) {
+                        $dName = strtolower(trim((string) $districtName));
+                        $targetCircleIds = Circle::query()
+                            ->whereNull('deleted_at')
+                            ->where(function (Builder $q) use ($dName): void {
+                                $q->whereRaw('LOWER(name) LIKE ?', ['%'.$dName.'%']);
+                                if (Schema::hasColumn('circles', 'city')) {
+                                    $q->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dName])
+                                        ->orWhereRaw("LOWER(NULLIF(TRIM(city), '')) LIKE ?", ['%'.$dName.'%']);
+                                }
+                            })
+                            ->pluck('id')
+                            ->all();
+                    }
+                } elseif ($role === 'industryDirector') {
+                    $adminUserIds = array_values(array_filter(array_unique([$userId, $admin?->id])));
+
+                    if (Schema::hasTable('industry_director_assignments')) {
+                        $assignmentRows = DB::table('industry_director_assignments')
+                            ->where(function ($q) use ($adminUserIds): void {
+                                $q->whereIn('admin_user_id', $adminUserIds);
+                                if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
+                                    $q->orWhereIn('user_id', $adminUserIds);
+                                }
+                            })
+                            ->where('is_active', true)
+                            ->get();
+
+                        foreach ($assignmentRows as $row) {
+                            foreach (['industry_id', 'industry_category_id', 'main_business_category_id'] as $col) {
+                                if (! empty($row->{$col})) {
+                                    $assignedIndustryIds[] = (string) $row->{$col};
+                                }
+                            }
+                            if (! empty($row->industry_name)) {
+                                $assignedIndustryNames[] = (string) $row->industry_name;
+                            }
+                        }
+                    }
+
+                    if ($user) {
+                        if (! empty($user->main_business_category_id)) {
+                            $assignedIndustryIds[] = (string) $user->main_business_category_id;
+                        }
+                        if (! empty($user->business_category_id)) {
+                            $assignedIndustryIds[] = (string) $user->business_category_id;
+                        }
+                    }
+
+                    $assignedIndustryIds = array_values(array_unique(array_filter($assignedIndustryIds)));
+                    $assignedIndustryNames = array_values(array_unique(array_filter($assignedIndustryNames)));
+
+                    $targetCircleIds = $scopedCircleIds ?? [];
+                    if (empty($targetCircleIds)) {
+                        $targetCircleIds = Circle::query()->whereNull('deleted_at')
+                            ->where('industry_director_user_id', $userId)
+                            ->pluck('id')
+                            ->all();
+                    }
+                } else {
+                    // Own-circle roles (circleFounder, circleDirector, chairs, members)
+                    $targetCircleIds = $scopedCircleIds ?? [];
+                }
             }
-            $resolvedCircleId = null;
-            $resolvedCircleName = 'All Circles';
         }
 
-        // 1. Total Peers Count
-        if ($isGlobalScope) {
-            // Global Scope includes all circle peers across circles (members + direct leaders)
-            $circleMemberUserIds = CircleMember::query()
-                ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
-                ->pluck('user_id')
-                ->all();
-
-            $directLeaderIds = Circle::query()
-                ->whereNull('deleted_at')
-                ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
-                ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
-                ->unique()
-                ->all();
-
-            $totalCirclePeers = count(array_unique(array_filter(array_merge($circleMemberUserIds, $directLeaderIds))));
-
-            $totalPeers = $totalCirclePeers > 0 ? $totalCirclePeers : User::query()
-                ->whereNull('deleted_at')
-                ->where('email', 'not like', '%devtestpeer%')
-                ->where('first_name', 'not like', 'Test Peer%')
-                ->count();
-        } elseif (! empty($targetCircleIds)) {
-            $totalPeers = CircleMember::query()
-                ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
-                ->whereIn('circle_id', $targetCircleIds)
-                ->distinct('user_id')
-                ->count('user_id');
-
-            // Also include direct leaders of these circles if not already in circle_members
-            $directLeaderIds = Circle::query()
-                ->whereIn('id', $targetCircleIds)
-                ->whereNull('deleted_at')
-                ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
-                ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
-                ->unique()
-                ->all();
-
-            if (! empty($directLeaderIds)) {
-                $alreadyCounted = CircleMember::query()
-                    ->whereNull('deleted_at')
-                    ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
-                    ->whereIn('circle_id', $targetCircleIds)
-                    ->whereIn('user_id', $directLeaderIds)
-                    ->distinct('user_id')
-                    ->pluck('user_id')
-                    ->all();
-                $totalPeers += count(array_diff($directLeaderIds, $alreadyCounted));
-            }
-        } else {
-            $totalPeers = 0;
-        }
-
-        // 2. Pending peers count
-        if ($isGlobalScope) {
-            $pendingPeersCount = CircleMember::query()
-                ->whereNull('deleted_at')
-                ->where('status', 'pending')
-                ->count();
-        } elseif (! empty($targetCircleIds)) {
-            $pendingPeersCount = CircleMember::query()
-                ->whereNull('deleted_at')
-                ->where('status', 'pending')
-                ->whereIn('circle_id', $targetCircleIds)
-                ->count();
-        } else {
-            $pendingPeersCount = 0;
-        }
-
-        // 3. User IDs for activity metrics
+        // Member User IDs in Scope
         $scopedMemberUserIds = null;
         if (! $isGlobalScope) {
+            $scopedMemberUserIds = [];
+
             if (! empty($targetCircleIds)) {
-                $scopedMemberUserIds = DB::table('circle_members')
+                $memberIds = DB::table('circle_members')
                     ->whereIn('circle_id', $targetCircleIds)
                     ->whereNull('deleted_at')
                     ->where(fn ($q) => $q->whereNull('status')->orWhereIn(DB::raw('status::text'), ['approved', 'active']))
@@ -184,16 +239,143 @@ class LeaderDashboardService
                 $directLeaderIds = Circle::query()
                     ->whereIn('id', $targetCircleIds)
                     ->whereNull('deleted_at')
-                    ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'circle_director_user_id'])
-                    ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->circle_director_user_id]))
+                    ->get(['chair_user_id', 'vice_chair_user_id', 'circle_founder_user_id', 'founder_user_id', 'circle_director_user_id', 'director_user_id', 'ded_user_id', 'industry_director_user_id', 'secretary_user_id'])
+                    ->flatMap(fn ($c) => array_filter([$c->chair_user_id, $c->vice_chair_user_id, $c->circle_founder_user_id, $c->founder_user_id, $c->circle_director_user_id, $c->director_user_id, $c->ded_user_id, $c->industry_director_user_id, $c->secretary_user_id]))
                     ->all();
 
-                if (! empty($directLeaderIds)) {
-                    $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $directLeaderIds)));
-                }
-            } else {
-                $scopedMemberUserIds = [];
+                $activeCircleUserIds = User::query()
+                    ->whereNull('deleted_at')
+                    ->whereIn('active_circle_id', $targetCircleIds)
+                    ->pluck('id')
+                    ->all();
+
+                $scopedMemberUserIds = array_values(array_unique(array_merge($memberIds, $directLeaderIds, $activeCircleUserIds)));
             }
+
+            // Also include district-scoped peers if user is DED and no single circle was explicitly requested
+            if (! $circle && ($role === 'districtExecDirector' || ($admin && AdminAccess::isDed($admin)))) {
+                if ($admin && AdminAccess::isDed($admin)) {
+                    $dedQuery = User::query()->whereNull('deleted_at');
+                    AdminCircleScope::applyDedDistrictScope($dedQuery, $admin);
+                    $dedUserIds = $dedQuery->pluck('id')->all();
+                    $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $dedUserIds)));
+                } elseif (! empty($districtName)) {
+                    $dName = strtolower(trim((string) $districtName));
+                    $cityUserIds = User::query()
+                        ->whereNull('deleted_at')
+                        ->where(function (Builder $q) use ($dName): void {
+                            $q->whereRaw("LOWER(NULLIF(TRIM(city), '')) = ?", [$dName])
+                                ->orWhereRaw("LOWER(NULLIF(TRIM(city_of_residence), '')) = ?", [$dName]);
+                        })
+                        ->pluck('id')
+                        ->all();
+                    $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $cityUserIds)));
+                }
+            } elseif (! $circle && $role === 'industryDirector') {
+                // Also include industry-scoped peers across the platform matching assigned industries
+                if (! empty($assignedIndustryIds) || ! empty($assignedIndustryNames)) {
+                    $indUserQuery = User::query()->whereNull('deleted_at');
+                    $indUserQuery->where(function (Builder $q) use ($assignedIndustryIds, $assignedIndustryNames): void {
+                        if (! empty($assignedIndustryIds)) {
+                            if (Schema::hasColumn('users', 'business_category_id')) {
+                                $q->orWhereIn('business_category_id', $assignedIndustryIds);
+                            }
+                            if (Schema::hasColumn('users', 'main_business_category_id')) {
+                                $q->orWhereIn('main_business_category_id', $assignedIndustryIds);
+                            }
+                        }
+                        foreach ($assignedIndustryIds as $indId) {
+                            if (Schema::hasColumn('users', 'industry_tags')) {
+                                $q->orWhere('industry_tags', 'like', '%'.$indId.'%');
+                            }
+                        }
+                        foreach ($assignedIndustryNames as $indName) {
+                            $lowerName = strtolower($indName);
+                            if (Schema::hasColumn('users', 'business_sub_category')) {
+                                $q->orWhereRaw('LOWER(business_sub_category) LIKE ?', ['%'.$lowerName.'%']);
+                            }
+                            if (Schema::hasColumn('users', 'industry_tags')) {
+                                $q->orWhereRaw('LOWER(CAST(industry_tags AS TEXT)) LIKE ?', ['%'.$lowerName.'%']);
+                            }
+                        }
+                    });
+                    $indUserIds = $indUserQuery->pluck('id')->all();
+                    $scopedMemberUserIds = array_values(array_unique(array_merge($scopedMemberUserIds, $indUserIds)));
+                }
+            }
+        }
+
+        return [
+            'is_global_scope' => $isGlobalScope,
+            'resolved_circle_id' => $resolvedCircleId,
+            'resolved_circle_name' => $resolvedCircleName,
+            'target_circle_ids' => $targetCircleIds,
+            'scoped_member_user_ids' => $scopedMemberUserIds,
+        ];
+    }
+
+    /**
+     * Get aggregated metrics for dashboard scoped to circle or district.
+     *
+     * @return array<string, mixed>
+     */
+    public function getMetrics(
+        ?string $circleId = null,
+        ?string $districtId = null,
+        ?User $user = null,
+    ): array {
+        $scope = $this->resolveLeaderScope($circleId, $districtId, $user);
+        $isGlobalScope = $scope['is_global_scope'];
+        $resolvedCircleId = $scope['resolved_circle_id'];
+        $resolvedCircleName = $scope['resolved_circle_name'];
+        $targetCircleIds = $scope['target_circle_ids'];
+        $scopedMemberUserIds = $scope['scoped_member_user_ids'];
+
+        // 2. Total Peers Count
+        if ($isGlobalScope) {
+            // Global Scope (Global Admin / All Circles) includes all registered peers in the platform
+            $totalPeers = User::query()
+                ->whereNull('deleted_at')
+                ->count();
+        } else {
+            $totalPeers = count($scopedMemberUserIds ?? []);
+        }
+
+        // 3. Pending peers count
+        if ($isGlobalScope) {
+            $pendingPeersCount = CircleMember::query()
+                ->whereNull('deleted_at')
+                ->where('status', 'pending')
+                ->count();
+
+            if (Schema::hasTable('circle_join_requests')) {
+                $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                    ->where(function ($q): void {
+                        $q->whereRaw("status::text LIKE 'pending%'")
+                            ->orWhereRaw("status::text = 'awaiting_review'");
+                    })
+                    ->count();
+                $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+            }
+        } elseif (! empty($targetCircleIds)) {
+            $pendingPeersCount = CircleMember::query()
+                ->whereNull('deleted_at')
+                ->where('status', 'pending')
+                ->whereIn('circle_id', $targetCircleIds)
+                ->count();
+
+            if (Schema::hasTable('circle_join_requests')) {
+                $pendingRequestsCount = (int) DB::table('circle_join_requests')
+                    ->whereIn('circle_id', $targetCircleIds)
+                    ->where(function ($q): void {
+                        $q->whereRaw("status::text LIKE 'pending%'")
+                            ->orWhereRaw("status::text = 'awaiting_review'");
+                    })
+                    ->count();
+                $pendingPeersCount = max($pendingPeersCount, $pendingRequestsCount);
+            }
+        } else {
+            $pendingPeersCount = 0;
         }
 
         // Impacts count
@@ -323,6 +505,13 @@ class LeaderDashboardService
             ? '₹'.round($revSum / 10000000, 2).'Cr'
             : ($revSum >= 100000 ? '₹'.round($revSum / 100000, 1).'L' : '₹'.number_format($revSum, 0));
 
+        // 30-day peers growth
+        $growthQuery = User::query()->whereNull('deleted_at')->where('created_at', '>=', now()->subDays(30));
+        if (! $isGlobalScope && ! empty($scopedMemberUserIds)) {
+            $growthQuery->whereIn('id', $scopedMemberUserIds);
+        }
+        $totalPeersGrowth = $growthQuery->count();
+
         return [
             'circle_id' => $resolvedCircleId,
             'circle_name' => $resolvedCircleName,
@@ -332,7 +521,7 @@ class LeaderDashboardService
             'deals' => $dealsFormatted,
             'p2p_meetings' => $p2pCount,
             'total_peers' => $totalPeers,
-            'total_peers_growth' => 4,
+            'total_peers_growth' => $totalPeersGrowth,
             'referrals' => $referralsCount,
             'testimonials' => $testimonialsCount,
             'coins' => $coinsSum,
@@ -350,10 +539,13 @@ class LeaderDashboardService
         ?string $districtId = null,
         ?User $user = null,
     ): array {
-        $admin = null;
-        if ($user) {
-            $admin = AdminUser::query()->where('id', $user->id)->orWhere('email', $user->email)->first();
-        }
+        $permissionService = app(LeaderPermissionService::class);
+        $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'guest'];
+        $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
+
+        $scope = $this->resolveLeaderScope($circleId, $districtId, $user);
+        $isGlobalScope = $scope['is_global_scope'];
+        $scopedMemberUserIds = $scope['scoped_member_user_ids'];
 
         $baseQuery = User::query()
             ->whereNull('deleted_at')
@@ -366,37 +558,11 @@ class LeaderDashboardService
 
         $query = clone $baseQuery;
 
-        if ($admin && AdminAccess::isDed($admin)) {
-            AdminCircleScope::applyToUsersQuery($query, $admin);
-        } else {
-            $peersService = app(LeaderPeersService::class);
-            $scopedCircleIds = $peersService->resolveScopedCircleIds($user, $districtId);
-
-            $permissionService = app(LeaderPermissionService::class);
-            $roleInfo = $user ? $permissionService->resolveUserRole($user) : ['role' => 'guest'];
-            $isAdmin = in_array($roleInfo['role'], ['superAdmin', 'countryDirector'], true);
-
-            $isGlobalRequested = in_array(strtolower(trim((string) $circleId)), ['all', 'global', 'all_circles', 'platform'], true)
-                || in_array(strtolower(trim((string) request()->query('scope', ''))), ['global', 'all', 'platform'], true);
-
-            if ($circleId && Str::isUuid($circleId)) {
-                $query->where(function (Builder $q) use ($circleId): void {
-                    $q->whereHas('circleMembers', fn ($cq) => $cq->where('circle_id', $circleId)->whereNull('deleted_at'))
-                        ->orWhere('active_circle_id', $circleId);
-                });
-            } elseif ($scopedCircleIds !== null && ! empty($scopedCircleIds) && ! $isGlobalRequested && ! $isAdmin) {
-                $query->where(function (Builder $q) use ($scopedCircleIds): void {
-                    $q->whereHas('circleMembers', fn ($cq) => $cq->whereIn('circle_id', $scopedCircleIds)->whereNull('deleted_at'))
-                        ->orWhereIn('active_circle_id', $scopedCircleIds);
-                });
-            } elseif ($districtId) {
-                $resolvedDistrictId = $this->teamsService->resolveDedDistrictId($districtId, $user);
-                if ($resolvedDistrictId) {
-                    $query->where(function (Builder $q) use ($resolvedDistrictId): void {
-                        $q->whereHas('circleMembers.circle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId))
-                            ->orWhereHas('activeCircle', fn (Builder $cq) => $cq->where('district_id', $resolvedDistrictId));
-                    });
-                }
+        if (! $isGlobalScope) {
+            if (! empty($scopedMemberUserIds)) {
+                $query->whereIn('users.id', $scopedMemberUserIds);
+            } else {
+                $query->whereRaw('1 = 0');
             }
         }
 
@@ -405,8 +571,8 @@ class LeaderDashboardService
             ->take(5)
             ->get();
 
-        // If scoped query returned empty or user has global scope, fallback to platform-wide top impacters
-        if ($users->isEmpty()) {
+        // If scoped query returned empty or user has global scope, fallback to platform-wide top impacters for global admin
+        if ($users->isEmpty() && $isAdmin) {
             $users = (clone $baseQuery)
                 ->orderByDesc('life_impacted_count')
                 ->orderByDesc('coins_balance')
@@ -414,8 +580,8 @@ class LeaderDashboardService
                 ->get();
         }
 
-        // If still fewer than 5, fill from other platform members
-        if ($users->count() < 5) {
+        // If still fewer than 5, fill from other platform members only for global admin scope
+        if ($users->count() < 5 && $isAdmin) {
             $existingIds = $users->pluck('id')->all();
             $fillers = (clone $baseQuery)
                 ->whereNotIn('id', $existingIds)
@@ -497,7 +663,7 @@ class LeaderDashboardService
             $rank++;
         }
 
-        if (empty($result)) {
+        if (empty($result) && $isAdmin) {
             $mockNames = [
                 ['Siddharth Verma', 'Apex Dynamics Pvt Ltd', 'Mumbai', 48, 1240, 'FinTech SaaS'],
                 ['Ananya Roy', 'Veritas Health Tech', 'Delhi', 36, 980, 'HealthTech'],

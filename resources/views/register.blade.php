@@ -1,0 +1,189 @@
+@php
+    $serverRefCode = $serverRefCode ?? request('ref') ?? request('code') ?? '';
+@endphp
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join Peers Unity</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --primary-glow: rgba(74, 144, 226, 0.35);
+            --bg: #0F172A;
+            --card-bg: #1E293B;
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; text-align: center;
+        }
+        .container {
+            max-width: 420px; width: 92%; padding: 40px 24px;
+            background: var(--card-bg); border-radius: 28px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border); margin: 20px;
+        }
+        .loader {
+            width: 44px; height: 44px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-bottom-color: var(--primary);
+            border-radius: 50%; display: inline-block;
+            animation: rotation 1s linear infinite; margin-bottom: 24px;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        h1 { font-size: 24px; font-weight: 800; margin: 0 0 10px; color: #FFF; }
+        p { font-size: 15px; color: var(--text-muted); line-height: 1.6; margin: 0 0 24px; }
+        .ref-badge {
+            display: inline-block;
+            background: rgba(74, 144, 226, 0.12);
+            color: #60A5FA;
+            padding: 8px 16px; border-radius: 20px;
+            font-size: 14px; font-weight: 700; margin-bottom: 20px;
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            letter-spacing: 0.5px;
+        }
+        .btn {
+            display: block; width: 100%; padding: 16px; margin-bottom: 12px;
+            border-radius: 14px; text-decoration: none; font-weight: 700;
+            font-size: 16px; transition: all 0.2s ease; cursor: pointer; border: none;
+        }
+        .btn-primary {
+            background-color: var(--primary); color: white;
+            box-shadow: 0 4px 18px var(--primary-glow);
+        }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-store {
+            border: 1px solid var(--border); color: white;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-store:hover { background: rgba(255, 255, 255, 0.1); }
+        .copy-toast {
+            font-size: 12px; color: #34D399; margin-top: 8px; display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loader" class="loader"></div>
+        <h1 id="title">Opening Peers Unity...</h1>
+        <div id="ref-display" class="ref-badge" style="display: none;"></div>
+        <p id="description">Applying your referral invitation...</p>
+        
+        <div id="app-actions">
+            <button id="open-app-btn" onclick="triggerOpenApp()" class="btn btn-primary">Open App</button>
+        </div>
+        <div id="store-actions" style="display: none; margin-top: 24px;">
+            <p style="margin-bottom: 14px; font-size: 14px;">App not installed yet? Download below:</p>
+            <a id="play-store-btn" class="btn btn-store" target="_blank" style="display: none;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a1.996 1.996 0 0 1-.61-.95L3 2.763c0-.36.09-.7.245-.992l.364.043zm11.233 11.236l2.195-2.196L4.72 3.424l10.122 9.626zm0 1.898L4.72 20.576l12.317-7.43-2.195-2.196zm1.31-3.208l3.655 2.204a1.272 1.272 0 0 1 0 2.186l-3.655 2.205-1.95-1.95 1.95-1.95z"/></svg>
+                Get it on Google Play
+            </a>
+            <a id="app-store-btn" class="btn btn-store" target="_blank" style="display: none;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.78 1.06-1.87.94-2.97-1 .04-2.14.67-2.81 1.45-.58.67-1.1 1.77-.96 2.85 1.12.09 2.2-.55 2.83-1.33z"/></svg>
+                Download on App Store
+            </a>
+            <div id="copy-toast" class="copy-toast">✓ Referral code copied to clipboard</div>
+        </div>
+    </div>
+    <script>
+        // 1. Extract dynamic referral code (supports server injection, query parameter ?ref= or ?code= or URL path)
+        const serverRefCode = @json($serverRefCode ?? '');
+        const urlParams = new URLSearchParams(window.location.search);
+        let refCode = serverRefCode || urlParams.get('ref') || urlParams.get('code') || '';
+        
+        if (!refCode) {
+            const segments = window.location.pathname.split('/').filter(Boolean);
+            if (segments.length > 1 && (segments[0] === 'register' || segments[0] === 'invite' || segments[0] === 'join')) {
+                refCode = segments[1];
+            }
+        }
+        refCode = (refCode || '').trim().toUpperCase();
+        // 2. Multi-flavor package and app config
+        const appType = (urlParams.get('app') || 'peers').toLowerCase();
+        let config = {
+            packageId: 'com.peers.peersunity',
+            appStoreUrl: 'https://apps.apple.com/in/app/peers-global-unity/id6739198477',
+            scheme: 'peersunity'
+        };
+        if (appType === 'fempreneur') {
+            config.packageId = 'com.unity.fempreneur';
+            config.appStoreUrl = 'https://apps.apple.com/in/app/fempreneur-unity/id6799073359';
+        } else if (appType === 'greenpreneur') {
+            config.packageId = 'com.unity.greenpreneur';
+            config.appStoreUrl = 'https://apps.apple.com/in/app/greenpreneur-unity/id6782311572';
+        }
+        // 3. Construct Google Play Install Referrer URL
+        // When Google Play installs with &referrer=ref%3D..., it delivers the parameter to our Flutter app!
+        const playStoreUrl = refCode 
+            ? `https://play.google.com/store/apps/details?id=${config.packageId}&referrer=ref%3D${encodeURIComponent(refCode)}`
+            : `https://play.google.com/store/apps/details?id=${config.packageId}`;
+        // 4. Update UI with referral badge
+        if (refCode) {
+            const badge = document.getElementById('ref-display');
+            badge.innerText = 'Referral Code: ' + refCode;
+            badge.style.display = 'inline-block';
+        }
+        // 5. Setup Store Buttons
+        const playBtn = document.getElementById('play-store-btn');
+        const appStoreBtn = document.getElementById('app-store-btn');
+        playBtn.href = playStoreUrl;
+        appStoreBtn.href = config.appStoreUrl;
+        // 6. Copy referral code to clipboard (crucial for iOS deferred deep linking)
+        function copyReferralToClipboard() {
+            if (refCode && navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(refCode).then(() => {
+                    const toast = document.getElementById('copy-toast');
+                    if (toast) toast.style.display = 'block';
+                }).catch(() => {});
+            }
+        }
+        playBtn.addEventListener('click', copyReferralToClipboard);
+        appStoreBtn.addEventListener('click', copyReferralToClipboard);
+        // 7. Device Detection & Redirection
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
+        const isAndroid = /android/i.test(ua);
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        if (isIOS) {
+            appStoreBtn.style.display = 'flex';
+        } else {
+            playBtn.style.display = 'flex';
+        }
+        function triggerOpenApp() {
+            copyReferralToClipboard();
+            if (isAndroid) {
+                // S.browser_fallback_url ensures that if app is NOT installed, Chrome automatically redirects to Play Store with referrer!
+                const intentUrl = `intent://register?ref=${refCode}#Intent;scheme=${config.scheme};package=${config.packageId};S.browser_fallback_url=${encodeURIComponent(playStoreUrl)};end`;
+                window.location.href = intentUrl;
+            } else if (isIOS) {
+                window.location.replace(`${config.scheme}://register?ref=${refCode}`);
+            } else {
+                window.location.replace(`${config.scheme}://register?ref=${refCode}`);
+            }
+            // Fallback for UI if app does not open within 1.5 seconds
+            setTimeout(() => {
+                if (!document.hidden) {
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('store-actions').style.display = 'block';
+                    document.getElementById('title').innerText = 'App not detected?';
+                    document.getElementById('description').innerText = 'Download the app below. Your referral code will be applied automatically.';
+                }
+            }, 1500);
+        }
+        // Auto trigger open on page load
+        window.addEventListener('load', () => {
+            setTimeout(triggerOpenApp, 400);
+        });
+    </script>
+</body>
+</html>

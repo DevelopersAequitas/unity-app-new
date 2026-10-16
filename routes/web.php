@@ -114,16 +114,19 @@ use App\Http\Controllers\Admin\Web\WebPageMediaController;
 use App\Http\Controllers\Admin\Web\WebPartnershipController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
+use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\EventPassWhatsappAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
-use App\Http\Controllers\Api\WhatsApp\MetaWhatsAppWebhookController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\WhatsAppChatController;
+use App\Http\Controllers\WhatsAppWebhookController;
 use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
 use Illuminate\Http\Request;
@@ -141,16 +144,59 @@ Route::get('/storage/{path}', [PublicStorageController::class, 'serve'])
     ->where('path', '.*')
     ->name('public.storage.serve');
 
+Route::get('/.well-known/assetlinks.json', function () {
+    $filePath = public_path('.well-known/assetlinks.json');
+
+    if (file_exists($filePath)) {
+        return response()->file($filePath, [
+            'Content-Type' => 'application/json',
+        ]);
+    }
+
+    return response()->json([
+        [
+            'relation' => ['delegate_permission/common.handle_all_urls'],
+            'target' => [
+                'namespace' => 'android_app',
+                'package_name' => 'com.peers.peersunity',
+                'sha256_cert_fingerprints' => [
+                    '2F:D1:36:38:DA:E1:D8:07:CB:F0:07:DE:A7:E6:60:30:EB:44:B2:1D:49:A9:2F:A3:18:B0:09:05:15:20:27:32',
+                ],
+            ],
+        ],
+    ], 200, ['Content-Type' => 'application/json']);
+});
+
 Route::get('/share', [ShareController::class, 'handle'])->name('share');
+
+Route::get('/register/{code?}', function (Request $request, ?string $code = null) {
+    $refCode = $code ?? $request->query('ref') ?? $request->query('code') ?? '';
+
+    return view('register', ['serverRefCode' => $refCode]);
+})->name('register.page');
+
+Route::get('/invite/{code?}', function (Request $request, ?string $code = null) {
+    $refCode = $code ?? $request->query('ref') ?? $request->query('code') ?? '';
+
+    return view('register', ['serverRefCode' => $refCode]);
+})->name('invite.page');
+
+Route::get('/join/{code?}', function (Request $request, ?string $code = null) {
+    $refCode = $code ?? $request->query('ref') ?? $request->query('code') ?? '';
+
+    return view('register', ['serverRefCode' => $refCode]);
+})->name('join.page');
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 
-// Direct WhatsApp Webhook fallbacks (in case Meta is configured without /api prefix)
-Route::get('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
+// WhatsApp Webhook (Publicly accessible, exempt from CSRF)
+Route::get('/api/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/api/whatsapp/webhook', [WhatsAppWebhookController::class, 'handle']);
+Route::get('/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [WhatsAppWebhookController::class, 'handle']);
 
 Route::get('/api/v1/events/checkin/qr/{token}', function (Request $request, string $token) {
     $service = app(EventCheckinService::class);
@@ -496,6 +542,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Referral Contact Invitations Admin Routes
         Route::get('/contact-invitations', [ContactInvitationController::class, 'index'])->name('contact-invitations.index');
         Route::get('/contact-invitations/export', [ContactInvitationController::class, 'export'])->name('contact-invitations.export');
+        Route::post('/contact-invitations/bulk-resend', [ContactInvitationController::class, 'bulkResend'])->name('contact-invitations.bulk-resend');
+        Route::post('/contact-invitations/{id}/resend', [ContactInvitationController::class, 'resend'])->name('contact-invitations.resend');
         Route::get('/contact-invitations/{id}', [ContactInvitationController::class, 'show'])->name('contact-invitations.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
@@ -622,6 +670,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->whereUuid('id')->name('events.edit');
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->whereUuid('id')->name('events.update');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->whereUuid('id')->name('events.show');
+        Route::post('/events/{id}/toggle-status', [EventManagementController::class, 'toggleStatus'])->whereUuid('id')->name('events.toggle-status');
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
         Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');
@@ -849,8 +898,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/whatsapp-templates/{id}/toggle-status', [WhatsappTemplateController::class, 'toggleStatus'])->name('whatsapp-templates.toggle-status');
         Route::post('/whatsapp-templates/{id}/reveal-secret', [WhatsappTemplateController::class, 'revealSecret'])->name('whatsapp-templates.reveal-secret');
 
-        // Native Meta WhatsApp Cloud API Module
         Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+            // WhatsApp Live Chat & Inbox Module (DOOT / WhatsApp Web Style)
+            Route::get('/chat', [WhatsAppChatController::class, 'index'])->name('chat');
+            Route::get('/api/conversations', [WhatsAppChatController::class, 'getConversations'])->name('chat.conversations');
+            Route::get('/api/conversations/{id}/messages', [WhatsAppChatController::class, 'getMessages'])->whereUuid('id')->name('chat.messages');
+            Route::post('/api/conversations/{id}/messages', [WhatsAppChatController::class, 'sendMessage'])->whereUuid('id')->name('chat.send');
+            Route::post('/api/conversations/{id}/read', [WhatsAppChatController::class, 'markAsRead'])->whereUuid('id')->name('chat.read');
+            Route::get('/api/unread-count', [WhatsAppChatController::class, 'getTotalUnreadCount'])->name('chat.unread_count');
+            Route::post('/api/simulate-incoming', [WhatsAppChatController::class, 'simulateIncoming'])->name('chat.simulate');
+            Route::post('/api/simulate-status', [WhatsAppChatController::class, 'simulateStatus'])->name('chat.simulate_status');
+
             Route::get('/templates', [MetaWhatsAppAdminController::class, 'templates'])->name('templates');
             Route::post('/templates/sync', [MetaWhatsAppAdminController::class, 'syncTemplates'])->name('templates.sync');
             Route::get('/templates/create', [MetaWhatsAppAdminController::class, 'createTemplateView'])->name('templates.create');
@@ -881,6 +939,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/journey/initialize-all', [MemberJourneyAdminController::class, 'initializeAll'])->name('journey.initialize_all');
             Route::post('/journey/send/{sendId}', [MemberJourneyAdminController::class, 'sendDay'])->whereUuid('sendId')->name('journey.send_day');
             Route::post('/journey/process-due', [MemberJourneyAdminController::class, 'processDue'])->name('journey.process_due');
+            Route::post('/journey/sync-statuses', [MemberJourneyAdminController::class, 'syncStatuses'])->name('journey.sync_statuses');
+
+            // Award Recognitions WhatsApp (Track 1 Growth & Track 2 Life Impact)
+            Route::get('/awards', [AwardRecognitionAdminController::class, 'index'])->name('awards.index');
+            Route::get('/awards/user/{userId}', [AwardRecognitionAdminController::class, 'userTimeline'])->whereUuid('userId')->name('awards.user_timeline');
+            Route::post('/awards/user/{userId}/send-milestone', [AwardRecognitionAdminController::class, 'sendUserMilestone'])->whereUuid('userId')->name('awards.send_user_milestone');
+            Route::post('/awards/sync-statuses', [AwardRecognitionAdminController::class, 'syncStatuses'])->name('awards.sync_statuses');
+            Route::get('/awards/{id}', [AwardRecognitionAdminController::class, 'show'])->whereUuid('id')->name('awards.show');
+            Route::post('/awards/{id}/resend', [AwardRecognitionAdminController::class, 'resend'])->whereUuid('id')->name('awards.resend');
+            Route::post('/awards/test-send', [AwardRecognitionAdminController::class, 'sendTest'])->name('awards.test_send');
 
             // Bulk Campaigns Module
             Route::get('/campaigns', [WhatsAppBulkCampaignAdminController::class, 'index'])->name('campaigns.index');
@@ -894,6 +962,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/campaigns/{id}/cancel', [WhatsAppBulkCampaignAdminController::class, 'cancel'])->whereUuid('id')->name('campaigns.cancel');
             Route::post('/campaigns/{id}/retry', [WhatsAppBulkCampaignAdminController::class, 'retry'])->whereUuid('id')->name('campaigns.retry');
             Route::get('/campaigns/{id}/export', [WhatsAppBulkCampaignAdminController::class, 'export'])->whereUuid('id')->name('campaigns.export');
+            Route::post('/campaigns/{id}/sync-statuses', [WhatsAppBulkCampaignAdminController::class, 'syncStatuses'])->whereUuid('id')->name('campaigns.sync_statuses');
+
+            // Event QR Passes WhatsApp Delivery Management
+            Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event_passes.index');
+            Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event_passes.export');
+            Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id')->name('event_passes.show');
+            Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id')->name('event_passes.resend');
+            Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend'])->name('event_passes.bulk_resend');
         });
 
         // App Notifications & Mobile Navigation Showcase Module

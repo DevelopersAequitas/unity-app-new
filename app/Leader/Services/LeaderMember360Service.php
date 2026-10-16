@@ -2276,7 +2276,8 @@ class LeaderMember360Service
 
         $query = Event::query()
             ->whereIn('id', $allEventIds)
-            ->whereNull('deleted_at');
+            ->whereNull('deleted_at')
+            ->when(Schema::hasColumn('events', 'is_active'), fn ($q) => $q->where('is_active', true));
 
         if ($search) {
             $query->where(function ($q) use ($search): void {

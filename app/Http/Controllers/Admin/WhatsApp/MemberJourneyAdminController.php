@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\WhatsApp\SendJourneyDayRequest;
 use App\Models\MemberJourneySend;
 use App\Models\User;
 use App\Services\WhatsApp\MemberJourney30DayService;
+use App\Services\WhatsApp\MetaDeliveryStatusSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -122,6 +123,13 @@ class MemberJourneyAdminController extends Controller
     public function show(string $userId): View|JsonResponse
     {
         $user = User::findOrFail($userId);
+
+        // Auto-sync delivery statuses from meta message logs
+        try {
+            app(MetaDeliveryStatusSyncService::class)->syncJourneyDeliveries($userId);
+        } catch (\Throwable) {
+        }
+
         $sends = $this->journeyService->getMemberJourney($userId);
 
         // Precompute readiness & profile state
@@ -252,6 +260,26 @@ class MemberJourneyAdminController extends Controller
             return response()->json([
                 'success' => true,
                 'stats' => $stats,
+                'message' => $message,
+            ]);
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Sync delivery statuses from Meta WhatsApp message stream.
+     */
+    public function syncStatuses(Request $request): RedirectResponse|JsonResponse
+    {
+        $updated = app(MetaDeliveryStatusSyncService::class)->syncJourneyDeliveries();
+
+        $message = "Synced WhatsApp delivery statuses. {$updated} journey message(s) updated.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'updated_count' => $updated,
                 'message' => $message,
             ]);
         }

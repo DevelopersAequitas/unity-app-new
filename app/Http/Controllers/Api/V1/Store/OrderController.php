@@ -97,18 +97,109 @@ class OrderController extends BaseApiController
         $returnStatus = $returnToExpose ? (string) $returnToExpose->status : null;
         $returnNo = $returnToExpose ? (string) $returnToExpose->return_no : null;
 
+        $rootRefundCoins = (int) ($returnToExpose->refund_coins_amount ?? 0);
+        if ($rootRefundCoins <= 0) {
+            $rootRefundCoins = (int) ($returnToExpose->refund_coins ?? 0);
+        }
+        if ($rootRefundCoins <= 0 && ! empty($returnToExpose->order_item_id)) {
+            $matchedItem = collect($order->items ?? [])->firstWhere('id', $returnToExpose->order_item_id);
+            if ($matchedItem) {
+                $rootRefundCoins = (int) ($matchedItem->total_coin_price ?? ($matchedItem->unit_coin_price ?? 0));
+            }
+        }
+        if ($rootRefundCoins <= 0) {
+            $rootRefundCoins = (int) ($order->total_coins ?? 0);
+        }
+
         $returnRequestObj = $returnToExpose ? [
             'id' => (string) $returnToExpose->id,
             'return_no' => (string) $returnToExpose->return_no,
+            'order_id' => (string) $order->id,
+            'order_item_id' => $returnToExpose->order_item_id ? (string) $returnToExpose->order_item_id : null,
             'status' => (string) $returnToExpose->status,
+            'refund_coins_amount' => $rootRefundCoins,
+            'refund_coins' => $rootRefundCoins,
             'reason' => (string) ($returnToExpose->reason_code ?: $returnToExpose->reason ?: 'DEFECTIVE'),
             'created_at' => $returnToExpose->created_at ? $returnToExpose->created_at->toISOString() : null,
         ] : null;
 
+        $data = $order->toArray();
+
+        // Attach item-level return status, return_request, and can_return
+        $itemsCollection = collect($data['items'] ?? []);
+        $anyItemCanReturn = false;
+
+        if ($itemsCollection->isNotEmpty()) {
+            $data['items'] = $itemsCollection->map(function ($itemData) use ($returns, $stLower, &$anyItemCanReturn) {
+                $itemId = (string) ($itemData['id'] ?? '');
+
+                // Find active or latest return for this specific item
+                $itemReturn = $returns->first(function ($ret) use ($itemId) {
+                    return (string) ($ret->order_item_id ?? '') === $itemId
+                        && ! in_array(strtoupper((string) $ret->status), ['CANCELLED', 'REJECTED'], true);
+                }) ?: $returns->first(function ($ret) use ($itemId) {
+                    return (string) ($ret->order_item_id ?? '') === $itemId;
+                });
+
+                $itemReturnRequest = null;
+                if ($itemReturn) {
+                    $itemCoins = (int) ($itemData['total_coin_price'] ?? ($itemData['unit_coin_price'] ?? 0));
+                    $itemRefundCoins = (int) ($itemReturn->refund_coins_amount ?? 0);
+                    if ($itemRefundCoins <= 0) {
+                        $itemRefundCoins = (int) ($itemReturn->refund_coins ?? 0);
+                    }
+                    if ($itemRefundCoins <= 0) {
+                        $itemRefundCoins = $itemCoins;
+                    }
+
+                    $itemReturnRequest = [
+                        'id' => (string) $itemReturn->id,
+                        'return_no' => (string) $itemReturn->return_no,
+                        'order_item_id' => $itemId,
+                        'status' => (string) $itemReturn->status,
+                        'refund_coins_amount' => $itemRefundCoins,
+                        'refund_coins' => $itemRefundCoins,
+                        'reason' => (string) ($itemReturn->reason_code ?: $itemReturn->reason ?: 'DEFECTIVE'),
+                        'created_at' => $itemReturn->created_at ? $itemReturn->created_at->toISOString() : null,
+                    ];
+                }
+
+                $itemStatus = $itemData['status'] ?? null;
+                if ($itemReturn) {
+                    $retStatusUpper = strtoupper((string) $itemReturn->status);
+                    if ($retStatusUpper === 'REQUESTED') {
+                        $itemStatus = 'RETURN_REQUESTED';
+                    } elseif ($retStatusUpper === 'APPROVED') {
+                        $itemStatus = 'RETURN_APPROVED';
+                    } elseif ($retStatusUpper === 'REJECTED') {
+                        $itemStatus = 'RETURN_REJECTED';
+                    } else {
+                        $itemStatus = (string) $itemReturn->status;
+                    }
+                }
+
+                $isCustomized = ! empty($itemData['is_customized']) || ! empty($itemData['customised']);
+                $canReturnThisItem = ! $itemReturn
+                    && in_array($stLower, ['delivered', 'completed'])
+                    && ! $isCustomized;
+
+                if ($canReturnThisItem) {
+                    $anyItemCanReturn = true;
+                }
+
+                $itemData['status'] = $itemStatus;
+                $itemData['return_status'] = $itemReturn ? (string) $itemReturn->status : null;
+                $itemData['return_request'] = $itemReturnRequest;
+                $itemData['can_return'] = $canReturnThisItem;
+
+                return $itemData;
+            })->all();
+        }
+
         // Action Flags
         $currentStatus = strtoupper((string) $order->status);
         $canCancel = in_array($currentStatus, ['PLACED', 'CONFIRMED', 'PENDING_PAYMENT', 'PROCESSING'], true);
-        $canReturn = ! $hasActiveReturn && in_array($stLower, ['delivered', 'completed']) && ! in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true);
+        $canReturn = $anyItemCanReturn || (! $hasActiveReturn && in_array($stLower, ['delivered', 'completed']) && ! in_array($currentStatus, ['CANCELLED', 'REFUNDED'], true));
 
         $actionFlags = [
             'can_cancel' => $canCancel,
@@ -119,7 +210,6 @@ class OrderController extends BaseApiController
             'can_pickup' => in_array($currentStatus, ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY']),
         ];
 
-        $data = $order->toArray();
         $data['courier_name'] = $order->courier_name;
         $data['tracking_number'] = $order->tracking_number;
         $data['delivery_person_name'] = $order->delivery_person_name ?: $order->courier_name;
@@ -127,6 +217,28 @@ class OrderController extends BaseApiController
         $data['slip_url'] = $slipUrl;
         $data['order_slip_url'] = $slipUrl;
         $data['return_status'] = $returnStatus;
+        if (! empty($data['returns'])) {
+            $data['returns'] = collect($data['returns'])->map(function ($retData) use ($order) {
+                $refAmount = (int) ($retData['refund_coins_amount'] ?? 0);
+                if ($refAmount <= 0) {
+                    $refAmount = (int) ($retData['refund_coins'] ?? 0);
+                }
+                if ($refAmount <= 0 && ! empty($retData['order_item_id'])) {
+                    $mItem = collect($order->items ?? [])->firstWhere('id', $retData['order_item_id']);
+                    if ($mItem) {
+                        $refAmount = (int) ($mItem->total_coin_price ?? ($mItem->unit_coin_price ?? 0));
+                    }
+                }
+                if ($refAmount <= 0) {
+                    $refAmount = (int) ($order->total_coins ?? 0);
+                }
+                $retData['refund_coins_amount'] = $refAmount;
+                $retData['refund_coins'] = $refAmount;
+
+                return $retData;
+            })->all();
+        }
+
         $data['return_no'] = $returnNo;
         $data['return_request'] = $returnRequestObj;
         $data['action_flags'] = $actionFlags;

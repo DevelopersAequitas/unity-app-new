@@ -235,6 +235,30 @@ class MetaWhatsAppWebhookController extends Controller
             ]);
 
             try {
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                ]);
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'failed',
+                ]);
+                \App\Models\EventRegistration::whereIn('whatsapp_provider_id', $matchIds)->update([
+                    'whatsapp_status' => 'failed',
+                ]);
+                \App\Models\Notifications\NotificationDeliveryLog::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                ]);
+            } catch (\Throwable) {}
+
+            Log::error('[MetaWhatsAppWebhookController] WhatsApp message marked FAILED.', [
+                'meta_message_id' => $wamid,
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
+            ]);
+
+            try {
                 app(WhatsAppBulkCampaignService::class)->handleWebhookStatus(
                     $wamid,
                     'failed',
@@ -262,6 +286,24 @@ class MetaWhatsAppWebhookController extends Controller
                 'status' => WhatsAppMessageLog::STATUS_READ,
                 'provider_response' => $updatedResponse,
             ]);
+
+            try {
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'read',
+                    'read_at' => $eventTime,
+                    'delivered_at' => \Illuminate\Support\Facades\DB::raw('COALESCE(delivered_at, NOW())'),
+                ]);
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'read',
+                ]);
+                \App\Models\EventRegistration::whereIn('whatsapp_provider_id', $matchIds)->update([
+                    'whatsapp_status' => 'read',
+                ]);
+                \App\Models\Notifications\NotificationDeliveryLog::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'read',
+                ]);
+            } catch (\Throwable) {}
 
             Log::info('[MetaWhatsAppWebhookController] WhatsApp message marked READ.', [
                 'meta_message_id' => $wamid,
@@ -295,6 +337,31 @@ class MetaWhatsAppWebhookController extends Controller
                     'status' => WhatsAppMessageLog::STATUS_DELIVERED,
                     'provider_response' => $updatedResponse,
                 ]);
+
+            try {
+                $matchIds = array_values(array_filter([$wamid, $message?->id]));
+                \App\Models\MemberAwardSend::whereIn('provider_message_id', $matchIds)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
+                        'delivered_at' => $eventTime,
+                    ]);
+                \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
+                    ]);
+                \App\Models\EventRegistration::whereIn('whatsapp_provider_id', $matchIds)
+                    ->where('whatsapp_status', '!=', 'read')
+                    ->update([
+                        'whatsapp_status' => 'delivered',
+                    ]);
+                \App\Models\Notifications\NotificationDeliveryLog::whereIn('provider_message_id', $matchIds)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
+                    ]);
+            } catch (\Throwable) {}
 
             Log::info('[MetaWhatsAppWebhookController] WhatsApp message marked DELIVERED.', [
                 'meta_message_id' => $wamid,

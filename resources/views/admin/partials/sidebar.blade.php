@@ -78,8 +78,7 @@
                 ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
                 ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
                 ['icon' => 'bi-award', 'label' => 'Milestone Badges', 'route' => 'admin.milestone-badges.index', 'active_routes' => ['admin.milestone-badges.*']],
-                ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
-                ['icon' => 'bi-send-check', 'label' => 'Contact Invitations', 'route' => 'admin.contact-invitations.index', 'active_routes' => ['admin.contact-invitations.*']],
+                ['icon' => 'bi-person-lines-fill', 'label' => 'Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
                 ['icon' => 'bi-shield-check', 'label' => 'Activity & Audit Logs', 'route' => 'admin.audit-logs.index', 'active_routes' => ['admin.audit-logs.*']],
@@ -1102,35 +1101,9 @@
                             </ul>
                         </div>
                     </li>
-                @elseif ($item['label'] === 'Unity Contacts')
-                    @php
-                        $contactsActive = request()->routeIs('admin.contacts.*') || request()->routeIs('admin.contact-invitations.*');
-                    @endphp
-                    <li class="nav-item menu-parent {{ $contactsActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex align-items-center justify-content-between {{ $contactsActive ? 'active' : '' }}" href="javascript:void(0)" title="Contacts">
-                            <i class="bi bi-person-lines-fill me-2"></i><span class="menu-text me-auto text-start">Contacts</span>
-                            <i class="bi bi-chevron-right menu-arrow ms-2"></i>
-                        </a>
-                        <div class="collapse {{ $contactsActive ? 'show' : '' }}" id="contactsSubmenu">
-                            <ul class="nav flex-column ms-3">
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.contacts.*') ? 'active' : '' }}" href="{{ route('admin.contacts.index') }}">
-                                        <i class="bi bi-person-vcard me-1"></i> Unity Contacts
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs('admin.contact-invitations.*') ? 'active' : '' }}" href="{{ route('admin.contact-invitations.index') }}">
-                                        <i class="bi bi-send-check me-1"></i> Contact Invitations
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    </li>
-                @elseif ($item['label'] === 'Contact Invitations')
-                    {{-- Rendered inside Contacts submenu above — skip standalone render --}}
                 @elseif ($item['label'] === 'Meta WhatsApp')
                     @php
-                        $metaWhatsAppActive = request()->routeIs('admin.whatsapp.*');
+                        $metaWhatsAppActive = request()->routeIs('admin.whatsapp.*') || request()->routeIs('admin.contact-invitations*');
                     @endphp
                     <li class="nav-item menu-parent {{ $metaWhatsAppActive ? 'open' : '' }}">
                         <a class="nav-link d-flex align-items-center justify-content-between {{ $metaWhatsAppActive ? 'active' : '' }}" href="javascript:void(0)" title="Meta WhatsApp">
@@ -1139,6 +1112,14 @@
                         </a>
                         <div class="collapse {{ $metaWhatsAppActive ? 'show' : '' }}" id="metaWhatsAppSubmenu">
                             <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.whatsapp.chat*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.chat') }}">
+                                        <span><i class="bi bi-chat-dots-fill me-1 text-success"></i> Live Chat</span>
+                                        <span id="sidebar-whatsapp-unread-badge" class="badge rounded-pill bg-success animate-pulse" style="display: none; font-size: 10px; font-weight: 800; background-color: #10b981 !important;">
+                                            0
+                                        </span>
+                                    </a>
+                                </li>
                                 <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.campaigns*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.campaigns.index') }}">
                                         <i class="bi bi-broadcast-pin me-1"></i> Bulk Campaigns
@@ -1155,6 +1136,11 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.awards*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.awards.index') }}">
+                                        <i class="bi bi-award me-1"></i> Award Recognitions
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.test_message*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.test_message') }}">
                                         <i class="bi bi-send me-1"></i> Test Message
                                     </a>
@@ -1162,6 +1148,16 @@
                                 <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.messages*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.messages') }}">
                                         <i class="bi bi-chat-dots me-1"></i> Message Logs
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.contact-invitations*') ? 'active' : '' }}" href="{{ route('admin.contact-invitations.index') }}">
+                                        <i class="bi bi-person-lines-fill me-1"></i> Contact Invitations
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.event_passes*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.event_passes.index') }}">
+                                        <i class="bi bi-qr-code-scan me-1"></i> Event QR Passes
                                     </a>
                                 </li>
                                 <li class="nav-item">

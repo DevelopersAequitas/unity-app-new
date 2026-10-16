@@ -149,6 +149,7 @@ class EventDetailResource extends JsonResource
             'what_youll_gain' => array_values((array) data_get($metadata, 'what_youll_gain', [])),
             'organizer' => data_get($metadata, 'organizer'),
             'visibility' => $this->visibility,
+            'is_active' => (bool) ($this->is_active ?? true),
             'is_paid' => (bool) $this->is_paid,
             'ticket_price' => $this->ticket_price !== null ? (string) $this->ticket_price : null,
             'registration_limit' => $registrationLimit,

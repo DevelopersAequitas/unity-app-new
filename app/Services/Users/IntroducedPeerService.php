@@ -274,6 +274,13 @@ class IntroducedPeerService
                     $count,
                     $creative?->image_url
                 );
+
+                // Native Meta WhatsApp Cloud API Award Recognition
+                app(\App\Services\WhatsApp\AwardRecognitionWhatsappService::class)->handleGrowthAward(
+                    $user,
+                    $count,
+                    $creative?->image_url
+                );
             } catch (Throwable $milestoneEx) {
                 Log::error('[IntroducedPeerService] Failed triggering milestone WhatsApp notification: '.$milestoneEx->getMessage(), [
                     'user_id' => $user->id,

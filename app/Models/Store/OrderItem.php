@@ -24,6 +24,7 @@ class OrderItem extends Model
         'total_coin_price',
         'status',
         'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class OrderItem extends Model
         'unit_coin_price' => 'integer',
         'total_coin_price' => 'integer',
         'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function order(): BelongsTo
@@ -75,5 +77,17 @@ class OrderItem extends Model
     public function getVariantTitleAttribute(): ?string
     {
         return $this->variant?->name ?? ($this->variant_snapshot['name'] ?? ($this->variant_snapshot['title'] ?? null));
+    }
+
+    public function getIsCustomizedAttribute(): bool
+    {
+        return (bool) (
+            $this->attributes['is_customized']
+            ?? ($this->attributes['customised']
+                ?? ($this->product?->customised
+                    ?? ($this->product?->is_customized
+                        ?? ($this->product_snapshot['customised']
+                            ?? ($this->product_snapshot['is_customized'] ?? false)))))
+        );
     }
 }

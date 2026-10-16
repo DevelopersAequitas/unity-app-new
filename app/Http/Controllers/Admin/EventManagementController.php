@@ -21,6 +21,7 @@ use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Services\Notifications\EventRegistrationWhatsappService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -56,7 +57,12 @@ class EventManagementController extends Controller
             ->when($request->mode, fn ($q, $v) => $q->where('mode', $v))
             ->when($request->date_from, fn ($q, $v) => $q->where('start_at', '>=', $v))
             ->when($request->date_to, fn ($q, $v) => $q->where('start_at', '<=', $v))
-            ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'));
+            ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'))
+            ->when($request->filled('is_active'), function ($q) use ($request): void {
+                if (Schema::hasColumn('events', 'is_active')) {
+                    $q->where('is_active', $request->boolean('is_active'));
+                }
+            });
 
         $admin = Auth::guard('admin')->user();
         AdminCircleScope::applyToEventsQuery($query, $admin);
@@ -424,6 +430,35 @@ class EventManagementController extends Controller
         return view('admin.events.show', compact('event'));
     }
 
+    public function toggleStatus(string $id, Request $request): RedirectResponse|JsonResponse
+    {
+        abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
+
+        $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        $currentStatus = (bool) ($event->is_active ?? true);
+        $newStatus = ! $currentStatus;
+
+        $event->is_active = $newStatus;
+        $event->save();
+
+        $statusText = $newStatus ? 'activated' : 'deactivated';
+        $message = "Event '{$event->title}' has been {$statusText} successfully.";
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'event_id' => $event->id,
+                'is_active' => $newStatus,
+                'status_label' => $newStatus ? 'Active' : 'Inactive',
+                'message' => $message,
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
+
     public function attendance(Request $request, ?string $id = null): View
     {
         $eventId = $id ?? $request->query('id') ?? $request->query('event_id');
@@ -591,6 +626,7 @@ class EventManagementController extends Controller
             'monthly_pattern' => ['nullable', 'string', 'in:fixed,weekday'],
             'registration_limit' => ['nullable', 'integer', 'min:1'],
             'is_paid' => ['nullable', 'boolean'],
+            'is_active' => ['nullable', 'boolean'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
             'qr_checkin_enabled' => ['nullable', 'boolean'],
             'visitor_registration_enabled' => ['nullable', 'boolean'],
@@ -763,6 +799,7 @@ class EventManagementController extends Controller
         foreach (['is_paid', 'qr_checkin_enabled', 'visitor_registration_enabled', 'member_registration_enabled'] as $key) {
             $data[$key] = (bool) ($data[$key] ?? false);
         }
+        $data['is_active'] = isset($data['is_active']) ? (bool) $data['is_active'] : (isset($event) ? (bool) ($event->is_active ?? true) : true);
         $data['member_registration_enabled'] = (bool) ($data['member_registration_enabled'] ?? true);
         $data['visibility'] = 'public';
         $data['is_virtual'] = in_array($data['mode'] ?? 'offline', ['online', 'hybrid'], true);

@@ -557,6 +557,44 @@ class MetaWhatsAppService
     }
 
     /**
+     * Upload local file path directly to Meta Cloud API and return permanent media ID.
+     */
+    public function uploadMediaFromPath(string $filePath): string
+    {
+        if (! file_exists($filePath)) {
+            throw new MetaWhatsAppException("File not found on disk: {$filePath}", 404, 100, 'FileNotFound');
+        }
+
+        $fileContents = file_get_contents($filePath);
+        $fileName = basename($filePath);
+        $mimeType = mime_content_type($filePath) ?: 'image/png';
+
+        $response = Http::withToken($this->accessToken)
+            ->attach('file', $fileContents, $fileName, ['Content-Type' => $mimeType])
+            ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->phoneNumberId}/media", [
+                'messaging_product' => 'whatsapp',
+                'type' => $mimeType,
+            ]);
+
+        if (! $response->successful()) {
+            $this->handleErrorResponse($response, 'uploadMediaFromPath');
+        }
+
+        $mediaId = (string) ($response->json()['id'] ?? '');
+        if ($mediaId === '') {
+            throw new MetaWhatsAppException('Meta did not return a media ID.', 500, 500, 'MediaUploadError');
+        }
+
+        Log::info('[MetaWhatsAppService] Local file uploaded successfully to Meta.', [
+            'media_id' => $mediaId,
+            'file_name' => $fileName,
+            'mime_type' => $mimeType,
+        ]);
+
+        return $mediaId;
+    }
+
+    /**
      * Delete a template from Meta by name.
      */
     public function deleteTemplate(string $templateName): bool

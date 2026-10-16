@@ -63,9 +63,11 @@ class Event extends Model
         'online_meeting_url',
         'zoho_form_url',
         'recurrence_ends_at',
+        'is_active',
     ];
 
     protected $casts = [
+        'is_active' => 'boolean',
         'start_at' => 'datetime',
         'end_at' => 'datetime',
         'is_virtual' => 'boolean',
@@ -143,6 +145,16 @@ class Event extends Model
     public function organizer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'organizer_user_id');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function getIsActiveAttribute($value): bool
+    {
+        return $value === null ? true : (bool) $value;
     }
 
     public function getComputedStatusAttribute(): string

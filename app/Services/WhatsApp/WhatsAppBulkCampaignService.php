@@ -383,7 +383,7 @@ class WhatsAppBulkCampaignService
 
         $status = ($scheduleType === 'scheduled') ? 'scheduled' : 'queued';
 
-        return DB::transaction(function () use (
+        $campaign = DB::transaction(function () use (
             $payload,
             $template,
             $templateAnalysis,

@@ -24,6 +24,12 @@ class WhatsappMessage extends Model
 
     protected $fillable = [
         'id',
+        'conversation_id',
+        'meta_message_id',
+        'direction',
+        'type',
+        'body',
+        'media_url',
         'user_id',
         'recipient_phone',
         'whatsapp_template_id',
@@ -32,7 +38,6 @@ class WhatsappMessage extends Model
         'template_language',
         'message_type',
         'status',
-        'meta_message_id',
         'error_code',
         'error_message',
         'request_payload',
@@ -42,6 +47,21 @@ class WhatsappMessage extends Model
         'read_at',
         'failed_at',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            if (empty($model->template_name)) {
+                $model->template_name = $model->direction === 'INBOUND' ? 'inbound_chat' : 'live_chat_message';
+            }
+            if (empty($model->message_type)) {
+                $model->message_type = ! empty($model->type) ? (string) $model->type : 'TEXT';
+            }
+            if (empty($model->template_language)) {
+                $model->template_language = 'en_US';
+            }
+        });
+    }
 
     /**
      * @return array<string, string>
@@ -56,6 +76,11 @@ class WhatsappMessage extends Model
             'read_at' => 'datetime',
             'failed_at' => 'datetime',
         ];
+    }
+
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(WhatsappConversation::class, 'conversation_id', 'id');
     }
 
     public function user(): BelongsTo

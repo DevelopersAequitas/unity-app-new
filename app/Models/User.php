@@ -658,6 +658,16 @@ class User extends Authenticatable
         return $this->belongsTo(Circle::class, 'active_circle_id');
     }
 
+    public function userMilestoneBadges(): HasMany
+    {
+        return $this->hasMany(UserMilestoneBadge::class, 'user_id');
+    }
+
+    public function userBadges(): HasMany
+    {
+        return $this->hasMany(UserMilestoneBadge::class, 'user_id');
+    }
+
     public function getNameAttribute(): string
     {
         return $this->display_name ?: trim(($this->first_name ?? '').' '.($this->last_name ?? ''));
@@ -1500,5 +1510,10 @@ class User extends Authenticatable
     public function memberJourneySends(): HasMany
     {
         return $this->hasMany(MemberJourneySend::class, 'user_id', 'id');
+    }
+
+    public function memberAwardSends(): HasMany
+    {
+        return $this->hasMany(MemberAwardSend::class, 'user_id', 'id');
     }
 }

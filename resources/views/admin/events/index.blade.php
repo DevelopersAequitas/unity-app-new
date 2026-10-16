@@ -7,6 +7,26 @@
 @section('content')
 <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4 max-w-full min-w-0">
 
+    @if(session('success'))
+      <div class="px-3.5 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center justify-between shadow-2xs">
+        <div class="flex items-center gap-2">
+          <i class="bi bi-check-circle-fill text-emerald-600 text-sm"></i>
+          <span>{{ session('success') }}</span>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-emerald-600 hover:text-emerald-900 border-0 bg-transparent cursor-pointer text-xs">&times;</button>
+      </div>
+    @endif
+
+    @if(session('error'))
+      <div class="px-3.5 py-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between shadow-2xs">
+        <div class="flex items-center gap-2">
+          <i class="bi bi-exclamation-triangle-fill text-rose-600 text-sm"></i>
+          <span>{{ session('error') }}</span>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-rose-600 hover:text-rose-900 border-0 bg-transparent cursor-pointer text-xs">&times;</button>
+      </div>
+    @endif
+
     <!-- Top Action Row -->
     <div class="flex flex-wrap justify-between items-center gap-3 mb-2">
       <div>
@@ -85,6 +105,13 @@
             @foreach(['offline' => 'Offline', 'online' => 'Online', 'hybrid' => 'Hybrid'] as $modeKey => $modeLabel)
               <option value="{{ $modeKey }}" @selected(request('mode') === $modeKey)>{{ $modeLabel }}</option>
             @endforeach
+          </select>
+        </div>
+        <div class="w-auto min-w-[125px]">
+          <select class="w-full px-3 py-2 text-xs rounded-lg border bs surface t1 focus-ring" name="is_active">
+            <option value="">All Statuses</option>
+            <option value="1" @selected(request('is_active') === '1')>Active Only</option>
+            <option value="0" @selected(request('is_active') === '0')>Inactive Only</option>
           </select>
         </div>
         <div class="flex items-center gap-1.5 min-w-[160px]">
@@ -192,17 +219,37 @@
                   </a>
                 </td>
                 <td class="px-3 py-3 text-xs whitespace-nowrap">
-                  @php $status = $event->computed_status; @endphp
-                  @if($status === 'completed')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200 rounded-full whitespace-nowrap">Completed</span>
-                  @elseif($status === 'cancelled')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-600 border-rose-200 rounded-full whitespace-nowrap">Cancelled</span>
-                  @else
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border-emerald-200 rounded-full inline-flex items-center gap-1 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Scheduled</span>
-                  @endif
+                  @php
+                    $isActive = (bool) ($event->is_active ?? true);
+                    $status = $event->computed_status;
+                  @endphp
+                  <div class="flex flex-col gap-1">
+                    <span id="badge-active-{{ $event->id }}" class="chip px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center gap-1 whitespace-nowrap w-max {{ $isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200' }}">
+                      <span class="w-1.5 h-1.5 rounded-full {{ $isActive ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                      <span id="badge-text-{{ $event->id }}">{{ $isActive ? 'Active' : 'Inactive' }}</span>
+                    </span>
+                    @if($status === 'completed')
+                      <span class="chip px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 border-gray-200 rounded-full whitespace-nowrap w-max">Completed</span>
+                    @elseif($status === 'cancelled')
+                      <span class="chip px-2 py-0.5 text-[10px] font-medium bg-rose-50 text-rose-600 border-rose-200 rounded-full whitespace-nowrap w-max">Cancelled</span>
+                    @else
+                      <span class="chip px-2 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-600 border-indigo-200 rounded-full whitespace-nowrap w-max">Scheduled</span>
+                    @endif
+                  </div>
                 </td>
                 <td class="px-3 py-3 text-right whitespace-nowrap">
                   <div class="flex items-center justify-end gap-1.5">
+                    <form action="{{ route('admin.events.toggle-status', $event->id) }}" method="POST" class="inline-block m-0 p-0">
+                      @csrf
+                      <button type="button" 
+                              id="btn-toggle-{{ $event->id }}"
+                              onclick="toggleEventStatus('{{ $event->id }}', this)" 
+                              class="px-2.5 py-1 rounded-md text-[11px] font-semibold border no-underline transition whitespace-nowrap inline-flex items-center gap-1 {{ $isActive ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' }}"
+                              title="Click to toggle Active/Inactive status for all APIs">
+                        <i class="bi {{ $isActive ? 'bi-toggle-on text-amber-600' : 'bi-toggle-off text-emerald-600' }} text-xs"></i>
+                        <span>{{ $isActive ? 'Deactivate' : 'Activate' }}</span>
+                      </button>
+                    </form>
                     <a href="{{ route('admin.events.show', $event->id) }}" class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-[11px] font-semibold no-underline transition whitespace-nowrap">
                       View
                     </a>
@@ -238,4 +285,62 @@
     </div>
 
 </div>
+
+<script>
+function toggleEventStatus(eventId, btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<span class="inline-block animate-spin" style="width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;"></span>';
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') 
+      || document.querySelector('input[name="_token"]')?.value
+      || '{{ csrf_token() }}';
+
+    fetch(`/admin/events/${encodeURIComponent(eventId)}/toggle-status`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.disabled = false;
+        if (data.success) {
+            const isActive = data.is_active;
+            if (isActive) {
+                btn.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold border no-underline transition whitespace-nowrap inline-flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100';
+                btn.innerHTML = '<i class="bi bi-toggle-on text-amber-600 text-xs"></i><span>Deactivate</span>';
+                btn.title = 'Click to deactivate event';
+            } else {
+                btn.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold border no-underline transition whitespace-nowrap inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100';
+                btn.innerHTML = '<i class="bi bi-toggle-off text-emerald-600 text-xs"></i><span>Activate</span>';
+                btn.title = 'Click to activate event';
+            }
+
+            const badge = document.getElementById(`badge-active-${eventId}`);
+            if (badge) {
+                if (isActive) {
+                    badge.className = 'chip px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center gap-1 whitespace-nowrap w-max bg-emerald-50 text-emerald-700 border-emerald-200';
+                    badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span id="badge-text-' + eventId + '">Active</span>';
+                } else {
+                    badge.className = 'chip px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center gap-1 whitespace-nowrap w-max bg-rose-50 text-rose-700 border-rose-200';
+                    badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span><span id="badge-text-' + eventId + '">Inactive</span>';
+                }
+            }
+        } else {
+            btn.innerHTML = originalContent;
+            alert(data.message || 'Failed to update event status.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+        btn.closest('form').submit();
+    });
+}
+</script>
 @endsection
