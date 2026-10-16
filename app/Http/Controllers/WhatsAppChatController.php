@@ -67,13 +67,18 @@ class WhatsAppChatController extends Controller
                     ? ($conv->window_expires_at instanceof Carbon ? $conv->window_expires_at : Carbon::parse($conv->window_expires_at))
                     : null;
 
+                $rawName = $conv->contact_name ?: ('Contact +'.$conv->contact_phone);
+                $contactName = $this->cleanUtf8($rawName);
+                $firstChar = mb_substr(trim($contactName), 0, 1, 'UTF-8');
+                $avatarLetter = ! empty($firstChar) ? mb_strtoupper($firstChar, 'UTF-8') : 'C';
+
                 return [
                     'id' => (string) $conv->id,
-                    'contact_phone' => (string) $conv->contact_phone,
-                    'contact_name' => $conv->contact_name ?: ('Contact +'.$conv->contact_phone),
-                    'avatar_letter' => strtoupper(substr((string) ($conv->contact_name ?: $conv->contact_phone), 0, 1)),
+                    'contact_phone' => $this->cleanUtf8((string) $conv->contact_phone),
+                    'contact_name' => $contactName,
+                    'avatar_letter' => $avatarLetter,
                     'unread_count' => (int) $conv->unread_count,
-                    'last_message_preview' => $conv->last_message_preview ?: 'No messages yet',
+                    'last_message_preview' => $this->cleanUtf8($conv->last_message_preview ?: 'No messages yet'),
                     'last_message_direction' => $latestMsg?->direction,
                     'last_message_status' => $latestMsg ? strtoupper((string) $latestMsg->status) : null,
                     'last_message_at' => $lastMessageAt ? $lastMessageAt->toIso8601String() : null,
@@ -89,7 +94,7 @@ class WhatsAppChatController extends Controller
                 'success' => true,
                 'conversations' => $data,
                 'total_unread' => $this->chatService->getTotalUnreadCount(),
-            ]);
+            ], 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (Throwable $e) {
             Log::error('[WhatsAppChatController] getConversations error: '.$e->getMessage(), [
                 'exception' => $e,
@@ -100,7 +105,7 @@ class WhatsAppChatController extends Controller
                 'message' => $e->getMessage(),
                 'conversations' => [],
                 'total_unread' => 0,
-            ], 500);
+            ], 500, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         }
     }
 
@@ -124,15 +129,15 @@ class WhatsAppChatController extends Controller
 
             $formattedMessages = $messages->map(function ($msg) {
                 return [
-                    'id' => $msg->id,
+                    'id' => (string) $msg->id,
                     'meta_message_id' => $msg->meta_message_id,
                     'direction' => $msg->direction,
                     'type' => $msg->type,
-                    'body' => $msg->body,
+                    'body' => $this->cleanUtf8($msg->body),
                     'media_url' => $msg->media_url,
                     'status' => strtoupper((string) $msg->status),
                     'error_code' => $msg->error_code,
-                    'error_message' => $msg->error_message,
+                    'error_message' => $this->cleanUtf8($msg->error_message),
                     'sent_at' => $msg->sent_at ? $msg->sent_at->toIso8601String() : null,
                     'delivered_at' => $msg->delivered_at ? $msg->delivered_at->toIso8601String() : null,
                     'read_at' => $msg->read_at ? $msg->read_at->toIso8601String() : null,
@@ -146,29 +151,29 @@ class WhatsAppChatController extends Controller
             return response()->json([
                 'success' => true,
                 'conversation' => [
-                    'id' => $conversation->id,
-                    'contact_phone' => $conversation->contact_phone,
-                    'contact_name' => $conversation->contact_name ?: ('Contact +'.$conversation->contact_phone),
+                    'id' => (string) $conversation->id,
+                    'contact_phone' => $this->cleanUtf8((string) $conversation->contact_phone),
+                    'contact_name' => $this->cleanUtf8($conversation->contact_name ?: ('Contact +'.$conversation->contact_phone)),
                     'is_window_active' => $conversation->isWindowActive(),
                     'window_expires_at' => $conversation->window_expires_at ? $conversation->window_expires_at->toIso8601String() : null,
                     'window_remaining' => $conversation->window_remaining_formatted,
                     'unread_count' => 0,
                     'crm_user' => $user ? [
                         'id' => $user->id,
-                        'name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
-                        'email' => $user->email,
-                        'company' => $user->company_name ?? 'Individual Member',
-                        'city' => $user->city ?? 'N/A',
-                        'membership' => $user->membership_status ?? 'Active Member',
+                        'name' => $this->cleanUtf8($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
+                        'email' => $this->cleanUtf8($user->email),
+                        'company' => $this->cleanUtf8($user->company_name ?? 'Individual Member'),
+                        'city' => $this->cleanUtf8($user->city ?? 'N/A'),
+                        'membership' => $this->cleanUtf8($user->membership_status ?? 'Active Member'),
                         'joined_at' => $user->created_at ? $user->created_at->format('M d, Y') : 'N/A',
                     ] : null,
                 ],
                 'messages' => $formattedMessages,
-            ]);
+            ], 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (Throwable $e) {
             Log::error('[WhatsAppChatController] Error fetching messages: '.$e->getMessage());
 
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         }
     }
 
@@ -347,5 +352,17 @@ class WhatsAppChatController extends Controller
         }
 
         return $dateTime->format('d/m/Y');
+    }
+
+    /**
+     * Clean and ensure valid UTF-8 encoding for JSON serialization.
+     */
+    private function cleanUtf8(?string $string): string
+    {
+        if ($string === null || $string === '') {
+            return '';
+        }
+
+        return mb_convert_encoding($string, 'UTF-8', 'UTF-8');
     }
 }
