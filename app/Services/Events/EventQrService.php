@@ -37,17 +37,11 @@ class EventQrService
 
         $configUrl = rtrim((string) config('app.url'), '/');
 
-        if (! app()->environment('production')) {
-            if (empty($configUrl)) {
-                return 'https://dev.peersunity.com';
-            }
-
-            if (str_contains($configUrl, 'peersunity.com') && ! str_contains($configUrl, 'dev.peersunity.com')) {
-                $configUrl = str_replace('peersunity.com', 'dev.peersunity.com', $configUrl);
-            }
+        if (app()->environment('production')) {
+            return $configUrl ?: 'https://peersunity.com';
         }
 
-        return $configUrl ?: 'https://dev.peersunity.com';
+        return $configUrl ?: 'https://peersunity.com';
     }
 
     public function payload(string $qrToken): string

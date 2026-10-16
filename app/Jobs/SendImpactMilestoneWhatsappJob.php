@@ -153,9 +153,11 @@ class SendImpactMilestoneWhatsappJob implements ShouldQueue
         // 4. Resolve referrer name (@referrer_name) - for Impact track, @referrer_name MUST always be the achieved Peer's own name
         $referrerName = $memberName;
 
-        // 5. Resolve environment-aware referral link (@referral_link)
-        $isProduction = app()->environment('production') || config('app.env') === 'production';
-        $baseUrl = $isProduction ? 'https://peersunity.com' : 'https://dev.peersunity.com';
+        // 5. Resolve referral link (@referral_link)
+        $baseUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+        if (empty($baseUrl) || str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+            $baseUrl = 'https://peersunity.com';
+        }
         $referralLink = "{$baseUrl}/share?type=referrals";
 
         // 6. Header Media URL -> exact life_impact_creatives.image_url (@header_media_url)
