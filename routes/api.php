@@ -189,12 +189,12 @@ Route::post('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'
 Route::post('/v1/mock-whatsapp-webhook', [WhatsAppWebhookController::class, 'handle']);
 
 // Native Meta WhatsApp Cloud API Webhook endpoints
-Route::get('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/webhooks/whatsapp-meta', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/webhooks/whatsapp-meta', [MetaWhatsAppWebhookController::class, 'handle']);
+Route::get('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/webhooks/whatsapp-meta', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/webhooks/whatsapp-meta', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
 
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WhatsAppBulkCampaign;
 use App\Models\WhatsAppBulkCampaignImportError;
 use App\Models\WhatsAppBulkCampaignRecipient;
+use App\Models\WhatsAppMessageLog;
 use App\Models\WhatsappTemplate;
 use App\Services\WhatsApp\MetaWhatsAppService;
 use App\Services\WhatsApp\WhatsAppBulkCampaignService;
@@ -457,5 +458,74 @@ class WhatsAppBulkCampaignAdminController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
+    }
+
+    /**
+     * Synchronize delivery statuses for campaign recipients from message logs and webhooks.
+     */
+    public function syncStatuses(string $id): RedirectResponse
+    {
+        $campaign = WhatsAppBulkCampaign::findOrFail($id);
+
+        try {
+            $recipients = WhatsAppBulkCampaignRecipient::where('campaign_id', $campaign->id)
+                ->whereNotNull('whatsapp_message_id')
+                ->get();
+
+            $wamids = $recipients->pluck('whatsapp_message_id')->filter()->all();
+            $messageLogs = WhatsAppMessageLog::whereIn('provider_message_id', $wamids)->get()->keyBy('provider_message_id');
+
+            $synced = 0;
+            foreach ($recipients as $rec) {
+                $log = $messageLogs->get($rec->whatsapp_message_id);
+                if (! $log) {
+                    continue;
+                }
+
+                $rawStatus = strtolower((string) $log->status);
+                if (! in_array($rawStatus, ['delivered', 'read', 'failed'], true)) {
+                    continue;
+                }
+
+                if ($rawStatus !== $rec->status) {
+                    $rec->status = $rawStatus;
+                    if ($rawStatus === 'delivered' && ! $rec->delivered_at) {
+                        $rec->delivered_at = $log->updated_at ?? now();
+                    } elseif ($rawStatus === 'read') {
+                        $rec->delivered_at = $rec->delivered_at ?? ($log->updated_at ?? now());
+                        $rec->read_at = $rec->read_at ?? ($log->updated_at ?? now());
+                    } elseif ($rawStatus === 'failed') {
+                        $rec->failed_at = $log->failed_at ?? now();
+                        $rec->error_code = $log->error_code;
+                        $rec->error_message = $log->error_message;
+                    }
+                    $rec->save();
+                    $synced++;
+                }
+            }
+
+            // Recalculate campaign aggregates
+            $counts = DB::table('whatsapp_bulk_campaign_recipients')
+                ->where('campaign_id', $campaign->id)
+                ->selectRaw("
+                    COUNT(*) FILTER (WHERE status = 'sent') as sent,
+                    COUNT(*) FILTER (WHERE status = 'delivered') as delivered,
+                    COUNT(*) FILTER (WHERE status = 'read') as read,
+                    COUNT(*) FILTER (WHERE status = 'failed') as failed
+                ")->first();
+
+            if ($counts) {
+                $campaign->update([
+                    'sent_count' => (int) $counts->sent + (int) $counts->delivered + (int) $counts->read,
+                    'delivered_count' => (int) $counts->delivered + (int) $counts->read,
+                    'read_count' => (int) $counts->read,
+                    'failed_count' => (int) $counts->failed,
+                ]);
+            }
+
+            return back()->with('success', "Delivery status synchronization completed. Updated {$synced} recipient(s).");
+        } catch (Throwable $e) {
+            return back()->with('error', 'Failed to synchronize delivery statuses: '.$e->getMessage());
+        }
     }
 }
