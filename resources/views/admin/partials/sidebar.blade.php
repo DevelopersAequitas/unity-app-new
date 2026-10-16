@@ -1148,6 +1148,11 @@
                                     </a>
                                 </li>
                                 <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.whatsapp.event_passes*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.event_passes.index') }}">
+                                        <i class="bi bi-qr-code-scan me-1"></i> Event QR Passes
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.webhook_logs*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.webhook_logs') }}">
                                         <i class="bi bi-arrow-left-right me-1"></i> Webhook Logs
                                     </a>

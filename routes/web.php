@@ -115,6 +115,7 @@ use App\Http\Controllers\Admin\Web\WebPartnershipController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
 use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
+use App\Http\Controllers\Admin\WhatsApp\EventPassWhatsappAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MemberJourneyAdminController;
 use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
@@ -949,6 +950,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/campaigns/{id}/cancel', [WhatsAppBulkCampaignAdminController::class, 'cancel'])->whereUuid('id')->name('campaigns.cancel');
             Route::post('/campaigns/{id}/retry', [WhatsAppBulkCampaignAdminController::class, 'retry'])->whereUuid('id')->name('campaigns.retry');
             Route::get('/campaigns/{id}/export', [WhatsAppBulkCampaignAdminController::class, 'export'])->whereUuid('id')->name('campaigns.export');
+
+            // Event QR Passes WhatsApp Delivery Management
+            Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event_passes.index');
+            Route::get('/event-passes/export', [EventPassWhatsappAdminController::class, 'export'])->name('event_passes.export');
+            Route::get('/event-passes/{id}', [EventPassWhatsappAdminController::class, 'show'])->whereUuid('id')->name('event_passes.show');
+            Route::post('/event-passes/{id}/resend', [EventPassWhatsappAdminController::class, 'resend'])->whereUuid('id')->name('event_passes.resend');
+            Route::post('/event-passes/bulk-resend', [EventPassWhatsappAdminController::class, 'bulkResend'])->name('event_passes.bulk_resend');
         });
 
         // App Notifications & Mobile Navigation Showcase Module

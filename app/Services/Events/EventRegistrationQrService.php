@@ -17,11 +17,11 @@ class EventRegistrationQrService
 {
     public function __construct(private readonly EventQrService $qr) {}
 
-    public function ensureQrGenerated(EventRegistration $registration): EventRegistration
+    public function ensureQrGenerated(EventRegistration $registration, bool $force = false): EventRegistration
     {
         $registration = $registration->fresh() ?? $registration;
 
-        if (! $this->canGenerate($registration)) {
+        if (! $force && ! $this->canGenerate($registration)) {
             Log::info('event_registration_qr_generation_skipped_until_payment_complete', [
                 'registration_id' => (string) $registration->id,
                 'payment_required' => (bool) ($registration->payment_required ?? false),
