@@ -107,11 +107,13 @@ use App\Http\Controllers\Admin\Web\WebCircleController;
 use App\Http\Controllers\Admin\Web\WebCompanyController;
 use App\Http\Controllers\Admin\Web\WebDashboardController;
 use App\Http\Controllers\Admin\Web\WebEventController;
+use App\Http\Controllers\Admin\Web\WebGalleryController;
 use App\Http\Controllers\Admin\Web\WebMediaController;
 use App\Http\Controllers\Admin\Web\WebMessageController;
 use App\Http\Controllers\Admin\Web\WebOpportunityController;
 use App\Http\Controllers\Admin\Web\WebPageMediaController;
 use App\Http\Controllers\Admin\Web\WebPartnershipController;
+use App\Http\Controllers\Admin\Web\WebPodcastMediaController;
 use App\Http\Controllers\Admin\Web\WebSettingController;
 use App\Http\Controllers\Admin\Web\WebSuccessStoryController;
 use App\Http\Controllers\Admin\WhatsApp\AwardRecognitionAdminController;
@@ -1056,6 +1058,25 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // ── Peers Global Website Management Module ──────────────────────
         Route::prefix('web')->name('web.')->group(function () {
             Route::get('/dashboard', [WebDashboardController::class, 'index'])->name('dashboard');
+
+            // Gallery Collection
+            Route::prefix('gallery')->name('gallery.')->group(function () {
+                Route::get('/', [WebGalleryController::class, 'index'])->name('index');
+                Route::post('/', [WebGalleryController::class, 'store'])->name('store');
+                Route::put('/{id}', [WebGalleryController::class, 'update'])->name('update')->whereUuid('id');
+                Route::delete('/{id}', [WebGalleryController::class, 'destroy'])->name('destroy')->whereUuid('id');
+                Route::patch('/{id}/toggle-status', [WebGalleryController::class, 'toggleStatus'])->name('toggle-status')->whereUuid('id');
+            });
+
+            // Add Podcast & Media
+            Route::prefix('podcasts')->name('podcasts.')->group(function () {
+                Route::get('/', [WebPodcastMediaController::class, 'index'])->name('index');
+                Route::post('/', [WebPodcastMediaController::class, 'store'])->name('store');
+                Route::put('/{id}', [WebPodcastMediaController::class, 'update'])->name('update')->whereUuid('id');
+                Route::delete('/{id}', [WebPodcastMediaController::class, 'destroy'])->name('destroy')->whereUuid('id');
+                Route::patch('/{id}/toggle-featured', [WebPodcastMediaController::class, 'toggleFeatured'])->name('toggle-featured')->whereUuid('id');
+                Route::patch('/{id}/toggle-status', [WebPodcastMediaController::class, 'toggleStatus'])->name('toggle-status')->whereUuid('id');
+            });
 
             // Homepage Media / Success Stories
             Route::prefix('homepage-media')->name('homepage-media.')->group(function () {

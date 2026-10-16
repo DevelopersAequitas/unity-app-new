@@ -173,7 +173,6 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
-use App\Http\Controllers\Api\WhatsApp\MetaWhatsAppWebhookController;
 use App\Jobs\SendPushNotificationJob;
 use App\Models\User;
 use App\Services\Notifications\FcmService;
@@ -1531,6 +1530,19 @@ Route::prefix('v1')->group(function () {
     Route::post('/web/success-stories/{id}', [WebPublicApiController::class, 'updateStory'])->whereUuid('id');
     Route::delete('/web/success-stories/{id}', [WebPublicApiController::class, 'destroyStory'])->whereUuid('id');
     Route::get('/web/homepage-media/success-stories', [WebPublicApiController::class, 'successStories']);
+
+    // Web Gallery Collection APIs
+    Route::get('/web-gallery', [WebPublicApiController::class, 'gallery']);
+    Route::get('/web/gallery', [WebPublicApiController::class, 'gallery']);
+    Route::get('/web-gallery/collections', [WebPublicApiController::class, 'galleryCollections']);
+    Route::get('/web/gallery/collections', [WebPublicApiController::class, 'galleryCollections']);
+
+    // Web Podcasts & Media Channels APIs
+    Route::get('/web-podcasts', [WebPublicApiController::class, 'podcasts']);
+    Route::get('/web/podcasts', [WebPublicApiController::class, 'podcasts']);
+    Route::get('/web/podcasts/featured', [WebPublicApiController::class, 'featuredPodcasts']);
+    Route::get('/web-media-channels', [WebPublicApiController::class, 'podcasts']);
+    Route::get('/web/media-channels', [WebPublicApiController::class, 'podcasts']);
 
     // Web Blogs & Publications
     Route::get('/web-blogs', [WebBlogApiController::class, 'index']);
