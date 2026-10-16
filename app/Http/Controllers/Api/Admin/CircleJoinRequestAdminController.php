@@ -104,6 +104,7 @@ class CircleJoinRequestAdminController extends BaseApiController
                 $record,
                 ['circle_id' => $record->circle_id]
             );
+
             return $this->success($result, 'Circle Director approval completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
@@ -125,6 +126,7 @@ class CircleJoinRequestAdminController extends BaseApiController
                 $record,
                 ['reason' => $request->validated('reason')]
             );
+
             return $this->success($result, 'Circle Director rejection completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
@@ -146,6 +148,7 @@ class CircleJoinRequestAdminController extends BaseApiController
                 $record,
                 ['circle_id' => $record->circle_id]
             );
+
             return $this->success($result, 'Industry Director approval completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
@@ -167,6 +170,7 @@ class CircleJoinRequestAdminController extends BaseApiController
                 $record,
                 ['reason' => $request->validated('reason')]
             );
+
             return $this->success($result, 'Industry Director rejection completed.');
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());

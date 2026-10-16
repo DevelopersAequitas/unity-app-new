@@ -16,6 +16,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -119,7 +120,7 @@ class CircleMemberController extends Controller
                 }
             });
         } catch (QueryException $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to add circle member', [
+            Log::error('Failed to add circle member', [
                 'circle_id' => $circle->id,
                 'user_id' => $data['user_id'],
                 'error' => $e->getMessage(),

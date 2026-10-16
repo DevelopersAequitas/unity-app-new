@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 return [
     'meta' => [
-        'api_version' => env('WHATSAPP_META_API_VERSION', 'v22.0'),
-        'access_token' => env('WHATSAPP_META_ACCESS_TOKEN'),
-        'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID', '1475250733815899'),
-        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID', '1148211571702139'),
+        'api_version' => env('META_WHATSAPP_API_VERSION', env('WHATSAPP_META_API_VERSION', 'v21.0')),
+        'access_token' => env('META_WHATSAPP_ACCESS_TOKEN', env('WHATSAPP_META_ACCESS_TOKEN')),
+        'business_account_id' => env('META_WHATSAPP_WABA_ID', env('WHATSAPP_BUSINESS_ACCOUNT_ID', '1475250733815899')),
+        'phone_number_id' => env('META_WHATSAPP_PHONE_NUMBER_ID', env('WHATSAPP_PHONE_NUMBER_ID', '1148211571702139')),
         'business_id' => env('WHATSAPP_BUSINESS_ID', '5418283234857525'),
-        'app_id' => env('WHATSAPP_META_APP_ID', '757348670325961'),
-        'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'unity_whatsapp_webhook_verify_token_2026'),
+        'app_id' => env('META_WHATSAPP_APP_ID', env('WHATSAPP_META_APP_ID', '1460871381832780')),
+        'webhook_verify_token' => env('META_WHATSAPP_VERIFY_TOKEN', env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'peers_unity_meta_verify_token_2026')),
         'app_secret' => env('WHATSAPP_META_APP_SECRET', env('FACEBOOK_CLIENT_SECRET')),
         'base_url' => 'https://graph.facebook.com',
         'timeout' => (int) env('WHATSAPP_API_TIMEOUT', 20),

@@ -139,7 +139,7 @@ class ContactInvitationController extends Controller
 
         return response()->json([
             'success' => false,
-            'message' => 'Failed to resend WhatsApp invitation: ' . ($invitation->error_message ?? 'Unknown error'),
+            'message' => 'Failed to resend WhatsApp invitation: '.($invitation->error_message ?? 'Unknown error'),
         ], 500);
     }
 
@@ -163,6 +163,7 @@ class ContactInvitationController extends Controller
         foreach ($invitations as $invitation) {
             if (! $invitation->user) {
                 $failedCount++;
+
                 continue;
             }
 

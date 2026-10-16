@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
@@ -93,9 +94,9 @@ class AwardRecognitionAdminController extends Controller
         } elseif ($peerFilter === 'no_awards') {
             $userQuery->whereDoesntHave('memberAwardSends');
         } elseif ($peerFilter === 'track1') {
-            $userQuery->whereHas('memberAwardSends', fn($q) => $q->where('award_track', 'GROWTH'));
+            $userQuery->whereHas('memberAwardSends', fn ($q) => $q->where('award_track', 'GROWTH'));
         } elseif ($peerFilter === 'track2') {
-            $userQuery->whereHas('memberAwardSends', fn($q) => $q->where('award_track', 'LIFE_IMPACT'));
+            $userQuery->whereHas('memberAwardSends', fn ($q) => $q->where('award_track', 'LIFE_IMPACT'));
         }
 
         $members = $userQuery->orderByDesc('created_at')->paginate(15, ['*'], 'members_page')->withQueryString();
@@ -172,7 +173,8 @@ class AwardRecognitionAdminController extends Controller
         // Auto-sync delivery statuses from meta message logs
         try {
             $this->syncService->syncAwardDeliveries($userId);
-        } catch (Throwable) {}
+        } catch (Throwable) {
+        }
 
         // Fetch all existing sends for this user
         $sends = MemberAwardSend::where('user_id', $userId)->get()->keyBy(function ($item) {
@@ -221,7 +223,7 @@ class AwardRecognitionAdminController extends Controller
                 'track_label' => 'Life Impact',
                 'track_badge' => 'Track 2: Impact',
                 'milestone_count' => $count,
-                'milestone_label' => number_format($count) . " Impacts",
+                'milestone_label' => number_format($count).' Impacts',
                 'title' => $meta['title'],
                 'template_name' => $meta['template'],
                 'language' => $meta['language'],
@@ -245,11 +247,11 @@ class AwardRecognitionAdminController extends Controller
         if ($rawPhone !== '') {
             $digits = preg_replace('/\D+/', '', $rawPhone) ?? '';
             if (strlen($digits) === 10) {
-                $userPhone = '+91' . $digits;
+                $userPhone = '+91'.$digits;
             } elseif (str_starts_with($rawPhone, '+')) {
-                $userPhone = '+' . $digits;
+                $userPhone = '+'.$digits;
             } elseif (strlen($digits) > 10) {
-                $userPhone = '+' . $digits;
+                $userPhone = '+'.$digits;
             } else {
                 $userPhone = $rawPhone;
             }
@@ -338,7 +340,7 @@ class AwardRecognitionAdminController extends Controller
                 }
             }
 
-            $message = "Award WhatsApp '{$awardInfo['title']}' dispatched successfully to " . ($phoneOverride ?: ($user->phone ?? 'recipient')) . "!";
+            $message = "Award WhatsApp '{$awardInfo['title']}' dispatched successfully to ".($phoneOverride ?: ($user->phone ?? 'recipient')).'!';
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -353,11 +355,11 @@ class AwardRecognitionAdminController extends Controller
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to dispatch award: ' . $e->getMessage(),
+                    'message' => 'Failed to dispatch award: '.$e->getMessage(),
                 ], 400);
             }
 
-            return back()->with('error', 'Failed to dispatch award: ' . $e->getMessage());
+            return back()->with('error', 'Failed to dispatch award: '.$e->getMessage());
         }
     }
 
@@ -433,7 +435,7 @@ class AwardRecognitionAdminController extends Controller
 
             return back()->with('success', "Award template '{$send->template_name}' resent successfully!");
         } catch (Throwable $e) {
-            return back()->with('error', 'Failed to resend: ' . $e->getMessage());
+            return back()->with('error', 'Failed to resend: '.$e->getMessage());
         }
     }
 
@@ -467,8 +469,8 @@ class AwardRecognitionAdminController extends Controller
             return back()->with('error', 'Invalid award selected.');
         }
 
-        $dummyUser = User::where('phone', 'like', '%' . substr($phone, -10))->first() ?: new User([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+        $dummyUser = User::where('phone', 'like', '%'.substr($phone, -10))->first() ?: new User([
+            'id' => (string) Str::uuid(),
             'first_name' => $memberName,
             'last_name' => '',
             'display_name' => $memberName,
@@ -498,7 +500,7 @@ class AwardRecognitionAdminController extends Controller
 
             return back()->with('success', $msg);
         } catch (Throwable $e) {
-            return back()->with('error', 'Test send failed: ' . $e->getMessage());
+            return back()->with('error', 'Test send failed: '.$e->getMessage());
         }
     }
 }

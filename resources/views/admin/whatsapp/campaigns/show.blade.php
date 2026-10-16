@@ -48,6 +48,12 @@
             </div>
         </div>
         <div class="d-flex gap-2">
+            <form action="{{ route('admin.whatsapp.campaigns.sync_statuses', $campaign->id) }}" method="POST">
+                @csrf
+                <button type="submit" class="btn btn-outline-primary btn-sm" title="Synchronize latest delivery and read receipts from WhatsApp Webhooks">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Sync Delivery Status
+                </button>
+            </form>
             <a href="{{ route('admin.whatsapp.campaigns.export', $campaign->id) }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-download me-1"></i>Export CSV
             </a>
