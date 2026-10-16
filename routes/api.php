@@ -503,6 +503,11 @@ Route::prefix('v1')->group(function () {
             ->whereUuid('event')
             ->whereUuid('occurrence');
 
+        // Event Feedback System Endpoints
+        Route::post('/events/{eventId}/feedback', [EventFeedbackController::class, 'storeFeedback'])->whereUuid('eventId');
+        Route::get('/events/{eventId}/my-feedback', [EventFeedbackController::class, 'myFeedback'])->whereUuid('eventId');
+        Route::get('/events/{eventId}/feedback-summary', [EventFeedbackController::class, 'feedbackSummary'])->whereUuid('eventId');
+
         Route::get('/activities/daily-summary', [NotificationFeatureController::class, 'dailySummary']);
         Route::get('/insights/industry', [NotificationFeatureController::class, 'industryInsight']);
         Route::get('/rewards/store/items', [NotificationFeatureController::class, 'rewardItems']);

@@ -22,6 +22,20 @@ class CampaignService
 
             return $run;
         }
+
+        if ($campaign->code === 'post_event_feedback') {
+            $feedbackService = app(\App\Services\Events\EventFeedbackService::class);
+            $res = $feedbackService->sendPostEventFeedbackNotifications();
+            $run->update([
+                'status' => 'finished',
+                'audience_count' => $res['notifications_sent'] + $res['skipped'],
+                'sent_count' => $res['notifications_sent'],
+                'skipped_count' => $res['skipped'],
+                'finished_at' => now(),
+            ]);
+
+            return $run;
+        }
         $users = $this->audienceFor($campaign);
         $sent = 0;
         $skipped = 0;
@@ -103,7 +117,7 @@ class CampaignService
                         ->count();
                 }
                 $xVal = (string) min(10, max(3, $connectionCount));
-            } elseif (in_array($campaign->code, ['upcoming_event_reminder', 'event_starting_now', 'post_event_feedback'], true)) {
+            } elseif (in_array($campaign->code, ['upcoming_event_reminder', 'event_starting_now'], true)) {
                 $latestEvent = Event::where('start_at', '>=', now())
                     ->orderBy('start_at', 'asc')
                     ->first();
