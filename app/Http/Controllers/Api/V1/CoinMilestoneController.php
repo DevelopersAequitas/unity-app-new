@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\CoinsLedger;
+use App\Models\MilestoneBadge;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\MilestoneBadgeService;
@@ -65,6 +66,28 @@ class CoinMilestoneController extends Controller
             'member_introduction' => [],
         ];
 
+        $upcomingBadges = $user ? $this->getUpcomingBadges($user) : [
+            'life_impact' => null,
+            'coins' => null,
+            'member_introduction' => null,
+        ];
+
+        $upcomingMilestonesList = [];
+        if ($nextMilestoneData !== null) {
+            $upcomingMilestonesList[] = array_merge([
+                'category' => 'coins',
+                'type' => 'coins',
+            ], $nextMilestoneData);
+        }
+
+        foreach ($upcomingBadges as $categoryType => $badgeData) {
+            if ($badgeData !== null) {
+                $upcomingMilestonesList[] = array_merge([
+                    'category' => $categoryType,
+                ], $badgeData);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Milestones fetched successfully',
@@ -78,6 +101,9 @@ class CoinMilestoneController extends Controller
                 'members_introduced_count' => (int) ($user?->members_introduced_count ?? 0),
                 'current_milestone' => $currentMilestoneData,
                 'next_milestone' => $nextMilestoneData,
+                'upcoming_milestone' => $nextMilestoneData,
+                'upcoming_badges' => $upcomingBadges,
+                'upcoming_milestones' => $upcomingMilestonesList,
                 'badges' => $dynamicBadges,
             ],
         ]);
@@ -127,12 +153,15 @@ class CoinMilestoneController extends Controller
         $milestones = CoinMilestoneResolver::getMilestones();
 
         $currentMilestoneData = null;
+        $nextMilestoneData = null;
 
         $resolvedCurrent = CoinMilestoneResolver::resolve($currentCoins);
         if ($resolvedCurrent['title'] !== null) {
             foreach ($milestones as $milestone) {
                 if ($currentCoins >= (int) $milestone['threshold']) {
                     $currentMilestoneData = [
+                        'medal_rank' => $milestone['medal_rank'],
+                        'title' => $milestone['title'],
                         'meaning' => $milestone['meaning'],
                         'threshold' => (int) $milestone['threshold'],
                     ];
@@ -140,7 +169,37 @@ class CoinMilestoneController extends Controller
             }
         }
 
+        foreach ($milestones as $milestone) {
+            if ($currentCoins < (int) $milestone['threshold']) {
+                $nextMilestoneData = [
+                    'medal_rank' => $milestone['medal_rank'],
+                    'title' => $milestone['title'],
+                    'meaning' => $milestone['meaning'],
+                    'threshold' => (int) $milestone['threshold'],
+                    'coins_needed' => max(0, (int) $milestone['threshold'] - $currentCoins),
+                ];
+                break;
+            }
+        }
+
         $dynamicBadges = $this->getLatestDynamicBadges($user);
+        $upcomingBadges = $this->getUpcomingBadges($user);
+
+        $upcomingMilestonesList = [];
+        if ($nextMilestoneData !== null) {
+            $upcomingMilestonesList[] = array_merge([
+                'category' => 'coins',
+                'type' => 'coins',
+            ], $nextMilestoneData);
+        }
+
+        foreach ($upcomingBadges as $categoryType => $badgeData) {
+            if ($badgeData !== null) {
+                $upcomingMilestonesList[] = array_merge([
+                    'category' => $categoryType,
+                ], $badgeData);
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -148,7 +207,14 @@ class CoinMilestoneController extends Controller
             'data' => [
                 'total_life_impacted' => (int) ($user->life_impacted_count ?? 0),
                 'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
+                'members_introduced_count' => (int) ($user->members_introduced_count ?? 0),
+                'current_coins' => $currentCoins,
+                'coins_balance' => $currentCoins,
                 'current_milestone' => $currentMilestoneData,
+                'next_milestone' => $nextMilestoneData,
+                'upcoming_milestone' => $nextMilestoneData,
+                'upcoming_badges' => $upcomingBadges,
+                'upcoming_milestones' => $upcomingMilestonesList,
                 'badges' => $dynamicBadges,
             ],
         ]);
@@ -299,5 +365,81 @@ class CoinMilestoneController extends Controller
         }
 
         return $categorized;
+    }
+
+    /**
+     * Get the next upcoming (unearned) milestone badge for each category.
+     *
+     * @return array<string, array<string, mixed>|null>
+     */
+    private function getUpcomingBadges(User $user): array
+    {
+        $upcoming = [
+            'life_impact' => null,
+            'coins' => null,
+            'member_introduction' => null,
+        ];
+
+        if (! Schema::hasTable('user_milestone_badges') || ! Schema::hasTable('milestone_badges')) {
+            return $upcoming;
+        }
+
+        try {
+            $earnedBadgeIds = UserMilestoneBadge::query()
+                ->where('user_id', $user->id)
+                ->where('status', UserMilestoneBadge::STATUS_EARNED)
+                ->whereNull('revoked_at')
+                ->pluck('badge_id')
+                ->all();
+
+            $lifeImpactCount = (int) ($user->life_impacted_count ?? 0);
+            $coinsBalance = (int) ($user->coins_balance ?? 0);
+            $membersIntroducedCount = (int) ($user->members_introduced_count ?? 0);
+
+            if ($membersIntroducedCount === 0 && Schema::hasColumn('users', 'introduced_by')) {
+                $dbCount = User::query()->where('introduced_by', $user->id)->count();
+                if ($dbCount > 0) {
+                    $membersIntroducedCount = $dbCount;
+                }
+            }
+
+            $categories = [
+                'life_impact' => $lifeImpactCount,
+                'coins' => $coinsBalance,
+                'member_introduction' => $membersIntroducedCount,
+            ];
+
+            foreach ($categories as $type => $currentValue) {
+                /** @var MilestoneBadge|null $badge */
+                $badge = MilestoneBadge::query()
+                    ->where('type', $type)
+                    ->where('is_active', true)
+                    ->whereNotIn('id', $earnedBadgeIds)
+                    ->orderBy('required_count', 'asc')
+                    ->first();
+
+                if ($badge) {
+                    $requiredCount = (int) $badge->required_count;
+                    $needed = max(0, $requiredCount - $currentValue);
+
+                    $upcoming[$type] = [
+                        'badge_id' => (string) $badge->id,
+                        'title' => (string) $badge->title,
+                        'type' => $type,
+                        'description' => $badge->description,
+                        'badge_image_url' => $badge->badge_image_url,
+                        'required_count' => $requiredCount,
+                        'achieved_count' => $currentValue,
+                        'count_needed' => $needed,
+                        'remaining_count' => $needed,
+                        'status' => 'locked',
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently fallback if schema/query fails
+        }
+
+        return $upcoming;
     }
 }
