@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\MediaProcessingException;
 use App\Http\Resources\FileResource;
+use App\Leader\Models\LeaderReport;
+use App\Leader\Services\LeaderReportsService;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\Post;
@@ -28,11 +30,67 @@ class FileController extends BaseApiController
     ) {}
 
     /**
+     * Download or stream a file/report by its identifier.
+     */
+    public function download(Request $request, string $id)
+    {
+        // 1. Clean identifier if trailing /download was included
+        if (str_ends_with($id, '/download')) {
+            $id = (string) substr($id, 0, -9);
+        }
+
+        // 2. Check if identifier is an existing File model
+        $file = null;
+        if (Str::isUuid($id)) {
+            try {
+                $file = File::find($id);
+            } catch (\Throwable) {
+                $file = null;
+            }
+        }
+
+        if ($file && $file->s3_key) {
+            $disk = config('filesystems.default', 'public');
+            if (! Storage::disk($disk)->exists($file->s3_key) && Storage::disk('public')->exists($file->s3_key)) {
+                $disk = 'public';
+            }
+
+            if (Storage::disk($disk)->exists($file->s3_key)) {
+                $rawMime = $file->mime_type ?: Storage::disk($disk)->mimeType($file->s3_key);
+                $mime = $this->resolveMimeType($file->s3_key, $rawMime);
+                $fileName = $file->original_name ?: basename($file->s3_key);
+
+                return Storage::disk($disk)->download($file->s3_key, $fileName, [
+                    'Content-Type' => $mime,
+                ]);
+            }
+        }
+
+        // 3. Serve as Leader Performance Report PDF
+        if (Str::isUuid($id)) {
+            return app(LeaderReportsService::class)->downloadReportPdf($id, $request);
+        }
+
+        // 4. Fallback to normal show streaming if file exists
+        return $this->show($request, $id);
+    }
+
+    /**
      * Serve a file by its UUID.
      */
     public function show(Request $request, string $id)
     {
         try {
+            if (str_ends_with($id, '/download')) {
+                $realId = (string) substr($id, 0, -9);
+
+                return $this->download($request, $realId);
+            }
+
+            if (Str::isUuid($id) && ($request->query('type') === 'pdf' || LeaderReport::query()->where('id', $id)->exists())) {
+                return app(LeaderReportsService::class)->downloadReportPdf($id, $request);
+            }
+
             $file = Str::isUuid($id) ? File::find($id) : null;
 
             if (! $file && Str::isUuid($id)) {

@@ -482,6 +482,11 @@
                 </ul>
             </div>
 
+            {{-- WhatsApp Live Chat Unread Pill (DOOT / WhatsApp Web Style) --}}
+            <a href="{{ route('admin.whatsapp.chat') }}" id="whatsapp-topbar-unread-pill" class="d-none align-items-center gap-1.5 px-3 py-1 rounded-pill text-white text-decoration-none shadow-sm animate-pulse" style="background-color: #00a884; font-size: 0.75rem; font-weight: 700; transition: transform 0.2s;" title="WhatsApp Unread Chats">
+                <i class="bi bi-whatsapp"></i> <span id="whatsapp-topbar-unread-count">0</span> New
+            </a>
+
             {{-- Role Badge --}}
             <span class="badge" style="background: var(--primary-subtle); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.12); font-size: 0.72rem; padding: 6px 12px;">
                 <i class="bi bi-shield-check me-1" style="font-size: 0.7rem;"></i>{{ $roleBadge }}

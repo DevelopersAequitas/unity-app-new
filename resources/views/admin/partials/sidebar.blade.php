@@ -1113,6 +1113,14 @@
                         <div class="collapse {{ $metaWhatsAppActive ? 'show' : '' }}" id="metaWhatsAppSubmenu">
                             <ul class="nav flex-column ms-3">
                                 <li class="nav-item">
+                                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.whatsapp.chat*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.chat') }}">
+                                        <span><i class="bi bi-chat-dots-fill me-1 text-success"></i> Live Chat</span>
+                                        <span id="sidebar-whatsapp-unread-badge" class="badge rounded-pill bg-success animate-pulse" style="display: none; font-size: 10px; font-weight: 800; background-color: #10b981 !important;">
+                                            0
+                                        </span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs('admin.whatsapp.campaigns*') ? 'active' : '' }}" href="{{ route('admin.whatsapp.campaigns.index') }}">
                                         <i class="bi bi-broadcast-pin me-1"></i> Bulk Campaigns
                                     </a>

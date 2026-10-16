@@ -121,11 +121,12 @@ use App\Http\Controllers\Admin\WhatsApp\MetaWhatsAppAdminController;
 use App\Http\Controllers\Admin\WhatsApp\WhatsAppBulkCampaignAdminController;
 use App\Http\Controllers\Admin\WhatsappTemplateController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
-use App\Http\Controllers\Api\WhatsApp\MetaWhatsAppWebhookController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\WhatsAppChatController;
+use App\Http\Controllers\WhatsAppWebhookController;
 use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
 use Illuminate\Http\Request;
@@ -189,11 +190,13 @@ Route::get('/join/{code?}', function (Request $request, ?string $code = null) {
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 
-// Direct WhatsApp Webhook fallbacks (in case Meta is configured without /api prefix)
-Route::get('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
+// WhatsApp Webhook (Publicly accessible, exempt from CSRF)
+Route::get('/api/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/api/whatsapp/webhook', [WhatsAppWebhookController::class, 'handle']);
+Route::get('/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [WhatsAppWebhookController::class, 'handle']);
 
 Route::get('/api/v1/events/checkin/qr/{token}', function (Request $request, string $token) {
     $service = app(EventCheckinService::class);
@@ -895,8 +898,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/whatsapp-templates/{id}/toggle-status', [WhatsappTemplateController::class, 'toggleStatus'])->name('whatsapp-templates.toggle-status');
         Route::post('/whatsapp-templates/{id}/reveal-secret', [WhatsappTemplateController::class, 'revealSecret'])->name('whatsapp-templates.reveal-secret');
 
-        // Native Meta WhatsApp Cloud API Module
         Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+            // WhatsApp Live Chat & Inbox Module (DOOT / WhatsApp Web Style)
+            Route::get('/chat', [WhatsAppChatController::class, 'index'])->name('chat');
+            Route::get('/api/conversations', [WhatsAppChatController::class, 'getConversations'])->name('chat.conversations');
+            Route::get('/api/conversations/{id}/messages', [WhatsAppChatController::class, 'getMessages'])->whereUuid('id')->name('chat.messages');
+            Route::post('/api/conversations/{id}/messages', [WhatsAppChatController::class, 'sendMessage'])->whereUuid('id')->name('chat.send');
+            Route::post('/api/conversations/{id}/read', [WhatsAppChatController::class, 'markAsRead'])->whereUuid('id')->name('chat.read');
+            Route::get('/api/unread-count', [WhatsAppChatController::class, 'getTotalUnreadCount'])->name('chat.unread_count');
+            Route::post('/api/simulate-incoming', [WhatsAppChatController::class, 'simulateIncoming'])->name('chat.simulate');
+            Route::post('/api/simulate-status', [WhatsAppChatController::class, 'simulateStatus'])->name('chat.simulate_status');
+
             Route::get('/templates', [MetaWhatsAppAdminController::class, 'templates'])->name('templates');
             Route::post('/templates/sync', [MetaWhatsAppAdminController::class, 'syncTemplates'])->name('templates.sync');
             Route::get('/templates/create', [MetaWhatsAppAdminController::class, 'createTemplateView'])->name('templates.create');
@@ -950,6 +962,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/campaigns/{id}/cancel', [WhatsAppBulkCampaignAdminController::class, 'cancel'])->whereUuid('id')->name('campaigns.cancel');
             Route::post('/campaigns/{id}/retry', [WhatsAppBulkCampaignAdminController::class, 'retry'])->whereUuid('id')->name('campaigns.retry');
             Route::get('/campaigns/{id}/export', [WhatsAppBulkCampaignAdminController::class, 'export'])->whereUuid('id')->name('campaigns.export');
+            Route::post('/campaigns/{id}/sync-statuses', [WhatsAppBulkCampaignAdminController::class, 'syncStatuses'])->whereUuid('id')->name('campaigns.sync_statuses');
 
             // Event QR Passes WhatsApp Delivery Management
             Route::get('/event-passes', [EventPassWhatsappAdminController::class, 'index'])->name('event_passes.index');

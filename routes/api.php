@@ -141,6 +141,7 @@ use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PeerReferralsApiController;
+use App\Http\Controllers\Api\V1\Peers\PeerBadgeController;
 use App\Http\Controllers\Api\V1\Peers\TopPeersController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
@@ -188,12 +189,12 @@ Route::post('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'
 Route::post('/v1/mock-whatsapp-webhook', [WhatsAppWebhookController::class, 'handle']);
 
 // Native Meta WhatsApp Cloud API Webhook endpoints
-Route::get('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/whatsapp/webhook', [MetaWhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/webhooks/whatsapp-meta', [MetaWhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/webhooks/whatsapp-meta', [MetaWhatsAppWebhookController::class, 'handle']);
+Route::get('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/webhooks/whatsapp-meta', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/webhooks/whatsapp-meta', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
 
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
@@ -502,6 +503,11 @@ Route::prefix('v1')->group(function () {
             ->whereUuid('event')
             ->whereUuid('occurrence');
 
+        // Event Feedback System Endpoints
+        Route::post('/events/{eventId}/feedback', [EventFeedbackController::class, 'storeFeedback'])->whereUuid('eventId');
+        Route::get('/events/{eventId}/my-feedback', [EventFeedbackController::class, 'myFeedback'])->whereUuid('eventId');
+        Route::get('/events/{eventId}/feedback-summary', [EventFeedbackController::class, 'feedbackSummary'])->whereUuid('eventId');
+
         Route::get('/activities/daily-summary', [NotificationFeatureController::class, 'dailySummary']);
         Route::get('/insights/industry', [NotificationFeatureController::class, 'industryInsight']);
         Route::get('/rewards/store/items', [NotificationFeatureController::class, 'rewardItems']);
@@ -588,11 +594,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/peers/{user}/block-status', [PeerBlockController::class, 'status'])->whereUuid('user');
         Route::get('/peers/birthdays', [PeerBirthdayController::class, 'index']);
         Route::get('/peers/anniversaries', [PeerAnniversaryController::class, 'index']);
+        Route::get('/peers/{peerId}/badges', [PeerBadgeController::class, 'index'])->whereUuid('peerId');
 
         // Members & connections
         Route::get('/members/top-introducers', [MemberController::class, 'topIntroducers']);
         Route::get('/members/{member_id}/introduced-peers', [ProfileController::class, 'memberIntroducedPeers'])
             ->whereUuid('member_id');
+        Route::get('/members/{peerId}/badges', [PeerBadgeController::class, 'index'])->whereUuid('peerId');
+        Route::get('/users/{peerId}/badges', [PeerBadgeController::class, 'index'])->whereUuid('peerId');
         Route::get('members/names', [MemberController::class, 'names']);
         Route::get('members/limited', [MemberController::class, 'limitedList']);
 
@@ -1317,6 +1326,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
     Route::post('/webhooks/zoho/circle-subscription', [ZohoBillingWebhookController::class, 'handleCircleSubscription']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
+    Route::get('/files/{id}/download', [FileController::class, 'download']);
     Route::get('/files/{id}', [FileController::class, 'show'])->where('id', '.*');
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);
     Route::get('/event-galleries/{id}', [EventGalleryApiController::class, 'show']);

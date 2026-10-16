@@ -87,9 +87,9 @@ class AuditLogAdminController extends BaseApiController
         // 7-day trend calculation
         $sevenDaysAgo = Carbon::today()->subDays(6)->startOfDay();
         $dailyTrends = ActivityLog::query()
-            ->select(DB::raw("DATE(created_at) as log_date"), DB::raw('count(*) as total'))
+            ->select(DB::raw('DATE(created_at) as log_date'), DB::raw('count(*) as total'))
             ->where('created_at', '>=', $sevenDaysAgo)
-            ->groupBy(DB::raw("DATE(created_at)"))
+            ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('log_date')
             ->pluck('total', 'log_date')
             ->toArray();
@@ -130,7 +130,7 @@ class AuditLogAdminController extends BaseApiController
             ])
             ->find($id);
 
-        if (!$log) {
+        if (! $log) {
             return $this->error('Audit log record not found.', 404);
         }
 
@@ -193,7 +193,7 @@ class AuditLogAdminController extends BaseApiController
 
         $headers = [
             'Content-Type' => 'text/csv; charset=utf-8',
-            'Content-Disposition' => 'attachment; filename="audit-logs-' . Carbon::now()->format('Y-m-d-His') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="audit-logs-'.Carbon::now()->format('Y-m-d-His').'.csv"',
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
             'Expires' => '0',
@@ -222,8 +222,8 @@ class AuditLogAdminController extends BaseApiController
 
             $query->chunk(250, function ($records) use ($handle): void {
                 foreach ($records as $log) {
-                    $actorName = $log->actor ? ($log->actor->display_name ?: trim($log->actor->first_name . ' ' . $log->actor->last_name)) : 'System';
-                    $targetName = $log->user ? ($log->user->display_name ?: trim($log->user->first_name . ' ' . $log->user->last_name)) : 'N/A';
+                    $actorName = $log->actor ? ($log->actor->display_name ?: trim($log->actor->first_name.' '.$log->actor->last_name)) : 'System';
+                    $targetName = $log->user ? ($log->user->display_name ?: trim($log->user->first_name.' '.$log->user->last_name)) : 'N/A';
 
                     fputcsv($handle, [
                         $log->id,

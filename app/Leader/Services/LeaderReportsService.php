@@ -10,8 +10,12 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\District;
 use App\Models\User;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
 
 class LeaderReportsService
 {
@@ -178,9 +182,14 @@ class LeaderReportsService
      */
     public function getReportDetails(string $reportId): array
     {
-        $report = Str::isUuid($reportId)
-            ? LeaderReport::query()->with(['circle.district', 'submitter'])->where('id', $reportId)->first()
-            : null;
+        $report = null;
+        if (Str::isUuid($reportId)) {
+            try {
+                $report = LeaderReport::query()->with(['circle.district', 'submitter'])->where('id', $reportId)->first();
+            } catch (\Throwable) {
+                $report = null;
+            }
+        }
 
         if (! $report) {
             return [
@@ -405,9 +414,14 @@ class LeaderReportsService
      */
     public function getDownloadUrl(string $reportId): array
     {
-        $report = Str::isUuid($reportId)
-            ? LeaderReport::query()->where('id', $reportId)->first()
-            : null;
+        $report = null;
+        if (Str::isUuid($reportId)) {
+            try {
+                $report = LeaderReport::query()->where('id', $reportId)->first();
+            } catch (\Throwable) {
+                $report = null;
+            }
+        }
 
         $type = $report ? (string) $report->report_type : 'Performance';
         $period = $report ? (string) $report->period : '2026';
@@ -421,5 +435,64 @@ class LeaderReportsService
             'download_url' => url("api/v1/files/{$reportId}/download?type=pdf"),
             'expires_in_seconds' => 3600,
         ];
+    }
+
+    /**
+     * Render the Leader Performance Report as a PDF binary string.
+     */
+    public function renderReportPdf(string $reportId): string
+    {
+        $details = $this->getReportDetails($reportId);
+        $type = (string) ($details['report_type'] ?? 'Performance');
+        $period = (string) ($details['period'] ?? '2026');
+        $fileName = "Report-{$type}-{$period}.pdf";
+        $details['file_name'] = $fileName;
+
+        if (class_exists(\Dompdf\Dompdf::class) && class_exists(\Dompdf\Options::class)) {
+            try {
+                $html = view('reports.performance-report-pdf', [
+                    'report' => $details,
+                ])->render();
+
+                $options = new \Dompdf\Options;
+                $options->set('isHtml5ParserEnabled', true);
+                $options->set('isRemoteEnabled', true);
+                $options->set('defaultFont', 'Helvetica');
+
+                $dompdf = new \Dompdf\Dompdf($options);
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->render();
+
+                return (string) $dompdf->output();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Dompdf rendering failed, falling back to LeaderReportPdfGenerator: '.$e->getMessage());
+            }
+        }
+
+        $generator = new LeaderReportPdfGenerator;
+
+        return $generator->generate($details);
+    }
+
+    /**
+     * Generate an HTTP response to stream or download the Leader Performance Report PDF.
+     */
+    public function downloadReportPdf(string $reportId, ?Request $request = null): Response
+    {
+        $details = $this->getReportDetails($reportId);
+        $type = (string) ($details['report_type'] ?? 'Performance');
+        $period = (string) ($details['period'] ?? '2026');
+        $fileName = "Report-{$type}-{$period}.pdf";
+
+        $pdfContent = $this->renderReportPdf($reportId);
+        $disposition = ($request && $request->boolean('download')) ? 'attachment' : 'inline';
+
+        return response($pdfContent, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "{$disposition}; filename=\"{$fileName}\"",
+            'Content-Length' => (string) strlen($pdfContent),
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
     }
 }

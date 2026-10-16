@@ -45,12 +45,12 @@ class AdminStoreCatalogWebController extends Controller
             'status' => 'nullable|string|in:ACTIVE,INACTIVE',
         ]);
 
-        if (!empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
+        if (! empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
             $parts = explode(',', $request->image_data);
             $decoded = base64_decode(end($parts));
-            $filename = 'store/categories/' . Str::uuid() . '.jpg';
+            $filename = 'store/categories/'.Str::uuid().'.jpg';
             Storage::disk('public')->put($filename, $decoded);
-            $validated['image_url'] = '/storage/' . $filename;
+            $validated['image_url'] = '/storage/'.$filename;
         } elseif ($request->hasFile('image_file')) {
             $path = $request->file('image_file')->store('store/categories', 'public');
             $validated['image_url'] = '/storage/'.$path;
@@ -83,12 +83,12 @@ class AdminStoreCatalogWebController extends Controller
             'status' => 'required|string|in:ACTIVE,INACTIVE',
         ]);
 
-        if (!empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
+        if (! empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
             $parts = explode(',', $request->image_data);
             $decoded = base64_decode(end($parts));
-            $filename = 'store/categories/' . Str::uuid() . '.jpg';
+            $filename = 'store/categories/'.Str::uuid().'.jpg';
             Storage::disk('public')->put($filename, $decoded);
-            $validated['image_url'] = '/storage/' . $filename;
+            $validated['image_url'] = '/storage/'.$filename;
         } elseif ($request->hasFile('image_file')) {
             $path = $request->file('image_file')->store('store/categories', 'public');
             $validated['image_url'] = '/storage/'.$path;
@@ -459,12 +459,12 @@ class AdminStoreCatalogWebController extends Controller
 
         $imageUrl = $request->image_url;
 
-        if (!empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
+        if (! empty($request->image_data) && str_starts_with($request->image_data, 'data:image')) {
             $parts = explode(',', $request->image_data);
             $decoded = base64_decode(end($parts));
-            $filename = 'store/products/' . Str::uuid() . '.jpg';
+            $filename = 'store/products/'.Str::uuid().'.jpg';
             Storage::disk('public')->put($filename, $decoded);
-            $imageUrl = '/storage/' . $filename;
+            $imageUrl = '/storage/'.$filename;
         } elseif ($request->hasFile('image_file')) {
             $path = $request->file('image_file')->store('store/products', 'public');
             $imageUrl = '/storage/'.$path;
