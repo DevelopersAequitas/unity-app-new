@@ -84,7 +84,15 @@ class WhatsappConversation extends Model
 
     public function isWindowActive(): bool
     {
-        return $this->window_expires_at !== null && $this->window_expires_at->isFuture();
+        if ($this->window_expires_at === null) {
+            return false;
+        }
+
+        $expiresAt = $this->window_expires_at instanceof Carbon
+            ? $this->window_expires_at
+            : Carbon::parse($this->window_expires_at);
+
+        return $expiresAt->isFuture();
     }
 
     public function getWindowRemainingFormattedAttribute(): string
@@ -93,9 +101,14 @@ class WhatsappConversation extends Model
             return 'Expired';
         }
 
+        $expiresAt = $this->window_expires_at instanceof Carbon
+            ? $this->window_expires_at
+            : Carbon::parse($this->window_expires_at);
+
         $now = Carbon::now();
-        $diffHours = (int) $now->diffInHours($this->window_expires_at);
-        $diffMinutes = (int) ($now->diffInMinutes($this->window_expires_at) % 60);
+        $totalMinutes = (int) round(abs($now->diffInMinutes($expiresAt)));
+        $diffHours = intdiv($totalMinutes, 60);
+        $diffMinutes = $totalMinutes % 60;
 
         return "{$diffHours}h {$diffMinutes}m";
     }

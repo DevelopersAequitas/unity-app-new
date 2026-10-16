@@ -44,43 +44,64 @@ class WhatsAppChatController extends Controller
      */
     public function getConversations(Request $request): JsonResponse
     {
-        $search = $request->query('q') ? (string) $request->query('q') : null;
-        $conversations = $this->chatService->getConversations($search);
+        try {
+            $search = $request->query('q') ? (string) $request->query('q') : null;
+            $conversations = $this->chatService->getConversations($search);
 
-        $convIds = $conversations->pluck('id')->all();
-        $latestMessages = WhatsappMessage::whereIn('conversation_id', $convIds)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->groupBy('conversation_id')
-            ->map(fn ($msgs) => $msgs->first());
+            $convIds = $conversations->pluck('id')->all();
+            $latestMessages = WhatsappMessage::whereIn('conversation_id', $convIds)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('conversation_id')
+                ->map(fn ($msgs) => $msgs->first());
 
-        $data = $conversations->map(function (WhatsappConversation $conv) use ($latestMessages) {
-            $isWindowActive = $conv->isWindowActive();
-            $latestMsg = $latestMessages->get($conv->id);
+            $data = $conversations->map(function (WhatsappConversation $conv) use ($latestMessages) {
+                $isWindowActive = $conv->isWindowActive();
+                $latestMsg = $latestMessages->get($conv->id);
 
-            return [
-                'id' => $conv->id,
-                'contact_phone' => $conv->contact_phone,
-                'contact_name' => $conv->contact_name ?: ('Contact +'.$conv->contact_phone),
-                'avatar_letter' => strtoupper(substr($conv->contact_name ?: $conv->contact_phone, 0, 1)),
-                'unread_count' => (int) $conv->unread_count,
-                'last_message_preview' => $conv->last_message_preview ?: 'No messages yet',
-                'last_message_direction' => $latestMsg?->direction,
-                'last_message_status' => $latestMsg ? strtoupper((string) $latestMsg->status) : null,
-                'last_message_at' => $conv->last_message_at ? $conv->last_message_at->toIso8601String() : null,
-                'last_message_time_formatted' => $this->formatMessageTime($conv->last_message_at),
-                'is_window_active' => $isWindowActive,
-                'window_expires_at' => $conv->window_expires_at ? $conv->window_expires_at->toIso8601String() : null,
-                'window_remaining' => $conv->window_remaining_formatted,
-                'status' => $conv->status,
-            ];
-        });
+                $lastMessageAt = $conv->last_message_at
+                    ? ($conv->last_message_at instanceof Carbon ? $conv->last_message_at : Carbon::parse($conv->last_message_at))
+                    : null;
 
-        return response()->json([
-            'success' => true,
-            'conversations' => $data,
-            'total_unread' => $this->chatService->getTotalUnreadCount(),
-        ]);
+                $windowExpiresAt = $conv->window_expires_at
+                    ? ($conv->window_expires_at instanceof Carbon ? $conv->window_expires_at : Carbon::parse($conv->window_expires_at))
+                    : null;
+
+                return [
+                    'id' => (string) $conv->id,
+                    'contact_phone' => (string) $conv->contact_phone,
+                    'contact_name' => $conv->contact_name ?: ('Contact +'.$conv->contact_phone),
+                    'avatar_letter' => strtoupper(substr((string) ($conv->contact_name ?: $conv->contact_phone), 0, 1)),
+                    'unread_count' => (int) $conv->unread_count,
+                    'last_message_preview' => $conv->last_message_preview ?: 'No messages yet',
+                    'last_message_direction' => $latestMsg?->direction,
+                    'last_message_status' => $latestMsg ? strtoupper((string) $latestMsg->status) : null,
+                    'last_message_at' => $lastMessageAt ? $lastMessageAt->toIso8601String() : null,
+                    'last_message_time_formatted' => $this->formatMessageTime($lastMessageAt),
+                    'is_window_active' => $isWindowActive,
+                    'window_expires_at' => $windowExpiresAt ? $windowExpiresAt->toIso8601String() : null,
+                    'window_remaining' => $conv->window_remaining_formatted,
+                    'status' => (string) $conv->status,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'conversations' => $data,
+                'total_unread' => $this->chatService->getTotalUnreadCount(),
+            ]);
+        } catch (Throwable $e) {
+            Log::error('[WhatsAppChatController] getConversations error: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'conversations' => [],
+                'total_unread' => 0,
+            ], 500);
+        }
     }
 
     /**
@@ -303,10 +324,14 @@ class WhatsAppChatController extends Controller
     /**
      * Format timestamp for WhatsApp chat list snippet.
      */
-    private function formatMessageTime(?Carbon $dateTime): string
+    private function formatMessageTime(Carbon|string|null $dateTime): string
     {
         if (! $dateTime) {
             return '';
+        }
+
+        if (is_string($dateTime)) {
+            $dateTime = Carbon::parse($dateTime);
         }
 
         if ($dateTime->isToday()) {

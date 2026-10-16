@@ -497,8 +497,9 @@
                 </div>
                 <div id="conversationsEmptyState" class="d-none text-center p-4 text-muted small">
                     <i class="bi bi-chat-square-dots fs-3 d-block text-secondary mb-2"></i>
-                    No WhatsApp conversations found.
+                    <span id="conversationsEmptyMsg">No WhatsApp conversations found.</span>
                 </div>
+                <div id="conversationsListItems"></div>
             </div>
         </div>
 
@@ -834,8 +835,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnDispatchSimulateStatus = document.getElementById('btnDispatchSimulateStatus');
 
     const conversationsContainer = document.getElementById('conversationsListContainer');
+    const conversationsItems = document.getElementById('conversationsListItems');
     const conversationsLoader = document.getElementById('conversationsLoader');
     const conversationsEmpty = document.getElementById('conversationsEmptyState');
+    const conversationsEmptyMsg = document.getElementById('conversationsEmptyMsg');
     const totalChatsBadge = document.getElementById('totalChatsCountBadge');
     const searchInput = document.getElementById('chatSearchInput');
     const btnRefreshChats = document.getElementById('btnRefreshChats');
@@ -892,20 +895,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(res => res.json())
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                const errMsg = data.message || `HTTP ${res.status}`;
+                throw new Error(errMsg);
+            }
+            return data;
+        })
         .then(data => {
             if (conversationsLoader) conversationsLoader.classList.add('d-none');
 
-            if (!data.success || !data.conversations || data.conversations.length === 0) {
-                if (conversationsEmpty) conversationsEmpty.classList.remove('d-none');
-                totalChatsBadge.textContent = '0';
+            const convs = Array.isArray(data.conversations) ? data.conversations : [];
+
+            if (convs.length === 0) {
+                if (conversationsEmpty) {
+                    conversationsEmpty.classList.remove('d-none');
+                    if (conversationsEmptyMsg) conversationsEmptyMsg.textContent = 'No WhatsApp conversations found.';
+                }
+                if (conversationsItems) conversationsItems.innerHTML = '';
+                if (totalChatsBadge) totalChatsBadge.textContent = '0';
                 return;
             }
 
             if (conversationsEmpty) conversationsEmpty.classList.add('d-none');
-            totalChatsBadge.textContent = data.conversations.length;
+            if (totalChatsBadge) totalChatsBadge.textContent = convs.length;
 
-            renderConversationsList(data.conversations);
+            renderConversationsList(convs);
 
             // Update global layout badges
             if (window.updateWhatsAppGlobalBadge && typeof data.total_unread !== 'undefined') {
@@ -915,6 +931,12 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => {
             console.error('Error fetching conversations:', err);
             if (conversationsLoader) conversationsLoader.classList.add('d-none');
+            if (conversationsEmpty) {
+                conversationsEmpty.classList.remove('d-none');
+                if (conversationsEmptyMsg) {
+                    conversationsEmptyMsg.innerHTML = `<span class="text-danger fw-semibold">Failed to load chats (${escapeHtml(err.message)})</span>`;
+                }
+            }
         });
     }
 
@@ -971,7 +993,9 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
         });
 
-        conversationsContainer.innerHTML = html;
+        if (conversationsItems) {
+            conversationsItems.innerHTML = html;
+        }
     }
 
     // -------------------------------------------------------------

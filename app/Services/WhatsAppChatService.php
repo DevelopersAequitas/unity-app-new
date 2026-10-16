@@ -28,7 +28,8 @@ class WhatsAppChatService
     public function getConversations(?string $search = null): Collection
     {
         $query = WhatsappConversation::query()
-            ->orderByRaw('COALESCE(last_message_at, updated_at, created_at) DESC');
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('created_at');
 
         if (! empty($search)) {
             $term = trim($search);
