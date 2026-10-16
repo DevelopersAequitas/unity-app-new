@@ -48,6 +48,21 @@ class WhatsappMessage extends Model
         'failed_at',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            if (empty($model->template_name)) {
+                $model->template_name = $model->direction === 'INBOUND' ? 'inbound_chat' : 'live_chat_message';
+            }
+            if (empty($model->message_type)) {
+                $model->message_type = ! empty($model->type) ? (string) $model->type : 'TEXT';
+            }
+            if (empty($model->template_language)) {
+                $model->template_language = 'en_US';
+            }
+        });
+    }
+
     /**
      * @return array<string, string>
      */
