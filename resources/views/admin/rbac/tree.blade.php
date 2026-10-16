@@ -1257,6 +1257,7 @@ function setupModalScopeSelect() {
     }
 
     if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        $(scopeSelect).trigger('change.select2');
         $(scopeSelect).trigger('change');
     }
 }

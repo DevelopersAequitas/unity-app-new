@@ -16,8 +16,8 @@ class UserRoleResolverService
     public const ROLE_HIERARCHY_RANK = [
         'superAdmin' => 100,
         'countryDirector' => 90,
+        'industryDirector' => 85,
         'districtExecDirector' => 80,
-        'industryDirector' => 70,
         'circleDirector' => 60,
         'circleFounder' => 50,
         'chairBusinessGrowth' => 40,
@@ -129,6 +129,16 @@ class UserRoleResolverService
         $candidateRoles = [];
         $adminUserIds = array_values(array_filter(array_unique([$userId, $adminUser?->id])));
 
+        $hasActiveIndustryDirector = Schema::hasTable('industry_director_assignments')
+            && DB::table('industry_director_assignments')
+                ->where('is_active', true)
+                ->where(function ($q) use ($adminUserIds): void {
+                    $q->whereIn('admin_user_id', $adminUserIds);
+                    if (Schema::hasColumn('industry_director_assignments', 'user_id')) {
+                        $q->orWhereIn('user_id', $adminUserIds);
+                    }
+                })->exists();
+
         // Immediate Fast-Path: If admin user is designated Global Admin / Super in AdminAccess or via direct role column
         if ($adminUser) {
             $directAdminRole = $this->normalizeRoleKey((string) ($adminUser->role ?? ''));
@@ -141,7 +151,9 @@ class UserRoleResolverService
                 ];
             }
             if ($this->isLeaderRole((string) ($adminUser->role ?? ''))) {
-                $candidateRoles[] = $directAdminRole;
+                if ($directAdminRole !== 'districtExecDirector' || ! $hasActiveIndustryDirector) {
+                    $candidateRoles[] = $directAdminRole;
+                }
             }
         }
 
@@ -155,9 +167,12 @@ class UserRoleResolverService
                     'is_leader' => true,
                 ];
             }
-            $candidateRoles[] = $userDirectRole;
+            if ($userDirectRole !== 'districtExecDirector' || ! $hasActiveIndustryDirector) {
+                $candidateRoles[] = $userDirectRole;
+            }
         }
 
+        $rbacRoles = [];
         if (! empty($adminUserIds) && Schema::hasTable('admin_user_roles') && Schema::hasTable('roles')) {
             $roleRows = DB::table('admin_user_roles')
                 ->join('roles', 'admin_user_roles.role_id', '=', 'roles.id')
@@ -177,9 +192,17 @@ class UserRoleResolverService
                                 'is_leader' => true,
                             ];
                         }
+                        $rbacRoles[] = $norm;
                         $candidateRoles[] = $norm;
                     }
                 }
+            }
+        }
+
+        if ($hasActiveIndustryDirector) {
+            $candidateRoles[] = 'industryDirector';
+            if (! in_array('districtExecDirector', $rbacRoles, true)) {
+                $candidateRoles = array_values(array_filter($candidateRoles, fn ($r) => $r !== 'districtExecDirector'));
             }
         }
 
@@ -198,7 +221,9 @@ class UserRoleResolverService
             }
 
             if (Circle::query()->where('ded_user_id', $userId)->exists()) {
-                $candidateRoles[] = 'districtExecDirector';
+                if (! $hasActiveIndustryDirector || in_array('districtExecDirector', $rbacRoles, true)) {
+                    $candidateRoles[] = 'districtExecDirector';
+                }
             }
 
             if (Circle::query()->where('eed_user_id', $userId)->exists()) {
@@ -266,7 +291,11 @@ class UserRoleResolverService
 
                 $targetRole = $this->isLeaderRole($rawRole) ? $rawRole : $refRoleKey;
                 if ($this->isLeaderRole($targetRole)) {
-                    $candidateRoles[] = $this->normalizeRoleKey($targetRole);
+                    $normRole = $this->normalizeRoleKey($targetRole);
+                    if ($normRole === 'districtExecDirector' && ($hasActiveIndustryDirector || in_array('industryDirector', $rbacRoles, true)) && ! in_array('districtExecDirector', $rbacRoles, true)) {
+                        continue;
+                    }
+                    $candidateRoles[] = $normRole;
                 }
             }
         }
@@ -275,11 +304,9 @@ class UserRoleResolverService
         if (Schema::hasTable('admin_ded_districts') && DB::table('admin_ded_districts')->where(function ($q) use ($userId, $adminUserIds): void {
             $q->where('user_id', $userId)->orWhereIn('admin_user_id', $adminUserIds);
         })->exists()) {
-            $candidateRoles[] = 'districtExecDirector';
-        }
-
-        if (Schema::hasTable('industry_director_assignments') && DB::table('industry_director_assignments')->where('is_active', true)->whereIn('admin_user_id', $adminUserIds)->exists()) {
-            $candidateRoles[] = 'industryDirector';
+            if (! $hasActiveIndustryDirector || in_array('districtExecDirector', $rbacRoles, true)) {
+                $candidateRoles[] = 'districtExecDirector';
+            }
         }
 
         // Evaluate highest ranked leadership role

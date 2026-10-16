@@ -72,7 +72,21 @@ class CircleMemberController extends Controller
                     $payload['expires_at'] = $expiresAt;
                 }
 
-                $member = $circle->members()->create($payload);
+                $existingMember = CircleMember::withTrashed()
+                    ->where('circle_id', $circle->id)
+                    ->where('user_id', $data['user_id'])
+                    ->first();
+
+                if ($existingMember) {
+                    if ($existingMember->trashed()) {
+                        $existingMember->restore();
+                    }
+                    $payload['left_at'] = null;
+                    $existingMember->forceFill($payload)->save();
+                    $member = $existingMember;
+                } else {
+                    $member = $circle->members()->create($payload);
+                }
 
                 Circle::syncLeadershipFromMembers($circle);
 
@@ -105,16 +119,22 @@ class CircleMemberController extends Controller
                 }
             });
         } catch (QueryException $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to add circle member', [
+                'circle_id' => $circle->id,
+                'user_id' => $data['user_id'],
+                'error' => $e->getMessage(),
+            ]);
+
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This peer is already a member of this circle.',
+                    'message' => 'Failed to add member to the circle. Please try again.',
                 ], 422);
             }
 
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
-                ->withErrors(['user_id' => 'This peer is already a member of this circle.']);
+                ->withErrors(['user_id' => 'Failed to add member to the circle. Please try again.']);
         }
 
         if ($request->expectsJson() || $request->ajax()) {

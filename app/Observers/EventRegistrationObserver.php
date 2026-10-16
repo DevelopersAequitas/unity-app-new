@@ -28,7 +28,7 @@ class EventRegistrationObserver
      */
     public function updated(EventRegistration $registration): void
     {
-        if ($registration->status === 'registered' && $registration->wasChanged('status')) {
+        if ($registration->status === 'registered' && ($registration->wasChanged('status') || $registration->wasChanged('payment_status'))) {
             $this->whatsappService->sendNotification($registration);
         }
     }

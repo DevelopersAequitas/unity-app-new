@@ -212,4 +212,13 @@ class Order extends Model
 
         return $addr['name'] ?? $addr['full_name'] ?? $this->user?->name;
     }
+
+    public function getIsCustomizedAttribute(): bool
+    {
+        if ($this->relationLoaded('items')) {
+            return $this->items->contains(fn ($item) => (bool) ($item->is_customized ?? false));
+        }
+
+        return $this->items()->get()->contains(fn ($item) => (bool) ($item->is_customized ?? false));
+    }
 }

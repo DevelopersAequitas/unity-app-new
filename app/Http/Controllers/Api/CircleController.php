@@ -237,12 +237,12 @@ class CircleController extends BaseApiController
             return $this->success(null, 'You are the founder of this circle');
         }
 
-        $existing = CircleMember::where('circle_id', $circle->id)
+        $existing = CircleMember::withTrashed()
+            ->where('circle_id', $circle->id)
             ->where('user_id', $user->id)
-            ->whereNull('deleted_at')
             ->first();
 
-        if ($existing) {
+        if ($existing && ! $existing->trashed()) {
             return $this->success($existing, 'You have already requested to join or are already a member');
         }
 
@@ -259,14 +259,26 @@ class CircleController extends BaseApiController
             }
         }
 
-        $member = CircleMember::create([
-            'circle_id' => $circle->id,
-            'user_id' => $user->id,
-            'role' => 'member',
-            'status' => $status,
-            'joined_at' => $joinedAt,
-            'substitute_count' => 0,
-        ]);
+        if ($existing && $existing->trashed()) {
+            $existing->restore();
+            $existing->forceFill([
+                'role' => 'member',
+                'status' => $status,
+                'joined_at' => $joinedAt,
+                'left_at' => null,
+                'substitute_count' => 0,
+            ])->save();
+            $member = $existing;
+        } else {
+            $member = CircleMember::create([
+                'circle_id' => $circle->id,
+                'user_id' => $user->id,
+                'role' => 'member',
+                'status' => $status,
+                'joined_at' => $joinedAt,
+                'substitute_count' => 0,
+            ]);
+        }
 
         if ($status === 'approved' && empty($user->active_circle_id)) {
             $user->active_circle_id = $circle->id;

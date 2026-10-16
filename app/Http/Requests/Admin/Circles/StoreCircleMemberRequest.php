@@ -14,7 +14,8 @@ class StoreCircleMemberRequest extends FormRequest
 
     public function rules(): array
     {
-        $circleId = $this->route('circle')?->id;
+        $circle = $this->route('circle');
+        $circleId = $circle instanceof \App\Models\Circle ? $circle->id : (is_string($circle) ? $circle : data_get($circle, 'id'));
 
         return [
             'user_id' => [
