@@ -13,9 +13,7 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationCampaign;
 use App\Models\User;
 use App\Services\Notifications\NotificationService;
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -29,7 +27,7 @@ class EventFeedbackService
     /**
      * Submit feedback for an event.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function submitFeedback(Event $event, User $user, array $data): EventFeedback
     {
@@ -204,8 +202,12 @@ class EventFeedbackService
                 ->where('event_id', $event->id)
                 ->where('user_id', $user->id)
                 ->where(function ($q): void {
-                    $q->where('checked_in', true)
-                        ->orWhere('status', 'yes');
+                    $q->where('checked_in', true);
+                    if (DB::connection()->getDriverName() === 'pgsql') {
+                        $q->orWhereRaw("status::text IN ('going', 'yes')");
+                    } else {
+                        $q->orWhereIn('status', ['going', 'yes']);
+                    }
                 })
                 ->exists();
         }
@@ -306,8 +308,12 @@ class EventFeedbackService
                 ->where('event_id', $event->id)
                 ->whereNotNull('user_id')
                 ->where(function ($q): void {
-                    $q->where('checked_in', true)
-                        ->orWhere('status', 'yes');
+                    $q->where('checked_in', true);
+                    if (DB::connection()->getDriverName() === 'pgsql') {
+                        $q->orWhereRaw("status::text IN ('going', 'yes')");
+                    } else {
+                        $q->orWhereIn('status', ['going', 'yes']);
+                    }
                 })
                 ->pluck('user_id');
 
@@ -337,6 +343,7 @@ class EventFeedbackService
 
             if ($hasSubmitted) {
                 $skippedCount++;
+
                 continue;
             }
 
@@ -353,6 +360,7 @@ class EventFeedbackService
 
             if ($alreadyNotified) {
                 $skippedCount++;
+
                 continue;
             }
 
