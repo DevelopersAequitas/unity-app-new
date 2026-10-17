@@ -79,4 +79,14 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'https://peersglobal.com'),
 
+    'agora' => [
+        'app_id' => env('AGORA_APP_ID'),
+        'app_certificate' => env('AGORA_APP_CERTIFICATE'),
+    ],
+
+    'speed_networking' => [
+        'default_round_seconds' => (int) env('SPEED_NETWORKING_DEFAULT_ROUND_SECONDS', 300),
+        'default_break_seconds' => (int) env('SPEED_NETWORKING_DEFAULT_BREAK_SECONDS', 20),
+    ],
+
 ];

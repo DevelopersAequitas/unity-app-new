@@ -50,6 +50,8 @@ use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostSaveController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingAdminController;
+use App\Http\Controllers\Api\SpeedNetworking\SpeedNetworkingApiController;
 use App\Http\Controllers\Api\TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
@@ -188,12 +190,12 @@ Route::post('/v1/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'
 Route::post('/v1/mock-whatsapp-webhook', [WhatsAppWebhookController::class, 'handle']);
 
 // Native Meta WhatsApp Cloud API Webhook endpoints
-Route::get('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
-Route::post('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/whatsapp/webhook', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
-Route::get('/v1/webhooks/whatsapp-meta', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
-Route::post('/v1/webhooks/whatsapp-meta', [\App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/whatsapp/webhook', [App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/whatsapp/webhook', [App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
+Route::get('/v1/webhooks/whatsapp-meta', [App\Http\Controllers\WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/webhooks/whatsapp-meta', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle']);
 
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
@@ -1620,4 +1622,26 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('audit-logs/modules', [AuditLogAdminController::class, 'modules']);
     Route::get('audit-logs/export', [AuditLogAdminController::class, 'export']);
     Route::get('audit-logs/{id}', [AuditLogAdminController::class, 'show'])->whereUuid('id');
+});
+
+// Speed Networking Mobile API
+Route::middleware('auth:sanctum')->prefix('speed-networking')->group(function (): void {
+    Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
+    Route::post('events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
+    Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
+    Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
+});
+
+// Speed Networking Admin API (Connects with Node.js / Web Admin Dashboard)
+Route::middleware('auth:sanctum')->prefix('admin/speed-networking')->group(function (): void {
+    Route::get('events', [SpeedNetworkingAdminController::class, 'index']);
+    Route::post('events', [SpeedNetworkingAdminController::class, 'store']);
+    Route::get('events/{id}', [SpeedNetworkingAdminController::class, 'show'])->whereUuid('id');
+    Route::put('events/{id}', [SpeedNetworkingAdminController::class, 'update'])->whereUuid('id');
+    Route::delete('events/{id}', [SpeedNetworkingAdminController::class, 'destroy'])->whereUuid('id');
+    Route::get('events/{id}/participants', [SpeedNetworkingAdminController::class, 'participants'])->whereUuid('id');
+    Route::post('events/{id}/start', [SpeedNetworkingAdminController::class, 'start'])->whereUuid('id');
+    Route::post('events/{id}/next-round', [SpeedNetworkingAdminController::class, 'nextRound'])->whereUuid('id');
+    Route::post('events/{id}/end', [SpeedNetworkingAdminController::class, 'end'])->whereUuid('id');
+    Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
 });
