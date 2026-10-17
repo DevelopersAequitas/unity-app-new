@@ -139,8 +139,12 @@ class LeadershipCampaign extends Model
             return false;
         }
 
+        if (! $this->voting_starts_at) {
+            return false;
+        }
+
         $now = now();
-        $afterStart = ! $this->voting_starts_at || $this->voting_starts_at <= $now;
+        $afterStart = $this->voting_starts_at <= $now;
         $beforeEnd = ! $this->voting_ends_at || $this->voting_ends_at >= $now;
 
         return $afterStart && $beforeEnd;
@@ -152,8 +156,12 @@ class LeadershipCampaign extends Model
             return false;
         }
 
+        if (! $this->jury_starts_at) {
+            return false;
+        }
+
         $now = now();
-        $afterStart = ! $this->jury_starts_at || $this->jury_starts_at <= $now;
+        $afterStart = $this->jury_starts_at <= $now;
         $beforeEnd = ! $this->jury_ends_at || $this->jury_ends_at >= $now;
 
         return $afterStart && $beforeEnd;

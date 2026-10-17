@@ -12,14 +12,32 @@
             </h1>
             <p class="text-muted small mb-0">Configure product specifications, coin pricing, delivery modes, eligibility rules, and inventory variants.</p>
         </div>
-        <a href="{{ route('admin.store.products.index') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i> Back to Catalog
-        </a>
+        <div class="d-flex align-items-center gap-2">
+            @if($isEdit)
+            <form action="{{ route('admin.store.products.delete', $product->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this product? All images and variants will be deleted.');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-trash me-1"></i> Delete Product
+                </button>
+            </form>
+            @endif
+            <a href="{{ route('admin.store.products.index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to Catalog
+            </a>
+        </div>
     </div>
 
     @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <i class="bi bi-check-circle me-1"></i> {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
+    @if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i> {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     @endif
@@ -171,6 +189,7 @@
                                 <label class="form-label small fw-bold">Catalog Status *</label>
                                 <select name="status" class="form-select fw-bold">
                                     <option value="ACTIVE" {{ old('status', $product->status) === 'ACTIVE' ? 'selected' : '' }}>ACTIVE (Visible to Peers)</option>
+                                    <option value="INACTIVE" {{ in_array(old('status', $product->status), ['INACTIVE', 'ARCHIVED']) ? 'selected' : '' }}>INACTIVE (Hidden from App)</option>
                                     <option value="DRAFT" {{ old('status', $product->status) === 'DRAFT' ? 'selected' : '' }}>DRAFT (Under Preparation)</option>
                                     <option value="HIDDEN" {{ old('status', $product->status) === 'HIDDEN' ? 'selected' : '' }}>HIDDEN (Private)</option>
                                     <option value="OUT_OF_STOCK" {{ old('status', $product->status) === 'OUT_OF_STOCK' ? 'selected' : '' }}>OUT OF STOCK</option>

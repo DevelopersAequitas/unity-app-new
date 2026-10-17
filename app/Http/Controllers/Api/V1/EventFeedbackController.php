@@ -1,18 +1,112 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Event\StoreEventFeedbackRequest;
 use App\Models\Event;
 use App\Models\EventFeedback;
 use App\Models\EventRegistration;
 use App\Models\EventRsvp;
+use App\Services\Events\EventFeedbackService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EventFeedbackController extends BaseApiController
 {
+    public function __construct(
+        private readonly EventFeedbackService $feedbackService,
+    ) {}
+
+    /**
+     * Submit feedback for an event (POST /api/v1/events/{eventId}/feedback).
+     */
+    public function storeFeedback(StoreEventFeedbackRequest $request, string $eventId): JsonResponse
+    {
+        $event = Event::query()->find($eventId);
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        $validated = $request->validated();
+        if (! empty($validated['event_id']) && $validated['event_id'] !== $eventId) {
+            return $this->error('Event ID in request body does not match the URL.', 400);
+        }
+        $validated['event_id'] = $eventId;
+
+        try {
+            $feedback = $this->feedbackService->submitFeedback($event, $request->user(), $validated);
+
+            $data = [
+                'id' => (string) $feedback->id,
+                'event_id' => (string) $feedback->event_id,
+                'occurrence_id' => $feedback->occurrence_id ? (string) $feedback->occurrence_id : null,
+                'user_id' => (string) $feedback->user_id,
+                'rating' => (int) $feedback->rating,
+                'feedback' => $feedback->feedback,
+                'tags' => (array) ($feedback->tags ?? []),
+                'would_recommend' => (bool) ($feedback->would_recommend ?? true),
+                'created_at' => $feedback->created_at?->format('Y-m-d\TH:i:s\Z') ?? now()->format('Y-m-d\TH:i:s\Z'),
+            ];
+
+            return $this->success($data, 'Feedback submitted successfully.', 201);
+        } catch (HttpException $e) {
+            return $this->error($e->getMessage(), $e->getStatusCode());
+        }
+    }
+
+    /**
+     * Get the authenticated user's feedback for an event (GET /api/v1/events/{eventId}/my-feedback).
+     */
+    public function myFeedback(Request $request, string $eventId): JsonResponse
+    {
+        $event = Event::query()->find($eventId);
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        $feedback = $this->feedbackService->getMyFeedback($eventId, (string) $request->user()->id);
+
+        if (! $feedback) {
+            return $this->success(null, 'No feedback submitted yet.');
+        }
+
+        $data = [
+            'id' => (string) $feedback->id,
+            'event_id' => (string) $feedback->event_id,
+            'rating' => (int) $feedback->rating,
+            'feedback' => $feedback->feedback,
+            'tags' => (array) ($feedback->tags ?? []),
+            'would_recommend' => (bool) ($feedback->would_recommend ?? true),
+            'created_at' => $feedback->created_at?->format('Y-m-d\TH:i:s\Z') ?? now()->format('Y-m-d\TH:i:s\Z'),
+        ];
+
+        return $this->success($data, 'Feedback retrieved successfully.');
+    }
+
+    /**
+     * Get feedback summary for organizers / circle leadership (GET /api/v1/events/{eventId}/feedback-summary).
+     */
+    public function feedbackSummary(Request $request, string $eventId): JsonResponse
+    {
+        $event = Event::query()->find($eventId);
+        if (! $event) {
+            return $this->error('Event not found.', 404);
+        }
+
+        if (! $this->feedbackService->canViewFeedbackSummary($event, $request->user())) {
+            return $this->error('Unauthorized to view feedback summary.', 403);
+        }
+
+        $summary = $this->feedbackService->getFeedbackSummary($event);
+
+        return $this->success($summary, 'Feedback summary fetched.');
+    }
+
     /**
      * Check if the authenticated user has any pending event feedbacks.
      * Checks for events ended within the last 7 days that the user attended and hasn't reviewed.
@@ -20,17 +114,24 @@ class EventFeedbackController extends BaseApiController
     public function checkPending(Request $request): JsonResponse
     {
         $userId = auth()->id();
+        if (! $userId) {
+            return $this->error('Unauthenticated.', 401);
+        }
 
         // Get all event IDs the user registered and checked into
         $registeredEventIds = EventRegistration::where('user_id', $userId)
-            ->where(function ($q) {
+            ->where(function ($q): void {
                 $q->whereNotNull('checked_in_at')
-                    ->orWhere('checkin_status', 'checked_in');
+                    ->orWhere('checkin_status', 'checked_in')
+                    ->orWhereIn('status', ['attended', 'confirmed']);
             })
             ->pluck('event_id');
 
         $rsvpEventIds = EventRsvp::where('user_id', $userId)
-            ->where('checked_in', true)
+            ->where(function ($q): void {
+                $q->where('checked_in', true)
+                    ->orWhere('status', 'yes');
+            })
             ->pluck('event_id');
 
         $attendedEventIds = $registeredEventIds->merge($rsvpEventIds)->unique();
@@ -44,11 +145,11 @@ class EventFeedbackController extends BaseApiController
             ->whereIn('id', $attendedEventIds)
             ->where('end_at', '<', now())
             ->where('end_at', '>=', now()->subDays(7))
-            ->whereNotExists(function ($query) use ($userId) {
+            ->whereNotExists(function ($query) use ($userId): void {
                 $query->select(DB::raw(1))
-                    ->from('event_feedback')
-                    ->whereColumn('event_feedback.event_id', 'events.id')
-                    ->where('event_feedback.respondent_user_id', $userId);
+                    ->from('event_feedbacks')
+                    ->whereColumn('event_feedbacks.event_id', 'events.id')
+                    ->where('event_feedbacks.user_id', $userId);
             })
             ->orderByDesc('end_at')
             ->first(['id', 'title', 'start_at', 'end_at', 'location_text']);
@@ -69,77 +170,48 @@ class EventFeedbackController extends BaseApiController
     }
 
     /**
-     * Submit feedback for an event.
+     * Legacy submit feedback endpoint (POST /api/v1/event-feedbacks).
      */
     public function store(Request $request): JsonResponse
     {
         $request->validate([
             'event_id' => ['required', 'uuid', 'exists:events,id'],
-            'overall_rating' => ['required', 'integer', 'min:1', 'max:5'],
-            'content_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
-            'venue_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
-            'networking_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
-            'would_recommend' => ['nullable', 'boolean'],
+            'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'overall_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'feedback' => ['nullable', 'string', 'max:2000'],
             'what_worked' => ['nullable', 'string', 'max:2000'],
-            'what_to_improve' => ['nullable', 'string', 'max:2000'],
-            'additional_comments' => ['nullable', 'string', 'max:2000'],
+            'tags' => ['nullable', 'array'],
+            'would_recommend' => ['nullable', 'boolean'],
         ]);
 
-        $userId = auth()->id();
-        $eventId = $request->event_id;
-
-        // 1. Verify user attendance (must be registered and checked in)
-        $attended = EventRegistration::where('user_id', $userId)
-            ->where('event_id', $eventId)
-            ->where(function ($q) {
-                $q->whereNotNull('checked_in_at')
-                    ->orWhere('checkin_status', 'checked_in');
-            })
-            ->exists()
-            || EventRsvp::where('user_id', $userId)
-                ->where('event_id', $eventId)
-                ->where('checked_in', true)
-                ->exists();
-
-        if (! $attended) {
-            return $this->error('You must attend the event to submit feedback.', 403);
+        $eventId = (string) $request->input('event_id');
+        $event = Event::query()->find($eventId);
+        if (! $event) {
+            return $this->error('Event not found.', 404);
         }
 
-        // 2. Prevent duplicate feedback
-        $alreadySubmitted = EventFeedback::where('event_id', $eventId)
-            ->where('respondent_user_id', $userId)
-            ->exists();
+        $rating = (int) ($request->input('rating') ?? $request->input('overall_rating', 5));
+        $feedbackText = $request->input('feedback') ?? $request->input('what_worked');
 
-        if ($alreadySubmitted) {
-            return $this->error('You have already submitted feedback for this event.', 400);
+        try {
+            $feedback = $this->feedbackService->submitFeedback($event, $request->user(), [
+                'event_id' => $eventId,
+                'occurrence_id' => $request->input('occurrence_id'),
+                'rating' => $rating,
+                'feedback' => $feedbackText,
+                'tags' => $request->input('tags', []),
+                'would_recommend' => $request->input('would_recommend', true),
+                'notification_id' => $request->input('notification_id'),
+            ]);
+
+            return $this->success($feedback, 'Feedback submitted successfully.', 201);
+        } catch (HttpException $e) {
+            return $this->error($e->getMessage(), $e->getStatusCode());
         }
-
-        $user = auth()->user();
-        $displayName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
-        if (empty($displayName)) {
-            $displayName = 'Peer Member';
-        }
-
-        $feedback = EventFeedback::create([
-            'event_id' => $eventId,
-            'respondent_user_id' => $userId,
-            'respondent_name' => $displayName,
-            'overall_rating' => $request->overall_rating,
-            'content_rating' => $request->content_rating,
-            'venue_rating' => $request->venue_rating,
-            'networking_rating' => $request->networking_rating,
-            'would_recommend' => $request->would_recommend,
-            'what_worked' => $request->what_worked,
-            'what_to_improve' => $request->what_to_improve,
-            'additional_comments' => $request->additional_comments,
-            'submitted_at' => now(),
-        ]);
-
-        return $this->success($feedback, 'Feedback submitted successfully.', 201);
     }
 
     /**
-     * Get all feedbacks submitted by the current user.
+     * Legacy get all feedbacks submitted by current user (GET /api/v1/event-feedbacks/my).
      */
     public function myFeedbacks(Request $request): JsonResponse
     {
@@ -147,8 +219,8 @@ class EventFeedbackController extends BaseApiController
 
         $feedbacks = EventFeedback::query()
             ->with(['event:id,title,start_at,end_at,location_text'])
-            ->where('respondent_user_id', auth()->id())
-            ->orderByDesc('submitted_at')
+            ->where('user_id', auth()->id())
+            ->orderByDesc('created_at')
             ->paginate($perPage);
 
         return $this->success([
@@ -161,7 +233,7 @@ class EventFeedbackController extends BaseApiController
     }
 
     /**
-     * Get all feedbacks for a specific event (like product reviews).
+     * Legacy event feedbacks review list (GET /api/v1/event-feedbacks/event/{eventId}).
      */
     public function eventFeedbacks(Request $request, string $eventId): JsonResponse
     {
@@ -170,48 +242,8 @@ class EventFeedbackController extends BaseApiController
             return $this->error('Event not found.', 404);
         }
 
-        $perPage = (int) $request->input('per_page', 20);
+        $summary = $this->feedbackService->getFeedbackSummary($event);
 
-        // Fetch paginated reviews
-        $feedbacks = EventFeedback::query()
-            ->where('event_id', $eventId)
-            ->orderByDesc('submitted_at')
-            ->paginate($perPage);
-
-        // Calculate averages and stats
-        $stats = EventFeedback::query()
-            ->where('event_id', $eventId)
-            ->selectRaw('
-                COUNT(*) as total_reviews,
-                AVG(overall_rating) as avg_overall,
-                AVG(content_rating) as avg_content,
-                AVG(venue_rating) as avg_venue,
-                AVG(networking_rating) as avg_networking,
-                SUM(CASE WHEN would_recommend = true THEN 1 ELSE 0 END) as recommend_count
-            ')
-            ->first();
-
-        $recommendPercentage = 0;
-        if ($stats && $stats->total_reviews > 0) {
-            $recommendPercentage = round(($stats->recommend_count / $stats->total_reviews) * 100);
-        }
-
-        return $this->success([
-            'stats' => [
-                'total_reviews' => $stats ? (int) $stats->total_reviews : 0,
-                'avg_overall' => $stats && $stats->avg_overall !== null ? round((float) $stats->avg_overall, 1) : 0.0,
-                'avg_content' => $stats && $stats->avg_content !== null ? round((float) $stats->avg_content, 1) : null,
-                'avg_venue' => $stats && $stats->avg_venue !== null ? round((float) $stats->avg_venue, 1) : null,
-                'avg_networking' => $stats && $stats->avg_networking !== null ? round((float) $stats->avg_networking, 1) : null,
-                'recommend_percentage' => $recommendPercentage,
-            ],
-            'pagination' => [
-                'total' => $feedbacks->total(),
-                'current_page' => $feedbacks->currentPage(),
-                'per_page' => $feedbacks->perPage(),
-                'last_page' => $feedbacks->lastPage(),
-            ],
-            'items' => $feedbacks->items(),
-        ], 'Event feedbacks fetched successfully.');
+        return $this->success($summary, 'Event feedbacks fetched successfully.');
     }
 }

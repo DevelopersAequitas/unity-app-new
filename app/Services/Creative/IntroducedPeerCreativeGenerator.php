@@ -204,8 +204,7 @@ class IntroducedPeerCreativeGenerator
         $isProduction = app()->environment('production') || config('app.env') === 'production';
 
         if ($rawUrl === '' || preg_match('~https?://(localhost|127\.0\.0\.1|10\.0\.2\.2|0\.0\.0\.0|::1|[^/]*ngrok[^/]*)([:/]|$)~i', $rawUrl)) {
-            // Environment-aware fallback: dev domain for DEV, live domain for production
-            return $isProduction ? 'https://peersunity.com' : 'https://dev.peersunity.com';
+            return 'https://peersunity.com';
         }
 
         // Ensure scheme is HTTPS

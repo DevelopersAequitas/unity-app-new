@@ -1,57 +1,75 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class EventFeedback extends Model
 {
     use HasFactory;
-    use HasUuids;
 
-    protected $table = 'event_feedback';
+    protected $table = 'event_feedbacks';
+
+    protected $primaryKey = 'id';
 
     protected $keyType = 'string';
 
     public $incrementing = false;
 
-    // Disabled standard timestamps since it has submitted_at instead of created_at/updated_at
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
+        'id',
         'event_id',
-        'respondent_user_id',
-        'respondent_name',
-        'overall_rating',
-        'content_rating',
-        'venue_rating',
-        'networking_rating',
+        'occurrence_id',
+        'user_id',
+        'rating',
+        'feedback',
+        'tags',
         'would_recommend',
-        'what_worked',
-        'what_to_improve',
-        'additional_comments',
-        'submitted_at',
+        'notification_id',
     ];
 
     protected $casts = [
-        'overall_rating' => 'integer',
-        'content_rating' => 'integer',
-        'venue_rating' => 'integer',
-        'networking_rating' => 'integer',
+        'rating' => 'integer',
+        'tags' => 'array',
         'would_recommend' => 'boolean',
-        'submitted_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+            if ($model->tags === null) {
+                $model->tags = [];
+            }
+            if ($model->would_recommend === null) {
+                $model->would_recommend = true;
+            }
+        });
+    }
 
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class, 'event_id');
     }
 
-    public function respondent(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'respondent_user_id');
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function occurrence(): BelongsTo
+    {
+        return $this->belongsTo(EventOccurrence::class, 'occurrence_id');
     }
 }

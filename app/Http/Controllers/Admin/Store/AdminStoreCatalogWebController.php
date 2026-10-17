@@ -9,6 +9,8 @@ use App\Models\Store\ProductVariant;
 use App\Models\Store\StoreCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -106,13 +108,23 @@ class AdminStoreCatalogWebController extends Controller
 
     public function deleteCategory(string $id)
     {
-        $category = StoreCategory::withCount('products')->findOrFail($id);
+        $category = StoreCategory::findOrFail($id);
 
-        if ($category->products_count > 0) {
-            return back()->with('error', 'Cannot delete category with active products. Reassign products first or deactivate category.');
-        }
+        DB::transaction(function () use ($category) {
+            // Detach any products assigned to this category (set category_id to null)
+            Product::where('category_id', $category->id)->update(['category_id' => null]);
 
-        $category->delete();
+            // Detach any child categories
+            StoreCategory::where('parent_id', $category->id)->update(['parent_id' => null]);
+
+            // Delete category image if local storage
+            if ($category->image_url && str_starts_with($category->image_url, '/storage/')) {
+                $storagePath = str_replace('/storage/', '', $category->image_url);
+                Storage::disk('public')->delete($storagePath);
+            }
+
+            $category->delete();
+        });
 
         return redirect()->route('admin.store.categories.index')->with('success', 'Category deleted successfully.');
     }
@@ -285,9 +297,13 @@ class AdminStoreCatalogWebController extends Controller
             'return_allowed' => 'nullable|boolean',
             'customised' => 'nullable|boolean',
             'is_featured' => 'nullable|boolean',
-            'status' => 'required|string|in:DRAFT,ACTIVE,HIDDEN,OUT_OF_STOCK,ARCHIVED',
+            'status' => 'required|string|in:DRAFT,ACTIVE,HIDDEN,OUT_OF_STOCK,ARCHIVED,INACTIVE',
             'stock_qty' => 'nullable|integer|min:0',
         ]);
+
+        if (($validated['status'] ?? '') === 'INACTIVE') {
+            $validated['status'] = 'ARCHIVED';
+        }
 
         if (empty($validated['slug'])) {
             $validated['slug'] = $product->slug ?: $this->generateUniqueSlug($validated['name'], $product->id);
@@ -312,6 +328,66 @@ class AdminStoreCatalogWebController extends Controller
         $product->update(['status' => 'ARCHIVED']);
 
         return redirect()->route('admin.store.products.index')->with('success', 'Product archived successfully.');
+    }
+
+    public function deleteProduct(string $id)
+    {
+        $product = Product::with(['images', 'variants'])->findOrFail($id);
+
+        DB::transaction(function () use ($product) {
+            // Delete wishlists, cart items, quotes and entitlements
+            if (Schema::hasTable('store_wishlists')) {
+                \App\Models\Store\Wishlist::where('product_id', $product->id)->delete();
+            }
+            if (Schema::hasTable('store_cart_items')) {
+                \App\Models\Store\CartItem::where('product_id', $product->id)->delete();
+            }
+            if (Schema::hasTable('store_checkout_quote_items')) {
+                \App\Models\Store\CheckoutQuoteItem::where('product_id', $product->id)->delete();
+            }
+            if (Schema::hasTable('store_entitlements')) {
+                \App\Models\Store\Entitlement::where('product_id', $product->id)->delete();
+            }
+
+            // Clean up any test/demo order items and returns linked to this product
+            if (Schema::hasTable('order_items')) {
+                $orderItemIds = \App\Models\Store\OrderItem::where('product_id', $product->id)->pluck('id');
+                if ($orderItemIds->isNotEmpty()) {
+                    if (Schema::hasTable('store_returns')) {
+                        DB::table('store_returns')->whereIn('order_item_id', $orderItemIds)->delete();
+                    }
+                    if (Schema::hasTable('return_items')) {
+                        DB::table('return_items')->whereIn('order_item_id', $orderItemIds)->delete();
+                    }
+                    \App\Models\Store\OrderItem::where('product_id', $product->id)->delete();
+                }
+            }
+
+            // Delete reviews
+            $product->reviews()->delete();
+
+            // Delete variants and their movements
+            foreach ($product->variants as $variant) {
+                if (Schema::hasTable('store_inventory_movements')) {
+                    \App\Models\Store\InventoryMovement::where('variant_id', $variant->id)->delete();
+                }
+                $variant->delete();
+            }
+
+            // Delete product images (including physical files)
+            foreach ($product->images as $img) {
+                if ($img->image_url && str_starts_with($img->image_url, '/storage/')) {
+                    $storagePath = str_replace('/storage/', '', $img->image_url);
+                    Storage::disk('public')->delete($storagePath);
+                }
+                $img->delete();
+            }
+
+            // Permanently delete the product
+            $product->delete();
+        });
+
+        return redirect()->route('admin.store.products.index')->with('success', 'Product permanently deleted successfully.');
     }
 
     // ==========================================

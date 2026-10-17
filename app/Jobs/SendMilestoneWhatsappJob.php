@@ -160,9 +160,11 @@ class SendMilestoneWhatsappJob implements ShouldQueue
         $bodyParam1 = $memberName;
         $bodyParam2 = $memberName;
 
-        // 4. Resolve environment-aware referral link (Variable 3)
-        $isProduction = app()->environment('production') || config('app.env') === 'production';
-        $baseUrl = $isProduction ? 'https://peersunity.com' : 'https://dev.peersunity.com';
+        // 4. Resolve referral link (Variable 3)
+        $baseUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+        if (empty($baseUrl) || str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+            $baseUrl = 'https://peersunity.com';
+        }
         $referralLink = "{$baseUrl}/share?type=referrals";
         $bodyParam3 = $referralLink;
 

@@ -76,13 +76,18 @@ class PostResource extends JsonResource
         ];
 
         $image = $this->image;
+        $baseUrl = rtrim((string) config('app.url', 'https://peersunity.com'), '/');
+        if (empty($baseUrl) || str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+            $baseUrl = 'https://peersunity.com';
+        }
+
         if ($isAnniversary && $this->image) {
             $path = parse_url($this->image, PHP_URL_PATH);
             $fileId = basename($path);
             if (Str::isUuid($fileId)) {
                 $fileModel = File::find($fileId);
                 if ($fileModel && $fileModel->s3_key) {
-                    $image = 'https://dev.peersunity.com/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
+                    $image = $baseUrl.'/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
                 }
             }
         }
@@ -101,7 +106,7 @@ class PostResource extends JsonResource
             'media_url' => $this->media_url,
             'media_type' => $this->media_type,
             'media' => $this->media
-                ? collect($this->media)->map(function ($item) use ($isAnniversary) {
+                ? collect($this->media)->map(function ($item) use ($isAnniversary, $baseUrl) {
                     if (! is_array($item)) {
                         return null;
                     }
@@ -112,7 +117,7 @@ class PostResource extends JsonResource
                     if ($isAnniversary && $id) {
                         $fileModel = File::find($id);
                         if ($fileModel && $fileModel->s3_key) {
-                            $url = 'https://dev.peersunity.com/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
+                            $url = $baseUrl.'/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
                         }
                     }
 

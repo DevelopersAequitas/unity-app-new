@@ -34,6 +34,7 @@ Route::prefix('store')->name('store.')->group(function () {
         Route::get('/products/{id}/edit', [AdminStoreCatalogWebController::class, 'editProduct'])->name('products.edit');
         Route::put('/products/{id}', [AdminStoreCatalogWebController::class, 'updateProduct'])->name('products.update');
         Route::post('/products/{id}/archive', [AdminStoreCatalogWebController::class, 'archiveProduct'])->name('products.archive');
+        Route::delete('/products/{id}', [AdminStoreCatalogWebController::class, 'deleteProduct'])->name('products.delete');
 
         // SKU Variants & Images
         Route::post('/products/{productId}/variants', [AdminStoreCatalogWebController::class, 'storeVariant'])->name('products.variants.store');
@@ -58,6 +59,7 @@ Route::prefix('store')->name('store.')->group(function () {
         Route::get('/products-alias/{id}/edit', [AdminStoreCatalogWebController::class, 'editProduct'])->name('edit');
         Route::put('/products-alias/{id}', [AdminStoreCatalogWebController::class, 'updateProduct'])->name('update');
         Route::post('/products-alias/{id}/archive', [AdminStoreCatalogWebController::class, 'archiveProduct'])->name('archive');
+        Route::delete('/products-alias/{id}', [AdminStoreCatalogWebController::class, 'deleteProduct'])->name('delete');
         Route::post('/products-alias/{productId}/variants', [AdminStoreCatalogWebController::class, 'storeVariant'])->name('variants.store');
         Route::delete('/products-alias/variants/{variantId}', [AdminStoreCatalogWebController::class, 'deleteVariant'])->name('variants.delete');
         Route::post('/products-alias/{productId}/images', [AdminStoreCatalogWebController::class, 'addImage'])->name('images.store');

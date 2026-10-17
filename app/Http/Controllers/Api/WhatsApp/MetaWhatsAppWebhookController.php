@@ -243,6 +243,13 @@ class MetaWhatsAppWebhookController extends Controller
                 \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
                     'status' => 'failed',
                 ]);
+                \App\Models\EventRegistration::whereIn('whatsapp_provider_id', $matchIds)->update([
+                    'whatsapp_status' => 'failed',
+                ]);
+                \App\Models\Notifications\NotificationDeliveryLog::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                ]);
             } catch (\Throwable) {}
 
             Log::error('[MetaWhatsAppWebhookController] WhatsApp message marked FAILED.', [
@@ -290,6 +297,12 @@ class MetaWhatsAppWebhookController extends Controller
                 \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)->update([
                     'status' => 'read',
                 ]);
+                \App\Models\EventRegistration::whereIn('whatsapp_provider_id', $matchIds)->update([
+                    'whatsapp_status' => 'read',
+                ]);
+                \App\Models\Notifications\NotificationDeliveryLog::whereIn('provider_message_id', $matchIds)->update([
+                    'status' => 'read',
+                ]);
             } catch (\Throwable) {}
 
             Log::info('[MetaWhatsAppWebhookController] WhatsApp message marked READ.', [
@@ -334,6 +347,16 @@ class MetaWhatsAppWebhookController extends Controller
                         'delivered_at' => $eventTime,
                     ]);
                 \App\Models\MemberJourneySend::whereIn('provider_message_id', $matchIds)
+                    ->where('status', '!=', 'read')
+                    ->update([
+                        'status' => 'delivered',
+                    ]);
+                \App\Models\EventRegistration::whereIn('whatsapp_provider_id', $matchIds)
+                    ->where('whatsapp_status', '!=', 'read')
+                    ->update([
+                        'whatsapp_status' => 'delivered',
+                    ]);
+                \App\Models\Notifications\NotificationDeliveryLog::whereIn('provider_message_id', $matchIds)
                     ->where('status', '!=', 'read')
                     ->update([
                         'status' => 'delivered',
