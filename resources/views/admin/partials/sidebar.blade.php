@@ -416,27 +416,58 @@
                         <i class="bi bi-speedometer2 me-2"></i><span class="menu-text">Dashboard</span>
                     </a>
                 </li>
+                @php
+                    $isMediaActive = request()->routeIs('admin.web.gallery.*') || 
+                                     request()->routeIs('admin.web.podcasts.*') || 
+                                     request()->routeIs('admin.web.success-stories.*') || 
+                                     request()->routeIs('admin.web.homepage-media.*') || 
+                                     request()->routeIs('admin.web.media.*');
+                @endphp
                 <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center justify-content-between {{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.*') ? 'active' : '' }}" 
+                    <a class="nav-link d-flex align-items-center justify-content-between {{ $isMediaActive ? 'active' : '' }}" 
                        data-bs-toggle="collapse" 
-                       href="#collapseHomepageMedia" 
+                       href="#collapseAddMedia" 
                        role="button" 
-                       aria-expanded="{{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.*') ? 'true' : 'false' }}"
-                       title="Add media for homepage">
+                       aria-expanded="{{ $isMediaActive ? 'true' : 'false' }}"
+                       title="Add media">
                         <div class="d-flex align-items-center">
                             <i class="bi bi-camera-reels me-2"></i>
-                            <span class="menu-text">Add media for homepage</span>
+                            <span class="menu-text">Add media</span>
                         </div>
                         <i class="bi bi-chevron-down small text-muted"></i>
                     </a>
-                    <div class="collapse {{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.*') ? 'show' : '' }}" id="collapseHomepageMedia">
+                    <div class="collapse {{ $isMediaActive ? 'show' : '' }}" id="collapseAddMedia">
                         <ul class="nav flex-column ps-3 mt-1">
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->routeIs('admin.web.gallery.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.web.gallery.index') }}" 
+                                   title="Gallery Collection">
+                                    <i class="bi bi-images text-info me-2"></i>
+                                    <span class="menu-text">Gallery collection</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->routeIs('admin.web.podcasts.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.web.podcasts.index') }}" 
+                                   title="Add Podcast & media">
+                                    <i class="bi bi-mic-fill text-primary me-2"></i>
+                                    <span class="menu-text">Add Podcast & media</span>
+                                </a>
+                            </li>
                             <li class="nav-item">
                                 <a class="nav-link py-1.5 {{ request()->routeIs('admin.web.success-stories.*') || request()->routeIs('admin.web.homepage-media.success-stories.*') ? 'active' : '' }}" 
                                    href="{{ route('admin.web.success-stories.index') }}" 
                                    title="Success Stories">
                                     <i class="bi bi-play-circle-fill text-danger me-2"></i>
                                     <span class="menu-text">Success Stories</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1.5 {{ request()->routeIs('admin.web.media.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.web.media.index') }}" 
+                                   title="Media Library">
+                                    <i class="bi bi-folder2-open text-warning me-2"></i>
+                                    <span class="menu-text">Media Library</span>
                                 </a>
                             </li>
                         </ul>

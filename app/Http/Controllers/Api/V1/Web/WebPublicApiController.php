@@ -6,11 +6,16 @@ namespace App\Http\Controllers\Api\V1\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Web\WebCompany;
+use App\Models\Web\WebGallery;
+use App\Models\Web\WebGalleryItem;
+use App\Models\Web\WebMedia;
 use App\Models\Web\WebMessage;
 use App\Models\Web\WebOpportunity;
 use App\Models\Web\WebPartnership;
 use App\Models\Web\WebSetting;
 use App\Models\Web\WebSuccessStory;
+use App\Services\Web\WebGalleryService;
+use App\Services\Web\WebPodcastMediaService;
 use App\Services\Web\WebSuccessStoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -363,6 +368,149 @@ class WebPublicApiController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Success story deleted successfully',
+        ]);
+    }
+
+    /**
+     * Get active gallery photos formatted for the website frontend.
+     */
+    public function gallery(Request $request, WebGalleryService $service): JsonResponse
+    {
+        $filters = [
+            'category' => $request->query('category'),
+            'city' => $request->query('city'),
+            'circle' => $request->query('circle'),
+            'year' => $request->query('year'),
+            'search' => $request->query('search'),
+        ];
+
+        $items = $service->allActive($filters);
+
+        $mapped = $items->map(function (WebGalleryItem $item): array {
+            return [
+                'id' => $item->id,
+                'title' => $item->title,
+                'category' => $item->category,
+                'city' => $item->city,
+                'circle' => $item->circle,
+                'year' => $item->year,
+                'image' => $item->image_url,
+                'caption' => $item->caption ?? '',
+                'galleryId' => $item->gallery_id,
+                'sortOrder' => $item->sort_order,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'count' => $mapped->count(),
+            'data' => $mapped,
+        ]);
+    }
+
+    /**
+     * Get active gallery collections/albums.
+     */
+    public function galleryCollections(WebGalleryService $service): JsonResponse
+    {
+        $collections = $service->listCollections();
+
+        $mapped = $collections->map(function (WebGallery $g): array {
+            return [
+                'id' => $g->id,
+                'title' => $g->title,
+                'slug' => $g->slug,
+                'subtitle' => $g->subtitle ?? '',
+                'categoryName' => $g->category_name ?? $g->title,
+                'coverImage' => $g->cover_image_url,
+                'itemCount' => $g->items_count ?? 0,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $mapped,
+        ]);
+    }
+
+    /**
+     * Get active podcast episodes and media features for website channels.
+     */
+    public function podcasts(Request $request, WebPodcastMediaService $service): JsonResponse
+    {
+        $filters = [
+            'tag' => $request->query('tag'),
+            'format' => $request->query('format'),
+            'featured' => $request->query('featured'),
+            'search' => $request->query('search'),
+        ];
+
+        $episodes = $service->allActive($filters);
+
+        $mapped = $episodes->map(function (WebMedia $m): array {
+            return [
+                'id' => $m->id,
+                'title' => $m->title,
+                'subtitle' => $m->subtitle ?? '',
+                'tag' => $m->tag ?? 'MANUFACTURING',
+                'format' => $m->media_format ?? 'podcast',
+                'duration' => $m->duration ?? '45 mins',
+                'image' => $m->cover_image_url,
+                'guest' => [
+                    'name' => $m->guest_name ?? 'Community Leader',
+                    'title' => $m->guest_title ?? 'Peers Global Member',
+                    'avatar' => $m->guest_avatar_url,
+                ],
+                'showNotes' => is_array($m->show_notes) ? $m->show_notes : [],
+                'spotifyUrl' => $m->spotify_url ?? '',
+                'youtubeUrl' => $m->youtube_url ?? '',
+                'youtubeVideoId' => $m->youtube_video_id ?? '',
+                'applePodcastUrl' => $m->apple_podcast_url ?? '',
+                'externalUrl' => $m->external_url ?? '',
+                'isFeatured' => (bool) $m->is_featured,
+                'sortOrder' => $m->sort_order,
+                'createdAt' => $m->created_at?->toIso8601String(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'count' => $mapped->count(),
+            'data' => $mapped,
+        ]);
+    }
+
+    /**
+     * Get featured episodes for hero sections and spotlights.
+     */
+    public function featuredPodcasts(WebPodcastMediaService $service): JsonResponse
+    {
+        $featured = $service->featured(6);
+
+        $mapped = $featured->map(function (WebMedia $m): array {
+            return [
+                'id' => $m->id,
+                'title' => $m->title,
+                'subtitle' => $m->subtitle ?? '',
+                'tag' => $m->tag ?? 'MANUFACTURING',
+                'format' => $m->media_format ?? 'podcast',
+                'duration' => $m->duration ?? '45 mins',
+                'image' => $m->cover_image_url,
+                'guest' => [
+                    'name' => $m->guest_name ?? 'Community Leader',
+                    'title' => $m->guest_title ?? 'Peers Global Member',
+                    'avatar' => $m->guest_avatar_url,
+                ],
+                'showNotes' => is_array($m->show_notes) ? $m->show_notes : [],
+                'spotifyUrl' => $m->spotify_url ?? '',
+                'youtubeUrl' => $m->youtube_url ?? '',
+                'youtubeVideoId' => $m->youtube_video_id ?? '',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $mapped,
         ]);
     }
 }
