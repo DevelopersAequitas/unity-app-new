@@ -1624,25 +1624,29 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('audit-logs/{id}', [AuditLogAdminController::class, 'show'])->whereUuid('id');
 });
 
-// Speed Networking Mobile API
-Route::middleware('auth:sanctum')->prefix('speed-networking')->group(function (): void {
-    Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
-    Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
-    Route::post('events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
-    Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
-    Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
-});
+// Speed Networking Mobile API (Supports both /api/v1/speed-networking and /api/speed-networking)
+foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
+    Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
+        Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
+        Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
+        Route::post('events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
+        Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
+        Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
+    });
+}
 
-// Speed Networking Admin API (Connects with Node.js / Web Admin Dashboard)
-Route::middleware('auth:sanctum')->prefix('admin/speed-networking')->group(function (): void {
-    Route::get('events', [SpeedNetworkingAdminController::class, 'index']);
-    Route::post('events', [SpeedNetworkingAdminController::class, 'store']);
-    Route::get('events/{id}', [SpeedNetworkingAdminController::class, 'show'])->whereUuid('id');
-    Route::put('events/{id}', [SpeedNetworkingAdminController::class, 'update'])->whereUuid('id');
-    Route::delete('events/{id}', [SpeedNetworkingAdminController::class, 'destroy'])->whereUuid('id');
-    Route::get('events/{id}/participants', [SpeedNetworkingAdminController::class, 'participants'])->whereUuid('id');
-    Route::post('events/{id}/start', [SpeedNetworkingAdminController::class, 'start'])->whereUuid('id');
-    Route::post('events/{id}/next-round', [SpeedNetworkingAdminController::class, 'nextRound'])->whereUuid('id');
-    Route::post('events/{id}/end', [SpeedNetworkingAdminController::class, 'end'])->whereUuid('id');
-    Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
-});
+// Speed Networking Admin API (Supports both /api/v1/admin/speed-networking and /api/admin/speed-networking)
+foreach (['admin/speed-networking', 'v1/admin/speed-networking'] as $prefix) {
+    Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
+        Route::get('events', [SpeedNetworkingAdminController::class, 'index']);
+        Route::post('events', [SpeedNetworkingAdminController::class, 'store']);
+        Route::get('events/{id}', [SpeedNetworkingAdminController::class, 'show'])->whereUuid('id');
+        Route::put('events/{id}', [SpeedNetworkingAdminController::class, 'update'])->whereUuid('id');
+        Route::delete('events/{id}', [SpeedNetworkingAdminController::class, 'destroy'])->whereUuid('id');
+        Route::get('events/{id}/participants', [SpeedNetworkingAdminController::class, 'participants'])->whereUuid('id');
+        Route::post('events/{id}/start', [SpeedNetworkingAdminController::class, 'start'])->whereUuid('id');
+        Route::post('events/{id}/next-round', [SpeedNetworkingAdminController::class, 'nextRound'])->whereUuid('id');
+        Route::post('events/{id}/end', [SpeedNetworkingAdminController::class, 'end'])->whereUuid('id');
+        Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
+    });
+}
