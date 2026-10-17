@@ -1626,6 +1626,7 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
 
 // Speed Networking Mobile API
 Route::middleware('auth:sanctum')->prefix('speed-networking')->group(function (): void {
+    Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
     Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
     Route::post('events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
     Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
