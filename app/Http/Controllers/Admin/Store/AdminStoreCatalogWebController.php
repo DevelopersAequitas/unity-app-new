@@ -108,13 +108,23 @@ class AdminStoreCatalogWebController extends Controller
 
     public function deleteCategory(string $id)
     {
-        $category = StoreCategory::withCount('products')->findOrFail($id);
+        $category = StoreCategory::findOrFail($id);
 
-        if ($category->products_count > 0) {
-            return back()->with('error', 'Cannot delete category with active products. Reassign products first or deactivate category.');
-        }
+        DB::transaction(function () use ($category) {
+            // Detach any products assigned to this category (set category_id to null)
+            Product::where('category_id', $category->id)->update(['category_id' => null]);
 
-        $category->delete();
+            // Detach any child categories
+            StoreCategory::where('parent_id', $category->id)->update(['parent_id' => null]);
+
+            // Delete category image if local storage
+            if ($category->image_url && str_starts_with($category->image_url, '/storage/')) {
+                $storagePath = str_replace('/storage/', '', $category->image_url);
+                Storage::disk('public')->delete($storagePath);
+            }
+
+            $category->delete();
+        });
 
         return redirect()->route('admin.store.categories.index')->with('success', 'Category deleted successfully.');
     }
@@ -324,10 +334,6 @@ class AdminStoreCatalogWebController extends Controller
     {
         $product = Product::with(['images', 'variants'])->findOrFail($id);
 
-        if ($product->orderItems()->exists()) {
-            return back()->with('error', 'Cannot delete this product because customer orders are linked to it. Please Archive it instead.');
-        }
-
         DB::transaction(function () use ($product) {
             // Delete wishlists, cart items, quotes and entitlements
             if (Schema::hasTable('store_wishlists')) {
@@ -341,6 +347,20 @@ class AdminStoreCatalogWebController extends Controller
             }
             if (Schema::hasTable('store_entitlements')) {
                 \App\Models\Store\Entitlement::where('product_id', $product->id)->delete();
+            }
+
+            // Clean up any test/demo order items and returns linked to this product
+            if (Schema::hasTable('order_items')) {
+                $orderItemIds = \App\Models\Store\OrderItem::where('product_id', $product->id)->pluck('id');
+                if ($orderItemIds->isNotEmpty()) {
+                    if (Schema::hasTable('store_returns')) {
+                        DB::table('store_returns')->whereIn('order_item_id', $orderItemIds)->delete();
+                    }
+                    if (Schema::hasTable('return_items')) {
+                        DB::table('return_items')->whereIn('order_item_id', $orderItemIds)->delete();
+                    }
+                    \App\Models\Store\OrderItem::where('product_id', $product->id)->delete();
+                }
             }
 
             // Delete reviews
