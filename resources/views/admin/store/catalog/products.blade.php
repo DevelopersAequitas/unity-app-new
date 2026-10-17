@@ -24,6 +24,13 @@
     </div>
     @endif
 
+    @if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i> {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
     <!-- Filters Card -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-3">
@@ -136,18 +143,25 @@
                                 <span class="badge {{ $badge }}">{{ $product->status }}</span>
                             </td>
                             <td class="small text-muted">{{ $product->created_at ? $product->created_at->format('d M Y') : 'N/A' }}</td>
-                            <td class="text-end">
+                            <td class="text-end text-nowrap">
                                 <a href="{{ route('admin.store.products.edit', $product->id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">
                                     Edit
                                 </a>
                                 @if($product->status !== 'ARCHIVED')
                                 <form action="{{ route('admin.store.products.archive', $product->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Archive this product? It will be hidden from customer store.');">
                                     @csrf
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Archive Product">
                                         Archive
                                     </button>
                                 </form>
                                 @endif
+                                <form action="{{ route('admin.store.products.delete', $product->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this product? All images and variants will be deleted.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Permanently Delete">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                         @empty
