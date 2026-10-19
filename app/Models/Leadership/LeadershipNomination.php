@@ -94,6 +94,10 @@ class LeadershipNomination extends Model
             return (string) $snapshot['form_2_status'];
         }
 
+        if (static::where('application_number', $this->application_number.'-F2')->where('status', 'submitted')->exists()) {
+            return 'submitted';
+        }
+
         return 'not_sent';
     }
 
@@ -105,6 +109,15 @@ class LeadershipNomination extends Model
         $snapshot = $this->profile_snapshot;
         if (is_array($snapshot) && isset($snapshot['form_2']) && is_array($snapshot['form_2'])) {
             return $snapshot['form_2'];
+        }
+
+        if (is_array($snapshot) && (isset($snapshot['section_a_business_credibility']) || isset($snapshot['section_d_leadership_bench']))) {
+            return $snapshot;
+        }
+
+        $child = static::where('application_number', $this->application_number.'-F2')->first();
+        if ($child && is_array($child->profile_snapshot)) {
+            return $child->profile_snapshot['form_2'] ?? $child->profile_snapshot;
         }
 
         return null;
