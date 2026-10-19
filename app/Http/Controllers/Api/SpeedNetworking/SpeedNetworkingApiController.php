@@ -76,6 +76,7 @@ class SpeedNetworkingApiController extends Controller
         $data = $this->speedNetworkingService->joinEvent($event, $user);
 
         return response()->json([
+            'status' => 'success',
             'success' => true,
             'data' => $data,
         ]);
@@ -92,6 +93,7 @@ class SpeedNetworkingApiController extends Controller
         $data = $this->speedNetworkingService->getNextMatch($event, $user);
 
         return response()->json([
+            'status' => 'success',
             'success' => true,
             'data' => $data,
         ]);
@@ -108,8 +110,9 @@ class SpeedNetworkingApiController extends Controller
         $this->speedNetworkingService->leaveEvent($event, $user);
 
         return response()->json([
+            'status' => 'success',
             'success' => true,
-            'message' => 'Successfully left the speed networking event.',
+            'message' => 'Successfully left speed networking session.',
         ]);
     }
 
@@ -121,12 +124,16 @@ class SpeedNetworkingApiController extends Controller
         $event = SpeedNetworkingEvent::findOrFail($eventId);
         $user = $request->user();
 
-        $this->speedNetworkingService->heartbeat($event, $user);
+        $activeCount = $this->speedNetworkingService->heartbeat($event, $user);
 
         return response()->json([
+            'status' => 'success',
             'success' => true,
+            'message' => 'Heartbeat recorded',
+            'active_attendees_count' => $activeCount,
             'data' => [
                 'last_heartbeat_at' => Carbon::now()->toIso8601String(),
+                'active_attendees_count' => $activeCount,
             ],
         ]);
     }
