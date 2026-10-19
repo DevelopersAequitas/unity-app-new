@@ -764,68 +764,123 @@ export const NominationsPage: React.FC = () => {
                             </div>
 
                             {/* 6 Navigation Tabs */}
-                            <div className="bg-light px-4 pt-2 border-bottom">
-                                <ul className="nav nav-tabs border-bottom-0">
-                                    <li className="nav-item">
-                                        <button
-                                            className={`nav-link border-0 fw-semibold ${activeTab === 'profile' ? 'active text-primary' : 'text-muted'}`}
-                                            onClick={() => setActiveTab('profile')}
-                                        >
-                                            Tab 1: Profile
-                                        </button>
-                                    </li>
-                                    <li className="nav-item">
-                                        <button
-                                            className={`nav-link border-0 fw-semibold ${activeTab === 'answers' ? 'active text-primary' : 'text-muted'}`}
-                                            onClick={() => setActiveTab('answers')}
-                                        >
-                                            Tab 2: Form Answers
-                                        </button>
-                                    </li>
-                                    <li className="nav-item">
-                                        <button
-                                            className={`nav-link border-0 fw-semibold ${activeTab === 'diff' ? 'active text-primary' : 'text-muted'}`}
-                                            onClick={() => setActiveTab('diff')}
-                                        >
-                                            Tab 3: Profile Diffs
-                                        </button>
-                                    </li>
-                                    <li className="nav-item">
-                                        <button
-                                            className={`nav-link border-0 fw-semibold ${activeTab === 'documents' ? 'active text-primary' : 'text-muted'}`}
-                                            onClick={() => setActiveTab('documents')}
-                                        >
-                                            Tab 4: Documents
-                                        </button>
-                                    </li>
-                                    <li className="nav-item">
-                                        <button
-                                            className={`nav-link border-0 fw-semibold ${activeTab === 'declarations' ? 'active text-primary' : 'text-muted'}`}
-                                            onClick={() => setActiveTab('declarations')}
-                                        >
-                                            Tab 5: Declarations
-                                        </button>
-                                    </li>
-                                    <li className="nav-item">
-                                        <button
-                                            className={`nav-link border-0 fw-semibold ${activeTab === 'history' ? 'active text-primary' : 'text-muted'}`}
-                                            onClick={() => setActiveTab('history')}
-                                        >
-                                            Tab 6: Activity History
-                                        </button>
-                                    </li>
-                                    {(selectedNomination.form_type === 'sub_form_2' || selectedNomination.form_2_data || activeForm === 'sub_form_2') && (
-                                        <li className="nav-item">
-                                            <button
-                                                className={`nav-link border-0 fw-semibold ${activeTab === 'form_2' ? 'active text-primary border-bottom border-primary border-2' : 'text-muted'}`}
-                                                onClick={() => setActiveTab('form_2')}
-                                            >
-                                                <span className="badge bg-primary-subtle text-primary me-1">Form 2</span> Jury Data
-                                            </button>
-                                        </li>
-                                    )}
-                                </ul>
-                            </div>
+                            {(() => {
+                                const isF2 = selectedNomination.form_type === 'sub_form_2' || !!selectedNomination.form_2_data || activeForm === 'sub_form_2';
+                                return (
+                                    <div className="bg-light px-4 pt-2 border-bottom">
+                                        <ul className="nav nav-tabs border-bottom-0 flex-nowrap overflow-x-auto">
+                                            {isF2 ? (
+                                                <>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap d-inline-flex align-items-center gap-1.5 ${activeTab === 'form_2' ? 'active text-primary border-bottom border-primary border-2' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('form_2')}
+                                                        >
+                                                            <span className="badge bg-primary text-white">Form 2</span> Jury Evaluation Data
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'profile' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('profile')}
+                                                        >
+                                                            Profile
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'answers' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('answers')}
+                                                        >
+                                                            Form Answers
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap d-inline-flex align-items-center gap-1.5 ${activeTab === 'documents' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('documents')}
+                                                        >
+                                                            Documents
+                                                            {selectedNomination.documents && selectedNomination.documents.length > 0 && (
+                                                                <span className="badge bg-secondary-subtle text-secondary rounded-pill px-1.5 py-0.5" style={{ fontSize: '0.7rem' }}>
+                                                                    {selectedNomination.documents.length}
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'diff' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('diff')}
+                                                        >
+                                                            Profile Diffs
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'history' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('history')}
+                                                        >
+                                                            Activity History
+                                                        </button>
+                                                    </li>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'profile' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('profile')}
+                                                        >
+                                                            Tab 1: Profile
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'answers' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('answers')}
+                                                        >
+                                                            Tab 2: Form Answers
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'diff' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('diff')}
+                                                        >
+                                                            Tab 3: Profile Diffs
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'documents' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('documents')}
+                                                        >
+                                                            Tab 4: Documents
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'declarations' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('declarations')}
+                                                        >
+                                                            Tab 5: Declarations
+                                                        </button>
+                                                    </li>
+                                                    <li className="nav-item">
+                                                        <button
+                                                            className={`nav-link border-0 fw-semibold text-nowrap ${activeTab === 'history' ? 'active text-primary' : 'text-muted'}`}
+                                                            onClick={() => setActiveTab('history')}
+                                                        >
+                                                            Tab 6: Activity History
+                                                        </button>
+                                                    </li>
+                                                </>
+                                            )}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
 
                             <div className="modal-body py-4">
                                 {isLoadingDetail ? (
@@ -944,7 +999,7 @@ export const NominationsPage: React.FC = () => {
                                         {/* Tab 2: Answers */}
                                         {activeTab === 'answers' && (
                                             <div>
-                                                <h6 className="fw-bold text-dark mb-3">Submitted Dynamic Answers</h6>
+                                                <h6 className="fw-bold text-dark mb-3">Submitted Dynamic Answers & Form 2 Responses</h6>
                                                 {selectedNomination.answers && selectedNomination.answers.length > 0 ? (
                                                     <div className="list-group">
                                                         {selectedNomination.answers.map((ans) => (
@@ -958,6 +1013,39 @@ export const NominationsPage: React.FC = () => {
                                                             </div>
                                                         ))}
                                                     </div>
+                                                ) : (selectedNomination.form_2_data || (selectedNomination.profile_snapshot as any)?.form_2) ? (
+                                                    (() => {
+                                                        const f2 = selectedNomination.form_2_data || (selectedNomination.profile_snapshot as any)?.form_2;
+                                                        const secA = f2?.section_a_business_credibility || f2;
+                                                        const secB = f2?.section_b_leadership_track_record || f2;
+                                                        const secE = f2?.section_e_12_month_plan || f2;
+                                                        return (
+                                                            <div className="d-flex flex-column gap-3">
+                                                                <div className="p-3 rounded-3 border bg-light">
+                                                                    <span className="badge bg-primary mb-2">Section A: Business Credibility</span>
+                                                                    <div className="row g-2 small">
+                                                                        <div className="col-md-4"><span className="text-muted">Business Type:</span> <strong className="text-dark d-block">{secA?.business_type || '—'}</strong></div>
+                                                                        <div className="col-md-4"><span className="text-muted">Turnover Band:</span> <strong className="text-dark d-block">{secA?.annual_turnover_band || '—'}</strong></div>
+                                                                        <div className="col-md-4"><span className="text-muted">Team Size:</span> <strong className="text-dark d-block">{secA?.team_size || '—'}</strong></div>
+                                                                        <div className="col-12 mt-2"><span className="text-muted">Achievements:</span> <div className="p-2 rounded bg-white border mt-1">{secA?.achievements || secA?.top_3_achievements || '—'}</div></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="p-3 rounded-3 border bg-light">
+                                                                    <span className="badge bg-dark mb-2">Section B: Leadership Track Record</span>
+                                                                    <div className="row g-2 small">
+                                                                        <div className="col-md-6"><span className="text-muted">Leadership Roles:</span> <div className="p-2 rounded bg-white border mt-1">{secB?.leadership_roles || '—'}</div></div>
+                                                                        <div className="col-md-6"><span className="text-muted">Largest Community:</span> <div className="p-2 rounded bg-white border mt-1">{secB?.largest_community || '—'}</div></div>
+                                                                    </div>
+                                                                </div>
+                                                                {secE?.twelve_month_plan && (
+                                                                    <div className="p-3 rounded-3 border bg-light">
+                                                                        <span className="badge bg-secondary mb-2">Section E: 12-Month Plan</span>
+                                                                        <div className="p-2 rounded bg-white border small">{secE.twelve_month_plan}</div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()
                                                 ) : (
                                                     <div className="text-muted py-4 text-center">No questionnaire answers recorded.</div>
                                                 )}
@@ -989,8 +1077,12 @@ export const NominationsPage: React.FC = () => {
                                                         </tbody>
                                                     </table>
                                                 ) : (
-                                                    <div className="text-muted py-4 text-center">
-                                                        No differences detected between Unity directory profile and nomination entry.
+                                                    <div className="p-4 text-center rounded-3 bg-light border">
+                                                        <CheckCircle2 size={32} className="text-success mx-auto mb-2" />
+                                                        <h6 className="fw-bold text-dark mb-1">Directory Profile Verified</h6>
+                                                        <p className="text-muted small mb-0">
+                                                            No differences detected between candidate's directory profile and nomination entry.
+                                                        </p>
                                                     </div>
                                                 )}
                                             </div>
@@ -999,7 +1091,7 @@ export const NominationsPage: React.FC = () => {
                                         {/* Tab 4: Documents */}
                                         {activeTab === 'documents' && (
                                             <div>
-                                                <h6 className="fw-bold text-dark mb-3">Supporting Uploaded Documents</h6>
+                                                <h6 className="fw-bold text-dark mb-3">Supporting Uploaded Documents (Form 1 & Form 2)</h6>
                                                 {selectedNomination.documents && selectedNomination.documents.length > 0 ? (
                                                     <div className="row g-3">
                                                         {selectedNomination.documents.map((doc) => (
@@ -1083,7 +1175,19 @@ export const NominationsPage: React.FC = () => {
                                             const secG = rawF2?.section_g_references || rawF2;
                                             const secH = rawF2?.section_h_documents || rawF2;
 
-                                            const hasData = rawF2 && (secA?.business_type || secB?.largest_community || secD?.bench_members?.length || secA?.annual_turnover_band);
+                                            const hasData = Boolean(
+                                                rawF2 && (
+                                                    selectedNomination.form_2_status === 'submitted' ||
+                                                    selectedNomination.form_type === 'sub_form_2' ||
+                                                    Object.keys(rawF2).length > 2 ||
+                                                    secA?.business_type ||
+                                                    secB?.largest_community ||
+                                                    secD?.bench_members?.length ||
+                                                    secA?.annual_turnover_band ||
+                                                    secE?.twelve_month_plan ||
+                                                    rawF2?.submitted_at
+                                                )
+                                            );
 
                                             if (!hasData) {
                                                 return (
