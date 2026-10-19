@@ -246,7 +246,7 @@ class PostModerationController extends Controller
         $postIds = $pageRows->where('source_type', 'post')->pluck('id')->values()->all();
         $impactIds = $pageRows->where('source_type', 'impact')->pluck('id')->values()->all();
 
-        $postsById = Post::query()
+        $postsById = Post::withTrashed()
             ->with(['user', 'circle', 'collaborationPost.acceptedByUser'])
             ->whereIn('id', $postIds)
             ->get()
