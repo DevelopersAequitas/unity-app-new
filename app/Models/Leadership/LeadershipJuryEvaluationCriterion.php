@@ -14,7 +14,7 @@ class LeadershipJuryEvaluationCriterion extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_evaluation_criteria';
+    protected $table = 'web_leadership_jury_evaluation_criteria';
 
     protected $primaryKey = 'id';
 

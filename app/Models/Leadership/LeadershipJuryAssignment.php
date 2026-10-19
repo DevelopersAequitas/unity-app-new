@@ -16,7 +16,7 @@ class LeadershipJuryAssignment extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_assignments';
+    protected $table = 'web_leadership_jury_assignments';
 
     protected $primaryKey = 'id';
 

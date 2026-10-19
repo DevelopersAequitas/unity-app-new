@@ -16,7 +16,7 @@ class LeadershipAuditLog extends Model
 
     public const UPDATED_AT = null;
 
-    protected $table = 'leadership_audit_logs';
+    protected $table = 'web_leadership_audit_logs';
 
     protected $primaryKey = 'id';
 

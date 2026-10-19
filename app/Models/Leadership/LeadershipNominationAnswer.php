@@ -13,7 +13,7 @@ class LeadershipNominationAnswer extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_nomination_answers';
+    protected $table = 'web_leadership_nomination_answers';
 
     protected $primaryKey = 'id';
 

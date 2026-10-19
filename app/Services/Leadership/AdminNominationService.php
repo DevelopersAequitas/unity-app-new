@@ -87,15 +87,17 @@ class AdminNominationService
                             $subQ->where('profile_snapshot->form_2_status', 'pending_submission')
                                 ->where('application_number', 'NOT LIKE', '%-F2%');
                         });
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                    $nomTable = (new LeadershipNomination)->getTable();
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                         $q->orWhere('form_type', 'sub_form_2');
                     }
                 });
             } else {
                 // Default to main_form_1: all primary website nominations
                 $query->where(function ($q): void {
+                    $nomTable = (new LeadershipNomination)->getTable();
                     $q->where('application_number', 'NOT LIKE', '%-F2%');
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                         $q->where(function ($sub): void {
                             $sub->where('form_type', 'main_form_1')
                                 ->orWhereNull('form_type');
@@ -645,8 +647,11 @@ class AdminNominationService
             'id' => (string) Str::uuid(),
             'nomination_id' => $nomination->id,
             'actor_id' => $this->resolveValidUserId(Auth::id()),
+            'changed_by' => $this->resolveValidUserId(Auth::id()),
             'action' => 'proceed_to_jury',
-            'from_status' => $fromStatus,
+            'previous_status' => $fromStatus ?: 'submitted',
+            'new_status' => 'shortlisted',
+            'from_status' => $fromStatus ?: 'submitted',
             'to_status' => 'shortlisted',
             'remarks' => $adminRemarks ?? 'Candidate proceeded to Jury Evaluation phase and Form 2 link dispatched.',
             'metadata' => [
@@ -846,7 +851,8 @@ class AdminNominationService
                 $subNomination->profile_snapshot = $f2Data;
                 $subNomination->status = 'submitted';
                 $subNomination->submitted_at = Carbon::now();
-                if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                $nomTable = (new LeadershipNomination)->getTable();
+                if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                     $subNomination->form_type = 'sub_form_2';
                 }
                 $subNomination->save();
@@ -863,7 +869,8 @@ class AdminNominationService
                 $subNomination->status = 'submitted';
                 $subNomination->submitted_at = Carbon::now();
                 $subNomination->profile_snapshot = $f2Data;
-                if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                $nomTable = (new LeadershipNomination)->getTable();
+                if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                     $subNomination->form_type = 'sub_form_2';
                 }
                 $subNomination->save();
@@ -883,9 +890,12 @@ class AdminNominationService
                 'id' => (string) Str::uuid(),
                 'nomination_id' => $nomination->id,
                 'actor_id' => $this->resolveValidUserId($nomination->user_id),
+                'changed_by' => $this->resolveValidUserId($nomination->user_id),
                 'action' => 'form_2_submitted',
-                'from_status' => $nomination->status,
-                'to_status' => $nomination->status,
+                'previous_status' => $nomination->status ?: 'shortlisted',
+                'new_status' => $nomination->status ?: 'shortlisted',
+                'from_status' => $nomination->status ?: 'shortlisted',
+                'to_status' => $nomination->status ?: 'shortlisted',
                 'remarks' => 'Nominee successfully submitted Form 2: Jury Evaluation Data Form.',
                 'metadata' => [
                     'sub_nomination_id' => $subNomination->id,

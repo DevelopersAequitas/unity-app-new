@@ -14,7 +14,7 @@ class LeadershipNominationDocument extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_nomination_documents';
+    protected $table = 'web_leadership_nomination_documents';
 
     protected $primaryKey = 'id';
 

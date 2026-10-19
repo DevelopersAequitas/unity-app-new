@@ -16,7 +16,7 @@ class LeadershipNominationHistory extends Model
 
     public const UPDATED_AT = null;
 
-    protected $table = 'leadership_nomination_history';
+    protected $table = 'web_leadership_nomination_history';
 
     protected $primaryKey = 'id';
 
@@ -29,9 +29,12 @@ class LeadershipNominationHistory extends Model
         'nomination_id',
         'previous_status',
         'new_status',
+        'from_status',
+        'to_status',
         'action',
         'remarks',
         'changed_by',
+        'actor_id',
         'metadata',
     ];
 
@@ -44,6 +47,26 @@ class LeadershipNominationHistory extends Model
         static::creating(function (self $model): void {
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
+            }
+
+            if (empty($model->previous_status) && ! empty($model->from_status)) {
+                $model->previous_status = (string) $model->from_status;
+            }
+
+            if (empty($model->new_status) && ! empty($model->to_status)) {
+                $model->new_status = (string) $model->to_status;
+            }
+
+            if (empty($model->previous_status)) {
+                $model->previous_status = 'submitted';
+            }
+
+            if (empty($model->new_status)) {
+                $model->new_status = 'shortlisted';
+            }
+
+            if (empty($model->changed_by) && ! empty($model->actor_id)) {
+                $model->changed_by = $model->actor_id;
             }
         });
     }

@@ -49,7 +49,7 @@ class DecisionService
             ->whereIn('status', ['shortlisted', 'approved', 'winner', 'not_selected'])
             ->get();
 
-        $totalCampaignVotes = (int) DB::table('leadership_votes')->where('campaign_id', $campaignId)->count();
+        $totalCampaignVotes = (int) LeadershipVote::where('campaign_id', $campaignId)->count();
 
         $summary = [];
         foreach ($candidates as $cand) {
