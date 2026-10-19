@@ -95,13 +95,49 @@
 @endphp
 
 @section('content')
-    @if (session('success'))
-        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">{{ session('success') }}</div>
-    @endif
+    {{-- Floating Toast for Instant Visibility --}}
+    <div id="post-deactivate-toast" class="fixed top-5 right-5 z-[99999] hidden max-w-md bg-emerald-600 text-white px-4 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300">
+        <i class="bi bi-check-circle-fill text-xl text-emerald-200 shrink-0"></i>
+        <div class="text-xs font-semibold" id="post-deactivate-toast-msg"></div>
+        <button type="button" onclick="document.getElementById('post-deactivate-toast').classList.add('hidden')" class="ml-auto text-emerald-200 hover:text-white p-1 leading-none">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
 
-    @if ($errors->any())
-        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">{{ $errors->first() }}</div>
-    @endif
+    {{-- Flash Alert Container (Inline) --}}
+    <div id="flash-alert-container">
+        @if (session('success'))
+            <div class="alert alert-success alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert" style="background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; border-left: 5px solid #198754; border-radius: 10px; padding: 13px 18px;">
+                <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+                <div class="text-sm font-semibold">{{ session('success') }}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if (session('warning'))
+            <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert" style="background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; border-left: 5px solid #ffc107; border-radius: 10px; padding: 13px 18px;">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-warning"></i>
+                <div class="text-sm font-semibold">{{ session('warning') }}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if (session('error'))
+            <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert" style="background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; border-left: 5px solid #dc3545; border-radius: 10px; padding: 13px 18px;">
+                <i class="bi bi-x-circle-fill me-2 fs-5 text-danger"></i>
+                <div class="text-sm font-semibold">{{ session('error') }}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert" style="background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; border-left: 5px solid #dc3545; border-radius: 10px; padding: 13px 18px;">
+                <i class="bi bi-exclamation-octagon-fill me-2 fs-5 text-danger"></i>
+                <div class="text-sm font-semibold">{{ $errors->first() }}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+    </div>
 
     <form id="postsFiltersForm" method="GET" action="{{ route('admin.posts.index') }}"></form>
 
@@ -333,6 +369,12 @@
                                         </span>
                                     @endif
                                     <div class="t1 font-medium max-w-[250px] admin-grid-text-clamp" data-full-text="{{ $post->content_text }}">{{ $post->content_text }}</div>
+                                    @if(!$isActive && !empty($post->deactivation_remarks))
+                                        <div class="mt-1 text-[11px] text-rose-700 bg-rose-50/80 border border-rose-200 rounded px-2 py-0.5 inline-flex items-center gap-1 max-w-[250px] truncate" title="Deactivation reason: {{ $post->deactivation_remarks }}">
+                                            <i class="bi bi-info-circle-fill text-rose-500 shrink-0"></i>
+                                            <span class="truncate"><strong>Reason:</strong> {{ $post->deactivation_remarks }}</span>
+                                        </div>
+                                    @endif
                                     @if($isCompletedCollaboration)
                                         <div class="t3 text-[10px] mt-1">
                                             @if($acceptedBy)
@@ -357,12 +399,19 @@
                                         @if($isImpact)
                                             <a href="{{ route('admin.impacts.show', $post->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
                                             @if($isActive)
-                                                <form method="POST" action="{{ route('admin.posts.impacts.deactivate', $post->id) }}" class="inline">
-                                                    @csrf
-                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Are you sure you want to deactivate this impact?')">
-                                                        Deactivate
-                                                    </button>
-                                                </form>
+                                                <button type="button" 
+                                                    class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring btn-open-deactivate-modal"
+                                                    data-action="{{ route('admin.posts.impacts.deactivate', $post->id) }}"
+                                                    data-post-id="{{ $post->id }}"
+                                                    data-owner-name="{{ $ownerName ?: 'Unknown' }}"
+                                                    data-owner-initials="{{ $getInitials($ownerName) }}"
+                                                    data-owner-bg="{{ $getAvatarBg($ownerName) }}"
+                                                    data-company="{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}"
+                                                    data-content="{{ $post->content_text ?: 'Impact story' }}"
+                                                    data-media="{{ $mediaUrl ?: '' }}"
+                                                    data-date="{{ $post->created_at ? \Carbon\Carbon::parse($post->created_at)->format('M d, Y H:i') : '—' }}">
+                                                    Deactivate
+                                                </button>
                                             @else
                                                 <form method="POST" action="{{ route('admin.posts.impacts.activate', $post->id) }}" class="inline">
                                                     @csrf
@@ -375,12 +424,19 @@
                                             <a href="{{ route('admin.posts.show', $post) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
 
                                             @if($isActive)
-                                                <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="inline">
-                                                    @csrf
-                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Are you sure you want to deactivate this post?')">
-                                                        Deactivate
-                                                    </button>
-                                                </form>
+                                                <button type="button" 
+                                                    class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring btn-open-deactivate-modal"
+                                                    data-action="{{ route('admin.posts.deactivate', $post) }}"
+                                                    data-post-id="{{ $post->id }}"
+                                                    data-owner-name="{{ $ownerName ?: 'Unknown' }}"
+                                                    data-owner-initials="{{ $getInitials($ownerName) }}"
+                                                    data-owner-bg="{{ $getAvatarBg($ownerName) }}"
+                                                    data-company="{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}"
+                                                    data-content="{{ $post->content_text ?: 'No caption' }}"
+                                                    data-media="{{ $mediaUrl ?: '' }}"
+                                                    data-date="{{ $post->created_at ? $post->created_at->format('M d, Y H:i') : '—' }}">
+                                                    Deactivate
+                                                </button>
                                             @else
                                                 <form method="POST" action="{{ route('admin.posts.restore', $post->id) }}" class="inline">
                                                     @csrf
@@ -405,5 +461,338 @@
             </div>
         </div>
     </div>
+
+    {{-- Deactivation Confirmation Modal --}}
+    <div id="deactivatePostModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm transition-all overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" style="margin: 0; padding: 1.25rem;">
+        <div class="flex min-h-full items-center justify-center text-center">
+            <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-xl border border-slate-200/90 my-auto" style="box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);">
+                
+                {{-- Modal Header --}}
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-50 to-red-100/80 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+                            <i class="bi bi-shield-slash-fill text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 leading-tight mb-0" id="modal-title">Deactivate Post</h3>
+                            <p class="text-xs text-slate-500 mb-0 mt-0.5">Record reason, reverse awarded rewards & notify member</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close-deactivate-modal w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition border border-transparent hover:border-slate-200 focus-ring">
+                        <i class="bi bi-x-lg text-xs"></i>
+                    </button>
+                </div>
+
+                {{-- Form --}}
+                <form id="deactivatePostForm" method="POST" action="" class="m-0 p-0">
+                    @csrf
+                    <div class="px-6 py-4 space-y-3.5">
+                        {{-- Selected Post Details Card --}}
+                        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <div id="modal_post_avatar" class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 shadow-xs ring-2 ring-white"></div>
+                                    <div>
+                                        <div id="modal_post_owner" class="text-xs font-bold text-slate-900 leading-tight"></div>
+                                        <div id="modal_post_company" class="text-[11px] text-slate-500 leading-tight"></div>
+                                    </div>
+                                </div>
+                                <span id="modal_post_date" class="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-0.5 rounded border border-slate-200 shadow-2xs"></span>
+                            </div>
+
+                            <div class="flex gap-2.5 items-center bg-white p-2.5 rounded-lg border border-slate-200/80">
+                                <div id="modal_post_media_container" class="hidden shrink-0">
+                                    <img id="modal_post_media" src="" alt="Post media" class="w-11 h-11 object-cover rounded-md border border-slate-200 shadow-2xs">
+                                </div>
+                                <div class="text-xs text-slate-700 flex-1 line-clamp-2 leading-relaxed border-l-2 border-indigo-400 pl-2.5 italic">
+                                    "<span id="modal_post_content"></span>"
+                                </div>
+                            </div>
+
+                            {{-- Action Consequences Highlight Bar --}}
+                            <div class="flex items-center justify-between gap-2 pt-0.5">
+                                <div class="flex-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-center">
+                                    <span class="text-xs font-bold text-amber-800 flex items-center justify-center gap-1.5">
+                                        <i class="bi bi-coin text-amber-600"></i> Reverse Coins
+                                    </span>
+                                </div>
+                                <div class="flex-1 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1.5 text-center">
+                                    <span class="text-xs font-bold text-purple-800 flex items-center justify-center gap-1.5">
+                                        <i class="bi bi-stars text-purple-600"></i> Reverse Impact
+                                    </span>
+                                </div>
+                                <div class="flex-1 bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-center">
+                                    <span class="text-xs font-bold text-sky-800 flex items-center justify-center gap-1.5">
+                                        <i class="bi bi-bell-fill text-sky-600"></i> Notify User
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Remarks Field --}}
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label for="modal_deactivation_remarks" class="block text-xs font-bold text-slate-800 mb-0">
+                                    Remarks / Reason for Deactivation <span class="text-rose-500">*</span>
+                                </label>
+                                <span id="char_counter" class="text-xs text-slate-400 font-medium">0 / 1000</span>
+                            </div>
+                            <div class="relative">
+                                <textarea 
+                                    id="modal_deactivation_remarks" 
+                                    name="remarks" 
+                                    rows="3" 
+                                    required 
+                                    minlength="3" 
+                                    maxlength="1000" 
+                                    placeholder="Write a clear reason for the member (e.g. duplicate post or image, violates community guidelines)..." 
+                                    class="w-full text-xs rounded-xl border border-slate-200 shadow-2xs focus:border-rose-500 focus:ring-2 focus:ring-rose-500/10 p-2.5 text-slate-800 placeholder-slate-400 outline-none transition resize-none"></textarea>
+                            </div>
+                            <div id="modal_remarks_error" class="hidden text-xs text-rose-600 mt-1 font-semibold flex items-center gap-1">
+                                <i class="bi bi-exclamation-circle-fill"></i> Please provide a reason with at least 3 characters.
+                            </div>
+                        </div>
+
+                        {{-- Quick Template Chips --}}
+                        <div>
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                <i class="bi bi-lightning-charge-fill text-amber-500"></i> Quick Suggestions:
+                            </div>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button type="button" class="btn-quick-remark group text-xs px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-600 transition flex items-center gap-1.5 font-medium active:scale-95">
+                                    <i class="bi bi-images text-slate-400 group-hover:text-rose-500"></i> Duplicate post or image
+                                </button>
+                                <button type="button" class="btn-quick-remark group text-xs px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-600 transition flex items-center gap-1.5 font-medium active:scale-95">
+                                    <i class="bi bi-shield-x text-slate-400 group-hover:text-rose-500"></i> Violates community guidelines
+                                </button>
+                                <button type="button" class="btn-quick-remark group text-xs px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-600 transition flex items-center gap-1.5 font-medium active:scale-95">
+                                    <i class="bi bi-exclamation-octagon text-slate-400 group-hover:text-rose-500"></i> Invalid activity submission
+                                </button>
+                                <button type="button" class="btn-quick-remark group text-xs px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-600 transition flex items-center gap-1.5 font-medium active:scale-95">
+                                    <i class="bi bi-info-circle text-slate-400 group-hover:text-rose-500"></i> Misleading details
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Modal Footer --}}
+                    <div class="bg-slate-50/90 px-6 py-3.5 border-t border-slate-100 flex items-center justify-between rounded-b-2xl">
+                        <div class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                            <i class="bi bi-shield-check text-emerald-500"></i>
+                            <span>Reversible anytime</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" class="btn-close-deactivate-modal px-3.5 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition focus-ring">
+                                Cancel
+                            </button>
+                            <button type="submit" id="btn_submit_deactivation" class="px-4 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-sm shadow-rose-600/25 active:scale-95 transition flex items-center gap-1.5 focus-ring">
+                                <i class="bi bi-shield-slash-fill"></i>
+                                <span>Confirm Deactivation</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('deactivatePostModal');
+        const form = document.getElementById('deactivatePostForm');
+        const remarksInput = document.getElementById('modal_deactivation_remarks');
+        const remarksError = document.getElementById('modal_remarks_error');
+        const charCounter = document.getElementById('char_counter');
+        const avatarEl = document.getElementById('modal_post_avatar');
+        const ownerEl = document.getElementById('modal_post_owner');
+        const companyEl = document.getElementById('modal_post_company');
+        const contentEl = document.getElementById('modal_post_content');
+        const dateEl = document.getElementById('modal_post_date');
+        const mediaContainer = document.getElementById('modal_post_media_container');
+        const mediaEl = document.getElementById('modal_post_media');
+
+        function updateCounter() {
+            const len = remarksInput.value.length;
+            charCounter.textContent = len + ' / 1000';
+            if (len >= 3) {
+                charCounter.classList.remove('text-slate-400', 'text-rose-500');
+                charCounter.classList.add('text-emerald-600');
+            } else {
+                charCounter.classList.remove('text-emerald-600');
+                charCounter.classList.add('text-slate-400');
+            }
+        }
+
+        remarksInput.addEventListener('input', function () {
+            updateCounter();
+            if (this.value.trim().length >= 3) {
+                remarksError.classList.add('hidden');
+            }
+        });
+
+        function openModal(btn) {
+            form.action = btn.getAttribute('data-action');
+            remarksInput.value = '';
+            remarksError.classList.add('hidden');
+            updateCounter();
+
+            ownerEl.textContent = btn.getAttribute('data-owner-name') || 'Unknown';
+            companyEl.textContent = btn.getAttribute('data-company') || '—';
+            contentEl.textContent = btn.getAttribute('data-content') || 'No caption';
+            dateEl.textContent = btn.getAttribute('data-date') || '—';
+
+            const initials = btn.getAttribute('data-owner-initials') || 'P';
+            const bg = btn.getAttribute('data-owner-bg') || '#6366f1';
+            avatarEl.textContent = initials;
+            avatarEl.style.backgroundColor = bg;
+
+            const mediaUrl = btn.getAttribute('data-media');
+            if (mediaUrl) {
+                mediaEl.src = mediaUrl;
+                mediaContainer.classList.remove('hidden');
+            } else {
+                mediaContainer.classList.add('hidden');
+                mediaEl.src = '';
+            }
+
+            modal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+            remarksInput.focus();
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        // Delegate click for open-modal buttons so dynamically refreshed rows still work
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-open-deactivate-modal');
+            if (btn) {
+                e.preventDefault();
+                openModal(btn);
+            }
+        });
+
+        document.querySelectorAll('.btn-close-deactivate-modal').forEach(btn => {
+            btn.addEventListener('click', closeModal);
+        });
+
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && ! modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
+
+        document.querySelectorAll('.btn-quick-remark').forEach(chip => {
+            chip.addEventListener('click', function () {
+                remarksInput.value = this.textContent.trim();
+                remarksError.classList.add('hidden');
+                updateCounter();
+                remarksInput.focus();
+            });
+        });
+
+        function renderSuccessAlert(message) {
+            const container = document.getElementById('flash-alert-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert" style="background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; border-left: 5px solid #198754; border-radius: 10px; padding: 13px 18px;">
+                        <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+                        <div class="text-sm font-semibold">${message}</div>
+                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+            }
+            const toast = document.getElementById('post-deactivate-toast');
+            const toastMsg = document.getElementById('post-deactivate-toast-msg');
+            if (toast && toastMsg) {
+                toastMsg.textContent = message;
+                toast.classList.remove('hidden');
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 8000);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Check if there is a pending flash message from deactivation reload
+        const storedFlash = sessionStorage.getItem('post_deactivation_success_flash');
+        if (storedFlash) {
+            sessionStorage.removeItem('post_deactivation_success_flash');
+            renderSuccessAlert(storedFlash);
+        } else {
+            const serverAlert = document.querySelector('#flash-alert-container .alert-success');
+            if (serverAlert) {
+                const toast = document.getElementById('post-deactivate-toast');
+                const toastMsg = document.getElementById('post-deactivate-toast-msg');
+                if (toast && toastMsg) {
+                    toastMsg.textContent = serverAlert.querySelector('.text-sm')?.textContent || 'Post deactivated successfully.';
+                    toast.classList.remove('hidden');
+                    setTimeout(() => {
+                        toast.classList.add('hidden');
+                    }, 8000);
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const val = remarksInput.value.trim();
+            if (! val || val.length < 3) {
+                remarksError.textContent = 'Please provide a reason with at least 3 characters.';
+                remarksError.classList.remove('hidden');
+                remarksInput.focus();
+                return false;
+            }
+            remarksError.classList.add('hidden');
+
+            const submitBtn = document.getElementById('btn_submit_deactivation');
+            const origContent = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Deactivating...';
+
+            const formData = new FormData(form);
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const token = csrfMeta ? csrfMeta.getAttribute('content') : (form.querySelector('input[name="_token"]')?.value || '');
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': token
+                },
+                body: formData
+            })
+            .then(async function (response) {
+                const data = await response.json().catch(function () { return {}; });
+                if (! response.ok) {
+                    throw new Error(data.message || (data.errors && Object.values(data.errors)[0] ? Object.values(data.errors)[0][0] : 'Failed to deactivate post.'));
+                }
+                return data;
+            })
+            .then(function (data) {
+                const successMsg = data.message || 'Post deactivated successfully.';
+                sessionStorage.setItem('post_deactivation_success_flash', successMsg);
+                closeModal();
+                window.location.reload();
+            })
+            .catch(function (err) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origContent;
+                remarksError.textContent = err.message || 'An unexpected error occurred while deactivating.';
+                remarksError.classList.remove('hidden');
+            });
+        });
+    });
+    </script>
 @endsection
 
