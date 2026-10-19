@@ -16,7 +16,7 @@ class LeadershipJuryAssignment extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_assignments';
+    protected $table = 'web_leadership_jury_assignments';
 
     protected $primaryKey = 'id';
 
@@ -46,6 +46,33 @@ class LeadershipJuryAssignment extends Model
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
+
+    protected $appends = [
+        'candidate_name',
+        'jury_name',
+        'deadline',
+        'campaign_id',
+    ];
+
+    public function getCandidateNameAttribute(): ?string
+    {
+        return $this->nomination?->candidate_name ?? $this->nomination?->full_name;
+    }
+
+    public function getJuryNameAttribute(): ?string
+    {
+        return $this->juror?->display_name ?? $this->juror?->name ?? $this->juror_user_id;
+    }
+
+    public function getDeadlineAttribute(): ?string
+    {
+        return $this->due_at?->toIso8601String();
+    }
+
+    public function getCampaignIdAttribute(): ?string
+    {
+        return $this->nomination?->campaign_id;
+    }
 
     protected static function booted(): void
     {

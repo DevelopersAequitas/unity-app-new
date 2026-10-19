@@ -15,7 +15,7 @@ class LeadershipCandidateResultToken extends Model
 
     public const UPDATED_AT = null;
 
-    protected $table = 'leadership_candidate_result_tokens';
+    protected $table = 'web_leadership_candidate_result_tokens';
 
     protected $primaryKey = 'id';
 

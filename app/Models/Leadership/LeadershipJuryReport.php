@@ -13,7 +13,7 @@ class LeadershipJuryReport extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_reports';
+    protected $table = 'web_leadership_jury_reports';
 
     protected $primaryKey = 'id';
 

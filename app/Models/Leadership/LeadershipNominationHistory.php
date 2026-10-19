@@ -16,7 +16,7 @@ class LeadershipNominationHistory extends Model
 
     public const UPDATED_AT = null;
 
-    protected $table = 'leadership_nomination_history';
+    protected $table = 'web_leadership_nomination_history';
 
     protected $primaryKey = 'id';
 
@@ -44,6 +44,14 @@ class LeadershipNominationHistory extends Model
         static::creating(function (self $model): void {
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
+            }
+
+            if (empty($model->previous_status)) {
+                $model->previous_status = 'submitted';
+            }
+
+            if (empty($model->new_status)) {
+                $model->new_status = 'shortlisted';
             }
         });
     }

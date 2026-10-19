@@ -1624,14 +1624,23 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::get('audit-logs/{id}', [AuditLogAdminController::class, 'show'])->whereUuid('id');
 });
 
-// Speed Networking Mobile API (Supports both /api/v1/speed-networking and /api/speed-networking)
+// Speed Networking Mobile API (Supports both /api/v1/speed-networking/events/... and /api/v1/events/{eventId}/speed-networking/...)
 foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
         Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
         Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
-        Route::post('events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
+        Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
+    });
+}
+
+foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networking'] as $prefix) {
+    Route::middleware('auth:sanctum')->prefix($prefix)->whereUuid('eventId')->group(function (): void {
+        Route::post('join', [SpeedNetworkingApiController::class, 'join']);
+        Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
+        Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
+        Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
     });
 }
 

@@ -14,7 +14,7 @@ class LeadershipFormSection extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_form_sections';
+    protected $table = 'web_leadership_form_sections';
 
     protected $primaryKey = 'id';
 

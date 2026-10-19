@@ -87,15 +87,17 @@ class AdminNominationService
                             $subQ->where('profile_snapshot->form_2_status', 'pending_submission')
                                 ->where('application_number', 'NOT LIKE', '%-F2%');
                         });
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                    $nomTable = (new LeadershipNomination)->getTable();
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                         $q->orWhere('form_type', 'sub_form_2');
                     }
                 });
             } else {
                 // Default to main_form_1: all primary website nominations
                 $query->where(function ($q): void {
+                    $nomTable = (new LeadershipNomination)->getTable();
                     $q->where('application_number', 'NOT LIKE', '%-F2%');
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                         $q->where(function ($sub): void {
                             $sub->where('form_type', 'main_form_1')
                                 ->orWhereNull('form_type');
@@ -157,6 +159,75 @@ class AdminNominationService
             ])
             ->withCount(['votes'])
             ->findOrFail($nominationId);
+
+        // Inherit or merge between parent and child -F2 records
+        if (str_ends_with((string) $nomination->application_number, '-F2')) {
+            $parentAppNum = substr((string) $nomination->application_number, 0, -3);
+            $parent = LeadershipNomination::with(['campaign.role', 'scope', 'answers.question', 'documents', 'history.actor'])->where('application_number', $parentAppNum)->first();
+            if ($parent) {
+                if ($nomination->answers->isEmpty() && $parent->answers->isNotEmpty()) {
+                    $nomination->setRelation('answers', $parent->answers);
+                }
+                if ($parent->documents->isNotEmpty()) {
+                    $allDocs = $nomination->documents->merge($parent->documents);
+                    $nomination->setRelation('documents', $allDocs);
+                }
+                if ($parent->history->isNotEmpty()) {
+                    $allHist = $nomination->history->merge($parent->history)->sortByDesc('created_at')->values();
+                    $nomination->setRelation('history', $allHist);
+                }
+                if (! $nomination->campaign_id && $parent->campaign_id) {
+                    $nomination->setRelation('campaign', $parent->campaign);
+                }
+            }
+        } else {
+            $child = LeadershipNomination::with(['documents', 'history.actor'])->where('application_number', $nomination->application_number.'-F2')->first();
+            if ($child) {
+                if ($child->documents->isNotEmpty()) {
+                    $allDocs = $nomination->documents->merge($child->documents);
+                    $nomination->setRelation('documents', $allDocs);
+                }
+                if ($child->history->isNotEmpty()) {
+                    $allHist = $nomination->history->merge($child->history)->sortByDesc('created_at')->values();
+                    $nomination->setRelation('history', $allHist);
+                }
+            }
+        }
+
+        // Synthesize Form 2 uploaded documents into documents relation if not already present as rows
+        $f2 = $nomination->form_2_data;
+        if (is_array($f2)) {
+            $existingUrls = $nomination->documents->pluck('file_url')->filter()->toArray();
+            $secA = $f2['section_a_business_credibility'] ?? $f2;
+            $secE = $f2['section_e_12_month_plan'] ?? $f2;
+            $secH = $f2['section_h_documents'] ?? $f2;
+
+            $f2DocMap = [
+                'Business Registration Proof (Form 2)' => $secA['registration_doc_url'] ?? $f2['business_proof_url'] ?? null,
+                'Identity Proof (Form 2)' => $secH['identity_proof_url'] ?? $f2['identity_proof_url'] ?? null,
+                '12-Month Leadership Presentation Deck (Form 2)' => $secE['deck_url'] ?? $f2['deck_url'] ?? null,
+            ];
+
+            $synthDocs = collect();
+            foreach ($f2DocMap as $label => $url) {
+                if ($url && ! in_array($url, $existingUrls, true)) {
+                    $doc = new LeadershipNominationDocument;
+                    $doc->id = (string) Str::uuid();
+                    $doc->nomination_id = $nomination->id;
+                    $doc->document_type = $label;
+                    $doc->original_filename = basename(parse_url((string) $url, PHP_URL_PATH) ?: 'document.pdf');
+                    $doc->storage_key = (string) $url;
+                    $doc->storage_disk = 'public';
+                    $doc->verification_status = 'verified';
+                    $doc->created_at = $nomination->submitted_at ?? Carbon::now();
+                    $synthDocs->push($doc);
+                }
+            }
+
+            if ($synthDocs->isNotEmpty()) {
+                $nomination->setRelation('documents', $nomination->documents->merge($synthDocs));
+            }
+        }
 
         return $nomination;
     }
@@ -501,7 +572,11 @@ class AdminNominationService
                         </p>
                     </div>";
 
+                    $fromAddr = (string) config('mail.from.address', 'support@peersglobal.com');
+                    $fromName = (string) config('mail.from.name', 'Peers Global Unity');
+
                     $message->to($nomination->email)
+                        ->from($fromAddr, $fromName)
                         ->subject("Your Nomination Request is Approved - Peers Global ({$appNumber})")
                         ->html($html);
                 });
@@ -644,10 +719,10 @@ class AdminNominationService
         LeadershipNominationHistory::create([
             'id' => (string) Str::uuid(),
             'nomination_id' => $nomination->id,
-            'actor_id' => $this->resolveValidUserId(Auth::id()),
+            'changed_by' => $this->resolveValidUserId(Auth::id()),
             'action' => 'proceed_to_jury',
-            'from_status' => $fromStatus,
-            'to_status' => 'shortlisted',
+            'previous_status' => $fromStatus ?: 'submitted',
+            'new_status' => 'shortlisted',
             'remarks' => $adminRemarks ?? 'Candidate proceeded to Jury Evaluation phase and Form 2 link dispatched.',
             'metadata' => [
                 'form_2_link' => $form2Link,
@@ -790,7 +865,11 @@ class AdminNominationService
                         </p>
                     </div>";
 
+                    $fromAddr = (string) config('mail.from.address', 'support@peersglobal.com');
+                    $fromName = (string) config('mail.from.name', 'Peers Global Unity');
+
                     $message->to($nomination->email)
+                        ->from($fromAddr, $fromName)
                         ->subject("Shortlisted: Please Complete Form 2 (Jury Evaluation Data) - Peers Global ({$appNumber})")
                         ->html($html);
                 });
@@ -846,7 +925,8 @@ class AdminNominationService
                 $subNomination->profile_snapshot = $f2Data;
                 $subNomination->status = 'submitted';
                 $subNomination->submitted_at = Carbon::now();
-                if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                $nomTable = (new LeadershipNomination)->getTable();
+                if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                     $subNomination->form_type = 'sub_form_2';
                 }
                 $subNomination->save();
@@ -863,7 +943,8 @@ class AdminNominationService
                 $subNomination->status = 'submitted';
                 $subNomination->submitted_at = Carbon::now();
                 $subNomination->profile_snapshot = $f2Data;
-                if (\Illuminate\Support\Facades\Schema::hasColumn('leadership_nominations', 'form_type')) {
+                $nomTable = (new LeadershipNomination)->getTable();
+                if (\Illuminate\Support\Facades\Schema::hasColumn($nomTable, 'form_type')) {
                     $subNomination->form_type = 'sub_form_2';
                 }
                 $subNomination->save();
@@ -882,10 +963,10 @@ class AdminNominationService
             LeadershipNominationHistory::create([
                 'id' => (string) Str::uuid(),
                 'nomination_id' => $nomination->id,
-                'actor_id' => $this->resolveValidUserId($nomination->user_id),
+                'changed_by' => $this->resolveValidUserId($nomination->user_id),
                 'action' => 'form_2_submitted',
-                'from_status' => $nomination->status,
-                'to_status' => $nomination->status,
+                'previous_status' => $nomination->status ?: 'shortlisted',
+                'new_status' => $nomination->status ?: 'shortlisted',
                 'remarks' => 'Nominee successfully submitted Form 2: Jury Evaluation Data Form.',
                 'metadata' => [
                     'sub_nomination_id' => $subNomination->id,

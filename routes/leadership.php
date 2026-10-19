@@ -57,14 +57,19 @@ Route::prefix('public')->group(function (): void {
     Route::post('campaigns/{id}/nominate', [NominationController::class, 'nominate'])->whereUuid('id');
     Route::post('nominations', [NominationController::class, 'nominate']);
     Route::get('nominations/{id}/form-2', [\App\Http\Controllers\LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
+    Route::get('public/nominations/{id}/form-2', [\App\Http\Controllers\LeadershipForm2Controller::class, 'apiDetails'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/verify-email', [\App\Http\Controllers\LeadershipForm2Controller::class, 'verifyEmail'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/upload', [\App\Http\Controllers\LeadershipForm2Controller::class, 'upload'])->whereUuid('id');
     Route::post('nominations/{id}/form-2/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
+    Route::post('public/nominations/{id}/form-2/submit', [\App\Http\Controllers\LeadershipForm2Controller::class, 'submit'])->whereUuid('id');
 
     // Module G: Public Voting & Private Results
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
     Route::get('campaigns/{id}/candidates/{candidateId}', [VotingController::class, 'candidateProfile'])->whereUuid('id')->whereUuid('candidateId');
     Route::post('votes', [VotingController::class, 'castVote']);
+    Route::post('public/votes', [VotingController::class, 'castVote']);
     Route::get('votes/{reference}', [VotingController::class, 'verifyReceipt']);
     Route::get('results', [VotingController::class, 'privateResults']);
 });
@@ -144,6 +149,7 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('nominations/{id}/request-correction', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
     Route::post('nominations/{id}/approve', [AdminNominationController::class, 'approve'])->whereUuid('id');
     Route::post('nominations/{id}/reject', [AdminNominationController::class, 'reject'])->whereUuid('id');
+    Route::delete('nominations/{id}', [AdminNominationController::class, 'destroy'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
     Route::post('nominations/{id}/send-approval-email', [AdminNominationController::class, 'sendApprovalEmail'])->whereUuid('id');
     Route::post('nominations/{id}/proceed-to-jury', [AdminNominationController::class, 'proceedToJury'])->whereUuid('id');
@@ -156,10 +162,23 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('campaigns/{id}/voting/results', [VotingController::class, 'results'])->whereUuid('id');
     Route::get('voting/campaigns/{id}/tally', [VotingController::class, 'results'])->whereUuid('id');
     Route::get('voting/campaigns/{id}/summary', [VotingController::class, 'results'])->whereUuid('id');
+    Route::get('voting/campaigns/{id}/votes', [VotingController::class, 'detailedVotes'])->whereUuid('id');
+    Route::get('campaigns/{id}/voting/votes', [VotingController::class, 'detailedVotes'])->whereUuid('id');
+    Route::get('voting/votes', [VotingController::class, 'detailedVotes']);
+    Route::get('voting/campaigns/{id}/export-votes', [VotingController::class, 'exportVotes'])->whereUuid('id');
+    Route::get('reports/export/votes/{campaignId}', [VotingController::class, 'exportVotes'])->whereUuid('campaignId');
     Route::post('nominations/{id}/results-link', [VotingController::class, 'generateResultLink'])->whereUuid('id');
     Route::post('voting/nominations/{id}/result-token', [VotingController::class, 'generateResultLink'])->whereUuid('id');
 
     // Module H: Admin Jury Management
+    Route::get('jury/assignments', [JuryAssignmentController::class, 'adminAssignments']);
+    Route::post('jury/assign', [JuryAssignmentController::class, 'adminAssign']);
+    Route::delete('jury/assignments/{id}', [JuryAssignmentController::class, 'adminDeleteAssignment'])->whereUuid('id');
+    Route::get('jury/criteria', [JuryAssignmentController::class, 'adminCriteria']);
+    Route::post('jury/criteria', [JuryAssignmentController::class, 'adminCreateCriterion']);
+    Route::put('jury/criteria/{id}', [JuryAssignmentController::class, 'adminUpdateCriterion'])->whereUuid('id');
+    Route::delete('jury/criteria/{id}', [JuryAssignmentController::class, 'adminDeleteCriterion'])->whereUuid('id');
+    Route::get('jury/reports/{campaignId}', [JuryAssignmentController::class, 'adminReport'])->whereUuid('campaignId');
     Route::get('jury/members', [JuryAssignmentController::class, 'members']);
     Route::post('nominations/{id}/jury-assignments', [JuryAssignmentController::class, 'assign'])->whereUuid('id');
     Route::get('nominations/{id}/jury-assignments', [JuryAssignmentController::class, 'candidateAssignments'])->whereUuid('id');

@@ -14,7 +14,7 @@ class LeadershipNotificationLog extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_notification_logs';
+    protected $table = 'web_leadership_notification_logs';
 
     protected $primaryKey = 'id';
 

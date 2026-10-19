@@ -13,7 +13,7 @@ class LeadershipJuryScore extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_scores';
+    protected $table = 'web_leadership_jury_scores';
 
     protected $primaryKey = 'id';
 

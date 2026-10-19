@@ -15,7 +15,7 @@ class LeadershipVoterVerification extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_voter_verifications';
+    protected $table = 'web_leadership_voter_verifications';
 
     protected $primaryKey = 'id';
 

@@ -14,7 +14,7 @@ class LeadershipFormQuestion extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_form_questions';
+    protected $table = 'web_leadership_form_questions';
 
     protected $primaryKey = 'id';
 

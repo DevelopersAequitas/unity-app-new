@@ -56,7 +56,8 @@ export const nominationApi = {
     approve: (id: string, admin_remarks?: string) =>
         apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/approve`, { admin_remarks }),
     reject: (id: string, rejection_reason: string) =>
-        apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { rejection_reason }),
+        apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { reason: rejection_reason, rejection_reason }),
+    delete: (id: string) => apiClient.delete<ApiResponse<any>>(`/admin/nominations/${id}`),
     shortlist: (id: string) => apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/shortlist`),
     sendApprovalEmail: (id: string) => apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/send-approval-email`),
     proceedToJury: (id: string, remarks?: string) =>
@@ -68,6 +69,11 @@ export const nominationApi = {
 export const votingApi = {
     getTally: (campaignId: string) => apiClient.get<ApiResponse<any>>(`/admin/voting/campaigns/${campaignId}/tally`),
     getSummary: (campaignId: string) => apiClient.get<ApiResponse<any>>(`/voting/campaigns/${campaignId}/summary`),
+    getDetailedVotes: (campaignId: string, params?: { nomination_id?: string; search?: string; page?: number; per_page?: number }) =>
+        apiClient.get<ApiResponse<{ data: any[]; total: number; current_page: number; last_page: number; per_page: number }>>(
+            `/admin/voting/campaigns/${campaignId}/votes`,
+            { params }
+        ),
     generateResultToken: (nominationId: string, expiresInDays?: number) =>
         apiClient.post<ApiResponse<any>>(`/admin/voting/nominations/${nominationId}/result-token`, { expires_in_days: expiresInDays }),
     revokeResultToken: (tokenId: string) =>

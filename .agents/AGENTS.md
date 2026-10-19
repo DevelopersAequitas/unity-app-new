@@ -19,6 +19,7 @@ You are an AI coding assistant (e.g. Antigravity) working on the **Unity App** r
         ```
     *   Generate UUIDs inside the `booted()` method's `creating` hook using `Str::uuid()`.
 *   **Routing Conventions:** Always define routes using the controller class reference. Restrict resource parameters to UUIDs by adding `->whereUuid('id')` to routes.
+*   **Table Naming for Website Features:** Any table used for website portal features MUST strictly contain the `web_` prefix (e.g., `web_leadership_nominations`, `web_leadership_campaigns`, `web_votes`, etc.) to distinguish website tables from mobile/core app tables. Never create website-related tables without the `web_` prefix.
 *   **Laravel Pint:** After writing or editing PHP files, always run `./vendor/bin/pint` to ensure code styling matches the project's formatting standard.
 
 ---

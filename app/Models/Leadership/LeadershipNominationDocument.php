@@ -14,7 +14,7 @@ class LeadershipNominationDocument extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_nomination_documents';
+    protected $table = 'web_leadership_nomination_documents';
 
     protected $primaryKey = 'id';
 
@@ -42,6 +42,35 @@ class LeadershipNominationDocument extends Model
         'file_size_bytes' => 'integer',
         'verified_at' => 'datetime',
     ];
+
+    protected $appends = [
+        'file_name',
+        'status',
+        'file_url',
+    ];
+
+    public function getFileNameAttribute(): string
+    {
+        return $this->original_filename ?? basename($this->storage_key ?? 'document');
+    }
+
+    public function getStatusAttribute(): string
+    {
+        return $this->verification_status ?? 'pending';
+    }
+
+    public function getFileUrlAttribute(): ?string
+    {
+        if (! empty($this->storage_key)) {
+            if (str_starts_with($this->storage_key, 'http://') || str_starts_with($this->storage_key, 'https://')) {
+                return $this->storage_key;
+            }
+
+            return \Illuminate\Support\Facades\Storage::disk($this->storage_disk ?? 'public')->url($this->storage_key);
+        }
+
+        return null;
+    }
 
     protected static function booted(): void
     {

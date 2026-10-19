@@ -14,7 +14,7 @@ class LeadershipJuryEvaluationCriterion extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_evaluation_criteria';
+    protected $table = 'web_leadership_jury_evaluation_criteria';
 
     protected $primaryKey = 'id';
 
@@ -42,6 +42,21 @@ class LeadershipJuryEvaluationCriterion extends Model
         'is_required' => 'boolean',
         'is_active' => 'boolean',
     ];
+
+    protected $appends = [
+        'category',
+        'weightage',
+    ];
+
+    public function getCategoryAttribute(): ?string
+    {
+        return $this->attributes['criterion_key'] ?? 'General';
+    }
+
+    public function getWeightageAttribute(): float
+    {
+        return (float) ($this->attributes['weight'] ?? 20.0);
+    }
 
     protected static function booted(): void
     {

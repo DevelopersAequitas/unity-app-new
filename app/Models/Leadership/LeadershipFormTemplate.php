@@ -15,7 +15,7 @@ class LeadershipFormTemplate extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_form_templates';
+    protected $table = 'web_leadership_form_templates';
 
     protected $primaryKey = 'id';
 
