@@ -80,16 +80,17 @@ class AdminNominationController extends LeadershipBaseController
      */
     public function requestChanges(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'remarks' => 'required|string',
-            'required_changes' => 'nullable|array',
-        ]);
+        $remarks = (string) ($request->input('remarks') ?? $request->input('correction_notes') ?? '');
+
+        if (trim($remarks) === '') {
+            return $this->error('The remarks/correction notes field is required.', 422);
+        }
 
         try {
             $nomination = $this->nominationService->requestChanges(
                 $id,
-                $validated['remarks'],
-                $validated['required_changes'] ?? [],
+                $remarks,
+                $request->input('required_changes') ?? [],
                 Auth::id()
             );
 
@@ -104,7 +105,7 @@ class AdminNominationController extends LeadershipBaseController
      */
     public function approve(Request $request, string $id): JsonResponse
     {
-        $remarks = (string) $request->input('remarks', '');
+        $remarks = (string) ($request->input('remarks') ?? $request->input('admin_remarks') ?? '');
 
         try {
             $nomination = $this->nominationService->approveNomination($id, $remarks, Auth::id());
@@ -120,20 +121,37 @@ class AdminNominationController extends LeadershipBaseController
      */
     public function reject(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'reason' => 'required|string',
-            'remarks' => 'nullable|string',
-        ]);
+        $reason = (string) ($request->input('reason') ?? $request->input('rejection_reason') ?? '');
+        $remarks = (string) ($request->input('remarks') ?? $request->input('admin_remarks') ?? '');
+
+        if (trim($reason) === '') {
+            return $this->error('The reason field is required.', 422);
+        }
 
         try {
             $nomination = $this->nominationService->rejectNomination(
                 $id,
-                $validated['reason'],
-                $validated['remarks'] ?? '',
+                $reason,
+                $remarks,
                 Auth::id()
             );
 
             return $this->success($nomination, 'Nomination rejected successfully.');
+        } catch (\Throwable $e) {
+            return $this->error($e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * Delete nomination permanently.
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            $nomination = \App\Models\Leadership\LeadershipNomination::findOrFail($id);
+            $nomination->delete();
+
+            return $this->success(null, 'Nomination deleted successfully.');
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 400);
         }
