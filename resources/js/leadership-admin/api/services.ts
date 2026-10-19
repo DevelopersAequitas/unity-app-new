@@ -68,6 +68,11 @@ export const nominationApi = {
 export const votingApi = {
     getTally: (campaignId: string) => apiClient.get<ApiResponse<any>>(`/admin/voting/campaigns/${campaignId}/tally`),
     getSummary: (campaignId: string) => apiClient.get<ApiResponse<any>>(`/voting/campaigns/${campaignId}/summary`),
+    getDetailedVotes: (campaignId: string, params?: { nomination_id?: string; search?: string; page?: number; per_page?: number }) =>
+        apiClient.get<ApiResponse<{ data: any[]; total: number; current_page: number; last_page: number; per_page: number }>>(
+            `/admin/voting/campaigns/${campaignId}/votes`,
+            { params }
+        ),
     generateResultToken: (nominationId: string, expiresInDays?: number) =>
         apiClient.post<ApiResponse<any>>(`/admin/voting/nominations/${nominationId}/result-token`, { expires_in_days: expiresInDays }),
     revokeResultToken: (tokenId: string) =>

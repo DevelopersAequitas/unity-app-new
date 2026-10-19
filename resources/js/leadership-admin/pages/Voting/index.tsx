@@ -2,7 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { votingApi, campaignApi, reportApi } from '../../api/services';
 import { Campaign } from '../../types';
 import { StatusBadge } from '../../components/common/Badge';
-import { Vote, Users, ExternalLink, Copy, Check, Download, AlertCircle, RefreshCw } from 'lucide-react';
+import {
+    Vote,
+    Users,
+    ExternalLink,
+    Copy,
+    Check,
+    Download,
+    AlertCircle,
+    RefreshCw,
+    Search,
+    Filter,
+    Mail,
+    Phone,
+    MapPin,
+    Building,
+    Calendar,
+    ShieldCheck,
+    Globe,
+    ChevronLeft,
+    ChevronRight,
+} from 'lucide-react';
 
 interface CandidateVoteTally {
     nomination_id: string;
@@ -12,6 +32,24 @@ interface CandidateVoteTally {
     vote_count: number;
     result_token?: string;
     token_status?: string;
+}
+
+interface DetailedVote {
+    id: string;
+    vote_reference: string;
+    campaign_id?: string;
+    nomination_id?: string;
+    candidate_name: string;
+    candidate_email?: string;
+    voter_name: string;
+    voter_email: string;
+    voter_phone?: string;
+    voter_company?: string;
+    voter_designation?: string;
+    voter_city?: string;
+    support_reason?: string;
+    created_at_human?: string;
+    channel: 'Website' | 'App';
 }
 
 export const VotingPage: React.FC = () => {
@@ -24,6 +62,15 @@ export const VotingPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [copiedToken, setCopiedToken] = useState<string | null>(null);
     const [isGeneratingToken, setIsGeneratingToken] = useState<string | null>(null);
+
+    // Detailed Voter Audit State ("Who Voted Whom")
+    const [votes, setVotes] = useState<DetailedVote[]>([]);
+    const [votesTotal, setVotesTotal] = useState<number>(0);
+    const [votesPage, setVotesPage] = useState<number>(1);
+    const [votesLastPage, setVotesLastPage] = useState<number>(1);
+    const [isVotesLoading, setIsVotesLoading] = useState<boolean>(false);
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [selectedNomineeFilter, setSelectedNomineeFilter] = useState<string>('');
 
     const loadCampaigns = async () => {
         try {
@@ -55,6 +102,28 @@ export const VotingPage: React.FC = () => {
         }
     };
 
+    const loadDetailedVotes = async (campaignId: string, page = 1, search = '', nominationId = '') => {
+        if (!campaignId) return;
+        setIsVotesLoading(true);
+        try {
+            const res = await votingApi.getDetailedVotes(campaignId, {
+                page,
+                per_page: 15,
+                search: search.trim() || undefined,
+                nomination_id: nominationId || undefined,
+            });
+            const data = res.data.data || {};
+            setVotes(data.data || []);
+            setVotesTotal(data.total || 0);
+            setVotesPage(data.current_page || 1);
+            setVotesLastPage(data.last_page || 1);
+        } catch {
+            // Keep existing votes if error
+        } finally {
+            setIsVotesLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadCampaigns();
     }, []);
@@ -62,13 +131,31 @@ export const VotingPage: React.FC = () => {
     useEffect(() => {
         if (selectedCampaignId) {
             loadTally(selectedCampaignId);
+            loadDetailedVotes(selectedCampaignId, 1, searchQuery, selectedNomineeFilter);
         }
     }, [selectedCampaignId]);
+
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        loadDetailedVotes(selectedCampaignId, 1, searchQuery, selectedNomineeFilter);
+    };
+
+    const handleNomineeFilterChange = (nomId: string) => {
+        setSelectedNomineeFilter(nomId);
+        loadDetailedVotes(selectedCampaignId, 1, searchQuery, nomId);
+    };
+
+    const handleRefreshAll = () => {
+        if (selectedCampaignId) {
+            loadTally(selectedCampaignId);
+            loadDetailedVotes(selectedCampaignId, votesPage, searchQuery, selectedNomineeFilter);
+        }
+    };
 
     const handleGenerateResultLink = async (nominationId: string) => {
         setIsGeneratingToken(nominationId);
         try {
-            const res = await votingApi.generateResultToken(nominationId, 30);
+            await votingApi.generateResultToken(nominationId, 30);
             await loadTally(selectedCampaignId);
         } catch (err: any) {
             alert(err?.response?.data?.message || 'Failed to generate candidate result link.');
@@ -93,7 +180,7 @@ export const VotingPage: React.FC = () => {
                 <div>
                     <h1 className="h4 fw-bold text-dark mb-0 tracking-tight">Voting Management</h1>
                     <p className="text-muted small mb-0 mt-0.5">
-                        Real-time duplicate-resistant public voting tally, verified audit counters, and private candidate scorecard access
+                        Real-time duplicate-resistant public voting tally, voter verification records, and candidate scorecard access
                     </p>
                 </div>
                 <div className="d-flex align-items-center gap-2">
@@ -107,11 +194,11 @@ export const VotingPage: React.FC = () => {
                         </a>
                     )}
                     <button
-                        onClick={() => loadTally(selectedCampaignId)}
-                        disabled={isLoading}
+                        onClick={handleRefreshAll}
+                        disabled={isLoading || isVotesLoading}
                         className="btn btn-light border btn-sm rounded-3 px-3 py-2 d-flex align-items-center gap-1.5 shadow-xs"
                     >
-                        <RefreshCw size={14} className={isLoading ? 'spinner-border spinner-border-sm' : ''} /> Refresh Tally
+                        <RefreshCw size={14} className={isLoading || isVotesLoading ? 'spinner-border spinner-border-sm' : ''} /> Refresh Data
                     </button>
                 </div>
             </div>
@@ -167,10 +254,15 @@ export const VotingPage: React.FC = () => {
             </div>
 
             {/* Candidate Vote Tally Table */}
-            <div className="card border-0 shadow-xs rounded-4 bg-white p-4">
+            <div className="card border-0 shadow-xs rounded-4 bg-white p-4 mb-4">
                 <div className="d-flex align-items-center justify-content-between mb-3">
-                    <h5 className="fw-bold text-dark mb-0">Live Candidate Scorecard</h5>
-                    <span className="text-muted small">Privacy Notice: Voter phone numbers and identities are protected.</span>
+                    <div>
+                        <h5 className="fw-bold text-dark mb-0">Live Candidate Scorecard</h5>
+                        <p className="text-muted small mb-0">Summary tally per nominee with percentage share and private links</p>
+                    </div>
+                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1.5 rounded-pill small">
+                        {tallies.length} Nominees Active
+                    </span>
                 </div>
 
                 <div className="table-responsive">
@@ -268,6 +360,209 @@ export const VotingPage: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Detailed Voter Audit Table ("Who Voted Whom") */}
+            <div className="card border-0 shadow-xs rounded-4 bg-white p-4">
+                <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
+                    <div>
+                        <div className="d-flex align-items-center gap-2">
+                            <h5 className="fw-bold text-dark mb-0">Voter Audit Log (Who Voted Whom)</h5>
+                            <span className="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 rounded-pill small">
+                                {votesTotal} Recorded Votes
+                            </span>
+                        </div>
+                        <p className="text-muted small mb-0 mt-0.5">
+                            Individual verified vote transactions including voter identity, nominee selected, reason, and reference ID
+                        </p>
+                    </div>
+
+                    {/* Filter & Search Controls */}
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                        {/* Nominee Filter Dropdown */}
+                        <div className="d-flex align-items-center gap-1">
+                            <Filter size={14} className="text-muted" />
+                            <select
+                                className="form-select form-select-sm rounded-3"
+                                style={{ minWidth: '160px' }}
+                                value={selectedNomineeFilter}
+                                onChange={(e) => handleNomineeFilterChange(e.target.value)}
+                            >
+                                <option value="">All Nominees</option>
+                                {tallies.map((t) => (
+                                    <option key={t.nomination_id} value={t.nomination_id}>
+                                        {t.candidate_name} ({t.vote_count} votes)
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Search Input */}
+                        <form onSubmit={handleSearchSubmit} className="d-flex align-items-center gap-1">
+                            <div className="input-group input-group-sm">
+                                <span className="input-group-text bg-light border-end-0 rounded-start-3">
+                                    <Search size={14} className="text-muted" />
+                                </span>
+                                <input
+                                    type="text"
+                                    className="form-control border-start-0 ps-0"
+                                    placeholder="Search voter, email, city..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                            <button type="submit" className="btn btn-sm btn-primary rounded-3 px-3">
+                                Search
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                            <tr>
+                                <th>Voter Information</th>
+                                <th>Organization / City</th>
+                                <th>Nominee Voted For</th>
+                                <th>Endorsement Reason</th>
+                                <th>Reference Code</th>
+                                <th>Channel</th>
+                                <th>Voted At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isVotesLoading ? (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-5 text-muted">
+                                        <div className="spinner-border spinner-border-sm text-primary me-2"></div>
+                                        Loading voter audit entries...
+                                    </td>
+                                </tr>
+                            ) : votes.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-5 text-muted">
+                                        <div className="mb-2">
+                                            <Vote size={32} className="text-muted opacity-50" />
+                                        </div>
+                                        No voter records found matching the current filters.
+                                    </td>
+                                </tr>
+                            ) : (
+                                votes.map((v) => (
+                                    <tr key={v.id || v.vote_reference}>
+                                        <td>
+                                            <div className="fw-semibold text-dark">{v.voter_name}</div>
+                                            <div className="d-flex flex-column gap-0.5 mt-0.5">
+                                                {v.voter_email && (
+                                                    <span className="small text-muted d-flex align-items-center gap-1">
+                                                        <Mail size={12} className="text-muted" /> {v.voter_email}
+                                                    </span>
+                                                )}
+                                                {v.voter_phone && (
+                                                    <span className="small text-muted d-flex align-items-center gap-1">
+                                                        <Phone size={12} className="text-muted" /> {v.voter_phone}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {v.voter_company || v.voter_designation ? (
+                                                <div className="d-flex align-items-center gap-1.5 text-dark small fw-medium">
+                                                    <Building size={13} className="text-muted flex-shrink-0" />
+                                                    <span>
+                                                        {v.voter_designation ? `${v.voter_designation}, ` : ''}
+                                                        {v.voter_company}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted small">-</span>
+                                            )}
+                                            {v.voter_city && (
+                                                <div className="mt-1">
+                                                    <span className="badge bg-light text-secondary border small px-2 py-0.5 rounded-pill d-inline-flex align-items-center gap-1">
+                                                        <MapPin size={10} /> {v.voter_city}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <div className="d-inline-flex flex-column">
+                                                <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 rounded-pill fw-semibold text-start">
+                                                    {v.candidate_name}
+                                                </span>
+                                                {v.candidate_email && (
+                                                    <span className="small text-muted mt-1" style={{ fontSize: '11px' }}>
+                                                        {v.candidate_email}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td style={{ maxWidth: '240px' }}>
+                                            {v.support_reason ? (
+                                                <p className="small text-dark mb-0 fst-italic text-truncate" title={v.support_reason}>
+                                                    "{v.support_reason}"
+                                                </p>
+                                            ) : (
+                                                <span className="text-muted small">-</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span className="font-monospace small bg-light border px-2 py-1 rounded-2 text-dark">
+                                                {v.vote_reference}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span
+                                                className={`badge ${
+                                                    v.channel === 'Website'
+                                                        ? 'bg-info-subtle text-info border border-info-subtle'
+                                                        : 'bg-secondary-subtle text-secondary border'
+                                                } rounded-pill px-2 py-0.5 small d-inline-flex align-items-center gap-1`}
+                                            >
+                                                {v.channel === 'Website' ? <Globe size={11} /> : <Users size={11} />}
+                                                {v.channel}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="small text-muted d-flex align-items-center gap-1">
+                                                <Calendar size={12} /> {v.created_at_human || '-'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {votesLastPage > 1 && (
+                    <div className="d-flex align-items-center justify-content-between pt-3 border-top mt-3">
+                        <span className="text-muted small">
+                            Showing {(votesPage - 1) * 15 + 1} to {Math.min(votesPage * 15, votesTotal)} of {votesTotal} records
+                        </span>
+                        <div className="d-flex align-items-center gap-2">
+                            <button
+                                className="btn btn-outline-secondary btn-sm rounded-3 px-2.5 py-1 d-flex align-items-center gap-1"
+                                disabled={votesPage <= 1 || isVotesLoading}
+                                onClick={() => loadDetailedVotes(selectedCampaignId, votesPage - 1, searchQuery, selectedNomineeFilter)}
+                            >
+                                <ChevronLeft size={14} /> Previous
+                            </button>
+                            <span className="small text-muted px-2">
+                                Page {votesPage} of {votesLastPage}
+                            </span>
+                            <button
+                                className="btn btn-outline-secondary btn-sm rounded-3 px-2.5 py-1 d-flex align-items-center gap-1"
+                                disabled={votesPage >= votesLastPage || isVotesLoading}
+                                onClick={() => loadDetailedVotes(selectedCampaignId, votesPage + 1, searchQuery, selectedNomineeFilter)}
+                            >
+                                Next <ChevronRight size={14} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

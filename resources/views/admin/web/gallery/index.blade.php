@@ -58,101 +58,45 @@
 
     {{-- KPI Summary Cards --}}
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-6">
             <div class="card border-0 shadow-xs rounded-4 p-3 bg-white h-100">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem;">TOTAL MOMENTS</span>
-                    <div class="p-2 rounded-3" style="background: rgba(6, 182, 212, 0.1); color: #0891b2;">
-                        <i class="bi bi-camera-fill"></i>
+                    <span class="text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem;">TOTAL PHOTOS</span>
+                    <div class="p-2 rounded-3" style="background: rgba(0, 98, 210, 0.1); color: #0062D2;">
+                        <i class="bi bi-images"></i>
                     </div>
                 </div>
                 <div class="h3 fw-bold text-dark mb-0">{{ $items->total() }}</div>
-                <div class="text-muted small mt-1">Photos in gallery repository</div>
+                <div class="text-muted small mt-1">Uploaded in gallery collection</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-6">
             <div class="card border-0 shadow-xs rounded-4 p-3 bg-white h-100">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem;">ACTIVE ON SITE</span>
+                    <span class="text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem;">LIVE ON WEBSITE</span>
                     <div class="p-2 rounded-3" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
-                        <i class="bi bi-check2-circle"></i>
+                        <i class="bi bi-broadcast-pin"></i>
                     </div>
                 </div>
                 <div class="h3 fw-bold text-dark mb-0">{{ $stats['active'] }}</div>
-                <div class="text-muted small mt-1">Live in website frontend</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-xs rounded-4 p-3 bg-white h-100">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem;">CITIES COVERED</span>
-                    <div class="p-2 rounded-3" style="background: rgba(99, 102, 241, 0.1); color: #6366f1;">
-                        <i class="bi bi-geo-alt-fill"></i>
-                    </div>
-                </div>
-                <div class="h3 fw-bold text-dark mb-0">{{ $stats['cities'] }}</div>
-                <div class="text-muted small mt-1">Chapters & industrial hubs</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-xs rounded-4 p-3 bg-white h-100">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-uppercase tracking-wider text-muted fw-bold" style="font-size: 0.68rem;">EVENT CATEGORIES</span>
-                    <div class="p-2 rounded-3" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
-                        <i class="bi bi-tags-fill"></i>
-                    </div>
-                </div>
-                <div class="h3 fw-bold text-dark mb-0">{{ $stats['categories'] }}</div>
-                <div class="text-muted small mt-1">Summits, circles, conclaves</div>
+                <div class="text-muted small mt-1">Published and visible on live website</div>
             </div>
         </div>
     </div>
 
-    {{-- Filter Bar (Matching live website filters) --}}
+    {{-- Search & Filter Bar --}}
     <div class="card border-0 shadow-xs rounded-4 p-3 bg-white mb-4">
         <form method="GET" action="{{ route('admin.web.gallery.index') }}" class="row g-2 align-items-center">
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-10">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" name="search" value="{{ request('search') }}" class="form-control bg-light border-start-0" placeholder="Search title, city, caption...">
+                    <input type="text" name="search" value="{{ request('search') }}" class="form-control bg-light border-start-0" placeholder="Search photos by caption or keyword...">
                 </div>
             </div>
-            <div class="col-6 col-md-2">
-                <select name="city" class="form-select form-select-sm bg-light" onchange="this.form.submit()">
-                    <option value="all" @selected(request('city') === 'all' || !request('city'))>All Cities</option>
-                    @foreach($cities as $c)
-                        <option value="{{ $c }}" @selected(request('city') === $c)>{{ $c }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select name="circle" class="form-select form-select-sm bg-light" onchange="this.form.submit()">
-                    <option value="all" @selected(request('circle') === 'all' || !request('circle'))>All Circles</option>
-                    @foreach($circles as $cir)
-                        <option value="{{ $cir }}" @selected(request('circle') === $cir)>{{ $cir }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select name="category" class="form-select form-select-sm bg-light" onchange="this.form.submit()">
-                    <option value="all" @selected(request('category') === 'all' || !request('category'))>All Categories</option>
-                    @foreach($categories as $cat)
-                        <option value="{{ $cat }}" @selected(request('category') === $cat)>{{ $cat }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select name="year" class="form-select form-select-sm bg-light" onchange="this.form.submit()">
-                    <option value="all" @selected(request('year') === 'all' || !request('year'))>All Years</option>
-                    @foreach($years as $y)
-                        <option value="{{ $y }}" @selected(request('year') === $y)>{{ $y }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-12 col-md-1 d-flex gap-1">
-                <button type="submit" class="btn btn-primary btn-sm w-100 fw-semibold" title="Filter"><i class="bi bi-funnel-fill"></i></button>
-                @if(request()->anyFilled(['search', 'city', 'circle', 'category', 'year']))
-                    <a href="{{ route('admin.web.gallery.index') }}" class="btn btn-light border btn-sm text-secondary" title="Reset Filters"><i class="bi bi-arrow-counterclockwise"></i></a>
+            <div class="col-12 col-md-2 d-flex gap-1">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1 fw-semibold"><i class="bi bi-search me-1"></i> Search</button>
+                @if(request()->filled('search'))
+                    <a href="{{ route('admin.web.gallery.index') }}" class="btn btn-light border btn-sm text-secondary" title="Reset Search"><i class="bi bi-arrow-counterclockwise"></i></a>
                 @endif
             </div>
         </form>
@@ -167,33 +111,23 @@
                         
                         {{-- Photo Container --}}
                         <div class="position-relative overflow-hidden bg-dark" style="height: 220px;">
-                            <img src="{{ $item->image_url }}" alt="{{ $item->title }}" class="w-100 h-100 object-fit-cover transition" style="transition: transform 0.4s ease;" onerror="this.src='/images/avatar-placeholder.png'">
-                            
-                            {{-- Badges Overlay --}}
-                            <div class="position-absolute top-0 start-0 w-100 p-2.5 d-flex justify-content-between align-items-center" style="background: linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 100%);">
-                                <span class="badge rounded-pill px-2.5 py-1 text-uppercase font-monospace shadow-xs" style="background: #0891b2; font-size: 0.68rem; letter-spacing: 0.04em;">
-                                    {{ $item->category }}
-                                </span>
-                                <span class="badge bg-dark bg-opacity-75 rounded-pill px-2.5 py-1 font-monospace text-white border border-light border-opacity-25" style="font-size: 0.68rem;">
-                                    {{ $item->year }}
-                                </span>
-                            </div>
+                            <img src="{{ $item->image_url }}" alt="{{ $item->caption ?: 'Gallery Photo' }}" class="w-100 h-100 object-fit-cover transition" style="transition: transform 0.4s ease;" onerror="this.src='/images/avatar-placeholder.png'">
 
                             {{-- Status Badge --}}
                             <div class="position-absolute bottom-0 start-0 p-2">
                                 @if($item->is_active)
-                                    <span class="badge bg-success bg-opacity-90 rounded-pill px-2 py-0.5 small shadow-sm">
+                                    <span class="badge bg-success bg-opacity-90 rounded-pill px-2.5 py-1 small shadow-sm">
                                         <i class="bi bi-check-circle-fill me-1"></i> Live
                                     </span>
                                 @else
-                                    <span class="badge bg-secondary bg-opacity-90 rounded-pill px-2 py-0.5 small shadow-sm">
+                                    <span class="badge bg-secondary bg-opacity-90 rounded-pill px-2.5 py-1 small shadow-sm">
                                         <i class="bi bi-eye-slash-fill me-1"></i> Draft
                                     </span>
                                 @endif
                             </div>
 
                             {{-- Quick Preview Button --}}
-                            <button type="button" class="btn btn-sm btn-light bg-white bg-opacity-90 rounded-circle position-absolute bottom-0 end-0 m-2 shadow-sm" style="width: 32px; height: 32px; padding: 0;" onclick="openPreviewModal('{{ $item->image_url }}', '{{ addslashes($item->title) }}', '{{ addslashes($item->caption ?? '') }}', '{{ $item->category }}', '{{ $item->city }}', '{{ $item->year }}')" title="Zoom Photo">
+                            <button type="button" class="btn btn-sm btn-light bg-white bg-opacity-90 rounded-circle position-absolute bottom-0 end-0 m-2 shadow-sm" style="width: 32px; height: 32px; padding: 0;" onclick="openPreviewModal('{{ $item->image_url }}', '{{ addslashes($item->caption ?? '') }}')" title="Zoom Photo">
                                 <i class="bi bi-arrows-fullscreen small"></i>
                             </button>
                         </div>
@@ -201,24 +135,20 @@
                         {{-- Details Body --}}
                         <div class="p-3.5 d-flex flex-column flex-grow-1 justify-content-between">
                             <div>
-                                <div class="d-flex align-items-center gap-2 text-muted small mb-1.5 font-monospace" style="font-size: 0.73rem;">
-                                    <span><i class="bi bi-geo-alt me-1 text-danger"></i>{{ $item->city }}</span>
-                                    <span>•</span>
-                                    <span><i class="bi bi-people me-1 text-primary"></i>{{ $item->circle }}</span>
-                                </div>
-
-                                <h3 class="h6 fw-bold text-dark mb-1 line-clamp-2" title="{{ $item->title }}">{{ $item->title }}</h3>
-
                                 @if($item->caption)
-                                    <p class="text-muted small mb-3 line-clamp-2" style="font-size: 0.8rem; line-height: 1.45;" title="{{ $item->caption }}">{{ $item->caption }}</p>
+                                    <p class="text-dark fw-medium small mb-2 line-clamp-3" style="font-size: 0.88rem; line-height: 1.5;" title="{{ $item->caption }}">
+                                        {{ $item->caption }}
+                                    </p>
                                 @else
-                                    <p class="text-muted fst-italic small mb-3" style="font-size: 0.78rem;">No caption added.</p>
+                                    <p class="text-muted fst-italic small mb-2" style="font-size: 0.82rem;">No caption added.</p>
                                 @endif
                             </div>
 
                             {{-- Actions Footer --}}
                             <div class="d-flex align-items-center justify-content-between pt-2.5 border-top">
-                                <span class="text-muted font-monospace" style="font-size: 0.72rem;">Order: #{{ $item->sort_order }}</span>
+                                <span class="text-muted font-monospace" style="font-size: 0.72rem;">
+                                    {{ $item->created_at ? $item->created_at->format('M d, Y') : '' }}
+                                </span>
                                 
                                 <div class="d-flex align-items-center gap-1.5">
                                     {{-- Toggle Status --}}
@@ -231,12 +161,12 @@
                                     </form>
 
                                     {{-- Edit Button --}}
-                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1" style="font-size: 0.75rem;" onclick='openEditGalleryModal(@json($item))' title="Edit Moment">
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1" style="font-size: 0.75rem;" onclick='openEditGalleryModal(@json($item))' title="Edit Photo">
                                         <i class="bi bi-pencil-fill"></i> Edit
                                     </button>
 
                                     {{-- Delete Button --}}
-                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1" style="font-size: 0.75rem;" onclick="confirmDeleteGallery('{{ $item->id }}', '{{ addslashes($item->title) }}')" title="Delete Photo">
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1" style="font-size: 0.75rem;" onclick="confirmDeleteGallery('{{ $item->id }}', '{{ addslashes($item->caption ?: 'this photo') }}')" title="Delete Photo">
                                         <i class="bi bi-trash-fill"></i>
                                     </button>
                                 </div>
@@ -274,7 +204,7 @@
 
 {{-- Add / Edit Gallery Modal --}}
 <div class="modal fade" id="galleryModal" tabindex="-1" aria-labelledby="galleryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-md modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <form id="galleryForm" method="POST" action="{{ route('admin.web.gallery.store') }}" enctype="multipart/form-data">
                 @csrf
@@ -283,11 +213,11 @@
                 <div class="modal-header border-bottom p-4 bg-light bg-opacity-50">
                     <div class="d-flex align-items-center gap-2">
                         <div class="p-2 rounded-3 bg-primary text-white shadow-xs">
-                            <i class="bi bi-image"></i>
+                            <i class="bi bi-cloud-arrow-up-fill"></i>
                         </div>
                         <div>
-                            <h5 class="modal-title fw-bold text-dark mb-0" id="galleryModalLabel">Add Gallery Photo</h5>
-                            <p class="text-muted small mb-0">Upload a moment photo for the website gallery grid</p>
+                            <h5 class="modal-title fw-bold text-dark mb-0" id="galleryModalLabel">Upload Photo</h5>
+                            <p class="text-muted small mb-0">Upload an image or provide an image link for the gallery</p>
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -295,83 +225,43 @@
 
                 <div class="modal-body p-4">
                     <div class="row g-3">
-                        {{-- Title --}}
+                        {{-- Photo File Upload Button --}}
                         <div class="col-12">
-                            <label class="form-label fw-semibold text-dark small mb-1">Moment Title <span class="text-danger">*</span></label>
-                            <input type="text" name="title" id="gallery_title" class="form-control rounded-3" placeholder="e.g. National Leadership Conclave Opening" required>
-                        </div>
-
-                        {{-- Category & Year --}}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Event Category <span class="text-danger">*</span></label>
-                            <select name="category" id="gallery_category" class="form-select rounded-3" required>
-                                @foreach($categories as $cat)
-                                    <option value="{{ $cat }}">{{ $cat }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Year <span class="text-danger">*</span></label>
-                            <select name="year" id="gallery_year" class="form-select rounded-3" required>
-                                @foreach($years as $y)
-                                    <option value="{{ $y }}">{{ $y }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        {{-- City & Circle --}}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">City <span class="text-danger">*</span></label>
-                            <input type="text" name="city" id="gallery_city" class="form-control rounded-3" list="citiesList" placeholder="e.g. Ahmedabad, Mumbai, Surat..." required>
-                            <datalist id="citiesList">
-                                @foreach($cities as $c)
-                                    <option value="{{ $c }}"></option>
-                                @endforeach
-                            </datalist>
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Circle / Chapter <span class="text-danger">*</span></label>
-                            <input type="text" name="circle" id="gallery_circle" class="form-control rounded-3" list="circlesList" placeholder="e.g. All Circles, Logistics Circle..." required>
-                            <datalist id="circlesList">
-                                @foreach($circles as $cir)
-                                    <option value="{{ $cir }}"></option>
-                                @endforeach
-                            </datalist>
-                        </div>
-
-                        {{-- Photo File Upload --}}
-                        <div class="col-12">
-                            <label class="form-label fw-semibold text-dark small mb-1">Photo Upload (JPG, PNG, WebP — Max 10MB)</label>
+                            <label class="form-label fw-semibold text-dark small mb-1">
+                                <i class="bi bi-image me-1 text-primary"></i> Upload Photo (Choose File)
+                            </label>
                             <input type="file" name="image" id="gallery_image" class="form-control rounded-3" accept="image/*" onchange="previewSelectedImage(this)">
-                            <div class="form-text small">Recommended resolution: 1200x800px or 16:9 aspect ratio.</div>
+                            <div class="form-text small">JPG, PNG, WebP or GIF — Max 10MB</div>
 
                             <div id="imagePreviewContainer" class="mt-2 text-center p-2 border rounded-3 bg-light d-none">
-                                <img id="imagePreview" src="" alt="Preview" class="rounded-2" style="max-height: 180px; object-fit: cover;">
+                                <img id="imagePreview" src="" alt="Preview" class="rounded-2" style="max-height: 200px; max-width: 100%; object-fit: contain;">
                             </div>
                         </div>
 
                         {{-- Image URL (Alternative) --}}
                         <div class="col-12">
-                            <label class="form-label fw-semibold text-dark small mb-1">Or Direct Image URL (Optional)</label>
-                            <input type="text" name="image_url" id="gallery_image_url" class="form-control rounded-3" placeholder="https://... or /images/section_image/...">
+                            <label class="form-label fw-semibold text-dark small mb-1">
+                                <i class="bi bi-link-45deg me-1 text-secondary"></i> Or Image URL <span class="text-muted fw-normal">(If hosted elsewhere)</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text" name="image_url" id="gallery_image_url" class="form-control rounded-start-3" placeholder="https://... or /images/..." oninput="previewUrlImage(this.value)">
+                                <button type="button" class="btn btn-outline-secondary btn-sm px-3 rounded-end-3" onclick="previewUrlImage(document.getElementById('gallery_image_url').value)">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
                         </div>
 
-                        {{-- Caption --}}
+                        {{-- Caption (Optional) --}}
                         <div class="col-12">
-                            <label class="form-label fw-semibold text-dark small mb-1">Caption / Story Description</label>
-                            <textarea name="caption" id="gallery_caption" rows="3" class="form-control rounded-3" placeholder="Brief 1-2 sentence context about what happened in this moment..."></textarea>
+                            <label class="form-label fw-semibold text-dark small mb-1">
+                                <i class="bi bi-chat-left-text me-1 text-muted"></i> Caption <span class="text-muted fw-normal">(Optional)</span>
+                            </label>
+                            <textarea name="caption" id="gallery_caption" rows="3" class="form-control rounded-3" placeholder="Brief 1-2 sentence caption or story description (not required)..."></textarea>
                         </div>
 
-                        {{-- Sort Order & Status --}}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Sort Order</label>
-                            <input type="number" name="sort_order" id="gallery_sort_order" class="form-control rounded-3" value="0" min="0">
-                        </div>
-
-                        <div class="col-12 col-md-6 d-flex align-items-center pt-md-4">
-                            <div class="form-check form-switch">
+                        {{-- Publish Immediately Toggle --}}
+                        <div class="col-12 pt-2 border-top">
+                            <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" name="is_active" id="gallery_is_active" value="1" checked>
                                 <label class="form-check-label fw-semibold text-dark small" for="gallery_is_active">Publish immediately on website</label>
                             </div>
@@ -381,7 +271,9 @@
 
                 <div class="modal-footer border-top p-3 bg-light bg-opacity-50">
                     <button type="button" class="btn btn-light rounded-3 px-3 py-2 fw-semibold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold" id="gallerySubmitBtn">Save Gallery Photo</button>
+                    <button type="submit" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold" id="gallerySubmitBtn">
+                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Save Photo
+                    </button>
                 </div>
             </form>
         </div>
@@ -394,16 +286,10 @@
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden bg-dark text-white">
             <div class="position-relative">
                 <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3 z-3" data-bs-dismiss="modal" aria-label="Close"></button>
-                <img id="lightboxImage" src="" alt="Full Moment" class="w-100" style="max-height: 550px; object-fit: contain; background: #000;">
+                <img id="lightboxImage" src="" alt="Full Photo" class="w-100" style="max-height: 550px; object-fit: contain; background: #000;">
             </div>
-            <div class="p-3.5 bg-dark border-top border-secondary border-opacity-25">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <span id="lightboxCategory" class="badge bg-info text-dark rounded-pill"></span>
-                    <span id="lightboxCity" class="badge bg-secondary rounded-pill"></span>
-                    <span id="lightboxYear" class="badge bg-light text-dark rounded-pill"></span>
-                </div>
-                <h5 id="lightboxTitle" class="fw-bold mb-1"></h5>
-                <p id="lightboxCaption" class="text-white-50 small mb-0"></p>
+            <div class="p-3 bg-dark border-top border-secondary border-opacity-25" id="lightboxCaptionWrapper">
+                <p id="lightboxCaption" class="text-white small mb-0"></p>
             </div>
         </div>
     </div>
@@ -416,7 +302,7 @@
             <div class="mb-3 text-danger" style="font-size: 2.5rem;">
                 <i class="bi bi-exclamation-triangle-fill"></i>
             </div>
-            <h5 class="fw-bold text-dark mb-1">Delete Moment?</h5>
+            <h5 class="fw-bold text-dark mb-1">Delete Photo?</h5>
             <p class="text-muted small mb-3">Are you sure you want to delete <span class="fw-semibold text-dark" id="deleteItemTitle">this photo</span>? This action cannot be undone.</p>
             
             <form id="deleteForm" method="POST" action="">
@@ -438,10 +324,12 @@
         form.reset();
         form.action = "{{ route('admin.web.gallery.store') }}";
         document.getElementById('methodSpoof').innerHTML = '';
-        document.getElementById('galleryModalLabel').innerText = 'Add Gallery Photo';
-        document.getElementById('gallerySubmitBtn').innerText = 'Save Gallery Photo';
+        document.getElementById('galleryModalLabel').innerText = 'Upload Photo';
+        document.getElementById('gallerySubmitBtn').innerHTML = '<i class="bi bi-cloud-arrow-up-fill me-1"></i> Save Photo';
         document.getElementById('gallery_is_active').checked = true;
-        document.getElementById('gallery_sort_order').value = 0;
+        document.getElementById('gallery_image_url').value = '';
+        document.getElementById('gallery_caption').value = '';
+        document.getElementById('imagePreview').src = '';
         document.getElementById('imagePreviewContainer').classList.add('d-none');
     }
 
@@ -450,17 +338,11 @@
         const form = document.getElementById('galleryForm');
         form.action = "/admin/web/gallery/" + item.id;
         document.getElementById('methodSpoof').innerHTML = '<input type="hidden" name="_method" value="PUT">';
-        document.getElementById('galleryModalLabel').innerText = 'Edit Gallery Moment';
-        document.getElementById('gallerySubmitBtn').innerText = 'Update Gallery Photo';
+        document.getElementById('galleryModalLabel').innerText = 'Edit Photo';
+        document.getElementById('gallerySubmitBtn').innerHTML = '<i class="bi bi-check2 me-1"></i> Update Photo';
 
-        document.getElementById('gallery_title').value = item.title || '';
-        document.getElementById('gallery_category').value = item.category || 'Annual Summit';
-        document.getElementById('gallery_year').value = item.year || '2026';
-        document.getElementById('gallery_city').value = item.city || 'Ahmedabad';
-        document.getElementById('gallery_circle').value = item.circle || 'All Circles';
         document.getElementById('gallery_image_url').value = item.image_path || '';
         document.getElementById('gallery_caption').value = item.caption || '';
-        document.getElementById('gallery_sort_order').value = item.sort_order || 0;
         document.getElementById('gallery_is_active').checked = item.is_active ? true : false;
 
         if (item.image_url) {
@@ -483,21 +365,31 @@
         }
     }
 
-    function openPreviewModal(imgUrl, title, caption, category, city, year) {
+    function previewUrlImage(url) {
+        if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/'))) {
+            document.getElementById('imagePreview').src = url;
+            document.getElementById('imagePreviewContainer').classList.remove('d-none');
+        }
+    }
+
+    function openPreviewModal(imgUrl, caption) {
         document.getElementById('lightboxImage').src = imgUrl;
-        document.getElementById('lightboxTitle').innerText = title;
-        document.getElementById('lightboxCaption').innerText = caption;
-        document.getElementById('lightboxCategory').innerText = category;
-        document.getElementById('lightboxCity').innerText = city;
-        document.getElementById('lightboxYear').innerText = year;
+        const captionElem = document.getElementById('lightboxCaption');
+        const captionWrapper = document.getElementById('lightboxCaptionWrapper');
+        if (caption && caption.trim().length > 0) {
+            captionElem.innerText = caption;
+            captionWrapper.classList.remove('d-none');
+        } else {
+            captionWrapper.classList.add('d-none');
+        }
 
         const modal = new bootstrap.Modal(document.getElementById('previewModal'));
         modal.show();
     }
 
-    function confirmDeleteGallery(id, title) {
+    function confirmDeleteGallery(id, captionOrTitle) {
         document.getElementById('deleteForm').action = "/admin/web/gallery/" + id;
-        document.getElementById('deleteItemTitle').innerText = '"' + title + '"';
+        document.getElementById('deleteItemTitle').innerText = captionOrTitle ? '"' + captionOrTitle + '"' : 'this photo';
         const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
         modal.show();
     }

@@ -92,6 +92,7 @@ use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
 use App\Http\Controllers\Admin\ReferralReportController;
+use App\Http\Controllers\Admin\SpeedNetworkingWebController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
@@ -676,6 +677,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
         Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');
+
+        // Speed Networking Admin Web Panel
+        Route::get('/speed-networking', [SpeedNetworkingWebController::class, 'index'])->name('speed-networking.index');
+        Route::post('/speed-networking', [SpeedNetworkingWebController::class, 'store'])->name('speed-networking.store');
+        Route::get('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'show'])->whereUuid('id')->name('speed-networking.show');
+        Route::post('/speed-networking/{id}/start', [SpeedNetworkingWebController::class, 'start'])->whereUuid('id')->name('speed-networking.start');
+        Route::post('/speed-networking/{id}/next-round', [SpeedNetworkingWebController::class, 'nextRound'])->whereUuid('id')->name('speed-networking.next-round');
+        Route::post('/speed-networking/{id}/end', [SpeedNetworkingWebController::class, 'end'])->whereUuid('id')->name('speed-networking.end');
+        Route::delete('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'destroy'])->whereUuid('id')->name('speed-networking.destroy');
 
         Route::resource('/event-coupons', EventCouponWebController::class)->except(['create', 'edit']);
 

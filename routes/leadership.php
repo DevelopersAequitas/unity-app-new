@@ -65,6 +65,7 @@ Route::prefix('public')->group(function (): void {
     Route::get('campaigns/{id}/voting-status', [VotingController::class, 'status'])->whereUuid('id');
     Route::get('campaigns/{id}/candidates/{candidateId}', [VotingController::class, 'candidateProfile'])->whereUuid('id')->whereUuid('candidateId');
     Route::post('votes', [VotingController::class, 'castVote']);
+    Route::post('public/votes', [VotingController::class, 'castVote']);
     Route::get('votes/{reference}', [VotingController::class, 'verifyReceipt']);
     Route::get('results', [VotingController::class, 'privateResults']);
 });
@@ -156,6 +157,11 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::get('campaigns/{id}/voting/results', [VotingController::class, 'results'])->whereUuid('id');
     Route::get('voting/campaigns/{id}/tally', [VotingController::class, 'results'])->whereUuid('id');
     Route::get('voting/campaigns/{id}/summary', [VotingController::class, 'results'])->whereUuid('id');
+    Route::get('voting/campaigns/{id}/votes', [VotingController::class, 'detailedVotes'])->whereUuid('id');
+    Route::get('campaigns/{id}/voting/votes', [VotingController::class, 'detailedVotes'])->whereUuid('id');
+    Route::get('voting/votes', [VotingController::class, 'detailedVotes']);
+    Route::get('voting/campaigns/{id}/export-votes', [VotingController::class, 'exportVotes'])->whereUuid('id');
+    Route::get('reports/export/votes/{campaignId}', [VotingController::class, 'exportVotes'])->whereUuid('campaignId');
     Route::post('nominations/{id}/results-link', [VotingController::class, 'generateResultLink'])->whereUuid('id');
     Route::post('voting/nominations/{id}/result-token', [VotingController::class, 'generateResultLink'])->whereUuid('id');
 

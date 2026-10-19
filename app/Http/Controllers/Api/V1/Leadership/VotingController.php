@@ -48,6 +48,55 @@ class VotingController extends LeadershipBaseController
      */
     public function castVote(Request $request): JsonResponse
     {
+        // Support direct website voting payload (without requiring pre-generated OTP token)
+        if ($request->filled('voter_name') || $request->filled('voter_email') || ! $request->filled('voting_token')) {
+            $validated = $request->validate([
+                'campaign_id' => 'nullable|string',
+                'nomination_id' => 'nullable|string',
+                'candidate_id' => 'nullable|string',
+                'candidate_name' => 'nullable|string',
+                'candidate_email' => 'nullable|string',
+                'voter_name' => 'required|string|max:255',
+                'voter_email' => 'required|string|email|max:255',
+                'voter_phone' => 'nullable|string|max:50',
+                'voter_city' => 'nullable|string|max:100',
+                'voter_company' => 'nullable|string|max:255',
+                'voter_designation' => 'nullable|string|max:255',
+                'support_reason' => 'nullable|string',
+                'vote_reference' => 'nullable|string|max:100',
+            ]);
+
+            try {
+                $ref = $validated['vote_reference'] ?? ('PG-VOTE-'.date('Y').'-'.strtoupper(\Illuminate\Support\Str::random(6)));
+                $nominationId = $validated['nomination_id'] ?? ($validated['candidate_id'] ?? null);
+
+                $webVote = \App\Models\Web\WebVote::updateOrCreate(
+                    ['vote_reference' => $ref],
+                    [
+                        'campaign_id' => $validated['campaign_id'] ?? null,
+                        'nomination_id' => $nominationId,
+                        'candidate_name' => $validated['candidate_name'] ?? null,
+                        'candidate_email' => $validated['candidate_email'] ?? null,
+                        'voter_name' => $validated['voter_name'],
+                        'voter_email' => strtolower($validated['voter_email']),
+                        'voter_phone' => $validated['voter_phone'] ?? null,
+                        'voter_city' => $validated['voter_city'] ?? null,
+                        'voter_company' => $validated['voter_company'] ?? null,
+                        'voter_designation' => $validated['voter_designation'] ?? null,
+                        'support_reason' => $validated['support_reason'] ?? null,
+                        'created_at' => now(),
+                    ]
+                );
+
+                return $this->success([
+                    'vote_reference' => $webVote->vote_reference,
+                    'created_at' => $webVote->created_at,
+                ], 'Your vote has been recorded.');
+            } catch (\Throwable $e) {
+                return $this->error($e->getMessage(), 400);
+            }
+        }
+
         $validated = $request->validate([
             'campaign_id' => 'required|uuid',
             'scope_id' => 'nullable|uuid',
@@ -163,5 +212,39 @@ class VotingController extends LeadershipBaseController
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 403);
         }
+    }
+
+    /**
+     * Get detailed voter list ("who voted whom").
+     */
+    public function detailedVotes(Request $request, ?string $id = null): JsonResponse
+    {
+        $campaignId = $id ?: (string) $request->query('campaign_id');
+        if (! $campaignId) {
+            return $this->error('Campaign ID is required.', 400);
+        }
+
+        $nominationId = $request->query('nomination_id');
+        $search = $request->query('search');
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 25);
+
+        $results = $this->votingService->getDetailedVotes(
+            $campaignId,
+            $nominationId ? (string) $nominationId : null,
+            $search ? (string) $search : null,
+            $page,
+            $perPage
+        );
+
+        return $this->success($results, 'Detailed voter records fetched successfully.');
+    }
+
+    /**
+     * Export votes for campaign as CSV.
+     */
+    public function exportVotes(string $id): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        return $this->votingService->exportVotesCsv($id);
     }
 }

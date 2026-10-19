@@ -317,4 +317,9 @@ class LeadershipNomination extends Model
     {
         return $this->hasMany(LeadershipVote::class, 'nomination_id');
     }
+
+    public function webVotes(): HasMany
+    {
+        return $this->hasMany(\App\Models\Web\WebVote::class, 'nomination_id');
+    }
 }

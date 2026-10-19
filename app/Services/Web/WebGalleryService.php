@@ -120,14 +120,21 @@ class WebGalleryService
             $imagePath = $this->storeUploadedFile($file);
         }
 
+        $caption = ! empty($data['caption']) ? (string) $data['caption'] : null;
+
+        $title = (string) ($data['title'] ?? '');
+        if (empty($title)) {
+            $title = $caption ? Str::limit($caption, 60, '...') : 'Gallery Photo';
+        }
+
         $item = new WebGalleryItem;
-        $item->title = (string) ($data['title'] ?? '');
-        $item->category = (string) ($data['category'] ?? 'Annual Summit');
-        $item->city = (string) ($data['city'] ?? 'Ahmedabad');
-        $item->circle = (string) ($data['circle'] ?? 'All Circles');
-        $item->year = (string) ($data['year'] ?? '2026');
+        $item->title = $title;
+        $item->category = ! empty($data['category']) ? (string) $data['category'] : 'Gallery';
+        $item->city = (string) ($data['city'] ?? '');
+        $item->circle = (string) ($data['circle'] ?? '');
+        $item->year = ! empty($data['year']) ? (string) $data['year'] : (string) date('Y');
         $item->image_path = $imagePath;
-        $item->caption = ! empty($data['caption']) ? (string) $data['caption'] : null;
+        $item->caption = $caption;
         $item->gallery_id = ! empty($data['gallery_id']) ? (string) $data['gallery_id'] : null;
         $item->sort_order = isset($data['sort_order']) ? (int) $data['sort_order'] : 0;
         $item->is_active = isset($data['is_active']) ? (bool) $data['is_active'] : true;
@@ -148,15 +155,44 @@ class WebGalleryService
             $item->image_path = (string) $data['image_url'];
         }
 
-        $item->title = (string) ($data['title'] ?? $item->title);
-        $item->category = (string) ($data['category'] ?? $item->category);
-        $item->city = (string) ($data['city'] ?? $item->city);
-        $item->circle = (string) ($data['circle'] ?? $item->circle);
-        $item->year = (string) ($data['year'] ?? $item->year);
-        $item->caption = array_key_exists('caption', $data) ? (! empty($data['caption']) ? (string) $data['caption'] : null) : $item->caption;
-        $item->gallery_id = array_key_exists('gallery_id', $data) ? (! empty($data['gallery_id']) ? (string) $data['gallery_id'] : null) : $item->gallery_id;
-        $item->sort_order = isset($data['sort_order']) ? (int) $data['sort_order'] : $item->sort_order;
-        $item->is_active = isset($data['is_active']) ? (bool) $data['is_active'] : $item->is_active;
+        if (array_key_exists('title', $data) && ! empty($data['title'])) {
+            $item->title = (string) $data['title'];
+        } elseif (empty($item->title) && ! empty($data['caption'])) {
+            $item->title = Str::limit((string) $data['caption'], 60, '...');
+        }
+
+        if (array_key_exists('category', $data) && ! empty($data['category'])) {
+            $item->category = (string) $data['category'];
+        }
+
+        if (array_key_exists('city', $data)) {
+            $item->city = (string) $data['city'];
+        }
+
+        if (array_key_exists('circle', $data)) {
+            $item->circle = (string) $data['circle'];
+        }
+
+        if (array_key_exists('year', $data) && ! empty($data['year'])) {
+            $item->year = (string) $data['year'];
+        }
+
+        if (array_key_exists('caption', $data)) {
+            $item->caption = ! empty($data['caption']) ? (string) $data['caption'] : null;
+        }
+
+        if (array_key_exists('gallery_id', $data)) {
+            $item->gallery_id = ! empty($data['gallery_id']) ? (string) $data['gallery_id'] : null;
+        }
+
+        if (isset($data['sort_order'])) {
+            $item->sort_order = (int) $data['sort_order'];
+        }
+
+        if (isset($data['is_active'])) {
+            $item->is_active = (bool) $data['is_active'];
+        }
+
         $item->save();
 
         return $item;

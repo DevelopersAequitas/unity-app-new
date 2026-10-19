@@ -20,14 +20,14 @@ class UpdateWebGalleryItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title' => ['required', 'string', 'max:255'],
-            'category' => ['required', 'string', 'max:100'],
-            'city' => ['required', 'string', 'max:100'],
-            'circle' => ['required', 'string', 'max:100'],
-            'year' => ['required', 'string', 'max:20'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,gif', 'max:10240'],
             'image_url' => ['nullable', 'string', 'max:1000'],
             'caption' => ['nullable', 'string', 'max:2000'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'circle' => ['nullable', 'string', 'max:100'],
+            'year' => ['nullable', 'string', 'max:20'],
             'gallery_id' => ['nullable', 'string', 'uuid'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
@@ -40,11 +40,6 @@ class UpdateWebGalleryItemRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'title.required' => 'Please provide a title for the gallery photo.',
-            'category.required' => 'Please select an event category.',
-            'city.required' => 'Please select or enter a city.',
-            'circle.required' => 'Please select or enter a circle.',
-            'year.required' => 'Please select a year.',
             'image.image' => 'The uploaded file must be a valid image (JPG, PNG, WebP).',
             'image.max' => 'The image size cannot exceed 10MB.',
         ];

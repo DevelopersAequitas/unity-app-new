@@ -239,6 +239,7 @@
     $notificationsActive = request()->routeIs('admin.notifications.*') || request()->is('admin/notifications*');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
+        ['label' => 'Speed Networking', 'route' => 'admin.speed-networking.index', 'active_routes' => ['admin.speed-networking.*']],
         ['label' => 'Total Attendance', 'route' => 'admin.events.total-attendance'],
         ['label' => 'Total Registered', 'route' => 'admin.events.total-registered'],
         ['label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
@@ -248,6 +249,7 @@
     ];
 
     $eventsManagementActive = request()->routeIs('admin.events.*')
+        || request()->routeIs('admin.speed-networking.*')
         || request()->routeIs('admin.event-scan-credentials.*')
         || request()->routeIs('admin.event-gallery.*')
         || request()->routeIs('admin.event-joining-requests.*')
