@@ -56,7 +56,8 @@ export const nominationApi = {
     approve: (id: string, admin_remarks?: string) =>
         apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/approve`, { admin_remarks }),
     reject: (id: string, rejection_reason: string) =>
-        apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { rejection_reason }),
+        apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/reject`, { reason: rejection_reason, rejection_reason }),
+    delete: (id: string) => apiClient.delete<ApiResponse<any>>(`/admin/nominations/${id}`),
     shortlist: (id: string) => apiClient.post<ApiResponse<Nomination>>(`/admin/nominations/${id}/shortlist`),
     sendApprovalEmail: (id: string) => apiClient.post<ApiResponse<any>>(`/admin/nominations/${id}/send-approval-email`),
     proceedToJury: (id: string, remarks?: string) =>

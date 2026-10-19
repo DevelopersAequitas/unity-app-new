@@ -145,6 +145,7 @@ Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function (): vo
     Route::post('nominations/{id}/request-correction', [AdminNominationController::class, 'requestChanges'])->whereUuid('id');
     Route::post('nominations/{id}/approve', [AdminNominationController::class, 'approve'])->whereUuid('id');
     Route::post('nominations/{id}/reject', [AdminNominationController::class, 'reject'])->whereUuid('id');
+    Route::delete('nominations/{id}', [AdminNominationController::class, 'destroy'])->whereUuid('id');
     Route::post('nominations/{id}/shortlist', [AdminNominationController::class, 'shortlist'])->whereUuid('id');
     Route::post('nominations/{id}/send-approval-email', [AdminNominationController::class, 'sendApprovalEmail'])->whereUuid('id');
     Route::post('nominations/{id}/proceed-to-jury', [AdminNominationController::class, 'proceedToJury'])->whereUuid('id');
