@@ -13,7 +13,7 @@ class LeadershipFormOption extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_form_options';
+    protected $table = 'web_leadership_form_options';
 
     protected $primaryKey = 'id';
 

@@ -14,7 +14,7 @@ class LeadershipCampaignScope extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_campaign_scopes';
+    protected $table = 'web_leadership_campaign_scopes';
 
     protected $primaryKey = 'id';
 

@@ -16,7 +16,7 @@ class LeadershipVote extends Model
 
     public const UPDATED_AT = null;
 
-    protected $table = 'leadership_votes';
+    protected $table = 'web_leadership_votes';
 
     protected $primaryKey = 'id';
 

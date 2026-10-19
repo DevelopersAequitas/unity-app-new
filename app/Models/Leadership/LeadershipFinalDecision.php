@@ -15,7 +15,7 @@ class LeadershipFinalDecision extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_final_decisions';
+    protected $table = 'web_leadership_final_decisions';
 
     protected $primaryKey = 'id';
 

@@ -15,7 +15,7 @@ class LeadershipJuryFormSubmission extends Model
 {
     use HasFactory;
 
-    protected $table = 'leadership_jury_form_submissions';
+    protected $table = 'web_leadership_jury_form_submissions';
 
     protected $primaryKey = 'id';
 
