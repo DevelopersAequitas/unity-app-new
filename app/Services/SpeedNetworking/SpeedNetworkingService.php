@@ -746,23 +746,61 @@ class SpeedNetworkingService
                 $connectionStatus = $connection->is_approved ? 'connected' : 'pending';
             }
 
+            $resolveString = static function (mixed $value): string {
+                if (is_null($value)) {
+                    return '';
+                }
+                if (is_array($value)) {
+                    return implode(', ', array_filter(array_map('strval', $value)));
+                }
+
+                return trim((string) $value);
+            };
+
             $skills = [];
             if (! empty($peer->skills)) {
-                $skills = is_array($peer->skills) ? array_values($peer->skills) : [(string) $peer->skills];
+                if (is_array($peer->skills)) {
+                    $skills = array_values(array_filter(array_map(function ($s): string {
+                        return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
+                    }, $peer->skills)));
+                } elseif (is_string($peer->skills)) {
+                    $decoded = json_decode($peer->skills, true);
+                    if (is_array($decoded)) {
+                        $skills = array_values(array_filter(array_map('strval', $decoded)));
+                    } else {
+                        $skills = [trim($peer->skills)];
+                    }
+                }
             }
 
-            $bio = (string) ($peer->short_bio ?: ($peer->experience_summary ?: ($peer->superpower ?: ($peer->i_can_help_with ?: ''))));
-            $industry = (string) ($peer->business_sub_category ?: ($peer->company_type ?: 'Business & Entrepreneurship'));
+            $bio = $resolveString($peer->short_bio);
+            if ($bio === '') {
+                $bio = $resolveString($peer->experience_summary);
+            }
+            if ($bio === '') {
+                $bio = $resolveString($peer->superpower);
+            }
+            if ($bio === '') {
+                $bio = $resolveString($peer->i_can_help_with);
+            }
+
+            $industry = $resolveString($peer->business_sub_category);
+            if ($industry === '') {
+                $industry = $resolveString($peer->company_type);
+            }
+            if ($industry === '') {
+                $industry = 'Business & Entrepreneurship';
+            }
 
             $peerData = [
                 'id' => (string) $peer->id,
                 'name' => $peerName,
-                'designation' => (string) ($peer->designation ?? ''),
-                'company' => (string) ($peer->company_name ?? ''),
-                'company_name' => (string) ($peer->company_name ?? ''),
+                'designation' => $resolveString($peer->designation ?? ''),
+                'company' => $resolveString($peer->company_name ?? ''),
+                'company_name' => $resolveString($peer->company_name ?? ''),
                 'avatar_url' => $avatarUrl,
                 'profile_photo_image' => $avatarUrl,
-                'city' => (string) ($peer->city ?? ''),
+                'city' => $resolveString($peer->city ?? ''),
                 'bio' => $bio,
                 'industry' => $industry,
                 'skills' => $skills,
