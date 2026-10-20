@@ -127,6 +127,7 @@ use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\LeadershipForm2Controller;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\PublicStorageController;
+use App\Http\Controllers\PublicSupportController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\WhatsAppChatController;
 use App\Http\Controllers\WhatsAppWebhookController;
@@ -241,6 +242,11 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
 
 Route::get('/account-deletion-request', [AccountDeletionController::class, 'show'])->name('account-deletion.show');
 Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
+
+// Public Support & Help Desk Portal
+Route::get('/support', [PublicSupportController::class, 'show'])->name('support.show');
+Route::post('/support', [PublicSupportController::class, 'submit'])->name('support.submit');
+Route::post('/support/check-status', [PublicSupportController::class, 'checkStatus'])->name('support.check-status');
 
 // Leadership Form 2 (Jury Evaluation Data Form) Public Access
 Route::get('/leadership/form-2/{id}', [LeadershipForm2Controller::class, 'show'])

@@ -395,9 +395,12 @@ class WebPublicApiController extends Controller
                 'circle' => $item->circle,
                 'year' => $item->year,
                 'image' => $item->image_url,
+                'imageUrl' => $item->image_url,
+                'mediaUrl' => $item->image_url,
                 'caption' => $item->caption ?? '',
                 'galleryId' => $item->gallery_id,
                 'sortOrder' => $item->sort_order,
+                'createdAt' => $item->created_at ? $item->created_at->toIso8601String() : null,
             ];
         });
 
