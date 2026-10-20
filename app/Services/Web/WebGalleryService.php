@@ -12,7 +12,9 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator as ConcretePaginator;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use ZipArchive;
 
 class WebGalleryService
 {
@@ -244,18 +246,176 @@ class WebGalleryService
         return $item->save();
     }
 
-    protected function storeUploadedFile(UploadedFile $file): string
+    /**
+     * Process bulk image upload from a ZIP archive.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{imported_count: int, skipped_count: int}
+     */
+    public function processZipUpload(UploadedFile $zipFile, array $data = []): array
     {
-        $destinationDir = public_path('uploads/web-gallery');
-        if (! File::isDirectory($destinationDir)) {
-            File::makeDirectory($destinationDir, 0755, true, true);
+        if (! class_exists(ZipArchive::class)) {
+            throw new \RuntimeException('PHP ZipArchive extension is not enabled on this server.');
         }
 
+        $zip = new ZipArchive;
+        $openResult = $zip->open($zipFile->getRealPath());
+
+        if ($openResult !== true) {
+            throw new \RuntimeException('Failed to read ZIP archive. Error code: '.$openResult);
+        }
+
+        $extractPath = storage_path('app/tmp/gallery_zip_'.Str::uuid());
+        if (! File::isDirectory($extractPath)) {
+            File::makeDirectory($extractPath, 0755, true, true);
+        }
+
+        try {
+            $zip->extractTo($extractPath);
+            $zip->close();
+
+            $files = File::allFiles($extractPath);
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+            $importedCount = 0;
+            $skippedCount = 0;
+
+            // Sort files naturally by filename so numbered sequences keep correct order
+            usort($files, function (\SplFileInfo $a, \SplFileInfo $b) {
+                return strnatcasecmp($a->getFilename(), $b->getFilename());
+            });
+
+            $orderIndex = 0;
+            foreach ($files as $file) {
+                $filename = $file->getFilename();
+                $ext = strtolower($file->getExtension());
+
+                // Skip macOS and OS system metadata files
+                if (Str::startsWith($filename, '.') || Str::contains($file->getPathname(), ['__MACOSX', '.DS_Store', 'Thumbs.db'])) {
+                    continue;
+                }
+
+                if (! in_array($ext, $allowedExtensions, true)) {
+                    $skippedCount++;
+
+                    continue;
+                }
+
+                // Create readable title from filename
+                $rawTitle = pathinfo($filename, PATHINFO_FILENAME);
+                $cleanTitle = ucwords(trim(str_replace(['_', '-', '.'], ' ', $rawTitle)));
+
+                $imagePath = $this->storeRawFile($file->getRealPath(), $ext);
+
+                $caption = ! empty($data['caption']) ? (string) $data['caption'] : null;
+
+                $item = new WebGalleryItem;
+
+                if (Schema::hasColumn('web_gallery_items', 'title')) {
+                    $item->title = $cleanTitle ?: ($caption ? Str::limit($caption, 60, '...') : 'Gallery Photo');
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'category')) {
+                    $item->category = ! empty($data['category']) ? (string) $data['category'] : 'Gallery';
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'city')) {
+                    $item->city = (string) ($data['city'] ?? '');
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'circle')) {
+                    $item->circle = (string) ($data['circle'] ?? '');
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'year')) {
+                    $item->year = ! empty($data['year']) ? (string) $data['year'] : (string) date('Y');
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'image_path')) {
+                    $item->image_path = $imagePath;
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'caption')) {
+                    $item->caption = $caption;
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'sort_order')) {
+                    $item->sort_order = $orderIndex++;
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'is_active')) {
+                    $item->is_active = isset($data['is_active']) ? (bool) $data['is_active'] : true;
+                }
+
+                $item->save();
+                $importedCount++;
+            }
+
+            if ($importedCount === 0) {
+                throw new \RuntimeException('No valid images (.jpg, .jpeg, .png, .webp, .gif) found inside the uploaded ZIP archive.');
+            }
+
+            return [
+                'imported_count' => $importedCount,
+                'skipped_count' => $skippedCount,
+            ];
+        } finally {
+            if (File::isDirectory($extractPath)) {
+                File::deleteDirectory($extractPath);
+            }
+        }
+    }
+
+    protected function storeUploadedFile(UploadedFile $file): string
+    {
         $extension = strtolower($file->getClientOriginalExtension());
         $filename = Str::uuid().'.'.$extension;
-        $file->move($destinationDir, $filename);
 
-        return '/uploads/web-gallery/'.$filename;
+        // Try public/uploads/web-gallery first
+        try {
+            $destinationDir = public_path('uploads/web-gallery');
+            if (! File::isDirectory($destinationDir)) {
+                File::makeDirectory($destinationDir, 0755, true, true);
+            }
+
+            $file->move($destinationDir, $filename);
+
+            return '/uploads/web-gallery/'.$filename;
+        } catch (\Throwable $e) {
+            // Fallback to Laravel public storage disk
+            $storedPath = Storage::disk('public')->putFileAs('web-gallery', $file, $filename);
+
+            return '/storage/'.$storedPath;
+        }
+    }
+
+    protected function storeRawFile(string $sourcePath, string $extension): string
+    {
+        $filename = Str::uuid().'.'.$extension;
+
+        // Try public/uploads/web-gallery first
+        try {
+            $destinationDir = public_path('uploads/web-gallery');
+            if (! File::isDirectory($destinationDir)) {
+                File::makeDirectory($destinationDir, 0755, true, true);
+            }
+
+            File::copy($sourcePath, $destinationDir.'/'.$filename);
+
+            return '/uploads/web-gallery/'.$filename;
+        } catch (\Throwable $e) {
+            // Fallback to Laravel public storage disk
+            $stream = fopen($sourcePath, 'r');
+            if ($stream !== false) {
+                Storage::disk('public')->put('web-gallery/'.$filename, $stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            } else {
+                File::copy($sourcePath, storage_path('app/public/web-gallery/'.$filename));
+            }
+
+            return '/storage/web-gallery/'.$filename;
+        }
     }
 
     protected function deletePhysicalFile(?string $path): void
@@ -268,6 +428,11 @@ class WebGalleryService
             $local = public_path(ltrim($path, '/'));
             if (File::exists($local)) {
                 File::delete($local);
+            }
+        } elseif (Str::startsWith($path, '/storage/web-gallery/')) {
+            $storageRelative = Str::after($path, '/storage/');
+            if (Storage::disk('public')->exists($storageRelative)) {
+                Storage::disk('public')->delete($storageRelative);
             }
         }
     }

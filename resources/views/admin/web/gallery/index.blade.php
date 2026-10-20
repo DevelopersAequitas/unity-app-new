@@ -23,6 +23,10 @@
                 <i class="bi bi-cloud-arrow-up-fill"></i>
                 <span>Add Gallery Photo</span>
             </button>
+            <button type="button" class="btn btn-outline-primary btn-sm rounded-3 px-3 py-2 fw-semibold d-flex align-items-center gap-1.5 shadow-sm" data-bs-toggle="modal" data-bs-target="#bulkZipModal">
+                <i class="bi bi-file-earmark-zip-fill text-primary"></i>
+                <span>Bulk Upload (ZIP)</span>
+            </button>
             <a href="https://peersglobal.com/gallery" target="_blank" class="btn btn-outline-secondary btn-sm rounded-3 px-3 py-2 d-flex align-items-center gap-1.5 shadow-xs">
                 <i class="bi bi-box-arrow-up-right"></i>
                 <span class="fw-semibold">Preview Website Gallery</span>
@@ -258,7 +262,7 @@ ALTER TABLE web_gallery_items ALTER COLUMN year DROP NOT NULL;</pre>
 <div class="modal fade" id="galleryModal" tabindex="-1" aria-labelledby="galleryModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-md modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <form id="galleryForm" method="POST" action="{{ route('admin.web.gallery.store') }}" enctype="multipart/form-data">
+            <form id="galleryForm" method="POST" action="{{ route('admin.web.gallery.store') }}" enctype="multipart/form-data" onsubmit="handleSinglePhotoSubmit(this)">
                 @csrf
                 <div id="methodSpoof"></div>
 
@@ -325,6 +329,77 @@ ALTER TABLE web_gallery_items ALTER COLUMN year DROP NOT NULL;</pre>
                     <button type="button" class="btn btn-light rounded-3 px-3 py-2 fw-semibold" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold" id="gallerySubmitBtn">
                         <i class="bi bi-cloud-arrow-up-fill me-1"></i> Save Photo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Bulk Upload ZIP Modal --}}
+<div class="modal fade" id="bulkZipModal" tabindex="-1" aria-labelledby="bulkZipModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <form id="bulkZipForm" method="POST" action="{{ route('admin.web.gallery.bulk-zip') }}" enctype="multipart/form-data" onsubmit="handleZipSubmit(this)">
+                @csrf
+
+                <div class="modal-header border-bottom p-4 bg-light bg-opacity-50">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 rounded-3 bg-primary text-white shadow-xs">
+                            <i class="bi bi-file-earmark-zip-fill"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold text-dark mb-0" id="bulkZipModalLabel">Bulk Upload Photos (ZIP)</h5>
+                            <p class="text-muted small mb-0">Upload a single ZIP archive containing multiple photos</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="p-3 rounded-3 bg-primary bg-opacity-10 border border-primary border-opacity-25 mb-1">
+                                <div class="d-flex gap-2">
+                                    <i class="bi bi-info-circle-fill text-primary fs-5 flex-shrink-0"></i>
+                                    <div class="small text-dark">
+                                        <strong>How it works:</strong> All images inside your ZIP file will be automatically extracted and added to the website gallery. File names are converted to clean titles.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- ZIP File Input --}}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold text-dark small mb-1">
+                                <i class="bi bi-file-earmark-zip me-1 text-primary"></i> Choose ZIP Archive <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" name="zip_file" id="bulk_zip_file" class="form-control rounded-3" accept=".zip,application/zip,application/x-zip-compressed" required>
+                            <div class="form-text small">Max 100MB containing JPG, JPEG, PNG, or WebP images.</div>
+                        </div>
+
+                        {{-- Caption (Optional) --}}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold text-dark small mb-1">
+                                <i class="bi bi-chat-left-text me-1 text-muted"></i> Default Caption <span class="text-muted fw-normal">(Optional)</span>
+                            </label>
+                            <textarea name="caption" id="bulk_zip_caption" rows="2" class="form-control rounded-3" placeholder="Shared caption or occasion for these photos (not required)..."></textarea>
+                        </div>
+
+                        {{-- Publish Immediately Toggle --}}
+                        <div class="col-12 pt-2 border-top">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="bulk_zip_is_active" value="1" checked>
+                                <label class="form-check-label fw-semibold text-dark small" for="bulk_zip_is_active">Publish all extracted photos immediately on website</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top p-3 bg-light bg-opacity-50">
+                    <button type="button" class="btn btn-light rounded-3 px-3 py-2 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold" id="bulkZipSubmitBtn">
+                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Extract & Upload Photos
                     </button>
                 </div>
             </form>
@@ -444,6 +519,22 @@ ALTER TABLE web_gallery_items ALTER COLUMN year DROP NOT NULL;</pre>
         document.getElementById('deleteItemTitle').innerText = captionOrTitle ? '"' + captionOrTitle + '"' : 'this photo';
         const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
         modal.show();
+    }
+
+    function handleSinglePhotoSubmit(form) {
+        const btn = document.getElementById('gallerySubmitBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving Photo...';
+        }
+    }
+
+    function handleZipSubmit(form) {
+        const btn = document.getElementById('bulkZipSubmitBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Extracting & Uploading...';
+        }
     }
 </script>
 @endpush
