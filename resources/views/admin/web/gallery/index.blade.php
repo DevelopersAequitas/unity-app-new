@@ -106,7 +106,9 @@ ALTER TABLE web_gallery_items ALTER COLUMN title DROP NOT NULL;
 ALTER TABLE web_gallery_items ALTER COLUMN category DROP NOT NULL;
 ALTER TABLE web_gallery_items ALTER COLUMN city DROP NOT NULL;
 ALTER TABLE web_gallery_items ALTER COLUMN circle DROP NOT NULL;
-ALTER TABLE web_gallery_items ALTER COLUMN year DROP NOT NULL;</pre>
+ALTER TABLE web_gallery_items ALTER COLUMN year DROP NOT NULL;
+ALTER TABLE web_gallery_items ALTER COLUMN media_url DROP NOT NULL;
+ALTER TABLE web_gallery_items ALTER COLUMN image_path DROP NOT NULL;</pre>
                 </div>
             </div>
         </div>
