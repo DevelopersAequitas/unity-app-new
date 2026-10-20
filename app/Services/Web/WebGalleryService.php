@@ -154,6 +154,14 @@ class WebGalleryService
             $item->image_path = $imagePath;
         }
 
+        if (Schema::hasColumn('web_gallery_items', 'media_url')) {
+            $item->media_url = $imagePath;
+        }
+
+        if (Schema::hasColumn('web_gallery_items', 'media_type')) {
+            $item->media_type = 'image';
+        }
+
         if (Schema::hasColumn('web_gallery_items', 'caption')) {
             $item->caption = $caption;
         }
@@ -181,10 +189,21 @@ class WebGalleryService
     public function updateItem(WebGalleryItem $item, array $data, ?UploadedFile $file = null): WebGalleryItem
     {
         if ($file instanceof UploadedFile && $file->isValid()) {
-            $this->deletePhysicalFile($item->image_path);
-            $item->image_path = $this->storeUploadedFile($file);
-        } elseif (! empty($data['image_url']) && Schema::hasColumn('web_gallery_items', 'image_path')) {
-            $item->image_path = (string) $data['image_url'];
+            $this->deletePhysicalFile($item->image_path ?: $item->media_url);
+            $newPath = $this->storeUploadedFile($file);
+            if (Schema::hasColumn('web_gallery_items', 'image_path')) {
+                $item->image_path = $newPath;
+            }
+            if (Schema::hasColumn('web_gallery_items', 'media_url')) {
+                $item->media_url = $newPath;
+            }
+        } elseif (! empty($data['image_url'])) {
+            if (Schema::hasColumn('web_gallery_items', 'image_path')) {
+                $item->image_path = (string) $data['image_url'];
+            }
+            if (Schema::hasColumn('web_gallery_items', 'media_url')) {
+                $item->media_url = (string) $data['image_url'];
+            }
         }
 
         if (Schema::hasColumn('web_gallery_items', 'title')) {
@@ -234,7 +253,7 @@ class WebGalleryService
 
     public function deleteItem(WebGalleryItem $item): bool
     {
-        $this->deletePhysicalFile($item->image_path);
+        $this->deletePhysicalFile($item->image_path ?: $item->media_url);
 
         return (bool) $item->delete();
     }
@@ -332,6 +351,14 @@ class WebGalleryService
 
                 if (Schema::hasColumn('web_gallery_items', 'image_path')) {
                     $item->image_path = $imagePath;
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'media_url')) {
+                    $item->media_url = $imagePath;
+                }
+
+                if (Schema::hasColumn('web_gallery_items', 'media_type')) {
+                    $item->media_type = 'image';
                 }
 
                 if (Schema::hasColumn('web_gallery_items', 'caption')) {
