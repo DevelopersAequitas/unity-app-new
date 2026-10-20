@@ -136,4 +136,29 @@ class WebGalleryTest extends TestCase
             @unlink($zipPath);
         }
     }
+
+    public function test_bulk_delete_gallery_items(): void
+    {
+        $this->withoutMiddleware();
+
+        $item1 = WebGalleryItem::create([
+            'title' => 'Bulk Delete Photo 1',
+            'image_path' => '/uploads/web-gallery/fake1.jpg',
+            'is_active' => true,
+        ]);
+
+        $item2 = WebGalleryItem::create([
+            'title' => 'Bulk Delete Photo 2',
+            'image_path' => '/uploads/web-gallery/fake2.jpg',
+            'is_active' => true,
+        ]);
+
+        $response = $this->delete(route('admin.web.gallery.bulk-destroy'), [
+            'ids' => [$item1->id, $item2->id],
+        ]);
+
+        $response->assertRedirect(route('admin.web.gallery.index'));
+        $this->assertNull(WebGalleryItem::find($item1->id));
+        $this->assertNull(WebGalleryItem::find($item2->id));
+    }
 }

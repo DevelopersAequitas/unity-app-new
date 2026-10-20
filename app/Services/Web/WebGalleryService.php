@@ -258,6 +258,29 @@ class WebGalleryService
         return (bool) $item->delete();
     }
 
+    /**
+     * Delete multiple gallery items and their physical images.
+     *
+     * @param  list<string>  $ids
+     */
+    public function bulkDeleteItems(array $ids): int
+    {
+        if (empty($ids) || ! Schema::hasTable('web_gallery_items')) {
+            return 0;
+        }
+
+        $items = WebGalleryItem::whereIn('id', $ids)->get();
+        $count = 0;
+
+        foreach ($items as $item) {
+            $this->deletePhysicalFile($item->image_path ?: $item->media_url);
+            $item->delete();
+            $count++;
+        }
+
+        return $count;
+    }
+
     public function toggleItemActive(WebGalleryItem $item): bool
     {
         $item->is_active = ! $item->is_active;

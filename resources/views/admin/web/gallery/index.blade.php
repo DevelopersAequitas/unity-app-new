@@ -160,6 +160,35 @@ ALTER TABLE web_gallery_items ALTER COLUMN image_path DROP NOT NULL;</pre>
         </form>
     </div>
 
+    {{-- Bulk Action Bar --}}
+    @if($items->count() > 0)
+        <div class="card border-0 shadow-xs rounded-4 p-3 bg-white mb-3">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check mb-0 d-flex align-items-center gap-2">
+                        <input class="form-check-input mt-0" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" style="width: 19px; height: 19px; cursor: pointer;">
+                        <label class="form-check-label fw-semibold text-dark small user-select-none" for="selectAllCheckbox" style="cursor: pointer;">
+                            Select All
+                        </label>
+                    </div>
+                    <span class="badge bg-light text-secondary border px-2.5 py-1.5 small fw-normal" id="selectedCountBadge">
+                        0 selected
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3 py-1.5 d-none" id="deselectAllBtn" onclick="deselectAll()">
+                        <i class="bi bi-x-circle me-1"></i> Deselect
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm rounded-3 px-3 py-1.5 fw-semibold d-flex align-items-center gap-1.5 shadow-sm" id="bulkDeleteBtn" disabled onclick="openBulkDeleteModal()" style="opacity: 0.5;">
+                        <i class="bi bi-trash-fill"></i>
+                        <span>Delete Selected</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- Gallery Photo Grid --}}
     @if($items->count() > 0)
         <div class="row g-4 mb-4">
@@ -170,6 +199,13 @@ ALTER TABLE web_gallery_items ALTER COLUMN image_path DROP NOT NULL;</pre>
                         {{-- Photo Container --}}
                         <div class="position-relative overflow-hidden bg-dark" style="height: 220px;">
                             <img src="{{ $item->image_url }}" alt="{{ $item->caption ?: 'Gallery Photo' }}" class="w-100 h-100 object-fit-cover transition" style="transition: transform 0.4s ease;" onerror="this.src='/images/avatar-placeholder.png'">
+
+                            {{-- Card Select Checkbox --}}
+                            <div class="position-absolute top-0 start-0 m-2.5 z-2">
+                                <div class="form-check m-0 bg-dark bg-opacity-60 p-1 rounded-3 d-flex align-items-center justify-content-center backdrop-blur shadow-sm">
+                                    <input class="form-check-input gallery-select-item m-0" type="checkbox" value="{{ $item->id }}" id="check_photo_{{ $item->id }}" onchange="updateBulkSelection()" style="width: 18px; height: 18px; cursor: pointer; border: 2px solid rgba(255,255,255,0.7);">
+                                </div>
+                            </div>
 
                             {{-- Status Badge --}}
                             <div class="position-absolute bottom-0 start-0 p-2">
@@ -446,6 +482,32 @@ ALTER TABLE web_gallery_items ALTER COLUMN image_path DROP NOT NULL;</pre>
     </div>
 </div>
 
+{{-- Bulk Delete Confirmation Modal --}}
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg rounded-4 text-center p-4">
+            <div class="mb-3 text-danger" style="font-size: 2.5rem;">
+                <i class="bi bi-trash3-fill"></i>
+            </div>
+            <h5 class="fw-bold text-dark mb-1">Delete Selected Photos?</h5>
+            <p class="text-muted small mb-3">Are you sure you want to delete <span class="fw-bold text-danger" id="bulkDeleteModalCount">0</span> selected photo(s)? This will permanently remove them from the website gallery.</p>
+            
+            <form id="bulkDeleteForm" method="POST" action="{{ route('admin.web.gallery.bulk-destroy') }}" onsubmit="handleBulkDeleteSubmit(this)">
+                @csrf
+                @method('DELETE')
+                <div id="bulkDeleteHiddenInputs"></div>
+
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-light rounded-3 px-3 py-1.5" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-3 px-3 py-1.5 fw-semibold" id="confirmBulkDeleteBtn">
+                        Yes, Delete All
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
     function resetGalleryModal() {
@@ -536,6 +598,118 @@ ALTER TABLE web_gallery_items ALTER COLUMN image_path DROP NOT NULL;</pre>
         if (btn) {
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Extracting & Uploading...';
+        }
+    }
+
+    function getSelectedPhotoIds() {
+        const checkboxes = document.querySelectorAll('.gallery-select-item:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    function updateBulkSelection() {
+        const allCheckboxes = document.querySelectorAll('.gallery-select-item');
+        const checkedCheckboxes = document.querySelectorAll('.gallery-select-item:checked');
+        const count = checkedCheckboxes.length;
+        const selectAllCb = document.getElementById('selectAllCheckbox');
+        const badge = document.getElementById('selectedCountBadge');
+        const deleteBtn = document.getElementById('bulkDeleteBtn');
+        const deselectBtn = document.getElementById('deselectAllBtn');
+
+        if (selectAllCb) {
+            selectAllCb.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+            selectAllCb.indeterminate = count > 0 && count < allCheckboxes.length;
+        }
+
+        if (badge) {
+            badge.innerText = `${count} selected`;
+            if (count > 0) {
+                badge.className = 'badge bg-primary text-white border px-2.5 py-1.5 small fw-semibold';
+            } else {
+                badge.className = 'badge bg-light text-secondary border px-2.5 py-1.5 small fw-normal';
+            }
+        }
+
+        if (deleteBtn) {
+            if (count > 0) {
+                deleteBtn.disabled = false;
+                deleteBtn.style.opacity = '1';
+                deleteBtn.innerHTML = `<i class="bi bi-trash-fill me-1"></i> <span>Delete Selected (${count})</span>`;
+            } else {
+                deleteBtn.disabled = true;
+                deleteBtn.style.opacity = '0.5';
+                deleteBtn.innerHTML = `<i class="bi bi-trash-fill me-1"></i> <span>Delete Selected</span>`;
+            }
+        }
+
+        if (deselectBtn) {
+            if (count > 0) {
+                deselectBtn.classList.remove('d-none');
+            } else {
+                deselectBtn.classList.add('d-none');
+            }
+        }
+
+        // Visual feedback on card borders
+        allCheckboxes.forEach(cb => {
+            const card = cb.closest('.card');
+            if (card) {
+                if (cb.checked) {
+                    card.style.borderColor = '#dc3545';
+                    card.style.boxShadow = '0 0 0 2px rgba(220, 53, 69, 0.2)';
+                } else {
+                    card.style.borderColor = 'rgba(0,0,0,0.06)';
+                    card.style.boxShadow = '';
+                }
+            }
+        });
+    }
+
+    function toggleSelectAll(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.gallery-select-item');
+        checkboxes.forEach(cb => {
+            cb.checked = masterCheckbox.checked;
+        });
+        updateBulkSelection();
+    }
+
+    function deselectAll() {
+        const checkboxes = document.querySelectorAll('.gallery-select-item');
+        checkboxes.forEach(cb => {
+            cb.checked = false;
+        });
+        const selectAllCb = document.getElementById('selectAllCheckbox');
+        if (selectAllCb) {
+            selectAllCb.checked = false;
+            selectAllCb.indeterminate = false;
+        }
+        updateBulkSelection();
+    }
+
+    function openBulkDeleteModal() {
+        const ids = getSelectedPhotoIds();
+        if (ids.length === 0) return;
+
+        document.getElementById('bulkDeleteModalCount').innerText = ids.length;
+        const hiddenContainer = document.getElementById('bulkDeleteHiddenInputs');
+        hiddenContainer.innerHTML = '';
+
+        ids.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ids[]';
+            input.value = id;
+            hiddenContainer.appendChild(input);
+        });
+
+        const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+        modal.show();
+    }
+
+    function handleBulkDeleteSubmit(form) {
+        const btn = document.getElementById('confirmBulkDeleteBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Deleting...';
         }
     }
 </script>
