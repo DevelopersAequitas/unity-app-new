@@ -45,6 +45,17 @@ class SpeedNetworkingApiController extends Controller
             ]);
         }
 
+        if (in_array($event->status, [SpeedNetworkingEvent::STATUS_SCHEDULED, SpeedNetworkingEvent::STATUS_LOBBY_OPEN, SpeedNetworkingEvent::STATUS_DRAFT], true)) {
+            if (empty($event->scheduled_start_time) || $event->scheduled_start_time->isPast()) {
+                $event->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
+                $event->actual_start_time = Carbon::now();
+                if ($event->current_round < 1) {
+                    $event->current_round = 1;
+                }
+                $event->save();
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -125,6 +136,7 @@ class SpeedNetworkingApiController extends Controller
         $user = $request->user();
 
         $activeCount = $this->speedNetworkingService->heartbeat($event, $user);
+        $activeMatch = $this->speedNetworkingService->getActiveMatchPayload($event, $user);
 
         return response()->json([
             'status' => 'success',
@@ -134,6 +146,8 @@ class SpeedNetworkingApiController extends Controller
             'data' => [
                 'last_heartbeat_at' => Carbon::now()->toIso8601String(),
                 'active_attendees_count' => $activeCount,
+                'has_active_match' => $activeMatch !== null,
+                'match' => $activeMatch,
             ],
         ]);
     }
