@@ -54,7 +54,59 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
+    @if(!empty($missingTable) || !empty($dbError))
+        <div class="card border-warning border-2 shadow-xs rounded-4 p-4 bg-warning bg-opacity-10 mb-4">
+            <div class="d-flex align-items-start gap-3">
+                <div class="p-2.5 rounded-3 bg-warning text-dark shadow-xs">
+                    <i class="bi bi-database-exclamation fs-4"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="fw-bold text-dark mb-1">Database Table Setup Required</h5>
+                    <p class="text-secondary small mb-2">
+                        @if(!empty($dbError))
+                            Error: <code>{{ $dbError }}</code>
+                        @else
+                            The <code>web_gallery_items</code> table was not found or is missing required columns in this database environment.
+                        @endif
+                    </p>
+                    <p class="small text-muted mb-2">Please run the following safe SQL in Adminer to ensure the table and all columns exist:</p>
+                    <pre class="bg-dark text-white p-3 rounded-3 small user-select-all mb-0 font-monospace" style="max-height: 180px; overflow-y: auto;">
+CREATE TABLE IF NOT EXISTS web_gallery_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    image_path VARCHAR(1000) NOT NULL,
+    caption TEXT,
+    title VARCHAR(255),
+    category VARCHAR(100) DEFAULT 'Gallery',
+    city VARCHAR(100) DEFAULT '',
+    circle VARCHAR(100) DEFAULT '',
+    year VARCHAR(20) DEFAULT '2026',
+    sort_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS image_path VARCHAR(1000);
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS caption TEXT;
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'Gallery';
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS city VARCHAR(100) DEFAULT '';
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS circle VARCHAR(100) DEFAULT '';
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS year VARCHAR(20) DEFAULT '2026';
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE web_gallery_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE web_gallery_items ALTER COLUMN title DROP NOT NULL;
+ALTER TABLE web_gallery_items ALTER COLUMN category DROP NOT NULL;
+ALTER TABLE web_gallery_items ALTER COLUMN city DROP NOT NULL;
+ALTER TABLE web_gallery_items ALTER COLUMN circle DROP NOT NULL;
+ALTER TABLE web_gallery_items ALTER COLUMN year DROP NOT NULL;</pre>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- KPI Summary Cards --}}
     <div class="row g-3 mb-4">
