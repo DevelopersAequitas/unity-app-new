@@ -445,6 +445,11 @@
             </div>
         </div>
         <footer>
+            <div style="margin-bottom: 8px;">
+                <a href="{{ route('support.show') }}" style="color: var(--text-secondary); margin: 0 10px; font-size: 0.85rem;">Support & Help Desk</a> •
+                <a href="{{ route('account-deletion.show') }}" style="color: var(--text-secondary); margin: 0 10px; font-size: 0.85rem;">Account Deletion</a> •
+                <a href="mailto:support@peersunity.com" style="color: var(--text-secondary); margin: 0 10px; font-size: 0.85rem;">Contact Us</a>
+            </div>
             © 2026 Peers Global Unity • Official Download Page
         </footer>
     </div>

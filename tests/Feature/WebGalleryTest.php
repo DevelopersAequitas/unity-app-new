@@ -95,4 +95,45 @@ class WebGalleryTest extends TestCase
 
         $item->delete();
     }
+
+    public function test_bulk_zip_upload_imports_multiple_images(): void
+    {
+        $this->withoutMiddleware();
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'test_zip_').'.zip';
+        $zip = new \ZipArchive;
+        $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+        $fakePng = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+        $zip->addFromString('Summit_Keynote_Speech.png', $fakePng);
+        $zip->addFromString('Panel_Discussion_Round.png', $fakePng);
+        $zip->close();
+
+        $uploadedZip = new \Illuminate\Http\UploadedFile(
+            $zipPath,
+            'event_photos.zip',
+            'application/zip',
+            null,
+            true
+        );
+
+        $response = $this->post(route('admin.web.gallery.bulk-zip'), [
+            'zip_file' => $uploadedZip,
+            'caption' => 'Annual Summit 2026 highlights',
+            'is_active' => 1,
+        ]);
+
+        $response->assertRedirect(route('admin.web.gallery.index'));
+
+        $this->assertDatabaseHas('web_gallery_items', [
+            'title' => 'Summit Keynote Speech',
+        ]);
+        $this->assertDatabaseHas('web_gallery_items', [
+            'title' => 'Panel Discussion Round',
+        ]);
+
+        if (file_exists($zipPath)) {
+            @unlink($zipPath);
+        }
+    }
 }

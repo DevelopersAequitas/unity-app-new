@@ -33,6 +33,9 @@ class WebGalleryItem extends Model
         'circle',
         'year',
         'image_path',
+        'media_url',
+        'media_type',
+        'thumbnail_url',
         'caption',
         'sort_order',
         'is_active',
@@ -65,14 +68,16 @@ class WebGalleryItem extends Model
 
     public function getImageUrlAttribute(): string
     {
-        if (empty($this->image_path)) {
-            return asset('images/gallery-placeholder.jpg');
+        $path = $this->image_path ?: $this->media_url;
+
+        if (empty($path)) {
+            return url('images/gallery-placeholder.jpg');
         }
 
-        if (Str::startsWith($this->image_path, ['http://', 'https://', '/'])) {
-            return $this->image_path;
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
         }
 
-        return asset('uploads/web-gallery/'.$this->image_path);
+        return url(ltrim($path, '/'));
     }
 }
