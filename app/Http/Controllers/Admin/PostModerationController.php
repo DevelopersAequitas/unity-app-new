@@ -246,7 +246,7 @@ class PostModerationController extends Controller
         $postIds = $pageRows->where('source_type', 'post')->pluck('id')->values()->all();
         $impactIds = $pageRows->where('source_type', 'impact')->pluck('id')->values()->all();
 
-        $postsById = Post::query()
+        $postsById = Post::withTrashed()
             ->with(['user', 'circle', 'collaborationPost.acceptedByUser'])
             ->whereIn('id', $postIds)
             ->get()
@@ -440,23 +440,30 @@ class PostModerationController extends Controller
         return redirect()->back()->with('success', 'Post removed successfully.');
     }
 
-    public function deactivate(Post $post): RedirectResponse
+    public function deactivate(Request $request, Post $post): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->ensureGlobalAdmin();
 
-        DB::transaction(function () use ($post): void {
-            if (Schema::hasColumn('posts', 'is_active')) {
-                $post->setAttribute('is_active', false);
-            }
+        $validated = $request->validate([
+            'remarks' => ['required', 'string', 'min:3', 'max:1000'],
+        ], [
+            'remarks.required' => 'Please provide remarks or reason for deactivating this post.',
+            'remarks.min' => 'Deactivation remarks must be at least 3 characters.',
+        ]);
 
-            if (array_key_exists('is_deleted', $post->getAttributes())) {
-                $post->is_deleted = true;
-            }
+        $admin = Auth::guard('admin')->user();
+        $service = app(\App\Services\Posts\PostDeactivationService::class);
+        $result = $service->deactivatePost($post, $validated['remarks'], $admin?->id);
 
-            $post->save();
-        });
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
 
-        return redirect()->back()->with('success', 'Post deactivated successfully.');
+        if (! empty($result['already_deactivated'])) {
+            return redirect()->back()->with('warning', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
     }
 
     public function deactivateImpact(string $impactId): RedirectResponse

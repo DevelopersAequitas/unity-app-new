@@ -11,6 +11,7 @@ use App\Models\SpeedNetworking\SpeedNetworkingParticipant;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class SpeedNetworkingService
 {
@@ -249,70 +250,64 @@ class SpeedNetworkingService
     public function joinEvent(SpeedNetworkingEvent $event, User $user): array
     {
         return DB::transaction(function () use ($event, $user): array {
+            $lockedEvent = SpeedNetworkingEvent::where('id', $event->id)->lockForUpdate()->first() ?? $event;
+
             $participant = SpeedNetworkingParticipant::updateOrCreate(
                 [
-                    'event_id' => $event->id,
+                    'event_id' => $lockedEvent->id,
                     'user_id' => $user->id,
                 ],
                 [
-                    'status' => $event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS
-                        ? SpeedNetworkingParticipant::STATUS_IN_CALL
-                        : SpeedNetworkingParticipant::STATUS_LOBBY,
+                    'status' => SpeedNetworkingParticipant::STATUS_LOBBY,
                     'joined_at' => Carbon::now(),
                     'last_heartbeat_at' => Carbon::now(),
                 ]
             );
 
             // If event is scheduled or draft, open lobby if appropriate
-            if (in_array($event->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED], true)) {
-                $event->status = SpeedNetworkingEvent::STATUS_LOBBY_OPEN;
-                $event->save();
+            if (in_array($lockedEvent->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED], true)) {
+                $lockedEvent->status = SpeedNetworkingEvent::STATUS_LOBBY_OPEN;
+                $lockedEvent->save();
             }
 
             // If event is not in progress or no rounds yet, return lobby payload
-            if ($event->status !== SpeedNetworkingEvent::STATUS_IN_PROGRESS || $event->current_round < 1) {
+            if ($lockedEvent->status !== SpeedNetworkingEvent::STATUS_IN_PROGRESS || $lockedEvent->current_round < 1) {
                 return [
-                    'event_id' => (string) $event->id,
-                    'title' => $event->title,
-                    'event_title' => $event->title,
-                    'round_duration_seconds' => (int) $event->round_duration_seconds,
-                    'break_duration_seconds' => (int) $event->break_duration_seconds,
-                    'remaining_seconds' => (int) $event->round_duration_seconds,
+                    'event_id' => (string) $lockedEvent->id,
+                    'title' => $lockedEvent->title,
+                    'event_title' => $lockedEvent->title,
+                    'round_duration_seconds' => (int) $lockedEvent->round_duration_seconds,
+                    'break_duration_seconds' => (int) $lockedEvent->break_duration_seconds,
+                    'remaining_seconds' => (int) $lockedEvent->round_duration_seconds,
                     'current_round' => 0,
-                    'total_rounds' => (int) $event->total_rounds,
+                    'total_rounds' => (int) $lockedEvent->total_rounds,
                     'channel_id' => '',
                     'agora_token' => '',
                     'is_break_round' => false,
                     'has_met_all_peers' => false,
+                    'completed' => false,
                     'peer' => null,
                 ];
             }
 
-            // In progress: look for user's match in current round
-            $match = $this->findMatchForUser($event->id, $event->current_round, (string) $user->id);
+            // In progress: look for user's active 1-on-1 match
+            $activeMatch = $this->findActiveMatchForUser($lockedEvent->id, (string) $user->id);
 
-            if (! $match) {
-                // If no matches were generated yet for this round, generate them now
-                $matchCount = SpeedNetworkingMatch::where('event_id', $event->id)
-                    ->where('round_number', $event->current_round)
-                    ->count();
+            if ($activeMatch) {
+                $elapsed = $activeMatch->started_at ? Carbon::now()->diffInSeconds($activeMatch->started_at) : 0;
+                if ($elapsed < $lockedEvent->round_duration_seconds) {
+                    $participant->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
 
-                if ($matchCount === 0) {
-                    $this->generateMatchesForRound($event, $event->current_round);
-                    $match = $this->findMatchForUser($event->id, $event->current_round, (string) $user->id);
-                } else {
-                    // Pair with any unpaired active participant or create break match
-                    $match = $this->pairLateParticipant($event, $user);
+                    return $this->formatMatchResponse($lockedEvent, $activeMatch, (string) $user->id);
                 }
+
+                $activeMatch->update([
+                    'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
+                    'ended_at' => Carbon::now(),
+                ]);
             }
 
-            if ($match) {
-                return $this->formatMatchResponse($event, $match, (string) $user->id);
-            }
-
-            $hasMetAll = $this->hasMetAllActivePeers($event, (string) $user->id);
-
-            return $this->formatBreakRoundResponse($event, $event->current_round, $hasMetAll);
+            return $this->findOrCreateMatchForUser($lockedEvent, $user);
         });
     }
 
@@ -321,12 +316,14 @@ class SpeedNetworkingService
      */
     public function hasMetAllActivePeers(SpeedNetworkingEvent $event, string $userId): bool
     {
+        $cutoff = Carbon::now()->subSeconds(90);
+
         $otherActiveUserIds = SpeedNetworkingParticipant::where('event_id', $event->id)
             ->where('user_id', '!=', $userId)
             ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
-            ->where(function ($q): void {
-                $q->where('last_heartbeat_at', '>=', Carbon::now()->subSeconds(45))
-                    ->orWhere('joined_at', '>=', Carbon::now()->subSeconds(45));
+            ->where(function ($q) use ($cutoff): void {
+                $q->where('last_heartbeat_at', '>=', $cutoff)
+                    ->orWhere('joined_at', '>=', $cutoff);
             })
             ->pluck('user_id')
             ->map(fn ($id) => (string) $id)
@@ -343,7 +340,7 @@ class SpeedNetworkingService
             })
             ->whereNotNull('user_b_id')
             ->get()
-            ->map(fn (SpeedNetworkingMatch $m) => $m->user_a_id === $userId ? (string) $m->user_b_id : (string) $m->user_a_id)
+            ->map(fn (SpeedNetworkingMatch $m) => (string) ($m->user_a_id === $userId ? $m->user_b_id : $m->user_a_id))
             ->filter()
             ->unique()
             ->all();
@@ -358,69 +355,71 @@ class SpeedNetworkingService
      *
      * @return array<string, mixed>
      */
-    public function getNextMatch(SpeedNetworkingEvent $event, User $user): array
+    public function getNextMatch(SpeedNetworkingEvent $event, User $user, bool $isGetRequest = false): array
     {
-        return DB::transaction(function () use ($event, $user): array {
-            $this->heartbeat($event, $user);
+        return DB::transaction(function () use ($event, $user, $isGetRequest): array {
+            $lockedEvent = SpeedNetworkingEvent::where('id', $event->id)->lockForUpdate()->first() ?? $event;
+            $this->heartbeat($lockedEvent, $user);
 
-            // Mark previous active match as completed
-            SpeedNetworkingMatch::where('event_id', $event->id)
-                ->where(function ($q) use ($user): void {
-                    $q->where('user_a_id', $user->id)
-                        ->orWhere('user_b_id', $user->id);
-                })
-                ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
-                ->update([
-                    'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
-                    'ended_at' => Carbon::now(),
-                ]);
-
-            if ($event->isCompleted()) {
+            if ($lockedEvent->isCompleted()) {
                 return [
+                    'event_id' => (string) $lockedEvent->id,
+                    'title' => $lockedEvent->title,
+                    'event_title' => $lockedEvent->title,
+                    'round_duration_seconds' => (int) $lockedEvent->round_duration_seconds,
+                    'break_duration_seconds' => (int) $lockedEvent->break_duration_seconds,
+                    'current_round' => (int) $lockedEvent->current_round,
+                    'total_rounds' => (int) $lockedEvent->total_rounds,
+                    'remaining_seconds' => 0,
+                    'channel_id' => '',
+                    'agora_token' => '',
+                    'is_break_round' => true,
+                    'has_met_all_peers' => true,
                     'completed' => true,
                     'message' => 'Speed networking event has concluded.',
-                    'has_met_all_peers' => true,
-                    'is_break_round' => true,
                     'peer' => null,
                 ];
             }
 
-            // Determine target round:
-            // Check if user has an existing match for current round
-            $currentRound = $event->current_round > 0 ? $event->current_round : 1;
-            $match = $this->findMatchForUser($event->id, $currentRound, (string) $user->id);
+            $participant = SpeedNetworkingParticipant::where('event_id', $lockedEvent->id)
+                ->where('user_id', $user->id)
+                ->first();
 
-            // If user has already completed match in current round, advance to next round
-            if (! $match || $match->status === SpeedNetworkingMatch::STATUS_COMPLETED) {
-                $targetRound = $currentRound + 1;
+            $activeMatch = $this->findActiveMatchForUser($lockedEvent->id, (string) $user->id);
 
-                if ($targetRound > $event->total_rounds) {
-                    return [
-                        'completed' => true,
-                        'message' => 'Speed networking event has concluded.',
-                        'has_met_all_peers' => true,
-                        'is_break_round' => true,
-                        'peer' => null,
-                    ];
+            if ($activeMatch) {
+                $elapsed = $activeMatch->started_at ? Carbon::now()->diffInSeconds($activeMatch->started_at) : 0;
+                $isExpired = $elapsed >= $lockedEvent->round_duration_seconds;
+
+                // If GET request and match is still within round duration, return active match
+                if ($isGetRequest && ! $isExpired) {
+                    if ($participant && $participant->status !== SpeedNetworkingParticipant::STATUS_IN_CALL) {
+                        $participant->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
+                    }
+
+                    return $this->formatMatchResponse($lockedEvent, $activeMatch, (string) $user->id);
                 }
 
-                $event->current_round = $targetRound;
-                $event->save();
+                // If participant was in break/waiting status when assigned this match,
+                // this request is them receiving the match:
+                if (! $isExpired && $participant && $participant->status === SpeedNetworkingParticipant::STATUS_BREAK) {
+                    $participant->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
 
-                $match = $this->findMatchForUser($event->id, $targetRound, (string) $user->id);
-                if (! $match) {
-                    $this->generateMatchesForRound($event, $targetRound);
-                    $match = $this->findMatchForUser($event->id, $targetRound, (string) $user->id);
+                    return $this->formatMatchResponse($lockedEvent, $activeMatch, (string) $user->id);
+                }
+
+                // User is completing/leaving the active call
+                $activeMatch->update([
+                    'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
+                    'ended_at' => Carbon::now(),
+                ]);
+
+                if ($participant) {
+                    $participant->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
                 }
             }
 
-            if (! $match) {
-                $hasMetAll = $this->hasMetAllActivePeers($event, (string) $user->id);
-
-                return $this->formatBreakRoundResponse($event, $event->current_round, $hasMetAll);
-            }
-
-            return $this->formatMatchResponse($event, $match, (string) $user->id);
+            return $this->findOrCreateMatchForUser($lockedEvent, $user);
         });
     }
 
@@ -479,13 +478,22 @@ class SpeedNetworkingService
      */
     public function getLiveTables(SpeedNetworkingEvent $event): array
     {
-        $currentRound = $event->current_round;
-
         $matches = SpeedNetworkingMatch::with(['userA', 'userB'])
             ->where('event_id', $event->id)
-            ->where('round_number', $currentRound)
+            ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+            ->whereNotNull('user_b_id')
             ->orderBy('table_number', 'asc')
             ->get();
+
+        if ($matches->isEmpty()) {
+            $latestRound = (int) (SpeedNetworkingMatch::where('event_id', $event->id)->max('round_number') ?? $event->current_round);
+            $matches = SpeedNetworkingMatch::with(['userA', 'userB'])
+                ->where('event_id', $event->id)
+                ->where('round_number', $latestRound)
+                ->whereNotNull('user_b_id')
+                ->orderBy('table_number', 'asc')
+                ->get();
+        }
 
         $tables = $matches->map(function (SpeedNetworkingMatch $match): array {
             return [
@@ -527,25 +535,18 @@ class SpeedNetworkingService
     }
 
     /**
-     * Generate pairings for a specific round ensuring strict non-repeating matches.
+     * Generate pairings for a specific round ensuring strict non-repeating matches and no overlapping active calls.
      */
     public function generateMatchesForRound(SpeedNetworkingEvent $event, int $roundNumber): void
     {
-        // Don't re-generate if matches already exist for this round
-        $exists = SpeedNetworkingMatch::where('event_id', $event->id)
-            ->where('round_number', $roundNumber)
-            ->exists();
+        $cutoff = Carbon::now()->subSeconds(90);
 
-        if ($exists) {
-            return;
-        }
-
-        // Fetch active participants who pinged in the last 45 seconds (or joined recently)
+        // Fetch active participants who are not left and have recent activity
         $participants = SpeedNetworkingParticipant::where('event_id', $event->id)
             ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
-            ->where(function ($q): void {
-                $q->where('last_heartbeat_at', '>=', Carbon::now()->subSeconds(45))
-                    ->orWhere('joined_at', '>=', Carbon::now()->subSeconds(45));
+            ->where(function ($q) use ($cutoff): void {
+                $q->where('last_heartbeat_at', '>=', $cutoff)
+                    ->orWhere('joined_at', '>=', $cutoff);
             })
             ->pluck('user_id')
             ->map(fn ($id) => (string) $id)
@@ -553,8 +554,20 @@ class SpeedNetworkingService
             ->values()
             ->all();
 
-        $count = count($participants);
-        if ($count === 0) {
+        // Exclude users already in an active 1-on-1 match
+        $busyUserIds = SpeedNetworkingMatch::where('event_id', $event->id)
+            ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+            ->whereNotNull('user_b_id')
+            ->get()
+            ->flatMap(fn (SpeedNetworkingMatch $m) => [(string) $m->user_a_id, (string) $m->user_b_id])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $available = array_values(array_diff($participants, $busyUserIds));
+        $count = count($available);
+        if ($count < 2) {
             return;
         }
 
@@ -569,24 +582,21 @@ class SpeedNetworkingService
             $metPairs[$pm->user_b_id][$pm->user_a_id] = true;
         }
 
-        // Randomize order for fair rotation
-        shuffle($participants);
+        shuffle($available);
 
         $paired = [];
-        $matchesToCreate = [];
-        $tableIndex = 1;
+        $maxTable = (int) (SpeedNetworkingMatch::where('event_id', $event->id)->max('table_number') ?? 0);
+        $tableIndex = $maxTable + 1;
 
-        // Pair unmatched participants who have never met in this event
         for ($i = 0; $i < $count; $i++) {
-            $u1 = $participants[$i];
+            $u1 = $available[$i];
             if (isset($paired[$u1])) {
                 continue;
             }
 
-            // Find an eligible partner for u1 who has not been met yet
             $partner = null;
             for ($j = $i + 1; $j < $count; $j++) {
-                $u2 = $participants[$j];
+                $u2 = $available[$j];
                 if (isset($paired[$u2])) {
                     continue;
                 }
@@ -601,36 +611,209 @@ class SpeedNetworkingService
                 $paired[$u1] = true;
                 $paired[$partner] = true;
 
-                $matchesToCreate[] = [
+                $channelId = "sn_{$event->id}_r{$roundNumber}_t{$tableIndex}_".Str::random(6);
+
+                SpeedNetworkingMatch::create([
                     'event_id' => $event->id,
                     'round_number' => $roundNumber,
                     'table_number' => $tableIndex,
-                    'channel_id' => "sn_{$event->id}_r{$roundNumber}_table_{$tableIndex}",
+                    'channel_id' => $channelId,
                     'user_a_id' => $u1,
                     'user_b_id' => $partner,
                     'status' => SpeedNetworkingMatch::STATUS_ACTIVE,
                     'started_at' => Carbon::now(),
-                ];
+                ]);
+
+                SpeedNetworkingParticipant::where('event_id', $event->id)
+                    ->whereIn('user_id', [$u1, $partner])
+                    ->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
+
                 $tableIndex++;
-            } else {
-                // No unmet partner available -> assign a break round
-                $paired[$u1] = true;
-                $matchesToCreate[] = [
-                    'event_id' => $event->id,
-                    'round_number' => $roundNumber,
-                    'table_number' => 0,
-                    'channel_id' => null,
-                    'user_a_id' => $u1,
-                    'user_b_id' => null,
-                    'status' => SpeedNetworkingMatch::STATUS_ACTIVE,
-                    'started_at' => Carbon::now(),
-                ];
             }
         }
+    }
 
-        foreach ($matchesToCreate as $matchData) {
-            SpeedNetworkingMatch::create($matchData);
+    /**
+     * Find active 1-on-1 match for a user.
+     */
+    public function findActiveMatchForUser(string $eventId, string $userId): ?SpeedNetworkingMatch
+    {
+        return SpeedNetworkingMatch::with(['userA', 'userB'])
+            ->where('event_id', $eventId)
+            ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+            ->whereNotNull('user_b_id')
+            ->where(function ($q) use ($userId): void {
+                $q->where('user_a_id', $userId)
+                    ->orWhere('user_b_id', $userId);
+            })
+            ->first();
+    }
+
+    /**
+     * Dynamically match user with next available peer without repeating pairings.
+     *
+     * @return array<string, mixed>
+     */
+    public function findOrCreateMatchForUser(SpeedNetworkingEvent $event, User $user): array
+    {
+        // Check if an active match was already assigned to this user
+        $existingMatch = $this->findActiveMatchForUser($event->id, (string) $user->id);
+        if ($existingMatch) {
+            SpeedNetworkingParticipant::where('event_id', $event->id)
+                ->where('user_id', $user->id)
+                ->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
+
+            return $this->formatMatchResponse($event, $existingMatch, (string) $user->id);
         }
+
+        // 1. Completed matches count for this user in this event
+        $userCompletedCount = SpeedNetworkingMatch::where('event_id', $event->id)
+            ->where(function ($q) use ($user): void {
+                $q->where('user_a_id', $user->id)
+                    ->orWhere('user_b_id', $user->id);
+            })
+            ->whereNotNull('user_b_id')
+            ->where('status', SpeedNetworkingMatch::STATUS_COMPLETED)
+            ->count();
+
+        // 2. Fetch all other active participants in this event
+        $cutoff = Carbon::now()->subSeconds(90);
+        $otherParticipantIds = SpeedNetworkingParticipant::where('event_id', $event->id)
+            ->where('user_id', '!=', $user->id)
+            ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
+            ->where(function ($q) use ($cutoff): void {
+                $q->where('last_heartbeat_at', '>=', $cutoff)
+                    ->orWhere('joined_at', '>=', $cutoff);
+            })
+            ->pluck('user_id')
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        // 3. Fetch all peers user has already met in this event (active, completed, or skipped)
+        $metPeerIds = SpeedNetworkingMatch::where('event_id', $event->id)
+            ->where(function ($q) use ($user): void {
+                $q->where('user_a_id', $user->id)
+                    ->orWhere('user_b_id', $user->id);
+            })
+            ->whereNotNull('user_b_id')
+            ->get()
+            ->map(fn (SpeedNetworkingMatch $m) => (string) ($m->user_a_id === (string) $user->id ? $m->user_b_id : $m->user_a_id))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $unmetPeerIds = array_values(array_diff($otherParticipantIds, $metPeerIds));
+
+        $hasReachedTotalRounds = ($event->total_rounds > 0 && $userCompletedCount >= $event->total_rounds);
+        $hasMetAllPeers = empty($unmetPeerIds);
+
+        // If user reached round limit OR has met all active peers:
+        if ($hasReachedTotalRounds || $hasMetAllPeers) {
+            SpeedNetworkingParticipant::where('event_id', $event->id)
+                ->where('user_id', $user->id)
+                ->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
+
+            return [
+                'event_id' => (string) $event->id,
+                'title' => $event->title,
+                'event_title' => $event->title,
+                'round_duration_seconds' => (int) $event->round_duration_seconds,
+                'break_duration_seconds' => (int) $event->break_duration_seconds,
+                'current_round' => $userCompletedCount,
+                'total_rounds' => (int) $event->total_rounds,
+                'remaining_seconds' => 0,
+                'channel_id' => '',
+                'agora_token' => '',
+                'is_break_round' => true,
+                'has_met_all_peers' => true,
+                'completed' => true,
+                'message' => 'You have met all peers in this event.',
+                'peer' => null,
+            ];
+        }
+
+        // 4. Identify busy users currently in an active 1-on-1 call
+        $busyUserIds = SpeedNetworkingMatch::where('event_id', $event->id)
+            ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
+            ->whereNotNull('user_b_id')
+            ->get()
+            ->flatMap(fn (SpeedNetworkingMatch $m) => [(string) $m->user_a_id, (string) $m->user_b_id])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $busyParticipantIds = SpeedNetworkingParticipant::where('event_id', $event->id)
+            ->where('status', SpeedNetworkingParticipant::STATUS_IN_CALL)
+            ->pluck('user_id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $allBusyIds = array_unique(array_merge($busyUserIds, $busyParticipantIds));
+
+        // Available candidates are unmet peers who are NOT busy
+        $availableCandidates = array_values(array_diff($unmetPeerIds, $allBusyIds));
+
+        if (! empty($availableCandidates)) {
+            $partnerId = $availableCandidates[0];
+            $roundNumber = $userCompletedCount + 1;
+
+            $maxTable = (int) (SpeedNetworkingMatch::where('event_id', $event->id)->max('table_number') ?? 0);
+            $tableNumber = $maxTable + 1;
+            $channelId = "sn_{$event->id}_r{$roundNumber}_t{$tableNumber}_".Str::random(6);
+
+            $match = SpeedNetworkingMatch::create([
+                'event_id' => $event->id,
+                'round_number' => $roundNumber,
+                'table_number' => $tableNumber,
+                'channel_id' => $channelId,
+                'user_a_id' => (string) $user->id,
+                'user_b_id' => (string) $partnerId,
+                'status' => SpeedNetworkingMatch::STATUS_ACTIVE,
+                'started_at' => Carbon::now(),
+            ]);
+
+            SpeedNetworkingParticipant::where('event_id', $event->id)
+                ->where('user_id', $user->id)
+                ->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
+
+            SpeedNetworkingParticipant::where('event_id', $event->id)
+                ->where('user_id', $partnerId)
+                ->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
+
+            if ($roundNumber > $event->current_round) {
+                $event->current_round = $roundNumber;
+                $event->save();
+            }
+
+            return $this->formatMatchResponse($event, $match, (string) $user->id);
+        }
+
+        // 5. Unmet peers exist, but all are currently in other calls -> wait
+        SpeedNetworkingParticipant::where('event_id', $event->id)
+            ->where('user_id', $user->id)
+            ->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
+
+        return [
+            'event_id' => (string) $event->id,
+            'title' => $event->title,
+            'event_title' => $event->title,
+            'round_duration_seconds' => (int) $event->round_duration_seconds,
+            'break_duration_seconds' => (int) $event->break_duration_seconds,
+            'current_round' => $userCompletedCount,
+            'total_rounds' => (int) $event->total_rounds,
+            'remaining_seconds' => 0,
+            'channel_id' => '',
+            'agora_token' => '',
+            'is_break_round' => true,
+            'has_met_all_peers' => false,
+            'completed' => false,
+            'message' => 'Waiting for the next peer to become available...',
+            'peer' => null,
+        ];
     }
 
     /**
@@ -646,63 +829,6 @@ class SpeedNetworkingService
                     ->orWhere('user_b_id', $userId);
             })
             ->first();
-    }
-
-    /**
-     * Pair late participant with an unpaired participant or assign a break round.
-     */
-    protected function pairLateParticipant(SpeedNetworkingEvent $event, User $user): SpeedNetworkingMatch
-    {
-        // Build list of peers this user has already met in this event
-        $metUserIds = SpeedNetworkingMatch::where('event_id', $event->id)
-            ->where(function ($q) use ($user): void {
-                $q->where('user_a_id', $user->id)
-                    ->orWhere('user_b_id', $user->id);
-            })
-            ->whereNotNull('user_b_id')
-            ->get()
-            ->map(fn (SpeedNetworkingMatch $m) => $m->user_a_id === (string) $user->id ? (string) $m->user_b_id : (string) $m->user_a_id)
-            ->filter()
-            ->all();
-
-        // Check if there is an existing break match with an UNMET peer
-        $breakMatch = SpeedNetworkingMatch::where('event_id', $event->id)
-            ->where('round_number', $event->current_round)
-            ->whereNull('user_b_id')
-            ->where('user_a_id', '!=', $user->id)
-            ->whereNotIn('user_a_id', $metUserIds)
-            ->first();
-
-        if ($breakMatch) {
-            $tableCount = SpeedNetworkingMatch::where('event_id', $event->id)
-                ->where('round_number', $event->current_round)
-                ->whereNotNull('channel_id')
-                ->count();
-
-            $newTableNumber = $tableCount + 1;
-            $channelId = "sn_{$event->id}_r{$event->current_round}_table_{$newTableNumber}";
-
-            $breakMatch->update([
-                'user_b_id' => $user->id,
-                'table_number' => $newTableNumber,
-                'channel_id' => $channelId,
-                'started_at' => Carbon::now(),
-            ]);
-
-            return $breakMatch->fresh(['userA', 'userB']);
-        }
-
-        // Otherwise create a break match for this late user
-        return SpeedNetworkingMatch::create([
-            'event_id' => $event->id,
-            'round_number' => $event->current_round,
-            'table_number' => 0,
-            'channel_id' => null,
-            'user_a_id' => (string) $user->id,
-            'user_b_id' => null,
-            'status' => SpeedNetworkingMatch::STATUS_ACTIVE,
-            'started_at' => Carbon::now(),
-        ]);
     }
 
     /**
@@ -746,23 +872,61 @@ class SpeedNetworkingService
                 $connectionStatus = $connection->is_approved ? 'connected' : 'pending';
             }
 
+            $resolveString = static function (mixed $value): string {
+                if (is_null($value)) {
+                    return '';
+                }
+                if (is_array($value)) {
+                    return implode(', ', array_filter(array_map('strval', $value)));
+                }
+
+                return trim((string) $value);
+            };
+
             $skills = [];
             if (! empty($peer->skills)) {
-                $skills = is_array($peer->skills) ? array_values($peer->skills) : [(string) $peer->skills];
+                if (is_array($peer->skills)) {
+                    $skills = array_values(array_filter(array_map(function ($s): string {
+                        return is_array($s) ? implode(', ', array_filter(array_map('strval', $s))) : (string) $s;
+                    }, $peer->skills)));
+                } elseif (is_string($peer->skills)) {
+                    $decoded = json_decode($peer->skills, true);
+                    if (is_array($decoded)) {
+                        $skills = array_values(array_filter(array_map('strval', $decoded)));
+                    } else {
+                        $skills = [trim($peer->skills)];
+                    }
+                }
             }
 
-            $bio = (string) ($peer->short_bio ?: ($peer->experience_summary ?: ($peer->superpower ?: ($peer->i_can_help_with ?: ''))));
-            $industry = (string) ($peer->business_sub_category ?: ($peer->company_type ?: 'Business & Entrepreneurship'));
+            $bio = $resolveString($peer->short_bio);
+            if ($bio === '') {
+                $bio = $resolveString($peer->experience_summary);
+            }
+            if ($bio === '') {
+                $bio = $resolveString($peer->superpower);
+            }
+            if ($bio === '') {
+                $bio = $resolveString($peer->i_can_help_with);
+            }
+
+            $industry = $resolveString($peer->business_sub_category);
+            if ($industry === '') {
+                $industry = $resolveString($peer->company_type);
+            }
+            if ($industry === '') {
+                $industry = 'Business & Entrepreneurship';
+            }
 
             $peerData = [
                 'id' => (string) $peer->id,
                 'name' => $peerName,
-                'designation' => (string) ($peer->designation ?? ''),
-                'company' => (string) ($peer->company_name ?? ''),
-                'company_name' => (string) ($peer->company_name ?? ''),
+                'designation' => $resolveString($peer->designation ?? ''),
+                'company' => $resolveString($peer->company_name ?? ''),
+                'company_name' => $resolveString($peer->company_name ?? ''),
                 'avatar_url' => $avatarUrl,
                 'profile_photo_image' => $avatarUrl,
-                'city' => (string) ($peer->city ?? ''),
+                'city' => $resolveString($peer->city ?? ''),
                 'bio' => $bio,
                 'industry' => $industry,
                 'skills' => $skills,
@@ -789,6 +953,7 @@ class SpeedNetworkingService
             'agora_token' => $token ?: '',
             'is_break_round' => $isBreak,
             'has_met_all_peers' => $isBreak ? $hasMetAllPeers : false,
+            'completed' => false,
             'peer' => $peerData,
         ];
     }
@@ -801,8 +966,8 @@ class SpeedNetworkingService
     protected function formatBreakRoundResponse(SpeedNetworkingEvent $event, int $roundNumber, bool $hasMetAllPeers = false): array
     {
         $message = $hasMetAllPeers
-            ? 'You have met all active attendees in this session. Stand by for new joiners or exit.'
-            : 'You are on a break round. You will be matched in the next round.';
+            ? 'You have met all peers in this event.'
+            : 'Waiting for the next peer to become available...';
 
         return [
             'event_id' => (string) $event->id,
@@ -817,6 +982,7 @@ class SpeedNetworkingService
             'agora_token' => '',
             'is_break_round' => true,
             'has_met_all_peers' => $hasMetAllPeers,
+            'completed' => $hasMetAllPeers,
             'message' => $message,
             'peer' => null,
         ];

@@ -90,7 +90,7 @@ class SpeedNetworkingApiController extends Controller
         $event = SpeedNetworkingEvent::findOrFail($eventId);
         $user = $request->user();
 
-        $data = $this->speedNetworkingService->getNextMatch($event, $user);
+        $data = $this->speedNetworkingService->getNextMatch($event, $user, $request->isMethod('get'));
 
         return response()->json([
             'status' => 'success',

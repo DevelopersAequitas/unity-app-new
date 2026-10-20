@@ -67,7 +67,7 @@ class FileController extends BaseApiController
         }
 
         // 3. Serve as Leader Performance Report PDF
-        if (Str::isUuid($id)) {
+        if (Str::isUuid($id) && Schema::hasTable('leader_reports') && LeaderReport::query()->where('id', $id)->exists()) {
             return app(LeaderReportsService::class)->downloadReportPdf($id, $request);
         }
 
@@ -87,7 +87,7 @@ class FileController extends BaseApiController
                 return $this->download($request, $realId);
             }
 
-            if (Str::isUuid($id) && ($request->query('type') === 'pdf' || LeaderReport::query()->where('id', $id)->exists())) {
+            if (Str::isUuid($id) && ($request->query('type') === 'pdf' || (Schema::hasTable('leader_reports') && LeaderReport::query()->where('id', $id)->exists()))) {
                 return app(LeaderReportsService::class)->downloadReportPdf($id, $request);
             }
 
@@ -263,6 +263,11 @@ class FileController extends BaseApiController
                     return $this->buildStreamResponse($request, $stream, $size, $mime);
                 }
 
+                $remoteFallback = $this->fetchFromRemoteProduction($id, null, 'local');
+                if ($remoteFallback) {
+                    return $remoteFallback;
+                }
+
                 Log::warning("File API lookup failed: Database record and physical file not found for: {$id}", [
                     'id' => $id,
                     'ip' => $request->ip(),
@@ -342,6 +347,11 @@ class FileController extends BaseApiController
                             }
                         } catch (\Throwable $dbEx) {
                             Log::warning("Could not mark file {$id} as orphaned: ".$dbEx->getMessage());
+                        }
+
+                        $remoteFallback = $this->fetchFromRemoteProduction($id, $file, $disk);
+                        if ($remoteFallback) {
+                            return $remoteFallback;
                         }
 
                         Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
@@ -595,5 +605,64 @@ class FileController extends BaseApiController
                 }
             }
         }, 200, $headers);
+    }
+
+    /**
+     * Fallback to production server if physical file is missing in local environment.
+     * Caches the fetched file locally so subsequent requests resolve instantly.
+     */
+    protected function fetchFromRemoteProduction(string $id, ?File $file, string $disk)
+    {
+        try {
+            $remoteBase = config('app.remote_file_fallback_url', 'https://peersunity.com');
+            $cleanId = ltrim(preg_replace('#^(storage/|public/)+#i', '', $id), '/');
+            $remoteUrl = rtrim((string) $remoteBase, '/') . '/api/v1/files/' . $cleanId;
+
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout' => 8,
+                    'ignore_errors' => true,
+                    'user_agent' => 'PeersUnity-DevFallback/1.0',
+                ],
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ]);
+
+            $content = @file_get_contents($remoteUrl, false, $ctx);
+            if ($content !== false && ! empty($content) && ! empty($http_response_header)) {
+                $statusLine = $http_response_header[0] ?? '';
+                if (str_contains($statusLine, '200')) {
+                    $contentType = 'image/webp';
+                    foreach ($http_response_header as $hdr) {
+                        if (stripos($hdr, 'Content-Type:') === 0) {
+                            $contentType = trim(substr($hdr, 13));
+                            break;
+                        }
+                    }
+
+                    // Self-healing: cache locally to storage disk
+                    if ($file && $file->s3_key) {
+                        try {
+                            Storage::disk($disk)->put($file->s3_key, $content);
+                            Log::info("File API Self-Healing: Cached production file {$id} to local storage ({$file->s3_key})");
+                        } catch (\Throwable $e) {
+                            // Non-critical caching error
+                        }
+                    }
+
+                    return response($content, 200, [
+                        'Content-Type' => $contentType,
+                        'Content-Length' => strlen($content),
+                        'Cache-Control' => 'public, max-age=86400',
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning("[FileController] Remote fallback failed for {$id}: " . $e->getMessage());
+        }
+
+        return null;
     }
 }

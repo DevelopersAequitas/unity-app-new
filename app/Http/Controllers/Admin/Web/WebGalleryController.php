@@ -7,10 +7,14 @@ namespace App\Http\Controllers\Admin\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Web\StoreWebGalleryItemRequest;
 use App\Http\Requests\Admin\Web\UpdateWebGalleryItemRequest;
+use App\Models\Web\WebGalleryItem;
 use App\Services\Web\WebGalleryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class WebGalleryController extends Controller
@@ -22,76 +26,35 @@ class WebGalleryController extends Controller
     public function index(Request $request): View
     {
         $filters = [
-            'category' => $request->query('category', 'all'),
-            'city' => $request->query('city', 'all'),
-            'circle' => $request->query('circle', 'all'),
-            'year' => $request->query('year', 'all'),
             'search' => $request->query('search', ''),
         ];
 
-        $items = $this->galleryService->listPaginated($filters, 18);
-        $collections = $this->galleryService->listCollections();
+        $missingTable = ! Schema::hasTable('web_gallery_items');
+        $dbError = null;
 
-        // Calculate metrics
-        $allItems = $this->galleryService->allActive();
-        $totalMoments = $allItems->count();
-        $distinctCities = $allItems->pluck('city')->unique()->count();
-        $distinctCategories = $allItems->pluck('category')->unique()->count();
-
-        // Standard filter lists based on the live website
-        $categories = [
-            'Annual Summit',
-            'Circle Meetings',
-            'Recognition & Awards',
-            'Masterclasses',
-            'Regional Conclaves',
-            'City Gatherings',
-        ];
-
-        $cities = [
-            'Ahmedabad',
-            'Mumbai',
-            'Bengaluru',
-            'Surat',
-            'Delhi NCR',
-            'Pune',
-            'Hyderabad',
-            'Rajkot',
-            'Vadodara',
-            'Indore',
-            'Jaipur',
-            'All Cities',
-        ];
-
-        $circles = [
-            'All Circles',
-            'Logistics Circle',
-            'Technology Circle',
-            'Manufacturing Circle',
-            'Export Circle',
-            'Fempreneur Circle',
-            'Leadership Board',
-            'Healthcare Circle',
-            'Real Estate Circle',
-            'Textiles & Apparel Circle',
-        ];
-
-        $years = ['2026', '2025', '2024', '2023'];
+        try {
+            $items = $this->galleryService->listPaginated($filters, 18);
+            $totalCount = $items->total();
+            $activeCount = Schema::hasTable('web_gallery_items') && Schema::hasColumn('web_gallery_items', 'is_active')
+                ? WebGalleryItem::where('is_active', true)->count()
+                : $totalCount;
+        } catch (\Throwable $e) {
+            Log::error('WebGalleryController index error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            $items = new LengthAwarePaginator([], 0, 18);
+            $totalCount = 0;
+            $activeCount = 0;
+            $dbError = $e->getMessage();
+        }
 
         return view('admin.web.gallery.index', [
             'items' => $items,
-            'collections' => $collections,
             'filters' => $filters,
-            'categories' => $categories,
-            'cities' => $cities,
-            'circles' => $circles,
-            'years' => $years,
             'stats' => [
-                'total' => $totalMoments,
-                'cities' => $distinctCities > 0 ? $distinctCities : 12,
-                'categories' => $distinctCategories > 0 ? $distinctCategories : 6,
-                'active' => $allItems->count(),
+                'total' => $totalCount,
+                'active' => $activeCount,
             ],
+            'missingTable' => $missingTable,
+            'dbError' => $dbError,
         ]);
     }
 

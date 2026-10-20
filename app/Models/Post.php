@@ -42,6 +42,9 @@ class Post extends Model
         'description',
         'image',
         'status',
+        'deactivation_remarks',
+        'deactivated_by',
+        'deactivated_at',
     ];
 
     protected $casts = [
@@ -50,6 +53,7 @@ class Post extends Model
         'sponsored' => 'boolean',
         'is_deleted' => 'boolean',
         'active' => 'boolean',
+        'deactivated_at' => 'datetime',
     ];
 
     protected $appends = [
@@ -177,9 +181,13 @@ class Post extends Model
             return [];
         }
 
-        return array_map(function ($item) {
+        $baseUrl = request()->hasHeader('host')
+            ? request()->root()
+            : config('app.url');
+
+        return array_map(function ($item) use ($baseUrl) {
             if (isset($item['id'])) {
-                $item['url'] = url('/api/v1/files/'.$item['id']);
+                $item['url'] = rtrim((string) $baseUrl, '/') . '/api/v1/files/' . $item['id'];
             }
 
             return $item;
@@ -192,9 +200,11 @@ class Post extends Model
             return null;
         }
         $path = parse_url($value, PHP_URL_PATH);
-        $id = basename($path);
+        $id = basename((string) $path);
         if (Str::isUuid($id)) {
-            return url('/api/v1/files/'.$id);
+            $baseUrl = request()->hasHeader('host') ? request()->root() : config('app.url');
+
+            return rtrim((string) $baseUrl, '/') . '/api/v1/files/' . $id;
         }
 
         return $value;
@@ -357,5 +367,10 @@ class Post extends Model
         }
 
         return false;
+    }
+
+    public function deactivatedByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(AdminUser::class, 'deactivated_by');
     }
 }
