@@ -71,13 +71,13 @@ class WebGalleryItem extends Model
         $path = $this->image_path ?: $this->media_url;
 
         if (empty($path)) {
-            return asset('images/gallery-placeholder.jpg');
+            return url('images/gallery-placeholder.jpg');
         }
 
-        if (Str::startsWith($path, ['http://', 'https://', '/'])) {
+        if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
 
-        return asset('uploads/web-gallery/'.$path);
+        return url(ltrim($path, '/'));
     }
 }
