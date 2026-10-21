@@ -30,9 +30,23 @@ class JuryService
      *
      * @param  array<string, mixed>  $filters
      */
-    public function listEligibleJurors(array $filters = [], int $perPage = 200): LengthAwarePaginator
+    public function listEligibleJurors(array $filters = [], int $perPage = 250): LengthAwarePaginator
     {
-        $query = User::query()->select(['id', 'first_name', 'last_name', 'display_name', 'email', 'phone']);
+        $query = User::query()
+            ->select([
+                'id',
+                'first_name',
+                'last_name',
+                'display_name',
+                'email',
+                'phone',
+                'company_name',
+                'designation',
+                'business_category_id',
+                'main_business_category_id',
+                'business_sub_category',
+            ])
+            ->with(['mainBusinessCategory', 'businessCategory']);
 
         if (! empty($filters['search'])) {
             $term = '%'.strtolower(trim((string) $filters['search'])).'%';
@@ -40,7 +54,9 @@ class JuryService
                 $q->whereRaw('LOWER(display_name) LIKE ?', [$term])
                     ->orWhereRaw('LOWER(email) LIKE ?', [$term])
                     ->orWhereRaw('LOWER(first_name) LIKE ?', [$term])
-                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$term]);
+                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(company_name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(business_sub_category) LIKE ?', [$term]);
             });
         }
 
@@ -48,7 +64,16 @@ class JuryService
             ->where('email', '!=', '')
             ->orderBy('display_name', 'asc');
 
-        return $query->paginate($perPage);
+        $paginated = $query->paginate($perPage);
+
+        $paginated->getCollection()->transform(function ($u) {
+            $u->business_name = $u->company_name ?: ($u->designation ? "{$u->designation} at Enterprise" : 'Enterprise Services');
+            $u->business_category = $u->mainBusinessCategory?->name ?: ($u->businessCategory?->name ?: ($u->business_sub_category ?: 'Industry Peer'));
+
+            return $u;
+        });
+
+        return $paginated;
     }
 
     /**

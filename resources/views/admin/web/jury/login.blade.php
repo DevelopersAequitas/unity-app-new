@@ -128,10 +128,13 @@
 
 <div class="login-card">
     <div class="login-header">
+        <div class="mb-3 text-center">
+            <img src="{{ asset('images/peersglobal-logo.png') }}" alt="PeersGlobal" style="max-height: 48px; width: auto;" />
+        </div>
         <div class="jury-badge">
             <i class="fa-solid fa-gavel"></i> Official Jury Portal
         </div>
-        <h2 class="fw-bold mb-1 fs-4">Peers Global Selection</h2>
+        <h2 class="fw-bold mb-1 fs-5">Leadership Selection</h2>
         <p class="mb-0 text-white-50 small">Candidate Evaluation & Scoring Portal</p>
     </div>
 
