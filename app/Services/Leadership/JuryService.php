@@ -67,8 +67,15 @@ class JuryService
         $paginated = $query->paginate($perPage);
 
         $paginated->getCollection()->transform(function ($u) {
-            $u->business_name = $u->company_name ?: ($u->designation ? "{$u->designation} at Enterprise" : 'Enterprise Services');
-            $u->business_category = $u->mainBusinessCategory?->name ?: ($u->businessCategory?->name ?: ($u->business_sub_category ?: 'Industry Peer'));
+            $catName = $u->mainBusinessCategory?->name ?: ($u->businessCategory?->name ?: ($u->business_sub_category ?: 'Industry Peer'));
+            $compName = $u->company_name ?: ($u->designation ? "{$u->designation} at Enterprise" : 'Enterprise Services');
+
+            $u->unsetRelation('businessCategory');
+            $u->unsetRelation('mainBusinessCategory');
+
+            $u->setAttribute('business_name', $compName);
+            $u->setAttribute('business_category', $catName);
+            $u->setAttribute('business_category_name', $catName);
 
             return $u;
         });
