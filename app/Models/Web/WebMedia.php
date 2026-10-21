@@ -115,21 +115,21 @@ class WebMedia extends Model
             return '';
         }
 
-        if (Str::startsWith($this->file_path, ['http://', 'https://', '/'])) {
+        if (Str::startsWith($this->file_path, ['http://', 'https://'])) {
             return $this->file_path;
         }
 
-        return asset('uploads/web-media/'.$this->file_path);
+        return url(ltrim($this->file_path, '/'));
     }
 
     public function getCoverImageUrlAttribute(): string
     {
         if (! empty($this->cover_image)) {
-            if (Str::startsWith($this->cover_image, ['http://', 'https://', '/'])) {
+            if (Str::startsWith($this->cover_image, ['http://', 'https://'])) {
                 return $this->cover_image;
             }
 
-            return asset('uploads/web-media/'.$this->cover_image);
+            return url(ltrim($this->cover_image, '/'));
         }
 
         if (! empty($this->youtube_video_id)) {
@@ -140,19 +140,19 @@ class WebMedia extends Model
             return $this->url;
         }
 
-        return asset('images/podcast-placeholder.jpg');
+        return url('images/podcast-placeholder.jpg');
     }
 
     public function getGuestAvatarUrlAttribute(): string
     {
         if (empty($this->guest_avatar)) {
-            return asset('images/avatar-placeholder.png');
+            return url('images/avatar-placeholder.png');
         }
 
-        if (Str::startsWith($this->guest_avatar, ['http://', 'https://', '/'])) {
+        if (Str::startsWith($this->guest_avatar, ['http://', 'https://'])) {
             return $this->guest_avatar;
         }
 
-        return asset('uploads/web-media/'.$this->guest_avatar);
+        return url(ltrim($this->guest_avatar, '/'));
     }
 }
