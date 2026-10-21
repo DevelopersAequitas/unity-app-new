@@ -92,23 +92,175 @@ class CircleManagementController extends BaseApiController
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate(['name' => ['required', 'string'], 'industry_id' => ['nullable', 'uuid'], 'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'], 'status' => ['nullable', 'string']]);
-        $circle = Circle::query()->create($data);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:200'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string'],
+            'announcement' => ['nullable', 'string'],
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'type' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'circle_stage' => ['nullable', 'string'],
+            'industry_tags' => ['nullable'],
+            'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'eed_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'cover_file_id' => ['nullable', 'uuid'],
+            'circle_image_file_id' => ['nullable', 'uuid'],
+            'payment_gateway' => ['nullable', 'string'],
+            'payment_plan_id' => ['nullable', 'string'],
+            'circle_package' => ['nullable', 'string'],
+            'circle_price_amount' => ['nullable', 'numeric'],
+            'circle_gst_percent' => ['nullable', 'numeric'],
+            'is_package_active' => ['nullable', 'boolean'],
+            'meeting_mode' => ['nullable', 'string'],
+            'meeting_frequency' => ['nullable', 'string'],
+            'launch_date' => ['nullable', 'date'],
+            'calendar' => ['nullable', 'array'],
+            'categories' => ['nullable', 'array'],
+        ]);
 
-        return $this->success($circle);
+        $baseSlug = Str::slug((string) ($validated['name'] ?? 'circle'));
+        if ($baseSlug === '') $baseSlug = 'circle';
+        $slug = $baseSlug;
+        $counter = 1;
+        while (Circle::where('slug', $slug)->exists()) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        $circle = new Circle();
+        $circle->slug = $slug;
+
+        $fillableColumns = [
+            'name', 'description', 'purpose', 'announcement', 'city_id', 'city', 'country',
+            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'circle_director_user_id',
+            'industry_director_user_id', 'ded_user_id', 'eed_user_id', 'cover_file_id',
+            'circle_image_file_id', 'payment_gateway', 'payment_plan_id', 'circle_package',
+            'circle_price_amount', 'circle_gst_percent', 'is_package_active', 'meeting_mode',
+            'meeting_frequency', 'launch_date',
+        ];
+
+        foreach ($fillableColumns as $col) {
+            if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
+                $circle->{$col} = $validated[$col];
+            }
+        }
+
+        if (isset($validated['industry_tags'])) {
+            $tags = is_array($validated['industry_tags'])
+                ? $validated['industry_tags']
+                : array_filter(array_map('trim', explode(',', (string) $validated['industry_tags'])));
+            $circle->industry_tags = array_values($tags);
+        }
+
+        if (isset($validated['calendar']) && is_array($validated['calendar'])) {
+            $circle->calendar = $validated['calendar'];
+        }
+
+        $circle->save();
+
+        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
+            $categoryIds = collect($validated['categories'])->filter()->map(fn($id) => (int) $id)->values()->all();
+            $circle->categories()->sync($categoryIds);
+        }
+
+        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+
+        return $this->success($circle, 'Circle created successfully.', 201);
     }
 
     public function show(string $id): JsonResponse
     {
-        return $this->success(Circle::query()->with(['members'])->findOrFail($id));
+        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
+        if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
+            $relations[] = 'categories';
+        }
+
+        return $this->success(Circle::query()->with($relations)->findOrFail($id));
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
         $circle = Circle::query()->findOrFail($id);
-        $circle->fill($request->only(['name', 'description', 'industry_id', 'status', 'circle_founder_user_id', 'circle_director_user_id', 'industry_director_user_id', 'ded_user_id', 'eed_user_id']))->save();
 
-        return $this->success($circle);
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:200'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string'],
+            'announcement' => ['nullable', 'string'],
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'type' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'circle_stage' => ['nullable', 'string'],
+            'industry_tags' => ['nullable'],
+            'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'eed_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'cover_file_id' => ['nullable', 'uuid'],
+            'circle_image_file_id' => ['nullable', 'uuid'],
+            'payment_gateway' => ['nullable', 'string'],
+            'payment_plan_id' => ['nullable', 'string'],
+            'circle_package' => ['nullable', 'string'],
+            'circle_price_amount' => ['nullable', 'numeric'],
+            'circle_gst_percent' => ['nullable', 'numeric'],
+            'is_package_active' => ['nullable', 'boolean'],
+            'meeting_mode' => ['nullable', 'string'],
+            'meeting_frequency' => ['nullable', 'string'],
+            'launch_date' => ['nullable', 'date'],
+            'calendar' => ['nullable', 'array'],
+            'categories' => ['nullable', 'array'],
+        ]);
+
+        $fillableColumns = [
+            'name', 'description', 'purpose', 'announcement', 'city_id', 'city', 'country',
+            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'circle_director_user_id',
+            'industry_director_user_id', 'ded_user_id', 'eed_user_id', 'cover_file_id',
+            'circle_image_file_id', 'payment_gateway', 'payment_plan_id', 'circle_package',
+            'circle_price_amount', 'circle_gst_percent', 'is_package_active', 'meeting_mode',
+            'meeting_frequency', 'launch_date',
+        ];
+
+        foreach ($fillableColumns as $col) {
+            if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
+                $circle->{$col} = $validated[$col];
+            }
+        }
+
+        if (array_key_exists('industry_tags', $validated)) {
+            $tags = is_array($validated['industry_tags'])
+                ? $validated['industry_tags']
+                : array_filter(array_map('trim', explode(',', (string) $validated['industry_tags'])));
+            $circle->industry_tags = array_values($tags);
+        }
+
+        if (isset($validated['calendar']) && is_array($validated['calendar'])) {
+            $currentCalendar = is_array($circle->calendar) ? $circle->calendar : [];
+            $circle->calendar = array_replace_recursive($currentCalendar, $validated['calendar']);
+        }
+
+        if (isset($validated['name']) && $validated['name'] !== $circle->getOriginal('name')) {
+            $circle->slug = Circle::generateUniqueSlug($validated['name'], $circle->id);
+        }
+
+        $circle->save();
+
+        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
+            $categoryIds = collect($validated['categories'])->filter()->map(fn($id) => (int) $id)->values()->all();
+            $circle->categories()->sync($categoryIds);
+        }
+
+        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+
+        return $this->success($circle, 'Circle updated successfully.');
     }
 
     public function patchStatus(Request $request, string $id): JsonResponse
