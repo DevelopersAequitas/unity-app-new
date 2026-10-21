@@ -230,6 +230,18 @@ class AppNotificationAdminController extends Controller
                 }
             })->values();
 
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => true,
+                    'notifications' => $notifications,
+                    'categories' => $categories,
+                    'navigation_screens' => $navigationScreens,
+                    'stats' => $stats,
+                    'recent_logs' => $recentLogs,
+                    'initial_peers' => $initialPeers,
+                ]);
+            }
+
             return view('admin.app-notifications.index', compact(
                 'notifications',
                 'categories',
@@ -244,6 +256,16 @@ class AppNotificationAdminController extends Controller
             Log::error('AppNotificationAdminController index error: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
+
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                    'notifications' => $this->catalogService->getAll(),
+                    'categories' => $this->catalogService->getCategories(),
+                    'navigation_screens' => $this->catalogService->getNavigationScreens(),
+                ], 500);
+            }
 
             return view('admin.app-notifications.index', [
                 'notifications' => $this->catalogService->getAll(),

@@ -27,8 +27,12 @@ class NotificationMonitoringController extends Controller
     /**
      * Display the Notification Monitoring Dashboard with live stats, advanced multi-filters & paginated logs.
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
+        if ($request->wantsJson()) {
+            return $this->apiIndex($request);
+        }
+
         $filters = $this->buildFilters($request);
         $hasTable = Schema::hasTable('app_notifications');
 
@@ -67,6 +71,92 @@ class NotificationMonitoringController extends Controller
             'channels' => $this->availableChannels(),
             'statuses' => $this->availableStatuses(),
             'total' => $items->total(),
+        ]);
+    }
+
+    /**
+     * API: Get monitoring metrics, filters, and paginated logs as JSON.
+     */
+    public function apiIndex(Request $request): JsonResponse
+    {
+        $filters = $this->buildFilters($request);
+        $hasTable = Schema::hasTable('app_notifications');
+
+        if (! $hasTable) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'items' => [],
+                    'filters' => $filters,
+                    'summary' => $this->emptySummary(),
+                    'notification_types' => [],
+                    'channels' => $this->availableChannels(),
+                    'statuses' => $this->availableStatuses(),
+                    'pagination' => [
+                        'total' => 0,
+                        'per_page' => 20,
+                        'current_page' => 1,
+                        'last_page' => 1,
+                    ],
+                ],
+            ]);
+        }
+
+        $baseQuery = $this->buildQuery($filters);
+        $summary = $this->calculateSummary($filters);
+
+        $perPage = max(10, min((int) ($filters['per_page'] ?? 20), 100));
+        $paginator = (clone $baseQuery)
+            ->with(['user:id,first_name,last_name,display_name,email,phone,city,membership_status'])
+            ->orderBy($this->resolveSortColumn($filters['sort'] ?? 'created_at'), $filters['direction'] ?? 'desc')
+            ->paginate($perPage);
+
+        $notificationTypes = $this->resolveNotificationTypes();
+
+        $items = collect($paginator->items())->map(function ($item) {
+            $user = $item->user;
+            $userName = $user
+                ? trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: ($user->display_name ?? $user->email ?? '—')
+                : '—';
+
+            return [
+                'id' => $item->id,
+                'type' => $item->type,
+                'category' => $item->category,
+                'channel' => $item->channel ?? 'push',
+                'title' => $item->title ?? '—',
+                'body' => $item->body ?? $item->message ?? '—',
+                'status' => strtolower((string) ($item->status ?? 'sent')),
+                'failure_reason' => $item->failure_reason,
+                'created_at' => $item->created_at ? $item->created_at->format('Y-m-d H:i:s') : null,
+                'sent_at' => $item->sent_at ? $item->sent_at->format('Y-m-d H:i:s') : null,
+                'user' => [
+                    'id' => $user?->id,
+                    'name' => $userName,
+                    'email' => $user?->email,
+                    'phone' => $user?->phone,
+                    'city' => $user?->city,
+                    'membership' => $user?->membership_status ?? 'Peer',
+                ],
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'items' => $items,
+                'summary' => $summary,
+                'filters' => $filters,
+                'notification_types' => $notificationTypes,
+                'channels' => $this->availableChannels(),
+                'statuses' => $this->availableStatuses(),
+                'pagination' => [
+                    'total' => $paginator->total(),
+                    'per_page' => $paginator->perPage(),
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                ],
+            ],
         ]);
     }
 

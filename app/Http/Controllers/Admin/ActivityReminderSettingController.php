@@ -24,7 +24,7 @@ class ActivityReminderSettingController extends Controller
     /**
      * Display a listing of activity reminder settings.
      */
-    public function index(): View
+    public function index(Request $request = null): View|JsonResponse
     {
         $settings = ActivityReminderSetting::query()
             ->orderBy('priority', 'asc')
@@ -32,17 +32,33 @@ class ActivityReminderSettingController extends Controller
 
         $counts = $this->service->calculateEligibleCounts();
 
+        if (($request && $request->wantsJson()) || ($request && $request->is('api/*'))) {
+            return response()->json([
+                'success' => true,
+                'settings' => $settings,
+                'counts' => $counts,
+            ]);
+        }
+
         return view('admin.activity-reminders.index', compact('settings', 'counts'));
     }
 
     /**
      * Update the specified activity reminder setting in storage.
      */
-    public function update(UpdateActivityReminderSettingRequest $request, string $id): RedirectResponse
+    public function update(UpdateActivityReminderSettingRequest $request, string $id): RedirectResponse|JsonResponse
     {
         try {
             $setting = ActivityReminderSetting::query()->findOrFail($id);
             $setting->update($request->validated());
+
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Activity reminder setting for '{$setting->activity_name}' updated successfully.",
+                    'data' => $setting,
+                ]);
+            }
 
             return redirect()->route('admin.activity-reminders.index')
                 ->with('success', "Activity reminder setting for '{$setting->activity_name}' updated successfully.");
@@ -51,6 +67,13 @@ class ActivityReminderSettingController extends Controller
                 'id' => $id,
                 'error' => $e->getMessage(),
             ]);
+
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update activity reminder setting: '.$e->getMessage(),
+                ], 422);
+            }
 
             return redirect()->back()
                 ->withInput()

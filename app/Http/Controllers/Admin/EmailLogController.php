@@ -67,6 +67,24 @@ class EmailLogController extends Controller
             ->orderBy('template_key')
             ->pluck('template_key');
 
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $emailLogs,
+                'template_keys' => $templateKeys,
+                'source_modules' => $sourceModules,
+                'filters' => [
+                    'search' => $search,
+                    'template_key' => $templateKey,
+                    'source_module' => $sourceModule,
+                    'status' => in_array($status, ['all', 'sent', 'failed', 'pending', 'queued'], true) ? $status : 'all',
+                    'date_from' => $dateFrom,
+                    'date_to' => $dateTo,
+                    'per_page' => $perPage,
+                ],
+            ]);
+        }
+
         return view('admin.email_logs.index', [
             'emailLogs' => $emailLogs,
             'templateKeys' => $templateKeys,
@@ -83,7 +101,7 @@ class EmailLogController extends Controller
         ]);
     }
 
-    public function show(EmailLog $emailLog): View
+    public function show(Request $request, EmailLog $emailLog): View|JsonResponse
     {
         $bodyHtml = $emailLog->body_html;
         $bodyText = $emailLog->body_text;
@@ -99,6 +117,14 @@ class EmailLogController extends Controller
             $bodyHtml = $this->renderTemplate($jsonData, $emailLog);
         } elseif (empty($bodyHtml) && ! empty($bodyText)) {
             $bodyHtml = $this->renderTemplate(['message' => $bodyText], $emailLog);
+        }
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $emailLog,
+                'body_html' => $bodyHtml,
+            ]);
         }
 
         return view('admin.email_logs.show', [
