@@ -616,6 +616,15 @@ export const NominationsPage: React.FC = () => {
                                         <td className="py-3">
                                             <div className="d-flex flex-column align-items-start gap-1">
                                                 <StatusBadge status={nom.status} />
+                                                {nom.jury_evaluation && nom.jury_evaluation.status === 'completed' && (
+                                                    <span 
+                                                        className="badge rounded-pill bg-success text-white px-2 py-0.5 d-inline-flex align-items-center gap-1 shadow-xs" 
+                                                        style={{ fontSize: '0.68rem', fontWeight: 700 }} 
+                                                        title={`Jury Evaluation Completed by ${nom.jury_evaluation.juror_name} (${nom.jury_evaluation.juror_email || ''})`}
+                                                    >
+                                                        <Check size={10} /> Jury Reviewed: {nom.jury_evaluation.juror_name}
+                                                    </span>
+                                                )}
                                                 {nom.form_2_status === 'submitted' && (
                                                     <span className="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-2 py-0.5 d-inline-flex align-items-center gap-1" style={{ fontSize: '0.68rem', fontWeight: 600 }} title="Form 2 Submitted">
                                                         <Check size={10} /> F2 Done
@@ -892,6 +901,40 @@ export const NominationsPage: React.FC = () => {
                                         {/* Tab 1: Profile */}
                                         {activeTab === 'profile' && (
                                             <div className="row g-3">
+                                                {selectedNomination.jury_evaluation && selectedNomination.jury_evaluation.status === 'completed' && (
+                                                    <div className="col-12">
+                                                        <div className="p-3.5 rounded-3 bg-success bg-opacity-10 border border-success border-opacity-25 shadow-xs">
+                                                            <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-2">
+                                                                <div className="d-flex align-items-center gap-2 text-success fw-bold">
+                                                                    <CheckCircle2 size={18} />
+                                                                    <span>Jury Evaluation Completed</span>
+                                                                </div>
+                                                                <span className="badge bg-success text-white text-uppercase font-monospace px-2.5 py-1">
+                                                                    {selectedNomination.jury_evaluation.overall_recommendation}
+                                                                </span>
+                                                            </div>
+                                                            <div className="small text-dark mb-1">
+                                                                <strong>Appointed Juror:</strong> {selectedNomination.jury_evaluation.juror_name} ({selectedNomination.jury_evaluation.juror_email || 'Juror'})
+                                                            </div>
+                                                            {selectedNomination.jury_evaluation.strengths && (
+                                                                <div className="small text-muted mb-1">
+                                                                    <strong className="text-dark">Key Strengths:</strong> {selectedNomination.jury_evaluation.strengths}
+                                                                </div>
+                                                            )}
+                                                            {selectedNomination.jury_evaluation.concerns && (
+                                                                <div className="small text-muted mb-1">
+                                                                    <strong className="text-dark">Key Concerns:</strong> {selectedNomination.jury_evaluation.concerns}
+                                                                </div>
+                                                            )}
+                                                            {selectedNomination.jury_evaluation.remarks && (
+                                                                <div className="small text-muted">
+                                                                    <strong className="text-dark">Final Remarks:</strong> {selectedNomination.jury_evaluation.remarks}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {['approved', 'shortlisted'].includes(selectedNomination.status) && (
                                                     <div className="col-12">
                                                         <div className="p-3 rounded-3 bg-success bg-opacity-10 border border-success border-opacity-25">

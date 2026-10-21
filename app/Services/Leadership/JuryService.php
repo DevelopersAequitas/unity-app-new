@@ -30,17 +30,23 @@ class JuryService
      *
      * @param  array<string, mixed>  $filters
      */
-    public function listEligibleJurors(array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function listEligibleJurors(array $filters = [], int $perPage = 200): LengthAwarePaginator
     {
-        $query = User::query();
+        $query = User::query()->select(['id', 'first_name', 'last_name', 'display_name', 'email', 'phone']);
 
         if (! empty($filters['search'])) {
-            $term = '%'.trim((string) $filters['search']).'%';
-            $query->where(fn ($q) => $q->where('display_name', 'ilike', $term)
-                ->orWhere('email', 'ilike', $term)
-                ->orWhere('first_name', 'ilike', $term)
-                ->orWhere('last_name', 'ilike', $term));
+            $term = '%'.strtolower(trim((string) $filters['search'])).'%';
+            $query->where(function ($q) use ($term): void {
+                $q->whereRaw('LOWER(display_name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(first_name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$term]);
+            });
         }
+
+        $query->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->orderBy('display_name', 'asc');
 
         return $query->paginate($perPage);
     }
@@ -58,7 +64,7 @@ class JuryService
         string $remarks = '',
         ?string $assignedBy = null
     ): array {
-        $nomination = LeadershipNomination::findOrFail($nominationId);
+        $nomination = LeadershipNomination::with('campaign.role')->findOrFail($nominationId);
 
         return DB::transaction(function () use ($nomination, $jurorUserIds, $dueAt, $remarks, $assignedBy): array {
             $created = new Collection;
@@ -86,6 +92,9 @@ class JuryService
                 );
 
                 $created->push($assignment);
+
+                // Send email notification to the assigned juror
+                $this->sendJurorAppointmentEmail($user, $nomination, $dueAt);
             }
 
             $this->auditService->log(
@@ -101,6 +110,94 @@ class JuryService
                 'assignments' => $created->load('juror'),
             ];
         });
+    }
+
+    /**
+     * Send email to appointed juror with portal login link.
+     */
+    protected function sendJurorAppointmentEmail(User $juror, LeadershipNomination $nomination, ?string $dueAt = null): void
+    {
+        if (empty($juror->email)) {
+            return;
+        }
+
+        try {
+            $jurorName = $juror->display_name ?: trim(($juror->first_name ?? '').' '.($juror->last_name ?? '')) ?: 'Jury Member';
+            $campaignName = $nomination->campaign?->name ?? 'Leadership Selection Campaign';
+            $candidateName = $nomination->candidate_name ?? $nomination->full_name;
+            $appNumber = $nomination->application_number;
+            $roleName = $nomination->campaign?->role?->name ?? 'Leadership Role';
+            $deadline = $dueAt ? Carbon::parse($dueAt)->format('d M Y, h:i A') : '7 Days from Assignment';
+            $portalUrl = 'https://peersunity.com/admin/web/jury/login';
+
+            \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($juror, $jurorName, $campaignName, $candidateName, $appNumber, $roleName, $deadline, $portalUrl): void {
+                $html = "
+                <div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;'>
+                    <div style='text-align: center; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;'>
+                        <div style='display: inline-block; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;'>Official Appointment</div>
+                        <h1 style='color: #0f172a; font-size: 22px; font-weight: 800; margin: 0 0 6px 0;'>Jury Evaluation Panel</h1>
+                        <p style='color: #64748b; font-size: 14px; margin: 0;'>Peers Global Leadership Selection 2026</p>
+                    </div>
+
+                    <p style='font-size: 15px; line-height: 1.6; margin-bottom: 16px;'>Dear <strong>{$jurorName}</strong>,</p>
+
+                    <p style='font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;'>
+                        You have been officially appointed as a distinguished <strong>Jury Member</strong> for the campaign: <strong>{$campaignName}</strong>. You have been assigned to evaluate and score the candidacy of <strong>{$candidateName}</strong> for the position of <strong>{$roleName}</strong>.
+                    </p>
+
+                    <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;'>
+                        <div style='font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;'>Assignment Details</div>
+                        <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b; width: 140px;'>Campaign:</td>
+                                <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$campaignName}</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'>Candidate:</td>
+                                <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$candidateName} ({$appNumber})</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'>Applied Role:</td>
+                                <td style='padding: 6px 0; color: #0f172a; font-weight: 600;'>{$roleName}</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'>Evaluation Due:</td>
+                                <td style='padding: 6px 0; color: #dc2626; font-weight: 700;'>{$deadline}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style='background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%); border: 1px solid #c7d2fe; border-radius: 12px; padding: 24px; margin: 28px 0; text-align: center;'>
+                        <h3 style='margin: 0 0 10px 0; color: #312e81; font-size: 17px; font-weight: 700;'>Access Your Jury Dashboard</h3>
+                        <p style='color: #475569; font-size: 14px; margin-bottom: 20px; line-height: 1.5;'>
+                            Please log into the Jury Portal using your registered email (<strong>{$juror->email}</strong>) and a one-time password (OTP) sent directly to your inbox.
+                        </p>
+                        <a href='{$portalUrl}' target='_blank' style='display: inline-block; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);'>
+                            Open Jury Evaluation Portal &rarr;
+                        </a>
+                        <p style='margin-top: 14px; font-size: 12px; color: #64748b;'>
+                            Or access via: <a href='{$portalUrl}' style='color: #4f46e5; word-break: break-all;'>{$portalUrl}</a>
+                        </p>
+                    </div>
+
+                    <p style='font-size: 13px; color: #64748b; line-height: 1.5;'>
+                        In your dashboard, you will find complete Form 1 credentials, verified achievements, and Form 2 operational dossiers to record your scores, strengths, and recommendations.
+                    </p>
+
+                    <div style='border-top: 1px solid #f1f5f9; margin-top: 28px; padding-top: 20px; font-size: 12px; color: #94a3b8; text-align: center;'>
+                        Peers Global Leadership Selection & Governance Committee<br/>
+                        Automated notification from Peers Unity Platform.
+                    </div>
+                </div>
+                ";
+
+                $message->to($juror->email)
+                    ->subject("Appointment as Jury Member - {$campaignName}")
+                    ->html($html);
+            });
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Failed to send juror appointment email to {$juror->email}: ".$e->getMessage());
+        }
     }
 
     /**

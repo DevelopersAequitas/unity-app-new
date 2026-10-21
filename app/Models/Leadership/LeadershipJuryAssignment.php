@@ -50,8 +50,11 @@ class LeadershipJuryAssignment extends Model
     protected $appends = [
         'candidate_name',
         'jury_name',
+        'jury_email',
         'deadline',
         'campaign_id',
+        'campaign_name',
+        'report_data',
     ];
 
     public function getCandidateNameAttribute(): ?string
@@ -61,7 +64,12 @@ class LeadershipJuryAssignment extends Model
 
     public function getJuryNameAttribute(): ?string
     {
-        return $this->juror?->display_name ?? $this->juror?->name ?? $this->juror_user_id;
+        return $this->juror?->display_name ?: trim(($this->juror?->first_name ?? '').' '.($this->juror?->last_name ?? '')) ?: $this->juror_user_id;
+    }
+
+    public function getJuryEmailAttribute(): ?string
+    {
+        return $this->juror?->email;
     }
 
     public function getDeadlineAttribute(): ?string
@@ -72,6 +80,26 @@ class LeadershipJuryAssignment extends Model
     public function getCampaignIdAttribute(): ?string
     {
         return $this->nomination?->campaign_id;
+    }
+
+    public function getCampaignNameAttribute(): ?string
+    {
+        return $this->nomination?->campaign?->name ?? $this->nomination?->campaign_name;
+    }
+
+    public function getReportDataAttribute(): ?array
+    {
+        if (! $this->relationLoaded('report') || ! $this->report) {
+            return null;
+        }
+
+        return [
+            'overall_recommendation' => $this->report->overall_recommendation,
+            'strengths' => $this->report->strengths,
+            'concerns' => $this->report->concerns,
+            'final_remarks' => $this->report->final_remarks,
+            'submitted_at' => $this->report->submitted_at?->toIso8601String(),
+        ];
     }
 
     protected static function booted(): void

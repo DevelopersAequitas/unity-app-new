@@ -273,6 +273,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp'])->name('auth.request-otp');
     Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp'])->name('auth.verify-otp');
 
+    // Jury Web Portal (Public OTP Authentication & Juror Dashboard)
+    Route::prefix('web/jury')->name('web.jury.')->group(function (): void {
+        Route::get('/login', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'showLogin'])->name('login');
+        Route::post('/send-otp', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'sendOtp'])->name('send-otp');
+        Route::post('/verify-otp', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'verifyOtp'])->name('verify-otp');
+        Route::get('/dashboard', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'dashboard'])->name('dashboard');
+        Route::get('/nomination/{id}/details', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
+        Route::post('/review/{id}', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
+        Route::post('/logout', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'logout'])->name('logout');
+        Route::get('/logout', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'logout'])->name('logout.get');
+    });
+
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle', 'admin.permission'])->group(function () {
         // RBAC Hierarchy & Profile management
         Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');

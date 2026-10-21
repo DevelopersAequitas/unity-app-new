@@ -72,7 +72,62 @@ class LeadershipNomination extends Model
         'form_2_link',
         'form_2_status',
         'form_2_data',
+        'jury_evaluation',
     ];
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getJuryEvaluationAttribute(): ?array
+    {
+        $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
+            ->where('nomination_id', $this->id)
+            ->where('status', 'completed')
+            ->latest('completed_at')
+            ->first();
+
+        if (! $assignment && str_ends_with((string) $this->application_number, '-F2')) {
+            $parent = static::where('application_number', substr((string) $this->application_number, 0, -3))->first();
+            if ($parent) {
+                $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
+                    ->where('nomination_id', $parent->id)
+                    ->where('status', 'completed')
+                    ->latest('completed_at')
+                    ->first();
+            }
+        }
+
+        if (! $assignment) {
+            $child = static::where('application_number', $this->application_number.'-F2')->first();
+            if ($child) {
+                $assignment = LeadershipJuryAssignment::with(['juror', 'report'])
+                    ->where('nomination_id', $child->id)
+                    ->where('status', 'completed')
+                    ->latest('completed_at')
+                    ->first();
+            }
+        }
+
+        if (! $assignment) {
+            return null;
+        }
+
+        $juror = $assignment->juror;
+        $report = $assignment->report;
+
+        return [
+            'status' => 'completed',
+            'assignment_id' => $assignment->id,
+            'juror_id' => $assignment->juror_user_id,
+            'juror_name' => $juror?->display_name ?: trim(($juror?->first_name ?? '').' '.($juror?->last_name ?? '')) ?: 'Jury Member',
+            'juror_email' => $juror?->email,
+            'overall_recommendation' => $report?->overall_recommendation ?? 'reviewed',
+            'strengths' => $report?->strengths,
+            'concerns' => $report?->concerns,
+            'final_remarks' => $report?->final_remarks,
+            'completed_at' => $assignment->completed_at?->toIso8601String(),
+        ];
+    }
 
     public function getForm2LinkAttribute(): string
     {
