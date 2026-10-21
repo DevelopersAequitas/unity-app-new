@@ -277,21 +277,37 @@ export const JuryPage: React.FC = () => {
                                                     </td>
                                                     <td className="text-end">
                                                         <div className="d-flex align-items-center justify-content-end gap-1.5">
-                                                            {isCompleted && (
+                                                            {isCompleted ? (
                                                                 <button
                                                                     onClick={() => setSelectedReview(asg)}
-                                                                    className="btn btn-outline-success btn-sm rounded-2 py-0.5 px-2 d-inline-flex align-items-center gap-1"
-                                                                    title="View Juror Review"
+                                                                    className="btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs border"
+                                                                    style={{
+                                                                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                                                        borderColor: 'rgba(16, 185, 129, 0.3)',
+                                                                        color: '#047857',
+                                                                        fontSize: '0.78rem',
+                                                                    }}
+                                                                    title="View completed juror review and evaluation report"
                                                                 >
-                                                                    <Eye size={12} /> View Review
+                                                                    <Eye size={13} />
+                                                                    <span>View Review</span>
                                                                 </button>
+                                                            ) : (
+                                                                <span
+                                                                    className="text-muted small px-2 py-1 d-inline-flex align-items-center gap-1 me-1"
+                                                                    style={{ fontSize: '0.75rem' }}
+                                                                >
+                                                                    <Clock size={12} className="text-warning" /> Awaiting Review
+                                                                </span>
                                                             )}
                                                             <button
                                                                 onClick={() => handleDeleteAssignment(asg.id)}
-                                                                className="btn btn-outline-danger btn-sm rounded-2 py-0.5 px-2"
+                                                                className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                style={{ fontSize: '0.78rem' }}
                                                                 title="Revoke assignment"
                                                             >
-                                                                <Trash2 size={12} />
+                                                                <Trash2 size={13} className="text-danger" />
+                                                                <span className="fs-12 text-muted">Revoke</span>
                                                             </button>
                                                         </div>
                                                     </td>
@@ -335,9 +351,12 @@ export const JuryPage: React.FC = () => {
                                                 <td className="text-end">
                                                     <button
                                                         onClick={() => handleDeleteCriterion(crit.id)}
-                                                        className="btn btn-outline-danger btn-sm rounded-2 py-0.5 px-2"
+                                                        className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                        style={{ fontSize: '0.78rem' }}
+                                                        title="Delete criterion"
                                                     >
-                                                        <Trash2 size={12} />
+                                                        <Trash2 size={13} className="text-danger" />
+                                                        <span className="fs-12 text-muted">Delete</span>
                                                     </button>
                                                 </td>
                                             </tr>
