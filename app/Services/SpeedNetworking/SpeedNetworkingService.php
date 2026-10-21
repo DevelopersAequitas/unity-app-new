@@ -264,10 +264,19 @@ class SpeedNetworkingService
                 ]
             );
 
-            // If event is scheduled or draft, open lobby if appropriate
-            if (in_array($lockedEvent->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED], true)) {
-                $lockedEvent->status = SpeedNetworkingEvent::STATUS_LOBBY_OPEN;
-                $lockedEvent->save();
+            // Automatically activate event if scheduled time has arrived or not set
+            if (in_array($lockedEvent->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED, SpeedNetworkingEvent::STATUS_LOBBY_OPEN], true)) {
+                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->isPast()) {
+                    $lockedEvent->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
+                    $lockedEvent->actual_start_time = Carbon::now();
+                    if ($lockedEvent->current_round < 1) {
+                        $lockedEvent->current_round = 1;
+                    }
+                    $lockedEvent->save();
+                } else {
+                    $lockedEvent->status = SpeedNetworkingEvent::STATUS_LOBBY_OPEN;
+                    $lockedEvent->save();
+                }
             }
 
             // If event is not in progress or no rounds yet, return lobby payload
@@ -284,8 +293,10 @@ class SpeedNetworkingService
                     'channel_id' => '',
                     'agora_token' => '',
                     'is_break_round' => false,
+                    'is_waiting' => true,
                     'has_met_all_peers' => false,
                     'completed' => false,
+                    'message' => 'Lobby is open. Waiting for the event to begin.',
                     'peer' => null,
                 ];
             }
@@ -708,7 +719,7 @@ class SpeedNetworkingService
         $unmetPeerIds = array_values(array_diff($otherParticipantIds, $metPeerIds));
 
         $hasReachedTotalRounds = ($event->total_rounds > 0 && $userCompletedCount >= $event->total_rounds);
-        $hasMetAllPeers = empty($unmetPeerIds);
+        $hasMetAllPeers = ! empty($otherParticipantIds) && empty($unmetPeerIds);
 
         // If user reached round limit OR has met all active peers:
         if ($hasReachedTotalRounds || $hasMetAllPeers) {
@@ -728,9 +739,36 @@ class SpeedNetworkingService
                 'channel_id' => '',
                 'agora_token' => '',
                 'is_break_round' => true,
+                'is_waiting' => false,
                 'has_met_all_peers' => true,
                 'completed' => true,
                 'message' => 'You have met all peers in this event.',
+                'peer' => null,
+            ];
+        }
+
+        // If no other participants have joined yet, user is waiting for peers to join
+        if (empty($otherParticipantIds)) {
+            SpeedNetworkingParticipant::where('event_id', $event->id)
+                ->where('user_id', $user->id)
+                ->update(['status' => SpeedNetworkingParticipant::STATUS_LOBBY]);
+
+            return [
+                'event_id' => (string) $event->id,
+                'title' => $event->title,
+                'event_title' => $event->title,
+                'round_duration_seconds' => (int) $event->round_duration_seconds,
+                'break_duration_seconds' => (int) $event->break_duration_seconds,
+                'current_round' => $userCompletedCount,
+                'total_rounds' => (int) $event->total_rounds,
+                'remaining_seconds' => 0,
+                'channel_id' => '',
+                'agora_token' => '',
+                'is_break_round' => true,
+                'is_waiting' => true,
+                'has_met_all_peers' => false,
+                'completed' => false,
+                'message' => 'Waiting for peers to join the event...',
                 'peer' => null,
             ];
         }
@@ -809,6 +847,7 @@ class SpeedNetworkingService
             'channel_id' => '',
             'agora_token' => '',
             'is_break_round' => true,
+            'is_waiting' => true,
             'has_met_all_peers' => false,
             'completed' => false,
             'message' => 'Waiting for the next peer to become available...',
@@ -952,10 +991,31 @@ class SpeedNetworkingService
             'channel_id' => $match->channel_id ?: '',
             'agora_token' => $token ?: '',
             'is_break_round' => $isBreak,
+            'is_waiting' => false,
             'has_met_all_peers' => $isBreak ? $hasMetAllPeers : false,
             'completed' => false,
             'peer' => $peerData,
         ];
+    }
+
+    /**
+     * Get active match payload for user if currently in an active round.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getActiveMatchPayload(SpeedNetworkingEvent $event, User $user): ?array
+    {
+        $activeMatch = $this->findActiveMatchForUser($event->id, (string) $user->id);
+        if (! $activeMatch) {
+            return null;
+        }
+
+        $elapsed = $activeMatch->started_at ? Carbon::now()->diffInSeconds($activeMatch->started_at) : 0;
+        if ($elapsed >= $event->round_duration_seconds) {
+            return null;
+        }
+
+        return $this->formatMatchResponse($event, $activeMatch, (string) $user->id);
     }
 
     /**
@@ -981,6 +1041,7 @@ class SpeedNetworkingService
             'channel_id' => '',
             'agora_token' => '',
             'is_break_round' => true,
+            'is_waiting' => ! $hasMetAllPeers,
             'has_met_all_peers' => $hasMetAllPeers,
             'completed' => $hasMetAllPeers,
             'message' => $message,

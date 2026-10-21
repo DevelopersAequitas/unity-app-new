@@ -1080,6 +1080,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::get('/', [WebGalleryController::class, 'index'])->name('index');
                 Route::post('/', [WebGalleryController::class, 'store'])->name('store');
                 Route::post('/bulk-zip', [WebGalleryController::class, 'bulkZipUpload'])->name('bulk-zip');
+                Route::delete('/bulk-delete', [WebGalleryController::class, 'bulkDestroy'])->name('bulk-destroy');
                 Route::put('/{id}', [WebGalleryController::class, 'update'])->name('update')->whereUuid('id');
                 Route::delete('/{id}', [WebGalleryController::class, 'destroy'])->name('destroy')->whereUuid('id');
                 Route::patch('/{id}/toggle-status', [WebGalleryController::class, 'toggleStatus'])->name('toggle-status')->whereUuid('id');

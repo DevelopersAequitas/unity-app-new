@@ -12,59 +12,59 @@ class BusinessCategoryController extends BaseApiController
 {
     public function main(): JsonResponse
     {
-        $table = Schema::hasTable('business_categories') ? 'business_categories' : 'circle_categories';
-
-        if (! Schema::hasTable($table)) {
-            return $this->error('Business categories table not found.', 404);
-        }
-
-        if ($table === 'business_categories') {
-            $businessCategories = DB::table('business_categories');
-            if (Schema::hasColumn('business_categories', 'is_active')) {
-                $businessCategories->where('is_active', true);
-            }
-            $businessCategories = $this->orderCategoryQuery($businessCategories, 'business_categories')->get();
-
-            $circleCategories = collect();
-            if (Schema::hasTable('circle_categories')) {
-                $circleCategories = DB::table('circle_categories')
-                    ->where('level', 1)
-                    ->get();
-            }
-
-            $items = $businessCategories->map(function ($bc) use ($circleCategories) {
-                $cleanBcName = trim(preg_replace('/\s+Circles?\b/i', '', $bc->name));
-
-                $matchedCc = $circleCategories->first(function ($cc) use ($cleanBcName) {
-                    $cleanCcName = trim(preg_replace('/\s+Circles?\b/i', '', $cc->name));
-
-                    return strcasecmp($cleanBcName, $cleanCcName) === 0;
-                });
-
-                return [
-                    'id' => $matchedCc ? (int) $matchedCc->id : (int) $bc->id,
-                    'name' => (string) $bc->name,
-                ];
-            })->values();
-        } else {
+        if (Schema::hasTable('circle_categories')) {
             $query = DB::table('circle_categories')
                 ->select(['id', 'name'])
-                ->where('level', 1);
+                ->where(function ($q) {
+                    $q->where('level', 1)
+                        ->orWhereNull('parent_id');
+                });
 
             if (Schema::hasColumn('circle_categories', 'is_active')) {
-                $query->where('is_active', true);
+                $query->where(function ($q) {
+                    $q->where('is_active', true)
+                        ->orWhereNull('is_active');
+                });
             }
 
-            $items = $this->orderCategoryQuery($query, 'circle_categories')
+            if (Schema::hasColumn('circle_categories', 'sort_order')) {
+                $query->orderBy('sort_order');
+            }
+
+            $items = $query->orderBy('id')
                 ->get()
                 ->map(fn ($category): array => [
                     'id' => (int) $category->id,
-                    'name' => (string) $category->name,
+                    'name' => trim(preg_replace('/\s+Circles?\b/i', '', (string) $category->name)),
                 ])
                 ->values();
+
+            return $this->success($items, 'Main business categories fetched successfully.');
         }
 
-        return $this->success($items, 'Main business categories fetched successfully.');
+        if (Schema::hasTable('business_categories')) {
+            $query = DB::table('business_categories')->select(['id', 'name']);
+
+            if (Schema::hasColumn('business_categories', 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            if (Schema::hasColumn('business_categories', 'sort_order')) {
+                $query->orderBy('sort_order');
+            }
+
+            $items = $query->orderBy('id')
+                ->get()
+                ->map(fn ($category): array => [
+                    'id' => (int) $category->id,
+                    'name' => trim(preg_replace('/\s+Circles?\b/i', '', (string) $category->name)),
+                ])
+                ->values();
+
+            return $this->success($items, 'Main business categories fetched successfully.');
+        }
+
+        return $this->error('Business categories table not found.', 404);
     }
 
     public function show(string $idOrSlug): JsonResponse
@@ -163,6 +163,13 @@ class BusinessCategoryController extends BaseApiController
             'parent_id' => is_numeric($parentId) ? (int) $parentId : $parentId,
         ];
 
+        $level4Children = $this->level4ChildrenByCircleCategoryId($parentId);
+        if ($level4Children->isNotEmpty()) {
+            $level4Children->push($otherOption);
+
+            return $this->success($level4Children, 'Business sub categories fetched successfully.');
+        }
+
         $selfChildren = $this->selfReferencingChildren($parentId);
         if ($selfChildren->isNotEmpty()) {
             $selfChildren->push($otherOption);
@@ -174,6 +181,42 @@ class BusinessCategoryController extends BaseApiController
         $legacyChildren->push($otherOption);
 
         return $this->success($legacyChildren, 'Business sub categories fetched successfully.');
+    }
+
+    private function level4ChildrenByCircleCategoryId(string $parentId)
+    {
+        $table = Schema::hasTable('circle_category_level4')
+            ? 'circle_category_level4'
+            : $this->level4CategoriesTable();
+
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'circle_category_id')) {
+            return collect();
+        }
+
+        $query = DB::table($table)
+            ->select(['id', 'name'])
+            ->where('circle_category_id', $parentId);
+
+        if (Schema::hasColumn($table, 'is_active')) {
+            $query->where(function ($q) {
+                $q->where('is_active', true)
+                    ->orWhereNull('is_active');
+            });
+        }
+
+        if (Schema::hasColumn($table, 'sort_order')) {
+            $query->orderBy('sort_order');
+        }
+
+        return $query->orderBy('name')->orderBy('id')
+            ->get()
+            ->map(fn ($category): array => [
+                'id' => (int) $category->id,
+                'name' => (string) $category->name,
+                'level' => 4,
+                'parent_id' => is_numeric($parentId) ? (int) $parentId : $parentId,
+            ])
+            ->values();
     }
 
     private function selfReferencingChildren(string $parentId)
@@ -205,6 +248,11 @@ class BusinessCategoryController extends BaseApiController
     {
         $parent = DB::table('circle_categories')->where('id', $parentId)->first();
         if ($parent) {
+            $level4 = $this->level4ChildrenByCircleCategoryId($parentId);
+            if ($level4->isNotEmpty()) {
+                return $level4;
+            }
+
             return $this->legacyLevel2Children($parentId);
         }
 

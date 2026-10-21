@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Web\BulkDeleteWebGalleryItemsRequest;
 use App\Http\Requests\Admin\Web\BulkZipUploadWebGalleryRequest;
 use App\Http\Requests\Admin\Web\StoreWebGalleryItemRequest;
 use App\Http\Requests\Admin\Web\UpdateWebGalleryItemRequest;
@@ -147,6 +148,22 @@ class WebGalleryController extends Controller
 
             return redirect()->route('admin.web.gallery.index')
                 ->with('error', 'Failed to delete photo: '.$e->getMessage());
+        }
+    }
+
+    public function bulkDestroy(BulkDeleteWebGalleryItemsRequest $request): RedirectResponse
+    {
+        try {
+            $ids = (array) $request->validated('ids', []);
+            $deletedCount = $this->galleryService->bulkDeleteItems($ids);
+
+            return redirect()->route('admin.web.gallery.index')
+                ->with('success', "Successfully deleted {$deletedCount} gallery photo(s).");
+        } catch (\Throwable $e) {
+            Log::error('WebGalleryController bulkDestroy error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('admin.web.gallery.index')
+                ->with('error', 'Failed to delete selected photos: '.$e->getMessage());
         }
     }
 

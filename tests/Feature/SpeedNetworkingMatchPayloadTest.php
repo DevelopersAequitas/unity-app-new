@@ -254,4 +254,99 @@ class SpeedNetworkingMatchPayloadTest extends TestCase
         // And A should have met all 3 peers (user-b, user-c, user-d)
         $this->assertEqualsCanonicalizing(['user-b', 'user-c', 'user-d'], array_unique($matchesWithA));
     }
+
+    public function test_three_people_odd_flow_jay_rahul_chirag(): void
+    {
+        $mockAgora = Mockery::mock(AgoraTokenService::class);
+        $mockAgora->shouldReceive('generateToken')->andReturn('mock_agora_token');
+
+        $service = new SpeedNetworkingService($mockAgora);
+
+        $event = SpeedNetworkingEvent::create([
+            'id' => 'evt-odd-3',
+            'title' => 'Speed Networking 3 People (Jay, Rahul, Chirag)',
+            'status' => SpeedNetworkingEvent::STATUS_IN_PROGRESS,
+            'round_duration_seconds' => 120,
+            'break_duration_seconds' => 20,
+            'total_rounds' => 5,
+            'current_round' => 1,
+        ]);
+
+        $jay = User::create(['id' => 'user-jay', 'first_name' => 'Jay']);
+        $rahul = User::create(['id' => 'user-rahul', 'first_name' => 'Rahul']);
+        $chirag = User::create(['id' => 'user-chirag', 'first_name' => 'Chirag']);
+
+        // Step 1: Jay and Rahul join -> they connect together!
+        $resJay = $service->joinEvent($event, $jay);
+        $resRahul = $service->joinEvent($event, $rahul);
+
+        // Jay joins first so Jay waits until Rahul joins
+        $this->assertTrue($resJay['is_waiting']);
+        $this->assertNull($resJay['peer']);
+
+        // When Rahul joins, Rahul is matched with Jay!
+        $this->assertFalse($resRahul['is_waiting']);
+        $this->assertNotNull($resRahul['peer']);
+        $this->assertEquals('user-jay', $resRahul['peer']['id']);
+
+        // Jay retrieves the match (e.g. heartbeat or nextMatch polling)
+        $activeJay = $service->getActiveMatchPayload($event, $jay);
+        $this->assertNotNull($activeJay);
+        $this->assertEquals('user-rahul', $activeJay['peer']['id']);
+
+        // Step 2: Chirag joins (3rd person - Odd!)
+        // Jay and Rahul are in call, so Chirag MUST be waiting!
+        $resChirag = $service->joinEvent($event, $chirag);
+        $this->assertTrue($resChirag['is_waiting']);
+        $this->assertNull($resChirag['peer']);
+        $this->assertEquals('Waiting for the next peer to become available...', $resChirag['message']);
+
+        // Step 3: Rahul skips or finishes call -> Rahul meets Chirag!
+        $nextRahul = $service->getNextMatch($event, $rahul);
+        $this->assertFalse($nextRahul['is_waiting']);
+        $this->assertNotNull($nextRahul['peer']);
+        $this->assertEquals('user-chirag', $nextRahul['peer']['id']);
+
+        // Chirag's heartbeat immediately picks up the match with Rahul!
+        $activeChirag = $service->getActiveMatchPayload($event, $chirag);
+        $this->assertNotNull($activeChirag);
+        $this->assertEquals('user-rahul', $activeChirag['peer']['id']);
+
+        // Jay taps Next Peer (since Rahul skipped).
+        // Chirag is now busy with Rahul, so Jay must wait!
+        $nextJay = $service->getNextMatch($event, $jay);
+        $this->assertTrue($nextJay['is_waiting']);
+        $this->assertNull($nextJay['peer']);
+        $this->assertEquals('Waiting for the next peer to become available...', $nextJay['message']);
+
+        // Step 4: Rahul and Chirag finish their call
+        // Rahul has met both Jay and Chirag -> Rahul has met ALL peers!
+        $finalRahul = $service->getNextMatch($event, $rahul);
+        $this->assertTrue($finalRahul['has_met_all_peers']);
+        $this->assertTrue($finalRahul['completed']);
+        $this->assertEquals('You have met all peers in this event.', $finalRahul['message']);
+
+        // Chirag is free and connects with Jay!
+        $nextChirag = $service->getNextMatch($event, $chirag);
+        $this->assertFalse($nextChirag['is_waiting']);
+        $this->assertNotNull($nextChirag['peer']);
+        $this->assertEquals('user-jay', $nextChirag['peer']['id']);
+
+        // Jay's heartbeat immediately gets the match with Chirag!
+        $activeJayRound3 = $service->getActiveMatchPayload($event, $jay);
+        $this->assertNotNull($activeJayRound3);
+        $this->assertEquals('user-chirag', $activeJayRound3['peer']['id']);
+
+        // Step 5: Chirag and Jay finish their call
+        // Both have now met everyone in the event!
+        $finalChirag = $service->getNextMatch($event, $chirag);
+        $this->assertTrue($finalChirag['has_met_all_peers']);
+        $this->assertTrue($finalChirag['completed']);
+        $this->assertEquals('You have met all peers in this event.', $finalChirag['message']);
+
+        $finalJay = $service->getNextMatch($event, $jay);
+        $this->assertTrue($finalJay['has_met_all_peers']);
+        $this->assertTrue($finalJay['completed']);
+        $this->assertEquals('You have met all peers in this event.', $finalJay['message']);
+    }
 }
