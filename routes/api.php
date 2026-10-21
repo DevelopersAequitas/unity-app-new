@@ -83,7 +83,9 @@ use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
+use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
+use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
@@ -856,6 +858,21 @@ Route::prefix('v1')->group(function () {
             Route::patch('/industries/{id}/assign-id', [IndustryManagementController::class, 'assignId'])->whereUuid('id');
             Route::get('/industries/{id}/circles', [IndustryManagementController::class, 'circles'])->whereUuid('id');
             Route::get('/industries/{id}/stats', [IndustryManagementController::class, 'stats'])->whereUuid('id');
+
+            Route::get('/user-tags', [UserTagAdminController::class, 'index']);
+            Route::post('/user-tags', [UserTagAdminController::class, 'store']);
+            Route::get('/user-tags/{id}', [UserTagAdminController::class, 'show']);
+            Route::put('/user-tags/{id}', [UserTagAdminController::class, 'update']);
+            Route::delete('/user-tags/{id}', [UserTagAdminController::class, 'destroy']);
+            Route::post('/user-tags/{id}/users', [UserTagAdminController::class, 'assignUser']);
+            Route::delete('/user-tags/{id}/users/{userId}', [UserTagAdminController::class, 'removeUser']);
+            Route::get('/user-tags/{id}/search-users', [UserTagAdminController::class, 'searchUsers']);
+
+            Route::get('/circle-categories', [CircleCategoryAdminController::class, 'index']);
+            Route::post('/circle-categories', [CircleCategoryAdminController::class, 'store']);
+            Route::get('/circle-categories/{id}', [CircleCategoryAdminController::class, 'show']);
+            Route::put('/circle-categories/{id}', [CircleCategoryAdminController::class, 'update']);
+            Route::delete('/circle-categories/{id}', [CircleCategoryAdminController::class, 'destroy']);
 
             Route::get('/circles', [CircleManagementController::class, 'index']);
             Route::post('/circles', [CircleManagementController::class, 'store']);
