@@ -11,6 +11,9 @@ use App\Services\Web\WebPodcastMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class WebPodcastMediaController extends Controller
@@ -27,13 +30,32 @@ class WebPodcastMediaController extends Controller
             'search' => $request->query('search', ''),
         ];
 
-        $episodes = $this->podcastService->listPaginated($filters, 18);
-        $allActive = $this->podcastService->allActive();
+        $missingTable = ! Schema::hasTable('web_media');
+        $dbError = null;
 
-        $totalEpisodes = $allActive->count();
-        $featuredCount = $allActive->where('is_featured', true)->count();
-        $youtubeVideos = $allActive->whereNotNull('youtube_url')->count();
-        $spotifyLinks = $allActive->whereNotNull('spotify_url')->count();
+        try {
+            $episodes = $this->podcastService->listPaginated($filters, 18);
+            $allActive = $this->podcastService->allActive();
+
+            $totalEpisodes = $allActive->count();
+            $featuredCount = Schema::hasColumn('web_media', 'is_featured')
+                ? $allActive->where('is_featured', true)->count()
+                : 0;
+            $youtubeVideos = Schema::hasColumn('web_media', 'youtube_url')
+                ? $allActive->whereNotNull('youtube_url')->count()
+                : 0;
+            $spotifyLinks = Schema::hasColumn('web_media', 'spotify_url')
+                ? $allActive->whereNotNull('spotify_url')->count()
+                : 0;
+        } catch (\Throwable $e) {
+            Log::error('WebPodcastMediaController index error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            $episodes = new LengthAwarePaginator([], 0, 18);
+            $totalEpisodes = 0;
+            $featuredCount = 0;
+            $youtubeVideos = 0;
+            $spotifyLinks = 0;
+            $dbError = $e->getMessage();
+        }
 
         $tags = [
             'MANUFACTURING',
@@ -65,104 +87,149 @@ class WebPodcastMediaController extends Controller
                 'youtube' => $youtubeVideos,
                 'spotify' => $spotifyLinks,
             ],
+            'missingTable' => $missingTable,
+            'dbError' => $dbError,
         ]);
     }
 
     public function store(StoreWebPodcastMediaRequest $request): RedirectResponse
     {
-        $validated = $request->validated();
-        $cover = $request->file('cover_file');
-        $avatar = $request->file('guest_avatar_file');
+        try {
+            $validated = $request->validated();
+            $cover = $request->file('cover_file');
+            $avatar = $request->file('guest_avatar_file');
 
-        $this->podcastService->create($validated, $cover, $avatar);
+            $this->podcastService->create($validated, $cover, $avatar);
 
-        return redirect()->route('admin.web.podcasts.index')
-            ->with('success', 'Podcast episode / media feature published successfully! It is now accessible on the website media channels.');
+            return redirect()->route('admin.web.podcasts.index')
+                ->with('success', 'Podcast episode / media feature published successfully! It is now accessible on the website media channels.');
+        } catch (\Throwable $e) {
+            Log::error('WebPodcastMediaController store error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('admin.web.podcasts.index')
+                ->withInput()
+                ->with('error', 'Failed to save podcast episode: '.$e->getMessage());
+        }
     }
 
     public function update(UpdateWebPodcastMediaRequest $request, string $id): RedirectResponse
     {
-        $media = $this->podcastService->findById($id);
+        try {
+            $media = $this->podcastService->findById($id);
 
-        if (! $media) {
+            if (! $media) {
+                return redirect()->route('admin.web.podcasts.index')
+                    ->with('error', 'Podcast episode not found.');
+            }
+
+            $validated = $request->validated();
+            $cover = $request->file('cover_file');
+            $avatar = $request->file('guest_avatar_file');
+
+            $this->podcastService->update($media, $validated, $cover, $avatar);
+
             return redirect()->route('admin.web.podcasts.index')
-                ->with('error', 'Podcast episode not found.');
+                ->with('success', 'Podcast episode updated successfully.');
+        } catch (\Throwable $e) {
+            Log::error('WebPodcastMediaController update error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('admin.web.podcasts.index')
+                ->withInput()
+                ->with('error', 'Failed to update podcast episode: '.$e->getMessage());
         }
-
-        $validated = $request->validated();
-        $cover = $request->file('cover_file');
-        $avatar = $request->file('guest_avatar_file');
-
-        $this->podcastService->update($media, $validated, $cover, $avatar);
-
-        return redirect()->route('admin.web.podcasts.index')
-            ->with('success', 'Podcast episode updated successfully.');
     }
 
     public function destroy(string $id): RedirectResponse
     {
-        $media = $this->podcastService->findById($id);
+        try {
+            $media = $this->podcastService->findById($id);
 
-        if (! $media) {
+            if (! $media) {
+                return redirect()->route('admin.web.podcasts.index')
+                    ->with('error', 'Podcast episode not found.');
+            }
+
+            $this->podcastService->delete($media);
+
             return redirect()->route('admin.web.podcasts.index')
-                ->with('error', 'Podcast episode not found.');
+                ->with('success', 'Podcast episode removed successfully.');
+        } catch (\Throwable $e) {
+            Log::error('WebPodcastMediaController destroy error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('admin.web.podcasts.index')
+                ->with('error', 'Failed to delete podcast episode: '.$e->getMessage());
         }
-
-        $this->podcastService->delete($media);
-
-        return redirect()->route('admin.web.podcasts.index')
-            ->with('success', 'Podcast episode removed successfully.');
     }
 
     public function toggleFeatured(string $id): JsonResponse|RedirectResponse
     {
-        $media = $this->podcastService->findById($id);
+        try {
+            $media = $this->podcastService->findById($id);
 
-        if (! $media) {
-            if (request()->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Media not found.'], 404);
+            if (! $media) {
+                if (request()->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Media not found.'], 404);
+                }
+
+                return redirect()->route('admin.web.podcasts.index')->with('error', 'Media not found.');
             }
 
-            return redirect()->route('admin.web.podcasts.index')->with('error', 'Media not found.');
+            $this->podcastService->toggleFeatured($media);
+
+            if (request()->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'is_featured' => $media->is_featured,
+                    'message' => 'Featured status updated.',
+                ]);
+            }
+
+            return redirect()->route('admin.web.podcasts.index')
+                ->with('success', 'Featured status toggled.');
+        } catch (\Throwable $e) {
+            Log::error('WebPodcastMediaController toggleFeatured error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            if (request()->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+
+            return redirect()->route('admin.web.podcasts.index')->with('error', 'Error: '.$e->getMessage());
         }
-
-        $this->podcastService->toggleFeatured($media);
-
-        if (request()->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'is_featured' => $media->is_featured,
-                'message' => 'Featured status updated.',
-            ]);
-        }
-
-        return redirect()->route('admin.web.podcasts.index')
-            ->with('success', 'Featured status toggled.');
     }
 
     public function toggleStatus(string $id): JsonResponse|RedirectResponse
     {
-        $media = $this->podcastService->findById($id);
+        try {
+            $media = $this->podcastService->findById($id);
 
-        if (! $media) {
-            if (request()->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Media not found.'], 404);
+            if (! $media) {
+                if (request()->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Media not found.'], 404);
+                }
+
+                return redirect()->route('admin.web.podcasts.index')->with('error', 'Media not found.');
             }
 
-            return redirect()->route('admin.web.podcasts.index')->with('error', 'Media not found.');
+            $this->podcastService->toggleActive($media);
+
+            if (request()->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'is_active' => $media->is_active,
+                    'message' => 'Status updated.',
+                ]);
+            }
+
+            return redirect()->route('admin.web.podcasts.index')
+                ->with('success', 'Status toggled successfully.');
+        } catch (\Throwable $e) {
+            Log::error('WebPodcastMediaController toggleStatus error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            if (request()->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+
+            return redirect()->route('admin.web.podcasts.index')->with('error', 'Error: '.$e->getMessage());
         }
-
-        $this->podcastService->toggleActive($media);
-
-        if (request()->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'is_active' => $media->is_active,
-                'message' => 'Status updated.',
-            ]);
-        }
-
-        return redirect()->route('admin.web.podcasts.index')
-            ->with('success', 'Status toggled successfully.');
     }
 }

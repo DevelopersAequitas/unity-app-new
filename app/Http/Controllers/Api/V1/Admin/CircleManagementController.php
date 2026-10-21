@@ -55,6 +55,28 @@ class CircleManagementController extends BaseApiController
                 }
             });
         }
+        if ($request->filled('search') || $request->filled('q')) {
+            $term = trim((string) ($request->input('search') ?: $request->input('q')));
+            $q->where(function ($sub) use ($term): void {
+                $sub->where('name', 'ilike', "%{$term}%")
+                    ->orWhere('description', 'ilike', "%{$term}%")
+                    ->orWhere('purpose', 'ilike', "%{$term}%")
+                    ->orWhereHas('cityRef', function ($cityQuery) use ($term): void {
+                        $cityQuery->where('name', 'ilike', "%{$term}%");
+                        if (Schema::hasColumn('cities', 'state')) {
+                            $cityQuery->orWhere('state', 'ilike', "%{$term}%");
+                        }
+                        if (Schema::hasColumn('cities', 'state_name')) {
+                            $cityQuery->orWhere('state_name', 'ilike', "%{$term}%");
+                        }
+                    });
+            });
+        }
+
+        if ($request->filled('status') && $request->input('status') !== 'all') {
+            $q->where('status', strtolower((string) $request->input('status')));
+        }
+
         $this->scope->applyCircleScope($q, $request->user());
         if ($request->filled('state_name')) {
             return $this->success($q->orderBy('name')->get()->map(fn (Circle $circle) => [
@@ -64,7 +86,8 @@ class CircleManagementController extends BaseApiController
             ])->values(), 'Circles fetched successfully.');
         }
 
-        return $this->success($q->paginate((int) $request->input('per_page', 20)));
+        $perPage = min(100, max(1, (int) $request->input('per_page', 50)));
+        return $this->success($q->orderBy('name')->paginate($perPage));
     }
 
     public function store(Request $request): JsonResponse
