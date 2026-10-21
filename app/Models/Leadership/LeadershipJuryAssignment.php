@@ -89,16 +89,33 @@ class LeadershipJuryAssignment extends Model
 
     public function getReportDataAttribute(): ?array
     {
-        if (! $this->relationLoaded('report') || ! $this->report) {
+        $report = $this->relationLoaded('report') ? $this->report : $this->report()->first();
+
+        if (! $report) {
             return null;
         }
 
+        $scoresList = [];
+        $scores = $this->relationLoaded('scores') ? $this->scores : $this->scores()->with('criterion')->get();
+        foreach ($scores as $sc) {
+            $scoresList[] = [
+                'criterion_id' => $sc->criterion_id,
+                'criterion_name' => $sc->criterion?->name ?? 'Criterion',
+                'category' => $sc->criterion?->category ?? 'General',
+                'max_score' => (float) ($sc->criterion?->max_score ?? 10),
+                'weightage' => (float) ($sc->criterion?->weightage ?? 20),
+                'score' => (float) $sc->score,
+                'remarks' => $sc->remarks,
+            ];
+        }
+
         return [
-            'overall_recommendation' => $this->report->overall_recommendation,
-            'strengths' => $this->report->strengths,
-            'concerns' => $this->report->concerns,
-            'final_remarks' => $this->report->final_remarks,
-            'submitted_at' => $this->report->submitted_at?->toIso8601String(),
+            'overall_recommendation' => $report->overall_recommendation,
+            'strengths' => $report->strengths,
+            'concerns' => $report->concerns,
+            'final_remarks' => $report->final_remarks,
+            'submitted_at' => $report->submitted_at?->toIso8601String(),
+            'scores' => $scoresList,
         ];
     }
 

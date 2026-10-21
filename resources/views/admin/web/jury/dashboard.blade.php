@@ -162,12 +162,12 @@
 <nav class="navbar navbar-jury">
     <div class="container-xl d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-3">
-            <div class="bg-primary text-white rounded-3 px-2.5 py-1.5 fw-bold fs-6">
-                <i class="fa-solid fa-gavel"></i>
-            </div>
-            <div>
-                <span class="text-white fw-bold fs-5 tracking-tight d-block">Peers Global Leadership</span>
-                <span class="text-white-50 small" style="font-size: 12px;">Official Jury Evaluation Portal</span>
+            <a href="{{ route('admin.web.jury.dashboard') }}" class="d-inline-flex align-items-center text-decoration-none">
+                <img src="{{ asset('images/peersglobal-logo.png') }}" alt="PeersGlobal" style="height: 44px; width: auto;" class="d-inline-block" />
+            </a>
+            <div class="border-start border-white border-opacity-25 ps-3 ms-1 d-flex flex-column justify-content-center">
+                <span class="text-white fw-bold fs-6 tracking-tight d-block" style="line-height: 1.25;">Leadership Selection</span>
+                <span class="text-white-50 small" style="font-size: 11.5px;">Official Jury Evaluation Portal</span>
             </div>
         </div>
 
@@ -275,7 +275,7 @@
                                 $campName = $asg->campaign_name ?? $nom?->campaign?->name ?? 'Leadership Campaign';
                                 $isCompleted = $asg->status === 'completed';
                             @endphp
-                            <tr id="row-{{ $asg->id }}">
+                            <tr id="row-{{ $asg->id }}" data-nomination-id="{{ $nom?->id }}">
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="candidate-avatar">
@@ -380,46 +380,94 @@
                     
                     <!-- TAB 1: FORM 1 PROFILE -->
                     <div class="tab-pane fade show active" id="tab-form1" role="tabpanel">
-                        <div class="bg-white p-4 rounded-4 border shadow-xs mb-3">
-                            <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Candidate Summary & Credentials</h6>
-                            <div class="row g-3" id="form1Content">
-                                <div class="col-md-6">
-                                    <label class="text-muted small fw-semibold">Company / Venture</label>
-                                    <p class="fw-bold text-dark mb-0" id="f1Company">-</p>
+                        <div class="d-flex flex-column gap-3">
+                            <!-- MAIN POINT 1: Candidate Executive Profile & Business Foundation -->
+                            <div class="bg-white p-4 rounded-4 border shadow-xs">
+                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                                    <span class="badge bg-primary text-white font-monospace px-2.5 py-1">MAIN POINT 1</span>
+                                    <h6 class="fw-bold text-dark mb-0">Candidate Profile & Enterprise Foundation</h6>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="text-muted small fw-semibold">Designation</label>
-                                    <p class="fw-bold text-dark mb-0" id="f1Designation">-</p>
-                                </div>
-                                <div class="col-md-12">
-                                    <label class="text-muted small fw-semibold">Vision Statement for the Role</label>
-                                    <div class="p-3 bg-light rounded-3 text-dark small mt-1" id="f1Vision">
-                                        No vision statement recorded.
+                                <div class="row g-3">
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.1: Candidate Name</span>
+                                        <span class="fw-bold text-dark fs-6" id="f1CandidateName">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.2: Application Number</span>
+                                        <span class="badge bg-light text-primary border fw-bold px-2.5 py-1" id="f1AppNumber">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.3: Applied Role</span>
+                                        <span class="fw-bold text-dark" id="f1Role">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.4: Circle / Scope</span>
+                                        <span class="fw-bold text-dark" id="f1Scope">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.5: Company / Venture Name</span>
+                                        <span class="fw-bold text-dark" id="f1Company">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.6: Executive Designation</span>
+                                        <span class="fw-bold text-dark" id="f1Designation">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.7: Business Category</span>
+                                        <span class="badge bg-indigo-subtle text-indigo fw-semibold px-2.5 py-1" id="f1Category">—</span>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <span class="text-muted small d-block">Sub-Point 1.8: Contact Information</span>
+                                        <span class="text-dark small d-block text-truncate" id="f1Email">—</span>
+                                        <span class="text-muted small" id="f1Phone">—</span>
                                     </div>
                                 </div>
-                                <div class="col-md-12">
-                                    <label class="text-muted small fw-semibold">Professional Bio & Experience</label>
-                                    <div class="p-3 bg-light rounded-3 text-dark small mt-1" id="f1Bio">
+                            </div>
+
+                            <!-- MAIN POINT 2: Strategic Vision for the Leadership Role -->
+                            <div class="bg-white p-4 rounded-4 border shadow-xs">
+                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                                    <span class="badge text-white font-monospace px-2.5 py-1" style="background-color: #4f46e5;">MAIN POINT 2</span>
+                                    <h6 class="fw-bold text-dark mb-0">Strategic Vision for the Leadership Role</h6>
+                                </div>
+                                <div class="p-3 rounded-3 border-start border-4 border-primary bg-light">
+                                    <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 2.1: Vision Statement for this Term</span>
+                                    <p class="text-dark fst-italic mb-0" id="f1Vision" style="font-size: 14px; line-height: 1.6;">
+                                        No vision statement recorded.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- MAIN POINT 3: Professional Experience & Track Record -->
+                            <div class="bg-white p-4 rounded-4 border shadow-xs">
+                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                                    <span class="badge bg-dark text-white font-monospace px-2.5 py-1">MAIN POINT 3</span>
+                                    <h6 class="fw-bold text-dark mb-0">Professional Experience & Track Record</h6>
+                                </div>
+                                <div class="p-3 bg-light rounded-3">
+                                    <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 3.1: Executive Biography & Highlights</span>
+                                    <div class="text-dark small" id="f1Bio" style="line-height: 1.6; white-space: pre-line;">
                                         No bio submitted.
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- MAIN POINT 4: Form 1 Questionnaire Submissions (Optional) -->
+                            <div class="bg-white p-4 rounded-4 border shadow-xs" id="f1DynamicQuestionsCard" style="display: none;">
+                                <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                                    <span class="badge bg-secondary text-white font-monospace px-2.5 py-1">MAIN POINT 4</span>
+                                    <h6 class="fw-bold text-dark mb-0">Form 1 Questionnaire Responses</h6>
+                                </div>
+                                <div id="f1QuestionsList" class="d-flex flex-column gap-2"></div>
                             </div>
                         </div>
                     </div>
 
                     <!-- TAB 2: FORM 2 JURY DOSSIER -->
                     <div class="tab-pane fade" id="tab-form2" role="tabpanel">
-                        <div class="bg-white p-4 rounded-4 border shadow-xs mb-3">
-                            <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Form 2 Operational & Bench Data</h6>
-                            <div id="form2Content">
-                                <div class="text-center py-4 text-muted">
-                                    <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 dossier...
-                                </div>
-                            </div>
-
-                            <h6 class="fw-bold text-dark border-bottom pb-2 mt-4 mb-3">Attached Documents & Proofs</h6>
-                            <div id="documentsContent" class="row g-2">
-                                <div class="col-12 text-muted small">No documents attached.</div>
+                        <div id="form2Container" class="d-flex flex-column gap-3">
+                            <div class="text-center py-5 text-muted bg-white rounded-4 border">
+                                <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 dossier...
                             </div>
                         </div>
                     </div>
@@ -549,6 +597,11 @@ function selectRecommendation(val, element) {
 async function openReviewModal(assignmentId, nominationId, isViewOnly) {
     document.getElementById('currentAssignmentId').value = assignmentId;
     
+    if (!nominationId) {
+        const row = document.getElementById('row-' + assignmentId);
+        if (row) nominationId = row.getAttribute('data-nomination-id');
+    }
+
     // Switch to Form 1 tab by default
     const tab1Btn = document.getElementById('tab-form1-btn');
     if (tab1Btn) {
@@ -567,80 +620,411 @@ async function openReviewModal(assignmentId, nominationId, isViewOnly) {
 
     reviewModal.show();
 
+    // Reset Form 2 container with loading
+    const form2Container = document.getElementById('form2Container');
+    if (form2Container) {
+        form2Container.innerHTML = `
+            <div class="text-center py-5 text-muted bg-white rounded-4 border">
+                <span class="spinner-border spinner-border-sm me-2"></span> Loading Form 2 operational dossier...
+            </div>
+        `;
+    }
+
     // Fetch candidate details
     try {
-        const res = await fetch(`/admin/web/jury/nomination/${nominationId}/details`, {
+        const res = await fetch(`/admin/web/jury/nomination/${nominationId}/details?assignment_id=${assignmentId}`, {
             headers: { 'Accept': 'application/json' }
         });
         const data = await res.json();
         if (data.success) {
-            populateCandidateDetails(data.data);
+            populateCandidateDetails(data.data, isViewOnly);
         }
     } catch (err) {
         console.error('Failed to load candidate details', err);
     }
 }
 
-function populateCandidateDetails(data) {
-    const nom = data.nomination;
+function populateCandidateDetails(data, isViewOnly) {
+    const nom = data.nomination || {};
     const form2 = data.form_2;
     const docs = data.documents || [];
+    const existing = data.existing_review;
+
+    // Header Details
+    const candTitle = nom.candidate_name || nom.full_name || 'Candidate';
+    const appNo = nom.application_number || 'N/A';
+    const roleName = nom.campaign?.role?.name || nom.role_name || 'Leadership Office';
+    const campName = nom.campaign?.name || nom.campaign_name || 'Leadership Campaign';
+    const scopeName = nom.scope?.name || nom.scope_name || 'National Circle';
 
     document.getElementById('modalCandidateTitle').innerHTML = `
-        <span>${nom.candidate_name || nom.full_name}</span>
-        <span class="badge bg-primary-subtle text-primary border" style="font-size: 12px;">${nom.application_number}</span>
+        <span>${candTitle}</span>
+        <span class="badge bg-primary-subtle text-primary border" style="font-size: 12px;">${appNo}</span>
     `;
-    document.getElementById('modalCandidateSubtitle').textContent = `${nom.campaign?.role?.name || 'Leadership Role'} • ${nom.campaign?.name || 'Campaign'}`;
+    document.getElementById('modalCandidateSubtitle').textContent = `${roleName} • ${campName}`;
 
-    // Tab 1: Form 1
-    document.getElementById('f1Company').textContent = nom.company || 'Not Specified';
-    document.getElementById('f1Designation').textContent = nom.designation || nom.campaign?.role?.name || 'Director';
-    document.getElementById('f1Vision').textContent = nom.vision_statement || 'No vision statement recorded.';
-    document.getElementById('f1Bio').textContent = nom.bio || 'No professional bio recorded.';
+    // TAB 1: FORM 1 PROFILE (Main Points & Sub-Points)
+    const elCandName = document.getElementById('f1CandidateName');
+    if (elCandName) elCandName.textContent = candTitle;
 
-    // Tab 2: Form 2
-    const form2Box = document.getElementById('form2Content');
-    if (form2 && typeof form2 === 'object') {
-        let f2Html = '<div class="row g-3">';
-        for (const [key, val] of Object.entries(form2)) {
-            if (typeof val === 'string' || typeof val === 'number') {
-                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                f2Html += `
-                    <div class="col-md-6">
-                        <label class="text-muted small fw-semibold">${label}</label>
-                        <p class="fw-semibold text-dark mb-0 small">${val}</p>
+    const elAppNo = document.getElementById('f1AppNumber');
+    if (elAppNo) elAppNo.textContent = appNo;
+
+    const elRole = document.getElementById('f1Role');
+    if (elRole) elRole.textContent = roleName;
+
+    const elScope = document.getElementById('f1Scope');
+    if (elScope) elScope.textContent = scopeName;
+
+    const elCompany = document.getElementById('f1Company');
+    if (elCompany) elCompany.textContent = nom.company || nom.company_name || 'Not Specified';
+
+    const elDesignation = document.getElementById('f1Designation');
+    if (elDesignation) elDesignation.textContent = nom.designation || 'Leader';
+
+    const elCategory = document.getElementById('f1Category');
+    if (elCategory) elCategory.textContent = nom.business_category || 'General Business';
+
+    const elEmail = document.getElementById('f1Email');
+    if (elEmail) elEmail.textContent = nom.email || 'Not Disclosed';
+
+    const elPhone = document.getElementById('f1Phone');
+    if (elPhone) elPhone.textContent = nom.phone || 'Not Disclosed';
+
+    const elVision = document.getElementById('f1Vision');
+    if (elVision) elVision.textContent = nom.vision_statement || 'No vision statement recorded.';
+
+    const elBio = document.getElementById('f1Bio');
+    if (elBio) elBio.textContent = nom.bio || 'No professional bio recorded.';
+
+    // Dynamic questionnaire answers in Form 1
+    const qCard = document.getElementById('f1DynamicQuestionsCard');
+    const qList = document.getElementById('f1QuestionsList');
+    if (qCard && qList) {
+        if (nom.answers && Array.isArray(nom.answers) && nom.answers.length > 0) {
+            let qHtml = '';
+            nom.answers.forEach((ans, idx) => {
+                const qText = ans.question?.question_text || `Question ${idx + 1}`;
+                const valText = ans.answer_text || (Array.isArray(ans.selected_options) ? ans.selected_options.join(', ') : '—');
+                qHtml += `
+                    <div class="p-3 bg-light rounded-3 border">
+                        <span class="text-muted small d-block fw-semibold mb-1">Sub-Point 4.${idx + 1}: ${qText}</span>
+                        <p class="fw-semibold text-dark mb-0 small">${valText}</p>
                     </div>
                 `;
-            }
+            });
+            qList.innerHTML = qHtml;
+            qCard.style.display = 'block';
+        } else {
+            qCard.style.display = 'none';
         }
-        f2Html += '</div>';
-        form2Box.innerHTML = f2Html;
-    } else {
-        form2Box.innerHTML = '<div class="alert alert-light border small text-muted">No Form 2 response dossier submitted by candidate yet.</div>';
     }
 
-    // Documents
-    const docsBox = document.getElementById('documentsContent');
-    if (docs.length > 0) {
-        let docsHtml = '';
-        docs.forEach(d => {
-            docsHtml += `
-                <div class="col-md-6">
-                    <div class="p-2.5 border rounded-3 bg-light d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-2 overflow-hidden">
-                            <i class="fa-solid fa-file-pdf text-danger"></i>
-                            <span class="small fw-semibold text-dark text-truncate">${d.document_type || 'Document'}</span>
-                        </div>
-                        <a href="${d.file_path || '#'}" target="_blank" class="btn btn-outline-primary btn-sm rounded-2 py-0.5 px-2">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i> View
-                        </a>
+    // TAB 2: FORM 2 JURY DOSSIER (Main Points & Sub-Points)
+    renderForm2Dossier(form2, docs);
+
+    // TAB 3: SCORING & RECOMMENDATION (Pre-fill existing review or reset)
+    applyReviewFormState(existing, isViewOnly);
+}
+
+function renderForm2Dossier(rawF2, docs) {
+    const container = document.getElementById('form2Container');
+    if (!container) return;
+
+    if (!rawF2 || (typeof rawF2 === 'object' && Object.keys(rawF2).length === 0)) {
+        container.innerHTML = `
+            <div class="p-4 rounded-4 bg-white border text-center">
+                <div class="bg-warning-subtle text-warning rounded-circle p-3 d-inline-flex mb-3">
+                    <i class="fa-solid fa-clock fs-3"></i>
+                </div>
+                <h6 class="fw-bold text-dark">Form 2 Operational Dossier Pending</h6>
+                <p class="text-muted small mb-0" style="max-width: 500px; margin: 0 auto;">
+                    This candidate has been shortlisted for Jury Evaluation, but has not yet finalized their Form 2 operational responses. You may evaluate based on Form 1 credentials and interview interactions.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    const secA = rawF2.section_a_business_credibility || rawF2;
+    const secB = rawF2.section_b_leadership_track_record || rawF2;
+    const secC = rawF2.section_c_network_strength || rawF2;
+    const secD = rawF2.section_d_leadership_bench || rawF2;
+    const secE = rawF2.section_e_12_month_plan || rawF2;
+    const secF = rawF2.section_f_commitment_fit || rawF2;
+    const secG = rawF2.section_g_references || rawF2;
+
+    const benchList = Array.isArray(secD?.bench_members)
+        ? secD.bench_members
+        : (Array.isArray(secD?.bench) ? secD.bench : []);
+
+    let html = '';
+
+    // MAIN POINT 1: Section A - Business Credibility & Enterprise Metrics
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge bg-primary text-white font-monospace px-2.5 py-1">MAIN POINT 1</span>
+                <h6 class="fw-bold text-dark mb-0">Section A: Business Credibility & Enterprise Metrics</h6>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6 col-lg-3">
+                    <span class="text-muted small d-block">Sub-Point 1.1: Business Structure</span>
+                    <span class="fw-bold text-dark">${secA?.business_type || '—'}</span>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <span class="text-muted small d-block">Sub-Point 1.2: Year Founded</span>
+                    <span class="fw-bold text-dark">${secA?.year_founded || '—'}</span>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <span class="text-muted small d-block">Sub-Point 1.3: Annual Turnover Band</span>
+                    <span class="badge bg-primary-subtle text-primary fw-bold px-2.5 py-1">
+                        ${secA?.annual_turnover_band || '—'}
+                    </span>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <span class="text-muted small d-block">Sub-Point 1.4: Enterprise Team Size</span>
+                    <span class="fw-bold text-dark">${secA?.team_size || '—'}</span>
+                </div>
+                <div class="col-12 col-md-8">
+                    <span class="text-muted small d-block">Sub-Point 1.5: Top Business Achievements</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${secA?.achievements || secA?.top_3_achievements || 'No specific achievements noted.'}
                     </div>
                 </div>
-            `;
+                <div class="col-12 col-md-4">
+                    <span class="text-muted small d-block">Sub-Point 1.6: Business Registration Proof</span>
+                    ${secA?.registration_doc_url || rawF2?.business_proof_url ? `
+                        <a href="${secA?.registration_doc_url || rawF2?.business_proof_url}" target="_blank" class="btn btn-outline-primary btn-sm mt-2 rounded-3 px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5">
+                            <i class="fa-solid fa-file-invoice"></i> View Registration Certificate
+                        </a>
+                    ` : '<span class="text-muted small mt-2 d-inline-block">No document uploaded</span>'}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // MAIN POINT 2: Section B - Leadership Track Record & Crisis Governance
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge bg-success text-white font-monospace px-2.5 py-1">MAIN POINT 2</span>
+                <h6 class="fw-bold text-dark mb-0">Section B: Leadership Scale & Crisis Governance</h6>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 2.1: Largest Community / Workforce Led</span>
+                    <span class="fw-bold text-dark">${secB?.largest_community || '—'}</span>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 2.2: Measurable Impact Metric</span>
+                    <span class="fw-bold text-dark">${secB?.peak_impact_metric || '—'}</span>
+                </div>
+                <div class="col-12">
+                    <span class="text-muted small d-block">Sub-Point 2.3: Real Crisis Handled & Resolution Outcome</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${secB?.crisis_handled || 'No crisis case reported.'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // MAIN POINT 3: Section C - Ecosystem Influence & Industry Networks
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge bg-info text-white font-monospace px-2.5 py-1">MAIN POINT 3</span>
+                <h6 class="fw-bold text-dark mb-0">Section C: Ecosystem Influence & Strategic Networks</h6>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 3.1: Industry Associations & Board Memberships</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${secC?.industry_associations || '—'}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 3.2: CXO, Investor & Institutional Network</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${secC?.cxo_network || '—'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // MAIN POINT 4: Section D - Leadership Bench & Successor Pool
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge bg-warning text-dark font-monospace px-2.5 py-1">MAIN POINT 4</span>
+                <h6 class="fw-bold text-dark mb-0">Section D: Leadership Bench & Successor Pool</h6>
+            </div>
+            ${benchList.length > 0 ? `
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th>Sub-Point 4.1: Nominated Leader</th>
+                                <th>Current Designation / Venture</th>
+                                <th>Proposed Leadership Role</th>
+                                <th>Readiness / Endorsement Note</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            ${benchList.map(b => `
+                                <tr>
+                                    <td class="fw-bold text-dark">${b.name || '—'}</td>
+                                    <td>${b.current_designation || b.designation || '—'}</td>
+                                    <td><span class="badge bg-indigo-subtle text-indigo px-2 py-1">${b.proposed_role || b.role || '—'}</span></td>
+                                    <td class="text-muted">${b.endorsement || b.notes || '—'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            ` : `
+                <div class="p-3 bg-light rounded-3 border text-muted small">
+                    No explicit bench successors listed in Form 2 submission.
+                </div>
+            `}
+        </div>
+    `;
+
+    // MAIN POINT 5: Section E - 12-Month Strategic Execution Roadmap
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge text-white font-monospace px-2.5 py-1" style="background-color: #7c3aed;">MAIN POINT 5</span>
+                <h6 class="fw-bold text-dark mb-0">Section E: 12-Month Strategic Execution Roadmap</h6>
+            </div>
+            <div class="p-3 rounded-3 bg-light border small text-dark" style="white-space: pre-line; line-height: 1.6;">
+                ${secE?.twelve_month_plan || secE?.plan || 'No 12-month execution roadmap provided.'}
+            </div>
+        </div>
+    `;
+
+    // MAIN POINT 6: Section F & G - Commitment, Compliance & Professional References
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge bg-secondary text-white font-monospace px-2.5 py-1">MAIN POINT 6</span>
+                <h6 class="fw-bold text-dark mb-0">Section F & G: Commitment, Ethics & References</h6>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 6.1: Weekly Dedicated Hours</span>
+                    <span class="fw-bold text-dark">${secF?.hours_per_week || secF?.commitment_hours || '10+'} hours/week</span>
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block">Sub-Point 6.2: Conflict of Interest Disclosure</span>
+                    <span class="fw-bold text-dark">${secF?.conflict_disclosure || 'None declared'}</span>
+                </div>
+                <div class="col-12">
+                    <span class="text-muted small d-block">Sub-Point 6.3: Professional Referees</span>
+                    <div class="p-3 rounded-3 bg-light border small text-dark mt-1" style="white-space: pre-line;">
+                        ${secG?.references || 'No external references attached.'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // MAIN POINT 7: Section H - Verified Supporting Documents & Pitch Decks
+    html += `
+        <div class="bg-white p-4 rounded-4 border shadow-xs">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <span class="badge bg-dark text-white font-monospace px-2.5 py-1">MAIN POINT 7</span>
+                <h6 class="fw-bold text-dark mb-0">Verified Supporting Documents & Presentations</h6>
+            </div>
+            <div class="row g-2">
+                ${docs.length > 0 ? docs.map(d => `
+                    <div class="col-md-6">
+                        <div class="p-2.5 border rounded-3 bg-light d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                <i class="fa-solid fa-file-pdf text-danger fs-5"></i>
+                                <span class="small fw-semibold text-dark text-truncate">${d.document_type || 'Document'}</span>
+                            </div>
+                            <a href="${d.file_path || '#'}" target="_blank" class="btn btn-outline-primary btn-sm rounded-2 py-0.5 px-2.5">
+                                <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> View
+                            </a>
+                        </div>
+                    </div>
+                `).join('') : `
+                    <div class="col-12 text-muted small p-2">
+                        No supplementary PDF proofs or presentation decks uploaded.
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+function applyReviewFormState(existing, isViewOnly) {
+    // Recommendation Radios
+    const targetRec = existing?.overall_recommendation || 'strongly_recommend';
+    const matchingOption = document.querySelector(`.recommendation-option input[value="${targetRec}"]`);
+    if (matchingOption) {
+        selectRecommendation(targetRec, matchingOption.closest('.recommendation-option'));
+    }
+
+    // Strengths, Concerns, Remarks
+    const elStrengths = document.getElementById('evalStrengths');
+    const elConcerns = document.getElementById('evalConcerns');
+    const elRemarks = document.getElementById('evalRemarks');
+
+    if (elStrengths) elStrengths.value = existing?.strengths || '';
+    if (elConcerns) elConcerns.value = existing?.concerns || '';
+    if (elRemarks) elRemarks.value = existing?.final_remarks || '';
+
+    // Scores
+    if (existing?.scores && Array.isArray(existing.scores)) {
+        existing.scores.forEach(s => {
+            const range = document.getElementById('range-' + s.criterion_id);
+            if (range) {
+                range.value = s.score;
+                updateScoreDisplay(s.criterion_id, s.score);
+            }
         });
-        docsBox.innerHTML = docsHtml;
-    } else {
-        docsBox.innerHTML = '<div class="col-12 text-muted small">No supporting documents uploaded.</div>';
+    }
+
+    // View-Only Toggle
+    const allInputs = document.querySelectorAll('#scoringForm input, #scoringForm textarea');
+    allInputs.forEach(inp => {
+        inp.disabled = isViewOnly;
+    });
+
+    const options = document.querySelectorAll('.recommendation-option');
+    options.forEach(opt => {
+        if (isViewOnly) {
+            opt.style.pointerEvents = 'none';
+        } else {
+            opt.style.pointerEvents = 'auto';
+        }
+    });
+
+    // Read-only indicator banner
+    let banner = document.getElementById('evalReadOnlyBanner');
+    if (isViewOnly && existing) {
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'evalReadOnlyBanner';
+            banner.className = 'alert alert-success d-flex align-items-center gap-2 py-2.5 px-3 mb-3 small rounded-3 border';
+            const scoringPane = document.getElementById('tab-scoring');
+            scoringPane.insertBefore(banner, scoringPane.firstChild);
+        }
+        banner.innerHTML = `
+            <i class="fa-solid fa-circle-check fs-5"></i>
+            <div>
+                <strong>Completed Evaluation:</strong> You have submitted this candidate review. This form is displayed in read-only mode.
+            </div>
+        `;
+        banner.style.display = 'flex';
+    } else if (banner) {
+        banner.style.display = 'none';
     }
 }
 

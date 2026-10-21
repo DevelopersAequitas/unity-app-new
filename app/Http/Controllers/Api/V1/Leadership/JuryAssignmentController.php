@@ -155,8 +155,13 @@ class JuryAssignmentController extends LeadershipBaseController
      */
     public function adminAssignments(Request $request): JsonResponse
     {
-        $query = \App\Models\Leadership\LeadershipJuryAssignment::with(['nomination.campaign', 'juror'])
-            ->orderBy('created_at', 'desc');
+        $query = \App\Models\Leadership\LeadershipJuryAssignment::with([
+            'nomination.campaign.role',
+            'juror.mainBusinessCategory',
+            'juror.businessCategory',
+            'report',
+            'scores.criterion',
+        ])->orderBy('created_at', 'desc');
 
         if ($request->filled('campaign_id')) {
             $query->whereHas('nomination', function ($q) use ($request): void {
@@ -169,6 +174,13 @@ class JuryAssignmentController extends LeadershipBaseController
         }
 
         $assignments = $query->get();
+
+        $assignments->each(function ($asg): void {
+            if ($asg->juror) {
+                $asg->juror_business_name = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
+                $asg->juror_business_category = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
+            }
+        });
 
         return $this->success($assignments, 'Jury assignments fetched successfully.');
     }
