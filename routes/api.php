@@ -702,6 +702,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
 
             Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+            Route::get('/campaigns/circulars', [AdminCampaignController::class, 'circulars']);
+            Route::post('/campaigns/circulars', [AdminCampaignController::class, 'storeCircular']);
+            Route::delete('/campaigns/circulars/{id}', [AdminCampaignController::class, 'deleteCircular']);
             Route::post('/campaigns', [AdminCampaignController::class, 'store']);
             Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
             Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
@@ -1425,6 +1428,9 @@ Route::prefix('v1')->group(function () {
 
 Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(function () {
     Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+    Route::get('/campaigns/circulars', [AdminCampaignController::class, 'circulars']);
+    Route::post('/campaigns/circulars', [AdminCampaignController::class, 'storeCircular']);
+    Route::delete('/campaigns/circulars/{id}', [AdminCampaignController::class, 'deleteCircular']);
     Route::post('/campaigns', [AdminCampaignController::class, 'store']);
     Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
     Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);

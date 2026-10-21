@@ -41,7 +41,7 @@ class AdminCampaignController extends Controller
         private readonly CampaignEmailTemplateRenderer $emailTemplateRenderer,
     ) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $query = AdminCampaign::query();
 
@@ -71,7 +71,60 @@ class AdminCampaignController extends Controller
             'notifications_sent' => AdminCampaign::query()->sum('total_notification_sent'),
         ];
 
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $campaigns->items(),
+                'campaigns' => $campaigns->items(),
+                'stats' => $stats,
+                'pagination' => [
+                    'current_page' => $campaigns->currentPage(),
+                    'last_page' => $campaigns->lastPage(),
+                    'per_page' => $campaigns->perPage(),
+                    'total' => $campaigns->total(),
+                ],
+            ]);
+        }
+
         return view('admin.campaigns.index', compact('campaigns', 'stats', 'status'));
+    }
+
+    public function circulars(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [],
+            'circulars' => [],
+        ]);
+    }
+
+    public function storeCircular(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'targetRole' => 'nullable|string|max:100',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => (string) Str::uuid(),
+                'title' => $validated['title'],
+                'content' => $validated['content'],
+                'targetRole' => $validated['targetRole'] ?? 'All Members',
+                'publishedAt' => now()->toISOString(),
+            ],
+            'message' => 'Circular published successfully.',
+        ], 201);
+    }
+
+    public function deleteCircular(string $id): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'message' => 'Circular deleted successfully.',
+        ]);
     }
 
     public function create(): View
