@@ -1,6 +1,15 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\ActivityReminderSettingController;
+use App\Http\Controllers\Admin\AppNotificationAdminController;
+use App\Http\Controllers\Admin\CampaignEmailTemplateController;
+use App\Http\Controllers\Admin\CampaignPamphletController;
+use App\Http\Controllers\Admin\DailyNotificationController;
+use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EmailTemplateController;
+use App\Http\Controllers\Admin\NotificationMonitoringController;
+use App\Http\Controllers\Admin\NotificationTemplateController;
 use App\Http\Controllers\Admin\Rbac\AdminModuleController;
 use App\Http\Controllers\Admin\Rbac\AdminPageController;
 use App\Http\Controllers\Admin\Rbac\PageGroupController;
@@ -693,12 +702,64 @@ Route::prefix('v1')->group(function () {
             Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
 
             Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+            Route::get('/campaigns/circulars', [AdminCampaignController::class, 'circulars']);
+            Route::post('/campaigns/circulars', [AdminCampaignController::class, 'storeCircular']);
+            Route::delete('/campaigns/circulars/{id}', [AdminCampaignController::class, 'deleteCircular']);
             Route::post('/campaigns', [AdminCampaignController::class, 'store']);
             Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
             Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);
             Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
             Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
             Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
+
+            // Email & Notification Templates
+            Route::get('/email-templates', [EmailTemplateController::class, 'apiIndex']);
+            Route::get('/email-templates/{key}', [EmailTemplateController::class, 'apiShow']);
+            Route::put('/email-templates/{key}', [EmailTemplateController::class, 'apiUpdate']);
+
+            Route::get('/notification-templates', [NotificationTemplateController::class, 'apiIndex']);
+            Route::get('/notification-templates/{key}', [NotificationTemplateController::class, 'apiShow']);
+            Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'apiUpdate']);
+
+            // Notification Monitoring Dashboard
+            Route::get('/notifications/monitoring', [NotificationMonitoringController::class, 'apiIndex']);
+            Route::get('/notifications/monitoring/export', [NotificationMonitoringController::class, 'export']);
+            Route::get('/notifications/monitoring/{id}/details', [NotificationMonitoringController::class, 'details'])->whereUuid('id');
+
+            // Campaign Email Templates
+            Route::get('/campaign-email-templates', [CampaignEmailTemplateController::class, 'index']);
+            Route::get('/campaign-email-templates/list', [CampaignEmailTemplateController::class, 'list']);
+
+            // Campaign Pamphlets
+            Route::get('/campaign-pamphlets', [CampaignPamphletController::class, 'index']);
+            Route::post('/campaign-pamphlets', [CampaignPamphletController::class, 'store']);
+            Route::get('/campaign-pamphlets/select-list', [CampaignPamphletController::class, 'selectList']);
+            Route::put('/campaign-pamphlets/{pamphlet}', [CampaignPamphletController::class, 'update'])->whereUuid('pamphlet');
+            Route::delete('/campaign-pamphlets/{pamphlet}', [CampaignPamphletController::class, 'destroy'])->whereUuid('pamphlet');
+
+            // Email Logs
+            Route::get('/email-logs', [EmailLogController::class, 'index']);
+            Route::get('/email-logs/{emailLog}', [EmailLogController::class, 'show'])->whereUuid('emailLog');
+
+            // Daily Notifications
+            Route::get('/daily-notifications', [DailyNotificationController::class, 'index']);
+            Route::put('/daily-notifications/{id}', [DailyNotificationController::class, 'update']);
+            Route::get('/daily-notifications/{id}/eligible-users', [DailyNotificationController::class, 'eligibleUsers']);
+            Route::post('/daily-notifications/{id}/send', [DailyNotificationController::class, 'sendReminder']);
+
+            // Activity Inactivity Reminders
+            Route::get('/activity-reminders', [ActivityReminderSettingController::class, 'index']);
+            Route::put('/activity-reminders/{id}', [ActivityReminderSettingController::class, 'update'])->whereUuid('id');
+            Route::post('/activity-reminders/trigger', [ActivityReminderSettingController::class, 'trigger']);
+
+            // App Notifications Catalog & Dispatch
+            Route::get('/app-notifications', [AppNotificationAdminController::class, 'index']);
+            Route::post('/app-notifications', [AppNotificationAdminController::class, 'store']);
+            Route::get('/app-notifications/peers-search', [AppNotificationAdminController::class, 'searchPeers']);
+            Route::get('/app-notifications/peer-details/{id}', [AppNotificationAdminController::class, 'peerDetails'])->whereUuid('id');
+            Route::get('/app-notifications/{key}/preview', [AppNotificationAdminController::class, 'preview']);
+            Route::post('/app-notifications/send', [AppNotificationAdminController::class, 'sendToPeers']);
+            Route::get('/app-notifications/delivery-logs', [AppNotificationAdminController::class, 'deliveryLogs']);
 
             // Brand Partners Admin APIs
             Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
@@ -1367,6 +1428,9 @@ Route::prefix('v1')->group(function () {
 
 Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(function () {
     Route::get('/campaigns', [AdminCampaignController::class, 'index']);
+    Route::get('/campaigns/circulars', [AdminCampaignController::class, 'circulars']);
+    Route::post('/campaigns/circulars', [AdminCampaignController::class, 'storeCircular']);
+    Route::delete('/campaigns/circulars/{id}', [AdminCampaignController::class, 'deleteCircular']);
     Route::post('/campaigns', [AdminCampaignController::class, 'store']);
     Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
     Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions']);

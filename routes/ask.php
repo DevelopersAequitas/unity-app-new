@@ -155,7 +155,15 @@ Route::middleware(['auth:sanctum'])->prefix('admin/asks')->group(function (): vo
     Route::get('config', [AskManagementController::class, 'config']);
     Route::post('config/toggle', [AskManagementController::class, 'toggleConfigStatus']);
     Route::post('config/group', [AskManagementController::class, 'storeOptionGroup']);
+    Route::put('config/group/{group}', [AskManagementController::class, 'updateOptionGroup'])->whereUuid('group');
+    Route::delete('config/group/{group}', [AskManagementController::class, 'destroyOptionGroup'])->whereUuid('group');
     Route::post('config/option', [AskManagementController::class, 'storeOption']);
+    Route::put('config/option/{option}', [AskManagementController::class, 'updateOption'])->whereUuid('option');
+    Route::delete('config/option/{option}', [AskManagementController::class, 'destroyOption'])->whereUuid('option');
+    Route::post('config/type', [AskManagementController::class, 'storeType']);
+    Route::put('config/type/{type}', [AskManagementController::class, 'updateType'])->whereUuid('type');
+    Route::delete('config/type/{type}', [AskManagementController::class, 'destroyType'])->whereUuid('type');
+    Route::put('config/flow/{flow}', [AskManagementController::class, 'updateFlow'])->whereUuid('flow');
     Route::get('export', [AskManagementController::class, 'export']);
 
     Route::prefix('{ask}')->whereUuid('ask')->group(function (): void {
