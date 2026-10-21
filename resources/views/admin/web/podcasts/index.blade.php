@@ -55,6 +55,93 @@
         </div>
     @endif
 
+    @if(!empty($missingTable) || !empty($dbError))
+        <div class="card border-warning border-2 shadow-xs rounded-4 p-4 bg-warning bg-opacity-10 mb-4">
+            <div class="d-flex align-items-start gap-3">
+                <div class="p-2.5 rounded-3 bg-warning text-dark shadow-xs">
+                    <i class="bi bi-database-exclamation fs-4"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="fw-bold text-dark mb-1">Database Table Setup Required</h5>
+                    <p class="text-secondary small mb-2">
+                        @if(!empty($dbError))
+                            Error: <code>{{ $dbError }}</code>
+                        @else
+                            The <code>web_media</code> table was not found or is missing required columns in this database environment.
+                        @endif
+                    </p>
+                    <p class="small text-muted mb-2">Please run the following safe SQL in Adminer to ensure the table and all podcast/media columns exist:</p>
+                    <pre class="bg-dark text-white p-3 rounded-3 small user-select-all mb-0 font-monospace" style="max-height: 200px; overflow-y: auto;">
+CREATE TABLE IF NOT EXISTS web_media (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    subtitle VARCHAR(500),
+    tag VARCHAR(100) DEFAULT 'MANUFACTURING',
+    media_format VARCHAR(100) DEFAULT 'podcast',
+    duration VARCHAR(50) DEFAULT '45 mins',
+    youtube_url VARCHAR(1000),
+    youtube_video_id VARCHAR(50),
+    spotify_url VARCHAR(1000),
+    apple_podcast_url VARCHAR(1000),
+    external_url VARCHAR(1000),
+    cover_image VARCHAR(1000),
+    guest_name VARCHAR(255),
+    guest_title VARCHAR(500),
+    guest_avatar VARCHAR(1000),
+    show_notes JSONB DEFAULT '[]'::jsonb,
+    file_name VARCHAR(255),
+    file_path VARCHAR(1000),
+    file_type VARCHAR(50) DEFAULT 'video',
+    file_size BIGINT DEFAULT 0,
+    category VARCHAR(100) DEFAULT 'podcast',
+    alt_text VARCHAR(255),
+    dimensions VARCHAR(50),
+    metadata JSONB DEFAULT '{}'::jsonb,
+    sort_order INT DEFAULT 0,
+    is_featured BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT 'MANUFACTURING';
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS media_format VARCHAR(100) DEFAULT 'podcast';
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS duration VARCHAR(50) DEFAULT '45 mins';
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS youtube_url VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS youtube_video_id VARCHAR(50);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS spotify_url VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS apple_podcast_url VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS external_url VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS cover_image VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS guest_name VARCHAR(255);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS guest_title VARCHAR(500);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS guest_avatar VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS show_notes JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS file_path VARCHAR(1000);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS file_type VARCHAR(50) DEFAULT 'video';
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'podcast';
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS alt_text VARCHAR(255);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS dimensions VARCHAR(50);
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE web_media ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE web_media ALTER COLUMN title DROP NOT NULL;
+ALTER TABLE web_media ALTER COLUMN subtitle DROP NOT NULL;
+ALTER TABLE web_media ALTER COLUMN tag DROP NOT NULL;
+ALTER TABLE web_media ALTER COLUMN media_format DROP NOT NULL;
+ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;</pre>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- KPI Summary Cards --}}
     <div class="row g-3 mb-4">
