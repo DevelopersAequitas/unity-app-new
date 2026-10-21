@@ -50,8 +50,11 @@ class LeadershipJuryAssignment extends Model
     protected $appends = [
         'candidate_name',
         'jury_name',
+        'jury_email',
         'deadline',
         'campaign_id',
+        'campaign_name',
+        'report_data',
     ];
 
     public function getCandidateNameAttribute(): ?string
@@ -61,7 +64,12 @@ class LeadershipJuryAssignment extends Model
 
     public function getJuryNameAttribute(): ?string
     {
-        return $this->juror?->display_name ?? $this->juror?->name ?? $this->juror_user_id;
+        return $this->juror?->display_name ?: trim(($this->juror?->first_name ?? '').' '.($this->juror?->last_name ?? '')) ?: $this->juror_user_id;
+    }
+
+    public function getJuryEmailAttribute(): ?string
+    {
+        return $this->juror?->email;
     }
 
     public function getDeadlineAttribute(): ?string
@@ -72,6 +80,43 @@ class LeadershipJuryAssignment extends Model
     public function getCampaignIdAttribute(): ?string
     {
         return $this->nomination?->campaign_id;
+    }
+
+    public function getCampaignNameAttribute(): ?string
+    {
+        return $this->nomination?->campaign?->name ?? $this->nomination?->campaign_name;
+    }
+
+    public function getReportDataAttribute(): ?array
+    {
+        $report = $this->relationLoaded('report') ? $this->report : $this->report()->first();
+
+        if (! $report) {
+            return null;
+        }
+
+        $scoresList = [];
+        $scores = $this->relationLoaded('scores') ? $this->scores : $this->scores()->with('criterion')->get();
+        foreach ($scores as $sc) {
+            $scoresList[] = [
+                'criterion_id' => $sc->criterion_id,
+                'criterion_name' => $sc->criterion?->name ?? 'Criterion',
+                'category' => $sc->criterion?->category ?? 'General',
+                'max_score' => (float) ($sc->criterion?->max_score ?? 10),
+                'weightage' => (float) ($sc->criterion?->weightage ?? 20),
+                'score' => (float) $sc->score,
+                'remarks' => $sc->remarks,
+            ];
+        }
+
+        return [
+            'overall_recommendation' => $report->overall_recommendation,
+            'strengths' => $report->strengths,
+            'concerns' => $report->concerns,
+            'final_remarks' => $report->final_remarks,
+            'submitted_at' => $report->submitted_at?->toIso8601String(),
+            'scores' => $scoresList,
+        ];
     }
 
     protected static function booted(): void

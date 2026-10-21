@@ -82,6 +82,7 @@ export const votingApi = {
 
 export const juryApi = {
     getAssignments: (params?: any) => apiClient.get<ApiResponse<JuryAssignment[]>>('/admin/jury/assignments', { params }),
+    getMembers: (params?: any) => apiClient.get<ApiResponse<any>>('/admin/jury/members', { params }),
     assign: (data: any) => apiClient.post<ApiResponse<JuryAssignment>>('/admin/jury/assign', data),
     deleteAssignment: (id: string) => apiClient.delete<ApiResponse<any>>(`/admin/jury/assignments/${id}`),
     getCriteria: (params?: any) => apiClient.get<ApiResponse<EvaluationCriterion[]>>('/admin/jury/criteria', { params }),

@@ -155,8 +155,13 @@ class JuryAssignmentController extends LeadershipBaseController
      */
     public function adminAssignments(Request $request): JsonResponse
     {
-        $query = \App\Models\Leadership\LeadershipJuryAssignment::with(['nomination.campaign', 'juror'])
-            ->orderBy('created_at', 'desc');
+        $query = \App\Models\Leadership\LeadershipJuryAssignment::with([
+            'nomination.campaign.role',
+            'juror.mainBusinessCategory',
+            'juror.businessCategory',
+            'report',
+            'scores.criterion',
+        ])->orderBy('created_at', 'desc');
 
         if ($request->filled('campaign_id')) {
             $query->whereHas('nomination', function ($q) use ($request): void {
@@ -170,6 +175,13 @@ class JuryAssignmentController extends LeadershipBaseController
 
         $assignments = $query->get();
 
+        $assignments->each(function ($asg): void {
+            if ($asg->juror) {
+                $asg->juror_business_name = $asg->juror->company_name ?: ($asg->juror->designation ? "{$asg->juror->designation} at Enterprise" : 'Enterprise Services');
+                $asg->juror_business_category = $asg->juror->mainBusinessCategory?->name ?: ($asg->juror->businessCategory?->name ?: ($asg->juror->business_sub_category ?: 'Industry Peer'));
+            }
+        });
+
         return $this->success($assignments, 'Jury assignments fetched successfully.');
     }
 
@@ -179,7 +191,8 @@ class JuryAssignmentController extends LeadershipBaseController
     public function adminAssign(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'nomination_id' => 'required|uuid',
+            'nomination_id' => 'required|string',
+            'campaign_id' => 'nullable|uuid',
             'jury_user_id' => 'nullable|uuid',
             'juror_user_ids' => 'nullable|array',
             'juror_user_ids.*' => 'uuid',
@@ -188,7 +201,7 @@ class JuryAssignmentController extends LeadershipBaseController
             'remarks' => 'nullable|string',
         ]);
 
-        $nominationId = $validated['nomination_id'];
+        $nominationId = (string) $validated['nomination_id'];
         $jurorIds = [];
         if (! empty($validated['jury_user_id'])) {
             $jurorIds[] = $validated['jury_user_id'];
@@ -205,6 +218,42 @@ class JuryAssignmentController extends LeadershipBaseController
         $remarks = $validated['remarks'] ?? '';
 
         try {
+            if ($nominationId === 'all') {
+                $campaignId = $validated['campaign_id'] ?? $request->input('campaign_id');
+                if (! $campaignId) {
+                    return $this->error('Campaign ID is required to assign juror to all candidates.', 422);
+                }
+
+                $nominations = \App\Models\Leadership\LeadershipNomination::where('campaign_id', $campaignId)
+                    ->whereIn('status', ['shortlisted', 'approved', 'submitted'])
+                    ->where('application_number', 'not like', '%-F2')
+                    ->get();
+
+                if ($nominations->isEmpty()) {
+                    return $this->error('No shortlisted candidates found for the selected campaign.', 404);
+                }
+
+                $totalCreated = 0;
+                $allAssignments = new \Illuminate\Database\Eloquent\Collection;
+
+                foreach ($nominations as $nom) {
+                    $res = $this->juryService->assignJurors(
+                        $nom->id,
+                        $jurorIds,
+                        $dueAt ? (string) $dueAt : null,
+                        $remarks,
+                        Auth::id()
+                    );
+                    $totalCreated += $res['assignments_created'];
+                    $allAssignments = $allAssignments->merge($res['assignments']);
+                }
+
+                return $this->success([
+                    'assignments_created' => $totalCreated,
+                    'assignments' => $allAssignments,
+                ], "Assigned juror to {$nominations->count()} candidates successfully.", 201);
+            }
+
             $result = $this->juryService->assignJurors(
                 $nominationId,
                 $jurorIds,

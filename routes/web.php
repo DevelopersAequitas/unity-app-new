@@ -273,6 +273,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/auth/request-otp', [AdminAuthController::class, 'requestOtp'])->name('auth.request-otp');
     Route::post('/auth/verify-otp', [AdminAuthController::class, 'verifyOtp'])->name('auth.verify-otp');
 
+    // Jury Web Portal (Public OTP Authentication & Juror Dashboard)
+    Route::prefix('web/jury')->name('web.jury.')->group(function (): void {
+        Route::get('/login', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'showLogin'])->name('login');
+        Route::post('/send-otp', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'sendOtp'])->name('send-otp');
+        Route::post('/verify-otp', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'verifyOtp'])->name('verify-otp');
+        Route::get('/dashboard', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'dashboard'])->name('dashboard');
+        Route::get('/nomination/{id}/details', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'nominationDetails'])->name('nomination.details')->whereUuid('id');
+        Route::post('/review/{id}', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'submitReview'])->name('review.submit')->whereUuid('id');
+        Route::post('/logout', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'logout'])->name('logout');
+        Route::get('/logout', [\App\Http\Controllers\Admin\Web\JuryWebController::class, 'logout'])->name('logout.get');
+    });
+
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle', 'admin.permission'])->group(function () {
         // RBAC Hierarchy & Profile management
         Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
@@ -506,7 +518,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/config', [AskManagementController::class, 'config'])->name('config');
             Route::post('/config/toggle', [AskManagementController::class, 'toggleConfigStatus'])->name('config.toggle');
             Route::post('/config/group', [AskManagementController::class, 'storeOptionGroup'])->name('config.group.store');
+            Route::put('/config/group/{group}', [AskManagementController::class, 'updateOptionGroup'])->name('config.group.update')->whereUuid('group');
+            Route::delete('/config/group/{group}', [AskManagementController::class, 'destroyOptionGroup'])->name('config.group.destroy')->whereUuid('group');
             Route::post('/config/option', [AskManagementController::class, 'storeOption'])->name('config.option.store');
+            Route::put('/config/option/{option}', [AskManagementController::class, 'updateOption'])->name('config.option.update')->whereUuid('option');
+            Route::delete('/config/option/{option}', [AskManagementController::class, 'destroyOption'])->name('config.option.destroy')->whereUuid('option');
+            Route::post('/config/type', [AskManagementController::class, 'storeType'])->name('config.type.store');
+            Route::put('/config/type/{type}', [AskManagementController::class, 'updateType'])->name('config.type.update')->whereUuid('type');
+            Route::delete('/config/type/{type}', [AskManagementController::class, 'destroyType'])->name('config.type.destroy')->whereUuid('type');
+            Route::put('/config/flow/{flow}', [AskManagementController::class, 'updateFlow'])->name('config.flow.update')->whereUuid('flow');
             Route::get('/{ask}', [AskManagementController::class, 'show'])->name('show')->whereUuid('ask');
             Route::patch('/{ask}/status', [AskManagementController::class, 'updateStatus'])->name('status')->whereUuid('ask');
             Route::delete('/{ask}', [AskManagementController::class, 'destroy'])->name('destroy')->whereUuid('ask');

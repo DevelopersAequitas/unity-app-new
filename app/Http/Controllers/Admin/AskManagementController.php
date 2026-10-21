@@ -7,6 +7,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreAskOptionGroupRequest;
 use App\Http\Requests\Admin\StoreAskOptionRequest;
+use App\Http\Requests\Admin\StoreAskTypeRequest;
+use App\Http\Requests\Admin\UpdateAskFlowRequest;
+use App\Http\Requests\Admin\UpdateAskOptionGroupRequest;
+use App\Http\Requests\Admin\UpdateAskOptionRequest;
+use App\Http\Requests\Admin\UpdateAskTypeRequest;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskFlow;
 use App\Models\Ask\AskOption;
@@ -369,5 +374,164 @@ class AskManagementController extends Controller
                 'sort_order' => $option->sort_order,
             ],
         ], 201);
+    }
+
+    /**
+     * Store a new Category / Sub-Type for a Flow.
+     */
+    public function storeType(StoreAskTypeRequest $request): JsonResponse
+    {
+        $type = $this->optionService->createType($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Category created successfully.',
+            'data' => [
+                'id' => $type->id,
+                'flow_id' => $type->flow_id,
+                'name' => $type->name,
+                'code' => $type->code,
+                'description' => $type->description,
+                'is_active' => (bool) $type->is_active,
+                'sort_order' => $type->sort_order,
+            ],
+        ], 201);
+    }
+
+    /**
+     * Update an existing Category / Sub-Type.
+     */
+    public function updateType(UpdateAskTypeRequest $request, AskType $type): JsonResponse
+    {
+        $updated = $this->optionService->updateType($type, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Category updated successfully.',
+            'data' => [
+                'id' => $updated->id,
+                'flow_id' => $updated->flow_id,
+                'name' => $updated->name,
+                'code' => $updated->code,
+                'description' => $updated->description,
+                'is_active' => (bool) $updated->is_active,
+                'sort_order' => $updated->sort_order,
+            ],
+        ]);
+    }
+
+    /**
+     * Remove / Delete a Category / Sub-Type.
+     */
+    public function destroyType(AskType $type): JsonResponse
+    {
+        $this->optionService->deleteType($type);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Category removed successfully.',
+            'data' => [
+                'id' => $type->id,
+                'flow_id' => $type->flow_id,
+            ],
+        ]);
+    }
+
+    /**
+     * Update an existing Option.
+     */
+    public function updateOption(UpdateAskOptionRequest $request, AskOption $option): JsonResponse
+    {
+        $updated = $this->optionService->updateOption($option, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Option updated successfully.',
+            'data' => [
+                'id' => $updated->id,
+                'option_group_id' => $updated->option_group_id,
+                'ask_type_id' => $updated->ask_type_id,
+                'ask_type_name' => $updated->askType?->name,
+                'label' => $updated->label,
+                'code' => $updated->code,
+                'description' => $updated->description,
+                'is_active' => (bool) $updated->is_active,
+                'sort_order' => $updated->sort_order,
+            ],
+        ]);
+    }
+
+    /**
+     * Remove / Delete an Option.
+     */
+    public function destroyOption(AskOption $option): JsonResponse
+    {
+        $groupId = $option->option_group_id;
+        $this->optionService->deleteOption($option);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Option removed successfully.',
+            'data' => [
+                'id' => $option->id,
+                'option_group_id' => $groupId,
+            ],
+        ]);
+    }
+
+    /**
+     * Update an Option Group (Section).
+     */
+    public function updateOptionGroup(UpdateAskOptionGroupRequest $request, AskOptionGroup $group): JsonResponse
+    {
+        $updated = $this->optionService->updateOptionGroup($group, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Section updated successfully.',
+            'data' => [
+                'id' => $updated->id,
+                'name' => $updated->name,
+                'code' => $updated->code,
+                'description' => $updated->description,
+                'input_type' => $updated->input_type,
+                'is_active' => (bool) $updated->is_active,
+                'flows' => $updated->metadata['flows'] ?? ['collaboration'],
+            ],
+        ]);
+    }
+
+    /**
+     * Remove / Delete an Option Group.
+     */
+    public function destroyOptionGroup(AskOptionGroup $group): JsonResponse
+    {
+        $this->optionService->deleteOptionGroup($group);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Section removed successfully.',
+            'data' => [
+                'id' => $group->id,
+            ],
+        ]);
+    }
+
+    /**
+     * Update Flow name & description.
+     */
+    public function updateFlow(UpdateAskFlowRequest $request, AskFlow $flow): JsonResponse
+    {
+        $updated = $this->optionService->updateFlow($flow, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Flow updated successfully.',
+            'data' => [
+                'id' => $updated->id,
+                'name' => $updated->name,
+                'description' => $updated->description,
+            ],
+        ]);
     }
 }
