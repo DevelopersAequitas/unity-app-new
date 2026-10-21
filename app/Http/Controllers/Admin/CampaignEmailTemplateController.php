@@ -5,14 +5,24 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\CampaignEmailTemplate;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class CampaignEmailTemplateController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
+        $templates = $this->templates()->get();
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $templates,
+            ]);
+        }
+
         return view('admin.campaign_email_templates.index', [
-            'templates' => $this->templates()->get(),
+            'templates' => $templates,
         ]);
     }
 

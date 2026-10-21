@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\NotificationTemplate;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -497,6 +498,99 @@ class NotificationTemplateController extends Controller
             'title' => $renderedTitle,
             'body' => $renderedBody,
             'payload' => $dbTemplate ? $dbTemplate->default_payload : self::$catalog[$key]['default_payload'],
+        ]);
+    }
+
+    /**
+     * API: Get all notification templates list.
+     */
+    public function apiIndex(): JsonResponse
+    {
+        $templates = [];
+        $catalog = self::$catalog;
+
+        uasort($catalog, static fn (array $first, array $second): int => strcasecmp($first['name'], $second['name']));
+
+        foreach ($catalog as $key => $tpl) {
+            $dbRecord = NotificationTemplate::where('template_key', $key)->first();
+
+            $templates[] = array_merge($tpl, [
+                'db_record' => $dbRecord,
+                'title' => $dbRecord?->title_template ?? $tpl['default_title'],
+                'body' => $dbRecord?->body_template ?? $tpl['default_body'],
+                'default_payload' => $dbRecord?->default_payload ?? $tpl['default_payload'],
+                'last_modified' => $dbRecord?->updated_at?->format('Y-m-d H:i:s') ?? 'Default',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $templates,
+            'total' => count($templates),
+        ]);
+    }
+
+    /**
+     * API: Get single notification template details.
+     */
+    public function apiShow(string $key): JsonResponse
+    {
+        if (! isset(self::$catalog[$key])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Notification template not found in catalog.',
+            ], 404);
+        }
+
+        $template = self::$catalog[$key];
+        $dbRecord = NotificationTemplate::where('template_key', $key)->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => array_merge($template, [
+                'db_record' => $dbRecord,
+                'title' => $dbRecord?->title_template ?? $template['default_title'],
+                'body' => $dbRecord?->body_template ?? $template['default_body'],
+                'default_payload' => $dbRecord?->default_payload ?? $template['default_payload'],
+                'last_modified' => $dbRecord?->updated_at?->format('Y-m-d H:i:s') ?? 'Default',
+            ]),
+        ]);
+    }
+
+    /**
+     * API: Update notification template.
+     */
+    public function apiUpdate(Request $request, string $key): JsonResponse
+    {
+        if (! isset(self::$catalog[$key])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Notification template not found in catalog.',
+            ], 404);
+        }
+
+        $template = self::$catalog[$key];
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'body' => 'required|string',
+            'default_payload' => 'nullable|array',
+        ]);
+
+        $dbTemplate = NotificationTemplate::updateOrCreate(
+            ['template_key' => $key],
+            [
+                'name' => $template['name'],
+                'title_template' => $validated['title'],
+                'body_template' => $validated['body'],
+                'default_payload' => $validated['default_payload'] ?? ($template['default_payload'] ?? []),
+                'dynamic_params' => $template['dynamic_params'] ?? [],
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification template updated successfully.',
+            'data' => $dbTemplate,
         ]);
     }
 }

@@ -40,10 +40,18 @@ class DailyNotificationController extends Controller
     /**
      * Display a listing of daily notification reminders with stats.
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $reminders = $this->service->getAllReminders();
         $counts = $this->calculateEligibleCounts();
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'reminders' => $reminders,
+                'counts' => $counts,
+            ]);
+        }
 
         return view('admin.daily-notifications.index', compact('reminders', 'counts'));
     }
@@ -51,10 +59,18 @@ class DailyNotificationController extends Controller
     /**
      * Update the specified daily notification reminder in storage.
      */
-    public function update(UpdateDailyNotificationReminderRequest $request, string $id): RedirectResponse
+    public function update(UpdateDailyNotificationReminderRequest $request, string $id): RedirectResponse|JsonResponse
     {
         try {
-            $this->service->updateReminder($id, $request->validated());
+            $updated = $this->service->updateReminder($id, $request->validated());
+
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Daily notification reminder updated successfully.',
+                    'data' => $updated,
+                ]);
+            }
 
             return redirect()->route('admin.daily-notifications.index')
                 ->with('success', 'Daily notification reminder updated successfully.');
@@ -63,6 +79,13 @@ class DailyNotificationController extends Controller
                 'id' => $id,
                 'error' => $e->getMessage(),
             ]);
+
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update daily notification reminder: '.$e->getMessage(),
+                ], 422);
+            }
 
             return redirect()->back()
                 ->withInput()
@@ -282,6 +305,14 @@ class DailyNotificationController extends Controller
                 $dispatchedCount++;
             }
 
+            if (request()->wantsJson() || request()->is('api/*')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Engagement reminder notification dispatched to {$dispatchedCount} eligible users successfully.",
+                    'dispatched_count' => $dispatchedCount,
+                ]);
+            }
+
             return redirect()->route('admin.daily-notifications.index')
                 ->with('success', "Engagement reminder notification manually dispatched to {$dispatchedCount} eligible users successfully.");
         } catch (Throwable $e) {
@@ -289,6 +320,13 @@ class DailyNotificationController extends Controller
                 'id' => $id,
                 'error' => $e->getMessage(),
             ]);
+
+            if (request()->wantsJson() || request()->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to manually dispatch reminder: '.$e->getMessage(),
+                ], 500);
+            }
 
             return redirect()->route('admin.daily-notifications.index')
                 ->with('error', 'Failed to manually dispatch reminder: '.$e->getMessage());

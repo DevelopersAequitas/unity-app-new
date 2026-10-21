@@ -13,9 +13,22 @@ use Illuminate\View\View;
 
 class CampaignPamphletController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
-        $pamphlets = CampaignPamphlet::query()->latest('created_at')->paginate(20);
+        $pamphlets = CampaignPamphlet::query()
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = '%'.$request->query('search').'%';
+                $q->where('title', 'like', $term)->orWhere('short_message', 'like', $term);
+            })
+            ->latest('created_at')
+            ->paginate($request->integer('per_page', 20));
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $pamphlets,
+            ]);
+        }
 
         return view('admin.campaign_pamphlets.index', compact('pamphlets'));
     }
@@ -28,14 +41,22 @@ class CampaignPamphletController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $data = $this->validatedData($request);
-        $data['created_by'] = optional($request->user('admin'))->id;
-        $data['updated_by'] = optional($request->user('admin'))->id;
+        $data['created_by'] = optional($request->user('admin') ?? $request->user())->id;
+        $data['updated_by'] = optional($request->user('admin') ?? $request->user())->id;
         $data = $this->handleImageUpload($request, $data);
 
         $pamphlet = CampaignPamphlet::query()->create($data);
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pamphlet created successfully.',
+                'data' => $pamphlet,
+            ], 201);
+        }
 
         return redirect()->route('admin.campaign-pamphlets.edit', $pamphlet)->with('success', 'Pamphlet created successfully.');
     }
@@ -48,19 +69,34 @@ class CampaignPamphletController extends Controller
         ]);
     }
 
-    public function update(Request $request, CampaignPamphlet $pamphlet): RedirectResponse
+    public function update(Request $request, CampaignPamphlet $pamphlet): RedirectResponse|JsonResponse
     {
         $data = $this->validatedData($request);
-        $data['updated_by'] = optional($request->user('admin'))->id;
+        $data['updated_by'] = optional($request->user('admin') ?? $request->user())->id;
         $data = $this->handleImageUpload($request, $data);
         $pamphlet->update($data);
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pamphlet updated successfully.',
+                'data' => $pamphlet,
+            ]);
+        }
 
         return redirect()->route('admin.campaign-pamphlets.edit', $pamphlet)->with('success', 'Pamphlet updated successfully.');
     }
 
-    public function destroy(CampaignPamphlet $pamphlet): RedirectResponse
+    public function destroy(Request $request, CampaignPamphlet $pamphlet): RedirectResponse|JsonResponse
     {
         $pamphlet->update(['status' => CampaignPamphlet::STATUS_INACTIVE]);
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pamphlet deactivated successfully.',
+            ]);
+        }
 
         return redirect()->route('admin.campaign-pamphlets.index')->with('success', 'Pamphlet deactivated successfully.');
     }

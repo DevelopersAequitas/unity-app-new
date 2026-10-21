@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailTemplate;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -1011,6 +1012,171 @@ class EmailTemplateController extends Controller
 
             default:
                 return [];
+        }
+    }
+
+    /**
+     * API: Get all email templates list.
+     */
+    public function apiIndex(): JsonResponse
+    {
+        $templates = [];
+        $catalog = self::$catalog;
+
+        uasort($catalog, static fn (array $first, array $second): int => strcasecmp($first['name'], $second['name']));
+
+        foreach ($catalog as $key => $tpl) {
+            $dbTemplate = EmailTemplate::where('template_key', $key)->first();
+
+            $filePath = resource_path('views/'.$tpl['file_path']);
+            $exists = File::exists($filePath);
+            $lastModified = $exists ? date('Y-m-d H:i:s', File::lastModified($filePath)) : 'N/A';
+
+            $templates[] = array_merge($tpl, [
+                'db_record' => $dbTemplate,
+                'subject' => $dbTemplate?->subject ?? null,
+                'file_exists' => $exists,
+                'last_modified' => $lastModified,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $templates,
+            'total' => count($templates),
+        ]);
+    }
+
+    /**
+     * API: Get single template details.
+     */
+    public function apiShow(string $key): JsonResponse
+    {
+        if (! isset(self::$catalog[$key])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Template not found in catalog.',
+            ], 404);
+        }
+
+        $template = self::$catalog[$key];
+        $dbTemplate = EmailTemplate::where('template_key', $key)->first();
+        $filePath = resource_path('views/'.$template['file_path']);
+        $exists = File::exists($filePath);
+        $fullHtml = $exists ? File::get($filePath) : '';
+
+        preg_match_all('/<!-- EDITABLE_START -->(.*?)<!-- EDITABLE_END -->/s', $fullHtml, $matches);
+        $editableBlocks = [];
+        if (! empty($matches[1])) {
+            foreach ($matches[1] as $rawBlock) {
+                $plain = strip_tags($rawBlock);
+                $cleanLines = array_filter(array_map('trim', explode("\n", $plain)));
+                $editableBlocks[] = implode("\n", $cleanLines);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => array_merge($template, [
+                'db_record' => $dbTemplate,
+                'subject' => $dbTemplate?->subject ?? null,
+                'editable_blocks' => $editableBlocks,
+                'file_exists' => $exists,
+                'last_modified' => $exists ? date('Y-m-d H:i:s', File::lastModified($filePath)) : 'N/A',
+            ]),
+        ]);
+    }
+
+    /**
+     * API: Update template.
+     */
+    public function apiUpdate(Request $request, string $key): JsonResponse
+    {
+        if (! isset(self::$catalog[$key])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Template not found in catalog.',
+            ], 404);
+        }
+
+        $template = self::$catalog[$key];
+        $filePath = resource_path('views/'.$template['file_path']);
+
+        if (! File::exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Template file does not exist on disk.',
+            ], 404);
+        }
+
+        $request->validate([
+            'mode' => 'nullable|in:simple,html',
+            'subject' => 'nullable|string|max:255',
+            'simple_content' => 'nullable|array',
+            'html_content' => 'nullable|string',
+        ]);
+
+        $mode = $request->input('mode', 'simple');
+        $fullHtml = File::get($filePath);
+        $updatedHtml = $fullHtml;
+
+        if ($mode === 'simple' && $request->has('simple_content')) {
+            $newSimpleContent = $request->input('simple_content');
+            $blockIndex = 0;
+
+            $updatedHtml = preg_replace_callback(
+                '/<!-- EDITABLE_START -->.*?<!-- EDITABLE_END -->/s',
+                function () use ($newSimpleContent, &$blockIndex) {
+                    $text = $newSimpleContent[$blockIndex] ?? '';
+                    $blockIndex++;
+
+                    $paragraphs = preg_split('/\n/', str_replace("\r", '', (string) $text));
+                    $formattedHtml = '';
+                    foreach ($paragraphs as $para) {
+                        $trimmed = trim($para);
+                        if ($trimmed !== '') {
+                            if (str_starts_with($trimmed, '•') || str_starts_with($trimmed, '-')) {
+                                $bulletText = ltrim($trimmed, '•- ');
+                                $formattedHtml .= '<p style="margin: 0 0 8px 20px; font-size: 15px; line-height: 22px; color: #d9d9d9;">• '.$bulletText.'</p>'."\n";
+                            } else {
+                                $formattedHtml .= '<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">'.$para.'</p>'."\n";
+                            }
+                        }
+                    }
+
+                    return "<!-- EDITABLE_START -->\n".trim($formattedHtml)."\n<!-- EDITABLE_END -->";
+                },
+                $fullHtml
+            );
+        } elseif ($mode === 'html' && $request->filled('html_content')) {
+            $updatedHtml = $request->input('html_content');
+        }
+
+        try {
+            File::put($filePath, $updatedHtml);
+
+            $dbTemplate = EmailTemplate::updateOrCreate([
+                'template_key' => $key,
+            ], [
+                'name' => $template['name'],
+                'file_path' => $template['file_path'],
+                'subject' => $request->input('subject'),
+                'custom_html' => $updatedHtml,
+                'dynamic_params' => $template['dynamic_params'],
+            ]);
+
+            Artisan::call('view:clear');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Template updated successfully.',
+                'data' => $dbTemplate,
+            ]);
+        } catch (\Throwable $throwable) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save template: '.$throwable->getMessage(),
+            ], 500);
         }
     }
 }

@@ -158,15 +158,23 @@ export const JuryPage: React.FC = () => {
 
     // Filter peers/jurors based on search
     const filteredMembers = useMemo(() => {
+        if (!Array.isArray(members)) return [];
         if (!jurorSearch.trim()) return members;
         const q = jurorSearch.toLowerCase();
         return members.filter((m) => {
-            const name = (m.display_name || `${m.first_name || ''} ${m.last_name || ''}`).toLowerCase();
-            const email = (m.email || '').toLowerCase();
-            const phone = (m.phone || '').toLowerCase();
-            const busName = (m.business_name || m.company_name || '').toLowerCase();
-            const busCat = (m.business_category || '').toLowerCase();
-            return name.includes(q) || email.includes(q) || phone.includes(q) || busName.includes(q) || busCat.includes(q);
+            if (!m) return false;
+            const name = String(m.display_name || `${m.first_name || ''} ${m.last_name || ''}`).toLowerCase();
+            const email = String(m.email || '').toLowerCase();
+            const phone = String(m.phone || '').toLowerCase();
+            const busNameStr = typeof m.business_name === 'object' && m.business_name !== null 
+                ? String(m.business_name.name || '') 
+                : String(m.business_name || m.company_name || '');
+            const busCatStr = typeof m.business_category === 'object' && m.business_category !== null 
+                ? String(m.business_category.name || '') 
+                : (typeof m.main_business_category === 'object' && m.main_business_category !== null
+                    ? String(m.main_business_category.name || '')
+                    : String(m.business_category || ''));
+            return name.includes(q) || email.includes(q) || phone.includes(q) || busNameStr.toLowerCase().includes(q) || busCatStr.toLowerCase().includes(q);
         });
     }, [members, jurorSearch]);
 
@@ -284,382 +292,415 @@ export const JuryPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Navigation Tabs: Assignments vs Criteria */}
-            <div className="card border-0 shadow-xs rounded-4 bg-white mb-4">
-                <div className="border-bottom px-4 pt-3">
-                    <ul className="nav nav-pills gap-2 mb-3">
-                        <li className="nav-item">
-                            <button
-                                className={`btn btn-sm rounded-3 px-3 py-1.5 fw-semibold ${
-                                    activeTab === 'assignments' ? 'btn-primary' : 'btn-light'
-                                }`}
-                                onClick={() => setActiveTab('assignments')}
-                            >
-                                <Layers size={14} className="me-1.5 d-inline" /> Active Campaigns & Juror Assignments ({assignments.length})
-                            </button>
-                        </li>
-                        <li className="nav-item">
-                            <button
-                                className={`btn btn-sm rounded-3 px-3 py-1.5 fw-semibold ${
-                                    activeTab === 'criteria' ? 'btn-primary' : 'btn-light'
-                                }`}
-                                onClick={() => setActiveTab('criteria')}
-                            >
-                                <Scale size={14} className="me-1.5 d-inline" /> Scoring Criteria & Weights ({criteria.length})
-                            </button>
-                        </li>
-                    </ul>
+            {/* Top Navigation Tabs */}
+            <div className="d-flex align-items-center justify-content-between mb-4">
+                <div className="d-flex align-items-center bg-white p-1.5 rounded-4 border shadow-xs gap-1">
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('assignments')}
+                        className={`btn btn-sm rounded-3 px-3.5 py-2 fw-semibold transition-all d-flex align-items-center gap-2 ${
+                            activeTab === 'assignments'
+                                ? 'btn-primary shadow-xs text-white'
+                                : 'text-secondary border-0 bg-transparent'
+                        }`}
+                    >
+                        <Layers size={15} /> Active Campaigns & Juror Assignments ({assignments.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('criteria')}
+                        className={`btn btn-sm rounded-3 px-3.5 py-2 fw-semibold transition-all d-flex align-items-center gap-2 ${
+                            activeTab === 'criteria'
+                                ? 'btn-primary shadow-xs text-white'
+                                : 'text-secondary border-0 bg-transparent'
+                        }`}
+                    >
+                        <Scale size={15} /> Scoring Criteria & Weights ({criteria.length})
+                    </button>
                 </div>
+            </div>
 
-                <div className="p-4">
-                    {activeTab === 'assignments' ? (
-                        <div>
-                            {/* STRUCTURE WISE: STEP 1 - ACTIVE CAMPAIGNS ROSTER */}
-                            <div className="mb-4">
-                                <div className="d-flex align-items-center justify-content-between mb-3">
-                                    <div>
-                                        <h5 className="fw-bold text-dark mb-0 fs-6">Active Selection Campaigns</h5>
-                                        <span className="text-muted small" style={{ fontSize: '12px' }}>
-                                            Click any campaign below to view appointed juries and candidate evaluations roster
-                                        </span>
-                                    </div>
-                                    <button 
-                                        className={`btn btn-sm rounded-pill px-3 py-1 ${selectedCampaignId === 'all' ? 'btn-dark' : 'btn-outline-secondary'}`}
-                                        onClick={() => setSelectedCampaignId('all')}
-                                        style={{ fontSize: '12px' }}
-                                    >
-                                        View All Campaigns ({assignments.length})
-                                    </button>
+            {activeTab === 'assignments' ? (
+                <div>
+                    {/* STRUCTURE WISE: STEP 1 - ACTIVE CAMPAIGNS ROSTER */}
+                    <div className="card border-0 shadow-xs rounded-4 bg-white p-4 mb-4">
+                        <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3 pb-3 border-bottom">
+                            <div>
+                                <div className="d-flex align-items-center gap-2 mb-1">
+                                    <span className="badge bg-primary text-white font-monospace px-2.5 py-1" style={{ fontSize: '11px' }}>
+                                        STEP 1
+                                    </span>
+                                    <h5 className="fw-bold text-dark mb-0 fs-6">Active Selection Campaigns</h5>
                                 </div>
+                                <p className="text-muted small mb-0">
+                                    Click any campaign below to view appointed juries and candidate evaluations roster
+                                </p>
+                            </div>
+                            <button 
+                                className={`btn btn-sm rounded-pill px-3 py-1.5 fw-semibold transition-all ${
+                                    selectedCampaignId === 'all' ? 'btn-dark' : 'btn-outline-secondary'
+                                }`}
+                                onClick={() => setSelectedCampaignId('all')}
+                                style={{ fontSize: '12px' }}
+                            >
+                                View All Campaigns ({assignments.length})
+                            </button>
+                        </div>
 
-                                <div className="row g-3">
-                                    {campaigns.map((camp) => {
-                                        const isSelected = selectedCampaignId === camp.id;
-                                        const campAsgs = assignments.filter((a) => (a.campaign_id || a.nomination?.campaign_id) === camp.id);
-                                        const distinctJuries = new Set(campAsgs.map((a) => a.juror_user_id)).size;
-                                        const completedAsgs = campAsgs.filter((a) => a.status === 'completed').length;
-                                        const campCandCount = candidates.filter((c) => c.campaign_id === camp.id && !c.application_number?.endsWith('-F2')).length;
+                        <div className="row g-3">
+                            {campaigns.map((camp) => {
+                                const isSelected = selectedCampaignId === camp.id;
+                                const campAsgs = assignments.filter((a) => (a.campaign_id || a.nomination?.campaign_id) === camp.id);
+                                const distinctJuries = new Set(campAsgs.map((a) => a.juror_user_id)).size;
+                                const completedAsgs = campAsgs.filter((a) => a.status === 'completed').length;
+                                const campCandCount = candidates.filter((c) => c.campaign_id === camp.id && !c.application_number?.endsWith('-F2')).length;
 
-                                        return (
-                                            <div key={camp.id} className="col-12 col-md-6 col-xl-4">
-                                                <div 
-                                                    className={`card h-100 rounded-4 border p-3.5 cursor-pointer transition-all ${
-                                                        isSelected 
-                                                            ? 'border-primary shadow-sm bg-primary-subtle bg-opacity-10' 
-                                                            : 'bg-white hover-shadow'
-                                                    }`}
-                                                    onClick={() => setSelectedCampaignId(camp.id)}
-                                                    style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-                                                >
-                                                    <div className="d-flex align-items-start justify-content-between gap-2 mb-2">
-                                                        <h6 className="fw-bold text-dark mb-0 text-truncate" title={camp.name}>
-                                                            {camp.name}
-                                                        </h6>
-                                                        <span className="badge bg-success-subtle text-success border border-success-subtle text-uppercase" style={{ fontSize: '10.5px' }}>
-                                                            {camp.status || 'Active'}
+                                return (
+                                    <div key={camp.id} className="col-12 col-md-6 col-xl-4">
+                                        <div 
+                                            className={`card h-100 rounded-4 transition-all ${
+                                                isSelected 
+                                                    ? 'border-2 border-primary shadow-sm' 
+                                                    : 'border bg-white hover-shadow'
+                                            }`}
+                                            onClick={() => setSelectedCampaignId(camp.id)}
+                                            style={{ 
+                                                cursor: 'pointer', 
+                                                transition: 'all 0.2s ease',
+                                                padding: '20px',
+                                                backgroundColor: isSelected ? '#f8faff' : '#ffffff'
+                                            }}
+                                        >
+                                            <div className="d-flex align-items-start justify-content-between gap-2 mb-2.5">
+                                                <h6 className="fw-bold text-dark mb-0" style={{ fontSize: '15px', lineHeight: 1.4 }}>
+                                                    {camp.name}
+                                                </h6>
+                                                <div className="d-flex align-items-center gap-1.5 flex-shrink-0">
+                                                    {isSelected && (
+                                                        <span className="badge bg-primary text-white rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 font-monospace" style={{ fontSize: '11px' }}>
+                                                            <Check size={11} /> Selected
                                                         </span>
-                                                    </div>
-
-                                                    <div className="small text-muted mb-3 d-flex align-items-center gap-1.5" style={{ fontSize: '12px' }}>
-                                                        <Briefcase size={13} className="text-primary flex-shrink-0" />
-                                                        <span className="text-truncate">{camp.role?.name || 'Leadership Executive Role'}</span>
-                                                    </div>
-
-                                                    <div className="d-flex align-items-center justify-content-between pt-2 border-top">
-                                                        <div className="d-flex align-items-center gap-2">
-                                                            <span className="badge bg-light text-dark border px-2 py-1" style={{ fontSize: '11px' }}>
-                                                                👥 {campCandCount} Candidates
-                                                            </span>
-                                                            <span className="badge bg-light text-dark border px-2 py-1" style={{ fontSize: '11px' }}>
-                                                                ⚖️ {distinctJuries} Juries
-                                                            </span>
-                                                        </div>
-                                                        <div className="small fw-semibold text-success" style={{ fontSize: '11.5px' }}>
-                                                            ✓ {completedAsgs} Reviewed
-                                                        </div>
-                                                    </div>
+                                                    )}
+                                                    <span className="badge bg-success-subtle text-success border border-success-subtle text-uppercase px-2 py-1" style={{ fontSize: '10.5px' }}>
+                                                        {camp.status || 'Active'}
+                                                    </span>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+
+                                            <div className="small text-muted mb-3 d-flex align-items-center gap-2" style={{ fontSize: '12.5px' }}>
+                                                <span className="badge bg-light text-dark border px-2 py-1 fw-semibold d-inline-flex align-items-center gap-1">
+                                                    <Briefcase size={12} className="text-primary" /> {camp.role?.name || 'Executive Role'}
+                                                </span>
+                                                {camp.scope_value && (
+                                                    <span className="text-secondary small">
+                                                        • {camp.scope_value}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="d-flex align-items-center justify-content-between pt-3 border-top mt-auto">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-semibold" style={{ fontSize: '11.5px' }}>
+                                                        👥 {campCandCount} Candidates
+                                                    </span>
+                                                    <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-semibold" style={{ fontSize: '11.5px' }}>
+                                                        ⚖️ {distinctJuries} Juries
+                                                    </span>
+                                                </div>
+                                                <div className="small fw-bold text-success d-flex align-items-center gap-1" style={{ fontSize: '12px' }}>
+                                                    <CheckCircle2 size={13} /> {completedAsgs} Reviewed
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* STRUCTURE WISE: STEP 2 - APPOINTED JURIES FOR THIS CAMPAIGN */}
+                    <div className="card border-0 shadow-xs rounded-4 bg-white p-4 mb-4">
+                        <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3 pb-3 border-bottom">
+                            <div className="d-flex align-items-center gap-2.5">
+                                <span className="badge text-white font-monospace px-2.5 py-1" style={{ fontSize: '11px', backgroundColor: '#4f46e5' }}>
+                                    STEP 2
+                                </span>
+                                <div>
+                                    <h5 className="fw-bold text-dark mb-0 fs-6">
+                                        Appointed Juries {currentCampaign ? `for "${currentCampaign.name}"` : '(All Campaigns)'} ({assignedJurors.length})
+                                    </h5>
+                                    <span className="text-muted small" style={{ fontSize: '12px' }}>
+                                        Distinguished peer members appointed to score and evaluate candidate dossiers
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* STRUCTURE WISE: STEP 2 - APPOINTED JURIES FOR THIS CAMPAIGN */}
-                            <div className="mb-4 pt-3 border-top">
-                                <div className="d-flex align-items-center justify-content-between mb-3">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div className="rounded-3 bg-indigo-subtle text-indigo p-1.5">
-                                            <UserCheck size={16} />
-                                        </div>
-                                        <div>
-                                            <h5 className="fw-bold text-dark mb-0 fs-6">
-                                                Appointed Juries {currentCampaign ? `for "${currentCampaign.name}"` : '(All Campaigns)'} ({assignedJurors.length})
-                                            </h5>
-                                            <span className="text-muted small" style={{ fontSize: '12px' }}>
-                                                Distinguished peer members appointed to score and evaluate candidate dossiers
-                                            </span>
-                                        </div>
-                                    </div>
+                            <button 
+                                onClick={() => {
+                                    setAssignData(prev => ({
+                                        ...prev,
+                                        campaign_id: selectedCampaignId !== 'all' ? selectedCampaignId : (campaigns[0]?.id || ''),
+                                        nomination_id: 'all'
+                                    }));
+                                    setIsAssignModal(true);
+                                }}
+                                className="btn btn-outline-primary btn-sm rounded-3 px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5"
+                            >
+                                <Plus size={13} /> Appoint More Juries
+                            </button>
+                        </div>
 
-                                    <button 
-                                        onClick={() => {
-                                            setAssignData(prev => ({
-                                                ...prev,
-                                                campaign_id: selectedCampaignId !== 'all' ? selectedCampaignId : (campaigns[0]?.id || ''),
-                                                nomination_id: 'all'
-                                            }));
-                                            setIsAssignModal(true);
-                                        }}
-                                        className="btn btn-outline-primary btn-sm rounded-3 px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5"
-                                    >
-                                        <Plus size={13} /> Appoint More Juries
-                                    </button>
-                                </div>
+                        {assignedJurors.length === 0 ? (
+                            <div className="p-4 bg-light rounded-4 text-center border">
+                                <p className="text-muted small mb-2">No juries assigned to this campaign yet.</p>
+                                <button 
+                                    onClick={() => {
+                                        setAssignData(prev => ({
+                                            ...prev,
+                                            campaign_id: selectedCampaignId !== 'all' ? selectedCampaignId : (campaigns[0]?.id || ''),
+                                            nomination_id: 'all'
+                                        }));
+                                        setIsAssignModal(true);
+                                    }}
+                                    className="btn btn-primary btn-sm rounded-3 px-3 py-1.5 fw-semibold"
+                                >
+                                    <Plus size={13} className="me-1" /> Appoint First Jury Member
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="row g-3">
+                                {assignedJurors.map((item, idx) => {
+                                    const u = item.juror || {};
+                                    const jurorName = (typeof u.display_name === 'string' && u.display_name.trim())
+                                        ? u.display_name
+                                        : (`${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Jury Member');
+                                    const busName = typeof u.business_name === 'object' && u.business_name !== null
+                                        ? (u.business_name.name || 'Enterprise Peer')
+                                        : (typeof u.company_name === 'string' ? u.company_name : (typeof u.business_name === 'string' ? u.business_name : 'Enterprise Services'));
+                                    const busCat = typeof u.business_category === 'object' && u.business_category !== null
+                                        ? (u.business_category.name || 'General Business')
+                                        : (typeof u.main_business_category === 'object' && u.main_business_category !== null
+                                            ? (u.main_business_category.name || 'General Business')
+                                            : (typeof u.business_category === 'string' ? u.business_category : 'General Business'));
+                                    const pct = item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0;
 
-                                {assignedJurors.length === 0 ? (
-                                    <div className="p-4 bg-light rounded-4 text-center border">
-                                        <p className="text-muted small mb-2">No juries assigned to this campaign yet.</p>
-                                        <button 
-                                            onClick={() => {
-                                                setAssignData(prev => ({
-                                                    ...prev,
-                                                    campaign_id: selectedCampaignId !== 'all' ? selectedCampaignId : (campaigns[0]?.id || ''),
-                                                    nomination_id: 'all'
-                                                }));
-                                                setIsAssignModal(true);
-                                            }}
-                                            className="btn btn-primary btn-sm rounded-3 px-3 py-1.5 fw-semibold"
-                                        >
-                                            <Plus size={13} className="me-1" /> Appoint First Jury Member
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="row g-3">
-                                        {assignedJurors.map((item, idx) => {
-                                            const u = item.juror;
-                                            const jurorName = u.display_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Jury Member';
-                                            const busName = u.company_name || u.business_name || (u.designation ? `${u.designation} at Enterprise` : 'Enterprise Services');
-                                            const busCat = u.business_category || u.main_business_category?.name || 'General Business';
-                                            const pct = item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0;
-
-                                            return (
-                                                <div key={u.id || idx} className="col-12 col-md-6 col-xl-4">
-                                                    <div className="card h-100 rounded-4 border bg-white p-3 shadow-xs">
-                                                        <div className="d-flex align-items-start gap-2.5 mb-2.5">
-                                                            <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style={{ width: '38px', height: '38px', fontSize: '14px' }}>
-                                                                {jurorName.charAt(0).toUpperCase()}
-                                                            </div>
-                                                            <div className="overflow-hidden flex-grow-1">
-                                                                <h6 className="fw-bold text-dark mb-0 text-truncate">{jurorName}</h6>
-                                                                <div className="small text-muted text-truncate" style={{ fontSize: '11.5px' }}>{u.email}</div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="p-2 bg-light rounded-3 mb-2.5 border" style={{ fontSize: '11.5px' }}>
-                                                            <div className="text-dark fw-semibold text-truncate mb-0.5">
-                                                                <Briefcase size={11} className="text-muted me-1 d-inline" /> {busName}
-                                                            </div>
-                                                            <div className="text-muted text-truncate">
-                                                                <Tag size={11} className="text-muted me-1 d-inline" /> {busCat}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="mt-auto pt-2 border-top d-flex align-items-center justify-content-between">
-                                                            <span className="small text-muted" style={{ fontSize: '11.5px' }}>
-                                                                {item.completed} of {item.total} Candidates Reviewed
-                                                            </span>
-                                                            <span className={`badge ${pct === 100 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning-emphasis'}`} style={{ fontSize: '10.5px' }}>
-                                                                {pct}% Done
-                                                            </span>
-                                                        </div>
+                                    return (
+                                        <div key={u.id || idx} className="col-12 col-md-6 col-xl-4">
+                                            <div className="card h-100 rounded-4 border bg-white p-3 shadow-xs">
+                                                <div className="d-flex align-items-start gap-2.5 mb-2.5">
+                                                    <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style={{ width: '38px', height: '38px', fontSize: '14px' }}>
+                                                        {jurorName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="overflow-hidden flex-grow-1">
+                                                        <h6 className="fw-bold text-dark mb-0 text-truncate">{jurorName}</h6>
+                                                        <div className="small text-muted text-truncate" style={{ fontSize: '11.5px' }}>{u.email || ''}</div>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+
+                                                <div className="p-2 bg-light rounded-3 mb-2.5 border" style={{ fontSize: '11.5px' }}>
+                                                    <div className="text-dark fw-semibold text-truncate mb-0.5">
+                                                        <Briefcase size={11} className="text-muted me-1 d-inline" /> {busName}
+                                                    </div>
+                                                    <div className="text-muted text-truncate">
+                                                        <Tag size={11} className="text-muted me-1 d-inline" /> {busCat}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-auto pt-2 border-top d-flex align-items-center justify-content-between">
+                                                    <span className="small text-muted" style={{ fontSize: '11.5px' }}>
+                                                        {item.completed} of {item.total} Candidates Reviewed
+                                                    </span>
+                                                    <span className={`badge ${pct === 100 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning-emphasis'}`} style={{ fontSize: '10.5px' }}>
+                                                        {pct}% Done
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
+                        )}
+                    </div>
 
-                            {/* STRUCTURE WISE: STEP 3 - CANDIDATES & EVALUATIONS ROSTER */}
-                            <div className="pt-3 border-top">
-                                <div className="d-flex align-items-center justify-content-between mb-3">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div className="rounded-3 bg-primary-subtle text-primary p-1.5">
-                                            <FileText size={16} />
-                                        </div>
-                                        <div>
-                                            <h5 className="fw-bold text-dark mb-0 fs-6">
-                                                Candidate Evaluations Roster {currentCampaign ? `(${currentCampaign.name})` : ''}
-                                            </h5>
-                                            <span className="text-muted small" style={{ fontSize: '12px' }}>
-                                                List of candidates, assigned juries, evaluation deadlines, and submitted reports
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="table-responsive rounded-4 border">
-                                    <table className="table table-hover align-middle mb-0">
-                                        <thead className="table-light">
-                                            <tr className="text-secondary small">
-                                                <th className="ps-3 py-3">Candidate</th>
-                                                <th className="py-3">Campaign</th>
-                                                <th className="py-3">Appointed Juror</th>
-                                                <th className="py-3">Evaluation Deadline</th>
-                                                <th className="py-3">Status</th>
-                                                <th className="text-end pe-3 py-3">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {isLoading ? (
-                                                <tr>
-                                                    <td colSpan={6} className="text-center py-4 text-muted">
-                                                        <div className="spinner-border spinner-border-sm text-primary me-2"></div>
-                                                        Loading assignments...
-                                                    </td>
-                                                </tr>
-                                            ) : campaignAssignments.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={6} className="text-center py-4 text-muted">
-                                                        No jury assignments recorded for this selection.
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                campaignAssignments.map((asg) => {
-                                                    const isCompleted = asg.status === 'completed';
-                                                    const jurorBus = asg.juror_business_name || asg.juror?.company_name || 'Enterprise Peer';
-                                                    const jurorCat = asg.juror_business_category || asg.juror?.business_category || 'Business Member';
-
-                                                    return (
-                                                        <tr key={asg.id}>
-                                                            <td className="ps-3 fw-semibold text-dark">
-                                                                <div>{asg.candidate_name || asg.nomination_id}</div>
-                                                                <div className="small text-muted font-monospace" style={{ fontSize: '11px' }}>
-                                                                    {asg.nomination?.application_number}
-                                                                </div>
-                                                            </td>
-                                                            <td className="small text-muted">
-                                                                {asg.campaign_name || asg.nomination?.campaign?.name || 'Campaign'}
-                                                            </td>
-                                                            <td>
-                                                                <div className="fw-semibold text-dark">
-                                                                    {asg.jury_name || asg.juror?.display_name || asg.juror_user_id}
-                                                                </div>
-                                                                <div className="small text-muted" style={{ fontSize: '11px' }}>
-                                                                    {jurorBus} • {jurorCat}
-                                                                </div>
-                                                                <div className="small text-muted font-monospace" style={{ fontSize: '10.5px' }}>
-                                                                    {asg.jury_email || asg.juror?.email}
-                                                                </div>
-                                                            </td>
-                                                            <td className="small text-muted">
-                                                                {asg.deadline ? new Date(asg.deadline).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No deadline'}
-                                                            </td>
-                                                            <td>
-                                                                {isCompleted ? (
-                                                                    <span className="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1 fw-bold">
-                                                                        <CheckCircle size={12} /> ✓ Reviewed
-                                                                    </span>
-                                                                ) : (
-                                                                    <StatusBadge status={asg.status} />
-                                                                )}
-                                                            </td>
-                                                            <td className="text-end pe-3">
-                                                                <div className="d-flex align-items-center justify-content-end gap-1.5">
-                                                                    {isCompleted ? (
-                                                                        <button
-                                                                            onClick={() => setSelectedReview(asg)}
-                                                                            className="btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs border"
-                                                                            style={{
-                                                                                backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                                                                                borderColor: 'rgba(16, 185, 129, 0.3)',
-                                                                                color: '#047857',
-                                                                                fontSize: '0.78rem',
-                                                                            }}
-                                                                            title="View completed juror review and evaluation report"
-                                                                        >
-                                                                            <Eye size={13} />
-                                                                            <span>View Review</span>
-                                                                        </button>
-                                                                    ) : (
-                                                                        <span
-                                                                            className="text-muted small px-2 py-1 d-inline-flex align-items-center gap-1 me-1"
-                                                                            style={{ fontSize: '0.75rem' }}
-                                                                        >
-                                                                            <Clock size={12} className="text-warning" /> Awaiting Review
-                                                                        </span>
-                                                                    )}
-                                                                    <button
-                                                                        onClick={() => handleDeleteAssignment(asg.id)}
-                                                                        className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 d-inline-flex align-items-center gap-1 shadow-xs"
-                                                                        style={{ fontSize: '0.78rem' }}
-                                                                        title="Revoke assignment"
-                                                                    >
-                                                                        <Trash2 size={13} className="text-danger" />
-                                                                        <span className="fs-12 text-muted">Revoke</span>
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
+                    {/* STRUCTURE WISE: STEP 3 - CANDIDATES & EVALUATIONS ROSTER */}
+                    <div className="card border-0 shadow-xs rounded-4 bg-white p-4">
+                        <div className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                            <div className="d-flex align-items-center gap-2.5">
+                                <span className="badge bg-primary text-white font-monospace px-2.5 py-1" style={{ fontSize: '11px' }}>
+                                    STEP 3
+                                </span>
+                                <div>
+                                    <h5 className="fw-bold text-dark mb-0 fs-6">
+                                        Candidate Evaluations Roster {currentCampaign ? `(${currentCampaign.name})` : ''}
+                                    </h5>
+                                    <span className="text-muted small" style={{ fontSize: '12px' }}>
+                                        List of candidates, assigned juries, evaluation deadlines, and submitted reports
+                                    </span>
                                 </div>
                             </div>
                         </div>
-                    ) : (
-                        <div className="table-responsive">
+
+                        <div className="table-responsive rounded-4 border">
                             <table className="table table-hover align-middle mb-0">
                                 <thead className="table-light">
-                                    <tr>
-                                        <th>Criterion Name</th>
-                                        <th>Category</th>
-                                        <th>Max Score</th>
-                                        <th>Weightage (%)</th>
-                                        <th className="text-end">Actions</th>
+                                    <tr className="text-secondary small">
+                                        <th className="ps-3 py-3">Candidate</th>
+                                        <th className="py-3">Campaign</th>
+                                        <th className="py-3">Appointed Juror</th>
+                                        <th className="py-3">Evaluation Deadline</th>
+                                        <th className="py-3">Status</th>
+                                        <th className="text-end pe-3 py-3">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {criteria.length === 0 ? (
+                                    {isLoading ? (
                                         <tr>
-                                            <td colSpan={5} className="text-center py-4 text-muted">
-                                                No evaluation criteria configured yet.
+                                            <td colSpan={6} className="text-center py-4 text-muted">
+                                                <div className="spinner-border spinner-border-sm text-primary me-2"></div>
+                                                Loading assignments...
+                                            </td>
+                                        </tr>
+                                    ) : campaignAssignments.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-4 text-muted">
+                                                No jury assignments recorded for this selection.
                                             </td>
                                         </tr>
                                     ) : (
-                                        criteria.map((crit) => (
-                                            <tr key={crit.id}>
-                                                <td className="fw-semibold text-dark">{crit.name}</td>
-                                                <td>
-                                                    <span className="badge bg-light text-dark border">{crit.category || 'General'}</span>
-                                                </td>
-                                                <td className="fw-bold">{crit.max_score} pts</td>
-                                                <td>
-                                                    <span className="badge bg-indigo-subtle text-indigo">{crit.weightage}%</span>
-                                                </td>
-                                                <td className="text-end">
-                                                    <button
-                                                        onClick={() => handleDeleteCriterion(crit.id)}
-                                                        className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 d-inline-flex align-items-center gap-1 shadow-xs"
-                                                        style={{ fontSize: '0.78rem' }}
-                                                        title="Delete criterion"
-                                                    >
-                                                        <Trash2 size={13} className="text-danger" />
-                                                        <span className="fs-12 text-muted">Delete</span>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
+                                        campaignAssignments.map((asg) => {
+                                            const isCompleted = asg.status === 'completed';
+                                            const jurorBus = asg.juror_business_name || asg.juror?.company_name || 'Enterprise Peer';
+                                            const jurorCat = asg.juror_business_category || asg.juror?.business_category || 'Business Member';
+
+                                            return (
+                                                <tr key={asg.id}>
+                                                    <td className="ps-3 fw-semibold text-dark">
+                                                        <div>{asg.candidate_name || asg.nomination_id}</div>
+                                                        <div className="small text-muted font-monospace" style={{ fontSize: '11px' }}>
+                                                            {asg.nomination?.application_number}
+                                                        </div>
+                                                    </td>
+                                                    <td className="small text-muted">
+                                                        {asg.campaign_name || asg.nomination?.campaign?.name || 'Campaign'}
+                                                    </td>
+                                                    <td>
+                                                        <div className="fw-semibold text-dark">
+                                                            {asg.jury_name || asg.juror?.display_name || asg.juror_user_id}
+                                                        </div>
+                                                        <div className="small text-muted" style={{ fontSize: '11px' }}>
+                                                            {jurorBus} • {jurorCat}
+                                                        </div>
+                                                        <div className="small text-muted font-monospace" style={{ fontSize: '10.5px' }}>
+                                                            {asg.jury_email || asg.juror?.email}
+                                                        </div>
+                                                    </td>
+                                                    <td className="small text-muted">
+                                                        {asg.deadline ? new Date(asg.deadline).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No deadline'}
+                                                    </td>
+                                                    <td>
+                                                        {isCompleted ? (
+                                                            <span className="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1 fw-bold">
+                                                                <CheckCircle size={12} /> ✓ Reviewed
+                                                            </span>
+                                                        ) : (
+                                                            <StatusBadge status={asg.status} />
+                                                        )}
+                                                    </td>
+                                                    <td className="text-end pe-3">
+                                                        <div className="d-flex align-items-center justify-content-end gap-1.5">
+                                                            {isCompleted ? (
+                                                                <button
+                                                                    onClick={() => setSelectedReview(asg)}
+                                                                    className="btn btn-sm rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs border"
+                                                                    style={{
+                                                                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                                                        borderColor: 'rgba(16, 185, 129, 0.3)',
+                                                                        color: '#047857',
+                                                                        fontSize: '0.78rem',
+                                                                    }}
+                                                                    title="View completed juror review and evaluation report"
+                                                                >
+                                                                    <Eye size={13} />
+                                                                    <span>View Review</span>
+                                                                </button>
+                                                            ) : (
+                                                                <span
+                                                                    className="text-muted small px-2 py-1 d-inline-flex align-items-center gap-1 me-1"
+                                                                    style={{ fontSize: '0.75rem' }}
+                                                                >
+                                                                    <Clock size={12} className="text-warning" /> Awaiting Review
+                                                                </span>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleDeleteAssignment(asg.id)}
+                                                                className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                style={{ fontSize: '0.78rem' }}
+                                                                title="Revoke assignment"
+                                                            >
+                                                                <Trash2 size={13} className="text-danger" />
+                                                                <span className="fs-12 text-muted">Revoke</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
                         </div>
-                    )}
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <div className="card border-0 shadow-xs rounded-4 bg-white p-4">
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle mb-0">
+                            <thead className="table-light">
+                                <tr>
+                                    <th>Criterion Name</th>
+                                    <th>Category</th>
+                                    <th>Max Score</th>
+                                    <th>Weightage (%)</th>
+                                    <th className="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {criteria.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="text-center py-4 text-muted">
+                                            No evaluation criteria configured yet.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    criteria.map((crit) => (
+                                        <tr key={crit.id}>
+                                            <td className="fw-semibold text-dark">{crit.name}</td>
+                                            <td>
+                                                <span className="badge bg-light text-dark border">{crit.category || 'General'}</span>
+                                            </td>
+                                            <td className="fw-bold">{crit.max_score} pts</td>
+                                            <td>
+                                                <span className="badge bg-indigo-subtle text-indigo">{crit.weightage}%</span>
+                                            </td>
+                                            <td className="text-end">
+                                                <button
+                                                    onClick={() => handleDeleteCriterion(crit.id)}
+                                                    className="btn btn-light bg-white border text-secondary btn-sm rounded-2 py-1 px-2 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                    style={{ fontSize: '0.78rem' }}
+                                                    title="Delete criterion"
+                                                >
+                                                    <Trash2 size={13} className="text-danger" />
+                                                    <span className="fs-12 text-muted">Delete</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Assign Jury Modal (WITH MULTI-PEER SELECTION & BUSINESS DETAILS) */}
             {isAssignModal && (
@@ -693,11 +734,15 @@ export const JuryPage: React.FC = () => {
                                             }}
                                             required
                                         >
-                                            {campaigns.map((c) => (
-                                                <option key={c.id} value={c.id}>
-                                                    {c.name} ({c.year}) - {c.role?.name || 'Leadership'}
-                                                </option>
-                                            ))}
+                                            {campaigns.map((c) => {
+                                                const yr = c.year || (c as any).campaign_year || '';
+                                                const rName = typeof c.role?.name === 'string' ? c.role.name : 'Leadership';
+                                                return (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.name} {yr ? `(${yr})` : ''} - {rName}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 
@@ -713,11 +758,20 @@ export const JuryPage: React.FC = () => {
                                             <option value="all">
                                                 ⚡ Assign Juries to ALL Candidates in this Campaign ({campaignCandidates.length} Candidates)
                                             </option>
-                                            {campaignCandidates.map((cand) => (
-                                                <option key={cand.id} value={cand.id}>
-                                                    {cand.candidate_name || cand.full_name} ({cand.application_number}) - {cand.applied_role_name || cand.designation || 'Candidate'}
-                                                </option>
-                                            ))}
+                                            {campaignCandidates.map((cand) => {
+                                                const candName = typeof cand.candidate_name === 'string' 
+                                                    ? cand.candidate_name 
+                                                    : (typeof cand.full_name === 'string' ? cand.full_name : 'Candidate');
+                                                const appNum = typeof cand.application_number === 'string' ? cand.application_number : '';
+                                                const candRole = typeof cand.applied_role_name === 'string' 
+                                                    ? cand.applied_role_name 
+                                                    : (typeof cand.designation === 'string' ? cand.designation : 'Candidate');
+                                                return (
+                                                    <option key={cand.id} value={cand.id}>
+                                                        {candName} {appNum ? `(${appNum})` : ''} - {candRole}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 
@@ -773,9 +827,25 @@ export const JuryPage: React.FC = () => {
                                             ) : (
                                                 filteredMembers.map((m) => {
                                                     const isChecked = selectedJurorIds.includes(m.id);
-                                                    const peerName = m.display_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Peer Member';
-                                                    const busName = m.business_name || m.company_name || 'Enterprise Peer';
-                                                    const busCat = m.business_category || 'Business Member';
+                                                    const peerName = (typeof m.display_name === 'string' && m.display_name.trim()) 
+                                                        ? m.display_name 
+                                                        : (`${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Peer Member');
+
+                                                    const busName = typeof m.business_name === 'object' && m.business_name !== null
+                                                        ? (m.business_name.name || 'Enterprise Peer')
+                                                        : (typeof m.business_name === 'string' && m.business_name.trim()
+                                                            ? m.business_name
+                                                            : (typeof m.company_name === 'string' && m.company_name.trim() ? m.company_name : 'Enterprise Peer'));
+
+                                                    const busCat = typeof m.business_category === 'object' && m.business_category !== null
+                                                        ? (m.business_category.name || 'Business Member')
+                                                        : (typeof m.main_business_category === 'object' && m.main_business_category !== null
+                                                            ? (m.main_business_category.name || 'Business Member')
+                                                            : (typeof m.business_category === 'string' && m.business_category.trim()
+                                                                ? m.business_category
+                                                                : 'Business Member'));
+
+                                                    const emailStr = typeof m.email === 'string' ? m.email : '';
 
                                                     return (
                                                         <div 
@@ -805,7 +875,7 @@ export const JuryPage: React.FC = () => {
                                                                 </div>
                                                             </div>
                                                             <div className="text-end flex-shrink-0 font-monospace text-muted small" style={{ fontSize: '11px' }}>
-                                                                {m.email}
+                                                                {emailStr}
                                                             </div>
                                                         </div>
                                                     );
