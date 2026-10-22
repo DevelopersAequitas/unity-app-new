@@ -218,7 +218,7 @@ class CircleManagementController extends BaseApiController
 
     public function show(string $id): JsonResponse
     {
-        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
+        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
         if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
             $relations[] = 'categories';
         }
