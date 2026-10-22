@@ -890,6 +890,16 @@ class EventService
             }
             $data['metadata'] = $metadata;
         }
+
+        if (array_key_exists('round_duration_seconds', $data)) {
+            $metadata = (array) ($data['metadata'] ?? []);
+            if (isset($data['round_duration_seconds'])) {
+                $metadata['round_duration_seconds'] = (int) $data['round_duration_seconds'];
+            }
+            $data['metadata'] = $metadata;
+            unset($data['round_duration_seconds']);
+        }
+
         if (array_key_exists('agenda', $data)) {
             $data['agenda'] = $this->cleanAgenda($this->normalizeRows($data['agenda']));
         }
