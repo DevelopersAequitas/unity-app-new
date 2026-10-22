@@ -67,6 +67,14 @@ class AdvertiserPublicationService
             $startDate = now();
             $endDate = now()->addMonths($durationMonths);
 
+            // created_by and updated_by must reference admin_users(id) due to fk_brand_partners_created_by constraint
+            $adminUserId = null;
+            if (!empty($subscription->user_id) && DB::table('admin_users')->where('id', $subscription->user_id)->exists()) {
+                $adminUserId = $subscription->user_id;
+            } else {
+                $adminUserId = DB::table('admin_users')->value('id');
+            }
+
             $partnerData = [
                 'name' => $application->company_name,
                 'short_description' => Str::limit($application->brand_description, 250),
@@ -82,8 +90,14 @@ class AdvertiserPublicationService
                 'is_sponsored' => true,
                 'valid_from' => $startDate,
                 'valid_to' => $endDate,
-                'created_by' => $subscription->user_id,
-                'updated_by' => $subscription->user_id,
+                'created_by' => $adminUserId,
+                'updated_by' => $adminUserId,
+                'metadata' => [
+                    'source' => 'advertiser_onboarding',
+                    'subscription_id' => $subscription->id,
+                    'application_id' => $application->id,
+                    'applicant_user_id' => $subscription->user_id,
+                ],
             ];
 
             if ($logoAsset && !empty($logoAsset->storage_key)) {
