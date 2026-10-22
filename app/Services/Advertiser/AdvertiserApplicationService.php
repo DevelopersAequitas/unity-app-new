@@ -215,8 +215,8 @@ class AdvertiserApplicationService
             ->whereNull('consumed_at')
             ->update(['consumed_at' => now()]);
 
-        // In local/testing environments, support standard test OTP 123456
-        $plainOtp = app()->environment('local', 'testing') ? '123456' : (string) random_int(100000, 999999);
+        // In local/testing/dev/staging environments, support standard test OTP 123456
+        $plainOtp = (!app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging')) ? '123456' : (string) random_int(100000, 999999);
         $otpHash = hash('sha256', $plainOtp);
 
         Log::info("Advertiser verification OTP generated: {$plainOtp} for application: {$application->application_number} ({$application->applicant_email})");
@@ -248,7 +248,7 @@ class AdvertiserApplicationService
             return true;
         }
 
-        $isTestOtp = ($code === '123456') && app()->environment('local', 'testing');
+        $isTestOtp = ($code === '123456') && (!app()->environment('production') || app()->environment('local', 'testing', 'dev', 'staging'));
         $hashedInput = hash('sha256', $code);
 
         $verification = AdvertiserEmailVerification::where('application_id', $application->id)

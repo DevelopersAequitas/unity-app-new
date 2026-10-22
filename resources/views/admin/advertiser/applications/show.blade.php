@@ -56,7 +56,7 @@
                     </form>
                 @endif
 
-                @if(in_array($application->status, ['submitted', 'under_review', 'changes_requested']))
+                @if(in_array($application->status, ['pending_email_verification', 'submitted', 'under_review', 'changes_requested']))
                     {{-- Request corrections button --}}
                     <button type="button" onclick="document.getElementById('correctionModal').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition border-0 cursor-pointer shadow-sm">
                         <i class="bi bi-chat-left-dots"></i> Request Corrections
