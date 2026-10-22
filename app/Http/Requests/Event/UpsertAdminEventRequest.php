@@ -53,7 +53,7 @@ class UpsertAdminEventRequest extends FormRequest
             'visibility' => ['sometimes', 'string', 'in:public,circle,connections,private'],
             'is_paid' => ['sometimes', 'boolean'],
             'metadata' => ['nullable', 'array'],
-            'event_type' => ['sometimes', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop'],
+            'event_type' => ['sometimes', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop,speed_networking'],
             'event_category' => ['nullable', 'string', 'max:100'],
             'registration_limit' => ['nullable', 'integer', 'min:1'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
