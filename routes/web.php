@@ -22,6 +22,9 @@ use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
+use App\Http\Controllers\Admin\AdvertiserApplicationAdminController;
+use App\Http\Controllers\Admin\AdvertiserPackageAdminController;
+use App\Http\Controllers\Admin\AdvertiserSubscriptionPaymentAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
@@ -1036,6 +1039,33 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/brand-partners/offers', [BrandPartnerController::class, 'offers'])->name('brand-partners.offers');
             Route::get('/brand-partners/settings', [BrandPartnerSettingsController::class, 'index'])->name('brand-partners.settings');
             Route::get('/brand-partners', [BrandPartnerController::class, 'index'])->name('brand-partners.index');
+        });
+
+        // Advertiser & Onboarding Module
+        Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->prefix('advertiser')->name('advertiser.')->group(function () {
+            // Packages
+            Route::get('/packages', [AdvertiserPackageAdminController::class, 'index'])->name('packages.index');
+            Route::get('/packages/create', [AdvertiserPackageAdminController::class, 'create'])->name('packages.create');
+            Route::post('/packages', [AdvertiserPackageAdminController::class, 'store'])->name('packages.store');
+            Route::get('/packages/{package}/edit', [AdvertiserPackageAdminController::class, 'edit'])->name('packages.edit');
+            Route::put('/packages/{package}', [AdvertiserPackageAdminController::class, 'update'])->name('packages.update');
+            Route::patch('/packages/{package}/status', [AdvertiserPackageAdminController::class, 'toggleStatus'])->name('packages.toggle-status');
+
+            // Applications
+            Route::get('/applications', [AdvertiserApplicationAdminController::class, 'index'])->name('applications.index');
+            Route::get('/applications/{application}', [AdvertiserApplicationAdminController::class, 'show'])->name('applications.show');
+            Route::post('/applications/{application}/start-review', [AdvertiserApplicationAdminController::class, 'startReview'])->name('applications.start-review');
+            Route::post('/applications/{application}/request-corrections', [AdvertiserApplicationAdminController::class, 'requestCorrections'])->name('applications.request-corrections');
+            Route::post('/applications/{application}/approve', [AdvertiserApplicationAdminController::class, 'approve'])->name('applications.approve');
+            Route::post('/applications/{application}/reject', [AdvertiserApplicationAdminController::class, 'reject'])->name('applications.reject');
+            Route::patch('/applications/{application}/assets/{asset}', [AdvertiserApplicationAdminController::class, 'reviewAsset'])->name('applications.assets.review');
+
+            // Subscriptions & Payments
+            Route::get('/subscriptions', [AdvertiserSubscriptionPaymentAdminController::class, 'subscriptions'])->name('subscriptions.index');
+            Route::get('/subscriptions/{subscription}', [AdvertiserSubscriptionPaymentAdminController::class, 'subscriptionShow'])->name('subscriptions.show');
+            Route::get('/payments', [AdvertiserSubscriptionPaymentAdminController::class, 'payments'])->name('payments.index');
+            Route::get('/payments/{payment}', [AdvertiserSubscriptionPaymentAdminController::class, 'paymentShow'])->name('payments.show');
+            Route::post('/payments/{payment}/reconcile', [AdvertiserSubscriptionPaymentAdminController::class, 'reconcile'])->name('payments.reconcile');
         });
 
         Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
