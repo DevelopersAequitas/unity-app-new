@@ -818,16 +818,20 @@ Route::prefix('v1')->group(function () {
 
             // Canonical Peers Directory & Management
             Route::get('/peers', [UserManagementController::class, 'index']);
+            Route::post('/peers', [UserManagementController::class, 'store']);
             Route::get('/peers/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
             Route::put('/peers/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::delete('/peers/{id}', [UserManagementController::class, 'destroy'])->whereUuid('id');
             Route::patch('/peers/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
             Route::post('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
 
             // Legacy Users Endpoints (Aliased to Unified Controller)
             Route::get('/users', [UserManagementController::class, 'index']);
+            Route::post('/users', [UserManagementController::class, 'store']);
             Route::get('/users/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
             Route::put('/users/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::delete('/users/{id}', [UserManagementController::class, 'destroy'])->whereUuid('id');
             Route::post('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/users/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
