@@ -53,7 +53,9 @@ class EventRegistrationService
             ->first();
 
         if ($existing) {
-            $existing = $this->registrationQr->ensureQrGenerated($existing);
+            if ($event->event_type !== 'speed_networking') {
+                $existing = $this->registrationQr->ensureQrGenerated($existing);
+            }
 
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
@@ -91,7 +93,9 @@ class EventRegistrationService
                 return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
-            $existing = $this->registrationQr->ensureQrGenerated($existing);
+            if ($event->event_type !== 'speed_networking') {
+                $existing = $this->registrationQr->ensureQrGenerated($existing);
+            }
 
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
@@ -587,7 +591,9 @@ class EventRegistrationService
             $registration = $this->ensureVisitorRegistrationFormUrl($registration);
 
             if (! $paymentRequired) {
-                $registration = $this->registrationQr->ensureQrGenerated($registration);
+                if ($event->event_type !== 'speed_networking') {
+                    $registration = $this->registrationQr->ensureQrGenerated($registration);
+                }
 
                 if ($registration->user && in_array((string) $registration->user->membership_status, ['visitor', ''], true)) {
                     $registration->user->forceFill(['membership_status' => 'free_trial_peer'])->save();

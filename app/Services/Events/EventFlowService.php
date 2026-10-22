@@ -198,7 +198,7 @@ class EventFlowService
         }
 
         $ticket = null;
-        if ($isAttending && $registration) {
+        if ($isAttending && $registration && $event->event_type !== 'speed_networking') {
             $ticket = $this->formatTicketPayload($event, $registration);
         }
 
@@ -218,8 +218,18 @@ class EventFlowService
      */
     public function getActionButtonPayload(Event $event, array $userContext, array $pricing): array
     {
-        // 1. Confirmed / Paid -> Directly opens QR ticket
+        // 1. Confirmed / Paid -> Directly opens QR ticket for offline, or Join Speed Networking
         if ($userContext['is_attending']) {
+            if ($event->event_type === 'speed_networking') {
+                return [
+                    'action_type' => 'JOIN_SPEED_NETWORKING',
+                    'label' => 'Join Speed Networking',
+                    'is_enabled' => true,
+                    'helper_text' => 'Tap to join live 1-on-1 video networking',
+                    'event_id' => (string) $event->id,
+                ];
+            }
+
             return [
                 'action_type' => 'VIEW_QR',
                 'label' => 'View QR Ticket',
@@ -701,9 +711,20 @@ class EventFlowService
             'razorpay_payment_status' => 'captured',
         ]);
 
-        $registration = $this->registrationQr->ensureQrGenerated($registration);
+        if ($event->event_type !== 'speed_networking') {
+            $registration = $this->registrationQr->ensureQrGenerated($registration);
 
-        return $this->formatTicketPayload($event, $registration);
+            return $this->formatTicketPayload($event, $registration);
+        }
+
+        return [
+            'ticket_id' => $this->formatTicketId($registration),
+            'qr_code_data' => null,
+            'qr_image_url' => null,
+            'action_type' => 'JOIN_SPEED_NETWORKING',
+            'event_id' => (string) $event->id,
+            'message' => 'Speed Networking registration confirmed. You can now join the session.',
+        ];
     }
 
     /**

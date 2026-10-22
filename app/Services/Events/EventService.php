@@ -719,8 +719,8 @@ class EventService
             'invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'invoice_sync_status' => $registration->zoho_invoice_id ? 'synced' : ($registration->zoho_invoice_sync_error ? 'failed' : 'pending'),
             'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
-            'qr_status' => empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated',
-            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration),
+            'qr_status' => ($registration->event?->event_type ?? null) === 'speed_networking' ? 'disabled' : (empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated'),
+            'qr_code_url' => ($registration->event?->event_type ?? null) === 'speed_networking' ? null : (($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration)),
         ];
     }
 
