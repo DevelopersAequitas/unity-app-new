@@ -62,6 +62,9 @@ class Circle extends Model
         'industry_director_user_id',
         'ded_user_id',
         'eed_user_id',
+        'chair_user_id',
+        'vice_chair_user_id',
+        'secretary_user_id',
         'template_id',
         'status',
         'calendar',
@@ -535,6 +538,16 @@ class Circle extends Model
     public function chairUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'chair_user_id');
+    }
+
+    public function viceChairUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'vice_chair_user_id');
+    }
+
+    public function secretaryUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'secretary_user_id');
     }
 
     public function circleCategory(): BelongsTo
