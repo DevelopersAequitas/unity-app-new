@@ -1788,7 +1788,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
 foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
         Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
+        Route::get('events/{eventId}', [SpeedNetworkingApiController::class, 'show'])->whereUuid('eventId');
         Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
+        Route::post('events/{eventId}/verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment'])->whereUuid('eventId');
         Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
@@ -1797,7 +1799,9 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
 
 foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->whereUuid('eventId')->group(function (): void {
+        Route::get('', [SpeedNetworkingApiController::class, 'show']);
         Route::post('join', [SpeedNetworkingApiController::class, 'join']);
+        Route::post('verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment']);
         Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
