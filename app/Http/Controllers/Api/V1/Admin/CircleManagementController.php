@@ -92,23 +92,289 @@ class CircleManagementController extends BaseApiController
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate(['name' => ['required', 'string'], 'industry_id' => ['nullable', 'uuid'], 'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'], 'status' => ['nullable', 'string']]);
-        $circle = Circle::query()->create($data);
+        // Normalize city_id and file UUIDs before validation
+        $rawCityId = $request->input('city_id');
+        $resolvedCityId = null;
+        if (!empty($rawCityId) && Str::isUuid((string) $rawCityId)) {
+            $resolvedCityId = (string) $rawCityId;
+        } elseif ($request->filled('city')) {
+            $cityName = trim((string) $request->input('city'));
+            $resolvedCityId = DB::table('cities')->where('name', 'ilike', $cityName)->value('id');
+        }
 
-        return $this->success($circle);
+        $bgChairId = $request->input('business_growth_committee_chair_user_id') ?? $request->input('chair_user_id');
+        $mgChairId = $request->input('membership_growth_committee_chair_user_id') ?? $request->input('vice_chair_user_id');
+        $eiChairId = $request->input('events_impacts_committee_chair_user_id') ?? $request->input('secretary_user_id');
+
+        $mergeData = [
+            'city_id' => $resolvedCityId,
+            'cover_file_id' => ($request->filled('cover_file_id') && Str::isUuid((string) $request->input('cover_file_id'))) ? $request->input('cover_file_id') : null,
+            'circle_image_file_id' => ($request->filled('circle_image_file_id') && Str::isUuid((string) $request->input('circle_image_file_id'))) ? $request->input('circle_image_file_id') : null,
+            'chair_user_id' => (!empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null,
+            'vice_chair_user_id' => (!empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null,
+            'secretary_user_id' => (!empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null,
+            'business_growth_committee_chair_user_id' => (!empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null,
+            'membership_growth_committee_chair_user_id' => (!empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null,
+            'events_impacts_committee_chair_user_id' => (!empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null,
+        ];
+        $request->merge($mergeData);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:200'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string'],
+            'announcement' => ['nullable', 'string'],
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'type' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'circle_stage' => ['nullable', 'string'],
+            'industry_tags' => ['nullable'],
+            'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'eed_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'vice_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'secretary_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'business_growth_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'membership_growth_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'events_impacts_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'cover_file_id' => ['nullable', 'uuid'],
+            'circle_image_file_id' => ['nullable', 'uuid'],
+            'payment_gateway' => ['nullable', 'string'],
+            'payment_plan_id' => ['nullable', 'string'],
+            'circle_package' => ['nullable', 'string'],
+            'circle_price_amount' => ['nullable', 'numeric'],
+            'circle_gst_percent' => ['nullable', 'numeric'],
+            'is_package_active' => ['nullable', 'boolean'],
+            'meeting_mode' => ['nullable', 'string'],
+            'meeting_frequency' => ['nullable', 'string'],
+            'launch_date' => ['nullable', 'date'],
+            'calendar' => ['nullable', 'array'],
+            'categories' => ['nullable', 'array'],
+        ]);
+
+        $baseSlug = Str::slug((string) ($validated['name'] ?? 'circle'));
+        if ($baseSlug === '') $baseSlug = 'circle';
+        $slug = $baseSlug;
+        $counter = 1;
+        while (Circle::where('slug', $slug)->exists()) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        $circle = new Circle();
+        $circle->slug = $slug;
+
+        $fillableColumns = [
+            'name', 'description', 'purpose', 'announcement', 'city_id', 'city', 'country',
+            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'circle_director_user_id',
+            'industry_director_user_id', 'ded_user_id', 'eed_user_id',
+            'chair_user_id', 'vice_chair_user_id', 'secretary_user_id',
+            'cover_file_id',
+            'circle_image_file_id', 'payment_gateway', 'payment_plan_id', 'circle_package',
+            'circle_price_amount', 'circle_gst_percent', 'is_package_active', 'meeting_mode',
+            'meeting_frequency', 'launch_date',
+        ];
+
+        foreach ($fillableColumns as $col) {
+            if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
+                $circle->{$col} = $validated[$col];
+            }
+        }
+
+        if (isset($validated['industry_tags'])) {
+            $tags = is_array($validated['industry_tags'])
+                ? $validated['industry_tags']
+                : array_filter(array_map('trim', explode(',', (string) $validated['industry_tags'])));
+            $circle->industry_tags = array_values($tags);
+        }
+
+        $calendar = isset($validated['calendar']) && is_array($validated['calendar']) ? $validated['calendar'] : [];
+        data_set($calendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id'] ?? null);
+        data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
+        data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
+        data_set($calendar, 'leadership.eed_user_id', $validated['eed_user_id'] ?? null);
+        data_set($calendar, 'leadership.business_growth_committee_chair_user_id', $validated['chair_user_id'] ?? null);
+        data_set($calendar, 'leadership.membership_growth_committee_chair_user_id', $validated['vice_chair_user_id'] ?? null);
+        data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['secretary_user_id'] ?? null);
+        $circle->calendar = $calendar;
+
+        $circle->save();
+
+        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
+            $categoryIds = collect($validated['categories'])->filter()->map(fn($id) => (int) $id)->values()->all();
+            $circle->categories()->sync($categoryIds);
+        }
+
+        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+
+        return $this->success($circle, 'Circle created successfully.', 201);
     }
 
     public function show(string $id): JsonResponse
     {
-        return $this->success(Circle::query()->with(['members'])->findOrFail($id));
+        $relations = ['members', 'cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'chairUser', 'viceChairUser', 'secretaryUser'];
+        if (Schema::hasTable('circle_category_mappings') || Schema::hasTable('circle_categories')) {
+            $relations[] = 'categories';
+        }
+
+        return $this->success(Circle::query()->with($relations)->findOrFail($id));
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
         $circle = Circle::query()->findOrFail($id);
-        $circle->fill($request->only(['name', 'description', 'industry_id', 'status', 'circle_founder_user_id', 'circle_director_user_id', 'industry_director_user_id', 'ded_user_id', 'eed_user_id']))->save();
 
-        return $this->success($circle);
+        if ($request->has('city_id')) {
+            $rawCityId = $request->input('city_id');
+            $resolvedCityId = null;
+            if (!empty($rawCityId) && Str::isUuid((string) $rawCityId)) {
+                $resolvedCityId = (string) $rawCityId;
+            } elseif ($request->filled('city')) {
+                $cityName = trim((string) $request->input('city'));
+                $resolvedCityId = DB::table('cities')->where('name', 'ilike', $cityName)->value('id');
+            }
+            $request->merge(['city_id' => $resolvedCityId]);
+        }
+        if ($request->has('cover_file_id') && !empty($request->input('cover_file_id')) && !Str::isUuid((string) $request->input('cover_file_id'))) {
+            $request->merge(['cover_file_id' => null]);
+        }
+        if ($request->has('circle_image_file_id') && !empty($request->input('circle_image_file_id')) && !Str::isUuid((string) $request->input('circle_image_file_id'))) {
+            $request->merge(['circle_image_file_id' => null]);
+        }
+
+        $bgChairId = $request->input('business_growth_committee_chair_user_id') ?? $request->input('chair_user_id');
+        $mgChairId = $request->input('membership_growth_committee_chair_user_id') ?? $request->input('vice_chair_user_id');
+        $eiChairId = $request->input('events_impacts_committee_chair_user_id') ?? $request->input('secretary_user_id');
+
+        $mergeData = [];
+        if ($request->has('business_growth_committee_chair_user_id') || $request->has('chair_user_id')) {
+            $mergeData['chair_user_id'] = (!empty($bgChairId) && Str::isUuid((string) $bgChairId)) ? (string) $bgChairId : null;
+            $mergeData['business_growth_committee_chair_user_id'] = $mergeData['chair_user_id'];
+        }
+        if ($request->has('membership_growth_committee_chair_user_id') || $request->has('vice_chair_user_id')) {
+            $mergeData['vice_chair_user_id'] = (!empty($mgChairId) && Str::isUuid((string) $mgChairId)) ? (string) $mgChairId : null;
+            $mergeData['membership_growth_committee_chair_user_id'] = $mergeData['vice_chair_user_id'];
+        }
+        if ($request->has('events_impacts_committee_chair_user_id') || $request->has('secretary_user_id')) {
+            $mergeData['secretary_user_id'] = (!empty($eiChairId) && Str::isUuid((string) $eiChairId)) ? (string) $eiChairId : null;
+            $mergeData['events_impacts_committee_chair_user_id'] = $mergeData['secretary_user_id'];
+        }
+        if (!empty($mergeData)) {
+            $request->merge($mergeData);
+        }
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:200'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string'],
+            'announcement' => ['nullable', 'string'],
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'type' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'circle_stage' => ['nullable', 'string'],
+            'industry_tags' => ['nullable'],
+            'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'eed_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'vice_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'secretary_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'business_growth_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'membership_growth_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'events_impacts_committee_chair_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'cover_file_id' => ['nullable', 'uuid'],
+            'circle_image_file_id' => ['nullable', 'uuid'],
+            'payment_gateway' => ['nullable', 'string'],
+            'payment_plan_id' => ['nullable', 'string'],
+            'circle_package' => ['nullable', 'string'],
+            'circle_price_amount' => ['nullable', 'numeric'],
+            'circle_gst_percent' => ['nullable', 'numeric'],
+            'is_package_active' => ['nullable', 'boolean'],
+            'meeting_mode' => ['nullable', 'string'],
+            'meeting_frequency' => ['nullable', 'string'],
+            'launch_date' => ['nullable', 'date'],
+            'calendar' => ['nullable', 'array'],
+            'categories' => ['nullable', 'array'],
+        ]);
+
+        $fillableColumns = [
+            'name', 'description', 'purpose', 'announcement', 'city_id', 'city', 'country',
+            'type', 'status', 'circle_stage', 'circle_founder_user_id', 'circle_director_user_id',
+            'industry_director_user_id', 'ded_user_id', 'eed_user_id',
+            'chair_user_id', 'vice_chair_user_id', 'secretary_user_id',
+            'cover_file_id',
+            'circle_image_file_id', 'payment_gateway', 'payment_plan_id', 'circle_package',
+            'circle_price_amount', 'circle_gst_percent', 'is_package_active', 'meeting_mode',
+            'meeting_frequency', 'launch_date',
+        ];
+
+        foreach ($fillableColumns as $col) {
+            if (array_key_exists($col, $validated) && Schema::hasColumn('circles', $col)) {
+                $circle->{$col} = $validated[$col];
+            }
+        }
+
+        if (array_key_exists('industry_tags', $validated)) {
+            $tags = is_array($validated['industry_tags'])
+                ? $validated['industry_tags']
+                : array_filter(array_map('trim', explode(',', (string) $validated['industry_tags'])));
+            $circle->industry_tags = array_values($tags);
+        }
+
+        $currentCalendar = is_array($circle->calendar) ? $circle->calendar : [];
+        if (isset($validated['calendar']) && is_array($validated['calendar'])) {
+            $currentCalendar = array_replace_recursive($currentCalendar, $validated['calendar']);
+        }
+        if (array_key_exists('circle_founder_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id']);
+        }
+        if (array_key_exists('circle_director_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id']);
+        }
+        if (array_key_exists('industry_director_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id']);
+        }
+        if (array_key_exists('ded_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.ded_user_id', $validated['ded_user_id']);
+        }
+        if (array_key_exists('eed_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.eed_user_id', $validated['eed_user_id']);
+        }
+        if (array_key_exists('chair_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.business_growth_committee_chair_user_id', $validated['chair_user_id']);
+        }
+        if (array_key_exists('vice_chair_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.membership_growth_committee_chair_user_id', $validated['vice_chair_user_id']);
+        }
+        if (array_key_exists('secretary_user_id', $validated)) {
+            data_set($currentCalendar, 'leadership.events_impacts_committee_chair_user_id', $validated['secretary_user_id']);
+        }
+        $circle->calendar = $currentCalendar;
+
+        if (isset($validated['name']) && $validated['name'] !== $circle->getOriginal('name')) {
+            $circle->slug = Circle::generateUniqueSlug($validated['name'], $circle->id);
+        }
+
+        $circle->save();
+
+        if (isset($validated['categories']) && is_array($validated['categories']) && method_exists($circle, 'categories')) {
+            $categoryIds = collect($validated['categories'])->filter()->map(fn($id) => (int) $id)->values()->all();
+            $circle->categories()->sync($categoryIds);
+        }
+
+        $circle->load(['cityRef', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed', 'categories']);
+
+        return $this->success($circle, 'Circle updated successfully.');
     }
 
     public function patchStatus(Request $request, string $id): JsonResponse

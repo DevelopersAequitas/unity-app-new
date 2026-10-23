@@ -36,6 +36,12 @@ class MyEventQrController extends BaseApiController
                 ->where('user_id', $user->id)
                 ->where('status', '!=', 'cancelled')
                 ->whereNull('deleted_at')
+                ->where(function ($q): void {
+                    $q->whereDoesntHave('event')
+                        ->orWhereHas('event', function ($eq): void {
+                            $eq->where('event_type', '!=', 'speed_networking');
+                        });
+                })
                 ->orderByDesc('registered_at')
                 ->orderByDesc('created_at')
                 ->get();

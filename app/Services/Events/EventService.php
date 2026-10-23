@@ -40,11 +40,12 @@ class EventService
         'public_visitor_event',
         'training',
         'training_workshop',
+        'speed_networking',
     ];
 
     public function __construct(private readonly EventOccurrenceGeneratorService $occurrenceGenerator) {}
 
-    public function create(array $data, User $actor): Event
+    public function create(array $data, mixed $actor): Event
     {
         $event = DB::transaction(function () use ($data, $actor): Event {
             $circleIds = $this->extractCircleIds($data);
@@ -522,6 +523,12 @@ class EventService
                 ->whereIn('status', ['approved', 'active'])
                 ->whereNull('deleted_at')
                 ->exists(),
+            'speed_networking' => empty($allowedCircleIds) || CircleMember::query()
+                ->whereIn('circle_id', $allowedCircleIds)
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['approved', 'active'])
+                ->whereNull('deleted_at')
+                ->exists(),
             'global_event', 'public_event', 'state_event', 'city_event' => true,
             default => true,
         };
@@ -712,8 +719,8 @@ class EventService
             'invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'invoice_sync_status' => $registration->zoho_invoice_id ? 'synced' : ($registration->zoho_invoice_sync_error ? 'failed' : 'pending'),
             'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
-            'qr_status' => empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated',
-            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration),
+            'qr_status' => ($registration->event?->event_type ?? null) === 'speed_networking' ? 'disabled' : (empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated'),
+            'qr_code_url' => ($registration->event?->event_type ?? null) === 'speed_networking' ? null : (($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration)),
         ];
     }
 
@@ -789,7 +796,7 @@ class EventService
         return array_filter($data, fn ($value, $key) => Schema::hasColumn('events', $key), ARRAY_FILTER_USE_BOTH);
     }
 
-    private function normalize(array $data, ?User $actor, bool $withDefaults = true): array
+    private function normalize(array $data, mixed $actor, bool $withDefaults = true): array
     {
         $timezone = $data['timezone'] ?? data_get($data, 'metadata.timezone') ?? (config('app.timezone') ?: 'Asia/Kolkata');
         if ($timezone === 'UTC' && empty($data['timezone']) && empty(data_get($data, 'metadata.timezone'))) {
@@ -808,10 +815,16 @@ class EventService
         }
 
         if ($actor && empty($data['created_by_user_id'])) {
-            $data['created_by_user_id'] = $actor->id;
+            $actorId = $actor->id ?? null;
+            if ($actorId && User::query()->where('id', $actorId)->exists()) {
+                $data['created_by_user_id'] = $actorId;
+            }
         }
         if ($actor && empty($data['organizer_user_id'])) {
-            $data['organizer_user_id'] = $actor->id;
+            $actorId = $actor->id ?? null;
+            if ($actorId && User::query()->where('id', $actorId)->exists()) {
+                $data['organizer_user_id'] = $actorId;
+            }
         }
         $hasLocationInput = array_key_exists('venue_name', $data)
             || array_key_exists('address_line', $data)
@@ -877,6 +890,16 @@ class EventService
             }
             $data['metadata'] = $metadata;
         }
+
+        if (array_key_exists('round_duration_seconds', $data)) {
+            $metadata = (array) ($data['metadata'] ?? []);
+            if (isset($data['round_duration_seconds'])) {
+                $metadata['round_duration_seconds'] = (int) $data['round_duration_seconds'];
+            }
+            $data['metadata'] = $metadata;
+            unset($data['round_duration_seconds']);
+        }
+
         if (array_key_exists('agenda', $data)) {
             $data['agenda'] = $this->cleanAgenda($this->normalizeRows($data['agenda']));
         }
@@ -956,6 +979,8 @@ class EventService
         return match ($eventType) {
             'public_visitor_event' => 'public_event',
             'training_workshop' => 'training',
+            'circle_meet' => 'circle_meeting',
+            'Speed Networking', 'speed_networking' => 'speed_networking',
             default => $eventType,
         };
     }

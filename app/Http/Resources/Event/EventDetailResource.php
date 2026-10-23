@@ -156,7 +156,7 @@ class EventDetailResource extends JsonResource
             'registered_count' => $registeredCount,
             'checked_in_count' => $checkedInCount,
             'available_seats' => $registrationLimit ? max(0, $registrationLimit - $registeredCount) : null,
-            'qr_checkin_enabled' => (bool) $this->qr_checkin_enabled,
+            'qr_checkin_enabled' => $this->event_type === 'speed_networking' ? false : (bool) $this->qr_checkin_enabled,
             'is_public' => (bool) $this->is_public,
             'visitor_registration_enabled' => $visitorRegistrationEnabled,
             'allow_free_peers' => (bool) ($this->allow_free_peers ?? $this->event?->allow_free_peers ?? true),
