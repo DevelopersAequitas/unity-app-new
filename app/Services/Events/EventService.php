@@ -44,7 +44,7 @@ class EventService
 
     public function __construct(private readonly EventOccurrenceGeneratorService $occurrenceGenerator) {}
 
-    public function create(array $data, User $actor): Event
+    public function create(array $data, mixed $actor): Event
     {
         $event = DB::transaction(function () use ($data, $actor): Event {
             $circleIds = $this->extractCircleIds($data);
@@ -789,7 +789,7 @@ class EventService
         return array_filter($data, fn ($value, $key) => Schema::hasColumn('events', $key), ARRAY_FILTER_USE_BOTH);
     }
 
-    private function normalize(array $data, ?User $actor, bool $withDefaults = true): array
+    private function normalize(array $data, mixed $actor, bool $withDefaults = true): array
     {
         $timezone = $data['timezone'] ?? data_get($data, 'metadata.timezone') ?? (config('app.timezone') ?: 'Asia/Kolkata');
         if ($timezone === 'UTC' && empty($data['timezone']) && empty(data_get($data, 'metadata.timezone'))) {
