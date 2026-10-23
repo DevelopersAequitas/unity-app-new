@@ -25,6 +25,7 @@ class WebMedia extends Model
      */
     protected $fillable = [
         'id',
+        'name',
         'title',
         'subtitle',
         'tag',
@@ -51,6 +52,7 @@ class WebMedia extends Model
         'sort_order',
         'is_featured',
         'is_active',
+        'url',
     ];
 
     /**
@@ -71,12 +73,21 @@ class WebMedia extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
+            if (empty($model->name) && Schema::hasTable('web_media') && Schema::hasColumn('web_media', 'name')) {
+                $model->name = ! empty($model->title) ? (string) $model->title : (! empty($model->file_name) ? (string) $model->file_name : 'media');
+            }
+            if (empty($model->url) && Schema::hasTable('web_media') && Schema::hasColumn('web_media', 'url')) {
+                $model->url = ! empty($model->cover_image) ? (string) $model->cover_image : (! empty($model->file_path) ? (string) $model->file_path : '');
+            }
             if (! empty($model->youtube_url) && empty($model->youtube_video_id)) {
                 $model->youtube_video_id = self::extractYouTubeId($model->youtube_url);
             }
         });
 
         static::updating(function (WebMedia $model): void {
+            if (empty($model->name) && ! empty($model->title) && Schema::hasTable('web_media') && Schema::hasColumn('web_media', 'name')) {
+                $model->name = (string) $model->title;
+            }
             if ($model->isDirty('youtube_url') && ! empty($model->youtube_url)) {
                 $model->youtube_video_id = self::extractYouTubeId($model->youtube_url);
             }

@@ -75,6 +75,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
 use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
+use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
 use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
@@ -1844,3 +1845,35 @@ foreach (['admin/speed-networking', 'v1/admin/speed-networking'] as $prefix) {
         Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
     });
 }
+
+// Plans & Test Checkout Admin API (Supports both /api/v1/admin/plans and /api/admin/plans)
+foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
+    Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
+        Route::get('membership', [AdminPlansApiController::class, 'membershipPlans']);
+        Route::post('membership', [AdminPlansApiController::class, 'createMembershipPlan']);
+        Route::get('membership/{id}', [AdminPlansApiController::class, 'getMembershipPlan']);
+        Route::put('membership/{id}', [AdminPlansApiController::class, 'updateMembershipPlan']);
+        Route::delete('membership/{id}', [AdminPlansApiController::class, 'deleteMembershipPlan']);
+
+        Route::get('circle', [AdminPlansApiController::class, 'circlePlans']);
+        Route::post('circle', [AdminPlansApiController::class, 'createCirclePlan']);
+        Route::get('circle/{id}', [AdminPlansApiController::class, 'getCirclePlan']);
+        Route::put('circle/{id}', [AdminPlansApiController::class, 'updateCirclePlan']);
+        Route::delete('circle/{id}', [AdminPlansApiController::class, 'deleteCirclePlan']);
+
+        // Razorpay Test Checkout & Zoho
+        Route::get('test-checkout/init', [AdminPlansApiController::class, 'testCheckoutInit']);
+        Route::post('test-checkout/create-order', [AdminPlansApiController::class, 'testCheckoutCreateOrder']);
+        Route::post('test-checkout/verify', [AdminPlansApiController::class, 'testCheckoutVerify']);
+        Route::post('test-checkout/generate-signature', [AdminPlansApiController::class, 'testCheckoutGenerateSignature']);
+
+        // Circle Plans Test Checkout
+        Route::get('circle-test-checkout/init', [AdminPlansApiController::class, 'circleTestCheckoutInit']);
+        Route::post('circle-test-checkout/create-request', [AdminPlansApiController::class, 'circleTestCheckoutCreateRequest']);
+        Route::post('circle-test-checkout/approve-cd/{id}', [AdminPlansApiController::class, 'circleTestCheckoutApproveCd'])->whereUuid('id');
+        Route::post('circle-test-checkout/approve-id/{id}', [AdminPlansApiController::class, 'circleTestCheckoutApproveId'])->whereUuid('id');
+        Route::post('circle-test-checkout/create-order', [AdminPlansApiController::class, 'circleTestCheckoutCreateOrder']);
+        Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
+    });
+}
+

@@ -179,33 +179,68 @@ class SpeedNetworkingAdminController extends Controller
 
         /** @var Event $baseEvent */
         $baseEvent = $target['event'];
+        $participantsMap = [];
+
+        if (Schema::hasTable('speed_networking_participants')) {
+            $snList = \App\Models\SpeedNetworking\SpeedNetworkingParticipant::with('user')
+                ->where('event_id', $baseEvent->id)
+                ->get();
+            foreach ($snList as $p) {
+                $u = $p->user;
+                if ($u) {
+                    $uid = (string) $u->id;
+                    $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                    $participantsMap[$uid] = [
+                        'id' => (string) $p->id,
+                        'event_id' => $baseEvent->id,
+                        'user_id' => $uid,
+                        'status' => $p->status ?? 'in_call',
+                        'user' => [
+                            'id' => $uid,
+                            'name' => $name,
+                            'company' => (string) ($u->company_name ?? 'Peers Member'),
+                            'industry' => (string) ($u->business_sub_category ?? $u->industry ?? ''),
+                            'avatar_url' => $u->profile_photo_url ?? null,
+                        ],
+                        'joined_at' => $p->joined_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
+                    ];
+                }
+            }
+        }
+
         $registrations = EventRegistration::where('event_id', $baseEvent->id)
             ->with('user')
             ->get();
-        $list = [];
         foreach ($registrations as $reg) {
-            $list[] = [
-                'id' => $reg->id,
-                'event_id' => $baseEvent->id,
-                'user_id' => $reg->user_id,
-                'status' => 'in_call',
-                'user' => [
-                    'id' => $reg->user?->id ?? $reg->user_id,
-                    'name' => $reg->user?->name ?? 'Participant',
-                    'company' => $reg->user?->company_name ?? 'Peers Member',
-                    'industry' => $reg->user?->industry ?? '',
-                    'avatar_url' => $reg->user?->profile_photo_url ?? null,
-                ],
-                'joined_at' => $reg->created_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
-            ];
+            $u = $reg->user;
+            if ($u && ! isset($participantsMap[(string) $u->id])) {
+                $uid = (string) $u->id;
+                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                $participantsMap[$uid] = [
+                    'id' => (string) $reg->id,
+                    'event_id' => $baseEvent->id,
+                    'user_id' => $uid,
+                    'status' => 'in_call',
+                    'user' => [
+                        'id' => $uid,
+                        'name' => $name,
+                        'company' => (string) ($u->company_name ?? 'Peers Member'),
+                        'industry' => (string) ($u->business_sub_category ?? $u->industry ?? ''),
+                        'avatar_url' => $u->profile_photo_url ?? null,
+                    ],
+                    'joined_at' => $reg->created_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
+                ];
+            }
         }
+
+        $list = array_values($participantsMap);
 
         return response()->json([
             'success' => true,
             'data' => $list,
             'pagination' => [
                 'total' => count($list),
-                'per_page' => 50,
+                'per_page' => max(50, count($list)),
                 'current_page' => 1,
                 'last_page' => 1,
             ],
@@ -374,49 +409,74 @@ class SpeedNetworkingAdminController extends Controller
             $remainingSeconds = max(0, $roundDuration - $elapsed);
         }
 
-        // Fetch real registered users or default pairings
+        // Fetch real registered users from both speed_networking_participants and registrations
+        $participantsMap = [];
+        if (Schema::hasTable('speed_networking_participants')) {
+            $snList = \App\Models\SpeedNetworking\SpeedNetworkingParticipant::with('user')
+                ->where('event_id', $baseEvent->id)
+                ->get();
+            foreach ($snList as $p) {
+                $u = $p->user;
+                if ($u) {
+                    $uid = (string) $u->id;
+                    $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                    $participantsMap[$uid] = [
+                        'id' => $uid,
+                        'name' => $name,
+                        'company' => (string) ($u->company_name ?? 'Peers Member'),
+                        'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                        'avatar_url' => $u->profile_photo_url ?? null,
+                    ];
+                }
+            }
+        }
+
         $registrations = EventRegistration::where('event_id', $baseEvent->id)
             ->with('user')
             ->get();
-        $participants = [];
         foreach ($registrations as $reg) {
-            if ($reg->user) {
-                $participants[] = [
-                    'id' => $reg->user->id,
-                    'name' => $reg->user->name ?? 'Participant',
-                    'company' => $reg->user->company_name ?? 'Peers Member',
-                    'industry' => $reg->user->industry ?? 'Business',
-                    'avatar_url' => $reg->user->profile_photo_url ?? null,
+            $u = $reg->user;
+            if ($u && ! isset($participantsMap[(string) $u->id])) {
+                $uid = (string) $u->id;
+                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                $participantsMap[$uid] = [
+                    'id' => $uid,
+                    'name' => $name,
+                    'company' => (string) ($u->company_name ?? 'Peers Member'),
+                    'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                    'avatar_url' => $u->profile_photo_url ?? null,
                 ];
             }
         }
 
-        if (count($participants) < 2) {
-            $participants = [
-                ['id' => 'u1', 'name' => 'Dr. Vikram Malhotra', 'company' => 'Apex Healthcare Global', 'industry' => 'Healthcare & Pharma'],
-                ['id' => 'u2', 'name' => 'Ananya Sharma', 'company' => 'TechVentures Capital', 'industry' => 'Venture Capital & AI'],
-                ['id' => 'u3', 'name' => 'Rajesh Singhania', 'company' => 'Singhania Logistics & Supply', 'industry' => 'Logistics & Supply'],
-                ['id' => 'u4', 'name' => 'Pooja Kashyap', 'company' => 'GreenLeaf Solar Power', 'industry' => 'Clean Energy & ESG'],
-                ['id' => 'u5', 'name' => 'Rohan Deshmukh', 'company' => 'Deshmukh Infrastructure', 'industry' => 'Infrastructure & Real Estate'],
-                ['id' => 'u6', 'name' => 'Kavita Menon', 'company' => 'FinEdge Advisory', 'industry' => 'Financial Services'],
-                ['id' => 'u7', 'name' => 'Amitabh Sen', 'company' => 'CyberGuard Systems', 'industry' => 'Cybersecurity'],
-                ['id' => 'u8', 'name' => 'Nisha Pillai', 'company' => 'MediaVerse Brand Studio', 'industry' => 'Advertising & PR'],
-            ];
-        }
+        $participants = array_values($participantsMap);
 
-        // Generate round pairings
+        // Generate round pairings exclusively with real participants
         $tableMatches = [];
-        $tableCount = (int) floor(count($participants) / 2);
-        for ($i = 0; $i < $tableCount; $i++) {
+        if (count($participants) >= 2) {
+            $tableCount = (int) ceil(count($participants) / 2);
+            for ($i = 0; $i < $tableCount; $i++) {
+                $tableMatches[] = [
+                    'match_id' => 'tbl_match_' . ($i + 1),
+                    'table_number' => $i + 1,
+                    'channel_id' => 'sn_room_table_' . ($i + 1),
+                    'status' => $speedStatus === 'in_progress' ? 'active' : 'waiting',
+                    'is_break_round' => false,
+                    'user_a' => $participants[$i * 2] ?? null,
+                    'user_b' => $participants[$i * 2 + 1] ?? null,
+                    'started_at' => $meta['round_started_at'] ?? Carbon::now()->toIso8601String(),
+                ];
+            }
+        } elseif (count($participants) === 1) {
             $tableMatches[] = [
-                'match_id' => 'tbl_match_' . ($i + 1),
-                'table_number' => $i + 1,
-                'channel_id' => 'sn_room_table_' . ($i + 1),
-                'status' => $speedStatus === 'in_progress' ? 'active' : 'waiting',
+                'match_id' => 'tbl_match_1',
+                'table_number' => 1,
+                'channel_id' => 'sn_room_table_1',
+                'status' => 'waiting',
                 'is_break_round' => false,
-                'user_a' => $participants[$i * 2],
-                'user_b' => $participants[$i * 2 + 1],
-                'started_at' => $meta['round_started_at'] ?? Carbon::now()->toIso8601String(),
+                'user_a' => $participants[0],
+                'user_b' => null,
+                'started_at' => Carbon::now()->toIso8601String(),
             ];
         }
 
