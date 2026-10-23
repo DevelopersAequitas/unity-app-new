@@ -785,6 +785,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
+            Route::post('/app-config/upload-brand-asset', [AppConfigAdminController::class, 'uploadBrandAsset']);
             Route::put('/app-config/colors', [AppConfigAdminController::class, 'updateColors']);
             Route::get('/app-config/icons', [AppConfigAdminController::class, 'icons']);
             Route::put('/app-config/icons', [AppConfigAdminController::class, 'bulkUpdateIcons']);
@@ -796,9 +797,13 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
             Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
             Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/navigation/group/{menu_type}', [AppConfigAdminController::class, 'bulkUpdateNavigationGroup']);
             Route::delete('/app-config/navigation/{id}', [AppConfigAdminController::class, 'deleteNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/dashboard-widgets', [AppConfigAdminController::class, 'bulkUpdateWidgets']);
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
+            Route::put('/app-config/social-links', [AppConfigAdminController::class, 'bulkUpdateSocialLinks']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
+            Route::put('/app-config/membership-labels', [AppConfigAdminController::class, 'bulkUpdateMembershipLabels']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
             Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
             Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
