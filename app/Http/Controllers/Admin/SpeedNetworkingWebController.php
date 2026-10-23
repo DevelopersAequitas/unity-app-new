@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
+use App\Models\SpeedNetworking\SpeedNetworkingParticipant;
 use App\Services\SpeedNetworking\SpeedNetworkingService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -24,23 +25,31 @@ class SpeedNetworkingWebController extends Controller
     /**
      * Find SpeedNetworkingEvent or fallback to base Event.
      *
-     * @return array{type: 'sn'|'base', event: SpeedNetworkingEvent|Event}
+     * @return array{type: 'sn'|'base', event: SpeedNetworkingEvent|Event}|null
      */
-    protected function findEventOrBaseEvent(string $id): array
+    protected function findEventOrBaseEvent(string $id): ?array
     {
-        if (Schema::hasTable('speed_networking_events')) {
-            $snEvent = SpeedNetworkingEvent::find($id);
-            if ($snEvent) {
-                return ['type' => 'sn', 'event' => $snEvent];
+        try {
+            if (Schema::hasTable('speed_networking_events')) {
+                $snEvent = SpeedNetworkingEvent::find($id);
+                if ($snEvent) {
+                    return ['type' => 'sn', 'event' => $snEvent];
+                }
             }
+        } catch (\Throwable $e) {
+            // Ignore DB table error
         }
 
-        $baseEvent = Event::find($id);
-        if ($baseEvent) {
-            return ['type' => 'base', 'event' => $baseEvent];
+        try {
+            $baseEvent = Event::find($id) ?? Event::withTrashed()->find($id);
+            if ($baseEvent) {
+                return ['type' => 'base', 'event' => $baseEvent];
+            }
+        } catch (\Throwable $e) {
+            // Ignore error
         }
 
-        abort(404, 'Speed networking event not found.');
+        return null;
     }
 
     /**
@@ -56,10 +65,38 @@ class SpeedNetworkingWebController extends Controller
 
         $eventsData = $this->speedNetworkingService->listEvents($filters, $perPage);
 
-        $totalEvents = Schema::hasTable('speed_networking_events') ? SpeedNetworkingEvent::count() : 0;
-        $inProgressEvents = Schema::hasTable('speed_networking_events') ? SpeedNetworkingEvent::where('status', SpeedNetworkingEvent::STATUS_IN_PROGRESS)->count() : 0;
-        $scheduledEvents = Schema::hasTable('speed_networking_events') ? SpeedNetworkingEvent::where('status', SpeedNetworkingEvent::STATUS_SCHEDULED)->count() : 0;
-        $completedEvents = Schema::hasTable('speed_networking_events') ? SpeedNetworkingEvent::where('status', SpeedNetworkingEvent::STATUS_COMPLETED)->count() : 0;
+        $totalEvents = 0;
+        $inProgressEvents = 0;
+        $scheduledEvents = 0;
+        $completedEvents = 0;
+
+        try {
+            if (Schema::hasTable('speed_networking_events')) {
+                $totalEvents = SpeedNetworkingEvent::count();
+                $inProgressEvents = SpeedNetworkingEvent::where('status', SpeedNetworkingEvent::STATUS_IN_PROGRESS)->count();
+                $scheduledEvents = SpeedNetworkingEvent::where('status', SpeedNetworkingEvent::STATUS_SCHEDULED)->count();
+                $completedEvents = SpeedNetworkingEvent::where('status', SpeedNetworkingEvent::STATUS_COMPLETED)->count();
+            }
+        } catch (\Throwable $e) {
+            // Table doesn't exist
+        }
+
+        if ($totalEvents === 0) {
+            try {
+                $baseQuery = Event::where(function ($q): void {
+                    $q->where('event_type', 'speed_networking')
+                        ->orWhereJsonContains('metadata->is_speed_networking', true)
+                        ->orWhere('title', 'like', '%Speed%')
+                        ->orWhere('title', 'like', '%speed%');
+                });
+                $totalEvents = (clone $baseQuery)->count();
+                $inProgressEvents = (clone $baseQuery)->where('metadata->speed_status', 'in_progress')->count();
+                $scheduledEvents = (clone $baseQuery)->where('metadata->speed_status', 'scheduled')->count();
+                $completedEvents = (clone $baseQuery)->where('metadata->speed_status', 'completed')->count();
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
 
         return view('admin.speed-networking.index', [
             'events' => $eventsData['data'],
@@ -68,8 +105,8 @@ class SpeedNetworkingWebController extends Controller
             'inProgressEvents' => $inProgressEvents,
             'scheduledEvents' => $scheduledEvents,
             'completedEvents' => $completedEvents,
-            'currentStatus' => $request->query('status', ''),
-            'search' => $request->query('search', ''),
+            'currentStatus' => (string) $request->query('status', ''),
+            'search' => (string) $request->query('search', ''),
         ]);
     }
 
@@ -98,22 +135,32 @@ class SpeedNetworkingWebController extends Controller
     /**
      * Display the Live Control Room & Monitor for an event.
      */
-    public function show(string $id): View
+    public function show(string $id): View|RedirectResponse
     {
         $target = $this->findEventOrBaseEvent($id);
+
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking session not found or has been removed.');
+        }
 
         if ($target['type'] === 'sn') {
             /** @var SpeedNetworkingEvent $event */
             $event = $target['event'];
             $details = $this->speedNetworkingService->getEventDetails($event);
             $liveData = $this->speedNetworkingService->getLiveTables($event);
-            $participantsData = $this->speedNetworkingService->getEventParticipants($event, 50);
+            $participantsData = $this->speedNetworkingService->getEventParticipants($event, 100);
+
+            $roundDuration = (int) ($event->round_duration_seconds ?: 300);
+            $remainingSeconds = (int) ($liveData['remaining_seconds'] ?? $roundDuration);
 
             return view('admin.speed-networking.show', [
                 'event' => $event,
                 'stats' => $details['stats'],
                 'liveData' => $liveData,
                 'participants' => $participantsData['data'],
+                'remainingSeconds' => $remainingSeconds,
             ]);
         }
 
@@ -123,51 +170,89 @@ class SpeedNetworkingWebController extends Controller
         $roundDuration = (int) ($meta['round_duration_seconds'] ?? 300);
         $breakDuration = (int) ($meta['break_duration_seconds'] ?? 20);
         $totalRounds = (int) ($meta['total_rounds'] ?? 5);
-        $currentRound = (int) ($meta['current_round'] ?? 0);
-        $speedStatus = $meta['speed_status'] ?? 'scheduled';
+        $currentRound = (int) ($meta['current_round'] ?? 1);
+        $speedStatus = (string) ($meta['speed_status'] ?? 'lobby_open');
 
-        $registrations = EventRegistration::where('event_id', $baseEvent->id)
-            ->with('user')
-            ->get();
+        $remainingSeconds = $roundDuration;
+        if ($speedStatus === 'in_progress' && ! empty($meta['round_started_at'])) {
+            $started = Carbon::parse($meta['round_started_at']);
+            $elapsed = Carbon::now()->diffInSeconds($started);
+            $remainingSeconds = max(0, $roundDuration - $elapsed);
+        }
 
-        $participants = [];
-        foreach ($registrations as $reg) {
-            if ($reg->user) {
-                $participants[] = [
-                    'id' => $reg->user->id,
-                    'name' => $reg->user->name ?? 'Participant',
-                    'company' => $reg->user->company_name ?? 'Peers Member',
-                    'city' => $reg->user->city ?? 'Peers Global',
-                    'industry' => $reg->user->industry ?? 'Business',
-                    'avatar_url' => $reg->user->profile_photo_url ?? null,
-                    'is_online' => true,
-                    'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby',
-                ];
+        // Fetch real registered users from both speed_networking_participants and registrations
+        $participantsMap = [];
+        try {
+            if (Schema::hasTable('speed_networking_participants')) {
+                $snList = SpeedNetworkingParticipant::with('user')
+                    ->where('event_id', $baseEvent->id)
+                    ->get();
+                foreach ($snList as $p) {
+                    $u = $p->user;
+                    if ($u) {
+                        $uid = (string) $u->id;
+                        $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                        $participantsMap[$uid] = [
+                            'id' => $uid,
+                            'name' => $name,
+                            'company' => (string) ($u->company_name ?? 'Peers Member'),
+                            'city' => (string) ($u->city ?? 'Peers Global'),
+                            'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                            'avatar_url' => $u->profile_photo_url ?? null,
+                            'is_online' => true,
+                            'status' => $p->status ?? 'in_call',
+                        ];
+                    }
+                }
             }
+        } catch (\Throwable $e) {
+            // Ignore
         }
 
-        if (count($participants) < 2) {
-            $participants = [
-                ['id' => 'u1', 'name' => 'Dr. Vikram Malhotra', 'company' => 'Apex Healthcare Global', 'city' => 'Mumbai', 'industry' => 'Healthcare & Pharma', 'avatar_url' => null, 'is_online' => true, 'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby'],
-                ['id' => 'u2', 'name' => 'Ananya Sharma', 'company' => 'TechVentures Capital', 'city' => 'Bengaluru', 'industry' => 'Venture Capital & AI', 'avatar_url' => null, 'is_online' => true, 'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby'],
-                ['id' => 'u3', 'name' => 'Rajesh Singhania', 'company' => 'Singhania Logistics & Supply', 'city' => 'Delhi', 'industry' => 'Logistics & Supply', 'avatar_url' => null, 'is_online' => true, 'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby'],
-                ['id' => 'u4', 'name' => 'Pooja Kashyap', 'company' => 'GreenLeaf Solar Power', 'city' => 'Pune', 'industry' => 'Clean Energy & ESG', 'avatar_url' => null, 'is_online' => true, 'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby'],
-                ['id' => 'u5', 'name' => 'Rohan Deshmukh', 'company' => 'Deshmukh Infrastructure', 'city' => 'Hyderabad', 'industry' => 'Infrastructure', 'avatar_url' => null, 'is_online' => true, 'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby'],
-                ['id' => 'u6', 'name' => 'Kavita Menon', 'company' => 'FinEdge Advisory', 'city' => 'Chennai', 'industry' => 'Financial Services', 'avatar_url' => null, 'is_online' => true, 'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby'],
-            ];
+        try {
+            $registrations = EventRegistration::where('event_id', $baseEvent->id)
+                ->with('user')
+                ->get();
+            foreach ($registrations as $reg) {
+                $u = $reg->user;
+                if ($u && ! isset($participantsMap[(string) $u->id])) {
+                    $uid = (string) $u->id;
+                    $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                    $participantsMap[$uid] = [
+                        'id' => $uid,
+                        'name' => $name,
+                        'company' => (string) ($u->company_name ?? 'Peers Member'),
+                        'city' => (string) ($u->city ?? 'Peers Global'),
+                        'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                        'avatar_url' => $u->profile_photo_url ?? null,
+                        'is_online' => true,
+                        'status' => $speedStatus === 'in_progress' ? 'in_call' : 'lobby',
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore
         }
 
+        $participants = array_values($participantsMap);
+
+        // Generate tables with real participants
         $tables = [];
-        $tableCount = (int) floor(count($participants) / 2);
+        $tableCount = (int) ceil(count($participants) / 2);
         for ($i = 0; $i < $tableCount; $i++) {
+            $userA = $participants[$i * 2] ?? null;
+            $userB = $participants[$i * 2 + 1] ?? null;
+            $roomHash = substr(md5($baseEvent->id . ($i + 1) . $currentRound), 0, 6);
+            $roomCode = 'sn_' . substr($baseEvent->id, 0, 8) . '_r' . max(1, $currentRound) . '_t' . ($i + 1) . '_' . $roomHash;
+
             $tables[] = [
                 'match_id' => 'tbl_match_' . ($i + 1),
                 'table_number' => $i + 1,
-                'channel_id' => 'sn_room_table_' . ($i + 1),
+                'channel_id' => $roomCode,
                 'status' => $speedStatus === 'in_progress' ? 'active' : 'waiting',
                 'is_break_round' => false,
-                'user_a' => $participants[$i * 2],
-                'user_b' => $participants[$i * 2 + 1],
+                'user_a' => $userA,
+                'user_b' => $userB,
                 'started_at' => $meta['round_started_at'] ?? Carbon::now()->toIso8601String(),
             ];
         }
@@ -180,7 +265,7 @@ class SpeedNetworkingWebController extends Controller
             'round_duration_seconds' => $roundDuration,
             'break_duration_seconds' => $breakDuration,
             'total_rounds' => $totalRounds,
-            'current_round' => $currentRound,
+            'current_round' => max(1, $currentRound),
             'scheduled_start_time' => $baseEvent->start_at,
         ];
 
@@ -196,6 +281,7 @@ class SpeedNetworkingWebController extends Controller
                 'tables' => $tables,
             ],
             'participants' => $participants,
+            'remainingSeconds' => $remainingSeconds,
         ]);
     }
 
@@ -205,6 +291,12 @@ class SpeedNetworkingWebController extends Controller
     public function start(string $id): RedirectResponse
     {
         $target = $this->findEventOrBaseEvent($id);
+
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking event not found.');
+        }
 
         if ($target['type'] === 'sn') {
             /** @var SpeedNetworkingEvent $event */
@@ -237,6 +329,12 @@ class SpeedNetworkingWebController extends Controller
     public function nextRound(string $id): RedirectResponse
     {
         $target = $this->findEventOrBaseEvent($id);
+
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking event not found.');
+        }
 
         if ($target['type'] === 'sn') {
             /** @var SpeedNetworkingEvent $event */
@@ -288,6 +386,12 @@ class SpeedNetworkingWebController extends Controller
     {
         $target = $this->findEventOrBaseEvent($id);
 
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking event not found.');
+        }
+
         if ($target['type'] === 'sn') {
             /** @var SpeedNetworkingEvent $event */
             $event = $target['event'];
@@ -316,6 +420,12 @@ class SpeedNetworkingWebController extends Controller
     public function destroy(string $id): RedirectResponse
     {
         $target = $this->findEventOrBaseEvent($id);
+
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking event not found.');
+        }
 
         if ($target['type'] === 'sn') {
             /** @var SpeedNetworkingEvent $event */

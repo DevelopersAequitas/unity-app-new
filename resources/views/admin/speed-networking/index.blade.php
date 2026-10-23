@@ -144,8 +144,10 @@
                 <div class="text-slate-500 text-[11px]">{{ $event->matches_count ?? 0 }} total matchups</div>
               </td>
               <td class="p-3">
-                @if($event->scheduled_start_time)
-                  <div class="font-medium text-slate-700">{{ $event->scheduled_start_time->format('d M Y, h:i A') }}</div>
+                @if(!empty($event->scheduled_start_time))
+                  <div class="font-medium text-slate-700">
+                    {{ is_string($event->scheduled_start_time) ? \Carbon\Carbon::parse($event->scheduled_start_time)->format('d M Y, h:i A') : $event->scheduled_start_time->format('d M Y, h:i A') }}
+                  </div>
                 @else
                   <span class="text-slate-400">Manual Start</span>
                 @endif

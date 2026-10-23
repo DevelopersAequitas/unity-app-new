@@ -29,19 +29,58 @@ class SpeedNetworkingService
      */
     public function listEvents(array $filters = [], int $perPage = 15): array
     {
-        $query = SpeedNetworkingEvent::query()
-            ->withCount([
-                'participants',
-                'participants as active_participants_count' => function ($q): void {
-                    $q->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT);
-                },
-                'matches',
-            ])
-            ->latest('created_at');
+        $hasSnTable = false;
+        try {
+            $hasSnTable = \Illuminate\Support\Facades\Schema::hasTable('speed_networking_events');
+        } catch (\Throwable $e) {}
 
-        if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
+        if ($hasSnTable) {
+            try {
+                $query = SpeedNetworkingEvent::query()
+                    ->withCount([
+                        'participants',
+                        'participants as active_participants_count' => function ($q): void {
+                            $q->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT);
+                        },
+                        'matches',
+                    ])
+                    ->latest('created_at');
+
+                if (! empty($filters['status'])) {
+                    $query->where('status', $filters['status']);
+                }
+
+                if (! empty($filters['search'])) {
+                    $search = '%'.trim((string) $filters['search']).'%';
+                    $query->where('title', 'like', $search);
+                }
+
+                $paginated = $query->paginate($perPage);
+                if ($paginated->total() > 0) {
+                    return [
+                        'data' => $paginated->items(),
+                        'pagination' => [
+                            'total' => $paginated->total(),
+                            'per_page' => $paginated->perPage(),
+                            'current_page' => $paginated->currentPage(),
+                            'last_page' => $paginated->lastPage(),
+                        ],
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Table error, fallback to events table
+            }
         }
+
+        // Fallback to base events table
+        $query = Event::query()
+            ->where(function ($q): void {
+                $q->where('event_type', 'speed_networking')
+                    ->orWhereJsonContains('metadata->is_speed_networking', true)
+                    ->orWhere('title', 'like', '%Speed%')
+                    ->orWhere('title', 'like', '%speed%');
+            })
+            ->latest('created_at');
 
         if (! empty($filters['search'])) {
             $search = '%'.trim((string) $filters['search']).'%';
@@ -50,8 +89,27 @@ class SpeedNetworkingService
 
         $paginated = $query->paginate($perPage);
 
+        $mapped = collect($paginated->items())->map(function (Event $e) {
+            $meta = $e->metadata ?? [];
+            $regCount = $e->registrations()->count();
+            return (object) [
+                'id' => $e->id,
+                'title' => $e->title,
+                'description' => $e->description,
+                'status' => $meta['speed_status'] ?? 'scheduled',
+                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
+                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
+                'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                'current_round' => (int) ($meta['current_round'] ?? 0),
+                'scheduled_start_time' => $e->start_at,
+                'active_participants_count' => $regCount,
+                'participants_count' => $regCount,
+                'matches_count' => (int) ceil($regCount / 2),
+            ];
+        });
+
         return [
-            'data' => $paginated->items(),
+            'data' => $mapped->all(),
             'pagination' => [
                 'total' => $paginated->total(),
                 'per_page' => $paginated->perPage(),
