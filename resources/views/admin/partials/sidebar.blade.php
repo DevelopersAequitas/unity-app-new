@@ -270,9 +270,13 @@
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Support Tickets'], true)));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
-    $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
+    $brandPartnersActive = request()->routeIs('admin.brand-partners.*') || request()->routeIs('admin.advertiser.*');
     $brandPartnersMenu = [
         ['label' => 'Dashboard', 'route' => 'admin.brand-partners.dashboard'],
+        ['label' => 'Applications', 'route' => 'admin.advertiser.applications.index'],
+        ['label' => 'Packages', 'route' => 'admin.advertiser.packages.index'],
+        ['label' => 'Subscriptions', 'route' => 'admin.advertiser.subscriptions.index'],
+        ['label' => 'Payments', 'route' => 'admin.advertiser.payments.index'],
         ['label' => 'All Partners', 'route' => 'admin.brand-partners.index'],
         ['label' => 'Categories', 'route' => 'admin.brand-partners.categories.index'],
         ['label' => 'Offers', 'route' => 'admin.brand-partners.offers'],

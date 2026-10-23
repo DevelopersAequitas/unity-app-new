@@ -1516,4 +1516,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(MemberAwardSend::class, 'user_id', 'id');
     }
+
+    public function advertiserApplications(): HasMany
+    {
+        return $this->hasMany(AdvertiserApplication::class, 'user_id');
+    }
+
+    public function advertiserSubscriptions(): HasMany
+    {
+        return $this->hasMany(AdvertiserSubscription::class, 'user_id');
+    }
 }
