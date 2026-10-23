@@ -137,7 +137,8 @@ ALTER TABLE web_media ALTER COLUMN title DROP NOT NULL;
 ALTER TABLE web_media ALTER COLUMN subtitle DROP NOT NULL;
 ALTER TABLE web_media ALTER COLUMN tag DROP NOT NULL;
 ALTER TABLE web_media ALTER COLUMN media_format DROP NOT NULL;
-ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;</pre>
+ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;
+ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
                 </div>
             </div>
         </div>
@@ -416,25 +417,6 @@ ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;</pre>
                             <input type="text" name="subtitle" id="podcast_subtitle" class="form-control rounded-3" placeholder="e.g. Building through family resistance and industrial downturns.">
                         </div>
 
-                        {{-- Industry Tag & Channel Format --}}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Industry Tag</label>
-                            <select name="tag" id="podcast_tag" class="form-select rounded-3">
-                                @foreach($tags as $t)
-                                    <option value="{{ $t }}">{{ $t }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Channel / Publishing Format</label>
-                            <select name="media_format" id="podcast_media_format" class="form-select rounded-3">
-                                @foreach($formats as $fk => $flabel)
-                                    <option value="{{ $fk }}">{{ $flabel }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
                         {{-- Duration & Sort Order --}}
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark small mb-1">Duration</label>
@@ -446,7 +428,7 @@ ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;</pre>
                             <input type="number" name="sort_order" id="podcast_sort_order" class="form-control rounded-3" value="0" min="0">
                         </div>
 
-                        {{-- YouTube URL & Spotify URL --}}
+                        {{-- YouTube URL & External Article Link --}}
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark small mb-1">
                                 <i class="bi bi-youtube text-danger me-1"></i> YouTube Video Link
@@ -457,36 +439,16 @@ ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;</pre>
 
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark small mb-1">
-                                <i class="bi bi-spotify text-success me-1"></i> Spotify Episode Link
-                            </label>
-                            <input type="url" name="spotify_url" id="podcast_spotify_url" class="form-control rounded-3" placeholder="https://open.spotify.com/episode/...">
-                        </div>
-
-                        {{-- Apple Podcasts / External Link --}}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">
-                                <i class="bi bi-apple me-1"></i> Apple Podcasts Link
-                            </label>
-                            <input type="url" name="apple_podcast_url" id="podcast_apple_podcast_url" class="form-control rounded-3" placeholder="https://podcasts.apple.com/...">
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">
                                 <i class="bi bi-link-45deg me-1"></i> External Article / Press Link
                             </label>
                             <input type="url" name="external_url" id="podcast_external_url" class="form-control rounded-3" placeholder="https://vyapaarjagat.com/... or press article URL">
                         </div>
 
                         {{-- Custom Cover Image File Upload --}}
-                        <div class="col-12 col-md-6">
+                        <div class="col-12">
                             <label class="form-label fw-semibold text-dark small mb-1">Cover Image Upload (JPG, PNG, WebP)</label>
                             <input type="file" name="cover_file" id="podcast_cover_file" class="form-control rounded-3" accept="image/*">
                             <div class="form-text small">Leave empty to use high-res YouTube thumbnail.</div>
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label fw-semibold text-dark small mb-1">Or Direct Cover URL</label>
-                            <input type="text" name="cover_url" id="podcast_cover_url" class="form-control rounded-3" placeholder="https://... or /images/story-....jpg">
                         </div>
 
                         {{-- Guest Information --}}
@@ -592,14 +554,9 @@ ALTER TABLE web_media ALTER COLUMN duration DROP NOT NULL;</pre>
 
         document.getElementById('podcast_title').value = item.title || '';
         document.getElementById('podcast_subtitle').value = item.subtitle || '';
-        document.getElementById('podcast_tag').value = item.tag || 'MANUFACTURING';
-        document.getElementById('podcast_media_format').value = item.media_format || 'podcast';
         document.getElementById('podcast_duration').value = item.duration || '48 mins';
         document.getElementById('podcast_youtube_url').value = item.youtube_url || '';
-        document.getElementById('podcast_spotify_url').value = item.spotify_url || '';
-        document.getElementById('podcast_apple_podcast_url').value = item.apple_podcast_url || '';
         document.getElementById('podcast_external_url').value = item.external_url || '';
-        document.getElementById('podcast_cover_url').value = item.cover_image || '';
         document.getElementById('podcast_guest_name').value = item.guest_name || '';
         document.getElementById('podcast_guest_title').value = item.guest_title || '';
         document.getElementById('podcast_sort_order').value = item.sort_order || 0;

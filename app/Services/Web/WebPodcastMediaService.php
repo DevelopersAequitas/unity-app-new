@@ -193,20 +193,28 @@ class WebPodcastMediaService
             $media->title = (string) ($data['title'] ?? '');
         }
 
+        if (Schema::hasColumn('web_media', 'name')) {
+            $media->name = ! empty($data['title']) ? (string) $data['title'] : 'podcast-media';
+        }
+
+        if (Schema::hasColumn('web_media', 'url')) {
+            $media->url = $coverPath ?: ($youtubeUrl ?: '');
+        }
+
         if (Schema::hasColumn('web_media', 'subtitle')) {
             $media->subtitle = ! empty($data['subtitle']) ? (string) $data['subtitle'] : null;
         }
 
         if (Schema::hasColumn('web_media', 'tag')) {
-            $media->tag = (string) ($data['tag'] ?? 'MANUFACTURING');
+            $media->tag = ! empty($data['tag']) ? (string) $data['tag'] : 'MANUFACTURING';
         }
 
         if (Schema::hasColumn('web_media', 'media_format')) {
-            $media->media_format = (string) ($data['media_format'] ?? 'podcast');
+            $media->media_format = ! empty($data['media_format']) ? (string) $data['media_format'] : 'podcast';
         }
 
         if (Schema::hasColumn('web_media', 'duration')) {
-            $media->duration = (string) ($data['duration'] ?? '45 mins');
+            $media->duration = ! empty($data['duration']) ? (string) $data['duration'] : '45 mins';
         }
 
         if (Schema::hasColumn('web_media', 'youtube_url')) {
@@ -321,21 +329,24 @@ class WebPodcastMediaService
 
         if (array_key_exists('title', $data) && Schema::hasColumn('web_media', 'title')) {
             $media->title = (string) $data['title'];
+            if (Schema::hasColumn('web_media', 'name')) {
+                $media->name = (string) $data['title'];
+            }
         }
 
         if (array_key_exists('subtitle', $data) && Schema::hasColumn('web_media', 'subtitle')) {
             $media->subtitle = ! empty($data['subtitle']) ? (string) $data['subtitle'] : null;
         }
 
-        if (array_key_exists('tag', $data) && Schema::hasColumn('web_media', 'tag')) {
+        if (! empty($data['tag']) && Schema::hasColumn('web_media', 'tag')) {
             $media->tag = (string) $data['tag'];
         }
 
-        if (array_key_exists('media_format', $data) && Schema::hasColumn('web_media', 'media_format')) {
+        if (! empty($data['media_format']) && Schema::hasColumn('web_media', 'media_format')) {
             $media->media_format = (string) $data['media_format'];
         }
 
-        if (array_key_exists('duration', $data) && Schema::hasColumn('web_media', 'duration')) {
+        if (! empty($data['duration']) && Schema::hasColumn('web_media', 'duration')) {
             $media->duration = (string) $data['duration'];
         }
 
