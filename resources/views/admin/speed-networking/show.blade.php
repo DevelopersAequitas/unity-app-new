@@ -41,6 +41,10 @@
 
       <!-- Action Buttons -->
       <div class="flex items-center gap-2">
+        <a href="http://localhost:5173/speed-networking/live?eventId={{ $event->id }}" target="_blank" class="px-3 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center gap-1.5 border border-indigo-200 no-underline shadow-2xs">
+          <i class="bi bi-box-arrow-up-right"></i> Open SPA Controller
+        </a>
+
         <button onclick="window.location.reload()" class="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs">
           <i class="bi bi-arrow-clockwise"></i> Refresh Live
         </button>
