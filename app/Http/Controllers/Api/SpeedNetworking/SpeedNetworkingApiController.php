@@ -920,30 +920,98 @@ class SpeedNetworkingApiController extends Controller
 
     /**
      * Update participant presence heartbeat.
+     * Automatically triggers matchmaking when 2+ peers are waiting in the lobby,
+     * and returns the active match Agora credentials and peer details.
      */
     public function heartbeat(Request $request, string $eventId): JsonResponse
     {
         $user = $request->user();
 
+        $event = null;
         if (Schema::hasTable('speed_networking_events')) {
             $event = SpeedNetworkingEvent::find($eventId);
-            if ($event) {
-                $activeCount = $this->speedNetworkingService->heartbeat($event, $user);
-                $activeMatch = $this->speedNetworkingService->getActiveMatchPayload($event, $user);
+            if (! $event) {
+                $base = Event::find($eventId);
+                if ($base) {
+                    $event = SpeedNetworkingEvent::where('id', $base->id)
+                        ->orWhere('title', $base->title)
+                        ->latest()
+                        ->first();
 
-                return response()->json([
-                    'status' => 'success',
-                    'success' => true,
-                    'message' => 'Heartbeat recorded',
-                    'active_attendees_count' => $activeCount,
-                    'data' => [
-                        'last_heartbeat_at' => Carbon::now()->toIso8601String(),
-                        'active_attendees_count' => $activeCount,
-                        'has_active_match' => $activeMatch !== null,
-                        'match' => $activeMatch,
-                    ],
-                ]);
+                    if (! $event) {
+                        $meta = is_array($base->metadata) ? $base->metadata : (json_decode((string) $base->metadata, true) ?: []);
+                        $event = SpeedNetworkingEvent::create([
+                            'id' => (string) $base->id,
+                            'title' => (string) $base->title,
+                            'description' => $base->description,
+                            'status' => SpeedNetworkingEvent::STATUS_IN_PROGRESS,
+                            'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
+                            'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
+                            'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                            'current_round' => 1,
+                            'scheduled_start_time' => $base->start_at ?: Carbon::now(),
+                            'actual_start_time' => Carbon::now(),
+                        ]);
+                    }
+                }
             }
+        }
+
+        if ($event) {
+            $activeCount = $this->speedNetworkingService->heartbeat($event, $user);
+            $activeMatch = $this->speedNetworkingService->getActiveMatchPayload($event, $user);
+
+            // If user has no active match, check if we can pair them automatically
+            if ($activeMatch === null) {
+                // If 2+ active peers are present, ensure round 1 is started
+                if ($activeCount >= 2 && ($event->current_round < 1 || $event->status !== SpeedNetworkingEvent::STATUS_IN_PROGRESS)) {
+                    $event->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
+                    $event->actual_start_time ??= Carbon::now();
+                    if ($event->current_round < 1) {
+                        $event->current_round = 1;
+                    }
+                    $event->save();
+                }
+
+                // If event is in progress, attempt to pair the user with an available peer
+                if ($event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS && $event->current_round >= 1) {
+                    $matchResult = $this->speedNetworkingService->findOrCreateMatchForUser($event, $user);
+                    if (! empty($matchResult['channel_id']) && empty($matchResult['is_waiting'])) {
+                        $activeMatch = $matchResult;
+                    }
+                }
+            }
+
+            $hasActiveMatch = $activeMatch !== null && ! empty($activeMatch['channel_id']) && empty($activeMatch['is_waiting']);
+
+            $matchData = null;
+            if ($hasActiveMatch) {
+                $matchData = [
+                    'channel_id' => (string) ($activeMatch['channel_id'] ?? ''),
+                    'agora_token' => (string) ($activeMatch['agora_token'] ?? ''),
+                    'remaining_seconds' => (int) ($activeMatch['remaining_seconds'] ?? $event->round_duration_seconds),
+                    'is_waiting' => false,
+                    'is_break_round' => (bool) ($activeMatch['is_break_round'] ?? false),
+                    'current_round' => (int) ($activeMatch['current_round'] ?? 1),
+                    'total_rounds' => (int) ($activeMatch['total_rounds'] ?? $event->total_rounds),
+                    'peer' => $activeMatch['peer'] ?? null,
+                ];
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'message' => 'Heartbeat recorded',
+                'active_attendees_count' => $activeCount,
+                'has_active_match' => $hasActiveMatch,
+                'match' => $matchData,
+                'data' => [
+                    'last_heartbeat_at' => Carbon::now()->toIso8601String(),
+                    'active_attendees_count' => $activeCount,
+                    'has_active_match' => $hasActiveMatch,
+                    'match' => $matchData,
+                ],
+            ]);
         }
 
         return response()->json([
@@ -951,6 +1019,8 @@ class SpeedNetworkingApiController extends Controller
             'success' => true,
             'message' => 'Heartbeat recorded',
             'active_attendees_count' => 1,
+            'has_active_match' => false,
+            'match' => null,
             'data' => [
                 'last_heartbeat_at' => Carbon::now()->toIso8601String(),
                 'active_attendees_count' => 1,
