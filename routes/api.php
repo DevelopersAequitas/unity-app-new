@@ -238,7 +238,7 @@ Route::prefix('auth')->group(function () {
         Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
         Route::post('profile', [LinkedInAuthController::class, 'profile']);
         Route::post('register', [LinkedInAuthController::class, 'register']);
-        Route::post('callback', [LinkedInAuthController::class, 'callback']);
+        Route::match(['get', 'post'], 'callback', [LinkedInAuthController::class, 'callback']);
         Route::post('login', [LinkedInAuthController::class, 'callback']);
     });
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -353,7 +353,7 @@ Route::prefix('v1')->group(function () {
             Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
             Route::post('profile', [LinkedInAuthController::class, 'profile']);
             Route::post('register', [LinkedInAuthController::class, 'register']);
-            Route::post('callback', [LinkedInAuthController::class, 'callback']);
+            Route::match(['get', 'post'], 'callback', [LinkedInAuthController::class, 'callback']);
             Route::post('login', [LinkedInAuthController::class, 'callback']);
         });
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
