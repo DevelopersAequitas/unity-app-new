@@ -422,9 +422,13 @@ class SpeedNetworkingService
                 ]
             );
 
-            // Automatically activate event if scheduled time has arrived or not set
+            // Automatically activate event if scheduled time has arrived, not set, or 2+ participants are present
+            $activeCount = SpeedNetworkingParticipant::where('event_id', $lockedEvent->id)
+                ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
+                ->count();
+
             if (in_array($lockedEvent->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED, SpeedNetworkingEvent::STATUS_LOBBY_OPEN], true)) {
-                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->isPast()) {
+                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->isPast() || $activeCount >= 2) {
                     $lockedEvent->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
                     $lockedEvent->actual_start_time = Carbon::now();
                     if ($lockedEvent->current_round < 1) {
@@ -1056,12 +1060,8 @@ class SpeedNetworkingService
             ]);
 
             SpeedNetworkingParticipant::where('event_id', $event->id)
-                ->where('user_id', $user->id)
+                ->whereIn('user_id', [$user->id, $partnerId])
                 ->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
-
-            SpeedNetworkingParticipant::where('event_id', $event->id)
-                ->where('user_id', $partnerId)
-                ->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
 
             if ($roundNumber > $event->current_round) {
                 $event->current_round = $roundNumber;
