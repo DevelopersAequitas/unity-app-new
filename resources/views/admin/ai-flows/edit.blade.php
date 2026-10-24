@@ -78,9 +78,8 @@
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Google Gemini Model</label>
                                 <select name="model" class="form-select font-monospace">
-                                    <option value="gemini-2.5-flash" {{ old('model', $flow->model) === 'gemini-2.5-flash' || old('model', $flow->model) === 'gemini-1.5-flash' ? 'selected' : '' }}>gemini-2.5-flash (Latest, Ultra Fast & Recommended)</option>
-                                    <option value="gemini-2.0-flash" {{ old('model', $flow->model) === 'gemini-2.0-flash' ? 'selected' : '' }}>gemini-2.0-flash (Fast Multimodal)</option>
-                                    <option value="gemini-2.5-pro" {{ old('model', $flow->model) === 'gemini-2.5-pro' || old('model', $flow->model) === 'gemini-1.5-pro' ? 'selected' : '' }}>gemini-2.5-pro (Advanced Reasoning)</option>
+                                    <option value="gemini-3.1-flash-lite" {{ old('model', $flow->model) === 'gemini-3.1-flash-lite' || old('model', $flow->model) === 'gemini-3.1-pro-preview' || old('model', $flow->model) === 'gemini-2.5-pro' || old('model', $flow->model) === 'gemini-2.5-flash' || old('model', $flow->model) === 'gemini-1.5-flash' || !old('model', $flow->model) ? 'selected' : '' }}>gemini-3.1-flash-lite (Primary Recommended)</option>
+                                    <option value="gemini-3-flash-preview" {{ old('model', $flow->model) === 'gemini-3-flash-preview' ? 'selected' : '' }}>gemini-3-flash-preview (Fast Preview)</option>
                                 </select>
                             </div>
                             <div class="col-md-6">

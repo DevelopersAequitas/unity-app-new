@@ -41,7 +41,7 @@ class AiPromptFlowAdminController extends Controller
                     'id' => 'default-category-flow',
                     'slug' => 'business_category_suggestion',
                     'name' => 'Business Category Suggestion',
-                    'model' => 'gemini-2.5-flash',
+                    'model' => 'gemini-3.1-flash-lite',
                     'description' => 'Maps user company name, designation, and description to one of the 18 main business categories.',
                     'temperature' => 0.20,
                     'is_active' => true,
@@ -63,7 +63,7 @@ class AiPromptFlowAdminController extends Controller
             'slug' => '',
             'name' => '',
             'description' => '',
-            'model' => 'gemini-2.5-flash',
+            'model' => 'gemini-3.1-flash-lite',
             'system_instruction' => 'You are an intelligent AI assistant for Peers Global Unity network. Return strictly valid JSON.',
             'prompt_template' => '',
             'temperature' => 0.20,
@@ -117,7 +117,7 @@ class AiPromptFlowAdminController extends Controller
                 'slug' => 'business_category_suggestion',
                 'name' => 'Business Category Suggestion',
                 'description' => 'Classifies users into 1 of the 18 main business categories using Google Gemini AI.',
-                'model' => 'gemini-2.5-flash',
+                'model' => 'gemini-3.1-flash-lite',
                 'system_instruction' => 'You are an intelligent business classification AI for Peers Global Unity network. Your task is to accurately map a business or professional to the single best matching main business category from the official 18 categories. Always return strictly valid JSON matching the specified schema.',
                 'prompt_template' => <<<'PROMPT'
 Analyze the following professional and company details:
