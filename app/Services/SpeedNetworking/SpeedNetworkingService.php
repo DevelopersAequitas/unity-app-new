@@ -102,6 +102,8 @@ class SpeedNetworkingService
                 'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
                 'current_round' => (int) ($meta['current_round'] ?? 0),
                 'scheduled_start_time' => $e->start_at,
+                'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
+                'is_paid' => (bool) ($e->is_paid ?? ($meta['is_paid'] ?? false)),
                 'active_participants_count' => $regCount,
                 'participants_count' => $regCount,
                 'matches_count' => (int) ceil($regCount / 2),

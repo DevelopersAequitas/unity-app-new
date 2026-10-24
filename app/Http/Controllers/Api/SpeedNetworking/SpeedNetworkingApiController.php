@@ -93,17 +93,47 @@ class SpeedNetworkingApiController extends Controller
     }
 
     /**
+     * Resolve the underlying base Event model to ensure access to ticket_price, is_paid, metadata, etc.
+     */
+    protected function resolveBaseEvent(Event|SpeedNetworkingEvent $event): ?Event
+    {
+        if ($event instanceof Event) {
+            return $event;
+        }
+
+        return Event::find($event->id)
+            ?: Event::where('title', $event->title)->latest()->first();
+    }
+
+    /**
      * Check if payment is required and whether the user has paid.
      */
     protected function checkPaymentStatus(Event|SpeedNetworkingEvent $event, $user): array
     {
-        $ticketPrice = round(max((float) ($event->ticket_price ?? 0), 0), 2);
-        $isPaidEvent = (bool) ($event->is_paid ?? false) || $ticketPrice > 0;
+        $baseEvent = $this->resolveBaseEvent($event);
+
+        $ticketPrice = 0.0;
+        $isPaidEvent = false;
+
+        if ($baseEvent) {
+            $meta = is_array($baseEvent->metadata) ? $baseEvent->metadata : (json_decode((string) $baseEvent->metadata, true) ?: []);
+            $ticketPrice = (float) ($baseEvent->ticket_price ?? ($meta['ticket_price'] ?? 0));
+            $isPaidEvent = (bool) ($baseEvent->is_paid ?? ($meta['is_paid'] ?? false)) || $ticketPrice > 0;
+        } else {
+            $ticketPrice = (float) ($event->ticket_price ?? 0);
+            $isPaidEvent = (bool) ($event->is_paid ?? false) || $ticketPrice > 0;
+        }
+
+        $ticketPrice = round(max($ticketPrice, 0), 2);
 
         if (! $isPaidEvent || $ticketPrice <= 0) {
             return [
+                'is_paid_event' => false,
+                'is_free' => true,
                 'payment_required' => false,
-                'is_paid' => true,
+                'requires_payment' => false,
+                'has_paid' => true,
+                'is_payment_completed' => true,
                 'ticket_price' => 0.0,
                 'registration' => null,
                 'payment_status' => 'not_required',
@@ -112,27 +142,40 @@ class SpeedNetworkingApiController extends Controller
 
         if (! $user) {
             return [
+                'is_paid_event' => true,
+                'is_free' => false,
                 'payment_required' => true,
-                'is_paid' => false,
+                'requires_payment' => true,
+                'has_paid' => false,
+                'is_payment_completed' => false,
                 'ticket_price' => $ticketPrice,
                 'registration' => null,
                 'payment_status' => 'pending',
             ];
         }
 
+        $targetIds = array_values(array_filter(array_unique([
+            (string) $event->id,
+            $baseEvent ? (string) $baseEvent->id : null,
+        ])));
+
         $registration = EventRegistration::query()
-            ->where('event_id', (string) $event->id)
+            ->whereIn('event_id', $targetIds)
             ->where('user_id', $user->id)
             ->where('status', '!=', 'cancelled')
             ->whereNull('deleted_at')
             ->first();
 
         $paymentStatus = strtolower((string) ($registration?->payment_status ?? ''));
-        $isPaid = in_array($paymentStatus, ['paid', 'success', 'completed'], true);
+        $hasPaid = in_array($paymentStatus, ['paid', 'success', 'completed'], true);
 
         return [
-            'payment_required' => ! $isPaid,
-            'is_paid' => $isPaid,
+            'is_paid_event' => true,
+            'is_free' => false,
+            'payment_required' => ! $hasPaid,
+            'requires_payment' => ! $hasPaid,
+            'has_paid' => $hasPaid,
+            'is_payment_completed' => $hasPaid,
             'ticket_price' => $ticketPrice,
             'registration' => $registration,
             'payment_status' => $paymentStatus ?: 'pending',
@@ -144,10 +187,13 @@ class SpeedNetworkingApiController extends Controller
      */
     protected function createOrGetRazorpayOrder(Event|SpeedNetworkingEvent $event, $user, ?EventRegistration $registration, float $ticketPrice): array
     {
+        $baseEvent = $this->resolveBaseEvent($event);
+        $targetEventId = (string) ($baseEvent ? $baseEvent->id : $event->id);
+
         if (! $registration) {
-            $occurrenceId = $event instanceof Event ? $event->occurrences()->first()?->id : null;
+            $occurrenceId = $baseEvent ? $baseEvent->occurrences()->first()?->id : null;
             $registration = EventRegistration::query()->create([
-                'event_id' => (string) $event->id,
+                'event_id' => $targetEventId,
                 'occurrence_id' => $occurrenceId,
                 'user_id' => $user->id,
                 'source' => 'app',
@@ -161,6 +207,7 @@ class SpeedNetworkingApiController extends Controller
             ]);
         } else {
             $registration->forceFill([
+                'event_id' => $targetEventId,
                 'payment_required' => true,
                 'payment_gateway' => 'razorpay',
                 'amount' => $ticketPrice,
@@ -273,6 +320,21 @@ class SpeedNetworkingApiController extends Controller
                 $reg = $orderData['registration'] ?? $paymentInfo['registration'];
                 $razorpay = $orderData['razorpay'] ?? null;
 
+                $priceDisplay = (int) $paymentInfo['ticket_price'] == $paymentInfo['ticket_price']
+                    ? (int) $paymentInfo['ticket_price']
+                    : $paymentInfo['ticket_price'];
+
+                $isRegistered = $paymentInfo['is_paid_event']
+                    ? $paymentInfo['has_paid']
+                    : ($reg !== null);
+
+                $actionButton = [
+                    'action_type' => $paymentInfo['payment_required'] ? 'PAY_AND_JOIN' : 'JOIN_SPEED_NETWORKING',
+                    'label' => $paymentInfo['payment_required'] ? ('Pay INR '.$priceDisplay.' to Join') : 'Join Speed Networking',
+                    'is_enabled' => $circleAccess['allowed'],
+                    'helper_text' => $paymentInfo['payment_required'] ? 'Open to all users. Pay event fees to join.' : 'Tap to join live 1-on-1 video networking',
+                ];
+
                 return response()->json([
                     'success' => true,
                     'data' => [
@@ -291,8 +353,12 @@ class SpeedNetworkingApiController extends Controller
                         'participants_count' => $participantsCount,
                         'ticket_price' => $paymentInfo['ticket_price'],
                         'amount' => (string) $paymentInfo['ticket_price'],
+                        'fee' => $paymentInfo['ticket_price'],
                         'currency' => 'INR',
-                        'is_paid' => $paymentInfo['is_paid'],
+                        'is_paid' => $paymentInfo['is_paid_event'],
+                        'is_free' => $paymentInfo['is_free'],
+                        'has_paid' => $paymentInfo['has_paid'],
+                        'is_payment_completed' => $paymentInfo['has_paid'],
                         'payment_required' => $paymentInfo['payment_required'],
                         'requires_payment' => $paymentInfo['payment_required'],
                         'payment_status' => $paymentInfo['payment_status'] ?? ($paymentInfo['payment_required'] ? 'pending' : 'not_required'),
@@ -300,9 +366,28 @@ class SpeedNetworkingApiController extends Controller
                         'circle_name' => $circleAccess['circle_name'],
                         'circle_restricted' => $circleAccess['circle_restricted'],
                         'can_join' => $circleAccess['allowed'] && ! $paymentInfo['payment_required'],
-                        'is_registered' => $reg !== null,
+                        'is_registered' => $isRegistered,
                         'registration_id' => $reg?->id,
                         'razorpay' => $razorpay,
+                        'action_button' => $actionButton,
+                        'button_label' => $actionButton['label'],
+                        'button_text' => $actionButton['label'],
+                        'button_action' => $actionButton['action_type'],
+                        'pricing' => [
+                            'is_free' => $paymentInfo['is_free'],
+                            'member_price' => $paymentInfo['ticket_price'],
+                            'guest_price' => $paymentInfo['ticket_price'],
+                            'currency' => 'INR',
+                            'applicable_price' => $paymentInfo['ticket_price'],
+                            'ticket_price' => $paymentInfo['ticket_price'],
+                        ],
+                        'user_context' => [
+                            'membership_type' => 'MEMBER',
+                            'status' => $isRegistered ? 'CONFIRMED' : ($paymentInfo['payment_required'] ? 'PENDING_PAYMENT' : 'NONE'),
+                            'is_attending' => $isRegistered,
+                            'is_registered' => $isRegistered,
+                            'is_payment_completed' => $paymentInfo['has_paid'],
+                        ],
                     ],
                 ]);
             }
@@ -328,6 +413,29 @@ class SpeedNetworkingApiController extends Controller
         $circleAccess = $this->checkCircleAccess($event, $user);
         $paymentInfo = $this->checkPaymentStatus($event, $user);
 
+        $orderData = null;
+        if ($paymentInfo['payment_required'] && $user) {
+            $orderData = $this->createOrGetRazorpayOrder($event, $user, $paymentInfo['registration'], $paymentInfo['ticket_price']);
+        }
+
+        $reg = $orderData['registration'] ?? $paymentInfo['registration'];
+        $razorpay = $orderData['razorpay'] ?? null;
+
+        $priceDisplay = (int) $paymentInfo['ticket_price'] == $paymentInfo['ticket_price']
+            ? (int) $paymentInfo['ticket_price']
+            : $paymentInfo['ticket_price'];
+
+        $isRegistered = $paymentInfo['is_paid_event']
+            ? $paymentInfo['has_paid']
+            : ($reg !== null || ($user ? $event->participants()->where('user_id', $user->id)->exists() : false));
+
+        $actionButton = [
+            'action_type' => $paymentInfo['payment_required'] ? 'PAY_AND_JOIN' : 'JOIN_SPEED_NETWORKING',
+            'label' => $paymentInfo['payment_required'] ? ('Pay INR '.$priceDisplay.' to Join') : 'Join Speed Networking',
+            'is_enabled' => $circleAccess['allowed'],
+            'helper_text' => $paymentInfo['payment_required'] ? 'Open to all users. Pay event fees to join.' : 'Tap to join live 1-on-1 video networking',
+        ];
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -346,14 +454,39 @@ class SpeedNetworkingApiController extends Controller
                 'participants_count' => $event->participants()->count(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
+                'fee' => $paymentInfo['ticket_price'],
                 'currency' => 'INR',
-                'is_paid' => $paymentInfo['is_paid'],
+                'is_paid' => $paymentInfo['is_paid_event'],
+                'is_free' => $paymentInfo['is_free'],
+                'has_paid' => $paymentInfo['has_paid'],
+                'is_payment_completed' => $paymentInfo['has_paid'],
                 'payment_required' => $paymentInfo['payment_required'],
                 'requires_payment' => $paymentInfo['payment_required'],
                 'payment_status' => $paymentInfo['payment_status'],
                 'circle_restricted' => $circleAccess['circle_restricted'],
                 'can_join' => $circleAccess['allowed'] && ! $paymentInfo['payment_required'],
-                'is_registered' => $user ? $event->participants()->where('user_id', $user->id)->exists() : false,
+                'is_registered' => $isRegistered,
+                'registration_id' => $reg?->id,
+                'razorpay' => $razorpay,
+                'action_button' => $actionButton,
+                'button_label' => $actionButton['label'],
+                'button_text' => $actionButton['label'],
+                'button_action' => $actionButton['action_type'],
+                'pricing' => [
+                    'is_free' => $paymentInfo['is_free'],
+                    'member_price' => $paymentInfo['ticket_price'],
+                    'guest_price' => $paymentInfo['ticket_price'],
+                    'currency' => 'INR',
+                    'applicable_price' => $paymentInfo['ticket_price'],
+                    'ticket_price' => $paymentInfo['ticket_price'],
+                ],
+                'user_context' => [
+                    'membership_type' => 'MEMBER',
+                    'status' => $isRegistered ? 'CONFIRMED' : ($paymentInfo['payment_required'] ? 'PENDING_PAYMENT' : 'NONE'),
+                    'is_attending' => $isRegistered,
+                    'is_registered' => $isRegistered,
+                    'is_payment_completed' => $paymentInfo['has_paid'],
+                ],
             ],
         ]);
     }
@@ -391,8 +524,9 @@ class SpeedNetworkingApiController extends Controller
         $reg = $orderData['registration'] ?? $paymentInfo['registration'];
         $razorpay = $orderData['razorpay'] ?? null;
 
-        $meta = $event instanceof Event
-            ? (is_array($event->metadata) ? $event->metadata : (json_decode((string) $event->metadata, true) ?: []))
+        $baseEvent = $this->resolveBaseEvent($event);
+        $meta = $baseEvent
+            ? (is_array($baseEvent->metadata) ? $baseEvent->metadata : (json_decode((string) $baseEvent->metadata, true) ?: []))
             : [];
 
         $roundDuration = (int) ($event->round_duration_seconds ?? ($meta['round_duration_seconds'] ?? 300));
@@ -401,6 +535,21 @@ class SpeedNetworkingApiController extends Controller
         $currentRound = (int) ($event->current_round ?? ($meta['current_round'] ?? 0));
 
         $startAt = $event->start_at ? Carbon::parse($event->start_at) : ($event->scheduled_start_time ?? Carbon::now());
+
+        $priceDisplay = (int) $paymentInfo['ticket_price'] == $paymentInfo['ticket_price']
+            ? (int) $paymentInfo['ticket_price']
+            : $paymentInfo['ticket_price'];
+
+        $isRegistered = $paymentInfo['is_paid_event']
+            ? $paymentInfo['has_paid']
+            : ($reg !== null);
+
+        $actionButton = [
+            'action_type' => $paymentInfo['payment_required'] ? 'PAY_AND_JOIN' : 'JOIN_SPEED_NETWORKING',
+            'label' => $paymentInfo['payment_required'] ? ('Pay INR '.$priceDisplay.' to Join') : 'Join Speed Networking',
+            'is_enabled' => $circleAccess['allowed'],
+            'helper_text' => $paymentInfo['payment_required'] ? 'Open to all users. Pay event fees to join.' : 'Tap to join live 1-on-1 video networking',
+        ];
 
         return response()->json([
             'status' => 'success',
@@ -420,8 +569,12 @@ class SpeedNetworkingApiController extends Controller
                 'scheduled_start_time' => $startAt->toIso8601String(),
                 'ticket_price' => $paymentInfo['ticket_price'],
                 'amount' => (string) $paymentInfo['ticket_price'],
+                'fee' => $paymentInfo['ticket_price'],
                 'currency' => 'INR',
-                'is_paid' => $paymentInfo['is_paid'],
+                'is_paid' => $paymentInfo['is_paid_event'],
+                'is_free' => $paymentInfo['is_free'],
+                'has_paid' => $paymentInfo['has_paid'],
+                'is_payment_completed' => $paymentInfo['has_paid'],
                 'payment_required' => $paymentInfo['payment_required'],
                 'requires_payment' => $paymentInfo['payment_required'],
                 'payment_status' => $paymentInfo['payment_status'],
@@ -429,9 +582,28 @@ class SpeedNetworkingApiController extends Controller
                 'circle_name' => $circleAccess['circle_name'],
                 'circle_restricted' => $circleAccess['circle_restricted'],
                 'can_join' => $circleAccess['allowed'] && ! $paymentInfo['payment_required'],
-                'is_registered' => $reg !== null,
+                'is_registered' => $isRegistered,
                 'registration_id' => $reg?->id,
                 'razorpay' => $razorpay,
+                'action_button' => $actionButton,
+                'button_label' => $actionButton['label'],
+                'button_text' => $actionButton['label'],
+                'button_action' => $actionButton['action_type'],
+                'pricing' => [
+                    'is_free' => $paymentInfo['is_free'],
+                    'member_price' => $paymentInfo['ticket_price'],
+                    'guest_price' => $paymentInfo['ticket_price'],
+                    'currency' => 'INR',
+                    'applicable_price' => $paymentInfo['ticket_price'],
+                    'ticket_price' => $paymentInfo['ticket_price'],
+                ],
+                'user_context' => [
+                    'membership_type' => 'MEMBER',
+                    'status' => $isRegistered ? 'CONFIRMED' : ($paymentInfo['payment_required'] ? 'PENDING_PAYMENT' : 'NONE'),
+                    'is_attending' => $isRegistered,
+                    'is_registered' => $isRegistered,
+                    'is_payment_completed' => $paymentInfo['has_paid'],
+                ],
             ],
         ]);
     }
@@ -485,6 +657,17 @@ class SpeedNetworkingApiController extends Controller
             $reg = $orderData['registration'];
             $razorpay = $orderData['razorpay'];
 
+            $priceDisplay = (int) $paymentInfo['ticket_price'] == $paymentInfo['ticket_price']
+                ? (int) $paymentInfo['ticket_price']
+                : $paymentInfo['ticket_price'];
+
+            $actionButton = [
+                'action_type' => 'PAY_AND_JOIN',
+                'label' => 'Pay INR '.$priceDisplay.' to Join',
+                'is_enabled' => true,
+                'helper_text' => 'Open to all users. Pay event fees to join.',
+            ];
+
             return response()->json([
                 'status' => 'payment_required',
                 'success' => false,
@@ -497,7 +680,12 @@ class SpeedNetworkingApiController extends Controller
                     'event_title' => (string) $event->title,
                     'ticket_price' => $paymentInfo['ticket_price'],
                     'amount' => (string) $paymentInfo['ticket_price'],
+                    'fee' => $paymentInfo['ticket_price'],
                     'currency' => 'INR',
+                    'is_paid' => true,
+                    'is_free' => false,
+                    'has_paid' => false,
+                    'is_payment_completed' => false,
                     'payment_required' => true,
                     'requires_payment' => true,
                     'payment_status' => 'pending',
@@ -505,6 +693,18 @@ class SpeedNetworkingApiController extends Controller
                     'payment_gateway' => 'razorpay',
                     'razorpay_order_id' => (string) ($reg->razorpay_order_id ?? ($razorpay['order_id'] ?? '')),
                     'razorpay' => $razorpay,
+                    'action_button' => $actionButton,
+                    'button_label' => $actionButton['label'],
+                    'button_text' => $actionButton['label'],
+                    'button_action' => $actionButton['action_type'],
+                    'pricing' => [
+                        'is_free' => false,
+                        'member_price' => $paymentInfo['ticket_price'],
+                        'guest_price' => $paymentInfo['ticket_price'],
+                        'currency' => 'INR',
+                        'applicable_price' => $paymentInfo['ticket_price'],
+                        'ticket_price' => $paymentInfo['ticket_price'],
+                    ],
                 ],
             ], 200);
         }
@@ -588,8 +788,20 @@ class SpeedNetworkingApiController extends Controller
         $paymentId = (string) $request->input('razorpay_payment_id');
         $signature = (string) $request->input('razorpay_signature');
 
+        $baseEvent = null;
+        if (Schema::hasTable('speed_networking_events')) {
+            $snEv = SpeedNetworkingEvent::find($eventId);
+            if ($snEv) {
+                $baseEvent = $this->resolveBaseEvent($snEv);
+            }
+        }
+        $targetIds = array_values(array_filter(array_unique([
+            $eventId,
+            $baseEvent ? (string) $baseEvent->id : null,
+        ])));
+
         $registration = EventRegistration::query()
-            ->where('event_id', $eventId)
+            ->whereIn('event_id', $targetIds)
             ->where('user_id', $user->id)
             ->when($orderId, fn ($q) => $q->where('razorpay_order_id', $orderId))
             ->where('status', '!=', 'cancelled')
