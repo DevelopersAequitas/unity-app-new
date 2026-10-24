@@ -70,7 +70,12 @@ class SpeedNetworkingAdminController extends Controller
     {
         $target = $this->findEventOrBaseEvent($id);
         if ($target['type'] === 'sn') {
+            $baseEvent = Event::find($target['event']->id) ?: Event::where('title', $target['event']->title)->first();
             $details = $this->speedNetworkingService->getEventDetails($target['event']);
+            if ($baseEvent) {
+                $details['event']->ticket_price = (float) ($baseEvent->ticket_price ?? 0);
+                $details['event']->is_paid = (bool) ($baseEvent->is_paid ?? false);
+            }
 
             return response()->json([
                 'success' => true,
@@ -94,6 +99,8 @@ class SpeedNetworkingAdminController extends Controller
                 'current_round' => (int) ($meta['current_round'] ?? 0),
                 'scheduled_start_time' => $baseEvent->start_at?->toIso8601String(),
                 'actual_start_time' => $meta['actual_start_time'] ?? null,
+                'ticket_price' => (float) ($baseEvent->ticket_price ?? ($meta['ticket_price'] ?? 0)),
+                'is_paid' => (bool) ($baseEvent->is_paid ?? ($meta['is_paid'] ?? false)),
                 'total_participants_count' => $regCount,
                 'active_tables_count' => (int) ceil($regCount / 2),
             ],
