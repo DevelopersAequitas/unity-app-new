@@ -707,6 +707,12 @@ class EventRegistrationService
 
     private function notifySafely(EventRegistration $registration): void
     {
+        if ($registration->isSpeedNetworking()) {
+            Log::info('Event registration notification skipped for Speed Networking.', ['event_registration_id' => $registration->id]);
+
+            return;
+        }
+
         try {
             Log::info('Event registration notification queued.', ['event_registration_id' => $registration->id]);
             app(EventRegistrationWhatsappService::class)->sendNotification($registration);

@@ -94,6 +94,7 @@ class EventRegistrationQrWhatsappTest extends TestCase
         Schema::create('events', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('title');
+            $table->string('event_type')->nullable();
             $table->string('location_text')->nullable();
             $table->string('location')->nullable();
             $table->string('venue')->nullable();
@@ -420,5 +421,37 @@ class EventRegistrationQrWhatsappTest extends TestCase
         $this->assertTrue($result);
         $reg->refresh();
         $this->assertEquals('wamid.FORCE999', $reg->whatsapp_provider_id);
+    }
+
+    public function test_speed_networking_event_skips_whatsapp_qr_pass(): void
+    {
+        $this->createTemplate();
+
+        $event = Event::create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Speed Networking Global Round',
+            'event_type' => 'speed_networking',
+            'start_at' => now()->addDays(1),
+            'end_at' => now()->addDays(1)->addHours(1),
+            'metadata' => ['is_speed_networking' => true],
+        ]);
+
+        Http::fake();
+
+        $reg = EventRegistration::create([
+            'id' => (string) Str::uuid(),
+            'event_id' => $event->id,
+            'status' => 'registered',
+            'payment_status' => 'paid',
+            'payment_required' => true,
+            'visitor_name' => 'Harsh Chauhan',
+            'visitor_phone' => '9825098250',
+        ]);
+
+        $service = app(EventRegistrationWhatsappService::class);
+        $result = $service->sendNotification($reg);
+
+        $this->assertFalse($result);
+        Http::assertNothingSent();
     }
 }

@@ -711,7 +711,7 @@ class EventFlowService
             'razorpay_payment_status' => 'captured',
         ]);
 
-        if ($event->event_type !== 'speed_networking') {
+        if (! $event->isSpeedNetworking() && ! $registration->isSpeedNetworking()) {
             $registration = $this->registrationQr->ensureQrGenerated($registration);
 
             return $this->formatTicketPayload($event, $registration);

@@ -175,4 +175,35 @@ class Event extends Model
 
         return $rawStatus;
     }
+
+    public function isSpeedNetworking(): bool
+    {
+        if ($this->event_type === 'speed_networking') {
+            return true;
+        }
+
+        if (! empty($this->metadata['is_speed_networking'])) {
+            return true;
+        }
+
+        if (($this->metadata['event_type'] ?? '') === 'speed_networking') {
+            return true;
+        }
+
+        if (stripos((string) $this->title, 'speed networking') !== false) {
+            return true;
+        }
+
+        if (! empty($this->id)) {
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('speed_networking_events') && \App\Models\SpeedNetworking\SpeedNetworkingEvent::where('id', $this->id)->exists()) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // Ignore DB error
+            }
+        }
+
+        return false;
+    }
 }
