@@ -52,7 +52,7 @@ class AiPromptFlowService
     protected array $defaultFlows = [
         'business_category_suggestion' => [
             'name' => 'Business Category Suggestion',
-            'model' => 'gemini-2.5-flash',
+            'model' => 'gemini-3.1-flash-lite',
             'system_instruction' => 'You are an intelligent business classification AI for Peers Global Unity network. Your task is to accurately map a business or professional to the single best matching main business category from the official 18 categories. Always return strictly valid JSON matching the specified schema.',
             'prompt_template' => <<<'PROMPT'
 Analyze the following professional and company details:
@@ -310,7 +310,7 @@ PROMPT,
             if ($dbFlow) {
                 return [
                     'name' => (string) $dbFlow->name,
-                    'model' => (string) ($dbFlow->model ?: 'gemini-2.5-flash'),
+                    'model' => (string) ($dbFlow->model ?: 'gemini-3.1-flash-lite'),
                     'system_instruction' => $dbFlow->system_instruction,
                     'prompt_template' => (string) $dbFlow->prompt_template,
                     'temperature' => (float) ($dbFlow->temperature ?? 0.2),

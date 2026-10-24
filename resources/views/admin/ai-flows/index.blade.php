@@ -58,7 +58,7 @@
                                     <span class="text-muted small">{{ Str::limit($flow->description ?? 'Custom AI Gemini prompt flow.', 80) }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info text-dark font-monospace">{{ $flow->model ?? 'gemini-2.5-flash' }}</span>
+                                    <span class="badge bg-info text-dark font-monospace">{{ $flow->model ?? 'gemini-3.1-flash-lite' }}</span>
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border">{{ $flow->temperature ?? '0.20' }}</span>

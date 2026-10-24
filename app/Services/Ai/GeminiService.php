@@ -11,16 +11,19 @@ use RuntimeException;
 class GeminiService
 {
     /**
-     * Legacy to latest model mapping to prevent 404 deprecation errors.
+     * Legacy to latest model mapping to prevent 404/deprecation errors.
      *
      * @var array<string, string>
      */
     private const LEGACY_MODEL_MAP = [
-        'gemini-1.5-flash' => 'gemini-2.5-flash',
-        'gemini-1.5-flash-latest' => 'gemini-2.5-flash',
-        'gemini-1.5-pro' => 'gemini-2.5-pro',
-        'gemini-1.5-pro-latest' => 'gemini-2.5-pro',
-        'gemini-pro' => 'gemini-2.5-flash',
+        'gemini-1.5-flash' => 'gemini-3.1-flash-lite',
+        'gemini-1.5-flash-latest' => 'gemini-3.1-flash-lite',
+        'gemini-1.5-pro' => 'gemini-3.1-flash-lite',
+        'gemini-1.5-pro-latest' => 'gemini-3.1-flash-lite',
+        'gemini-2.5-flash' => 'gemini-3.1-flash-lite',
+        'gemini-2.5-pro' => 'gemini-3.1-flash-lite',
+        'gemini-pro' => 'gemini-3.1-flash-lite',
+        'gemini-3.1-pro-preview' => 'gemini-3.1-flash-lite',
     ];
 
     /**
@@ -40,16 +43,16 @@ class GeminiService
             throw new RuntimeException('Gemini API key is not configured. Please set GEMINI_API_KEY in your .env file.');
         }
 
-        $configuredDefault = (string) config('services.gemini.model', 'gemini-2.5-flash');
+        $configuredDefault = (string) config('services.gemini.model', 'gemini-3.1-flash-lite');
         $rawModel = $model ?: $configuredDefault;
-        $primaryModel = self::LEGACY_MODEL_MAP[$rawModel] ?? $rawModel;
+        $normalizedModel = str_starts_with($rawModel, 'models/') ? substr($rawModel, 7) : $rawModel;
+        $primaryModel = self::LEGACY_MODEL_MAP[$normalizedModel] ?? $normalizedModel;
 
-        // Candidate models to attempt in order if a 404/not supported error is encountered
+        // Models requested by user: primary gemini-3.1-flash-lite, secondary gemini-3-flash-preview
         $modelsToTry = array_unique(array_filter([
             $primaryModel,
-            'gemini-2.5-flash',
-            'gemini-2.0-flash',
-            'gemini-2.5-pro',
+            'gemini-3.1-flash-lite',
+            'gemini-3-flash-preview',
         ]));
 
         $lastError = null;
@@ -121,9 +124,12 @@ class GeminiService
 
             $lastError = $errorMessage;
 
-            // Only retry with next model if this model was not found / not supported for generateContent
-            $isNotFound = $statusCode === 404 || str_contains($errorMessage, 'is not found') || str_contains($errorMessage, 'not supported');
-            if (! $isNotFound) {
+            // Only retry with next model if this model was not found / not supported / deprecated for generateContent
+            $isRetryable = $statusCode === 404
+                || str_contains($errorMessage, 'is not found')
+                || str_contains($errorMessage, 'not supported')
+                || str_contains($errorMessage, 'no longer available');
+            if (! $isRetryable) {
                 break;
             }
         }
