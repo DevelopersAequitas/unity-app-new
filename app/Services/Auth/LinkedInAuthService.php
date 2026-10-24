@@ -9,6 +9,7 @@ use App\Models\SocialAccount;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Models\UserPushToken;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -141,17 +142,50 @@ class LinkedInAuthService
      */
     public function verifyLinkedIn(string $codeOrToken, ?string $redirectUri = null): array
     {
-        $accessToken = $codeOrToken;
-
-        // If an authorization code was provided, exchange it for an access token
-        try {
-            $accessToken = $this->exchangeCodeForToken($codeOrToken, $redirectUri);
-        } catch (\Throwable) {
-            // If exchanging failed, codeOrToken may already be a direct access token
-            $accessToken = $codeOrToken;
+        $codeOrToken = trim($codeOrToken);
+        if (blank($codeOrToken)) {
+            throw new RuntimeException('LinkedIn authorization code or access token is required.');
         }
 
-        return $this->fetchUserInfo($accessToken);
+        $profileCacheKey = 'linkedin_profile_'.sha1($codeOrToken);
+        $cachedProfile = Cache::get($profileCacheKey);
+        if (is_array($cachedProfile) && ! empty($cachedProfile['id'])) {
+            return $cachedProfile;
+        }
+
+        $accessToken = $codeOrToken;
+        $tokenCacheKey = 'linkedin_code_token_'.sha1($codeOrToken);
+        $cachedToken = Cache::get($tokenCacheKey);
+
+        if (is_string($cachedToken) && filled($cachedToken)) {
+            $accessToken = $cachedToken;
+        } else {
+            // If an authorization code was provided, exchange it for an access token
+            try {
+                $accessToken = $this->exchangeCodeForToken($codeOrToken, $redirectUri);
+                Cache::put($tokenCacheKey, $accessToken, now()->addHours(2));
+            } catch (\Throwable) {
+                // If exchanging failed, codeOrToken may already be a direct access token
+                $accessToken = $codeOrToken;
+            }
+        }
+
+        // Also check if profile was cached under the access token
+        $accessTokenProfileCacheKey = 'linkedin_profile_'.sha1($accessToken);
+        $cachedAccessTokenProfile = Cache::get($accessTokenProfileCacheKey);
+        if (is_array($cachedAccessTokenProfile) && ! empty($cachedAccessTokenProfile['id'])) {
+            Cache::put($profileCacheKey, $cachedAccessTokenProfile, now()->addHours(2));
+
+            return $cachedAccessTokenProfile;
+        }
+
+        $profile = $this->fetchUserInfo($accessToken);
+
+        // Cache the profile under both codeOrToken and accessToken
+        Cache::put($profileCacheKey, $profile, now()->addHours(2));
+        Cache::put($accessTokenProfileCacheKey, $profile, now()->addHours(2));
+
+        return $profile;
     }
 
     /**
@@ -183,11 +217,16 @@ class LinkedInAuthService
             ->orWhereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
             ->first();
 
+        $tokenCacheKey = 'linkedin_code_token_'.sha1($codeOrToken);
+        $resolvedToken = (string) Cache::get($tokenCacheKey, $codeOrToken);
+
         return [
             'success' => true,
             'message' => 'LinkedIn profile retrieved successfully.',
             'data' => [
                 'is_registered' => $existingUser !== null,
+                'token' => $resolvedToken,
+                'access_token' => $resolvedToken,
                 'linkedin_id' => (string) $profile['id'],
                 'email' => (string) $profile['email'],
                 'first_name' => (string) $profile['first_name'],
@@ -265,35 +304,28 @@ class LinkedInAuthService
         }
 
         $phone = trim((string) ($data['phone'] ?? $data['mobile_number'] ?? ''));
-        if (blank($phone)) {
-            return [
-                'success' => false,
-                'message' => 'Phone number is required for registration.',
-                'data' => null,
-                'status_code' => 422,
-            ];
-        }
-
-        $phoneUser = User::query()->where('phone', $phone)->first();
-        if ($phoneUser) {
-            // Link LinkedIn account to existing user with this phone number
-            SocialAccount::query()->firstOrCreate(
-                [
-                    'provider' => 'linkedin',
-                    'provider_id' => (string) $profile['id'],
-                ],
-                [
-                    'id' => (string) Str::uuid(),
-                    'user_id' => $phoneUser->id,
-                    'email' => $profile['email'],
-                    'token_metadata' => [
-                        'name' => $profile['name'] ?? null,
-                        'avatar' => $profile['avatar'] ?? null,
+        if (filled($phone)) {
+            $phoneUser = User::query()->where('phone', $phone)->first();
+            if ($phoneUser) {
+                // Link LinkedIn account to existing user with this phone number
+                SocialAccount::query()->firstOrCreate(
+                    [
+                        'provider' => 'linkedin',
+                        'provider_id' => (string) $profile['id'],
                     ],
-                ]
-            );
+                    [
+                        'id' => (string) Str::uuid(),
+                        'user_id' => $phoneUser->id,
+                        'email' => $profile['email'],
+                        'token_metadata' => [
+                            'name' => $profile['name'] ?? null,
+                            'avatar' => $profile['avatar'] ?? null,
+                        ],
+                    ]
+                );
 
-            return $this->authenticateAndLogin($codeOrToken, $redirectUri, isset($data['timezone']) ? (string) $data['timezone'] : null, $data);
+                return $this->authenticateAndLogin($codeOrToken, $redirectUri, isset($data['timezone']) ? (string) $data['timezone'] : null, $data);
+            }
         }
 
         $password = ! empty($data['password']) ? (string) $data['password'] : Str::random(32);
@@ -307,7 +339,7 @@ class LinkedInAuthService
             'last_name' => $lastName,
             'display_name' => $displayName ?: 'User',
             'email' => $normalizedEmail,
-            'phone' => $phone,
+            'phone' => filled($phone) ? $phone : null,
             'password' => Hash::make($password),
             'status' => 'active',
         ];
@@ -381,6 +413,32 @@ class LinkedInAuthService
                 'platform' => isset($data['platform']) ? (string) $data['platform'] : (isset($data['device_type']) ? (string) $data['device_type'] : null),
                 'device_id' => isset($data['device_id']) ? (string) $data['device_id'] : null,
                 'app_version' => isset($data['app_version']) ? (string) $data['app_version'] : null,
+            ]);
+        }
+
+        if (filled($data['referral_code'] ?? null)) {
+            try {
+                app(\App\Services\Referrals\ReferralService::class)->applyReferralOnRegistration($user, (string) $data['referral_code']);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedInAuthService.registerWithLinkedIn: referral failed', [
+                    'user_id' => (string) $user->id,
+                    'referral_code' => $data['referral_code'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (Schema::hasColumn('users', 'last_login_at')) {
+            $user->last_login_at = now();
+            $user->save();
+        }
+
+        if (Schema::hasTable('user_login_histories')) {
+            UserLoginHistory::query()->create([
+                'user_id' => (string) $user->id,
+                'logged_in_at' => now(),
+                'ip' => $data['ip'] ?? request()->ip(),
+                'user_agent' => substr((string) ($data['user_agent'] ?? request()->userAgent() ?? ''), 0, 1000),
             ]);
         }
 

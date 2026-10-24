@@ -26,8 +26,8 @@ class LinkedInRegisterRequest extends FormRequest
         return [
             'code' => ['required_without:token', 'nullable', 'string'],
             'token' => ['required_without:code', 'nullable', 'string'],
-            'phone' => ['required_without:mobile_number', 'nullable', 'string', 'max:20'],
-            'mobile_number' => ['required_without:phone', 'nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'mobile_number' => ['nullable', 'string', 'max:20'],
             'country_code' => ['nullable', 'string', 'max:10'],
             'redirect_uri' => ['nullable', 'string'],
             'password' => ['nullable', 'string', 'min:6'],
