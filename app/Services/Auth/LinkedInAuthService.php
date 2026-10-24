@@ -260,7 +260,7 @@ class LinkedInAuthService
      */
     public function registerWithLinkedIn(array $data): array
     {
-        $codeOrToken = (string) ($data['code'] ?? $data['token'] ?? '');
+        $codeOrToken = (string) ($data['token'] ?? $data['code'] ?? '');
         $redirectUri = isset($data['redirect_uri']) ? (string) $data['redirect_uri'] : null;
 
         try {
