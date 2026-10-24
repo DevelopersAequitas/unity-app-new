@@ -66,10 +66,6 @@ use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
 use App\Http\Controllers\Api\V1\AdBookingController;
 use App\Http\Controllers\Api\V1\AdController;
-use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
-use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
-use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
-use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPublicApiController;
 use App\Http\Controllers\Api\V1\Admin\AdBookingAdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
@@ -79,24 +75,30 @@ use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
 use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
+use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
-use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
+use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
-use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
+use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPublicApiController;
+use App\Http\Controllers\Api\V1\Ai\AiController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
+use App\Http\Controllers\Api\V1\Auth\LinkedInAuthController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -231,6 +233,14 @@ Route::prefix('auth')->group(function () {
     Route::post('direct-login', [AuthController::class, 'directLogin']);
     Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
     Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+    Route::prefix('linkedin')->group(function () {
+        Route::get('url', [LinkedInAuthController::class, 'redirectUrl']);
+        Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
+        Route::post('profile', [LinkedInAuthController::class, 'profile']);
+        Route::post('register', [LinkedInAuthController::class, 'register']);
+        Route::post('callback', [LinkedInAuthController::class, 'callback']);
+        Route::post('login', [LinkedInAuthController::class, 'callback']);
+    });
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -338,6 +348,14 @@ Route::prefix('v1')->group(function () {
         Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+        Route::prefix('linkedin')->group(function () {
+            Route::get('url', [LinkedInAuthController::class, 'redirectUrl']);
+            Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
+            Route::post('profile', [LinkedInAuthController::class, 'profile']);
+            Route::post('register', [LinkedInAuthController::class, 'register']);
+            Route::post('callback', [LinkedInAuthController::class, 'callback']);
+            Route::post('login', [LinkedInAuthController::class, 'callback']);
+        });
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -345,6 +363,13 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    Route::prefix('ai')->group(function () {
+        Route::post('suggest-category', [AiController::class, 'suggestCategory']);
+        Route::post('flows/{slug}/execute', [AiController::class, 'executeFlow']);
+        Route::get('flows', [AiController::class, 'flows']);
+        Route::put('flows/{slug}', [AiController::class, 'updateFlow']);
     });
 
     Route::prefix('ded/auth')->group(function () {
@@ -1881,4 +1906,3 @@ foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
         Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
     });
 }
-
