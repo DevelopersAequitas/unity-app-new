@@ -76,7 +76,7 @@ class AiController extends Controller
                     [
                         'slug' => 'business_category_suggestion',
                         'name' => 'Business Category Suggestion',
-                        'model' => 'gemini-1.5-flash',
+                        'model' => 'gemini-2.5-flash',
                         'is_active' => true,
                     ],
                 ],

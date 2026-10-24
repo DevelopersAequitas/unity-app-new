@@ -396,8 +396,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
         Route::get('/ai-flows', [AiPromptFlowAdminController::class, 'index'])->name('ai-flows.index');
+        Route::get('/ai-flows/create', [AiPromptFlowAdminController::class, 'create'])->name('ai-flows.create');
+        Route::post('/ai-flows', [AiPromptFlowAdminController::class, 'store'])->name('ai-flows.store');
         Route::get('/ai-flows/{id}/edit', [AiPromptFlowAdminController::class, 'edit'])->name('ai-flows.edit');
         Route::put('/ai-flows/{id}', [AiPromptFlowAdminController::class, 'update'])->name('ai-flows.update');
+        Route::delete('/ai-flows/{id}', [AiPromptFlowAdminController::class, 'destroy'])->name('ai-flows.destroy');
         Route::post('/ai-flows/test', [AiPromptFlowAdminController::class, 'testPrompt'])->name('ai-flows.test');
         Route::get('/commissions', [CommissionManagementController::class, 'index'])->name('commissions.index');
         Route::put('/commissions', [CommissionManagementController::class, 'updateBulk'])->name('commissions.update-bulk');
