@@ -104,6 +104,14 @@ class Event extends Model
                 $event->id = (string) Str::uuid();
             }
         });
+
+        static::deleting(function (Event $event): void {
+            if (\Illuminate\Support\Facades\Schema::hasTable('speed_networking_events')) {
+                try {
+                    \App\Models\SpeedNetworking\SpeedNetworkingEvent::where('id', $event->id)->delete();
+                } catch (\Throwable $e) {}
+            }
+        });
     }
 
     public function circle(): BelongsTo
