@@ -31,6 +31,18 @@ class SocialAuthService
             default => throw new RuntimeException("Unsupported social provider: {$provider}"),
         };
 
+        return $this->findOrCreateSocialUser($normalizedProvider, $profile, $timezone);
+    }
+
+    /**
+     * Find existing user or register new user from social profile and link social account.
+     *
+     * @param  array{id: string, email: string, first_name?: string, last_name?: string, name?: string, avatar?: ?string}  $profile
+     */
+    public function findOrCreateSocialUser(string $provider, array $profile, ?string $timezone = null): User
+    {
+        $normalizedProvider = strtolower(trim($provider));
+
         // 1. Check if social account is already linked
         /** @var SocialAccount|null $socialAccount */
         $socialAccount = SocialAccount::query()
@@ -196,63 +208,6 @@ class SocialAuthService
      */
     public function verifyLinkedIn(string $codeOrToken): array
     {
-        $accessToken = $codeOrToken;
-
-        // If authorization code is provided, exchange for access token
-        if (! str_starts_with($codeOrToken, 'AQ') && strlen($codeOrToken) < 120) {
-            $clientId = (string) config('services.linkedin.client_id');
-            $clientSecret = (string) config('services.linkedin.client_secret');
-            $redirectUri = (string) config('services.linkedin.redirect_uri');
-
-            if ($clientId !== '' && $clientSecret !== '') {
-                $tokenResponse = Http::asForm()->timeout(10)->post('https://www.linkedin.com/oauth/v2/accessToken', [
-                    'grant_type' => 'authorization_code',
-                    'code' => $codeOrToken,
-                    'redirect_uri' => $redirectUri,
-                    'client_id' => $clientId,
-                    'client_secret' => $clientSecret,
-                ]);
-
-                if ($tokenResponse->failed()) {
-                    Log::warning('SocialAuth.verifyLinkedIn: code exchange failed', [
-                        'status' => $tokenResponse->status(),
-                        'body' => $tokenResponse->json(),
-                    ]);
-                    throw new RuntimeException('Failed to exchange LinkedIn authorization code.');
-                }
-
-                $accessToken = (string) ($tokenResponse->json('access_token') ?? '');
-            }
-        }
-
-        $response = Http::withToken($accessToken)
-            ->timeout(10)
-            ->get('https://api.linkedin.com/v2/userinfo');
-
-        if ($response->failed()) {
-            Log::warning('SocialAuth.verifyLinkedIn: userinfo endpoint failed', [
-                'status' => $response->status(),
-                'body' => $response->json(),
-            ]);
-            throw new RuntimeException('Invalid LinkedIn access token.');
-        }
-
-        $data = $response->json();
-        $sub = $data['sub'] ?? null;
-
-        if (! $sub) {
-            throw new RuntimeException('LinkedIn profile did not return a valid user identity.');
-        }
-
-        $email = $data['email'] ?? "{$sub}@linkedin.com";
-
-        return [
-            'id' => (string) $sub,
-            'email' => (string) $email,
-            'first_name' => (string) ($data['given_name'] ?? ''),
-            'last_name' => (string) ($data['family_name'] ?? ''),
-            'name' => (string) ($data['name'] ?? ''),
-            'avatar' => isset($data['picture']) ? (string) $data['picture'] : null,
-        ];
+        return app(LinkedInAuthService::class)->verifyLinkedIn($codeOrToken);
     }
 }
