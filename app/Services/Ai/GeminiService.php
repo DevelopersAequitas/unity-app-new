@@ -16,14 +16,11 @@ class GeminiService
      * @var array<string, string>
      */
     private const LEGACY_MODEL_MAP = [
-        'gemini-1.5-flash' => 'gemini-3.1-flash-lite',
-        'gemini-1.5-flash-latest' => 'gemini-3.1-flash-lite',
-        'gemini-1.5-pro' => 'gemini-3.1-flash-lite',
-        'gemini-1.5-pro-latest' => 'gemini-3.1-flash-lite',
-        'gemini-2.5-flash' => 'gemini-3.1-flash-lite',
-        'gemini-2.5-pro' => 'gemini-3.1-flash-lite',
-        'gemini-pro' => 'gemini-3.1-flash-lite',
-        'gemini-3.1-pro-preview' => 'gemini-3.1-flash-lite',
+        'gemini-1.5-flash' => 'gemini-2.5-flash',
+        'gemini-1.5-flash-latest' => 'gemini-2.5-flash',
+        'gemini-1.5-pro' => 'gemini-2.5-flash',
+        'gemini-1.5-pro-latest' => 'gemini-2.5-flash',
+        'gemini-pro' => 'gemini-2.5-flash',
     ];
 
     /**
@@ -43,16 +40,18 @@ class GeminiService
             throw new RuntimeException('Gemini API key is not configured. Please set GEMINI_API_KEY in your .env file.');
         }
 
-        $configuredDefault = (string) config('services.gemini.model', 'gemini-3.1-flash-lite');
+        $configuredDefault = (string) config('services.gemini.model', 'gemini-2.5-flash');
         $rawModel = $model ?: $configuredDefault;
         $normalizedModel = str_starts_with($rawModel, 'models/') ? substr($rawModel, 7) : $rawModel;
         $primaryModel = self::LEGACY_MODEL_MAP[$normalizedModel] ?? $normalizedModel;
 
-        // Models requested by user: primary gemini-3.1-flash-lite, secondary gemini-3-flash-preview
+        // Fallback chain as per Gemini 2.5 architecture
         $modelsToTry = array_unique(array_filter([
             $primaryModel,
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-2.5-pro',
             'gemini-3.1-flash-lite',
-            'gemini-3-flash-preview',
         ]));
 
         $lastError = null;

@@ -250,6 +250,9 @@ class SpeedNetworkingService
             'scheduled_start_time' => ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null,
         ];
 
+        $ticketPrice = round(max((float) ($data['ticket_price'] ?? ($data['ticketPrice'] ?? 0)), 0), 2);
+        $isPaid = (bool) ($data['is_paid'] ?? ($data['isPaid'] ?? false)) || $ticketPrice > 0;
+
         if ($id) {
             $event = SpeedNetworkingEvent::findOrFail($id);
             $event->update($attributes);
@@ -264,6 +267,8 @@ class SpeedNetworkingService
                         'event_type' => 'speed_networking',
                         'mode' => 'online',
                         'is_virtual' => true,
+                        'ticket_price' => $ticketPrice,
+                        'is_paid' => $isPaid,
                         'start_at' => $event->scheduled_start_time ?? Carbon::now(),
                         'end_at' => $event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2),
                         'metadata' => [
@@ -272,6 +277,8 @@ class SpeedNetworkingService
                             'total_rounds' => $event->total_rounds,
                             'current_round' => $event->current_round,
                             'speed_status' => $event->status,
+                            'ticket_price' => $ticketPrice,
+                            'is_paid' => $isPaid,
                         ],
                     ]
                 );
@@ -299,6 +306,8 @@ class SpeedNetworkingService
                     'event_type' => 'speed_networking',
                     'mode' => 'online',
                     'is_virtual' => true,
+                    'ticket_price' => $ticketPrice,
+                    'is_paid' => $isPaid,
                     'start_at' => $event->scheduled_start_time ?? Carbon::now(),
                     'end_at' => $event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2),
                     'metadata' => [
@@ -307,6 +316,8 @@ class SpeedNetworkingService
                         'total_rounds' => $event->total_rounds,
                         'current_round' => $event->current_round,
                         'speed_status' => $event->status,
+                        'ticket_price' => $ticketPrice,
+                        'is_paid' => $isPaid,
                     ],
                 ]
             );

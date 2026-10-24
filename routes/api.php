@@ -368,8 +368,14 @@ Route::prefix('v1')->group(function () {
     Route::prefix('ai')->group(function () {
         Route::post('suggest-category', [AiController::class, 'suggestCategory']);
         Route::post('flows/{slug}/execute', [AiController::class, 'executeFlow']);
+        Route::post('execute/{slug}', [AiController::class, 'executeFlow']);
         Route::get('flows', [AiController::class, 'flows']);
+        Route::post('flows', [AiController::class, 'createFlow']);
+        Route::get('flows/{id}', [AiController::class, 'getFlow']);
         Route::put('flows/{slug}', [AiController::class, 'updateFlow']);
+        Route::delete('flows/{id}', [AiController::class, 'deleteFlow']);
+        Route::post('flows/test', [AiController::class, 'testPrompt']);
+        Route::post('test', [AiController::class, 'testPrompt']);
     });
 
     Route::prefix('ded/auth')->group(function () {
