@@ -9,7 +9,10 @@
             <h2 class="h4 mb-1 fw-bold text-dark"><i class="bi bi-robot me-2 text-primary"></i>AI Prompt Flows & Gemini Workflows</h2>
             <p class="text-muted small mb-0">Control prompts, system instructions, and temperature used by Google Gemini across the platform.</p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.ai-flows.create') }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg me-1"></i> Add New AI Flow
+            </a>
             <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#testAiModal">
                 <i class="bi bi-play-circle me-1"></i> Live Test Gemini
             </button>
@@ -52,10 +55,10 @@
                                     <span class="badge bg-secondary font-monospace">{{ $flow->slug }}</span>
                                 </td>
                                 <td>
-                                    <span class="text-muted small">{{ Str::limit($flow->description ?? 'Maps user business info to the 18 main business categories.', 80) }}</span>
+                                    <span class="text-muted small">{{ Str::limit($flow->description ?? 'Custom AI Gemini prompt flow.', 80) }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info text-dark font-monospace">{{ $flow->model ?? 'gemini-1.5-flash' }}</span>
+                                    <span class="badge bg-info text-dark font-monospace">{{ $flow->model ?? 'gemini-2.5-flash' }}</span>
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border">{{ $flow->temperature ?? '0.20' }}</span>
@@ -68,9 +71,20 @@
                                     @endif
                                 </td>
                                 <td class="text-end pe-4">
-                                    <a href="{{ route('admin.ai-flows.edit', $flow->id ?? $flow->slug) }}" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-pencil-square me-1"></i> Edit Flow
-                                    </a>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ route('admin.ai-flows.edit', $flow->id ?? $flow->slug) }}" class="btn btn-primary">
+                                            <i class="bi bi-pencil-square me-1"></i> Edit
+                                        </a>
+                                        @if(empty($flow->is_virtual) && ($flow->slug ?? '') !== 'business_category_suggestion')
+                                        <form action="{{ route('admin.ai-flows.destroy', $flow->id ?? $flow->slug) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this AI Flow?');" class="d-inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-outline-danger ms-1" title="Delete Flow">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty

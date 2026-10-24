@@ -44,11 +44,16 @@
                         @csrf
                         @method('PUT')
 
-                        <input type="hidden" name="slug" value="{{ $flow->slug }}">
-
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Flow Name</label>
-                            <input type="text" name="name" class="form-control" value="{{ old('name', $flow->name) }}" required>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-7">
+                                <label class="form-label fw-semibold">Flow Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" value="{{ old('name', $flow->name) }}" required>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-semibold">Flow Slug</label>
+                                <input type="text" name="slug" class="form-control font-monospace" value="{{ old('slug', $flow->slug) }}" {{ ($flow->slug === 'business_category_suggestion') ? 'readonly' : 'required' }}>
+                                <div class="form-text">Endpoint: <code>/api/v1/ai/execute/{{ $flow->slug }}</code></div>
+                            </div>
                         </div>
 
                         <div class="mb-3">
@@ -73,9 +78,9 @@
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Google Gemini Model</label>
                                 <select name="model" class="form-select font-monospace">
-                                    <option value="gemini-1.5-flash" {{ old('model', $flow->model) === 'gemini-1.5-flash' ? 'selected' : '' }}>gemini-1.5-flash (Fast & Recommended)</option>
-                                    <option value="gemini-1.5-pro" {{ old('model', $flow->model) === 'gemini-1.5-pro' ? 'selected' : '' }}>gemini-1.5-pro (High Reasoning)</option>
-                                    <option value="gemini-2.0-flash" {{ old('model', $flow->model) === 'gemini-2.0-flash' ? 'selected' : '' }}>gemini-2.0-flash</option>
+                                    <option value="gemini-2.5-flash" {{ old('model', $flow->model) === 'gemini-2.5-flash' || old('model', $flow->model) === 'gemini-1.5-flash' ? 'selected' : '' }}>gemini-2.5-flash (Latest, Ultra Fast & Recommended)</option>
+                                    <option value="gemini-2.0-flash" {{ old('model', $flow->model) === 'gemini-2.0-flash' ? 'selected' : '' }}>gemini-2.0-flash (Fast Multimodal)</option>
+                                    <option value="gemini-2.5-pro" {{ old('model', $flow->model) === 'gemini-2.5-pro' || old('model', $flow->model) === 'gemini-1.5-pro' ? 'selected' : '' }}>gemini-2.5-pro (Advanced Reasoning)</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
