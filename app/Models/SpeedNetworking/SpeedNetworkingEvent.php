@@ -69,6 +69,12 @@ class SpeedNetworkingEvent extends Model
                 $model->id = (string) Str::uuid();
             }
         });
+
+        static::deleting(function (SpeedNetworkingEvent $model): void {
+            try {
+                \App\Models\Event::where('id', $model->id)->delete();
+            } catch (\Throwable $e) {}
+        });
     }
 
     /**

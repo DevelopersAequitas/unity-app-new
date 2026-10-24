@@ -148,11 +148,31 @@ class SpeedNetworkingAdminController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $target = $this->findEventOrBaseEvent($id);
-        if ($target['type'] === 'sn') {
-            $this->speedNetworkingService->deleteEvent($target['event']);
-        } else {
-            $target['event']->delete();
+        $title = null;
+        if ($target) {
+            $title = $target['event']->title ?? null;
+            if ($target['type'] === 'sn') {
+                $this->speedNetworkingService->deleteEvent($target['event']);
+            } else {
+                $target['event']->delete();
+            }
         }
+
+        if (Schema::hasTable('speed_networking_events')) {
+            $q = SpeedNetworkingEvent::where('id', $id);
+            if (! empty($title)) {
+                $q->orWhere('title', $title);
+            }
+            $q->delete();
+        }
+
+        $baseQ = Event::where('id', $id);
+        if (! empty($title)) {
+            $baseQ->orWhere(function ($q2) use ($title): void {
+                $q2->where('title', $title)->where('event_type', 'speed_networking');
+            });
+        }
+        $baseQ->delete();
 
         return response()->json([
             'success' => true,

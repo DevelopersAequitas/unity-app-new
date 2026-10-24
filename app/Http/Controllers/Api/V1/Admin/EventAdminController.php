@@ -67,6 +67,18 @@ class EventAdminController extends BaseApiController
         if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
             try {
                 $meta = $event->metadata ?? [];
+                $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
+                $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5);
+
+                $meta['round_duration_seconds'] = $roundDuration;
+                $meta['break_duration_seconds'] = $breakDuration;
+                $meta['total_rounds'] = $totalRounds;
+                $meta['speed_status'] = 'scheduled';
+                $meta['is_speed_networking'] = true;
+                $event->metadata = $meta;
+                $event->save();
+
                 SpeedNetworkingEvent::updateOrCreate(
                     ['id' => $event->id],
                     [
@@ -74,9 +86,9 @@ class EventAdminController extends BaseApiController
                         'description' => $event->description,
                         'banner_url' => $event->banner_url,
                         'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
-                        'round_duration_seconds' => (int) ($event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300),
-                        'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                        'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                        'round_duration_seconds' => $roundDuration,
+                        'break_duration_seconds' => $breakDuration,
+                        'total_rounds' => $totalRounds,
                         'current_round' => 0,
                         'scheduled_start_time' => $event->start_at,
                     ]
@@ -106,15 +118,25 @@ class EventAdminController extends BaseApiController
         if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
             try {
                 $meta = $event->metadata ?? [];
+                $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
+                $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5);
+
+                $meta['round_duration_seconds'] = $roundDuration;
+                $meta['break_duration_seconds'] = $breakDuration;
+                $meta['total_rounds'] = $totalRounds;
+                $event->metadata = $meta;
+                $event->save();
+
                 SpeedNetworkingEvent::updateOrCreate(
                     ['id' => $event->id],
                     [
                         'title' => $event->title,
                         'description' => $event->description,
                         'banner_url' => $event->banner_url,
-                        'round_duration_seconds' => (int) ($event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300),
-                        'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                        'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                        'round_duration_seconds' => $roundDuration,
+                        'break_duration_seconds' => $breakDuration,
+                        'total_rounds' => $totalRounds,
                         'scheduled_start_time' => $event->start_at,
                     ]
                 );
@@ -128,9 +150,18 @@ class EventAdminController extends BaseApiController
 
     public function destroy(string $id): JsonResponse
     {
-        Event::query()->findOrFail($id)->delete();
+        $event = Event::withTrashed()->find($id) ?? Event::find($id);
+        $title = $event?->title;
+        if ($event) {
+            $event->delete();
+        }
+
         if (Schema::hasTable('speed_networking_events')) {
-            SpeedNetworkingEvent::where('id', $id)->delete();
+            $q = SpeedNetworkingEvent::where('id', $id);
+            if (! empty($title)) {
+                $q->orWhere('title', $title);
+            }
+            $q->delete();
         }
 
         return $this->success(['deleted' => true], 'Event deleted successfully.');
