@@ -143,9 +143,12 @@ class LinkedInAuthService
     {
         $accessToken = $codeOrToken;
 
-        // If authorization code is provided, exchange for access token
-        if (! str_starts_with($codeOrToken, 'AQ') && strlen($codeOrToken) < 120) {
+        // If an authorization code was provided, exchange it for an access token
+        try {
             $accessToken = $this->exchangeCodeForToken($codeOrToken, $redirectUri);
+        } catch (\Throwable) {
+            // If exchanging failed, codeOrToken may already be a direct access token
+            $accessToken = $codeOrToken;
         }
 
         return $this->fetchUserInfo($accessToken);
@@ -185,17 +188,25 @@ class LinkedInAuthService
             'message' => 'LinkedIn profile retrieved successfully.',
             'data' => [
                 'is_registered' => $existingUser !== null,
-                'linkedin_id' => $profile['id'],
-                'email' => $profile['email'],
-                'first_name' => $profile['first_name'],
-                'last_name' => $profile['last_name'],
-                'name' => $profile['name'],
-                'avatar' => $profile['avatar'],
+                'linkedin_id' => (string) $profile['id'],
+                'email' => (string) $profile['email'],
+                'first_name' => (string) $profile['first_name'],
+                'last_name' => (string) $profile['last_name'],
+                'name' => (string) $profile['name'],
+                'avatar' => $profile['avatar'] ?? null,
+                'company_name' => $existingUser?->company_name ?? null,
+                'designation' => $existingUser?->designation ?? null,
+                'headline' => null,
+                'city' => $existingUser?->city ?? null,
+                'phone' => $existingUser?->phone ?? null,
+                'dob' => $existingUser?->dob ?? null,
                 'existing_user' => $existingUser ? [
                     'id' => (string) $existingUser->id,
                     'phone' => (string) $existingUser->phone,
                     'email' => (string) $existingUser->email,
                     'display_name' => (string) $existingUser->display_name,
+                    'company_name' => (string) ($existingUser->company_name ?? ''),
+                    'designation' => (string) ($existingUser->designation ?? ''),
                 ] : null,
             ],
             'status_code' => 200,
@@ -253,7 +264,7 @@ class LinkedInAuthService
             return $this->authenticateAndLogin($codeOrToken, $redirectUri, isset($data['timezone']) ? (string) $data['timezone'] : null, $data);
         }
 
-        $phone = trim((string) ($data['phone'] ?? ''));
+        $phone = trim((string) ($data['phone'] ?? $data['mobile_number'] ?? ''));
         if (blank($phone)) {
             return [
                 'success' => false,
@@ -265,12 +276,24 @@ class LinkedInAuthService
 
         $phoneUser = User::query()->where('phone', $phone)->first();
         if ($phoneUser) {
-            return [
-                'success' => false,
-                'message' => 'The phone number has already been taken.',
-                'data' => null,
-                'status_code' => 422,
-            ];
+            // Link LinkedIn account to existing user with this phone number
+            SocialAccount::query()->firstOrCreate(
+                [
+                    'provider' => 'linkedin',
+                    'provider_id' => (string) $profile['id'],
+                ],
+                [
+                    'id' => (string) Str::uuid(),
+                    'user_id' => $phoneUser->id,
+                    'email' => $profile['email'],
+                    'token_metadata' => [
+                        'name' => $profile['name'] ?? null,
+                        'avatar' => $profile['avatar'] ?? null,
+                    ],
+                ]
+            );
+
+            return $this->authenticateAndLogin($codeOrToken, $redirectUri, isset($data['timezone']) ? (string) $data['timezone'] : null, $data);
         }
 
         $password = ! empty($data['password']) ? (string) $data['password'] : Str::random(32);
@@ -304,11 +327,26 @@ class LinkedInAuthService
         if (Schema::hasColumn('users', 'designation') && ! empty($data['designation'])) {
             $userData['designation'] = (string) $data['designation'];
         }
+        if (Schema::hasColumn('users', 'city') && ! empty($data['city'])) {
+            $userData['city'] = (string) $data['city'];
+        }
         if (Schema::hasColumn('users', 'city_id') && ! empty($data['city_id'])) {
             $userData['city_id'] = (string) $data['city_id'];
         }
+        if (Schema::hasColumn('users', 'country_code') && ! empty($data['country_code'])) {
+            $userData['country_code'] = (string) $data['country_code'];
+        }
+        if (Schema::hasColumn('users', 'dob') && ! empty($data['dob'])) {
+            $userData['dob'] = (string) $data['dob'];
+        }
         if (Schema::hasColumn('users', 'timezone') && ! empty($data['timezone'])) {
             $userData['timezone'] = (string) $data['timezone'];
+        }
+        if (Schema::hasColumn('users', 'main_business_category_id') && ! empty($data['main_business_category_id'])) {
+            $userData['main_business_category_id'] = $data['main_business_category_id'];
+        }
+        if (Schema::hasColumn('users', 'business_category_id') && ! empty($data['business_category_id'])) {
+            $userData['business_category_id'] = $data['business_category_id'];
         }
 
         $user = User::query()->create($userData);
