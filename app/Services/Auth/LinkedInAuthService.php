@@ -303,7 +303,9 @@ class LinkedInAuthService
             return $this->authenticateAndLogin($codeOrToken, $redirectUri, isset($data['timezone']) ? (string) $data['timezone'] : null, $data);
         }
 
-        $phone = trim((string) ($data['phone'] ?? $data['mobile_number'] ?? ''));
+        $rawPhone = trim((string) ($data['phone'] ?? $data['mobile_number'] ?? ''));
+        $digitsOnly = preg_replace('/\D/', '', $rawPhone);
+        $phone = strlen($digitsOnly) >= 7 ? $rawPhone : null;
         if (filled($phone)) {
             $phoneUser = User::query()->where('phone', $phone)->first();
             if ($phoneUser) {
@@ -333,6 +335,7 @@ class LinkedInAuthService
         $lastName = ! empty($data['last_name']) ? (string) $data['last_name'] : ($profile['last_name'] ?? null);
         $displayName = trim($firstName.' '.($lastName ?? ''));
 
+        $hashedPassword = Hash::make($password);
         $userData = [
             'id' => (string) Str::uuid(),
             'first_name' => $firstName,
@@ -340,12 +343,14 @@ class LinkedInAuthService
             'display_name' => $displayName ?: 'User',
             'email' => $normalizedEmail,
             'phone' => filled($phone) ? $phone : null,
-            'password' => Hash::make($password),
             'status' => 'active',
         ];
 
+        if (Schema::hasColumn('users', 'password')) {
+            $userData['password'] = $hashedPassword;
+        }
         if (Schema::hasColumn('users', 'password_hash')) {
-            $userData['password_hash'] = Hash::make($password);
+            $userData['password_hash'] = $hashedPassword;
         }
         if (Schema::hasColumn('users', 'approval_status')) {
             $userData['approval_status'] = 'approved';

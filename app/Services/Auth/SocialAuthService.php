@@ -76,18 +76,21 @@ class SocialAuthService
             $lastName = ! empty($profile['last_name']) ? (string) $profile['last_name'] : null;
             $displayName = ! empty($profile['name']) ? (string) $profile['name'] : trim($firstName.' '.($lastName ?? ''));
 
+            $hashedRandomPassword = Hash::make($randomPassword);
             $userData = [
                 'id' => (string) Str::uuid(),
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'display_name' => $displayName ?: 'User',
                 'email' => $normalizedEmail,
-                'password' => Hash::make($randomPassword),
                 'status' => 'active',
             ];
 
+            if (Schema::hasColumn('users', 'password')) {
+                $userData['password'] = $hashedRandomPassword;
+            }
             if (Schema::hasColumn('users', 'password_hash')) {
-                $userData['password_hash'] = Hash::make($randomPassword);
+                $userData['password_hash'] = $hashedRandomPassword;
             }
 
             if (Schema::hasColumn('users', 'approval_status')) {
