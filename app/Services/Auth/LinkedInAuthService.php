@@ -282,6 +282,12 @@ class LinkedInAuthService
             ->orWhereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
             ->first();
 
+        $incomingAvatar = ! empty($data['profile_photo_url'])
+            ? (string) $data['profile_photo_url']
+            : (! empty($data['avatar'])
+                ? (string) $data['avatar']
+                : (! empty($profile['avatar']) ? (string) $profile['avatar'] : null));
+
         if ($existingUser) {
             // Link LinkedIn account to existing user if not already linked
             SocialAccount::query()->firstOrCreate(
@@ -295,10 +301,25 @@ class LinkedInAuthService
                     'email' => $profile['email'],
                     'token_metadata' => [
                         'name' => $profile['name'] ?? null,
-                        'avatar' => $profile['avatar'] ?? null,
+                        'avatar' => $incomingAvatar,
                     ],
                 ]
             );
+
+            if (! empty($incomingAvatar)) {
+                $dirty = false;
+                if (empty($existingUser->profile_photo_url) && Schema::hasColumn('users', 'profile_photo_url')) {
+                    $existingUser->profile_photo_url = $incomingAvatar;
+                    $dirty = true;
+                }
+                if (empty($existingUser->avatar_url) && Schema::hasColumn('users', 'avatar_url')) {
+                    $existingUser->avatar_url = $incomingAvatar;
+                    $dirty = true;
+                }
+                if ($dirty) {
+                    $existingUser->save();
+                }
+            }
 
             return $this->authenticateAndLogin($codeOrToken, $redirectUri, isset($data['timezone']) ? (string) $data['timezone'] : null, $data);
         }
@@ -355,8 +376,49 @@ class LinkedInAuthService
         if (Schema::hasColumn('users', 'approval_status')) {
             $userData['approval_status'] = 'approved';
         }
-        if (Schema::hasColumn('users', 'profile_photo_url') && ! empty($profile['avatar'])) {
-            $userData['profile_photo_url'] = (string) $profile['avatar'];
+        $avatarUrl = ! empty($data['profile_photo_url'])
+            ? (string) $data['profile_photo_url']
+            : (! empty($data['avatar'])
+                ? (string) $data['avatar']
+                : (! empty($profile['avatar']) ? (string) $profile['avatar'] : null));
+
+        $downloadedFileId = null;
+        if (! empty($avatarUrl) && filter_var($avatarUrl, FILTER_VALIDATE_URL)) {
+            try {
+                $imgResponse = Http::timeout(8)->get($avatarUrl);
+                if ($imgResponse->successful() && strlen($imgResponse->body()) > 100) {
+                    $mime = $imgResponse->header('Content-Type') ?: 'image/jpeg';
+                    $ext = str_contains($mime, 'png') ? 'png' : (str_contains($mime, 'webp') ? 'webp' : 'jpg');
+                    $s3Key = 'avatars/linkedin_'.(string) Str::uuid().'.'.$ext;
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($s3Key, $imgResponse->body());
+
+                    $downloadedFileId = (string) Str::uuid();
+                    \App\Models\FileModel::query()->create([
+                        'id' => $downloadedFileId,
+                        'uploader_user_id' => $userData['id'] ?? null,
+                        's3_key' => $s3Key,
+                        'mime_type' => $mime,
+                        'size_bytes' => strlen($imgResponse->body()),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('LinkedInAuthService: avatar download skipped: '.$e->getMessage());
+            }
+        }
+
+        if ($downloadedFileId) {
+            if (Schema::hasColumn('users', 'profile_photo_file_id')) {
+                $userData['profile_photo_file_id'] = $downloadedFileId;
+            }
+            if (Schema::hasColumn('users', 'profile_photo_id')) {
+                $userData['profile_photo_id'] = $downloadedFileId;
+            }
+        }
+        if (Schema::hasColumn('users', 'profile_photo_url') && ! empty($avatarUrl)) {
+            $userData['profile_photo_url'] = $avatarUrl;
+        }
+        if (Schema::hasColumn('users', 'avatar_url') && ! empty($avatarUrl)) {
+            $userData['avatar_url'] = $avatarUrl;
         }
         if (Schema::hasColumn('users', 'company_name') && ! empty($data['company_name'])) {
             $userData['company_name'] = (string) $data['company_name'];

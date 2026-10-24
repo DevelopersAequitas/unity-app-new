@@ -47,6 +47,9 @@ class LinkedInRegisterRequest extends FormRequest
             'app_version' => ['nullable', 'string', 'max:50'],
             'timezone' => ['nullable', 'string', 'max:100'],
             'referral_code' => ['nullable', 'string', 'max:32'],
+            'profile_photo_url' => ['nullable', 'string'],
+            'avatar' => ['nullable', 'string'],
+            'profile_photo_id' => ['nullable', 'string'],
         ];
     }
 }
