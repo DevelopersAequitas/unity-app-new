@@ -620,6 +620,13 @@
                         </ul>
                     </div>
                 </li>
+                @if (Route::has('admin.ai-flows.index'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.ai-flows.*') ? 'active' : '' }}" href="{{ route('admin.ai-flows.index') }}" title="AI Prompt Flows">
+                        <i class="bi bi-robot me-2 text-primary"></i><span class="menu-text">AI Prompt Flows</span>
+                    </a>
+                </li>
+                @endif
                 <li class="nav-item mt-3 pt-2 border-top border-secondary border-opacity-25">
                     <a class="nav-link text-info d-flex align-items-center justify-content-between" href="https://peersglobal.com" target="_blank" title="View Live Site">
                         <div class="d-flex align-items-center">
@@ -1233,6 +1240,13 @@
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}" title="App Configuration">
                     <i class="bi bi-sliders me-2"></i><span class="menu-text">App Configuration</span>
+                </a>
+            </li>
+            @endif
+            @if (Route::has('admin.ai-flows.index'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.ai-flows.*') ? 'active' : '' }}" href="{{ route('admin.ai-flows.index') }}" title="AI Prompt Flows">
+                    <i class="bi bi-robot me-2 text-primary"></i><span class="menu-text">AI Prompt Flows</span>
                 </a>
             </li>
             @endif
