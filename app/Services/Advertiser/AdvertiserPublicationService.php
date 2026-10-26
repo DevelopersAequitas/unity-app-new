@@ -199,8 +199,8 @@ class AdvertiserPublicationService
 
             $subscription->expires_at = $newExpiresAt;
             $subscription->status = AdvertiserSubscription::STATUS_ACTIVE;
-            $subscription->duration_months = (int) ($subscription->duration_months ?: 0) + $durationMonths;
-            if ($package) {
+            if ($package && $package->duration_months > 0) {
+                $subscription->duration_months = (int) $package->duration_months;
                 $subscription->package_id = $package->id;
                 $subscription->package_name_snapshot = $package->name;
             }
