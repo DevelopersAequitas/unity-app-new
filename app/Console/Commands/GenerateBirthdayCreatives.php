@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\BirthdayCreativeConfig;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
 use Carbon\Carbon;
@@ -133,6 +134,11 @@ class GenerateBirthdayCreatives extends Command
                             'url' => url("/api/v1/files/{$fileModel->id}"),
                         ],
                     ],
+                ]);
+
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $user->id,
                 ]);
 
                 $this->info("Post created successfully for user: {$user->display_name}. Post ID: {$post->id}");

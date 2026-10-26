@@ -371,7 +371,7 @@ class PostController extends BaseApiController
             ->where('status', 'active')
             ->whereNull('deleted_at')
             ->latest('created_at')
-            ->get(['id', 'post_id', 'activity_type', 'activity_id', 'title', 'description', 'creative_file_id', 'creative_url'])
+            ->get(['id', 'post_id', 'user_id', 'activity_type', 'activity_id', 'title', 'description', 'creative_file_id', 'creative_url'])
             ->groupBy(fn (ActivityCreative $creative): string => (string) $creative->post_id)
             ->map(fn ($creatives) => $creatives->first());
 
@@ -406,25 +406,61 @@ class PostController extends BaseApiController
 
         $acceptedByIds = $pageRows->pluck('accepted_by_id')->filter()->unique()->values()->all();
 
-        $recognitionSourceTypes = ['life_impact', 'member_introduction', 'recognition', 'growth_honour'];
-        $recognitionPostTypes = ['life_impact_recognition', 'growth_honour'];
+        $creativeSourceTypes = [
+            'life_impact',
+            'member_introduction',
+            'recognition',
+            'growth_honour',
+            'milestone_honour',
+            'milestone_badge',
+            'welcome',
+            'birthday',
+            'anniversary',
+            'global_peer_certificate',
+            'introduction',
+        ];
+        $creativePostTypes = [
+            'life_impact_recognition',
+            'growth_honour',
+            'milestone_honour',
+            'welcome',
+            'birthday',
+            'anniversary',
+            'global_peer_certificate',
+            'introduction',
+        ];
 
-        $recognitionPeerIds = $pageRows
-            ->filter(function ($row) use ($recognitionSourceTypes, $recognitionPostTypes): bool {
-                $sourceType = (string) ($row->post_source_type ?? '');
-                $postType = (string) ($row->post_type ?? '');
+        $creativePeerIds = [];
+        foreach ($pageRows as $row) {
+            $sourceType = (string) ($row->post_source_type ?? '');
+            $postType = (string) ($row->post_type ?? '');
+            $isCreative = in_array($sourceType, $creativeSourceTypes, true)
+                || in_array($postType, $creativePostTypes, true);
 
-                return in_array($sourceType, $recognitionSourceTypes, true)
-                    || in_array($postType, $recognitionPostTypes, true);
-            })
-            ->pluck('post_source_id')
-            ->filter()
-            ->map(fn ($id) => (string) $id)
-            ->unique()
-            ->values()
-            ->all();
+            if (! empty($row->post_source_id) && $isCreative) {
+                $creativePeerIds[] = (string) $row->post_source_id;
+            }
 
-        $allMentionPeerIds = collect(array_merge($recognitionPeerIds, $impactedPeerIds, $acceptedByIds))
+            $decodedTags = $this->decodeJsonColumn($row->tags ?? null);
+            foreach ($decodedTags as $t) {
+                if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+                    $creativePeerIds[] = $t;
+                }
+            }
+
+            $ac = $activityCreativesByPostId->get((string) $row->id);
+            if ($ac && ! empty($ac->user_id)) {
+                $creativePeerIds[] = (string) $ac->user_id;
+            }
+
+            if (! empty($row->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $row->content_text, $inlineMatches)) {
+                foreach ($inlineMatches[2] as $matchedUuid) {
+                    $creativePeerIds[] = $matchedUuid;
+                }
+            }
+        }
+
+        $allMentionPeerIds = collect(array_merge($creativePeerIds, $impactedPeerIds, $acceptedByIds))
             ->filter()
             ->unique()
             ->values()
@@ -439,6 +475,8 @@ class PostController extends BaseApiController
                     'first_name',
                     'last_name',
                     'profile_photo_file_id',
+                    'profile_photo_url',
+                    'is_online',
                 ])
                 ->keyBy(fn (User $u) => (string) $u->id)
             : collect();
@@ -454,6 +492,8 @@ class PostController extends BaseApiController
                     'users.first_name',
                     'users.last_name',
                     'users.profile_photo_file_id',
+                    'users.profile_photo_url',
+                    'users.is_online',
                 ])
                 ->get()
                 ->groupBy(fn ($pm): string => (string) $pm->post_id)
@@ -603,7 +643,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -628,89 +668,69 @@ class PostController extends BaseApiController
                         'name' => $mName !== '' ? $mName : 'Peer Member',
                         'profile_photo_url' => $dm->profile_photo_file_id
                             ? url('/api/v1/files/'.$dm->profile_photo_file_id)
-                            : null,
+                            : ($dm->profile_photo_url ?: null),
+                        'is_online' => (bool) ($dm->is_online ?? false),
                     ];
                 }
             }
 
-            // 2. Recognition posts (Life Impact, Member Introducers)
+            // 2. Creative, recognition, celebration, and announcement candidate peers
+            $candidatePeerIds = [];
             $postSourceType = (string) ($row->post_source_type ?? '');
             $postType = (string) ($row->post_type ?? '');
-            $isRecognition = in_array($postSourceType, ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
-                || in_array($postType, ['life_impact_recognition', 'growth_honour'], true);
+            $isCreative = in_array($postSourceType, $creativeSourceTypes, true)
+                || in_array($postType, $creativePostTypes, true);
 
-            if ($isRecognition && ! empty($row->post_source_id)) {
-                $recPeer = $mentionedPeers->get((string) $row->post_source_id);
-                if ($recPeer && ! collect($mentions)->contains('id', (string) $recPeer->id)) {
-                    $recName = $recPeer->display_name ?: trim(($recPeer->first_name ?? '').' '.($recPeer->last_name ?? ''));
-                    $mentions[] = [
-                        'id' => (string) $recPeer->id,
-                        'name' => $recName !== '' ? $recName : 'Peer Member',
-                        'profile_photo_url' => $recPeer->profile_photo_file_id
-                            ? url('/api/v1/files/'.$recPeer->profile_photo_file_id)
-                            : null,
-                    ];
+            if ($isCreative && ! empty($row->post_source_id)) {
+                $candidatePeerIds[] = (string) $row->post_source_id;
+            }
+
+            $decodedRowTags = $this->decodeJsonColumn($row->tags ?? null);
+            foreach ($decodedRowTags as $t) {
+                if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+                    $candidatePeerIds[] = $t;
                 }
-            } elseif ((string) $row->source_type === 'impact' && ! empty($row->impacted_peer_id)) {
-                $impPeer = $mentionedPeers->get((string) $row->impacted_peer_id);
-                if ($impPeer && ! collect($mentions)->contains('id', (string) $impPeer->id)) {
-                    $impName = $impPeer->display_name ?: trim(($impPeer->first_name ?? '').' '.($impPeer->last_name ?? ''));
-                    $mentions[] = [
-                        'id' => (string) $impPeer->id,
-                        'name' => $impName !== '' ? $impName : 'Peer Member',
-                        'profile_photo_url' => $impPeer->profile_photo_file_id
-                            ? url('/api/v1/files/'.$impPeer->profile_photo_file_id)
-                            : null,
-                    ];
-                }
-            } elseif (
-                (string) $row->source_type === 'post'
-                && (string) ($row->post_source_type ?? '') === 'collaboration_post'
-                && (string) ($row->post_source_event ?? '') === 'completed'
-                && ! empty($row->accepted_by_id)
-            ) {
-                $accPeer = $mentionedPeers->get((string) $row->accepted_by_id);
-                if (! collect($mentions)->contains('id', (string) $row->accepted_by_id)) {
-                    $acceptedByName = trim((string) ($row->accepted_by_display_name
-                        ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
-                    $mentions[] = [
-                        'id' => (string) $row->accepted_by_id,
-                        'name' => $acceptedByName !== '' ? $acceptedByName : ($accPeer ? ($accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''))) : 'Peer Member'),
-                        'profile_photo_url' => $accPeer?->profile_photo_file_id
-                            ? url('/api/v1/files/'.$accPeer->profile_photo_file_id)
-                            : null,
-                    ];
-                }
-            } elseif (
-                ((string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
-                && ! empty($row->accepted_by_id)
-            ) {
-                $accPeer = $mentionedPeers->get((string) $row->accepted_by_id);
-                if (! collect($mentions)->contains('id', (string) $row->accepted_by_id)) {
-                    $acceptedByName = trim((string) ($row->accepted_by_display_name
-                        ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
-                    $mentions[] = [
-                        'id' => (string) $row->accepted_by_id,
-                        'name' => $acceptedByName !== '' ? $acceptedByName : ($accPeer ? ($accPeer->display_name ?: trim(($accPeer->first_name ?? '').' '.($accPeer->last_name ?? ''))) : 'Peer Member'),
-                        'profile_photo_url' => $accPeer?->profile_photo_file_id
-                            ? url('/api/v1/files/'.$accPeer->profile_photo_file_id)
-                            : null,
-                    ];
-                }
+            }
+
+            if ($activityCreative && ! empty($activityCreative->user_id)) {
+                $candidatePeerIds[] = (string) $activityCreative->user_id;
+            }
+
+            if ((string) $row->source_type === 'impact' && ! empty($row->impacted_peer_id)) {
+                $candidatePeerIds[] = (string) $row->impacted_peer_id;
+            }
+
+            if (! empty($row->accepted_by_id)) {
+                $candidatePeerIds[] = (string) $row->accepted_by_id;
             }
 
             // 3. Inline markdown mentions @[Name](uuid)
+            $inlineNamedMatches = [];
             if (! empty($row->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $row->content_text, $inlineMatches)) {
                 foreach ($inlineMatches[2] as $idx => $matchedUuid) {
-                    if (! collect($mentions)->contains('id', $matchedUuid)) {
-                        $matchedName = $inlineMatches[1][$idx] ?? 'Peer Member';
-                        $u = $mentionedPeers->get($matchedUuid);
+                    $candidatePeerIds[] = $matchedUuid;
+                    $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                }
+            }
+
+            foreach (array_unique($candidatePeerIds) as $cPeerId) {
+                if (! collect($mentions)->contains('id', $cPeerId)) {
+                    $recPeer = $mentionedPeers->get($cPeerId);
+                    if ($recPeer) {
+                        $fallbackName = $inlineNamedMatches[$cPeerId] ?? null;
+                        if ($cPeerId === (string) ($row->accepted_by_id ?? '')) {
+                            $fallbackName = trim((string) ($row->accepted_by_display_name
+                                ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
+                        }
+                        $recName = $recPeer->display_name ?: trim(($recPeer->first_name ?? '').' '.($recPeer->last_name ?? ''));
+                        $finalName = $recName !== '' ? $recName : ($fallbackName ?: 'Peer Member');
                         $mentions[] = [
-                            'id' => $matchedUuid,
-                            'name' => $matchedName,
-                            'profile_photo_url' => $u?->profile_photo_file_id
-                                ? url('/api/v1/files/'.$u->profile_photo_file_id)
-                                : null,
+                            'id' => (string) $recPeer->id,
+                            'name' => $finalName,
+                            'profile_photo_url' => $recPeer->profile_photo_file_id
+                                ? url('/api/v1/files/'.$recPeer->profile_photo_file_id)
+                                : ($recPeer->profile_photo_url ?: null),
+                            'is_online' => (bool) ($recPeer->is_online ?? false),
                         ];
                     }
                 }
@@ -1714,41 +1734,73 @@ class PostController extends BaseApiController
                     'name' => $name !== '' ? $name : 'Peer Member',
                     'profile_photo_url' => $peer->profile_photo_file_id
                         ? url('/api/v1/files/'.$peer->profile_photo_file_id)
-                        : null,
+                        : ($peer->profile_photo_url ?: null),
+                    'is_online' => (bool) ($peer->is_online ?? false),
                 ];
             }
         }
 
-        // 2. Recognition posts
-        $recognitionTypes = ['life_impact', 'member_introduction', 'recognition', 'growth_honour'];
-        if ((in_array((string) $post->source_type, $recognitionTypes, true) || in_array((string) $post->post_type, ['life_impact_recognition', 'growth_honour'], true)) && ! empty($post->source_id)) {
-            $peer = User::find($post->source_id);
-            if ($peer && ! collect($mentions)->contains('id', (string) $peer->id)) {
+        $creativeTypes = [
+            'life_impact',
+            'member_introduction',
+            'recognition',
+            'growth_honour',
+            'milestone_honour',
+            'milestone_badge',
+            'welcome',
+            'birthday',
+            'anniversary',
+            'global_peer_certificate',
+            'introduction',
+            'life_impact_recognition',
+        ];
+
+        $candidatePeerIds = [];
+        $inlineNamedMatches = [];
+
+        $sourceType = (string) ($post->source_type ?? '');
+        $postType = (string) ($post->post_type ?? '');
+        if ((in_array($sourceType, $creativeTypes, true) || in_array($postType, $creativeTypes, true)) && ! empty($post->source_id)) {
+            $candidatePeerIds[] = (string) $post->source_id;
+        }
+
+        $tags = is_array($post->tags) ? $post->tags : $this->decodeJsonColumn($post->tags ?? null);
+        foreach ($tags as $t) {
+            if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+                $candidatePeerIds[] = $t;
+            }
+        }
+
+        $activityCreative = ActivityCreative::where('post_id', $post->id)->where('status', 'active')->first();
+        if ($activityCreative && ! empty($activityCreative->user_id)) {
+            $candidatePeerIds[] = (string) $activityCreative->user_id;
+        }
+
+        // Inline markdown mentions @[Name](uuid)
+        if (! empty($post->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $post->content_text, $inlineMatches)) {
+            foreach ($inlineMatches[2] as $idx => $matchedUuid) {
+                $candidatePeerIds[] = $matchedUuid;
+                $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+            }
+        }
+
+        $alreadyMentionedIds = collect($mentions)->pluck('id')->all();
+        $unresolvedPeerIds = array_values(array_diff(array_unique($candidatePeerIds), $alreadyMentionedIds));
+
+        if (! empty($unresolvedPeerIds)) {
+            $users = User::whereIn('id', $unresolvedPeerIds)->get();
+            foreach ($users as $peer) {
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
+                $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
                 $mentions[] = [
                     'id' => (string) $peer->id,
-                    'name' => $name !== '' ? $name : 'Peer Member',
+                    'name' => $finalName,
                     'profile_photo_url' => $peer->profile_photo_file_id
                         ? url('/api/v1/files/'.$peer->profile_photo_file_id)
-                        : null,
+                        : ($peer->profile_photo_url ?: null),
+                    'is_online' => (bool) ($peer->is_online ?? false),
                 ];
-            }
-        }
-
-        // 3. Inline markdown mentions @[Name](uuid)
-        if (! empty($post->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', $post->content_text, $inlineMatches)) {
-            foreach ($inlineMatches[2] as $idx => $matchedUuid) {
-                if (! collect($mentions)->contains('id', $matchedUuid)) {
-                    $matchedName = $inlineMatches[1][$idx] ?? 'Peer Member';
-                    $u = User::find($matchedUuid);
-                    $mentions[] = [
-                        'id' => $matchedUuid,
-                        'name' => $matchedName,
-                        'profile_photo_url' => $u?->profile_photo_file_id
-                            ? url('/api/v1/files/'.$u->profile_photo_file_id)
-                            : null,
-                    ];
-                }
             }
         }
 

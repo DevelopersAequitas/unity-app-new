@@ -535,7 +535,9 @@ class SpeedNetworkingService
             $this->heartbeat($lockedEvent, $user);
 
             if ($lockedEvent->isCompleted()) {
-                return [
+                $summary = $this->getSessionSummary($lockedEvent, $user);
+
+                return array_merge([
                     'event_id' => (string) $lockedEvent->id,
                     'title' => $lockedEvent->title,
                     'event_title' => $lockedEvent->title,
@@ -547,11 +549,8 @@ class SpeedNetworkingService
                     'channel_id' => '',
                     'agora_token' => '',
                     'is_break_round' => true,
-                    'has_met_all_peers' => true,
-                    'completed' => true,
-                    'message' => 'Speed networking event has concluded.',
                     'peer' => null,
-                ];
+                ], $summary);
             }
 
             $participant = SpeedNetworkingParticipant::where('event_id', $lockedEvent->id)
@@ -972,7 +971,9 @@ class SpeedNetworkingService
                 ->where('user_id', $user->id)
                 ->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
 
-            return [
+            $summary = $this->getSessionSummary($event, $user);
+
+            return array_merge([
                 'event_id' => (string) $event->id,
                 'title' => $event->title,
                 'event_title' => $event->title,
@@ -985,11 +986,8 @@ class SpeedNetworkingService
                 'agora_token' => '',
                 'is_break_round' => true,
                 'is_waiting' => false,
-                'has_met_all_peers' => true,
-                'completed' => true,
-                'message' => 'You have met all peers in this event.',
                 'peer' => null,
-            ];
+            ], $summary);
         }
 
         // If no other participants have joined yet, user is waiting for peers to join
@@ -1287,6 +1285,198 @@ class SpeedNetworkingService
             'completed' => $hasMetAllPeers,
             'message' => $message,
             'peer' => null,
+        ];
+    }
+
+    /**
+     * Check if user has finished all rounds or met all peers in this event.
+     */
+    public function isUserCompleted(SpeedNetworkingEvent $event, User $user): bool
+    {
+        if ($event->isCompleted()) {
+            return true;
+        }
+
+        $participant = SpeedNetworkingParticipant::where('event_id', $event->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($participant && $participant->status === SpeedNetworkingParticipant::STATUS_LEFT) {
+            return true;
+        }
+
+        $userCompletedCount = SpeedNetworkingMatch::where('event_id', $event->id)
+            ->where(function ($q) use ($user): void {
+                $q->where('user_a_id', $user->id)
+                    ->orWhere('user_b_id', $user->id);
+            })
+            ->whereNotNull('user_b_id')
+            ->where('status', SpeedNetworkingMatch::STATUS_COMPLETED)
+            ->count();
+
+        if ($event->total_rounds > 0 && $userCompletedCount >= $event->total_rounds) {
+            return true;
+        }
+
+        $cutoff = Carbon::now()->subSeconds(90);
+        $otherParticipantIds = SpeedNetworkingParticipant::where('event_id', $event->id)
+            ->where('user_id', '!=', $user->id)
+            ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
+            ->where(function ($q) use ($cutoff): void {
+                $q->where('last_heartbeat_at', '>=', $cutoff)
+                    ->orWhere('joined_at', '>=', $cutoff);
+            })
+            ->pluck('user_id')
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $metPeerIds = SpeedNetworkingMatch::where('event_id', $event->id)
+            ->where(function ($q) use ($user): void {
+                $q->where('user_a_id', $user->id)
+                    ->orWhere('user_b_id', $user->id);
+            })
+            ->whereNotNull('user_b_id')
+            ->get()
+            ->map(fn (SpeedNetworkingMatch $m) => (string) ($m->user_a_id === (string) $user->id ? $m->user_b_id : $m->user_a_id))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $unmetPeerIds = array_values(array_diff($otherParticipantIds, $metPeerIds));
+
+        if (! empty($otherParticipantIds) && empty($unmetPeerIds) && $userCompletedCount >= 1) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get summary of peers that the user actively interacted with during this session.
+     *
+     * @return array{
+     *     completed: bool,
+     *     has_met_all_peers: bool,
+     *     message: string,
+     *     total_rounds: int,
+     *     rounds_completed: int,
+     *     total_interactions_count: int,
+     *     interacted_peers: array<int, array<string, mixed>>
+     * }
+     */
+    public function getSessionSummary(SpeedNetworkingEvent $event, User $user): array
+    {
+        $userId = (string) $user->id;
+
+        $matches = SpeedNetworkingMatch::with(['userA', 'userB'])
+            ->where('event_id', $event->id)
+            ->where(function ($q) use ($userId): void {
+                $q->where('user_a_id', $userId)
+                    ->orWhere('user_b_id', $userId);
+            })
+            ->whereNotNull('user_b_id')
+            ->orderBy('round_number', 'asc')
+            ->get();
+
+        $interactedPeers = [];
+        $seenPeerIds = [];
+
+        foreach ($matches as $match) {
+            /** @var User|null $peer */
+            $peer = $match->user_a_id === $userId ? $match->userB : $match->userA;
+            $peerId = (string) ($match->user_a_id === $userId ? $match->user_b_id : $match->user_a_id);
+
+            if (! $peer && $peerId !== '') {
+                $peer = User::find($peerId);
+            }
+
+            if (! $peer || isset($seenPeerIds[$peer->id])) {
+                continue;
+            }
+
+            $seenPeerIds[$peer->id] = true;
+
+            $peerName = $peer->display_name;
+            if (empty($peerName)) {
+                $peerName = trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+            }
+            if (empty($peerName)) {
+                $peerName = (string) ($peer->getRawOriginal('display_name') ?? $peer->getAttributes()['display_name'] ?? '');
+            }
+            if (empty($peerName)) {
+                $peerName = (string) ($peer->name ?? '');
+            }
+            if (empty($peerName)) {
+                $peerName = 'Peer';
+            }
+
+            // Connection status check
+            $connection = Connection::where(function ($q) use ($userId, $peer): void {
+                $q->where('requester_id', $userId)->where('addressee_id', $peer->id);
+            })->orWhere(function ($q) use ($userId, $peer): void {
+                $q->where('requester_id', $peer->id)->where('addressee_id', $userId);
+            })->first();
+
+            $connectionStatus = 'none';
+            if ($connection) {
+                if (isset($connection->status) && in_array($connection->status, ['connected', 'pending', 'none'], true)) {
+                    $connectionStatus = (string) $connection->status;
+                } else {
+                    $connectionStatus = ! empty($connection->is_approved) ? 'connected' : 'pending';
+                }
+            }
+
+            $bio = (string) ($peer->short_bio ?? '');
+            if ($bio === '') {
+                $bio = (string) ($peer->experience_summary ?? '');
+            }
+            if ($bio === '') {
+                $bio = (string) ($peer->superpower ?? '');
+            }
+            if ($bio === '') {
+                $bio = (string) ($peer->i_can_help_with ?? '');
+            }
+
+            // Calculate duration in seconds
+            $duration = 0;
+            if ($match->started_at && $match->ended_at) {
+                $duration = max(0, (int) $match->ended_at->diffInSeconds($match->started_at));
+            } elseif ($match->started_at) {
+                $duration = max(0, (int) Carbon::now()->diffInSeconds($match->started_at));
+            }
+
+            if ($duration === 0 && (int) $event->round_duration_seconds > 0) {
+                $duration = (int) $event->round_duration_seconds;
+            }
+
+            $interactedPeers[] = [
+                'id' => (string) $peer->id,
+                'name' => (string) $peerName,
+                'company' => ! empty($peer->company_name) ? (string) $peer->company_name : (! empty($peer->company) ? (string) $peer->company : null),
+                'designation' => ! empty($peer->designation) ? (string) $peer->designation : null,
+                'avatar_url' => ! empty($peer->profile_photo_url) ? (string) $peer->profile_photo_url : null,
+                'city' => ! empty($peer->city) ? (string) $peer->city : null,
+                'bio' => $bio !== '' ? $bio : null,
+                'round' => (int) $match->round_number,
+                'interaction_duration_seconds' => $duration,
+                'connection_status' => $connectionStatus,
+            ];
+        }
+
+        $roundsCompleted = (int) $matches->pluck('round_number')->unique()->count();
+        $hasMetAllPeers = $this->hasMetAllActivePeers($event, $userId);
+
+        return [
+            'completed' => true,
+            'has_met_all_peers' => $hasMetAllPeers,
+            'message' => 'All speed networking rounds have concluded. Great conversations made!',
+            'total_rounds' => (int) $event->total_rounds,
+            'rounds_completed' => $roundsCompleted,
+            'total_interactions_count' => count($interactedPeers),
+            'interacted_peers' => $interactedPeers,
         ];
     }
 }

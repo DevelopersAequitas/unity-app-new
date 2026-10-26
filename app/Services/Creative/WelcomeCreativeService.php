@@ -7,6 +7,7 @@ namespace App\Services\Creative;
 use App\Models\ActivityCreative;
 use App\Models\City;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -133,6 +134,13 @@ class WelcomeCreativeService
                     ]);
 
                     Log::info("WelcomeCreativeService: Created timeline post {$existingPost->id} for user {$user->id}");
+                }
+
+                if ($existingPost) {
+                    PostMention::firstOrCreate([
+                        'post_id' => $existingPost->id,
+                        'peer_id' => $user->id,
+                    ]);
                 }
 
                 // 5. Create or update ActivityCreative record

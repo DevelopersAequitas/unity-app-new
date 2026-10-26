@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Users;
 
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Creative\IntroductionImageGenerator;
 use App\Services\Notifications\NotificationService;
@@ -80,6 +81,16 @@ class PeerIntroductionService
                     'description' => $description,
                     'image' => $imageUrl,
                     'status' => 'active',
+                ]);
+
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $introduced->id,
+                ]);
+
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $introducer->id,
                 ]);
 
                 Log::info("[PeerIntroductionService] Created timeline post ID {$post->id} owned by {$authorUserId}");
