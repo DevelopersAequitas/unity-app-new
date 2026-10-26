@@ -39,13 +39,28 @@ class AdvertiserPaymentService
         AdvertiserSubscription $subscription,
         ?string $idempotencyKey = null
     ): array {
-        $subscription->loadMissing(['application', 'user']);
+        $subscription->loadMissing(['application', 'user', 'package']);
         $application = $subscription->application;
 
         if (!$application || $application->status !== AdvertiserApplication::STATUS_APPROVED) {
             throw ValidationException::withMessages([
                 'payment' => ['Payment cannot be initiated until the application has been approved.'],
             ]);
+        }
+
+        // If package pricing was modified by admin before payment is captured, dynamically sync pending subscription amount
+        $package = $subscription->package ?? $application->package ?? null;
+        if ($package && $subscription->status === AdvertiserSubscription::STATUS_PENDING_PAYMENT) {
+            $latestPrice = round((float) $package->price, 2);
+            if ($latestPrice >= 0 && (float) $subscription->amount !== $latestPrice) {
+                $subscription->amount = $latestPrice;
+                $subscription->save();
+
+                if ($application) {
+                    $application->requested_package_price = $latestPrice;
+                    $application->save();
+                }
+            }
         }
 
         // Check if package is free (zero amount)
@@ -63,11 +78,13 @@ class AdvertiserPaymentService
             ];
         }
 
-        // Idempotency: return existing valid created/pending payment order if available
+        // Idempotency: return existing valid created/pending payment order if available with matching amount
         if (!empty($idempotencyKey)) {
             $existing = AdvertiserPayment::where('idempotency_key', $idempotencyKey)->first();
             if ($existing && in_array($existing->status, [AdvertiserPayment::STATUS_CREATED, AdvertiserPayment::STATUS_PENDING], true)) {
-                return $this->formatCheckoutPayload($subscription, $existing);
+                if ((float) $existing->amount === (float) $amount) {
+                    return $this->formatCheckoutPayload($subscription, $existing);
+                }
             }
         }
 
