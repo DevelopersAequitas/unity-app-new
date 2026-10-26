@@ -1378,7 +1378,6 @@ class SpeedNetworkingService
                     ->orWhere('user_b_id', $userId);
             })
             ->whereNotNull('user_b_id')
-            ->where('user_b_id', '!=', '')
             ->orderBy('round_number', 'asc')
             ->get();
 
