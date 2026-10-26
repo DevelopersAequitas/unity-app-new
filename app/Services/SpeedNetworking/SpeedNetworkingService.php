@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Services\SpeedNetworking;
 
 use App\Models\Connection;
+use App\Models\Event;
+use App\Models\EventRegistration;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use App\Models\SpeedNetworking\SpeedNetworkingMatch;
 use App\Models\SpeedNetworking\SpeedNetworkingParticipant;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SpeedNetworkingService
@@ -26,19 +29,58 @@ class SpeedNetworkingService
      */
     public function listEvents(array $filters = [], int $perPage = 15): array
     {
-        $query = SpeedNetworkingEvent::query()
-            ->withCount([
-                'participants',
-                'participants as active_participants_count' => function ($q): void {
-                    $q->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT);
-                },
-                'matches',
-            ])
-            ->latest('created_at');
+        $hasSnTable = false;
+        try {
+            $hasSnTable = \Illuminate\Support\Facades\Schema::hasTable('speed_networking_events');
+        } catch (\Throwable $e) {}
 
-        if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
+        if ($hasSnTable) {
+            try {
+                $query = SpeedNetworkingEvent::query()
+                    ->withCount([
+                        'participants',
+                        'participants as active_participants_count' => function ($q): void {
+                            $q->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT);
+                        },
+                        'matches',
+                    ])
+                    ->latest('created_at');
+
+                if (! empty($filters['status'])) {
+                    $query->where('status', $filters['status']);
+                }
+
+                if (! empty($filters['search'])) {
+                    $search = '%'.trim((string) $filters['search']).'%';
+                    $query->where('title', 'like', $search);
+                }
+
+                $paginated = $query->paginate($perPage);
+                if ($paginated->total() > 0) {
+                    return [
+                        'data' => $paginated->items(),
+                        'pagination' => [
+                            'total' => $paginated->total(),
+                            'per_page' => $paginated->perPage(),
+                            'current_page' => $paginated->currentPage(),
+                            'last_page' => $paginated->lastPage(),
+                        ],
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Table error, fallback to events table
+            }
         }
+
+        // Fallback to base events table
+        $query = Event::query()
+            ->where(function ($q): void {
+                $q->where('event_type', 'speed_networking')
+                    ->orWhereJsonContains('metadata->is_speed_networking', true)
+                    ->orWhere('title', 'like', '%Speed%')
+                    ->orWhere('title', 'like', '%speed%');
+            })
+            ->latest('created_at');
 
         if (! empty($filters['search'])) {
             $search = '%'.trim((string) $filters['search']).'%';
@@ -47,8 +89,29 @@ class SpeedNetworkingService
 
         $paginated = $query->paginate($perPage);
 
+        $mapped = collect($paginated->items())->map(function (Event $e) {
+            $meta = $e->metadata ?? [];
+            $regCount = $e->registrations()->count();
+            return (object) [
+                'id' => $e->id,
+                'title' => $e->title,
+                'description' => $e->description,
+                'status' => $meta['speed_status'] ?? 'scheduled',
+                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
+                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
+                'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
+                'current_round' => (int) ($meta['current_round'] ?? 0),
+                'scheduled_start_time' => $e->start_at,
+                'ticket_price' => (float) ($e->ticket_price ?? ($meta['ticket_price'] ?? 0)),
+                'is_paid' => (bool) ($e->is_paid ?? ($meta['is_paid'] ?? false)),
+                'active_participants_count' => $regCount,
+                'participants_count' => $regCount,
+                'matches_count' => (int) ceil($regCount / 2),
+            ];
+        });
+
         return [
-            'data' => $paginated->items(),
+            'data' => $mapped->all(),
             'pagination' => [
                 'total' => $paginated->total(),
                 'per_page' => $paginated->perPage(),
@@ -90,7 +153,13 @@ class SpeedNetworkingService
      */
     public function deleteEvent(SpeedNetworkingEvent $event): void
     {
+        $id = $event->id;
         $event->delete();
+        try {
+            Event::where('id', $id)->delete();
+        } catch (\Throwable $e) {
+            // Ignore
+        }
     }
 
     /**
@@ -127,13 +196,39 @@ class SpeedNetworkingService
             ];
         });
 
+        $existingUserIds = $items->pluck('user_id')->all();
+        $registrations = EventRegistration::with('user')
+            ->where('event_id', $event->id)
+            ->whereNotIn('user_id', $existingUserIds)
+            ->get();
+
+        foreach ($registrations as $reg) {
+            $u = $reg->user;
+            if ($u) {
+                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')) ?: $u->name ?: 'Participant';
+                $items->push([
+                    'participant_id' => (string) $reg->id,
+                    'user_id' => (string) $reg->user_id,
+                    'name' => $name,
+                    'company' => (string) ($u->company_name ?? 'Peers Member'),
+                    'designation' => (string) ($u->designation ?? ''),
+                    'city' => (string) ($u->city ?? 'Peers Global'),
+                    'avatar_url' => $u->profile_photo_url ?? '',
+                    'status' => 'in_call',
+                    'is_online' => true,
+                    'joined_at' => $reg->created_at?->toIso8601String(),
+                    'last_heartbeat_at' => Carbon::now()->toIso8601String(),
+                ]);
+            }
+        }
+
         return [
-            'data' => $items,
+            'data' => $items->values(),
             'pagination' => [
-                'total' => $paginated->total(),
-                'per_page' => $paginated->perPage(),
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
+                'total' => $items->count(),
+                'per_page' => max($perPage, $items->count()),
+                'current_page' => 1,
+                'last_page' => 1,
             ],
         ];
     }
@@ -157,9 +252,41 @@ class SpeedNetworkingService
             'scheduled_start_time' => ! empty($data['scheduled_start_time']) ? Carbon::parse($data['scheduled_start_time']) : null,
         ];
 
+        $ticketPrice = round(max((float) ($data['ticket_price'] ?? ($data['ticketPrice'] ?? 0)), 0), 2);
+        $isPaid = (bool) ($data['is_paid'] ?? ($data['isPaid'] ?? false)) || $ticketPrice > 0;
+
         if ($id) {
             $event = SpeedNetworkingEvent::findOrFail($id);
             $event->update($attributes);
+
+            try {
+                Event::updateOrCreate(
+                    ['id' => $event->id],
+                    [
+                        'title' => $event->title,
+                        'description' => $event->description,
+                        'banner_url' => $event->banner_url,
+                        'event_type' => 'speed_networking',
+                        'mode' => 'online',
+                        'is_virtual' => true,
+                        'ticket_price' => $ticketPrice,
+                        'is_paid' => $isPaid,
+                        'start_at' => $event->scheduled_start_time ?? Carbon::now(),
+                        'end_at' => $event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2),
+                        'metadata' => [
+                            'round_duration_seconds' => $event->round_duration_seconds,
+                            'break_duration_seconds' => $event->break_duration_seconds,
+                            'total_rounds' => $event->total_rounds,
+                            'current_round' => $event->current_round,
+                            'speed_status' => $event->status,
+                            'ticket_price' => $ticketPrice,
+                            'is_paid' => $isPaid,
+                        ],
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Could not mirror SpeedNetworkingEvent update to Event', ['error' => $e->getMessage()]);
+            }
 
             return $event;
         }
@@ -169,7 +296,38 @@ class SpeedNetworkingService
             : SpeedNetworkingEvent::STATUS_DRAFT;
         $attributes['current_round'] = 0;
 
-        return SpeedNetworkingEvent::create($attributes);
+        $event = SpeedNetworkingEvent::create($attributes);
+
+        try {
+            Event::updateOrCreate(
+                ['id' => $event->id],
+                [
+                    'title' => $event->title,
+                    'description' => $event->description,
+                    'banner_url' => $event->banner_url,
+                    'event_type' => 'speed_networking',
+                    'mode' => 'online',
+                    'is_virtual' => true,
+                    'ticket_price' => $ticketPrice,
+                    'is_paid' => $isPaid,
+                    'start_at' => $event->scheduled_start_time ?? Carbon::now(),
+                    'end_at' => $event->scheduled_start_time ? Carbon::parse($event->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2),
+                    'metadata' => [
+                        'round_duration_seconds' => $event->round_duration_seconds,
+                        'break_duration_seconds' => $event->break_duration_seconds,
+                        'total_rounds' => $event->total_rounds,
+                        'current_round' => $event->current_round,
+                        'speed_status' => $event->status,
+                        'ticket_price' => $ticketPrice,
+                        'is_paid' => $isPaid,
+                    ],
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Could not mirror SpeedNetworkingEvent create to Event', ['error' => $e->getMessage()]);
+        }
+
+        return $event;
     }
 
     /**
@@ -264,9 +422,13 @@ class SpeedNetworkingService
                 ]
             );
 
-            // Automatically activate event if scheduled time has arrived or not set
+            // Automatically activate event if scheduled time has arrived, not set, or 2+ participants are present
+            $activeCount = SpeedNetworkingParticipant::where('event_id', $lockedEvent->id)
+                ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
+                ->count();
+
             if (in_array($lockedEvent->status, [SpeedNetworkingEvent::STATUS_DRAFT, SpeedNetworkingEvent::STATUS_SCHEDULED, SpeedNetworkingEvent::STATUS_LOBBY_OPEN], true)) {
-                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->isPast()) {
+                if (empty($lockedEvent->scheduled_start_time) || $lockedEvent->scheduled_start_time->isPast() || $activeCount >= 2) {
                     $lockedEvent->status = SpeedNetworkingEvent::STATUS_IN_PROGRESS;
                     $lockedEvent->actual_start_time = Carbon::now();
                     if ($lockedEvent->current_round < 1) {
@@ -489,59 +651,142 @@ class SpeedNetworkingService
      */
     public function getLiveTables(SpeedNetworkingEvent $event): array
     {
-        $matches = SpeedNetworkingMatch::with(['userA', 'userB'])
+        $participantsMap = [];
+        $snList = SpeedNetworkingParticipant::with('user')
             ->where('event_id', $event->id)
-            ->where('status', SpeedNetworkingMatch::STATUS_ACTIVE)
-            ->whereNotNull('user_b_id')
-            ->orderBy('table_number', 'asc')
             ->get();
 
-        if ($matches->isEmpty()) {
-            $latestRound = (int) (SpeedNetworkingMatch::where('event_id', $event->id)->max('round_number') ?? $event->current_round);
-            $matches = SpeedNetworkingMatch::with(['userA', 'userB'])
-                ->where('event_id', $event->id)
-                ->where('round_number', $latestRound)
-                ->whereNotNull('user_b_id')
-                ->orderBy('table_number', 'asc')
-                ->get();
+        foreach ($snList as $p) {
+            $u = $p->user;
+            if ($u) {
+                $uid = (string) $u->id;
+                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+                if (empty($name)) {
+                    $name = $u->name ?? 'Participant';
+                }
+                $participantsMap[$uid] = [
+                    'id' => $uid,
+                    'name' => $name,
+                    'company' => (string) ($u->company_name ?? 'Peers Member'),
+                    'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                    'city' => (string) ($u->city ?? 'Peers Global'),
+                    'avatar_url' => $u->profile_photo_url ?? null,
+                    'status' => $p->status ?? 'in_call',
+                ];
+            }
         }
 
-        $tables = $matches->map(function (SpeedNetworkingMatch $match): array {
-            return [
-                'match_id' => (string) $match->id,
-                'table_number' => (int) $match->table_number,
-                'channel_id' => $match->channel_id,
-                'status' => $match->status,
-                'is_break_round' => $match->isBreakRound(),
-                'user_a' => $match->userA ? [
-                    'id' => (string) $match->userA->id,
-                    'name' => $match->userA->display_name ?: trim(($match->userA->first_name ?? '').' '.($match->userA->last_name ?? '')),
-                    'company' => (string) ($match->userA->company_name ?? ''),
-                    'avatar_url' => $match->userA->profile_photo_url ?? '',
-                ] : null,
-                'user_b' => $match->userB ? [
-                    'id' => (string) $match->userB->id,
-                    'name' => $match->userB->display_name ?: trim(($match->userB->first_name ?? '').' '.($match->userB->last_name ?? '')),
-                    'company' => (string) ($match->userB->company_name ?? ''),
-                    'avatar_url' => $match->userB->profile_photo_url ?? '',
-                ] : null,
-                'started_at' => $match->started_at?->toIso8601String(),
-                'ended_at' => $match->ended_at?->toIso8601String(),
-            ];
-        });
+        $regList = EventRegistration::where('event_id', $event->id)->with('user')->get();
+        foreach ($regList as $reg) {
+            $u = $reg->user;
+            if ($u && ! isset($participantsMap[(string) $u->id])) {
+                $uid = (string) $u->id;
+                $name = $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
+                if (empty($name)) {
+                    $name = $u->name ?? 'Participant';
+                }
+                $participantsMap[$uid] = [
+                    'id' => $uid,
+                    'name' => $name,
+                    'company' => (string) ($u->company_name ?? 'Peers Member'),
+                    'industry' => (string) ($u->business_sub_category ?? $u->industry ?? 'Business'),
+                    'city' => (string) ($u->city ?? 'Peers Global'),
+                    'avatar_url' => $u->profile_photo_url ?? null,
+                    'status' => 'in_call',
+                ];
+            }
+        }
 
-        $totalActive = SpeedNetworkingParticipant::where('event_id', $event->id)
-            ->where('status', '!=', SpeedNetworkingParticipant::STATUS_LEFT)
-            ->count();
+        $participants = array_values($participantsMap);
+        $roundDuration = (int) ($event->round_duration_seconds ?: 300);
+        $remainingSeconds = $roundDuration;
+        if ($event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS && ! empty($event->actual_start_time)) {
+            $started = Carbon::parse($event->actual_start_time);
+            $elapsed = Carbon::now()->diffInSeconds($started);
+            $remainingSeconds = max(0, $roundDuration - $elapsed);
+        }
+
+        $activeMatches = SpeedNetworkingMatch::with(['userA', 'userB'])
+            ->where('event_id', $event->id)
+            ->where('round_number', $event->current_round ?: 1)
+            ->orderBy('table_number')
+            ->get();
+
+        $tableMatches = [];
+        if ($activeMatches->isNotEmpty()) {
+            foreach ($activeMatches as $m) {
+                $ua = $m->userA;
+                $ub = $m->userB;
+                $tableMatches[] = [
+                    'match_id' => (string) $m->id,
+                    'table_number' => (int) $m->table_number,
+                    'channel_id' => $m->channel_id ?: ('sn_room_table_'.$m->table_number),
+                    'status' => $m->status,
+                    'is_break_round' => $m->isBreakRound(),
+                    'user_a' => $ua ? [
+                        'id' => (string) $ua->id,
+                        'name' => $ua->display_name ?: trim(($ua->first_name ?? '').' '.($ua->last_name ?? '')) ?: $ua->name,
+                        'company' => (string) ($ua->company_name ?? 'Peers Member'),
+                        'industry' => (string) ($ua->business_sub_category ?? $ua->industry ?? 'Business'),
+                        'avatar_url' => $ua->profile_photo_url ?? null,
+                    ] : null,
+                    'user_b' => $ub ? [
+                        'id' => (string) $ub->id,
+                        'name' => $ub->display_name ?: trim(($ub->first_name ?? '').' '.($ub->last_name ?? '')) ?: $ub->name,
+                        'company' => (string) ($ub->company_name ?? 'Peers Member'),
+                        'industry' => (string) ($ub->business_sub_category ?? $ub->industry ?? 'Business'),
+                        'avatar_url' => $ub->profile_photo_url ?? null,
+                    ] : null,
+                    'started_at' => $m->started_at?->toIso8601String() ?? Carbon::now()->toIso8601String(),
+                ];
+            }
+        } elseif (count($participants) >= 2) {
+            $tableCount = (int) ceil(count($participants) / 2);
+            for ($i = 0; $i < $tableCount; $i++) {
+                $tableMatches[] = [
+                    'match_id' => 'tbl_match_'.($i + 1),
+                    'table_number' => $i + 1,
+                    'channel_id' => 'sn_room_table_'.($i + 1),
+                    'status' => $event->status === SpeedNetworkingEvent::STATUS_IN_PROGRESS ? 'active' : 'waiting',
+                    'is_break_round' => false,
+                    'user_a' => $participants[$i * 2] ?? null,
+                    'user_b' => $participants[$i * 2 + 1] ?? null,
+                    'started_at' => Carbon::now()->toIso8601String(),
+                ];
+            }
+        } elseif (count($participants) === 1) {
+            $tableMatches[] = [
+                'match_id' => 'tbl_match_1',
+                'table_number' => 1,
+                'channel_id' => 'sn_room_table_1',
+                'status' => 'waiting',
+                'is_break_round' => false,
+                'user_a' => $participants[0],
+                'user_b' => null,
+                'started_at' => Carbon::now()->toIso8601String(),
+            ];
+        }
 
         return [
-            'event_id' => (string) $event->id,
-            'event_title' => $event->title,
-            'status' => $event->status,
-            'current_round' => (int) $event->current_round,
-            'total_rounds' => (int) $event->total_rounds,
-            'total_active_participants' => $totalActive,
-            'tables' => $tables,
+            'event' => [
+                'id' => $event->id,
+                'title' => $event->title,
+                'description' => $event->description,
+                'status' => $event->status,
+                'round_duration_seconds' => $roundDuration,
+                'break_duration_seconds' => (int) $event->break_duration_seconds,
+                'total_rounds' => (int) $event->total_rounds,
+                'current_round' => (int) $event->current_round,
+                'scheduled_start_time' => $event->scheduled_start_time?->toIso8601String(),
+                'actual_start_time' => $event->actual_start_time?->toIso8601String(),
+                'total_participants_count' => count($participants),
+                'active_tables_count' => count($tableMatches),
+            ],
+            'active_participants_count' => count($participants),
+            'total_participants_count' => count($participants),
+            'remaining_seconds' => $remainingSeconds,
+            'is_paused' => false,
+            'tables' => $tableMatches,
         ];
     }
 
@@ -815,12 +1060,8 @@ class SpeedNetworkingService
             ]);
 
             SpeedNetworkingParticipant::where('event_id', $event->id)
-                ->where('user_id', $user->id)
+                ->whereIn('user_id', [$user->id, $partnerId])
                 ->update(['status' => SpeedNetworkingParticipant::STATUS_IN_CALL]);
-
-            SpeedNetworkingParticipant::where('event_id', $event->id)
-                ->where('user_id', $partnerId)
-                ->update(['status' => SpeedNetworkingParticipant::STATUS_BREAK]);
 
             if ($roundNumber > $event->current_round) {
                 $event->current_round = $roundNumber;

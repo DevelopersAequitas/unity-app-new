@@ -64,8 +64,6 @@ class BrandPartner extends Model
         'billing_plan',
         'geo_targeting_rules',
         'personalized_campaigns_enabled',
-        'campaign_start_date',
-        'campaign_end_date',
     ];
 
     protected $casts = [
@@ -85,8 +83,6 @@ class BrandPartner extends Model
         'cpm_rate' => 'float',
         'cpa_rate' => 'float',
         'geo_targeting_rules' => 'array',
-        'campaign_start_date' => 'datetime',
-        'campaign_end_date' => 'datetime',
     ];
 
     protected $appends = [
@@ -175,5 +171,15 @@ class BrandPartner extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(AdminUser::class, 'updated_by');
+    }
+
+    public function advertiserApplications(): HasMany
+    {
+        return $this->hasMany(AdvertiserApplication::class, 'brand_partner_id');
+    }
+
+    public function advertiserSubscriptions(): HasMany
+    {
+        return $this->hasMany(AdvertiserSubscription::class, 'brand_partner_id');
     }
 }

@@ -89,4 +89,9 @@ return [
         'default_break_seconds' => (int) env('SPEED_NETWORKING_DEFAULT_BREAK_SECONDS', 20),
     ],
 
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+    ],
+
 ];

@@ -815,6 +815,10 @@ class EventManagementController extends Controller
     {
         $registration = EventRegistration::query()->findOrFail($id);
 
+        if ($registration->isSpeedNetworking()) {
+            return back()->with('error', 'Speed Networking events are virtual sessions and do not use in-person QR entry passes.');
+        }
+
         // Ensure existing QR code is generated if missing
         app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
 

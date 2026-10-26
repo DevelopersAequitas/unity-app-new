@@ -153,6 +153,17 @@ class EventPassWhatsappAdminController extends Controller
             return back()->with('error', 'Registration record not found.');
         }
 
+        if ($registration->isSpeedNetworking()) {
+            if (request()->wantsJson() || request()->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Speed Networking events are virtual sessions and do not use in-person QR passes.',
+                ], 422);
+            }
+
+            return back()->with('error', 'Speed Networking events are virtual sessions and do not use in-person QR passes.');
+        }
+
         // Ensure QR code is generated (force = true for admin resend)
         app(EventRegistrationQrService::class)->ensureQrGenerated($registration, force: true);
 

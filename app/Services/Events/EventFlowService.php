@@ -117,9 +117,11 @@ class EventFlowService
 
         $memberPrice = isset($metadata['member_price']) && is_numeric($metadata['member_price'])
             ? round((float) $metadata['member_price'], 2)
-            : ($isPaid && (bool) data_get($metadata, 'free_for_members', true) ? 0.0 : $ticketPrice);
+            : ($event->event_type === 'speed_networking' ? $ticketPrice : ($isPaid && (bool) data_get($metadata, 'free_for_members', true) ? 0.0 : $ticketPrice));
 
-        $isFree = ! $isPaid || ($guestPrice <= 0 && $memberPrice <= 0);
+        $isFree = $event->event_type === 'speed_networking'
+            ? (! $isPaid || $ticketPrice <= 0)
+            : (! $isPaid || ($guestPrice <= 0 && $memberPrice <= 0));
         $currency = strtoupper((string) (data_get($metadata, 'currency') ?: 'INR'));
 
         $applicablePrice = match ($membershipType) {
@@ -196,7 +198,7 @@ class EventFlowService
         }
 
         $ticket = null;
-        if ($isAttending && $registration) {
+        if ($isAttending && $registration && $event->event_type !== 'speed_networking') {
             $ticket = $this->formatTicketPayload($event, $registration);
         }
 
@@ -216,8 +218,18 @@ class EventFlowService
      */
     public function getActionButtonPayload(Event $event, array $userContext, array $pricing): array
     {
-        // 1. Confirmed / Paid -> Directly opens QR ticket
+        // 1. Confirmed / Paid -> Directly opens QR ticket for offline, or Join Speed Networking
         if ($userContext['is_attending']) {
+            if ($event->event_type === 'speed_networking') {
+                return [
+                    'action_type' => 'JOIN_SPEED_NETWORKING',
+                    'label' => 'Join Speed Networking',
+                    'is_enabled' => true,
+                    'helper_text' => 'Tap to join live 1-on-1 video networking',
+                    'event_id' => (string) $event->id,
+                ];
+            }
+
             return [
                 'action_type' => 'VIEW_QR',
                 'label' => 'View QR Ticket',
@@ -266,6 +278,15 @@ class EventFlowService
 
         // 3. Own Circle Member (Not yet attending)
         if ($userContext['membership_type'] === 'OWN_CIRCLE') {
+            if ($event->event_type === 'speed_networking' && $pricing['applicable_price'] > 0) {
+                return [
+                    'action_type' => 'PAY_AND_JOIN',
+                    'label' => 'Pay '.$pricing['currency'].' '.$pricing['applicable_price'].' to Join',
+                    'is_enabled' => true,
+                    'helper_text' => 'Circle members join Speed Networking by paying the event fee',
+                ];
+            }
+
             return [
                 'action_type' => 'I_AM_ATTENDING',
                 'label' => 'I am Attending',
@@ -274,7 +295,30 @@ class EventFlowService
             ];
         }
 
-        // 4. Guest or Cross-Circle Member
+        // 4. Speed Networking special rules
+        if ($event->event_type === 'speed_networking') {
+            // Circle is selected -> only circle members can join
+            if (! empty($event->circle_id)) {
+                return [
+                    'action_type' => 'RESTRICTED_CIRCLE',
+                    'label' => 'Circle Members Only',
+                    'is_enabled' => false,
+                    'helper_text' => 'Only members of this circle can join this Speed Networking event.',
+                ];
+            }
+
+            // No circle is selected -> all users can join by paying fees
+            return [
+                'action_type' => 'PAY_AND_JOIN',
+                'label' => $pricing['applicable_price'] > 0
+                    ? ('Pay '.$pricing['currency'].' '.$pricing['applicable_price'].' to Join')
+                    : 'Join Speed Networking',
+                'is_enabled' => true,
+                'helper_text' => 'Open to all users. Pay event fees to join.',
+            ];
+        }
+
+        // 5. Guest or Cross-Circle Member
         return match ($userContext['status']) {
             'PENDING' => [
                 'action_type' => 'REQUEST_PENDING',
@@ -667,9 +711,20 @@ class EventFlowService
             'razorpay_payment_status' => 'captured',
         ]);
 
-        $registration = $this->registrationQr->ensureQrGenerated($registration);
+        if (! $event->isSpeedNetworking() && ! $registration->isSpeedNetworking()) {
+            $registration = $this->registrationQr->ensureQrGenerated($registration);
 
-        return $this->formatTicketPayload($event, $registration);
+            return $this->formatTicketPayload($event, $registration);
+        }
+
+        return [
+            'ticket_id' => $this->formatTicketId($registration),
+            'qr_code_data' => null,
+            'qr_image_url' => null,
+            'action_type' => 'JOIN_SPEED_NETWORKING',
+            'event_id' => (string) $event->id,
+            'message' => 'Speed Networking registration confirmed. You can now join the session.',
+        ];
     }
 
     /**

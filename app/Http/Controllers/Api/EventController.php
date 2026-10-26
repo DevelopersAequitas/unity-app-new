@@ -446,6 +446,11 @@ class EventController extends BaseApiController
         Log::info('event_register_eligibility_check_start', $eligibilityContext);
 
         if (! $membership) {
+            // Speed Networking with a selected circle is strictly restricted to that circle's members
+            if ($event->event_type === 'speed_networking' && ! empty($eventCircleId)) {
+                return $this->error('Only members of this circle can join this Speed Networking event.', 403);
+            }
+
             Log::info('cross_circle_registration_attempt', $eligibilityContext);
 
             if ($coupon) {
@@ -598,6 +603,30 @@ class EventController extends BaseApiController
             $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
 
             if (($couponData['amount'] ?? 0) > 0) {
+                $registration = $this->payments->attachCheckout($registration);
+            } else {
+                $registration = $this->registrationQr->ensureQrGenerated($registration);
+            }
+
+            $payload = $this->payments->responsePayload($registration);
+
+            return $this->success(
+                $payload,
+                ($payload['requires_payment'] ?? false) ? 'Payment required. Please complete payment.' : 'Event registration successful.',
+                201
+            );
+        }
+
+        if ($event->event_type === 'speed_networking' && $this->payments->paymentRequired($event)) {
+            $registration = $this->registrations->registerMemberDirectWithPayment(
+                $event,
+                $occurrence,
+                $user,
+                $request->input('source', 'app'),
+                $couponData
+            );
+            $this->attachInviterToRegistration($registration, $invitedByUserId, $request->input('invited_by_type'), $referralCode);
+            if (($couponData['amount'] ?? 0) > 0 || (float) ($event->ticket_price ?? 0) > 0) {
                 $registration = $this->payments->attachCheckout($registration);
             } else {
                 $registration = $this->registrationQr->ensureQrGenerated($registration);
@@ -810,7 +839,15 @@ class EventController extends BaseApiController
 
     private function isDirectPaidCrossCircleEvent(Event $event): bool
     {
-        return in_array($event->event_type, ['global_event', 'state_event'], true);
+        if (in_array($event->event_type, ['global_event', 'state_event'], true)) {
+            return true;
+        }
+
+        if ($event->event_type === 'speed_networking' && empty($event->circle_id)) {
+            return true;
+        }
+
+        return false;
     }
 
     private function registrationAllowedCircleIds(Event $event): array

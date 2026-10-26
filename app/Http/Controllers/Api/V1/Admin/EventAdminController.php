@@ -6,9 +6,12 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Event\UpsertAdminEventRequest;
 use App\Http\Resources\Event\EventDetailResource;
 use App\Models\Event;
+use App\Models\SpeedNetworking\SpeedNetworkingEvent;
 use App\Services\Events\EventService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class EventAdminController extends BaseApiController
 {
@@ -16,6 +19,35 @@ class EventAdminController extends BaseApiController
 
     public function index(Request $request): JsonResponse
     {
+        // Auto-mirror any SpeedNetworkingEvents not yet in events table so they show in Events section
+        if (Schema::hasTable('speed_networking_events')) {
+            try {
+                $missingSnEvents = SpeedNetworkingEvent::whereNotIn('id', Event::pluck('id'))->get();
+                foreach ($missingSnEvents as $sn) {
+                    Event::create([
+                        'id' => $sn->id,
+                        'title' => $sn->title,
+                        'description' => $sn->description,
+                        'banner_url' => $sn->banner_url,
+                        'event_type' => 'speed_networking',
+                        'mode' => 'online',
+                        'is_virtual' => true,
+                        'start_at' => $sn->scheduled_start_time ?? Carbon::now(),
+                        'end_at' => $sn->scheduled_start_time ? Carbon::parse($sn->scheduled_start_time)->addHours(2) : Carbon::now()->addHours(2),
+                        'metadata' => [
+                            'round_duration_seconds' => $sn->round_duration_seconds,
+                            'break_duration_seconds' => $sn->break_duration_seconds,
+                            'total_rounds' => $sn->total_rounds,
+                            'current_round' => $sn->current_round,
+                            'speed_status' => $sn->status,
+                        ],
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // Ignore sync errors
+            }
+        }
+
         $items = Event::query()
             ->with(['circle', 'circles.cityRef', 'occurrences'])
             ->withCount(['registrations', 'occurrences'])
@@ -30,6 +62,41 @@ class EventAdminController extends BaseApiController
     public function store(UpsertAdminEventRequest $request): JsonResponse
     {
         $event = $this->events->create($request->validated(), $request->user());
+
+        // When created in events section with type speed_networking, sync to speed_networking_events table
+        if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
+            try {
+                $meta = $event->metadata ?? [];
+                $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
+                $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5);
+
+                $meta['round_duration_seconds'] = $roundDuration;
+                $meta['break_duration_seconds'] = $breakDuration;
+                $meta['total_rounds'] = $totalRounds;
+                $meta['speed_status'] = 'scheduled';
+                $meta['is_speed_networking'] = true;
+                $event->metadata = $meta;
+                $event->save();
+
+                SpeedNetworkingEvent::updateOrCreate(
+                    ['id' => $event->id],
+                    [
+                        'title' => $event->title,
+                        'description' => $event->description,
+                        'banner_url' => $event->banner_url,
+                        'status' => SpeedNetworkingEvent::STATUS_SCHEDULED,
+                        'round_duration_seconds' => $roundDuration,
+                        'break_duration_seconds' => $breakDuration,
+                        'total_rounds' => $totalRounds,
+                        'current_round' => 0,
+                        'scheduled_start_time' => $event->start_at,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
 
         return $this->success(new EventDetailResource($event), 'Event created successfully.', 201);
     }
@@ -48,12 +115,54 @@ class EventAdminController extends BaseApiController
     {
         $event = $this->events->update(Event::query()->findOrFail($id), $request->validated());
 
+        if (($event->event_type === 'speed_networking' || $request->input('event_type') === 'speed_networking') && Schema::hasTable('speed_networking_events')) {
+            try {
+                $meta = $event->metadata ?? [];
+                $roundDuration = (int) ($request->input('round_duration_seconds') ?? $event->round_duration_seconds ?? $meta['round_duration_seconds'] ?? 300);
+                $breakDuration = (int) ($request->input('break_duration_seconds') ?? $meta['break_duration_seconds'] ?? 20);
+                $totalRounds = (int) ($request->input('total_rounds') ?? $meta['total_rounds'] ?? 5);
+
+                $meta['round_duration_seconds'] = $roundDuration;
+                $meta['break_duration_seconds'] = $breakDuration;
+                $meta['total_rounds'] = $totalRounds;
+                $event->metadata = $meta;
+                $event->save();
+
+                SpeedNetworkingEvent::updateOrCreate(
+                    ['id' => $event->id],
+                    [
+                        'title' => $event->title,
+                        'description' => $event->description,
+                        'banner_url' => $event->banner_url,
+                        'round_duration_seconds' => $roundDuration,
+                        'break_duration_seconds' => $breakDuration,
+                        'total_rounds' => $totalRounds,
+                        'scheduled_start_time' => $event->start_at,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
         return $this->success(new EventDetailResource($event), 'Event updated successfully.');
     }
 
     public function destroy(string $id): JsonResponse
     {
-        Event::query()->findOrFail($id)->delete();
+        $event = Event::withTrashed()->find($id) ?? Event::find($id);
+        $title = $event?->title;
+        if ($event) {
+            $event->delete();
+        }
+
+        if (Schema::hasTable('speed_networking_events')) {
+            $q = SpeedNetworkingEvent::where('id', $id);
+            if (! empty($title)) {
+                $q->orWhere('title', $title);
+            }
+            $q->delete();
+        }
 
         return $this->success(['deleted' => true], 'Event deleted successfully.');
     }

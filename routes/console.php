@@ -30,6 +30,9 @@ Schedule::command('connections:send-pending-reminders')->dailyAt('09:00')->timez
 // Brand Partner Offer Expiry reminders (in-app notifications)
 Schedule::command('PGU:brand-partner-expiry-alerts')->dailyAt('08:00')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
 
+// Advertiser Subscription Expiry check and reminders
+Schedule::command('PGU:advertiser-subscription-expiry-check')->dailyAt('08:15')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();
+
 // Engagement reminders (push + in-app)
 Schedule::command('app:send-daily-engagement-reminders')->hourly()->withoutOverlapping();
 Schedule::command('app:send-inactivity-activity-reminders')->dailyAt('18:30')->timezone(config('app.timezone', 'UTC'))->withoutOverlapping();

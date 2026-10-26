@@ -40,6 +40,111 @@ class UserManagementController extends BaseApiController
         return $this->success($this->peerService->transformPaginated($paginator));
     }
 
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'first_name' => ['required', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:120'],
+            'display_name' => ['nullable', 'string', 'max:160'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'designation' => ['required', 'string', 'max:255'],
+            'company_name' => ['required', 'string', 'max:255'],
+            'business_type' => ['nullable', 'string', 'max:100'],
+            'turnover_range' => ['nullable', 'string', 'max:100'],
+            'main_business_category_id' => ['nullable'],
+            'business_category_id' => ['nullable'],
+            'gender' => ['nullable', 'string', 'max:50'],
+            'dob' => ['nullable', 'string'],
+            'experience_years' => ['nullable'],
+            'short_bio' => ['nullable', 'string'],
+            'experience_summary' => ['nullable', 'string'],
+            'long_bio_html' => ['nullable', 'string'],
+            'public_profile_slug' => ['nullable', 'string', 'max:255'],
+            'website' => ['nullable', 'string', 'max:500'],
+            'business_website' => ['nullable', 'string', 'max:500'],
+            'social_links' => ['nullable'],
+            'industry_tags' => ['nullable'],
+            'skills' => ['nullable'],
+            'special_recognitions' => ['nullable'],
+            'target_regions' => ['nullable'],
+            'target_business_categories' => ['nullable'],
+            'hobbies_interests' => ['nullable'],
+            'membership_status' => ['nullable', 'string'],
+            'membership_starts_at' => ['nullable', 'date'],
+            'membership_ends_at' => ['nullable', 'date'],
+            'zoho_plan_code' => ['nullable', 'string', 'max:100'],
+            'is_sponsored_member' => ['nullable', 'boolean'],
+            'introduced_by' => ['nullable', 'string'],
+            'coins_balance' => ['nullable', 'integer', 'min:0'],
+            'city' => ['required', 'string', 'max:255'],
+            'state' => ['nullable', 'string', 'max:255'],
+            'country' => ['nullable', 'string', 'max:255'],
+            'active_circle_id' => ['nullable', 'string'],
+            'circle_id' => ['nullable', 'string'],
+            'circle_joined_at' => ['nullable', 'date'],
+            'circle_expires_at' => ['nullable', 'date'],
+        ]);
+
+        $csvFields = ['industry_tags', 'skills', 'special_recognitions', 'target_regions', 'target_business_categories', 'hobbies_interests'];
+        foreach ($csvFields as $field) {
+            if (isset($validated[$field])) {
+                if (is_string($validated[$field])) {
+                    $validated[$field] = array_values(array_filter(array_map('trim', explode(',', $validated[$field]))));
+                }
+            }
+        }
+
+        $validated['is_sponsored_member'] = (bool) ($validated['is_sponsored_member'] ?? false);
+        if (!$validated['is_sponsored_member']) {
+            $validated['introduced_by'] = null;
+        }
+
+        $validated['registration_source'] = 'Admin Panel';
+        $validated['password_hash'] = \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32));
+        $validated['status'] = 'active';
+        $validated['is_active'] = true;
+        if (empty($validated['display_name'])) {
+            $validated['display_name'] = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+        }
+
+        $circleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
+        unset($validated['active_circle_id'], $validated['circle_id']);
+
+        $user = \Illuminate\Support\Facades\DB::transaction(function () use ($validated, $circleId) {
+            $cols = \Illuminate\Support\Facades\Schema::getColumnListing('users');
+            $user = User::create(\Illuminate\Support\Arr::only($validated, $cols));
+
+            if ($circleId) {
+                CircleMember::create([
+                    'circle_id' => $circleId,
+                    'user_id' => $user->id,
+                    'status' => 'approved',
+                    'joined_at' => $validated['circle_joined_at'] ?? now(),
+                    'expires_at' => $validated['circle_expires_at'] ?? null,
+                ]);
+            }
+            return $user;
+        });
+
+        $this->audit->log($request->user(), 'admin.user.create', 'users', $user->id, [], $validated, $request);
+
+        $fresh = User::query()
+            ->with([
+                'roles:id,key,name',
+                'circleMemberships' => fn ($q) => $q->where('status', 'approved')->whereNull('deleted_at')->with('circle:id,name'),
+                'mainBusinessCategory:id,name',
+                'businessCategory:id,name',
+                'cityRelation:id,name,state,country',
+            ])
+            ->findOrFail($user->id);
+
+        return $this->success(
+            $this->peerService->transformPeer($fresh),
+            'Peer created successfully.'
+        );
+    }
+
     public function show(Request $request, string $id): JsonResponse
     {
         $user = User::query()
@@ -149,6 +254,19 @@ class UserManagementController extends BaseApiController
         }
 
         return $this->success($fresh);
+    }
+
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $target = User::query()->findOrFail($id);
+        $this->scope->applyUserScope(User::query()->where('id', $id), $request->user())->firstOrFail();
+
+        $old = $target->toArray();
+        $target->delete();
+
+        $this->audit->log($request->user(), 'admin.user.delete', 'users', $id, $old, [], $request);
+
+        return $this->success(null, 'Peer deleted successfully.');
     }
 
     private function becameActiveMembership(string $oldStatus, string $newStatus): bool

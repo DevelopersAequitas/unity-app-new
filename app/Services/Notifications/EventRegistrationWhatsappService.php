@@ -94,6 +94,15 @@ class EventRegistrationWhatsappService
         try {
             $registration = $registration->fresh(['user', 'event.circle', 'occurrence']) ?? $registration;
 
+            if ($registration->isSpeedNetworking()) {
+                Log::info('[EventRegistrationWhatsappService] Skipped: Speed Networking events do not send in-person QR entry pass message.', [
+                    'registration_id' => (string) $registration->id,
+                    'event_id' => (string) $registration->event_id,
+                ]);
+
+                return false;
+            }
+
             $status = strtolower((string) ($registration->status ?? ''));
             $paymentStatus = strtolower((string) ($registration->payment_status ?? ''));
             $paymentRequired = (bool) ($registration->payment_required ?? false);

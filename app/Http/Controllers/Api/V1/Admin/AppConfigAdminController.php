@@ -26,53 +26,115 @@ class AppConfigAdminController extends Controller
     public function adminConfig(): JsonResponse
     {
         $appInstanceId = $this->appInstanceId();
+        $app = $this->appConfigService->getGreenpreneurAppInstance();
 
         $branding = AppConfigSetting::query()
             ->where('app_instance_id', $appInstanceId)
             ->latest('updated_at')
             ->first();
 
+        $labels = AppLabel::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->orderBy('label_key')
+            ->get()
+            ->values()
+            ->toArray();
+
+        $labelGroups = AppLabel::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->whereNotNull('group_name')
+            ->distinct()
+            ->orderBy('group_name')
+            ->pluck('group_name')
+            ->values()
+            ->toArray();
+
+        $icons = Schema::hasTable('app_icon_assets') ? AppIconAsset::query()->where('app_instance_id', $appInstanceId)->orderBy('sort_order')->get()->values()->toArray() : [];
+        $features = AppFeature::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->orderBy('sort_order')
+            ->get()
+            ->values()
+            ->toArray();
+        $navigationItems = AppNavigationItem::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->orderBy('menu_type')
+            ->orderBy('sort_order')
+            ->get()
+            ->values()
+            ->toArray();
+        $dashboardWidgets = AppDashboardWidget::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->orderBy('sort_order')
+            ->get()
+            ->values()
+            ->toArray();
+        $socialLinks = AppSocialLink::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->orderBy('sort_order')
+            ->get()
+            ->values()
+            ->toArray();
+        $membershipLabels = AppMembershipLabel::query()
+            ->when(Schema::hasColumn('app_membership_labels', 'app_instance_id'), fn ($query) => $query->where('app_instance_id', $appInstanceId))
+            ->orderBy('membership_key')
+            ->get()
+            ->values()
+            ->toArray();
+
+        $lastUpdated = collect([
+            $branding?->updated_at,
+            ...collect($features)->pluck('updated_at'),
+            ...collect($navigationItems)->pluck('updated_at'),
+            ...collect($dashboardWidgets)->pluck('updated_at'),
+            ...collect($socialLinks)->pluck('updated_at'),
+            ...collect($membershipLabels)->pluck('updated_at'),
+            ...collect($icons)->pluck('updated_at'),
+        ])->filter()->sortDesc()->first();
+
         return $this->ok([
+            'app' => [
+                'id' => $appInstanceId,
+                'name' => $app->name ?? 'Greenpreneur',
+                'slug' => $app->slug ?? 'greenpreneur',
+            ],
             'branding' => $branding?->toArray() ?? [],
-            'labels' => AppLabel::query()
-                ->where('app_instance_id', $appInstanceId)
-                ->orderBy('label_key')
-                ->get()
-                ->values()
-                ->toArray(),
-            'icons' => Schema::hasTable('app_icon_assets') ? AppIconAsset::query()->where('app_instance_id', $appInstanceId)->orderBy('sort_order')->get()->values()->toArray() : [],
-            'features' => AppFeature::query()
-                ->where('app_instance_id', $appInstanceId)
-                ->orderBy('sort_order')
-                ->get()
-                ->values()
-                ->toArray(),
-            'navigation_items' => AppNavigationItem::query()
-                ->where('app_instance_id', $appInstanceId)
-                ->orderBy('menu_type')
-                ->orderBy('sort_order')
-                ->get()
-                ->values()
-                ->toArray(),
-            'dashboard_widgets' => AppDashboardWidget::query()
-                ->where('app_instance_id', $appInstanceId)
-                ->orderBy('sort_order')
-                ->get()
-                ->values()
-                ->toArray(),
-            'social_links' => AppSocialLink::query()
-                ->where('app_instance_id', $appInstanceId)
-                ->orderBy('sort_order')
-                ->get()
-                ->values()
-                ->toArray(),
-            'membership_labels' => AppMembershipLabel::query()
-                ->when(Schema::hasColumn('app_membership_labels', 'app_instance_id'), fn ($query) => $query->where('app_instance_id', $appInstanceId))
-                ->orderBy('membership_key')
-                ->get()
-                ->values()
-                ->toArray(),
+            'labels' => $labels,
+            'label_groups' => $labelGroups,
+            'icons' => $icons,
+            'features' => $features,
+            'navigation_items' => $navigationItems,
+            'dashboard_widgets' => $dashboardWidgets,
+            'social_links' => $socialLinks,
+            'membership_labels' => $membershipLabels,
+            'last_updated' => $lastUpdated ? (string) $lastUpdated : null,
         ], 'Admin app configuration fetched successfully.');
+    }
+
+    public function uploadBrandAsset(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'field' => ['required', 'string', 'in:logo_url_light,logo_url_dark,logo_url_splash,app_logo_url,splash_logo_url'],
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:5120'],
+        ]);
+
+        $extension = strtolower($request->file('file')->getClientOriginalExtension());
+        if ($extension === 'svg') {
+            $svg = strtolower((string) file_get_contents($request->file('file')->getRealPath()));
+            abort_if(str_contains($svg, '<script') || str_contains($svg, 'javascript:') || str_contains($svg, '<foreignobject'), 422, 'SVG contains unsafe content.');
+        }
+
+        $filename = Str::of($data['field'])->replace('_', '-')->slug('-')
+            .'-'.now()->format('Ymd-His')
+            .'-'.Str::lower(Str::random(8))
+            .'.'.$extension;
+
+        $path = $request->file('file')->storeAs('app-config/greenpreneur/branding', $filename, 'public');
+
+        return $this->ok([
+            'field' => $data['field'],
+            'url' => asset('storage/'.$path),
+        ], 'Brand asset uploaded successfully.');
     }
 
     public function updateBranding(Request $request): JsonResponse
@@ -189,14 +251,26 @@ class AppConfigAdminController extends Controller
 
     public function bulkUpdateLabels(Request $request): JsonResponse
     {
-        $data = $request->validate(['labels' => 'required|array', 'labels.*' => 'required|string']);
+        $data = $request->validate(['labels' => 'required|array']);
         $appInstanceId = $this->appInstanceId();
 
-        foreach ($data['labels'] as $key => $value) {
-            AppLabel::query()->updateOrCreate(
-                ['app_instance_id' => $appInstanceId, 'label_key' => $key],
-                ['label_value' => $value, 'is_active' => true]
-            );
+        foreach ($data['labels'] as $key => $row) {
+            if (is_array($row)) {
+                AppLabel::query()->updateOrCreate(
+                    ['app_instance_id' => $appInstanceId, 'label_key' => $key],
+                    [
+                        'label_value' => $row['label_value'] ?? '',
+                        'group_name' => $row['group_name'] ?? null,
+                        'description' => $row['description'] ?? null,
+                        'is_active' => isset($row['is_active']) ? (bool) $row['is_active'] : true,
+                    ]
+                );
+            } else {
+                AppLabel::query()->updateOrCreate(
+                    ['app_instance_id' => $appInstanceId, 'label_key' => $key],
+                    ['label_value' => (string) $row, 'is_active' => true]
+                );
+            }
         }
 
         return $this->changed(null, 'Labels updated successfully.');
@@ -204,7 +278,10 @@ class AppConfigAdminController extends Controller
 
     public function updateFeature(Request $request, string $feature_key): JsonResponse
     {
-        $data = $request->validate(['is_enabled' => 'required|boolean']);
+        $data = $request->validate([
+            'is_enabled' => 'required|boolean',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
         $model = AppFeature::query()
             ->where('app_instance_id', $this->appInstanceId())
             ->where('feature_key', $feature_key)
@@ -216,14 +293,25 @@ class AppConfigAdminController extends Controller
 
     public function bulkUpdateFeatures(Request $request): JsonResponse
     {
-        $data = $request->validate(['features' => 'required|array', 'features.*' => 'required|boolean']);
+        $data = $request->validate(['features' => 'required|array']);
         $appInstanceId = $this->appInstanceId();
 
-        foreach ($data['features'] as $key => $enabled) {
-            AppFeature::query()
-                ->where('app_instance_id', $appInstanceId)
-                ->where('feature_key', $key)
-                ->update(['is_enabled' => $enabled]);
+        foreach ($data['features'] as $key => $val) {
+            if (is_array($val)) {
+                $payload = ['is_enabled' => (bool) ($val['is_enabled'] ?? false)];
+                if (isset($val['sort_order'])) {
+                    $payload['sort_order'] = (int) $val['sort_order'];
+                }
+                AppFeature::query()
+                    ->where('app_instance_id', $appInstanceId)
+                    ->where('feature_key', $key)
+                    ->update($payload);
+            } else {
+                AppFeature::query()
+                    ->where('app_instance_id', $appInstanceId)
+                    ->where('feature_key', $key)
+                    ->update(['is_enabled' => (bool) $val]);
+            }
         }
 
         return $this->changed(null, 'Feature toggles updated successfully.');
@@ -297,6 +385,86 @@ class AppConfigAdminController extends Controller
         return $this->changed(null, 'Navigation item deleted successfully.');
     }
 
+    public function bulkUpdateNavigationGroup(Request $request, string $menu_type): JsonResponse
+    {
+        abort_unless(in_array($menu_type, ['bottom_nav', 'plus_menu', 'impact_menu', 'drawer'], true), 404);
+
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['nullable'],
+            'items.*.item_key' => ['required', 'string', 'max:150'],
+            'items.*.label_key' => ['nullable', 'string', 'max:150'],
+            'items.*.display_label' => ['required', 'string', 'max:255'],
+            'items.*.icon' => ['nullable', 'string', 'max:150'],
+            'items.*.route_name' => ['nullable', 'string', 'max:150'],
+            'items.*.feature_key' => ['nullable', 'string', 'max:150'],
+            'items.*.is_enabled' => ['nullable', 'boolean'],
+            'items.*.sort_order' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $appId = $this->appInstanceId();
+        $updatedCount = 0;
+
+        foreach ($data['items'] as $item) {
+            $sortOrder = $item['sort_order'] ?? 0;
+            $payload = [
+                'app_instance_id' => $appId,
+                'menu_type' => $menu_type,
+                'item_key' => $item['item_key'],
+                'label_key' => $item['label_key'] ?? null,
+                'display_label' => $item['display_label'],
+                'icon' => $item['icon'] ?? null,
+                'route_name' => $item['route_name'] ?? null,
+                'feature_key' => $item['feature_key'] ?? null,
+                'is_enabled' => (bool) ($item['is_enabled'] ?? false),
+                'sort_order' => $sortOrder,
+                'position' => $sortOrder,
+                'nav_key' => $item['item_key'],
+                'nav_label' => $item['display_label'],
+                'v_key' => $item['item_key'],
+                'v_label' => $item['display_label'],
+            ];
+
+            $query = AppNavigationItem::query()->where('app_instance_id', $appId);
+            if (! empty($item['id'])) {
+                $query->where('id', $item['id']);
+            } else {
+                $query->where('menu_type', $menu_type)->where('item_key', $item['item_key']);
+            }
+
+            $query->update($payload);
+            $this->syncDrawerIconActiveState($menu_type, $item['item_key'], $item['feature_key'] ?? null, $payload['is_enabled']);
+            $updatedCount++;
+        }
+
+        AppConfigController::clearCache();
+
+        return $this->ok([
+            'menu_type' => $menu_type,
+            'updated_count' => $updatedCount,
+        ], 'Navigation group saved successfully.');
+    }
+
+    public function bulkUpdateWidgets(Request $request): JsonResponse
+    {
+        $data = $request->validate(['widgets' => ['required', 'array']]);
+        $appId = $this->appInstanceId();
+
+        foreach ($data['widgets'] as $key => $row) {
+            $payload = ['sort_order' => $row['sort_order'] ?? 0];
+            $enabled = (bool) ($row['is_enabled'] ?? false);
+            if (Schema::hasColumn('app_dashboard_widgets', 'is_enabled')) {
+                $payload['is_enabled'] = $enabled;
+            }
+            if (Schema::hasColumn('app_dashboard_widgets', 'is_enable')) {
+                $payload['is_enable'] = $enabled;
+            }
+            AppDashboardWidget::query()->where('app_instance_id', $appId)->where('widget_key', $key)->update($payload);
+        }
+
+        return $this->changed(null, 'Dashboard widgets updated successfully.');
+    }
+
     public function updateDashboardWidget(Request $request, string $widget_key): JsonResponse
     {
         $data = $request->validate([
@@ -324,6 +492,30 @@ class AppConfigAdminController extends Controller
         $model->update($payload);
 
         return $this->changed($model->fresh(), 'Dashboard widget updated successfully.');
+    }
+
+    public function bulkUpdateSocialLinks(Request $request): JsonResponse
+    {
+        $data = $request->validate(['social_links' => ['required', 'array']]);
+        $appId = $this->appInstanceId();
+
+        foreach ($data['social_links'] as $platform => $row) {
+            $displayName = $row['display_name'] ?? $platform;
+            AppSocialLink::query()->updateOrCreate(
+                ['app_instance_id' => $appId, 'platform' => $platform],
+                [
+                    'platform_key' => $platform,
+                    'label' => $displayName,
+                    'display_name' => $displayName,
+                    'url' => $row['url'] ?? null,
+                    'icon' => $row['icon'] ?? null,
+                    'is_enabled' => (bool) ($row['is_enabled'] ?? false),
+                    'sort_order' => $row['sort_order'] ?? 0,
+                ]
+            );
+        }
+
+        return $this->changed(null, 'Social links updated successfully.');
     }
 
     public function updateSocialLink(Request $request, string $platform): JsonResponse
@@ -358,6 +550,25 @@ class AppConfigAdminController extends Controller
         return $this->changed($model, 'Social link updated successfully.');
     }
 
+    public function bulkUpdateMembershipLabels(Request $request): JsonResponse
+    {
+        $data = $request->validate(['membership_labels' => ['required', 'array']]);
+        $appId = $this->appInstanceId();
+
+        foreach ($data['membership_labels'] as $key => $row) {
+            $query = AppMembershipLabel::query()->where('membership_key', $key);
+            if (Schema::hasColumn('app_membership_labels', 'app_instance_id')) {
+                $query->where('app_instance_id', $appId);
+            }
+            $query->update([
+                'display_label' => $row['display_label'] ?? '',
+                'description' => $row['description'] ?? null,
+            ]);
+        }
+
+        return $this->changed(null, 'Membership labels updated successfully.');
+    }
+
     public function updateMembershipLabel(Request $request, string $membership_key): JsonResponse
     {
         $data = $request->validate(['display_label' => 'required|string|max:255', 'description' => 'nullable|string']);
@@ -369,6 +580,33 @@ class AppConfigAdminController extends Controller
         $model->update($data);
 
         return $this->changed($model, 'Membership label updated successfully.');
+    }
+
+    private function syncDrawerIconActiveState(string $menuType, ?string $itemKey, ?string $featureKey, bool $isEnabled): void
+    {
+        if ($menuType !== 'drawer' || ! Schema::hasTable('app_icon_assets')) {
+            return;
+        }
+
+        $keys = collect([$itemKey, $featureKey])
+            ->filter(fn ($key) => filled($key))
+            ->map(fn ($key) => (string) $key)
+            ->unique()
+            ->values();
+
+        if ($keys->isEmpty()) {
+            return;
+        }
+
+        AppIconAsset::query()
+            ->where('app_instance_id', $this->appInstanceId())
+            ->where('icon_group', 'drawer_menu')
+            ->where(function ($query) use ($keys) {
+                $query->whereIn('menu_key', $keys)
+                    ->orWhereIn('feature_key', $keys)
+                    ->orWhereIn('icon_key', $keys->map(fn ($key) => 'drawer_'.$key));
+            })
+            ->update(['is_active' => $isEnabled]);
     }
 
     public function leaderConfig(): JsonResponse

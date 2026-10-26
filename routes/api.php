@@ -71,25 +71,34 @@ use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
 use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
+use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
 use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
+use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
+use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
+use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
-use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\Admin\UserTagAdminController;
+use App\Http\Controllers\Api\V1\Advertiser\Admin\AdvertiserAdminApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserMemberApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPaymentApiController;
+use App\Http\Controllers\Api\V1\Advertiser\AdvertiserPublicApiController;
+use App\Http\Controllers\Api\V1\Ai\AiController;
 use App\Http\Controllers\Api\V1\AppChangelogController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Ask\AskFlowHubController;
+use App\Http\Controllers\Api\V1\Auth\LinkedInAuthController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -224,6 +233,14 @@ Route::prefix('auth')->group(function () {
     Route::post('direct-login', [AuthController::class, 'directLogin']);
     Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
     Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+    Route::prefix('linkedin')->group(function () {
+        Route::get('url', [LinkedInAuthController::class, 'redirectUrl']);
+        Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
+        Route::post('profile', [LinkedInAuthController::class, 'profile']);
+        Route::post('register', [LinkedInAuthController::class, 'register']);
+        Route::match(['get', 'post'], 'callback', [LinkedInAuthController::class, 'callback']);
+        Route::post('login', [LinkedInAuthController::class, 'callback']);
+    });
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -331,6 +348,14 @@ Route::prefix('v1')->group(function () {
         Route::post('direct-login', [AuthController::class, 'directLogin']);
         Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
         Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
+        Route::prefix('linkedin')->group(function () {
+            Route::get('url', [LinkedInAuthController::class, 'redirectUrl']);
+            Route::get('redirect', [LinkedInAuthController::class, 'redirectUrl']);
+            Route::post('profile', [LinkedInAuthController::class, 'profile']);
+            Route::post('register', [LinkedInAuthController::class, 'register']);
+            Route::match(['get', 'post'], 'callback', [LinkedInAuthController::class, 'callback']);
+            Route::post('login', [LinkedInAuthController::class, 'callback']);
+        });
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -338,6 +363,19 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    Route::prefix('ai')->group(function () {
+        Route::post('suggest-category', [AiController::class, 'suggestCategory']);
+        Route::post('flows/{slug}/execute', [AiController::class, 'executeFlow']);
+        Route::post('execute/{slug}', [AiController::class, 'executeFlow']);
+        Route::get('flows', [AiController::class, 'flows']);
+        Route::post('flows', [AiController::class, 'createFlow']);
+        Route::get('flows/{id}', [AiController::class, 'getFlow']);
+        Route::put('flows/{slug}', [AiController::class, 'updateFlow']);
+        Route::delete('flows/{id}', [AiController::class, 'deleteFlow']);
+        Route::post('flows/test', [AiController::class, 'testPrompt']);
+        Route::post('test', [AiController::class, 'testPrompt']);
     });
 
     Route::prefix('ded/auth')->group(function () {
@@ -778,6 +816,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
+            Route::post('/app-config/upload-brand-asset', [AppConfigAdminController::class, 'uploadBrandAsset']);
             Route::put('/app-config/colors', [AppConfigAdminController::class, 'updateColors']);
             Route::get('/app-config/icons', [AppConfigAdminController::class, 'icons']);
             Route::put('/app-config/icons', [AppConfigAdminController::class, 'bulkUpdateIcons']);
@@ -789,9 +828,13 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
             Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
             Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/navigation/group/{menu_type}', [AppConfigAdminController::class, 'bulkUpdateNavigationGroup']);
             Route::delete('/app-config/navigation/{id}', [AppConfigAdminController::class, 'deleteNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/dashboard-widgets', [AppConfigAdminController::class, 'bulkUpdateWidgets']);
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
+            Route::put('/app-config/social-links', [AppConfigAdminController::class, 'bulkUpdateSocialLinks']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
+            Route::put('/app-config/membership-labels', [AppConfigAdminController::class, 'bulkUpdateMembershipLabels']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
             Route::get('/app-config/leader-config', [AppConfigAdminController::class, 'leaderConfig']);
             Route::put('/app-config/leader-config', [AppConfigAdminController::class, 'updateLeaderConfig']);
@@ -818,16 +861,20 @@ Route::prefix('v1')->group(function () {
 
             // Canonical Peers Directory & Management
             Route::get('/peers', [UserManagementController::class, 'index']);
+            Route::post('/peers', [UserManagementController::class, 'store']);
             Route::get('/peers/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
             Route::put('/peers/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::delete('/peers/{id}', [UserManagementController::class, 'destroy'])->whereUuid('id');
             Route::patch('/peers/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
             Route::post('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/peers/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
 
             // Legacy Users Endpoints (Aliased to Unified Controller)
             Route::get('/users', [UserManagementController::class, 'index']);
+            Route::post('/users', [UserManagementController::class, 'store']);
             Route::get('/users/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
             Route::put('/users/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::delete('/users/{id}', [UserManagementController::class, 'destroy'])->whereUuid('id');
             Route::post('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/users/{id}/upgrade', [UserManagementController::class, 'upgrade'])->whereUuid('id');
             Route::patch('/users/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
@@ -924,6 +971,25 @@ Route::prefix('v1')->group(function () {
             // Define static resource routes BEFORE wildcard parameter routes (e.g., before /events/{id})
             Route::get('/events/coupons', [EventCouponAdminController::class, 'index']);
             Route::post('/events/coupons', [EventCouponAdminController::class, 'store']);
+            Route::post('/events/coupons/generate-code', [EventCouponAdminController::class, 'generateCode']);
+            Route::get('/events/coupons/{id}', [EventCouponAdminController::class, 'show'])->whereUuid('id');
+            Route::put('/events/coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
+            Route::patch('/events/coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
+            Route::delete('/events/coupons/{id}', [EventCouponAdminController::class, 'destroy'])->whereUuid('id');
+            Route::get('/event-joining-requests', [DedPendingRequestsController::class, 'index'])->defaults('type', 'event_joining_requests');
+            Route::post('/event-joining-requests/{id}/approve', [DedPendingRequestsController::class, 'approve'])->defaults('type', 'event_joining_requests')->whereUuid('id');
+            Route::post('/event-joining-requests/{id}/reject', [DedPendingRequestsController::class, 'reject'])->defaults('type', 'event_joining_requests')->whereUuid('id');
+            Route::get('/event-scan-credentials', [EventScanCredentialAdminController::class, 'index']);
+            Route::post('/event-scan-credentials', [EventScanCredentialAdminController::class, 'store']);
+            Route::get('/event-scan-credentials/{id}', [EventScanCredentialAdminController::class, 'show'])->whereUuid('id');
+            Route::put('/event-scan-credentials/{id}', [EventScanCredentialAdminController::class, 'update'])->whereUuid('id');
+            Route::delete('/event-scan-credentials/{id}', [EventScanCredentialAdminController::class, 'destroy'])->whereUuid('id');
+            Route::get('/event-gallery', [EventGalleryAdminController::class, 'index']);
+            Route::post('/event-gallery', [EventGalleryAdminController::class, 'store']);
+            Route::get('/event-gallery/{id}', [EventGalleryAdminController::class, 'show'])->whereUuid('id');
+            Route::get('/event-gallery/{id}/media', [EventGalleryAdminController::class, 'media'])->whereUuid('id');
+            Route::post('/event-gallery/{id}/media', [EventGalleryAdminController::class, 'storeMedia'])->whereUuid('id');
+            Route::delete('/event-gallery/media/{id}', [EventGalleryAdminController::class, 'destroyMedia'])->whereUuid('id');
             Route::get('/events', [EventAdminController::class, 'index']);
             Route::post('/events', [EventAdminController::class, 'store']);
             Route::get('/events/{id}', [EventAdminController::class, 'show'])->whereUuid('id');
@@ -1393,6 +1459,25 @@ Route::prefix('v1')->group(function () {
         Route::post('/brand-partners/{id}/save', [BrandPartnerApiController::class, 'save'])->whereUuid('id');
         Route::delete('/brand-partners/{id}/save', [BrandPartnerApiController::class, 'unsave'])->whereUuid('id');
         Route::get('/my-saved-brand-partners', [BrandPartnerApiController::class, 'mySaved']);
+
+        // Authenticated Advertiser & Brand Partner Onboarding APIs
+        Route::prefix('advertiser')->group(function () {
+            Route::get('/my-applications', [AdvertiserMemberApiController::class, 'myApplications']);
+            Route::get('/applications/{id}', [AdvertiserMemberApiController::class, 'show'])->whereUuid('id');
+            Route::patch('/applications/{id}', [AdvertiserMemberApiController::class, 'update'])->whereUuid('id');
+            Route::post('/applications/{id}/withdraw', [AdvertiserMemberApiController::class, 'withdraw'])->whereUuid('id');
+            Route::post('/applications/{id}/link-account', [AdvertiserMemberApiController::class, 'linkAccount'])->whereUuid('id');
+            Route::get('/dashboard', [AdvertiserMemberApiController::class, 'dashboard']);
+            Route::get('/analytics', [AdvertiserMemberApiController::class, 'analytics']);
+            Route::get('/subscriptions', [AdvertiserMemberApiController::class, 'subscriptions']);
+            Route::get('/subscriptions/{id}', [AdvertiserMemberApiController::class, 'subscriptionDetails'])->whereUuid('id');
+
+            // Payment Order & Verification
+            Route::post('/subscriptions/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
+            Route::post('/applications/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
+            Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
+            Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
+        });
     });
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
@@ -1439,6 +1524,58 @@ Route::prefix('v1')->group(function () {
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
     Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
     Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
+
+    // Public Advertiser & Brand Partner Onboarding APIs
+    Route::prefix('advertiser')->group(function () {
+        Route::get('/packages', [AdvertiserPublicApiController::class, 'packages']);
+        Route::post('/applications', [AdvertiserPublicApiController::class, 'submit']);
+        Route::post('/applications/{id}/email-verification', [AdvertiserPublicApiController::class, 'requestEmailVerification'])->whereUuid('id');
+        Route::post('/applications/{id}/email-verification/confirm', [AdvertiserPublicApiController::class, 'confirmEmailVerification'])->whereUuid('id');
+        Route::post('/applications/{id}/email-verification/resend', [AdvertiserPublicApiController::class, 'resendEmailVerification'])->whereUuid('id');
+        Route::post('/applications/{id}/assets/upload-url', [AdvertiserPublicApiController::class, 'uploadUrl'])->whereUuid('id');
+        Route::post('/applications/{id}/assets', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
+        Route::post('/applications/{id}/assets/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
+        Route::post('/identity/resolve', [AdvertiserPublicApiController::class, 'resolveIdentity']);
+        Route::get('/banner-config', [AdvertiserPublicApiController::class, 'bannerConfig']);
+        Route::get('/guest/applications/{id}', [AdvertiserPublicApiController::class, 'guestShow'])->whereUuid('id');
+    });
+
+    // Razorpay Webhook for Advertiser
+    Route::post('/webhooks/razorpay/advertiser', [AdvertiserPaymentApiController::class, 'webhook']);
+
+    // Admin Advertiser JSON APIs (Protected by Sanctum)
+    Route::middleware('auth:sanctum')->prefix('admin/advertiser')->group(function () {
+        // Packages
+        Route::get('/packages', [AdvertiserAdminApiController::class, 'packages']);
+        Route::post('/packages', [AdvertiserAdminApiController::class, 'createPackage']);
+        Route::get('/packages/{id}', [AdvertiserAdminApiController::class, 'showPackage'])->whereUuid('id');
+        Route::patch('/packages/{id}', [AdvertiserAdminApiController::class, 'updatePackage'])->whereUuid('id');
+        Route::patch('/packages/{id}/status', [AdvertiserAdminApiController::class, 'togglePackageStatus'])->whereUuid('id');
+        Route::patch('/packages/reorder', [AdvertiserAdminApiController::class, 'reorderPackages']);
+
+        // Applications
+        Route::get('/applications', [AdvertiserAdminApiController::class, 'applications']);
+        Route::get('/applications/{id}', [AdvertiserAdminApiController::class, 'showApplication'])->whereUuid('id');
+        Route::post('/applications/{id}/start-review', [AdvertiserAdminApiController::class, 'startReview'])->whereUuid('id');
+        Route::post('/applications/{id}/request-corrections', [AdvertiserAdminApiController::class, 'requestCorrections'])->whereUuid('id');
+        Route::post('/applications/{id}/approve', [AdvertiserAdminApiController::class, 'approve'])->whereUuid('id');
+        Route::post('/applications/{id}/reject', [AdvertiserAdminApiController::class, 'reject'])->whereUuid('id');
+        Route::patch('/applications/{application_id}/assets/{asset_id}', [AdvertiserAdminApiController::class, 'reviewAsset'])->whereUuid('application_id')->whereUuid('asset_id');
+        Route::get('/applications/{id}/history', [AdvertiserAdminApiController::class, 'history'])->whereUuid('id');
+        Route::get('/applications/{id}/advertiser-details', [AdvertiserAdminApiController::class, 'advertiserDetails'])->whereUuid('id');
+
+        // Overview & Subscriptions & Payments
+        Route::get('/dashboard', [AdvertiserAdminApiController::class, 'dashboard']);
+        Route::get('/subscriptions', [AdvertiserAdminApiController::class, 'subscriptions']);
+        Route::get('/subscriptions/{id}', [AdvertiserAdminApiController::class, 'subscriptionDetails'])->whereUuid('id');
+        Route::get('/payments', [AdvertiserAdminApiController::class, 'payments']);
+        Route::get('/payments/{id}', [AdvertiserAdminApiController::class, 'paymentDetails'])->whereUuid('id');
+        Route::post('/payments/{id}/reconcile', [AdvertiserAdminApiController::class, 'reconcilePayment'])->whereUuid('id');
+
+        // Banner configuration
+        Route::get('/banner-config', [AdvertiserAdminApiController::class, 'bannerConfig']);
+        Route::patch('/banner-config', [AdvertiserAdminApiController::class, 'updateBannerConfig']);
+    });
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
@@ -1709,7 +1846,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
 foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
         Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
+        Route::get('events/{eventId}', [SpeedNetworkingApiController::class, 'show'])->whereUuid('eventId');
         Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
+        Route::post('events/{eventId}/verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment'])->whereUuid('eventId');
         Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
@@ -1718,7 +1857,9 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
 
 foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->whereUuid('eventId')->group(function (): void {
+        Route::get('', [SpeedNetworkingApiController::class, 'show']);
         Route::post('join', [SpeedNetworkingApiController::class, 'join']);
+        Route::post('verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment']);
         Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
@@ -1738,5 +1879,36 @@ foreach (['admin/speed-networking', 'v1/admin/speed-networking'] as $prefix) {
         Route::post('events/{id}/next-round', [SpeedNetworkingAdminController::class, 'nextRound'])->whereUuid('id');
         Route::post('events/{id}/end', [SpeedNetworkingAdminController::class, 'end'])->whereUuid('id');
         Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
+    });
+}
+
+// Plans & Test Checkout Admin API (Supports both /api/v1/admin/plans and /api/admin/plans)
+foreach (['admin/plans', 'v1/admin/plans'] as $prefix) {
+    Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
+        Route::get('membership', [AdminPlansApiController::class, 'membershipPlans']);
+        Route::post('membership', [AdminPlansApiController::class, 'createMembershipPlan']);
+        Route::get('membership/{id}', [AdminPlansApiController::class, 'getMembershipPlan']);
+        Route::put('membership/{id}', [AdminPlansApiController::class, 'updateMembershipPlan']);
+        Route::delete('membership/{id}', [AdminPlansApiController::class, 'deleteMembershipPlan']);
+
+        Route::get('circle', [AdminPlansApiController::class, 'circlePlans']);
+        Route::post('circle', [AdminPlansApiController::class, 'createCirclePlan']);
+        Route::get('circle/{id}', [AdminPlansApiController::class, 'getCirclePlan']);
+        Route::put('circle/{id}', [AdminPlansApiController::class, 'updateCirclePlan']);
+        Route::delete('circle/{id}', [AdminPlansApiController::class, 'deleteCirclePlan']);
+
+        // Razorpay Test Checkout & Zoho
+        Route::get('test-checkout/init', [AdminPlansApiController::class, 'testCheckoutInit']);
+        Route::post('test-checkout/create-order', [AdminPlansApiController::class, 'testCheckoutCreateOrder']);
+        Route::post('test-checkout/verify', [AdminPlansApiController::class, 'testCheckoutVerify']);
+        Route::post('test-checkout/generate-signature', [AdminPlansApiController::class, 'testCheckoutGenerateSignature']);
+
+        // Circle Plans Test Checkout
+        Route::get('circle-test-checkout/init', [AdminPlansApiController::class, 'circleTestCheckoutInit']);
+        Route::post('circle-test-checkout/create-request', [AdminPlansApiController::class, 'circleTestCheckoutCreateRequest']);
+        Route::post('circle-test-checkout/approve-cd/{id}', [AdminPlansApiController::class, 'circleTestCheckoutApproveCd'])->whereUuid('id');
+        Route::post('circle-test-checkout/approve-id/{id}', [AdminPlansApiController::class, 'circleTestCheckoutApproveId'])->whereUuid('id');
+        Route::post('circle-test-checkout/create-order', [AdminPlansApiController::class, 'circleTestCheckoutCreateOrder']);
+        Route::post('circle-test-checkout/verify', [AdminPlansApiController::class, 'circleTestCheckoutVerify']);
     });
 }

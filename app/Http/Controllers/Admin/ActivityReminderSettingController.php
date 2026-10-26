@@ -24,7 +24,7 @@ class ActivityReminderSettingController extends Controller
     /**
      * Display a listing of activity reminder settings.
      */
-    public function index(Request $request = null): View|JsonResponse
+    public function index(?Request $request = null): View|JsonResponse
     {
         $settings = ActivityReminderSetting::query()
             ->orderBy('priority', 'asc')

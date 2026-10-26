@@ -223,4 +223,43 @@ class EventRegistration extends Model
 
         return app(EventQrService::class)->url((string) $rawUrl);
     }
+
+    public function isSpeedNetworking(): bool
+    {
+        if (! empty($this->metadata['is_speed_networking'])) {
+            return true;
+        }
+
+        if (($this->metadata['event_type'] ?? '') === 'speed_networking') {
+            return true;
+        }
+
+        $event = $this->event;
+        if ($event) {
+            if (method_exists($event, 'isSpeedNetworking')) {
+                return $event->isSpeedNetworking();
+            }
+            if ($event->event_type === 'speed_networking') {
+                return true;
+            }
+            if (! empty($event->metadata['is_speed_networking']) || ($event->metadata['event_type'] ?? '') === 'speed_networking') {
+                return true;
+            }
+            if (stripos((string) $event->title, 'speed networking') !== false) {
+                return true;
+            }
+        }
+
+        if (! empty($this->event_id)) {
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('speed_networking_events') && \App\Models\SpeedNetworking\SpeedNetworkingEvent::where('id', $this->event_id)->exists()) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // Ignore DB error
+            }
+        }
+
+        return false;
+    }
 }
