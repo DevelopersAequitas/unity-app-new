@@ -153,22 +153,6 @@ class AdvertiserPublicationService
             $subscription->activated_at = now();
             $subscription->save();
 
-            // 3. Update Application status to active
-            if ($application && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
-                $oldStatus = $application->status;
-                $application->status = AdvertiserApplication::STATUS_ACTIVE;
-                $application->brand_partner_id = $partner->id;
-                $application->save();
-
-                AdvertiserApplicationStatusHistory::create([
-                    'application_id' => $application->id,
-                    'previous_status' => $oldStatus,
-                    'new_status' => AdvertiserApplication::STATUS_ACTIVE,
-                    'changed_by' => $subscription->user_id,
-                    'notes' => 'Payment captured and campaign activated.',
-                ]);
-            }
-
             return $partner;
         });
 
@@ -238,24 +222,6 @@ class AdvertiserPublicationService
                     $partnerUpdate['valid_from'] = now();
                 }
                 $partner->update($partnerUpdate);
-            }
-
-            // Update linked application status to active if exists
-            if ($subscription->application) {
-                $app = $subscription->application;
-                $oldStatus = $app->status;
-                if ($oldStatus !== AdvertiserApplication::STATUS_ACTIVE) {
-                    $app->status = AdvertiserApplication::STATUS_ACTIVE;
-                    $app->save();
-                }
-
-                AdvertiserApplicationStatusHistory::create([
-                    'application_id' => $app->id,
-                    'previous_status' => $oldStatus,
-                    'new_status' => AdvertiserApplication::STATUS_ACTIVE,
-                    'changed_by' => $subscription->user_id,
-                    'notes' => "Campaign renewed for {$durationMonths} month(s). New expiry: " . $newExpiresAt->toIso8601String(),
-                ]);
             }
 
             return $partner ?? new BrandPartner();
