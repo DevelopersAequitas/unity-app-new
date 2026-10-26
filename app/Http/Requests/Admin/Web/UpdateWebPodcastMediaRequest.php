@@ -14,6 +14,42 @@ class UpdateWebPodcastMediaRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $normalize = function (?string $val): ?string {
+            if ($val === null) {
+                return null;
+            }
+            $val = trim($val);
+            if ($val === '') {
+                return null;
+            }
+            if (! preg_match('~^(?:f|ht)tps?://~i', $val)) {
+                return 'https://'.$val;
+            }
+
+            return $val;
+        };
+
+        $merged = [];
+        if ($this->has('youtube_url') && $this->input('youtube_url') !== null) {
+            $merged['youtube_url'] = $normalize((string) $this->input('youtube_url'));
+        }
+        if ($this->has('spotify_url') && $this->input('spotify_url') !== null) {
+            $merged['spotify_url'] = $normalize((string) $this->input('spotify_url'));
+        }
+        if ($this->has('apple_podcast_url') && $this->input('apple_podcast_url') !== null) {
+            $merged['apple_podcast_url'] = $normalize((string) $this->input('apple_podcast_url'));
+        }
+        if ($this->has('external_url') && $this->input('external_url') !== null) {
+            $merged['external_url'] = $normalize((string) $this->input('external_url'));
+        }
+
+        if (! empty($merged)) {
+            $this->merge($merged);
+        }
+    }
+
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
      */

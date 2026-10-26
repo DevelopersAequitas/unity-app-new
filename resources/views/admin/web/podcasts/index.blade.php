@@ -386,7 +386,7 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
 <div class="modal fade" id="podcastModal" tabindex="-1" aria-labelledby="podcastModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <form id="podcastForm" method="POST" action="{{ route('admin.web.podcasts.store') }}" enctype="multipart/form-data">
+            <form id="podcastForm" method="POST" action="{{ route('admin.web.podcasts.store') }}" enctype="multipart/form-data" novalidate>
                 @csrf
                 <div id="podcastMethodSpoof"></div>
 
@@ -433,7 +433,7 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
                             <label class="form-label fw-semibold text-dark small mb-1">
                                 <i class="bi bi-youtube text-danger me-1"></i> YouTube Video Link
                             </label>
-                            <input type="url" name="youtube_url" id="podcast_youtube_url" class="form-control rounded-3" placeholder="https://www.youtube.com/watch?v=... or youtu.be/...">
+                            <input type="text" name="youtube_url" id="podcast_youtube_url" class="form-control rounded-3" placeholder="https://www.youtube.com/watch?v=... or youtu.be/...">
                             <div class="form-text small">Thumbnail will be generated automatically if no custom cover is uploaded.</div>
                         </div>
 
@@ -441,7 +441,7 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
                             <label class="form-label fw-semibold text-dark small mb-1">
                                 <i class="bi bi-link-45deg me-1"></i> External Article / Press Link
                             </label>
-                            <input type="url" name="external_url" id="podcast_external_url" class="form-control rounded-3" placeholder="https://vyapaarjagat.com/... or press article URL">
+                            <input type="text" name="external_url" id="podcast_external_url" class="form-control rounded-3" placeholder="https://vyapaarjagat.com/... or press article URL">
                         </div>
 
                         {{-- Custom Cover Image File Upload --}}
@@ -501,7 +501,10 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
 
                 <div class="modal-footer border-top p-3 bg-light bg-opacity-50">
                     <button type="button" class="btn btn-light rounded-3 px-3 py-2 fw-semibold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold" id="podcastSubmitBtn">Save Episode & Publish</button>
+                    <button type="submit" form="podcastForm" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-sm" id="podcastSubmitBtn">
+                        <i class="bi bi-cloud-arrow-up-fill" id="podcastSubmitBtnIcon"></i>
+                        <span id="podcastSubmitBtnText">Save Episode & Publish</span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -538,7 +541,14 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
         form.action = "{{ route('admin.web.podcasts.store') }}";
         document.getElementById('podcastMethodSpoof').innerHTML = '';
         document.getElementById('podcastModalLabel').innerText = 'Add Podcast Episode & Media';
-        document.getElementById('podcastSubmitBtn').innerText = 'Save Episode & Publish';
+        
+        const submitBtn = document.getElementById('podcastSubmitBtn');
+        const submitBtnText = document.getElementById('podcastSubmitBtnText');
+        const submitBtnIcon = document.getElementById('podcastSubmitBtnIcon');
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitBtnIcon) submitBtnIcon.classList.remove('d-none');
+        if (submitBtnText) submitBtnText.innerText = 'Save Episode & Publish';
+
         document.getElementById('podcast_is_active').checked = true;
         document.getElementById('podcast_is_featured').checked = false;
         document.getElementById('podcast_sort_order').value = 0;
@@ -550,7 +560,11 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
         form.action = "/admin/web/podcasts/" + item.id;
         document.getElementById('podcastMethodSpoof').innerHTML = '<input type="hidden" name="_method" value="PUT">';
         document.getElementById('podcastModalLabel').innerText = 'Edit Podcast Episode & Media';
-        document.getElementById('podcastSubmitBtn').innerText = 'Update Episode';
+        
+        const submitBtn = document.getElementById('podcastSubmitBtn');
+        const submitBtnText = document.getElementById('podcastSubmitBtnText');
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitBtnText) submitBtnText.innerText = 'Update Episode';
 
         document.getElementById('podcast_title').value = item.title || '';
         document.getElementById('podcast_subtitle').value = item.subtitle || '';
@@ -579,6 +593,40 @@ ALTER TABLE web_media ALTER COLUMN name DROP NOT NULL;</pre>
         const modal = new bootstrap.Modal(document.getElementById('deletePodcastModal'));
         modal.show();
     }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('podcastForm');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                const titleInput = document.getElementById('podcast_title');
+                if (!titleInput || !titleInput.value.trim()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    alert('Please enter an Episode / Feature Title.');
+                    if (titleInput) {
+                        titleInput.focus();
+                        titleInput.classList.add('is-invalid');
+                    }
+                    return false;
+                }
+
+                if (titleInput) {
+                    titleInput.classList.remove('is-invalid');
+                }
+
+                const submitBtn = document.getElementById('podcastSubmitBtn');
+                const submitBtnText = document.getElementById('podcastSubmitBtnText');
+                const submitBtnIcon = document.getElementById('podcastSubmitBtnIcon');
+                if (submitBtnIcon) submitBtnIcon.classList.add('d-none');
+                if (submitBtn) submitBtn.disabled = true;
+                if (submitBtnText) {
+                    submitBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving & Publishing...';
+                }
+
+                return true;
+            });
+        }
+    });
 </script>
 @endpush
 @endsection
