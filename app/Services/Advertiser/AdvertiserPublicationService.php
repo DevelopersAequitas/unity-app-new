@@ -48,11 +48,26 @@ class AdvertiserPublicationService
                 $partner = BrandPartner::find($application->brand_partner_id);
             }
 
-            // Find assets
+            // Find assets with robust fallback across asset types
+            $imageAssets = $application->assets->filter(function ($a) {
+                return in_array($a->asset_type, [
+                    AdvertiserApplicationAsset::TYPE_LOGO,
+                    AdvertiserApplicationAsset::TYPE_BANNER,
+                    AdvertiserApplicationAsset::TYPE_COVER,
+                    AdvertiserApplicationAsset::TYPE_CREATIVE,
+                    'image',
+                    'other'
+                ], true) || Str::startsWith((string)$a->mime_type, 'image/');
+            })->values();
+
             $logoAsset = $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_LOGO)
-                ?? $application->assets->firstWhere('asset_type', 'image');
+                ?? $application->assets->firstWhere('asset_type', 'image')
+                ?? $imageAssets->first();
+
             $bannerAsset = $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_BANNER)
-                ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_COVER);
+                ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_COVER)
+                ?? $application->assets->firstWhere('asset_type', AdvertiserApplicationAsset::TYPE_CREATIVE)
+                ?? ($imageAssets->count() > 1 ? $imageAssets->get(1) : $imageAssets->first());
 
             // Resolve Category
             $categoryId = null;
