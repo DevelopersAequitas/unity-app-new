@@ -28,7 +28,7 @@ class AdvertiserMemberApiController extends BaseApiController
     {
         $user = $request->user();
         $query = AdvertiserApplication::where('user_id', $user->id)
-            ->with(['package', 'assets', 'latestSubscription.latestPayment'])
+            ->with(['package', 'assets', 'subscriptions.payments'])
             ->orderByDesc('created_at');
 
         if ($request->has('status') && !empty($request->query('status'))) {
@@ -39,8 +39,8 @@ class AdvertiserMemberApiController extends BaseApiController
         $applications = $query->paginate($perPage);
 
         $transformed = $applications->through(function ($app) {
-            $sub = $app->latestSubscription;
-            $latestPayment = $sub?->latestPayment;
+            $sub = $app->subscriptions->first();
+            $latestPayment = $sub?->payments->first();
 
             $isPaid = false;
             if (
@@ -100,7 +100,6 @@ class AdvertiserMemberApiController extends BaseApiController
             'assets',
             'statusHistory',
             'subscriptions.payments',
-            'latestSubscription.latestPayment',
         ])->find($id);
 
         if (!$application) {
@@ -112,8 +111,8 @@ class AdvertiserMemberApiController extends BaseApiController
             return $this->error('You are not authorized to view this application.', 403);
         }
 
-        $sub = $application->latestSubscription ?? $application->subscriptions->first();
-        $latestPayment = $sub?->latestPayment ?? $sub?->payments->first();
+        $sub = $application->subscriptions->first();
+        $latestPayment = $sub?->payments->first();
 
         $isPaid = false;
         if (
