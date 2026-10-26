@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\MilestoneBadge;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
 use App\Services\Creative\IntroducedPeerCreativeGenerator;
@@ -203,7 +204,7 @@ class MilestoneBadgeService
                         ];
                     }
 
-                    Post::create([
+                    $post = Post::create([
                         'user_id' => $authorUserId,
                         'circle_id' => null,
                         'content_text' => $description,
@@ -221,6 +222,11 @@ class MilestoneBadgeService
                         'description' => $description,
                         'image' => $creativeImageUrl,
                         'status' => 'active',
+                    ]);
+
+                    PostMention::firstOrCreate([
+                        'post_id' => $post->id,
+                        'peer_id' => $user->id,
                     ]);
 
                     Log::info("[MilestoneBadgeService] Published timeline post for user {$user->id} unlocking badge {$badge->title}");

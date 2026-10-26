@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Http\Resources\Ask\AskPreviewResource;
+use App\Models\ActivityCreative;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
 use App\Models\File;
@@ -167,24 +168,68 @@ class PostResource extends JsonResource
                     }
                 }
 
-                $isRecognition = in_array((string) ($this->source_type ?? ''), ['life_impact', 'member_introduction', 'recognition', 'growth_honour'], true)
-                    || in_array((string) ($this->post_type ?? ''), ['life_impact_recognition', 'growth_honour'], true);
+                $creativeTypes = [
+                    'life_impact',
+                    'member_introduction',
+                    'recognition',
+                    'growth_honour',
+                    'milestone_honour',
+                    'milestone_badge',
+                    'welcome',
+                    'birthday',
+                    'anniversary',
+                    'global_peer_certificate',
+                    'introduction',
+                    'life_impact_recognition',
+                ];
 
-                if ($isRecognition && ! empty($this->source_id)) {
-                    $alreadyIncluded = collect($mentions)->contains('id', (string) $this->source_id);
-                    if (! $alreadyIncluded) {
-                        $recognizedPeer = User::find($this->source_id);
-                        if ($recognizedPeer) {
-                            $recName = $recognizedPeer->display_name ?: trim(($recognizedPeer->first_name ?? '').' '.($recognizedPeer->last_name ?? ''));
-                            $mentions[] = [
-                                'id' => (string) $recognizedPeer->id,
-                                'name' => $recName !== '' ? $recName : 'Peer Member',
-                                'profile_photo_url' => $recognizedPeer->profile_photo_file_id
-                                    ? url('/api/v1/files/'.$recognizedPeer->profile_photo_file_id)
-                                    : null,
-                                'is_online' => (bool) ($recognizedPeer->is_online ?? false),
-                            ];
-                        }
+                $candidatePeerIds = [];
+                $inlineNamedMatches = [];
+
+                $sourceType = (string) ($this->source_type ?? '');
+                $postType = (string) ($this->post_type ?? '');
+                if ((in_array($sourceType, $creativeTypes, true) || in_array($postType, $creativeTypes, true)) && ! empty($this->source_id)) {
+                    $candidatePeerIds[] = (string) $this->source_id;
+                }
+
+                $tags = is_array($this->tags) ? $this->tags : (is_string($this->tags) ? (json_decode($this->tags, true) ?? []) : []);
+                foreach ($tags as $t) {
+                    if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+                        $candidatePeerIds[] = $t;
+                    }
+                }
+
+                if (Schema::hasTable('activity_creatives') && ! empty($this->id)) {
+                    $acUserId = ActivityCreative::where('post_id', $this->id)->where('status', 'active')->value('user_id');
+                    if ($acUserId) {
+                        $candidatePeerIds[] = (string) $acUserId;
+                    }
+                }
+
+                if (! empty($this->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $this->content_text, $inlineMatches)) {
+                    foreach ($inlineMatches[2] as $idx => $matchedUuid) {
+                        $candidatePeerIds[] = $matchedUuid;
+                        $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                    }
+                }
+
+                $alreadyMentionedIds = collect($mentions)->pluck('id')->all();
+                $unresolvedPeerIds = array_values(array_diff(array_unique($candidatePeerIds), $alreadyMentionedIds));
+
+                if (! empty($unresolvedPeerIds)) {
+                    $users = User::whereIn('id', $unresolvedPeerIds)->get();
+                    foreach ($users as $peer) {
+                        $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
+                        $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
+                        $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
+                        $mentions[] = [
+                            'id' => (string) $peer->id,
+                            'name' => $finalName,
+                            'profile_photo_url' => $peer->profile_photo_file_id
+                                ? url('/api/v1/files/'.$peer->profile_photo_file_id)
+                                : ($peer->profile_photo_url ?: null),
+                            'is_online' => (bool) ($peer->is_online ?? false),
+                        ];
                     }
                 }
 

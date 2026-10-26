@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\AnniversaryTemplate;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Creative\AnniversaryImageGenerator;
 use App\Services\Notifications\NotificationService;
@@ -109,6 +110,11 @@ class SendAnniversaryNotifications extends Command
                         'description' => $description,
                         'image' => $imageUrl,
                         'status' => 'active',
+                    ]);
+
+                    PostMention::firstOrCreate([
+                        'post_id' => $post->id,
+                        'peer_id' => $user->id,
                     ]);
 
                     Log::info("{$logPrefix} Generated creative ID {$fileRecord->id} and created timeline post ID {$post->id} owned by admin/system user {$authorUserId} for user {$user->id}");
