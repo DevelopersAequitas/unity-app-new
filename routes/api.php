@@ -1535,6 +1535,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/applications/{id}/assets/upload-url', [AdvertiserPublicApiController::class, 'uploadUrl'])->whereUuid('id');
         Route::post('/applications/{id}/assets', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
         Route::post('/applications/{id}/assets/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
+        Route::post('/applications/{id}/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
         Route::post('/identity/resolve', [AdvertiserPublicApiController::class, 'resolveIdentity']);
         Route::get('/banner-config', [AdvertiserPublicApiController::class, 'bannerConfig']);
         Route::get('/guest/applications/{id}', [AdvertiserPublicApiController::class, 'guestShow'])->whereUuid('id');

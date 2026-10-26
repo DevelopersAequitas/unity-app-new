@@ -88,6 +88,36 @@ class AdvertiserPublicApiController extends BaseApiController
 
         $application = $this->applicationService->submitApplication($validated, $authenticatedUser);
 
+        // Auto-save direct multipart files sent during application submission
+        $directFiles = [
+            'logo' => $request->file('logo'),
+            'banner' => $request->file('banner') ?? $request->file('cover_image'),
+            'cover_image' => $request->file('cover_image'),
+            'file' => $request->file('file'),
+        ];
+        $disk = config('filesystems.default', 'public');
+        foreach ($directFiles as $assetKey => $fileObj) {
+            if ($fileObj && $fileObj->isValid()) {
+                $type = match ($assetKey) {
+                    'logo' => AdvertiserApplicationAsset::TYPE_LOGO,
+                    'banner' => AdvertiserApplicationAsset::TYPE_BANNER,
+                    'cover_image' => AdvertiserApplicationAsset::TYPE_COVER,
+                    default => AdvertiserApplicationAsset::TYPE_CREATIVE,
+                };
+                $path = $fileObj->store('advertiser/' . $application->id, $disk);
+                AdvertiserApplicationAsset::create([
+                    'application_id' => $application->id,
+                    'asset_type' => $type,
+                    'original_filename' => $fileObj->getClientOriginalName(),
+                    'storage_disk' => $disk,
+                    'storage_key' => $path,
+                    'mime_type' => $fileObj->getClientMimeType() ?: 'image/jpeg',
+                    'file_size_bytes' => $fileObj->getSize(),
+                    'review_status' => AdvertiserApplicationAsset::STATUS_PENDING,
+                ]);
+            }
+        }
+
         $nextAction = ($application->status === AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION)
             ? 'verify_email'
             : 'await_review';
@@ -232,24 +262,34 @@ class AdvertiserPublicApiController extends BaseApiController
         }
 
         // Support either multipart direct file upload or storage_key confirmation
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $request->validate([
-                'file' => ['required', 'file', 'max:10240', 'mimes:jpeg,jpg,png,webp,pdf'],
-                'asset_type' => ['required', 'string', 'in:logo,banner,cover_image,campaign_creative,document,other'],
-            ]);
+        $uploadedFile = $request->file('file')
+            ?? $request->file('logo')
+            ?? $request->file('banner')
+            ?? $request->file('cover_image')
+            ?? $request->file('image')
+            ?? $request->file('asset')
+            ?? collect($request->allFiles())->first();
+
+        if ($uploadedFile) {
+            $assetType = $request->input('asset_type');
+            if (empty($assetType)) {
+                if ($request->hasFile('logo')) $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
+                elseif ($request->hasFile('banner')) $assetType = AdvertiserApplicationAsset::TYPE_BANNER;
+                elseif ($request->hasFile('cover_image')) $assetType = AdvertiserApplicationAsset::TYPE_COVER;
+                else $assetType = AdvertiserApplicationAsset::TYPE_LOGO;
+            }
 
             $disk = config('filesystems.default', 'public');
-            $path = $file->store('advertiser/' . $application->id, $disk);
+            $path = $uploadedFile->store('advertiser/' . $application->id, $disk);
 
             $asset = AdvertiserApplicationAsset::create([
                 'application_id' => $application->id,
-                'asset_type' => $request->input('asset_type'),
-                'original_filename' => $file->getClientOriginalName(),
+                'asset_type' => $assetType,
+                'original_filename' => $uploadedFile->getClientOriginalName(),
                 'storage_disk' => $disk,
                 'storage_key' => $path,
-                'mime_type' => $file->getClientMimeType() ?: 'image/jpeg',
-                'file_size_bytes' => $file->getSize(),
+                'mime_type' => $uploadedFile->getClientMimeType() ?: 'image/jpeg',
+                'file_size_bytes' => $uploadedFile->getSize(),
                 'review_status' => AdvertiserApplicationAsset::STATUS_PENDING,
             ]);
 
