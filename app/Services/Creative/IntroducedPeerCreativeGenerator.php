@@ -488,11 +488,11 @@ class IntroducedPeerCreativeGenerator
                     }
                 };
 
-                // 2. Line 1: User Full Name (Uppercase, Gold, Bold, Y = 735)
+                // 2. Line 1: User Full Name (Uppercase, Gold, Bold, Y = 731)
                 $displayName = strtoupper(trim($name ?: 'PEER MEMBER'));
-                $drawCenterText($canvas, 30, 735, $colorGold, $fontBold, $displayName, 900);
+                $drawCenterText($canvas, 30, 731, $colorGold, $fontBold, $displayName, 900);
 
-                // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, Y = 766)
+                // 3. Line 2: Business & Location Row (Dark Charcoal Slate, Medium, Y = 762)
                 $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
                 if (is_array($company)) {
                     $company = $company['name'] ?? '';
@@ -519,12 +519,12 @@ class IntroducedPeerCreativeGenerator
                 }
 
                 if (! empty($line2Text)) {
-                    $drawCenterText($canvas, 19, 766, $colorDarkNavy, $fontSemiBold, $line2Text, 920);
+                    $drawCenterText($canvas, 19, 762, $colorDarkNavy, $fontSemiBold, $line2Text, 920);
                 }
 
-                // 4. Line 3: Category / Subcategory (Slate Gray, Medium, Y = 794)
+                // 4. Line 3: Category / Subcategory (Slate Gray, Medium, Y = 790)
                 if (! empty($level4Name)) {
-                    $drawCenterText($canvas, 17, 794, $colorGray, $fontSemiBold, (string) $level4Name, 920);
+                    $drawCenterText($canvas, 17, 790, $colorGray, $fontSemiBold, (string) $level4Name, 920);
                 }
             } else {
                 // Programmatic fallback (if template file is missing)
