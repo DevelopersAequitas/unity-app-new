@@ -1475,6 +1475,9 @@ Route::prefix('v1')->group(function () {
             // Payment Order & Verification
             Route::post('/subscriptions/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
             Route::post('/applications/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
+            Route::post('/subscriptions/{id}/extend', [AdvertiserPaymentApiController::class, 'extendSubscription'])->whereUuid('id');
+            Route::post('/subscriptions/{subscription_id}/extend', [AdvertiserPaymentApiController::class, 'extendSubscription'])->whereUuid('subscription_id');
+            Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
         });

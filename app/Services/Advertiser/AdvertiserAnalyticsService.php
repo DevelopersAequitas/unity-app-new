@@ -85,15 +85,51 @@ class AdvertiserAnalyticsService
                 'valid_to' => $sub->expires_at?->toIso8601String(),
                 'metrics' => [
                     'total_views' => $totalViews,
+                    'impressions' => $totalViews,
                     'unique_views' => $uniqueViews,
+                    'unique_reach' => $uniqueViews,
                     'total_clicks' => $totalClicks,
+                    'clicks' => $totalClicks,
                     'unique_clicks' => $uniqueClicks,
                     'ctr_percent' => $ctr,
+                    'ctr_percentage' => $ctr,
                 ],
             ];
         }
 
+        $primaryPartner = collect($partners)->firstWhere('publication_status', 'published') ?? ($partners[0] ?? null);
+        $currentCampaign = null;
+        $currentMetrics = null;
+
+        if ($primaryPartner) {
+            $sub = $subscriptions->firstWhere('brand_partner_id', $primaryPartner['brand_partner_id']);
+            $app = $sub?->application ?? $userApplications->firstWhere('brand_partner_id', $primaryPartner['brand_partner_id']);
+
+            $currentCampaign = [
+                'company_name' => $app?->company_name ?? $primaryPartner['brand_name'],
+                'brand_name' => $primaryPartner['brand_name'],
+                'publication_status' => $primaryPartner['publication_status'],
+                'valid_from' => $primaryPartner['valid_from'] ? Carbon::parse($primaryPartner['valid_from'])->format('Y-m-d') : null,
+                'valid_to' => $primaryPartner['valid_to'] ? Carbon::parse($primaryPartner['valid_to'])->format('Y-m-d') : null,
+            ];
+            $currentMetrics = $primaryPartner['metrics'];
+        } else {
+            $currentMetrics = [
+                'impressions' => 0,
+                'total_views' => 0,
+                'clicks' => 0,
+                'total_clicks' => 0,
+                'unique_reach' => 0,
+                'unique_views' => 0,
+                'unique_clicks' => 0,
+                'ctr_percentage' => 0.0,
+                'ctr_percent' => 0.0,
+            ];
+        }
+
         return [
+            'current_campaign' => $currentCampaign,
+            'metrics' => $currentMetrics,
             'application_summary' => $appSummary,
             'active_partners' => $activePartnersCount,
             'pending_payments' => $pendingPayments,
@@ -196,7 +232,9 @@ class AdvertiserAnalyticsService
             $dailyData[] = [
                 'date' => $dateStr,
                 'views' => $v,
+                'impressions' => $v,
                 'unique_views' => $uv,
+                'unique_reach' => $uv,
                 'clicks' => $c,
                 'unique_clicks' => $uc,
             ];
@@ -213,8 +251,11 @@ class AdvertiserAnalyticsService
             ],
             'summary' => [
                 'total_views' => $totalViews,
+                'impressions' => $totalViews,
                 'unique_views' => $uniqueViews,
+                'unique_reach' => $uniqueViews,
                 'total_clicks' => $totalClicks,
+                'clicks' => $totalClicks,
                 'unique_clicks' => $uniqueClicks,
                 'website_clicks' => $websiteClicks,
                 'call_clicks' => $callClicks,
@@ -223,6 +264,7 @@ class AdvertiserAnalyticsService
                 'share_clicks' => $shareClicks,
                 'coupon_redemptions' => $couponRedemptions,
                 'ctr_percent' => $ctr,
+                'ctr_percentage' => $ctr,
                 'conversion_rate_percent' => $conversionRate,
             ],
             'daily' => $dailyData,

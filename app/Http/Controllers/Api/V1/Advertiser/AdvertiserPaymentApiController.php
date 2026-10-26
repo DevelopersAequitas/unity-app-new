@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Advertiser;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Advertiser\ExtendSubscriptionRequest;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
+use App\Models\BrandPartner;
 use App\Services\Advertiser\AdvertiserPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdvertiserPaymentApiController extends BaseApiController
 {
@@ -78,6 +81,87 @@ class AdvertiserPaymentApiController extends BaseApiController
         );
 
         return $this->success($orderPayload, 'Payment order created successfully.');
+    }
+
+    /**
+     * Extend / renew an advertiser subscription.
+     * POST /api/v1/advertiser/subscriptions/{id}/extend
+     */
+    public function extendSubscription(ExtendSubscriptionRequest $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+        $subscription = AdvertiserSubscription::with(['application', 'brandPartner'])->find($id);
+
+        if (!$subscription) {
+            $partner = BrandPartner::find($id);
+            if ($partner) {
+                $subscription = AdvertiserSubscription::where('brand_partner_id', $partner->id)
+                    ->orderByDesc('created_at')
+                    ->first();
+            }
+        }
+
+        if (!$subscription) {
+            return $this->error('Subscription not found.', 404);
+        }
+
+        if ($subscription->user_id !== $user->id && $subscription->application?->user_id !== $user->id) {
+            return $this->error('Unauthorized access to this subscription.', 403);
+        }
+
+        $packageId = $request->input('package_id');
+        $durationMonths = (int) $request->input('duration_months', 1);
+        $idempotencyKey = (string) $request->input('idempotency_key', '');
+
+        $orderPayload = $this->paymentService->createRenewalPaymentOrder(
+            subscription: $subscription,
+            packageId: $packageId ? (string) $packageId : null,
+            durationMonths: $durationMonths > 0 ? $durationMonths : 1,
+            idempotencyKey: $idempotencyKey ?: null
+        );
+
+        return $this->success($orderPayload, 'Renewal order created successfully.');
+    }
+
+    /**
+     * Renew campaign for a brand partner.
+     * POST /api/v1/advertiser/partners/{id}/renew
+     */
+    public function renewPartner(ExtendSubscriptionRequest $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        $partner = BrandPartner::find($id);
+        $subscription = null;
+
+        if ($partner) {
+            $subscription = AdvertiserSubscription::where('brand_partner_id', $partner->id)
+                ->orderByDesc('created_at')
+                ->first();
+        } else {
+            $subscription = AdvertiserSubscription::find($id);
+        }
+
+        if (!$subscription) {
+            return $this->error('Active subscription or brand partner not found.', 404);
+        }
+
+        if ($subscription->user_id !== $user->id && $subscription->application?->user_id !== $user->id) {
+            return $this->error('Unauthorized access to this partner.', 403);
+        }
+
+        $packageId = $request->input('package_id');
+        $durationMonths = (int) $request->input('duration_months', 1);
+        $idempotencyKey = (string) $request->input('idempotency_key', '');
+
+        $orderPayload = $this->paymentService->createRenewalPaymentOrder(
+            subscription: $subscription,
+            packageId: $packageId ? (string) $packageId : null,
+            durationMonths: $durationMonths > 0 ? $durationMonths : 1,
+            idempotencyKey: $idempotencyKey ?: null
+        );
+
+        return $this->success($orderPayload, 'Renewal order created successfully.');
     }
 
     /**

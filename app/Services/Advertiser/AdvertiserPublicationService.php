@@ -7,9 +7,12 @@ namespace App\Services\Advertiser;
 use App\Jobs\SendBulkPartnerNotificationJob;
 use App\Models\AdvertiserApplication;
 use App\Models\AdvertiserApplicationAsset;
+use App\Models\AdvertiserApplicationStatusHistory;
+use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserSubscription;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -35,7 +38,7 @@ class AdvertiserPublicationService
             ]);
         }
 
-        if ($application->status !== AdvertiserApplication::STATUS_APPROVED) {
+        if ($application->status !== AdvertiserApplication::STATUS_APPROVED && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
             throw ValidationException::withMessages([
                 'publication' => ['Campaign cannot be published because the application has not been approved.'],
             ]);
@@ -150,6 +153,22 @@ class AdvertiserPublicationService
             $subscription->activated_at = now();
             $subscription->save();
 
+            // 3. Update Application status to active
+            if ($application && $application->status !== AdvertiserApplication::STATUS_ACTIVE) {
+                $oldStatus = $application->status;
+                $application->status = AdvertiserApplication::STATUS_ACTIVE;
+                $application->brand_partner_id = $partner->id;
+                $application->save();
+
+                AdvertiserApplicationStatusHistory::create([
+                    'application_id' => $application->id,
+                    'previous_status' => $oldStatus,
+                    'new_status' => AdvertiserApplication::STATUS_ACTIVE,
+                    'changed_by' => $subscription->user_id,
+                    'notes' => 'Payment captured and campaign activated.',
+                ]);
+            }
+
             return $partner;
         });
 
@@ -170,6 +189,77 @@ class AdvertiserPublicationService
         }
 
         return $partner;
+    }
+
+    /**
+     * Extend or renew an existing brand partner subscription.
+     */
+    public function extendSubscription(
+        AdvertiserSubscription $subscription,
+        int $durationMonths = 1,
+        ?AdvertiserPackage $package = null
+    ): BrandPartner {
+        $subscription->loadMissing(['application', 'user', 'brandPartner']);
+
+        return DB::transaction(function () use ($subscription, $durationMonths, $package): BrandPartner {
+            $baseDate = ($subscription->status === AdvertiserSubscription::STATUS_ACTIVE && $subscription->expires_at && $subscription->expires_at->isFuture())
+                ? $subscription->expires_at
+                : now();
+
+            $newExpiresAt = $baseDate->copy()->addMonths($durationMonths);
+
+            // If subscription was expired or had no start date, start from now
+            if (!$subscription->starts_at || ($subscription->expires_at && $subscription->expires_at->isPast())) {
+                $subscription->starts_at = now();
+            }
+
+            $subscription->expires_at = $newExpiresAt;
+            $subscription->status = AdvertiserSubscription::STATUS_ACTIVE;
+            $subscription->duration_months = (int) ($subscription->duration_months ?: 0) + $durationMonths;
+            if ($package) {
+                $subscription->package_id = $package->id;
+                $subscription->package_name_snapshot = $package->name;
+            }
+            $subscription->save();
+
+            // Update Brand Partner
+            $partner = $subscription->brandPartner;
+            if (!$partner && !empty($subscription->brand_partner_id)) {
+                $partner = BrandPartner::find($subscription->brand_partner_id);
+            }
+
+            if ($partner) {
+                $partnerUpdate = [
+                    'is_active' => true,
+                    'is_sponsored' => true,
+                    'valid_to' => $newExpiresAt,
+                ];
+                if (!$partner->valid_from || Carbon::parse($partner->valid_to)->isPast()) {
+                    $partnerUpdate['valid_from'] = now();
+                }
+                $partner->update($partnerUpdate);
+            }
+
+            // Update linked application status to active if exists
+            if ($subscription->application) {
+                $app = $subscription->application;
+                $oldStatus = $app->status;
+                if ($oldStatus !== AdvertiserApplication::STATUS_ACTIVE) {
+                    $app->status = AdvertiserApplication::STATUS_ACTIVE;
+                    $app->save();
+                }
+
+                AdvertiserApplicationStatusHistory::create([
+                    'application_id' => $app->id,
+                    'previous_status' => $oldStatus,
+                    'new_status' => AdvertiserApplication::STATUS_ACTIVE,
+                    'changed_by' => $subscription->user_id,
+                    'notes' => "Campaign renewed for {$durationMonths} month(s). New expiry: " . $newExpiresAt->toIso8601String(),
+                ]);
+            }
+
+            return $partner ?? new BrandPartner();
+        });
     }
 
     /**
@@ -203,3 +293,4 @@ class AdvertiserPublicationService
         });
     }
 }
+

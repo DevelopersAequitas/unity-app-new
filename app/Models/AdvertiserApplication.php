@@ -23,6 +23,7 @@ class AdvertiserApplication extends Model
     public const STATUS_UNDER_REVIEW = 'under_review';
     public const STATUS_CHANGES_REQUESTED = 'changes_requested';
     public const STATUS_APPROVED = 'approved';
+    public const STATUS_ACTIVE = 'active';
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_WITHDRAWN = 'withdrawn';
 
@@ -33,6 +34,7 @@ class AdvertiserApplication extends Model
         self::STATUS_UNDER_REVIEW,
         self::STATUS_CHANGES_REQUESTED,
         self::STATUS_APPROVED,
+        self::STATUS_ACTIVE,
         self::STATUS_REJECTED,
         self::STATUS_WITHDRAWN,
     ];
@@ -203,7 +205,10 @@ class AdvertiserApplication extends Model
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_APPROVED => [
-                // Approved state is terminal for application; next actions belong to payment & subscription
+                self::STATUS_ACTIVE,
+                self::STATUS_WITHDRAWN,
+            ],
+            self::STATUS_ACTIVE => [
                 self::STATUS_WITHDRAWN,
             ],
             self::STATUS_REJECTED => [],

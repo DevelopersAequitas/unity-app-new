@@ -403,6 +403,7 @@ class AdvertiserPublicApiController extends BaseApiController
                 AdvertiserApplication::STATUS_PENDING_EMAIL_VERIFICATION => 'verify_email',
                 AdvertiserApplication::STATUS_CHANGES_REQUESTED => 'update_corrections',
                 AdvertiserApplication::STATUS_APPROVED => 'complete_payment',
+                AdvertiserApplication::STATUS_ACTIVE => null,
                 default => 'await_review',
             },
             'submitted_at' => $application->submitted_at?->toIso8601String(),

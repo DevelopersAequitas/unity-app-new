@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Advertiser;
 
 use App\Models\AdvertiserApplication;
+use App\Models\AdvertiserPackage;
 use App\Models\AdvertiserPayment;
 use App\Models\AdvertiserSubscription;
 use Illuminate\Support\Facades\DB;
@@ -131,12 +132,128 @@ class AdvertiserPaymentService
     }
 
     /**
+     * Create Razorpay payment order for renewing/extending an advertiser subscription.
+     */
+    public function createRenewalPaymentOrder(
+        AdvertiserSubscription $subscription,
+        ?string $packageId = null,
+        int $durationMonths = 1,
+        ?string $idempotencyKey = null
+    ): array {
+        $subscription->loadMissing(['application', 'user', 'package', 'brandPartner']);
+
+        $durationMonths = max(1, $durationMonths);
+
+        // Resolve package: if packageId is supplied, lookup that package, else fallback to subscription's package
+        $package = null;
+        if (!empty($packageId)) {
+            $package = AdvertiserPackage::find($packageId);
+            if (!$package) {
+                throw ValidationException::withMessages([
+                    'package_id' => ['The selected advertiser package was not found.'],
+                ]);
+            }
+        } else {
+            $package = $subscription->package ?? AdvertiserPackage::find($subscription->package_id);
+        }
+
+        // Calculate renewal amount based on package price and requested duration
+        $packagePrice = $package ? (float) $package->price : (float) $subscription->amount;
+        $packageDuration = ($package && $package->duration_months > 0) ? (int) $package->duration_months : 1;
+
+        if ($packageDuration > 0 && $durationMonths !== $packageDuration) {
+            $amount = round($packagePrice * ($durationMonths / (float) $packageDuration), 2);
+        } else {
+            $amount = round($packagePrice, 2);
+        }
+
+        // Check if renewal is free (zero amount)
+        if ($amount <= 0) {
+            $this->publicationService->extendSubscription($subscription, $durationMonths, $package);
+
+            return [
+                'payment_id' => null,
+                'is_free' => true,
+                'message' => 'Subscription renewed successfully.',
+                'subscription_id' => $subscription->id,
+                'status' => 'active',
+            ];
+        }
+
+        // Idempotency: return existing valid created/pending payment order if available with matching amount
+        if (!empty($idempotencyKey)) {
+            $existing = AdvertiserPayment::where('idempotency_key', $idempotencyKey)->first();
+            if ($existing && in_array($existing->status, [AdvertiserPayment::STATUS_CREATED, AdvertiserPayment::STATUS_PENDING], true)) {
+                if ((float) $existing->amount === (float) $amount) {
+                    return $this->formatCheckoutPayload($subscription, $existing);
+                }
+            }
+        }
+
+        $currency = strtoupper((string) ($package?->currency ?: $subscription->currency ?: config('razorpay.currency', 'INR')));
+        $amountPaise = (int) round($amount * 100);
+
+        try {
+            $api = $this->getApi();
+            $order = $api->order->create([
+                'amount' => $amountPaise,
+                'currency' => $currency,
+                'receipt' => 'ADV-REN-' . substr($subscription->id, 0, 14) . '-' . substr((string) time(), -6),
+                'notes' => [
+                    'type' => 'advertiser_subscription_renewal',
+                    'subscription_id' => (string) $subscription->id,
+                    'application_id' => (string) ($subscription->application_id ?? ''),
+                    'duration_months' => (string) $durationMonths,
+                    'package_id' => (string) ($package?->id ?? ''),
+                ],
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('[AdvertiserPayment] Razorpay renewal order creation failed: ' . $exception->getMessage(), [
+                'subscription_id' => $subscription->id,
+            ]);
+
+            throw ValidationException::withMessages([
+                'payment' => ['Unable to initiate renewal payment with gateway. Please try again later.'],
+            ]);
+        }
+
+        $payment = DB::transaction(function () use ($subscription, $order, $amount, $currency, $idempotencyKey, $durationMonths, $package) {
+            return AdvertiserPayment::create([
+                'subscription_id' => $subscription->id,
+                'provider' => 'razorpay',
+                'provider_order_id' => (string) ($order['id'] ?? ''),
+                'amount' => $amount,
+                'currency' => $currency,
+                'status' => AdvertiserPayment::STATUS_CREATED,
+                'idempotency_key' => $idempotencyKey,
+                'provider_payload' => array_merge(
+                    is_array($order) ? $order : ($order->toArray() ?? []),
+                    [
+                        'is_renewal' => true,
+                        'renewal_duration_months' => $durationMonths,
+                        'renewal_package_id' => $package?->id,
+                        'renewal_package_name' => $package?->name,
+                        'renewal_package_price' => $amount,
+                    ]
+                ),
+            ]);
+        });
+
+        return $this->formatCheckoutPayload($subscription, $payment);
+    }
+
+    /**
      * Format frontend Razorpay checkout configuration.
      */
     public function formatCheckoutPayload(AdvertiserSubscription $subscription, AdvertiserPayment $payment): array
     {
         $application = $subscription->application;
         $keyId = (string) config('razorpay.key_id');
+        $isRenewal = (bool) ($payment->provider_payload['is_renewal'] ?? false);
+        $packageName = $payment->provider_payload['renewal_package_name'] ?? $subscription->package_name_snapshot;
+        $description = $isRenewal
+            ? 'Advertiser Subscription Renewal - ' . $packageName
+            : 'Advertiser Subscription - ' . $subscription->package_name_snapshot;
 
         return [
             'payment_id' => (string) $payment->id,
@@ -145,15 +262,16 @@ class AdvertiserPaymentService
             'currency' => (string) $payment->currency,
             'checkout_key_id' => $keyId,
             'business_name' => 'Peers Global Unity',
-            'description' => 'Advertiser Subscription - ' . $subscription->package_name_snapshot,
+            'description' => $description,
             'prefill' => [
-                'name' => $application?->applicant_name ?? '',
-                'email' => $application?->applicant_email ?? '',
-                'contact' => $application?->applicant_phone ?? '',
+                'name' => $application?->applicant_name ?? $subscription->user?->name ?? '',
+                'email' => $application?->applicant_email ?? $subscription->user?->email ?? '',
+                'contact' => $application?->applicant_phone ?? $subscription->user?->phone ?? '',
             ],
             'notes' => [
                 'subscription_id' => (string) $subscription->id,
                 'application_id' => (string) $subscription->application_id,
+                'is_renewal' => $isRenewal ? 'true' : 'false',
             ],
         ];
     }
@@ -311,8 +429,16 @@ class AdvertiserPaymentService
             }
             $payment->save();
 
-            // Activate and publish
-            $this->publicationService->activateAndPublish($payment->subscription);
+            // Activate and publish (or extend for renewals)
+            $isRenewal = (bool) ($payment->provider_payload['is_renewal'] ?? false);
+            if ($isRenewal) {
+                $durationMonths = (int) ($payment->provider_payload['renewal_duration_months'] ?? 1);
+                $packageId = $payment->provider_payload['renewal_package_id'] ?? null;
+                $package = $packageId ? AdvertiserPackage::find($packageId) : null;
+                $this->publicationService->extendSubscription($payment->subscription, $durationMonths, $package);
+            } else {
+                $this->publicationService->activateAndPublish($payment->subscription);
+            }
 
             return $payment->fresh(['subscription.brandPartner']);
         });
@@ -373,7 +499,15 @@ class AdvertiserPaymentService
                     $localPayment->provider_payload = array_merge($localPayment->provider_payload ?? [], $paymentEntity);
                     $localPayment->save();
 
-                    $this->publicationService->activateAndPublish($localPayment->subscription);
+                    $isRenewal = (bool) ($localPayment->provider_payload['is_renewal'] ?? false);
+                    if ($isRenewal) {
+                        $durationMonths = (int) ($localPayment->provider_payload['renewal_duration_months'] ?? 1);
+                        $packageId = $localPayment->provider_payload['renewal_package_id'] ?? null;
+                        $package = $packageId ? AdvertiserPackage::find($packageId) : null;
+                        $this->publicationService->extendSubscription($localPayment->subscription, $durationMonths, $package);
+                    } else {
+                        $this->publicationService->activateAndPublish($localPayment->subscription);
+                    }
                 });
             }
         } elseif ($event === 'payment.failed' || $status === 'failed') {
