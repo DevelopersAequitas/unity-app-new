@@ -7,6 +7,7 @@ use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Models\Ask\Ask;
 use App\Models\BusinessDeal;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -56,8 +57,9 @@ class BusinessDealController extends BaseApiController
                 'amount' => $deal->deal_amount ?? null,
             ]);
 
-            Post::create([
-                'user_id' => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
+            $authorId = $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id;
+            $post = Post::create([
+                'user_id' => $authorId,
                 'circle_id' => null,
                 'content_text' => $contentText,
                 'media' => $mediaForPost,
@@ -69,6 +71,14 @@ class BusinessDealController extends BaseApiController
                 'source_type' => 'business_deal',
                 'source_id' => $deal->id,
             ]);
+
+            $otherPeerId = (string) $deal->from_user_id === (string) $authorId ? $deal->to_user_id : $deal->from_user_id;
+            if (! empty($otherPeerId)) {
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $otherPeerId,
+                ]);
+            }
         } catch (Throwable $e) {
             Log::error('Failed to create post for business deal', [
                 'business_deal_id' => $deal->id,

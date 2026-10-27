@@ -6,9 +6,13 @@ use App\Http\Resources\Ask\AskPreviewResource;
 use App\Models\ActivityCreative;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
+use App\Models\BusinessDeal;
 use App\Models\File;
+use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\PostMention;
+use App\Models\Referral;
+use App\Models\Testimonial;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -131,12 +135,13 @@ class PostResource extends JsonResource
                 : null,
             'tags' => $this->tags,
             'mentions' => (function () {
+                $authorId = (string) ($this->user_id ?? '');
                 $mentions = [];
 
                 if ($this->relationLoaded('postMentions') && $this->postMentions) {
                     foreach ($this->postMentions as $pm) {
                         $peer = $pm->peer;
-                        if ($peer) {
+                        if ($peer && (string) $peer->id !== $authorId) {
                             $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                             $mentions[] = [
                                 'id' => (string) $peer->id,
@@ -154,7 +159,7 @@ class PostResource extends JsonResource
                         ->get();
                     foreach ($loadedMentions as $pm) {
                         $peer = $pm->peer;
-                        if ($peer) {
+                        if ($peer && (string) $peer->id !== $authorId) {
                             $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                             $mentions[] = [
                                 'id' => (string) $peer->id,
@@ -188,28 +193,133 @@ class PostResource extends JsonResource
 
                 $sourceType = (string) ($this->source_type ?? '');
                 $postType = (string) ($this->post_type ?? '');
-                if ((in_array($sourceType, $creativeTypes, true) || in_array($postType, $creativeTypes, true)) && ! empty($this->source_id)) {
+                $tags = is_array($this->tags) ? $this->tags : (is_string($this->tags) ? (json_decode($this->tags, true) ?? []) : []);
+
+                $activityCreative = null;
+                if (Schema::hasTable('activity_creatives') && ! empty($this->id)) {
+                    $activityCreative = ActivityCreative::where('post_id', $this->id)->where('status', 'active')->first();
+                }
+
+                // Resolve counterpart peer for P2P Meeting
+                if ($sourceType === 'p2p_meeting' || in_array('p2p_meeting', $tags, true) || ($activityCreative && in_array(strtolower((string) $activityCreative->activity_type), ['p2p_meeting', 'p2pmeeting'], true))) {
+                    $meetingId = $this->source_id ?? $activityCreative?->activity_id;
+                    $meeting = $meetingId ? P2pMeeting::find($meetingId) : null;
+                    if (! $meeting && $authorId !== '' && $this->created_at) {
+                        $meeting = P2pMeeting::where(function ($q) use ($authorId) {
+                            $q->where('initiator_user_id', $authorId)->orWhere('peer_user_id', $authorId);
+                        })
+                        ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
+                        ->latest('created_at')
+                        ->first();
+                    }
+                    if ($meeting) {
+                        $counterpart = (string) $meeting->initiator_user_id === $authorId ? (string) $meeting->peer_user_id : (string) $meeting->initiator_user_id;
+                        if ($counterpart !== '' && $counterpart !== $authorId) {
+                            $candidatePeerIds[] = $counterpart;
+                        }
+                    }
+                }
+
+                // Resolve counterpart peer for Business Deal
+                if ($sourceType === 'business_deal' || in_array('business_deal', $tags, true) || ($activityCreative && strtolower((string) $activityCreative->activity_type) === 'business_deal')) {
+                    $dealId = $this->source_id ?? $activityCreative?->activity_id;
+                    $deal = $dealId ? BusinessDeal::find($dealId) : null;
+                    if (! $deal && $authorId !== '' && $this->created_at) {
+                        $deal = BusinessDeal::where(function ($q) use ($authorId) {
+                            $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
+                        })
+                        ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
+                        ->latest('created_at')
+                        ->first();
+                    }
+                    if ($deal) {
+                        $counterpart = (string) $deal->from_user_id === $authorId ? (string) $deal->to_user_id : (string) $deal->from_user_id;
+                        if ($counterpart !== '' && $counterpart !== $authorId) {
+                            $candidatePeerIds[] = $counterpart;
+                        }
+                    }
+                }
+
+                // Resolve counterpart peer for Testimonial
+                if ($sourceType === 'testimonial' || in_array('testimonial', $tags, true) || ($activityCreative && strtolower((string) $activityCreative->activity_type) === 'testimonial')) {
+                    $testId = $this->source_id ?? $activityCreative?->activity_id;
+                    $test = $testId ? Testimonial::find($testId) : null;
+                    if (! $test && $authorId !== '' && $this->created_at) {
+                        $test = Testimonial::where(function ($q) use ($authorId) {
+                            $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
+                        })
+                        ->whereBetween('created_at', [$this->created_at->copy()->subMinutes(5), $this->created_at->copy()->addMinutes(5)])
+                        ->latest('created_at')
+                        ->first();
+                    }
+                    if ($test) {
+                        $counterpart = (string) $test->from_user_id === $authorId ? (string) $test->to_user_id : (string) $test->from_user_id;
+                        if ($counterpart !== '' && $counterpart !== $authorId) {
+                            $candidatePeerIds[] = $counterpart;
+                        }
+                    }
+                }
+
+                // Resolve counterpart peer for Referral
+                if ($sourceType === 'referral' || in_array('referral', $tags, true) || $postType === 'referral') {
+                    $refId = $this->source_id ?? $this->id;
+                    $ref = $refId ? Referral::find($refId) : null;
+                    if ($ref && ! empty($ref->to_user_id) && (string) $ref->to_user_id !== $authorId) {
+                        $candidatePeerIds[] = (string) $ref->to_user_id;
+                    }
+                }
+
+                // Text regex name match fallback
+                if (! empty($this->content_text)) {
+                    $text = (string) $this->content_text;
+                    $matchedName = null;
+                    if (preg_match('/sharing a moment of gratitude to\s+([^.]+?)(?:\.|$)/i', $text, $m)) {
+                        $matchedName = trim($m[1]);
+                    } elseif (preg_match('/made a deal with\s+(.+?)\s+of amount/i', $text, $m)) {
+                        $matchedName = trim($m[1]);
+                    } elseif (preg_match('/connected with\s+([^,]+?),/i', $text, $m)) {
+                        $matchedName = trim($m[1]);
+                    } elseif (preg_match('/referral for\s+.+?\s+to\s+([^.\n]+?)(?:\.|\n|$)/i', $text, $m)) {
+                        $matchedName = trim($m[1]);
+                    }
+
+                    if ($matchedName !== null && $matchedName !== '' && strtolower($matchedName) !== 'peer') {
+                        $matchedUser = User::query()
+                            ->where(function ($q) use ($matchedName) {
+                                $q->where('display_name', $matchedName)
+                                    ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$matchedName]);
+                            })
+                            ->first(['id', 'display_name', 'first_name', 'last_name', 'profile_photo_file_id', 'profile_photo_url', 'is_online']);
+
+                        if ($matchedUser && (string) $matchedUser->id !== $authorId) {
+                            $candidatePeerIds[] = (string) $matchedUser->id;
+                        }
+                    }
+                }
+
+                if ((in_array($sourceType, $creativeTypes, true) || in_array($postType, $creativeTypes, true)) && ! empty($this->source_id) && (string) $this->source_id !== $authorId) {
                     $candidatePeerIds[] = (string) $this->source_id;
                 }
 
-                $tags = is_array($this->tags) ? $this->tags : (is_string($this->tags) ? (json_decode($this->tags, true) ?? []) : []);
                 foreach ($tags as $t) {
-                    if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+                    if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t) && (string) $t !== $authorId) {
                         $candidatePeerIds[] = $t;
                     }
                 }
 
-                if (Schema::hasTable('activity_creatives') && ! empty($this->id)) {
-                    $acUserId = ActivityCreative::where('post_id', $this->id)->where('status', 'active')->value('user_id');
-                    if ($acUserId) {
-                        $candidatePeerIds[] = (string) $acUserId;
+                if ($activityCreative && ! empty($activityCreative->user_id) && (string) $activityCreative->user_id !== $authorId) {
+                    $actType = strtolower((string) $activityCreative->activity_type);
+                    if (! in_array($actType, ['p2p_meeting', 'p2pmeeting', 'business_deal', 'testimonial', 'referral'], true)) {
+                        $candidatePeerIds[] = (string) $activityCreative->user_id;
                     }
                 }
 
                 if (! empty($this->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $this->content_text, $inlineMatches)) {
                     foreach ($inlineMatches[2] as $idx => $matchedUuid) {
-                        $candidatePeerIds[] = $matchedUuid;
-                        $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                        if ((string) $matchedUuid !== $authorId) {
+                            $candidatePeerIds[] = $matchedUuid;
+                            $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                        }
                     }
                 }
 
@@ -219,6 +329,9 @@ class PostResource extends JsonResource
                 if (! empty($unresolvedPeerIds)) {
                     $users = User::whereIn('id', $unresolvedPeerIds)->get();
                     foreach ($users as $peer) {
+                        if ((string) $peer->id === $authorId) {
+                            continue;
+                        }
                         $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                         $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
                         $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
@@ -233,7 +346,7 @@ class PostResource extends JsonResource
                     }
                 }
 
-                return array_values($mentions);
+                return array_values(array_filter($mentions, fn ($m) => (string) ($m['id'] ?? '') !== $authorId));
             })(),
             'visibility' => $this->visibility,
             'is_system_announcement' => $isSystemPost || $isAnniversary,
