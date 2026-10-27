@@ -269,6 +269,43 @@ class PostResource extends JsonResource
                     }
                 }
 
+                // Resolve matched peers and responders for Ask
+                if ($sourceType === 'ask' || in_array('ask', $tags, true) || $postType === 'ask') {
+                    $askId = $this->source_id;
+                    if (! $askId) {
+                        $link = AskTimelineLink::query()->where('post_id', $this->id)->first();
+                        $askId = $link?->ask_id;
+                    }
+                    if ($askId) {
+                        $ask = Ask::query()
+                            ->with([
+                                'matches:id,ask_id,matched_user_id',
+                                'responses:id,ask_id,responder_user_id,introduced_user_id,status',
+                            ])
+                            ->find($askId);
+
+                        if ($ask) {
+                            if ($ask->relationLoaded('responses') && $ask->responses) {
+                                foreach ($ask->responses as $resp) {
+                                    if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
+                                        $candidatePeerIds[] = (string) $resp->responder_user_id;
+                                    }
+                                    if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
+                                        $candidatePeerIds[] = (string) $resp->introduced_user_id;
+                                    }
+                                }
+                            }
+                            if ($ask->relationLoaded('matches') && $ask->matches) {
+                                foreach ($ask->matches as $match) {
+                                    if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
+                                        $candidatePeerIds[] = (string) $match->matched_user_id;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Text regex name match fallback
                 if (! empty($this->content_text)) {
                     $text = (string) $this->content_text;

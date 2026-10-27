@@ -849,6 +849,105 @@ class PostController extends BaseApiController
             }
         }
 
+        $askSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $askPostIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $asksByPostId = collect();
+        $asksById = collect();
+        $askPeerIdsByPostId = [];
+
+        if (! empty($askPostIds) || ! empty($askSourceIds)) {
+            $timelineLinks = AskTimelineLink::query()
+                ->whereIn('post_id', $askPostIds)
+                ->get(['ask_id', 'post_id'])
+                ->keyBy('post_id');
+
+            $allAskIds = collect($askSourceIds)
+                ->merge($timelineLinks->pluck('ask_id'))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (! empty($allAskIds)) {
+                $asks = Ask::query()
+                    ->whereIn('id', $allAskIds)
+                    ->with([
+                        'flow',
+                        'type',
+                        'answers.option',
+                        'district',
+                        'circle',
+                        'user',
+                        'matches:id,ask_id,matched_user_id',
+                        'responses:id,ask_id,responder_user_id,introduced_user_id,status',
+                    ])
+                    ->withCount(['responses', 'matches'])
+                    ->get();
+
+                $asksById = $asks->keyBy(fn (Ask $ask) => (string) $ask->id);
+
+                foreach ($timelineLinks as $postId => $link) {
+                    if ($asksById->has((string) $link->ask_id)) {
+                        $asksByPostId->put((string) $postId, $asksById->get((string) $link->ask_id));
+                    }
+                }
+
+                foreach ($pageRows as $row) {
+                    $postId = (string) $row->id;
+                    $authorId = (string) ($row->author_id ?? '');
+                    $ask = (! empty($row->post_source_id) ? $asksById->get((string) $row->post_source_id) : null)
+                        ?? $asksByPostId->get($postId);
+
+                    if ($ask) {
+                        $askPeers = [];
+                        if ($ask->relationLoaded('responses') && $ask->responses) {
+                            foreach ($ask->responses as $resp) {
+                                if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
+                                    $askPeers[] = (string) $resp->responder_user_id;
+                                }
+                                if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
+                                    $askPeers[] = (string) $resp->introduced_user_id;
+                                }
+                            }
+                        }
+                        if ($ask->relationLoaded('matches') && $ask->matches) {
+                            foreach ($ask->matches as $match) {
+                                if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
+                                    $askPeers[] = (string) $match->matched_user_id;
+                                }
+                            }
+                        }
+                        if ($askPeers !== []) {
+                            $askPeerIdsByPostId[$postId] = array_values(array_unique($askPeers));
+                        }
+                    }
+                }
+            }
+        }
+
+        $allAskPeerIds = [];
+        foreach ($askPeerIdsByPostId as $pIds) {
+            foreach ($pIds as $pId) {
+                $allAskPeerIds[] = $pId;
+            }
+        }
+
         $storedMentionPeerIds = [];
         foreach ($postMentionsByPostId as $pms) {
             foreach ($pms as $pm) {
@@ -861,6 +960,7 @@ class PostController extends BaseApiController
             $impactedPeerIds,
             $acceptedByIds,
             array_values($counterpartPeerIdByPostId),
+            $allAskPeerIds,
             $storedMentionPeerIds
         ))
             ->filter()
@@ -883,57 +983,6 @@ class PostController extends BaseApiController
                 ->keyBy(fn (User $u) => (string) $u->id)
             : collect();
 
-        $askSourceIds = $pageRows
-            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
-            ->pluck('post_source_id')
-            ->filter()
-            ->map(fn ($id) => (string) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $askPostIds = $pageRows
-            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && ((string) ($row->post_source_type ?? '') === 'ask' || (string) ($row->post_type ?? '') === 'ask'))
-            ->pluck('id')
-            ->filter()
-            ->map(fn ($id) => (string) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $asksByPostId = collect();
-        $asksById = collect();
-
-        if (! empty($askPostIds) || ! empty($askSourceIds)) {
-            $timelineLinks = AskTimelineLink::query()
-                ->whereIn('post_id', $askPostIds)
-                ->get(['ask_id', 'post_id'])
-                ->keyBy('post_id');
-
-            $allAskIds = collect($askSourceIds)
-                ->merge($timelineLinks->pluck('ask_id'))
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
-
-            if (! empty($allAskIds)) {
-                $asks = Ask::query()
-                    ->whereIn('id', $allAskIds)
-                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
-                    ->withCount(['responses', 'matches'])
-                    ->get();
-
-                $asksById = $asks->keyBy(fn (Ask $ask) => (string) $ask->id);
-
-                foreach ($timelineLinks as $postId => $link) {
-                    if ($asksById->has((string) $link->ask_id)) {
-                        $asksByPostId->put((string) $postId, $asksById->get((string) $link->ask_id));
-                    }
-                }
-            }
-        }
-
         $isDownloadable = CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
@@ -945,7 +994,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -980,12 +1029,20 @@ class PostController extends BaseApiController
                 }
             }
 
-            // 2. Candidate peers: counterpart peer, creative, recognition, celebration, tags, inline mentions
+            // 2. Candidate peers: counterpart peer, ask matched peers/responders, creative, recognition, tags, inline mentions
             $candidatePeerIds = [];
 
             $counterpartId = $counterpartPeerIdByPostId[(string) $row->id] ?? null;
             if ($counterpartId && (string) $counterpartId !== $authorId) {
                 $candidatePeerIds[] = (string) $counterpartId;
+            }
+
+            if (isset($askPeerIdsByPostId[(string) $row->id])) {
+                foreach ($askPeerIdsByPostId[(string) $row->id] as $askPeerId) {
+                    if ($askPeerId !== $authorId) {
+                        $candidatePeerIds[] = $askPeerId;
+                    }
+                }
             }
 
             $postSourceType = (string) ($row->post_source_type ?? '');
@@ -2179,6 +2236,43 @@ class PostController extends BaseApiController
             $ref = $refId ? Referral::find($refId) : null;
             if ($ref && ! empty($ref->to_user_id) && (string) $ref->to_user_id !== $authorId) {
                 $candidatePeerIds[] = (string) $ref->to_user_id;
+            }
+        }
+
+        // Resolve matched peers and responders for Ask
+        if ($sourceType === 'ask' || in_array('ask', $tags, true) || $postType === 'ask') {
+            $askId = $post->source_id;
+            if (! $askId) {
+                $link = AskTimelineLink::query()->where('post_id', $post->id)->first();
+                $askId = $link?->ask_id;
+            }
+            if ($askId) {
+                $ask = Ask::query()
+                    ->with([
+                        'matches:id,ask_id,matched_user_id',
+                        'responses:id,ask_id,responder_user_id,introduced_user_id,status',
+                    ])
+                    ->find($askId);
+
+                if ($ask) {
+                    if ($ask->relationLoaded('responses') && $ask->responses) {
+                        foreach ($ask->responses as $resp) {
+                            if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
+                                $candidatePeerIds[] = (string) $resp->responder_user_id;
+                            }
+                            if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
+                                $candidatePeerIds[] = (string) $resp->introduced_user_id;
+                            }
+                        }
+                    }
+                    if ($ask->relationLoaded('matches') && $ask->matches) {
+                        foreach ($ask->matches as $match) {
+                            if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
+                                $candidatePeerIds[] = (string) $match->matched_user_id;
+                            }
+                        }
+                    }
+                }
             }
         }
 
