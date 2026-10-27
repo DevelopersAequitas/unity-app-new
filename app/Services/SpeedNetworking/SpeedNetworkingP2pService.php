@@ -21,11 +21,21 @@ use Throwable;
 
 class SpeedNetworkingP2pService
 {
+    protected SpeedNetworkingP2pCreativeGenerator $creativeGenerator;
+
+    protected CoinsService $coinsService;
+
+    protected LifeImpactService $lifeImpactService;
+
     public function __construct(
-        protected SpeedNetworkingP2pService|SpeedNetworkingP2pCreativeGenerator $creativeGenerator,
-        protected CoinsService $coinsService,
-        protected LifeImpactService $lifeImpactService
-    ) {}
+        ?SpeedNetworkingP2pCreativeGenerator $creativeGenerator = null,
+        ?CoinsService $coinsService = null,
+        ?LifeImpactService $lifeImpactService = null
+    ) {
+        $this->creativeGenerator = $creativeGenerator ?? app(SpeedNetworkingP2pCreativeGenerator::class);
+        $this->coinsService = $coinsService ?? app(CoinsService::class);
+        $this->lifeImpactService = $lifeImpactService ?? app(LifeImpactService::class);
+    }
 
     /**
      * Convert a completed Speed Networking match between two peers into a P2P meeting,
