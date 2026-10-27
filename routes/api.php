@@ -1522,6 +1522,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/brand-partners/home', [BrandPartnerApiController::class, 'home']);
     Route::get('/brand-partners/search', [BrandPartnerApiController::class, 'search']);
     Route::get('/brand-partners/offers', [BrandPartnerApiController::class, 'offers']);
+    Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
+    Route::get('/brand-partners/{id}/analytics', [BrandPartnerApiController::class, 'partnerAnalytics'])->whereUuid('id');
+    Route::get('/brand-partners/{id}/stats', [BrandPartnerApiController::class, 'partnerAnalytics'])->whereUuid('id');
     Route::get('/brand-partners/{id}', [BrandPartnerApiController::class, 'show'])->whereUuid('id');
     Route::get('/brand-partner-categories', [BrandPartnerApiController::class, 'categories']);
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
