@@ -566,6 +566,7 @@ class P2pMeetingController extends BaseApiController
                 'initiated_to' => $formattedInitiatedTo,
                 'given_by' => $formattedInitiatedBy,
                 'given_to' => $formattedInitiatedTo,
+                'media' => $this->expandP2pMedia($meeting->media),
             ];
         })->values()->all();
 

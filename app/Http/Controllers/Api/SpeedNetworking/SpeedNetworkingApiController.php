@@ -20,12 +20,19 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
+use App\Services\SpeedNetworking\SpeedNetworkingP2pService;
+
 class SpeedNetworkingApiController extends Controller
 {
+    protected SpeedNetworkingP2pService $speedNetworkingP2pService;
+
     public function __construct(
         protected SpeedNetworkingService $speedNetworkingService,
-        protected AgoraTokenService $agoraTokenService
-    ) {}
+        protected AgoraTokenService $agoraTokenService,
+        ?SpeedNetworkingP2pService $speedNetworkingP2pService = null
+    ) {
+        $this->speedNetworkingP2pService = $speedNetworkingP2pService ?? app(SpeedNetworkingP2pService::class);
+    }
 
     /**
      * Check circle restriction access for speed networking events.
@@ -1149,4 +1156,69 @@ class SpeedNetworkingApiController extends Controller
             'data' => $summary,
         ]);
     }
+
+    /**
+     * Process completed Speed Networking matches into P2P meetings with creative posters and rewards.
+     */
+    public function completeP2p(Request $request, string $eventId): JsonResponse
+    {
+        $user = $request->user();
+
+        $event = null;
+        if (Schema::hasTable('speed_networking_events')) {
+            $event = SpeedNetworkingEvent::find($eventId);
+            if (! $event) {
+                $base = Event::find($eventId);
+                if ($base) {
+                    $event = SpeedNetworkingEvent::where('id', $base->id)
+                        ->orWhere('title', $base->title)
+                        ->latest()
+                        ->first();
+                }
+            }
+        }
+
+        if (! $event) {
+            $event = Event::find($eventId);
+        }
+
+        if (! $event) {
+            return response()->json([
+                'status' => 'error',
+                'success' => false,
+                'message' => 'Speed Networking event not found.',
+            ], 404);
+        }
+
+        if (! ($event instanceof SpeedNetworkingEvent)) {
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'message' => 'Event has no speed networking matches.',
+                'data' => [
+                    'created_meetings_count' => 0,
+                    'meetings' => [],
+                ],
+            ]);
+        }
+
+        $meetings = $this->speedNetworkingP2pService->completeAllMatchesForEvent($event, $user ? (string) $user->id : null);
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'P2P meetings and creatives processed successfully.',
+            'data' => [
+                'created_meetings_count' => $meetings->count(),
+                'meetings' => $meetings->map(fn ($m) => [
+                    'id' => (string) $m->id,
+                    'initiator_user_id' => (string) $m->initiator_user_id,
+                    'peer_user_id' => (string) $m->peer_user_id,
+                    'meeting_date' => $m->meeting_date,
+                    'media' => $m->media,
+                ])->values()->all(),
+            ],
+        ]);
+    }
 }
+

@@ -1857,6 +1857,7 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
         Route::get('events/{eventId}/summary', [SpeedNetworkingApiController::class, 'summary'])->whereUuid('eventId');
+        Route::post('events/{eventId}/complete-p2p', [SpeedNetworkingApiController::class, 'completeP2p'])->whereUuid('eventId');
     });
 }
 
@@ -1869,6 +1870,7 @@ foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networ
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
         Route::get('summary', [SpeedNetworkingApiController::class, 'summary']);
+        Route::post('complete-p2p', [SpeedNetworkingApiController::class, 'completeP2p']);
     });
 }
 

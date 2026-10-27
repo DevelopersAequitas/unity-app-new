@@ -35,6 +35,12 @@ class P2pMeetingHistoryController extends BaseApiController
         if ($filter === 'received') {
             $query->where('peer_user_id', $authUserId);
             $whereParts[] = 'peer_user_id = "'.$authUserId.'"';
+        } elseif ($filter === 'all' || $filter === 'both') {
+            $query->where(function ($q) use ($authUserId): void {
+                $q->where('initiator_user_id', $authUserId)
+                    ->orWhere('peer_user_id', $authUserId);
+            });
+            $whereParts[] = '(initiator_user_id = "'.$authUserId.'" OR peer_user_id = "'.$authUserId.'")';
         } else {
             $query->where('initiator_user_id', $authUserId);
             $whereParts[] = 'initiator_user_id = "'.$authUserId.'"';
