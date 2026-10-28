@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\BulkUpdateTutorialStepsRequest;
+use App\Http\Requests\Admin\UpdateTutorialStepRequest;
 use App\Models\AppConfigSetting;
 use App\Models\AppDashboardWidget;
 use App\Models\AppFeature;
@@ -12,6 +14,7 @@ use App\Models\AppLabel;
 use App\Models\AppMembershipLabel;
 use App\Models\AppNavigationItem;
 use App\Models\AppSocialLink;
+use App\Models\AppTutorialStep;
 use App\Models\LeaderAppConfig;
 use App\Services\AppConfigService;
 use Illuminate\Http\JsonResponse;
@@ -103,6 +106,7 @@ class AppConfigAdminController extends Controller
             'label_groups' => $labelGroups,
             'icons' => $icons,
             'features' => $features,
+            'tutorial_steps' => AppConfigController::tutorialSteps($appInstanceId),
             'navigation_items' => $navigationItems,
             'dashboard_widgets' => $dashboardWidgets,
             'social_links' => $socialLinks,
@@ -315,6 +319,74 @@ class AppConfigAdminController extends Controller
         }
 
         return $this->changed(null, 'Feature toggles updated successfully.');
+    }
+
+    public function updateTutorialStep(UpdateTutorialStepRequest $request, string $step_key): JsonResponse
+    {
+        $data = $request->validated();
+
+        if (Schema::hasTable('app_tutorial_steps')) {
+            $model = AppTutorialStep::query()
+                ->where('app_instance_id', $this->appInstanceId())
+                ->where('step_key', $step_key)
+                ->first();
+
+            if ($model) {
+                $model->update($data);
+            } else {
+                $model = AppTutorialStep::query()->create([
+                    'app_instance_id' => $this->appInstanceId(),
+                    'step_key' => $step_key,
+                    'step_name' => str($step_key)->replace('_', ' ')->title()->toString(),
+                    'is_enabled' => (bool) $data['is_enabled'],
+                    'sort_order' => (int) ($data['sort_order'] ?? 0),
+                ]);
+            }
+
+            AppConfigController::clearCache();
+
+            return $this->changed($model, 'Tutorial step updated successfully.');
+        }
+
+        return $this->ok(null, 'Tutorial step updated successfully.');
+    }
+
+    public function bulkUpdateTutorialSteps(BulkUpdateTutorialStepsRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $appInstanceId = $this->appInstanceId();
+
+        if (Schema::hasTable('app_tutorial_steps')) {
+            foreach ($data['tutorial_steps'] as $key => $val) {
+                $isEnabled = is_array($val) ? (bool) ($val['is_enabled'] ?? false) : (bool) $val;
+                $sortOrder = is_array($val) && isset($val['sort_order']) ? (int) $val['sort_order'] : null;
+
+                $step = AppTutorialStep::query()
+                    ->where('app_instance_id', $appInstanceId)
+                    ->where('step_key', (string) $key)
+                    ->first();
+
+                if ($step) {
+                    $payload = ['is_enabled' => $isEnabled];
+                    if ($sortOrder !== null) {
+                        $payload['sort_order'] = $sortOrder;
+                    }
+                    $step->update($payload);
+                } else {
+                    AppTutorialStep::query()->create([
+                        'app_instance_id' => $appInstanceId,
+                        'step_key' => (string) $key,
+                        'step_name' => str((string) $key)->replace('_', ' ')->title()->toString(),
+                        'is_enabled' => $isEnabled,
+                        'sort_order' => $sortOrder ?? 0,
+                    ]);
+                }
+            }
+
+            AppConfigController::clearCache();
+        }
+
+        return $this->changed(null, 'Tutorial step toggles updated successfully.');
     }
 
     public function createNavigationItem(Request $request): JsonResponse

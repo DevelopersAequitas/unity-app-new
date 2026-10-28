@@ -139,191 +139,79 @@
         @endif
     </div>
 
-    {{-- Referral Campaign Popup & Feed Banner Management Section (/referral/campaign-config) --}}
+    {{-- Two Campaign Toggles: Referral Invite & Book Reward (/referral/campaign-config) --}}
     @php
         $refCampaign = $referralCampaign ?? app(\App\Services\Referrals\ReferralCampaignConfigService::class)->getOrCreateCurrentConfig();
-        $isCampaignActive = (bool) ($refCampaign->is_active ?? true);
-        $showFloating = (bool) ($refCampaign->show_floating_badge ?? true);
-        $autoOpen = (bool) ($refCampaign->auto_open_badge_screen ?? true);
-        $showInvite = (bool) ($refCampaign->show_send_invite_button ?? true);
+        $isBookActive = (bool) ($refCampaign->is_active ?? true);
+        $isReferralActive = (bool) ($refCampaign->show_floating_badge ?? true);
     @endphp
 
-    <div class="mb-4 rounded-xl border bs p-4 transition-all duration-200 shadow-sm surface" id="referral-campaign-config-card" style="border-left: 5px solid {{ $isCampaignActive ? '#10b981' : '#94a3b8' }};">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-start gap-3">
-                <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm {{ $isCampaignActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200' }}" id="referral-status-icon-box">
-                    <i class="bi bi-gift-fill text-xl"></i>
+    <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3" id="referral-campaign-config-container">
+        {{-- Campaign 1: Referral Invite Campaign --}}
+        <div class="rounded-xl border bs px-4 py-3 surface flex items-center justify-between gap-3 shadow-xs" id="referral-card-box" style="border-left: 4px solid {{ $isReferralActive ? '#10b981' : '#94a3b8' }};">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 {{ $isReferralActive ? 'bg-sky-50 text-sky-600 border border-sky-200' : 'bg-slate-100 text-slate-500 border border-slate-200' }}" id="referral-icon-box">
+                    <i class="bi bi-people-fill text-base"></i>
                 </div>
                 <div>
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-display font-bold text-sm tracking-tight text-gray-800">
-                            Referral Campaign Feed Popup &amp; Banner
+                    <div class="flex items-center gap-2">
+                        <span class="font-display font-bold text-xs tracking-tight text-gray-800">
+                            Referral Invite Popup
                         </span>
-                        <code class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 text-indigo-600 border border-slate-200">/referral/campaign-config</code>
-                        <span id="referral-campaign-status-badge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center gap-1.5 {{ $isCampaignActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200' }}">
-                            <span id="referral-campaign-status-dot" class="w-2 h-2 rounded-full {{ $isCampaignActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400' }}"></span>
-                            <span id="referral-campaign-status-text">{{ $isCampaignActive ? 'Active (Visible on Mobile Feed)' : 'Disabled (Hidden from Mobile Feed)' }}</span>
+                        <span id="referral-status-badge" class="px-2 py-0.5 text-[11px] font-semibold rounded-full inline-flex items-center gap-1.5 {{ $isReferralActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200' }}">
+                            <span id="referral-status-dot" class="w-1.5 h-1.5 rounded-full {{ $isReferralActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400' }}"></span>
+                            <span id="referral-status-text">{{ $isReferralActive ? 'Active' : 'Off' }}</span>
                         </span>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1 mb-0">
-                        Controls whether the referral popup/banner (refer 10 peers &amp; receive the Leadership Book) is visible or hidden on the mobile app home feed.
+                    <p class="text-[11px] text-gray-500 m-0">
+                        Referral code, invite button &amp; popup
                     </p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3">
-                {{-- Quick ON/OFF Switch --}}
-                <div class="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
-                    <span class="text-xs font-semibold text-gray-700">Mobile Popup:</span>
-                    <label class="relative inline-flex items-center cursor-pointer select-none m-0">
-                        <input type="checkbox" id="referral-campaign-toggle-switch" class="sr-only peer" {{ $isCampaignActive ? 'checked' : '' }} onchange="toggleReferralCampaign(this.checked)">
-                        <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        <span id="referral-toggle-label" class="ml-2 text-xs font-bold {{ $isCampaignActive ? 'text-emerald-600' : 'text-slate-500' }}">
-                            {{ $isCampaignActive ? 'ON' : 'OFF' }}
-                        </span>
-                    </label>
-                </div>
-
-                {{-- Settings Toggle Button --}}
-                <button type="button" onclick="toggleReferralSettingsDrawer()" class="px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-gray-700 inline-flex items-center gap-1.5 shadow-xs transition">
-                    <i class="bi bi-sliders2 text-indigo-500"></i>
-                    <span>Configure Details</span>
-                    <i class="bi bi-chevron-down text-[10px] text-gray-400 transition-transform duration-200" id="referral-settings-chevron"></i>
-                </button>
+            <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shrink-0">
+                <span class="text-[11px] font-semibold text-gray-700">Referral:</span>
+                <label class="relative inline-flex items-center cursor-pointer select-none m-0">
+                    <input type="checkbox" id="referral-toggle-switch" class="sr-only peer" {{ $isReferralActive ? 'checked' : '' }} onchange="toggleCampaign('referral', this.checked)">
+                    <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600"></div>
+                    <span id="referral-toggle-label" class="ml-1.5 text-xs font-bold {{ $isReferralActive ? 'text-sky-600' : 'text-slate-500' }}">
+                        {{ $isReferralActive ? 'ON' : 'OFF' }}
+                    </span>
+                </label>
             </div>
         </div>
 
-        {{-- Collapsible Settings Drawer & Live Mobile Preview --}}
-        <div id="referral-settings-drawer" class="hidden mt-4 pt-4 border-t border-slate-200">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {{-- Left: Live Mobile Preview Card matching the uploaded screenshot --}}
-                <div class="lg:col-span-5 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                            <i class="bi bi-phone"></i> Mobile Feed Preview
+        {{-- Campaign 2: Book Reward Campaign --}}
+        <div class="rounded-xl border bs px-4 py-3 surface flex items-center justify-between gap-3 shadow-xs" id="book-card-box" style="border-left: 4px solid {{ $isBookActive ? '#10b981' : '#94a3b8' }};">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 {{ $isBookActive ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'bg-slate-100 text-slate-500 border border-slate-200' }}" id="book-icon-box">
+                    <i class="bi bi-book-half text-base"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-display font-bold text-xs tracking-tight text-gray-800">
+                            Leadership Book Campaign
                         </span>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">Live Appearance</span>
+                        <span id="book-status-badge" class="px-2 py-0.5 text-[11px] font-semibold rounded-full inline-flex items-center gap-1.5 {{ $isBookActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200' }}">
+                            <span id="book-status-dot" class="w-1.5 h-1.5 rounded-full {{ $isBookActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400' }}"></span>
+                            <span id="book-status-text">{{ $isBookActive ? 'Active' : 'Off' }}</span>
+                        </span>
                     </div>
-
-                    <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm space-y-2.5">
-                        <div class="flex items-center gap-1.5">
-                            <span class="font-bold text-xs text-slate-900">Peers Global Genie</span>
-                            <i class="bi bi-patch-check-fill text-sky-500 text-xs"></i>
-                        </div>
-                        <p class="text-[10px] text-slate-400 -mt-1 mb-0">World's First Community of Collaboration</p>
-
-                        <div class="font-bold text-xs text-slate-900 leading-snug" id="preview-reward-title">
-                            {{ $refCampaign->reward_title ?? 'Empower Your Leadership Journey: Refer 10 Peers & Receive The Leadership Book' }}
-                        </div>
-
-                        <p class="text-[11px] text-slate-600 line-clamp-3 leading-normal mb-0" id="preview-reward-subtitle">
-                            {{ $refCampaign->reward_subtitle ?? "As part of the Peers Global LSR (Learning, Sales, Resources) initiative, grow our trusted network by inviting 10 fellow business owners. Reach this milestone and receive John C. Maxwell's bestselling hardcover book delivered to your doorstep." }}
-                        </p>
-
-                        <div class="flex flex-wrap gap-1.5 pt-1">
-                            <span class="px-2 py-0.5 text-[10px] rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium flex items-center gap-1">
-                                <i class="bi bi-book-half"></i> Learning Pillar
-                            </span>
-                            <span class="px-2 py-0.5 text-[10px] rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium flex items-center gap-1">
-                                <i class="bi bi-coin"></i> +1,000 Coins / Referral
-                            </span>
-                            <span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium flex items-center gap-1">
-                                <i class="bi bi-truck"></i> Complimentary Delivery
-                            </span>
-                        </div>
-
-                        {{-- Book Card Preview --}}
-                        <div class="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200 mt-2">
-                            <div class="w-12 h-16 rounded bg-slate-800 text-white flex flex-col items-center justify-center text-center p-1 shrink-0 overflow-hidden shadow">
-                                <span class="text-[8px] font-bold text-amber-300">JOHN C. MAXWELL</span>
-                                <span class="text-base font-extrabold text-white leading-none">5</span>
-                                <span class="text-[7px] text-slate-300">LEVELS</span>
-                            </div>
-                            <div class="space-y-1">
-                                <span class="px-1.5 py-0.5 text-[9px] uppercase font-bold rounded bg-indigo-600 text-white">HARDCOVER EDITION</span>
-                                <div class="text-xs font-bold text-slate-900">The 5 Levels of Leadership</div>
-                                <div class="text-[10px] text-slate-500">By John C. Maxwell</div>
-                                <div class="text-[10px] font-semibold text-amber-600 flex items-center gap-1">
-                                    <i class="bi bi-award-fill"></i> Milestone: 10 Referrals
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pt-1 flex gap-2">
-                            <div class="flex-1 py-1 px-2 rounded bg-slate-100 text-slate-700 text-[10px] font-mono border border-slate-200 text-center">
-                                YOUR INVITE CODE: <strong>DEMO123</strong>
-                            </div>
-                            <button type="button" class="py-1 px-2.5 rounded bg-blue-600 text-white text-[10px] font-semibold flex items-center gap-1">
-                                <span>Invite Friends</span> <i class="bi bi-arrow-right"></i>
-                            </button>
-                        </div>
-                    </div>
+                    <p class="text-[11px] text-gray-500 m-0">
+                        Leadership Book 10-peer milestone banner
+                    </p>
                 </div>
+            </div>
 
-                {{-- Right: Edit Form --}}
-                <div class="lg:col-span-7">
-                    <form id="referralCampaignConfigForm" method="POST" action="{{ route('admin.posts.referral-campaign.update') }}" class="space-y-3">
-                        @csrf
-                        <div class="flex items-center justify-between pb-1">
-                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 m-0">Campaign Parameters</h3>
-                            <span class="text-[11px] text-slate-400">Syncs immediately with <code>/referral/campaign-config</code></span>
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] uppercase tracking-wider font-semibold text-slate-700 mb-1">Reward Headline / Title</label>
-                            <input type="text" name="reward_title" id="form-reward-title" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 surface" value="{{ $refCampaign->reward_title ?? 'Empower Your Leadership Journey: Refer 10 Peers & Receive The Leadership Book' }}" oninput="document.getElementById('preview-reward-title').textContent = this.value">
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] uppercase tracking-wider font-semibold text-slate-700 mb-1">Reward Description / Subtitle</label>
-                            <textarea name="reward_subtitle" id="form-reward-subtitle" rows="3" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 surface" oninput="document.getElementById('preview-reward-subtitle').textContent = this.value">{{ $refCampaign->reward_subtitle ?? "As part of the Peers Global LSR (Learning, Sales, Resources) initiative, grow our trusted network by inviting 10 fellow business owners. Reach this milestone and receive John C. Maxwell's bestselling hardcover book delivered to your doorstep." }}</textarea>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[11px] uppercase tracking-wider font-semibold text-slate-700 mb-1">Floating Badge Delay (Seconds)</label>
-                                <input type="number" name="floating_badge_delay_seconds" min="0" max="600" class="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 surface" value="{{ $refCampaign->floating_badge_delay_seconds ?? 10 }}">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] uppercase tracking-wider font-semibold text-slate-700 mb-1">Auto-Open Popup Delay (Seconds)</label>
-                                <input type="number" name="auto_open_delay_seconds" min="0" max="600" class="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 surface" value="{{ $refCampaign->auto_open_delay_seconds ?? 30 }}">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] uppercase tracking-wider font-semibold text-slate-700 mb-1">Reward Image URL (Optional)</label>
-                            <input type="url" name="reward_image_url" class="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 surface" placeholder="https://..." value="{{ $refCampaign->reward_image_url ?? '' }}">
-                        </div>
-
-                        <div class="flex flex-wrap gap-4 pt-1">
-                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                                <input type="checkbox" name="is_active" value="1" {{ $isCampaignActive ? 'checked' : '' }} class="rounded text-indigo-600 focus:ring-indigo-500">
-                                <span>Active Campaign</span>
-                            </label>
-                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                                <input type="checkbox" name="show_floating_badge" value="1" {{ $showFloating ? 'checked' : '' }} class="rounded text-indigo-600 focus:ring-indigo-500">
-                                <span>Show Floating Badge</span>
-                            </label>
-                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                                <input type="checkbox" name="auto_open_badge_screen" value="1" {{ $autoOpen ? 'checked' : '' }} class="rounded text-indigo-600 focus:ring-indigo-500">
-                                <span>Auto-Open Badge Screen</span>
-                            </label>
-                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                                <input type="checkbox" name="show_send_invite_button" value="1" {{ $showInvite ? 'checked' : '' }} class="rounded text-indigo-600 focus:ring-indigo-500">
-                                <span>Show Send Invite Button</span>
-                            </label>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2">
-                            <button type="button" onclick="toggleReferralSettingsDrawer()" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition">
-                                Cancel
-                            </button>
-                            <button type="submit" id="btn_save_referral_config" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center gap-1.5 shadow-sm">
-                                <i class="bi bi-check-lg"></i> Save Campaign Settings
-                            </button>
-                        </div>
-                    </form>
-                </div>
+            <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shrink-0">
+                <span class="text-[11px] font-semibold text-gray-700">Book:</span>
+                <label class="relative inline-flex items-center cursor-pointer select-none m-0">
+                    <input type="checkbox" id="book-toggle-switch" class="sr-only peer" {{ $isBookActive ? 'checked' : '' }} onchange="toggleCampaign('book', this.checked)">
+                    <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    <span id="book-toggle-label" class="ml-1.5 text-xs font-bold {{ $isBookActive ? 'text-emerald-600' : 'text-slate-500' }}">
+                        {{ $isBookActive ? 'ON' : 'OFF' }}
+                    </span>
+                </label>
             </div>
         </div>
     </div>
@@ -983,20 +871,6 @@
         });
     });
 
-    function toggleReferralSettingsDrawer() {
-        const drawer = document.getElementById('referral-settings-drawer');
-        const chevron = document.getElementById('referral-settings-chevron');
-        if (!drawer) return;
-        const isHidden = drawer.classList.contains('hidden');
-        if (isHidden) {
-            drawer.classList.remove('hidden');
-            if (chevron) chevron.style.transform = 'rotate(180deg)';
-        } else {
-            drawer.classList.add('hidden');
-            if (chevron) chevron.style.transform = 'rotate(0deg)';
-        }
-    }
-
     function showReferralToast(msg, isSuccess = true) {
         const toast = document.getElementById('post-deactivate-toast');
         const toastMsg = document.getElementById('post-deactivate-toast-msg');
@@ -1011,22 +885,27 @@
         }, 4500);
     }
 
-    function toggleReferralCampaign(isChecked) {
-        const toggleLabel = document.getElementById('referral-toggle-label');
-        const statusBadge = document.getElementById('referral-campaign-status-badge');
-        const statusDot = document.getElementById('referral-campaign-status-dot');
-        const statusText = document.getElementById('referral-campaign-status-text');
-        const card = document.getElementById('referral-campaign-config-card');
-        const iconBox = document.getElementById('referral-status-icon-box');
+    function toggleCampaign(type, isChecked) {
+        const isBook = (type === 'book');
+        const toggleLabel = document.getElementById(isBook ? 'book-toggle-label' : 'referral-toggle-label');
+        const statusBadge = document.getElementById(isBook ? 'book-status-badge' : 'referral-status-badge');
+        const statusDot = document.getElementById(isBook ? 'book-status-dot' : 'referral-status-dot');
+        const statusText = document.getElementById(isBook ? 'book-status-text' : 'referral-status-text');
+        const card = document.getElementById(isBook ? 'book-card-box' : 'referral-card-box');
+        const iconBox = document.getElementById(isBook ? 'book-icon-box' : 'referral-icon-box');
 
         // Optimistic UI update
         if (toggleLabel) {
             toggleLabel.textContent = isChecked ? 'ON' : 'OFF';
-            toggleLabel.className = 'ml-2 text-xs font-bold ' + (isChecked ? 'text-emerald-600' : 'text-slate-500');
+            toggleLabel.className = 'ml-1.5 text-xs font-bold ' + (isChecked ? (isBook ? 'text-emerald-600' : 'text-sky-600') : 'text-slate-500');
         }
 
         const csrfMeta = document.querySelector('meta[name="csrf-token"]');
         const token = csrfMeta ? csrfMeta.getAttribute('content') : '{{ csrf_token() }}';
+
+        const payload = isBook
+            ? { type: 'book', is_active: isChecked }
+            : { type: 'referral', show_floating_badge: isChecked, is_active: isChecked };
 
         fetch('{{ route("admin.posts.referral-campaign.toggle") }}', {
             method: 'POST',
@@ -1036,99 +915,44 @@
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': token
             },
-            body: JSON.stringify({ is_active: isChecked })
+            body: JSON.stringify(payload)
         })
         .then(async function (res) {
             const data = await res.json().catch(function () { return {}; });
-            if (!res.ok) throw new Error(data.message || 'Failed to update referral campaign.');
+            if (!res.ok) throw new Error(data.message || 'Failed to update campaign.');
             return data;
         })
         .then(function (data) {
-            const active = data.data ? data.data.is_active : isChecked;
+            const active = isBook
+                ? (data.data ? data.data.is_active : isChecked)
+                : (data.data ? data.data.show_floating_badge : isChecked);
+
             if (active) {
-                if (statusBadge) statusBadge.className = 'px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200';
-                if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
-                if (statusText) statusText.textContent = 'Active (Visible on Mobile Feed)';
+                if (statusBadge) statusBadge.className = 'px-2 py-0.5 text-[11px] font-semibold rounded-full inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200';
+                if (statusDot) statusDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+                if (statusText) statusText.textContent = 'Active';
                 if (card) card.style.borderLeftColor = '#10b981';
-                if (iconBox) iconBox.className = 'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-emerald-50 text-emerald-600 border border-emerald-200';
-                showReferralToast(data.message || 'Referral campaign popup is now ENABLED on mobile feed.', true);
+                if (iconBox) iconBox.className = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ' + (isBook ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'bg-sky-50 text-sky-600 border border-sky-200');
+                showReferralToast(data.message || (isBook ? 'Book campaign is now ACTIVE' : 'Referral campaign is now ACTIVE'), true);
             } else {
-                if (statusBadge) statusBadge.className = 'px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 border border-slate-200';
-                if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-slate-400';
-                if (statusText) statusText.textContent = 'Disabled (Hidden from Mobile Feed)';
+                if (statusBadge) statusBadge.className = 'px-2 py-0.5 text-[11px] font-semibold rounded-full inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 border border-slate-200';
+                if (statusDot) statusDot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+                if (statusText) statusText.textContent = 'Off';
                 if (card) card.style.borderLeftColor = '#94a3b8';
-                if (iconBox) iconBox.className = 'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-slate-100 text-slate-500 border border-slate-200';
-                showReferralToast(data.message || 'Referral campaign popup is now DISABLED (Hidden from mobile feed).', false);
+                if (iconBox) iconBox.className = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-slate-100 text-slate-500 border border-slate-200';
+                showReferralToast(data.message || (isBook ? 'Book campaign is now OFF' : 'Referral campaign is now OFF'), false);
             }
         })
         .catch(function (err) {
-            const switchEl = document.getElementById('referral-campaign-toggle-switch');
+            const switchEl = document.getElementById(isBook ? 'book-toggle-switch' : 'referral-toggle-switch');
             if (switchEl) switchEl.checked = !isChecked;
             if (toggleLabel) {
                 toggleLabel.textContent = !isChecked ? 'ON' : 'OFF';
-                toggleLabel.className = 'ml-2 text-xs font-bold ' + (!isChecked ? 'text-emerald-600' : 'text-slate-500');
+                toggleLabel.className = 'ml-1.5 text-xs font-bold ' + (!isChecked ? (isBook ? 'text-emerald-600' : 'text-sky-600') : 'text-slate-500');
             }
             showReferralToast(err.message || 'Error updating status', false);
         });
     }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const configForm = document.getElementById('referralCampaignConfigForm');
-        if (configForm) {
-            configForm.addEventListener('submit', function (e) {
-                e.preventDefault();
-                const btn = document.getElementById('btn_save_referral_config');
-                const origText = btn ? btn.innerHTML : '';
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving...';
-                }
-
-                const formData = new FormData(configForm);
-                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-                const token = csrfMeta ? csrfMeta.getAttribute('content') : (configForm.querySelector('input[name="_token"]')?.value || '');
-
-                fetch(configForm.action, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': token
-                    },
-                    body: formData
-                })
-                .then(async function (res) {
-                    const data = await res.json().catch(function () { return {}; });
-                    if (!res.ok) throw new Error(data.message || 'Failed to update campaign configuration.');
-                    return data;
-                })
-                .then(function (data) {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = origText;
-                    }
-                    showReferralToast(data.message || 'Referral campaign configuration updated successfully.', true);
-                    if (data.data) {
-                        const active = !!data.data.is_active;
-                        const switchEl = document.getElementById('referral-campaign-toggle-switch');
-                        if (switchEl) switchEl.checked = active;
-                        const toggleLabel = document.getElementById('referral-toggle-label');
-                        if (toggleLabel) {
-                            toggleLabel.textContent = active ? 'ON' : 'OFF';
-                            toggleLabel.className = 'ml-2 text-xs font-bold ' + (active ? 'text-emerald-600' : 'text-slate-500');
-                        }
-                    }
-                })
-                .catch(function (err) {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = origText;
-                    }
-                    showReferralToast(err.message || 'Error updating configuration', false);
-                });
-            });
-        }
-    });
     </script>
 @endsection
 

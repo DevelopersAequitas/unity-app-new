@@ -6,9 +6,11 @@ namespace App\Http\Controllers\Api\SpeedNetworking;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SpeedNetworking\CreateSpeedNetworkingEventRequest;
+use App\Http\Requests\SpeedNetworking\UpdateSpeedNetworkingEventRequest;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\SpeedNetworking\SpeedNetworkingEvent;
+use App\Models\SpeedNetworking\SpeedNetworkingParticipant;
 use App\Services\SpeedNetworking\SpeedNetworkingService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -135,7 +137,7 @@ class SpeedNetworkingAdminController extends Controller
     /**
      * Update an existing Speed Networking event.
      */
-    public function update(CreateSpeedNetworkingEventRequest $request, string $id): JsonResponse
+    public function update(UpdateSpeedNetworkingEventRequest $request, string $id): JsonResponse
     {
         $data = $request->validated();
         $data['id'] = $id;
@@ -209,7 +211,7 @@ class SpeedNetworkingAdminController extends Controller
         $participantsMap = [];
 
         if (Schema::hasTable('speed_networking_participants')) {
-            $snList = \App\Models\SpeedNetworking\SpeedNetworkingParticipant::with('user')
+            $snList = SpeedNetworkingParticipant::with('user')
                 ->where('event_id', $baseEvent->id)
                 ->get();
             foreach ($snList as $p) {
@@ -286,7 +288,11 @@ class SpeedNetworkingAdminController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Speed networking event started and Round 1 generated.',
-                'data' => $updatedEvent,
+                'data' => [
+                    'id' => (string) $updatedEvent->id,
+                    'status' => (string) $updatedEvent->status,
+                    'current_round' => (int) $updatedEvent->current_round,
+                ],
             ]);
         }
 
@@ -304,17 +310,9 @@ class SpeedNetworkingAdminController extends Controller
             'success' => true,
             'message' => 'Speed networking event started and Round 1 generated.',
             'data' => [
-                'id' => $baseEvent->id,
-                'title' => $baseEvent->title,
-                'description' => $baseEvent->description,
+                'id' => (string) $baseEvent->id,
                 'status' => 'in_progress',
-                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
-                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
                 'current_round' => 1,
-                'scheduled_start_time' => $baseEvent->start_at?->toIso8601String(),
-                'actual_start_time' => $meta['actual_start_time'],
-                'total_participants_count' => $baseEvent->registrations()->count(),
             ],
         ]);
     }
@@ -331,7 +329,10 @@ class SpeedNetworkingAdminController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Round advanced successfully.',
-                'data' => $updatedEvent,
+                'data' => [
+                    'current_round' => (int) $updatedEvent->current_round,
+                    'status' => (string) $updatedEvent->status,
+                ],
             ]);
         }
 
@@ -353,15 +354,8 @@ class SpeedNetworkingAdminController extends Controller
             'success' => true,
             'message' => 'Round advanced successfully.',
             'data' => [
-                'id' => $baseEvent->id,
-                'title' => $baseEvent->title,
-                'description' => $baseEvent->description,
-                'status' => $meta['speed_status'] ?? 'in_progress',
-                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
-                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                'total_rounds' => $total,
                 'current_round' => $next,
-                'scheduled_start_time' => $baseEvent->start_at?->toIso8601String(),
+                'status' => (string) ($meta['speed_status'] ?? 'in_progress'),
             ],
         ]);
     }
@@ -378,7 +372,11 @@ class SpeedNetworkingAdminController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Speed networking event ended successfully.',
-                'data' => $updatedEvent,
+                'data' => [
+                    'id' => (string) $updatedEvent->id,
+                    'status' => (string) $updatedEvent->status,
+                    'actual_end_time' => $updatedEvent->actual_end_time?->toIso8601String(),
+                ],
             ]);
         }
 
@@ -386,21 +384,19 @@ class SpeedNetworkingAdminController extends Controller
         $baseEvent = $target['event'];
         $meta = $baseEvent->metadata ?? [];
         $meta['speed_status'] = 'completed';
+        $nowIso = Carbon::now()->toIso8601String();
+        $meta['actual_end_time'] = $nowIso;
         $baseEvent->metadata = $meta;
+        $baseEvent->end_at = Carbon::now();
         $baseEvent->save();
 
         return response()->json([
             'success' => true,
             'message' => 'Speed networking event ended successfully.',
             'data' => [
-                'id' => $baseEvent->id,
-                'title' => $baseEvent->title,
-                'description' => $baseEvent->description,
+                'id' => (string) $baseEvent->id,
                 'status' => 'completed',
-                'round_duration_seconds' => (int) ($meta['round_duration_seconds'] ?? 300),
-                'break_duration_seconds' => (int) ($meta['break_duration_seconds'] ?? 20),
-                'total_rounds' => (int) ($meta['total_rounds'] ?? 5),
-                'current_round' => (int) ($meta['current_round'] ?? 1),
+                'actual_end_time' => $nowIso,
             ],
         ]);
     }
@@ -430,7 +426,7 @@ class SpeedNetworkingAdminController extends Controller
         $speedStatus = $meta['speed_status'] ?? 'scheduled';
 
         $remainingSeconds = $roundDuration;
-        if ($speedStatus === 'in_progress' && !empty($meta['round_started_at'])) {
+        if ($speedStatus === 'in_progress' && ! empty($meta['round_started_at'])) {
             $started = Carbon::parse($meta['round_started_at']);
             $elapsed = Carbon::now()->diffInSeconds($started);
             $remainingSeconds = max(0, $roundDuration - $elapsed);
@@ -439,7 +435,7 @@ class SpeedNetworkingAdminController extends Controller
         // Fetch real registered users from both speed_networking_participants and registrations
         $participantsMap = [];
         if (Schema::hasTable('speed_networking_participants')) {
-            $snList = \App\Models\SpeedNetworking\SpeedNetworkingParticipant::with('user')
+            $snList = SpeedNetworkingParticipant::with('user')
                 ->where('event_id', $baseEvent->id)
                 ->get();
             foreach ($snList as $p) {
@@ -484,9 +480,9 @@ class SpeedNetworkingAdminController extends Controller
             $tableCount = (int) ceil(count($participants) / 2);
             for ($i = 0; $i < $tableCount; $i++) {
                 $tableMatches[] = [
-                    'match_id' => 'tbl_match_' . ($i + 1),
+                    'match_id' => 'tbl_match_'.($i + 1),
                     'table_number' => $i + 1,
-                    'channel_id' => 'sn_room_table_' . ($i + 1),
+                    'channel_id' => 'sn_room_table_'.($i + 1),
                     'status' => $speedStatus === 'in_progress' ? 'active' : 'waiting',
                     'is_break_round' => false,
                     'user_a' => $participants[$i * 2] ?? null,
@@ -529,6 +525,226 @@ class SpeedNetworkingAdminController extends Controller
                 'remaining_seconds' => $remainingSeconds,
                 'is_paused' => false,
                 'tables' => $tableMatches,
+            ],
+        ]);
+    }
+
+    /**
+     * Pause an in-progress speed networking event.
+     */
+    public function pause(string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if ($target['type'] === 'sn') {
+            $updatedEvent = $this->speedNetworkingService->pauseEvent($target['event']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Speed networking event paused.',
+                'data' => [
+                    'id' => (string) $updatedEvent->id,
+                    'status' => (string) $updatedEvent->status,
+                ],
+            ]);
+        }
+
+        /** @var Event $baseEvent */
+        $baseEvent = $target['event'];
+        $meta = $baseEvent->metadata ?? [];
+        $meta['speed_status'] = 'paused';
+        $baseEvent->metadata = $meta;
+        $baseEvent->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Speed networking event paused.',
+            'data' => [
+                'id' => $baseEvent->id,
+                'status' => 'paused',
+            ],
+        ]);
+    }
+
+    /**
+     * Resume a paused speed networking event.
+     */
+    public function resume(string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if ($target['type'] === 'sn') {
+            $updatedEvent = $this->speedNetworkingService->resumeEvent($target['event']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Speed networking event resumed.',
+                'data' => [
+                    'id' => (string) $updatedEvent->id,
+                    'status' => (string) $updatedEvent->status,
+                ],
+            ]);
+        }
+
+        /** @var Event $baseEvent */
+        $baseEvent = $target['event'];
+        $meta = $baseEvent->metadata ?? [];
+        $meta['speed_status'] = 'in_progress';
+        $baseEvent->metadata = $meta;
+        $baseEvent->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Speed networking event resumed.',
+            'data' => [
+                'id' => $baseEvent->id,
+                'status' => 'in_progress',
+            ],
+        ]);
+    }
+
+    /**
+     * Re-trigger matchmaking for the current round to pair waiting attendees.
+     */
+    public function rematch(string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if ($target['type'] === 'sn') {
+            $data = $this->speedNetworkingService->rematchEvent($target['event']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Rematch generated for active round.',
+                'data' => $data,
+            ]);
+        }
+
+        return $this->liveTables($id);
+    }
+
+    /**
+     * Get matches / connections view for the event in Admin Panel.
+     */
+    public function matches(Request $request, string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        $perPage = (int) $request->query('per_page', 50);
+
+        if ($target['type'] === 'sn') {
+            $data = $this->speedNetworkingService->getEventMatches($target['event'], $request->all(), $perPage);
+
+            return response()->json([
+                'success' => true,
+                'summary' => $data['summary'],
+                'data' => $data['data'],
+                'pagination' => $data['pagination'],
+            ]);
+        }
+
+        /** @var Event $baseEvent */
+        $baseEvent = $target['event'];
+        $snEvent = SpeedNetworkingEvent::find($baseEvent->id);
+        if ($snEvent) {
+            $data = $this->speedNetworkingService->getEventMatches($snEvent, $request->all(), $perPage);
+
+            return response()->json([
+                'success' => true,
+                'summary' => $data['summary'],
+                'data' => $data['data'],
+                'pagination' => $data['pagination'],
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'summary' => [
+                'total_matches' => 0,
+                'completed_matches' => 0,
+                'active_matches' => 0,
+                'unique_pairs_count' => 0,
+                'current_round' => 0,
+                'total_rounds' => 5,
+            ],
+            'data' => [],
+            'pagination' => [
+                'total' => 0,
+                'per_page' => $perPage,
+                'current_page' => 1,
+                'last_page' => 1,
+            ],
+        ]);
+    }
+
+    /**
+     * Get completed Speed Networking history for the Admin panel.
+     */
+    public function history(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->query('per_page', 15);
+        $filters = [
+            'search' => $request->query('search'),
+        ];
+
+        $result = $this->speedNetworkingService->getAdminHistory($filters, $perPage);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Speed networking history retrieved successfully.',
+            'data' => $result['data'],
+            'pagination' => $result['pagination'],
+        ]);
+    }
+
+    /**
+     * Get full event summary and connection metrics for the Admin panel.
+     */
+    public function summary(string $id): JsonResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if ($target['type'] === 'sn') {
+            $data = $this->speedNetworkingService->getAdminEventSummary($target['event']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ]);
+        }
+
+        /** @var Event $baseEvent */
+        $baseEvent = $target['event'];
+        $snEvent = SpeedNetworkingEvent::find($baseEvent->id);
+        if ($snEvent) {
+            $data = $this->speedNetworkingService->getAdminEventSummary($snEvent);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ]);
+        }
+
+        $regCount = 0;
+        try {
+            $regCount = $baseEvent->registrations()->count();
+        } catch (\Throwable) {
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'event' => [
+                    'id' => (string) $baseEvent->id,
+                    'title' => $baseEvent->title,
+                    'description' => $baseEvent->description,
+                    'banner_url' => $baseEvent->banner_url,
+                    'status' => 'completed',
+                    'scheduled_start_time' => $baseEvent->start_at,
+                    'scheduled_end_time' => $baseEvent->end_at,
+                ],
+                'statistics' => [
+                    'total_joined' => $regCount,
+                    'participants_count' => $regCount,
+                    'total_matches' => 0,
+                    'completed_matches' => 0,
+                    'average_talk_time_seconds' => 0,
+                ],
             ],
         ]);
     }

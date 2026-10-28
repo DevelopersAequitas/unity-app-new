@@ -10,7 +10,6 @@ use App\Http\Controllers\Admin\ActivitiesMessagesController;
 use App\Http\Controllers\Admin\ActivitiesP2PMeetingsController;
 use App\Http\Controllers\Admin\ActivitiesPeerRecommendationController;
 use App\Http\Controllers\Admin\ActivitiesReferralsController;
-use App\Http\Controllers\Admin\ReferralCampaignConfigAdminController;
 use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
@@ -29,6 +28,7 @@ use App\Http\Controllers\Admin\AdvertiserSubscriptionPaymentAdminController;
 use App\Http\Controllers\Admin\AiPromptFlowAdminController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Admin\AppNotificationAdminController;
 use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\AskManagementController;
@@ -96,6 +96,7 @@ use App\Http\Controllers\Admin\Rbac\RoleLifespanController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\ReferralCampaignConfigAdminController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\SpeedNetworkingWebController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
@@ -199,6 +200,10 @@ Route::get('/join/{code?}', function (Request $request, ?string $code = null) {
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
+// Public App Config
+Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
+Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
 
 // WhatsApp Webhook (Publicly accessible, exempt from CSRF)
 Route::get('/api/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
@@ -420,6 +425,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/app-config/upload-brand-asset', [AppConfigPageController::class, 'uploadBrandAsset'])->name('app-config.upload-brand-asset');
         Route::put('/app-config/labels', [AppConfigPageController::class, 'bulkLabels'])->name('app-config.labels');
         Route::put('/app-config/features', [AppConfigPageController::class, 'bulkFeatures'])->name('app-config.features');
+        Route::put('/app-config/tutorial-steps', [AppConfigPageController::class, 'bulkTutorialSteps'])->name('app-config.tutorial-steps');
         Route::put('/app-config/icons', [AppConfigPageController::class, 'bulkIcons'])->name('app-config.icons');
         Route::post('/app-config/icons/upload', [AppConfigPageController::class, 'uploadIconAsset'])->name('app-config.icons.upload');
         Route::post('/app-config/navigation', [AppConfigPageController::class, 'saveNavigation'])->name('app-config.navigation.store');
@@ -721,8 +727,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/speed-networking', [SpeedNetworkingWebController::class, 'index'])->name('speed-networking.index');
         Route::post('/speed-networking', [SpeedNetworkingWebController::class, 'store'])->name('speed-networking.store');
         Route::get('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'show'])->whereUuid('id')->name('speed-networking.show');
+        Route::put('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'update'])->whereUuid('id')->name('speed-networking.update');
         Route::post('/speed-networking/{id}/start', [SpeedNetworkingWebController::class, 'start'])->whereUuid('id')->name('speed-networking.start');
         Route::post('/speed-networking/{id}/next-round', [SpeedNetworkingWebController::class, 'nextRound'])->whereUuid('id')->name('speed-networking.next-round');
+        Route::post('/speed-networking/{id}/pause', [SpeedNetworkingWebController::class, 'pause'])->whereUuid('id')->name('speed-networking.pause');
+        Route::post('/speed-networking/{id}/resume', [SpeedNetworkingWebController::class, 'resume'])->whereUuid('id')->name('speed-networking.resume');
+        Route::post('/speed-networking/{id}/rematch', [SpeedNetworkingWebController::class, 'rematch'])->whereUuid('id')->name('speed-networking.rematch');
         Route::post('/speed-networking/{id}/end', [SpeedNetworkingWebController::class, 'end'])->whereUuid('id')->name('speed-networking.end');
         Route::delete('/speed-networking/{id}', [SpeedNetworkingWebController::class, 'destroy'])->whereUuid('id')->name('speed-networking.destroy');
 

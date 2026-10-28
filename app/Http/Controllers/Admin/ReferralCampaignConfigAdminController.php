@@ -23,15 +23,29 @@ class ReferralCampaignConfigAdminController extends Controller
         $this->ensureAuthorized();
 
         $validated = $request->validated();
-        $isActive = array_key_exists('is_active', $validated)
-            ? (bool) $validated['is_active']
-            : null;
+        $type = $validated['type'] ?? 'book';
 
-        $config = $this->campaignConfigService->toggleActive($isActive);
+        if ($type === 'referral') {
+            $state = array_key_exists('show_floating_badge', $validated)
+                ? (bool) $validated['show_floating_badge']
+                : (array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : null);
 
-        $message = $config->is_active
-            ? 'Referral campaign popup is now enabled and visible on mobile.'
-            : 'Referral campaign popup is now disabled and hidden from mobile.';
+            $config = $this->campaignConfigService->toggleReferralCampaign($state);
+
+            $message = $config->show_floating_badge
+                ? 'Referral invite campaign is now ACTIVE.'
+                : 'Referral invite campaign is now OFF (Hidden from feed).';
+        } else {
+            $state = array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : null;
+
+            $config = $this->campaignConfigService->toggleBookCampaign($state);
+
+            $message = $config->is_active
+                ? 'Book reward campaign is now ACTIVE on mobile feed.'
+                : 'Book reward campaign is now OFF (Hidden from mobile feed).';
+        }
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -39,12 +53,10 @@ class ReferralCampaignConfigAdminController extends Controller
                 'message' => $message,
                 'data' => [
                     'id' => $config->id,
+                    'type' => $type,
                     'is_active' => (bool) $config->is_active,
                     'show_floating_badge' => (bool) $config->show_floating_badge,
-                    'auto_open_badge_screen' => (bool) $config->auto_open_badge_screen,
-                    'reward_title' => $config->reward_title,
-                    'reward_subtitle' => $config->reward_subtitle,
-                    'reward_image_url' => $config->reward_image_url,
+                    'show_send_invite_button' => (bool) $config->show_send_invite_button,
                 ],
             ]);
         }
@@ -93,4 +105,3 @@ class ReferralCampaignConfigAdminController extends Controller
         }
     }
 }
-

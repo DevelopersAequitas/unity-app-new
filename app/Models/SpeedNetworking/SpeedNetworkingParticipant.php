@@ -14,7 +14,11 @@ class SpeedNetworkingParticipant extends Model
 {
     use HasFactory;
 
+    public const STATUS_REGISTERED = 'registered';
+
     public const STATUS_LOBBY = 'lobby';
+
+    public const STATUS_SEARCHING = 'searching';
 
     public const STATUS_IN_CALL = 'in_call';
 
@@ -35,8 +39,12 @@ class SpeedNetworkingParticipant extends Model
         'event_id',
         'user_id',
         'status',
+        'rounds_completed',
+        'total_talk_time_seconds',
         'joined_at',
         'last_heartbeat_at',
+        'break_started_at',
+        'break_remaining_seconds',
     ];
 
     /**
@@ -45,8 +53,12 @@ class SpeedNetworkingParticipant extends Model
     protected function casts(): array
     {
         return [
+            'rounds_completed' => 'integer',
+            'total_talk_time_seconds' => 'integer',
             'joined_at' => 'datetime',
             'last_heartbeat_at' => 'datetime',
+            'break_started_at' => 'datetime',
+            'break_remaining_seconds' => 'integer',
         ];
     }
 

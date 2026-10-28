@@ -117,17 +117,68 @@ class SpeedNetworkingWebController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'banner_url' => 'nullable|string|max:255',
+            'banner_url' => 'nullable|string|max:500',
             'scheduled_start_time' => 'nullable|date',
-            'round_duration_seconds' => 'nullable|integer|min:30|max:3600',
-            'break_duration_seconds' => 'nullable|integer|min:5|max:600',
+            'scheduled_end_time' => 'nullable|date',
+            'round_duration_seconds' => 'nullable|integer|min:10|max:3600',
+            'break_duration_seconds' => 'nullable|integer|min:5|max:1800',
+            'total_rounds' => 'nullable|integer|min:0|max:100',
+            'ticket_price' => 'nullable|numeric|min:0',
+            'is_paid' => 'nullable|boolean',
+            'is_free' => 'nullable|boolean',
+            'currency' => 'nullable|string|max:10',
+            'circle_id' => 'nullable|uuid',
+            'circle_restricted' => 'nullable|boolean',
         ]);
+
+        $validated['total_rounds'] = ! empty($validated['total_rounds']) ? (int) $validated['total_rounds'] : 0;
 
         $event = $this->speedNetworkingService->createOrUpdateEvent($validated);
 
         return redirect()
             ->route('admin.speed-networking.show', $event->id)
             ->with('success', "Speed Networking event '{$event->title}' created successfully.");
+    }
+
+    /**
+     * Update Speed Networking event parameters / round configuration.
+     */
+    public function update(Request $request, string $id): RedirectResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+
+        if (! $target) {
+            return redirect()
+                ->route('admin.speed-networking.index')
+                ->with('error', 'Speed Networking event not found.');
+        }
+
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'banner_url' => 'nullable|string|max:500',
+            'scheduled_start_time' => 'nullable|date',
+            'scheduled_end_time' => 'nullable|date',
+            'round_duration_seconds' => 'nullable|integer|min:10|max:3600',
+            'break_duration_seconds' => 'nullable|integer|min:5|max:1800',
+            'total_rounds' => 'nullable|integer|min:0|max:100',
+            'ticket_price' => 'nullable|numeric|min:0',
+            'is_paid' => 'nullable|boolean',
+            'is_free' => 'nullable|boolean',
+            'currency' => 'nullable|string|max:10',
+            'circle_id' => 'nullable|uuid',
+            'circle_restricted' => 'nullable|boolean',
+        ]);
+
+        if (array_key_exists('total_rounds', $validated)) {
+            $validated['total_rounds'] = ! empty($validated['total_rounds']) ? (int) $validated['total_rounds'] : 0;
+        }
+
+        $this->speedNetworkingService->createOrUpdateEvent($validated, $id);
+
+        return redirect()
+            ->route('admin.speed-networking.show', $id)
+            ->with('success', 'Event settings updated successfully.');
     }
 
     /**
@@ -149,6 +200,7 @@ class SpeedNetworkingWebController extends Controller
             $details = $this->speedNetworkingService->getEventDetails($event);
             $liveData = $this->speedNetworkingService->getLiveTables($event);
             $participantsData = $this->speedNetworkingService->getEventParticipants($event, 100);
+            $matchesData = $this->speedNetworkingService->getEventMatches($event, [], 100);
 
             $roundDuration = (int) ($event->round_duration_seconds ?: 300);
             $remainingSeconds = (int) ($liveData['remaining_seconds'] ?? $roundDuration);
@@ -158,6 +210,7 @@ class SpeedNetworkingWebController extends Controller
                 'stats' => $details['stats'],
                 'liveData' => $liveData,
                 'participants' => $participantsData['data'],
+                'matchesData' => $matchesData,
                 'remainingSeconds' => $remainingSeconds,
             ]);
         }
@@ -240,11 +293,11 @@ class SpeedNetworkingWebController extends Controller
         for ($i = 0; $i < $tableCount; $i++) {
             $userA = $participants[$i * 2] ?? null;
             $userB = $participants[$i * 2 + 1] ?? null;
-            $roomHash = substr(md5($baseEvent->id . ($i + 1) . $currentRound), 0, 6);
-            $roomCode = 'sn_' . substr($baseEvent->id, 0, 8) . '_r' . max(1, $currentRound) . '_t' . ($i + 1) . '_' . $roomHash;
+            $roomHash = substr(md5($baseEvent->id.($i + 1).$currentRound), 0, 6);
+            $roomCode = 'sn_'.substr($baseEvent->id, 0, 8).'_r'.max(1, $currentRound).'_t'.($i + 1).'_'.$roomHash;
 
             $tables[] = [
-                'match_id' => 'tbl_match_' . ($i + 1),
+                'match_id' => 'tbl_match_'.($i + 1),
                 'table_number' => $i + 1,
                 'channel_id' => $roomCode,
                 'status' => $speedStatus === 'in_progress' ? 'active' : 'waiting',
@@ -438,5 +491,68 @@ class SpeedNetworkingWebController extends Controller
         return redirect()
             ->route('admin.speed-networking.index')
             ->with('success', 'Speed Networking event deleted.');
+    }
+
+    /**
+     * Pause event from Admin Panel.
+     */
+    public function pause(string $id): RedirectResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if (! $target) {
+            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Networking event not found.');
+        }
+
+        if ($target['type'] === 'sn') {
+            $this->speedNetworkingService->pauseEvent($target['event']);
+        } else {
+            $baseEvent = $target['event'];
+            $meta = $baseEvent->metadata ?? [];
+            $meta['speed_status'] = 'paused';
+            $baseEvent->metadata = $meta;
+            $baseEvent->save();
+        }
+
+        return redirect()->route('admin.speed-networking.show', $id)->with('success', 'Event timers paused.');
+    }
+
+    /**
+     * Resume event from Admin Panel.
+     */
+    public function resume(string $id): RedirectResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if (! $target) {
+            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Networking event not found.');
+        }
+
+        if ($target['type'] === 'sn') {
+            $this->speedNetworkingService->resumeEvent($target['event']);
+        } else {
+            $baseEvent = $target['event'];
+            $meta = $baseEvent->metadata ?? [];
+            $meta['speed_status'] = 'in_progress';
+            $baseEvent->metadata = $meta;
+            $baseEvent->save();
+        }
+
+        return redirect()->route('admin.speed-networking.show', $id)->with('success', 'Event timers resumed.');
+    }
+
+    /**
+     * Rematch waiting attendees from Admin Panel.
+     */
+    public function rematch(string $id): RedirectResponse
+    {
+        $target = $this->findEventOrBaseEvent($id);
+        if (! $target) {
+            return redirect()->route('admin.speed-networking.index')->with('error', 'Speed Networking event not found.');
+        }
+
+        if ($target['type'] === 'sn') {
+            $this->speedNetworkingService->rematchEvent($target['event']);
+        }
+
+        return redirect()->route('admin.speed-networking.show', $id)->with('success', 'Rematch generated for active round.');
     }
 }

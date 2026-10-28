@@ -74,7 +74,6 @@ use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
 use App\Http\Controllers\Api\V1\Admin\AdminPlansApiController;
 use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
-use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
 use App\Http\Controllers\Api\V1\Admin\CircleCategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
@@ -85,6 +84,7 @@ use App\Http\Controllers\Api\V1\Admin\EventGalleryAdminController;
 use App\Http\Controllers\Api\V1\Admin\EventScanCredentialAdminController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
+use App\Http\Controllers\Api\V1\Admin\LeadAdminApiController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
@@ -222,7 +222,11 @@ Route::post('/v1/webhooks/whatsapp-meta', [App\Http\Controllers\WhatsAppWebhookC
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
+Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
+Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
 Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
+Route::get('/referral/campaign-config', [ReferralCampaignConfigController::class, 'show']);
+Route::get('/referrals/campaign-config', [ReferralCampaignConfigController::class, 'show']);
 
 // Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
 Route::prefix('auth')->group(function () {
@@ -322,6 +326,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('rbac')->group($registerRbacRoutes);
 
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/app-config', [AppConfigController::class, 'publicConfig']);
     Route::get('/system/app-config', [SystemAppConfigController::class, 'show']);
     Route::get('/coin-guidelines', [CoinGuidelineController::class, 'index']);
     Route::get('/impact-guidelines', [ImpactGuidelineController::class, 'index']);
@@ -827,6 +832,8 @@ Route::prefix('v1')->group(function () {
             Route::put('/app-config/labels/{label_key}', [AppConfigAdminController::class, 'updateLabel']);
             Route::put('/app-config/features', [AppConfigAdminController::class, 'bulkUpdateFeatures']);
             Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
+            Route::put('/app-config/tutorial-steps', [AppConfigAdminController::class, 'bulkUpdateTutorialSteps']);
+            Route::put('/app-config/tutorial-steps/{step_key}', [AppConfigAdminController::class, 'updateTutorialStep']);
             Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
             Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
             Route::put('/app-config/navigation/group/{menu_type}', [AppConfigAdminController::class, 'bulkUpdateNavigationGroup']);
@@ -1831,7 +1838,6 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
     Route::post('post-reports/{id}/resolve', [App\Http\Controllers\Api\Admin\PostReportController::class, 'resolve']);
     Route::post('post-reports/{id}/dismiss', [App\Http\Controllers\Api\Admin\PostReportController::class, 'dismiss']);
 
-    
     // Leads API (Entrepreneur, Leadership, Partner With Us, Become Speaker, Become Mentor, Story Submissions)
     Route::prefix('leads')->group(function () {
         Route::get('/counts', [LeadAdminApiController::class, 'counts']);
@@ -1866,7 +1872,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum'])->group(function () {
 foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
         Route::get('active-event', [SpeedNetworkingApiController::class, 'activeEvent']);
+        Route::get('history', [SpeedNetworkingApiController::class, 'history']);
         Route::get('events/{eventId}', [SpeedNetworkingApiController::class, 'show'])->whereUuid('eventId');
+        Route::post('events/{eventId}/register', [SpeedNetworkingApiController::class, 'register'])->whereUuid('eventId');
         Route::post('events/{eventId}/join', [SpeedNetworkingApiController::class, 'join'])->whereUuid('eventId');
         Route::post('events/{eventId}/verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment'])->whereUuid('eventId');
         Route::match(['get', 'post'], 'events/{eventId}/next-match', [SpeedNetworkingApiController::class, 'nextMatch'])->whereUuid('eventId');
@@ -1880,6 +1888,7 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
 foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->whereUuid('eventId')->group(function (): void {
         Route::get('', [SpeedNetworkingApiController::class, 'show']);
+        Route::post('register', [SpeedNetworkingApiController::class, 'register']);
         Route::post('join', [SpeedNetworkingApiController::class, 'join']);
         Route::post('verify-payment', [SpeedNetworkingApiController::class, 'verifyPayment']);
         Route::match(['get', 'post'], 'next-match', [SpeedNetworkingApiController::class, 'nextMatch']);
@@ -1894,15 +1903,22 @@ foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networ
 foreach (['admin/speed-networking', 'v1/admin/speed-networking'] as $prefix) {
     Route::middleware('auth:sanctum')->prefix($prefix)->group(function (): void {
         Route::get('events', [SpeedNetworkingAdminController::class, 'index']);
+        Route::get('history', [SpeedNetworkingAdminController::class, 'history']);
         Route::post('events', [SpeedNetworkingAdminController::class, 'store']);
         Route::get('events/{id}', [SpeedNetworkingAdminController::class, 'show'])->whereUuid('id');
         Route::put('events/{id}', [SpeedNetworkingAdminController::class, 'update'])->whereUuid('id');
         Route::delete('events/{id}', [SpeedNetworkingAdminController::class, 'destroy'])->whereUuid('id');
         Route::get('events/{id}/participants', [SpeedNetworkingAdminController::class, 'participants'])->whereUuid('id');
+        Route::get('events/{id}/summary', [SpeedNetworkingAdminController::class, 'summary'])->whereUuid('id');
         Route::post('events/{id}/start', [SpeedNetworkingAdminController::class, 'start'])->whereUuid('id');
         Route::post('events/{id}/next-round', [SpeedNetworkingAdminController::class, 'nextRound'])->whereUuid('id');
+        Route::post('events/{id}/pause', [SpeedNetworkingAdminController::class, 'pause'])->whereUuid('id');
+        Route::post('events/{id}/resume', [SpeedNetworkingAdminController::class, 'resume'])->whereUuid('id');
+        Route::post('events/{id}/rematch', [SpeedNetworkingAdminController::class, 'rematch'])->whereUuid('id');
         Route::post('events/{id}/end', [SpeedNetworkingAdminController::class, 'end'])->whereUuid('id');
         Route::get('events/{id}/live-tables', [SpeedNetworkingAdminController::class, 'liveTables'])->whereUuid('id');
+        Route::get('events/{id}/matches', [SpeedNetworkingAdminController::class, 'matches'])->whereUuid('id');
+        Route::get('events/{id}/connections', [SpeedNetworkingAdminController::class, 'matches'])->whereUuid('id');
     });
 }
 

@@ -75,6 +75,7 @@ class AppConfigService
             'app_config_settings',
             'app_labels',
             'app_features',
+            'app_tutorial_steps',
             'app_navigation_items',
             'app_dashboard_widgets',
             'app_social_links',

@@ -27,12 +27,19 @@ class CreateSpeedNetworkingEventRequest extends FormRequest
             'id' => ['nullable', 'uuid', 'exists:speed_networking_events,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'banner_url' => ['nullable', 'string', 'max:255'],
+            'banner_url' => ['nullable', 'string', 'max:500'],
             'scheduled_start_time' => ['nullable', 'date'],
-            'round_duration_seconds' => ['nullable', 'integer', 'min:30', 'max:3600'],
-            'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:600'],
+            'scheduled_end_time' => ['nullable', 'date'],
+            'round_duration_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
+            'break_duration_seconds' => ['nullable', 'integer', 'min:5', 'max:1800'],
+            'total_rounds' => ['nullable', 'integer', 'min:1', 'max:100'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
             'is_paid' => ['nullable', 'boolean'],
+            'is_free' => ['nullable', 'boolean'],
+            'currency' => ['nullable', 'string', 'max:10'],
+            'circle_id' => ['nullable', 'uuid'],
+            'circle_restricted' => ['nullable', 'boolean'],
+            'status' => ['nullable', 'string', 'in:draft,scheduled,lobby_open,in_progress,paused,completed'],
         ];
     }
 }
