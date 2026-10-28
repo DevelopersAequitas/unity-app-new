@@ -19,10 +19,10 @@ class ToggleReferralCampaignConfigRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'type' => ['nullable', 'string', 'in:book,referral,all'],
             'is_active' => ['nullable', 'boolean'],
             'show_floating_badge' => ['nullable', 'boolean'],
             'auto_open_badge_screen' => ['nullable', 'boolean'],
         ];
     }
 }
-
