@@ -11,6 +11,7 @@ use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
 use App\Models\Ask\Ask;
 use App\Models\Ask\AskTimelineLink;
+use App\Models\BusinessDeal;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\File;
@@ -21,6 +22,7 @@ use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\PostMention;
 use App\Models\Referral;
+use App\Models\Testimonial;
 use App\Models\User;
 use App\Services\AdFeedService;
 use App\Services\Ask\AskService;
@@ -430,45 +432,287 @@ class PostController extends BaseApiController
             'introduction',
         ];
 
-        $creativePeerIds = [];
-        foreach ($pageRows as $row) {
-            $sourceType = (string) ($row->post_source_type ?? '');
-            $postType = (string) ($row->post_type ?? '');
-            $isCreative = in_array($sourceType, $creativeSourceTypes, true)
-                || in_array($postType, $creativePostTypes, true);
+        // Pre-resolve Activity Models (P2P Meetings, Business Deals, Testimonials, Referrals)
+        $p2pMeetingsById = collect();
+        $fallbackP2pMeetingIdByPostId = [];
+        $p2pMeetingSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
 
-            if (! empty($row->post_source_id) && $isCreative) {
-                $creativePeerIds[] = (string) $row->post_source_id;
+        foreach ($pageRows as $r) {
+            $ac = $activityCreativesByPostId->get((string) $r->id);
+            if ($ac && in_array(strtolower((string) $ac->activity_type), ['p2p_meeting', 'p2pmeeting'], true) && ! empty($ac->activity_id)) {
+                $p2pMeetingSourceIds[] = (string) $ac->activity_id;
             }
+        }
+        $p2pMeetingSourceIds = array_values(array_unique(array_filter($p2pMeetingSourceIds)));
 
-            $decodedTags = $this->decodeJsonColumn($row->tags ?? null);
-            foreach ($decodedTags as $t) {
-                if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
-                    $creativePeerIds[] = $t;
-                }
-            }
+        if ($p2pMeetingSourceIds !== []) {
+            $p2pMeetingsById = P2pMeeting::query()
+                ->whereIn('id', $p2pMeetingSourceIds)
+                ->get(['id', 'initiator_user_id', 'peer_user_id', 'media', 'created_at'])
+                ->keyBy('id');
+        }
 
-            $ac = $activityCreativesByPostId->get((string) $row->id);
-            if ($ac && ! empty($ac->user_id)) {
-                $creativePeerIds[] = (string) $ac->user_id;
-            }
+        $p2pPostsWithoutSource = $pageRows->filter(function ($row): bool {
+            return (string) ($row->source_type ?? '') === 'post'
+                && $this->isP2pMeetingPostRow($row)
+                && empty($row->post_source_id);
+        })->values();
 
-            if (! empty($row->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $row->content_text, $inlineMatches)) {
-                foreach ($inlineMatches[2] as $matchedUuid) {
-                    $creativePeerIds[] = $matchedUuid;
+        if ($p2pPostsWithoutSource->isNotEmpty()) {
+            $fallbackAuthorIds = $p2pPostsWithoutSource->pluck('author_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
+            $postCreatedAt = $p2pPostsWithoutSource
+                ->map(fn ($row) => Carbon::parse((string) $row->created_at))
+                ->sortBy(fn (Carbon $value) => $value->getTimestamp())
+                ->values();
+
+            if ($fallbackAuthorIds !== [] && $postCreatedAt->isNotEmpty()) {
+                $windowStart = $postCreatedAt->first()->copy()->subMinutes(5);
+                $windowEnd = $postCreatedAt->last()->copy()->addMinutes(5);
+
+                $candidateMeetings = P2pMeeting::query()
+                    ->where(function ($q) use ($fallbackAuthorIds) {
+                        $q->whereIn('initiator_user_id', $fallbackAuthorIds)
+                            ->orWhereIn('peer_user_id', $fallbackAuthorIds);
+                    })
+                    ->whereBetween('created_at', [$windowStart, $windowEnd])
+                    ->get(['id', 'initiator_user_id', 'peer_user_id', 'created_at', 'media']);
+
+                foreach ($p2pPostsWithoutSource as $row) {
+                    $authorId = (string) ($row->author_id ?? '');
+                    $rowCreatedAt = Carbon::parse((string) $row->created_at);
+
+                    $bestMeeting = $candidateMeetings
+                        ->filter(function (P2pMeeting $meeting) use ($authorId, $rowCreatedAt): bool {
+                            $isParticipant = (string) $meeting->initiator_user_id === $authorId || (string) $meeting->peer_user_id === $authorId;
+                            $diff = abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+
+                            return $isParticipant && $diff <= 300;
+                        })
+                        ->sortBy(function (P2pMeeting $meeting) use ($rowCreatedAt): int {
+                            return abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+                        })
+                        ->first();
+
+                    if ($bestMeeting) {
+                        $fallbackP2pMeetingIdByPostId[(string) $row->id] = (string) $bestMeeting->id;
+                        $p2pMeetingsById->put((string) $bestMeeting->id, $bestMeeting);
+                    }
                 }
             }
         }
 
-        $allMentionPeerIds = collect(array_merge($creativePeerIds, $impactedPeerIds, $acceptedByIds))
+        // Business Deals
+        $businessDealsById = collect();
+        $fallbackBusinessDealIdByPostId = [];
+        $businessDealSourceIds = $pageRows
+            ->filter(fn ($row) => $this->isBusinessDealPostRow($row))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($pageRows as $r) {
+            $ac = $activityCreativesByPostId->get((string) $r->id);
+            if ($ac && strtolower((string) $ac->activity_type) === 'business_deal' && ! empty($ac->activity_id)) {
+                $businessDealSourceIds[] = (string) $ac->activity_id;
+            }
+        }
+        $businessDealSourceIds = array_values(array_unique(array_filter($businessDealSourceIds)));
+
+        if ($businessDealSourceIds !== []) {
+            $businessDealsById = BusinessDeal::query()
+                ->whereIn('id', $businessDealSourceIds)
+                ->get(['id', 'from_user_id', 'to_user_id', 'deal_amount', 'created_at'])
+                ->keyBy('id');
+        }
+
+        $dealPostsWithoutSource = $pageRows->filter(function ($row) use ($activityCreativesByPostId): bool {
+            $ac = $activityCreativesByPostId->get((string) $row->id);
+
+            return $this->isBusinessDealPostRow($row)
+                && empty($row->post_source_id)
+                && empty($ac?->activity_id);
+        })->values();
+
+        if ($dealPostsWithoutSource->isNotEmpty()) {
+            $dealAuthorIds = $dealPostsWithoutSource->pluck('author_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
+            $postCreatedAt = $dealPostsWithoutSource
+                ->map(fn ($row) => Carbon::parse((string) $row->created_at))
+                ->sortBy(fn (Carbon $value) => $value->getTimestamp())
+                ->values();
+
+            if ($dealAuthorIds !== [] && $postCreatedAt->isNotEmpty()) {
+                $windowStart = $postCreatedAt->first()->copy()->subMinutes(5);
+                $windowEnd = $postCreatedAt->last()->copy()->addMinutes(5);
+
+                $candidateDeals = BusinessDeal::query()
+                    ->where(function ($q) use ($dealAuthorIds) {
+                        $q->whereIn('from_user_id', $dealAuthorIds)->orWhereIn('to_user_id', $dealAuthorIds);
+                    })
+                    ->whereBetween('created_at', [$windowStart, $windowEnd])
+                    ->get(['id', 'from_user_id', 'to_user_id', 'deal_amount', 'created_at']);
+
+                foreach ($dealPostsWithoutSource as $row) {
+                    $authorId = (string) ($row->author_id ?? '');
+                    $rowCreatedAt = Carbon::parse((string) $row->created_at);
+
+                    $bestDeal = $candidateDeals
+                        ->filter(function (BusinessDeal $deal) use ($authorId, $rowCreatedAt): bool {
+                            $isParticipant = (string) $deal->from_user_id === $authorId || (string) $deal->to_user_id === $authorId;
+                            $diff = abs($deal->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+
+                            return $isParticipant && $diff <= 300;
+                        })
+                        ->sortBy(function (BusinessDeal $deal) use ($rowCreatedAt): int {
+                            return abs($deal->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+                        })
+                        ->first();
+
+                    if ($bestDeal) {
+                        $fallbackBusinessDealIdByPostId[(string) $row->id] = (string) $bestDeal->id;
+                        $businessDealsById->put((string) $bestDeal->id, $bestDeal);
+                    }
+                }
+            }
+        }
+
+        // Testimonials
+        $testimonialsById = collect();
+        $fallbackTestimonialIdByPostId = [];
+        $testimonialSourceIds = $pageRows
+            ->filter(fn ($row) => $this->isTestimonialPostRow($row))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($pageRows as $r) {
+            $ac = $activityCreativesByPostId->get((string) $r->id);
+            if ($ac && strtolower((string) $ac->activity_type) === 'testimonial' && ! empty($ac->activity_id)) {
+                $testimonialSourceIds[] = (string) $ac->activity_id;
+            }
+        }
+        $testimonialSourceIds = array_values(array_unique(array_filter($testimonialSourceIds)));
+
+        if ($testimonialSourceIds !== []) {
+            $testimonialsById = Testimonial::query()
+                ->whereIn('id', $testimonialSourceIds)
+                ->get(['id', 'from_user_id', 'to_user_id', 'content', 'created_at'])
+                ->keyBy('id');
+        }
+
+        $testimonialPostsWithoutSource = $pageRows->filter(function ($row) use ($activityCreativesByPostId): bool {
+            $ac = $activityCreativesByPostId->get((string) $row->id);
+
+            return $this->isTestimonialPostRow($row)
+                && empty($row->post_source_id)
+                && empty($ac?->activity_id);
+        })->values();
+
+        if ($testimonialPostsWithoutSource->isNotEmpty()) {
+            $testAuthorIds = $testimonialPostsWithoutSource->pluck('author_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
+            $postCreatedAt = $testimonialPostsWithoutSource
+                ->map(fn ($row) => Carbon::parse((string) $row->created_at))
+                ->sortBy(fn (Carbon $value) => $value->getTimestamp())
+                ->values();
+
+            if ($testAuthorIds !== [] && $postCreatedAt->isNotEmpty()) {
+                $windowStart = $postCreatedAt->first()->copy()->subMinutes(5);
+                $windowEnd = $postCreatedAt->last()->copy()->addMinutes(5);
+
+                $candidateTests = Testimonial::query()
+                    ->where(function ($q) use ($testAuthorIds) {
+                        $q->whereIn('from_user_id', $testAuthorIds)->orWhereIn('to_user_id', $testAuthorIds);
+                    })
+                    ->whereBetween('created_at', [$windowStart, $windowEnd])
+                    ->get(['id', 'from_user_id', 'to_user_id', 'content', 'created_at']);
+
+                foreach ($testimonialPostsWithoutSource as $row) {
+                    $authorId = (string) ($row->author_id ?? '');
+                    $rowCreatedAt = Carbon::parse((string) $row->created_at);
+
+                    $bestTest = $candidateTests
+                        ->filter(function (Testimonial $test) use ($authorId, $rowCreatedAt): bool {
+                            $isParticipant = (string) $test->from_user_id === $authorId || (string) $test->to_user_id === $authorId;
+                            $diff = abs($test->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+
+                            return $isParticipant && $diff <= 300;
+                        })
+                        ->sortBy(function (Testimonial $test) use ($rowCreatedAt): int {
+                            return abs($test->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+                        })
+                        ->first();
+
+                    if ($bestTest) {
+                        $fallbackTestimonialIdByPostId[(string) $row->id] = (string) $bestTest->id;
+                        $testimonialsById->put((string) $bestTest->id, $bestTest);
+                    }
+                }
+            }
+        }
+
+        // Referrals
+        $referralSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
+            ->map(fn ($row) => (string) ($row->post_source_id ?? $row->id))
             ->filter()
             ->unique()
             ->values()
             ->all();
 
-        $mentionedPeers = $allMentionPeerIds !== []
-            ? User::query()
-                ->whereIn('id', $allMentionPeerIds)
+        $referralsById = $referralSourceIds !== []
+            ? Referral::query()
+                ->whereIn('id', $referralSourceIds)
+                ->with(['status', 'toUser'])
+                ->get()
+                ->keyBy(fn (Referral $r) => (string) $r->id)
+            : collect();
+
+        // Text Regex extraction fallback for activity posts
+        $extractedNames = [];
+        $postToExtractedName = [];
+        foreach ($pageRows as $row) {
+            $text = (string) ($row->content_text ?? '');
+            if ($text === '') {
+                continue;
+            }
+            $extracted = null;
+            if (preg_match('/sharing a moment of gratitude to\s+([^.]+?)(?:\.|$)/i', $text, $m)) {
+                $extracted = trim($m[1]);
+            } elseif (preg_match('/made a deal with\s+(.+?)\s+of amount/i', $text, $m)) {
+                $extracted = trim($m[1]);
+            } elseif (preg_match('/connected with\s+([^,]+?),/i', $text, $m)) {
+                $extracted = trim($m[1]);
+            } elseif (preg_match('/referral for\s+.+?\s+to\s+([^.\n]+?)(?:\.|\n|$)/i', $text, $m)) {
+                $extracted = trim($m[1]);
+            }
+
+            if ($extracted !== null && $extracted !== '' && strtolower($extracted) !== 'peer') {
+                $extractedNames[] = $extracted;
+                $postToExtractedName[(string) $row->id] = $extracted;
+            }
+        }
+
+        $userByNameMap = [];
+        if ($extractedNames !== []) {
+            $matchedUsers = User::query()
+                ->where(function ($q) use ($extractedNames) {
+                    $q->whereIn('display_name', $extractedNames);
+                    foreach ($extractedNames as $nm) {
+                        $q->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$nm]);
+                    }
+                })
                 ->get([
                     'id',
                     'display_name',
@@ -477,9 +721,79 @@ class PostController extends BaseApiController
                     'profile_photo_file_id',
                     'profile_photo_url',
                     'is_online',
-                ])
-                ->keyBy(fn (User $u) => (string) $u->id)
-            : collect();
+                ]);
+
+            foreach ($matchedUsers as $u) {
+                $dName = strtolower(trim((string) $u->display_name));
+                $fName = strtolower(trim(($u->first_name ?? '').' '.($u->last_name ?? '')));
+                if ($dName !== '') {
+                    $userByNameMap[$dName] = $u;
+                }
+                if ($fName !== '') {
+                    $userByNameMap[$fName] = $u;
+                }
+            }
+        }
+
+        // Pre-resolve counterpart peer ID for each post
+        $counterpartPeerIdByPostId = [];
+        foreach ($pageRows as $row) {
+            $postId = (string) $row->id;
+            $authorId = (string) ($row->author_id ?? '');
+            $ac = $activityCreativesByPostId->get($postId);
+            $counterpartId = null;
+
+            // P2P Meeting
+            if ($this->isP2pMeetingPostRow($row) || ($ac && in_array(strtolower((string) $ac->activity_type), ['p2p_meeting', 'p2pmeeting'], true))) {
+                $meetingId = (string) ($row->post_source_id ?? $ac?->activity_id ?? $fallbackP2pMeetingIdByPostId[$postId] ?? '');
+                if ($meetingId !== '' && $p2pMeetingsById->has($meetingId)) {
+                    $m = $p2pMeetingsById->get($meetingId);
+                    $counterpartId = (string) $m->initiator_user_id === $authorId ? (string) $m->peer_user_id : (string) $m->initiator_user_id;
+                }
+            }
+
+            // Business Deal
+            if (! $counterpartId && ($this->isBusinessDealPostRow($row) || ($ac && strtolower((string) $ac->activity_type) === 'business_deal'))) {
+                $dealId = (string) ($row->post_source_id ?? $ac?->activity_id ?? $fallbackBusinessDealIdByPostId[$postId] ?? '');
+                if ($dealId !== '' && $businessDealsById->has($dealId)) {
+                    $d = $businessDealsById->get($dealId);
+                    $counterpartId = (string) $d->from_user_id === $authorId ? (string) $d->to_user_id : (string) $d->from_user_id;
+                }
+            }
+
+            // Testimonial
+            if (! $counterpartId && ($this->isTestimonialPostRow($row) || ($ac && strtolower((string) $ac->activity_type) === 'testimonial'))) {
+                $testId = (string) ($row->post_source_id ?? $ac?->activity_id ?? $fallbackTestimonialIdByPostId[$postId] ?? '');
+                if ($testId !== '' && $testimonialsById->has($testId)) {
+                    $t = $testimonialsById->get($testId);
+                    $counterpartId = (string) $t->from_user_id === $authorId ? (string) $t->to_user_id : (string) $t->from_user_id;
+                }
+            }
+
+            // Referral
+            if (! $counterpartId && ((string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral' || (string) ($row->post_type ?? '') === 'referral')) {
+                $refId = (string) ($row->post_source_id ?? $row->id);
+                if ($referralsById->has($refId)) {
+                    $ref = $referralsById->get($refId);
+                    $counterpartId = (string) ($ref->to_user_id ?? '');
+                }
+            }
+
+            // Text regex name match fallback
+            if (! $counterpartId && isset($postToExtractedName[$postId])) {
+                $matchedNameLower = strtolower($postToExtractedName[$postId]);
+                if (isset($userByNameMap[$matchedNameLower])) {
+                    $matchedUser = $userByNameMap[$matchedNameLower];
+                    if ((string) $matchedUser->id !== $authorId) {
+                        $counterpartId = (string) $matchedUser->id;
+                    }
+                }
+            }
+
+            if ($counterpartId !== null && $counterpartId !== '' && $counterpartId !== $authorId) {
+                $counterpartPeerIdByPostId[$postId] = $counterpartId;
+            }
+        }
 
         $postMentionsByPostId = $postIds !== []
             ? DB::table('post_mentions')
@@ -499,67 +813,37 @@ class PostController extends BaseApiController
                 ->groupBy(fn ($pm): string => (string) $pm->post_id)
             : collect();
 
-        $p2pMeetingsById = collect();
-        $fallbackP2pMeetingIdByPostId = [];
+        $creativePeerIds = [];
+        foreach ($pageRows as $row) {
+            $authorId = (string) ($row->author_id ?? '');
+            $sourceType = (string) ($row->post_source_type ?? '');
+            $postType = (string) ($row->post_type ?? '');
+            $isCreative = in_array($sourceType, $creativeSourceTypes, true)
+                || in_array($postType, $creativePostTypes, true);
 
-        $p2pMeetingSourceIds = $pageRows
-            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row))
-            ->pluck('post_source_id')
-            ->filter()
-            ->map(fn ($id) => (string) $id)
-            ->unique()
-            ->values()
-            ->all();
+            if (! empty($row->post_source_id) && $isCreative && (string) $row->post_source_id !== $authorId) {
+                $creativePeerIds[] = (string) $row->post_source_id;
+            }
 
-        if ($p2pMeetingSourceIds !== []) {
-            $p2pMeetingsById = P2pMeeting::query()
-                ->whereIn('id', $p2pMeetingSourceIds)
-                ->get(['id', 'media'])
-                ->keyBy('id');
-        }
+            $decodedTags = $this->decodeJsonColumn($row->tags ?? null);
+            foreach ($decodedTags as $t) {
+                if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t) && (string) $t !== $authorId) {
+                    $creativePeerIds[] = $t;
+                }
+            }
 
-        $p2pPostsWithoutSource = $pageRows->filter(function ($row): bool {
-            return (string) ($row->source_type ?? '') === 'post'
-                && $this->isP2pMeetingPostRow($row)
-                && empty($row->post_source_id);
-        })->values();
+            $ac = $activityCreativesByPostId->get((string) $row->id);
+            if ($ac && ! empty($ac->user_id) && (string) $ac->user_id !== $authorId) {
+                $actType = strtolower((string) $ac->activity_type);
+                if (! in_array($actType, ['p2p_meeting', 'p2pmeeting', 'business_deal', 'testimonial', 'referral'], true)) {
+                    $creativePeerIds[] = (string) $ac->user_id;
+                }
+            }
 
-        if ($p2pPostsWithoutSource->isNotEmpty()) {
-            $fallbackAuthorIds = $p2pPostsWithoutSource->pluck('author_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
-            $postCreatedAt = $p2pPostsWithoutSource
-                ->map(fn ($row) => Carbon::parse((string) $row->created_at))
-                ->sortBy(fn (Carbon $value) => $value->getTimestamp())
-                ->values();
-
-            if ($fallbackAuthorIds !== [] && $postCreatedAt->isNotEmpty()) {
-                $windowStart = $postCreatedAt->first()->copy()->subMinutes(2);
-                $windowEnd = $postCreatedAt->last()->copy()->addMinutes(2);
-
-                $candidateMeetings = P2pMeeting::query()
-                    ->whereIn('initiator_user_id', $fallbackAuthorIds)
-                    ->whereBetween('created_at', [$windowStart, $windowEnd])
-                    ->get(['id', 'initiator_user_id', 'created_at', 'media'])
-                    ->groupBy(fn (P2pMeeting $meeting): string => (string) $meeting->initiator_user_id);
-
-                foreach ($p2pPostsWithoutSource as $row) {
-                    $authorId = (string) ($row->author_id ?? '');
-                    $rowCreatedAt = Carbon::parse((string) $row->created_at);
-                    $authorMeetings = $candidateMeetings->get($authorId, collect());
-
-                    $bestMeeting = $authorMeetings
-                        ->filter(function (P2pMeeting $meeting) use ($rowCreatedAt): bool {
-                            $diff = abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
-
-                            return $diff <= 120;
-                        })
-                        ->sortBy(function (P2pMeeting $meeting) use ($rowCreatedAt): int {
-                            return abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
-                        })
-                        ->first();
-
-                    if ($bestMeeting) {
-                        $fallbackP2pMeetingIdByPostId[(string) $row->id] = (string) $bestMeeting->id;
-                        $p2pMeetingsById->put((string) $bestMeeting->id, $bestMeeting);
+            if (! empty($row->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $row->content_text, $inlineMatches)) {
+                foreach ($inlineMatches[2] as $matchedUuid) {
+                    if ((string) $matchedUuid !== $authorId) {
+                        $creativePeerIds[] = $matchedUuid;
                     }
                 }
             }
@@ -585,6 +869,7 @@ class PostController extends BaseApiController
 
         $asksByPostId = collect();
         $asksById = collect();
+        $askPeerIdsByPostId = [];
 
         if (! empty($askPostIds) || ! empty($askSourceIds)) {
             $timelineLinks = AskTimelineLink::query()
@@ -602,7 +887,16 @@ class PostController extends BaseApiController
             if (! empty($allAskIds)) {
                 $asks = Ask::query()
                     ->whereIn('id', $allAskIds)
-                    ->with(['flow', 'type', 'answers.option', 'district', 'circle', 'user'])
+                    ->with([
+                        'flow',
+                        'type',
+                        'answers.option',
+                        'district',
+                        'circle',
+                        'user',
+                        'matches:id,ask_id,matched_user_id',
+                        'responses:id,ask_id,responder_user_id,introduced_user_id,status',
+                    ])
                     ->withCount(['responses', 'matches'])
                     ->get();
 
@@ -613,23 +907,80 @@ class PostController extends BaseApiController
                         $asksByPostId->put((string) $postId, $asksById->get((string) $link->ask_id));
                     }
                 }
+
+                foreach ($pageRows as $row) {
+                    $postId = (string) $row->id;
+                    $authorId = (string) ($row->author_id ?? '');
+                    $ask = (! empty($row->post_source_id) ? $asksById->get((string) $row->post_source_id) : null)
+                        ?? $asksByPostId->get($postId);
+
+                    if ($ask) {
+                        $askPeers = [];
+                        if ($ask->relationLoaded('responses') && $ask->responses) {
+                            foreach ($ask->responses as $resp) {
+                                if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
+                                    $askPeers[] = (string) $resp->responder_user_id;
+                                }
+                                if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
+                                    $askPeers[] = (string) $resp->introduced_user_id;
+                                }
+                            }
+                        }
+                        if ($ask->relationLoaded('matches') && $ask->matches) {
+                            foreach ($ask->matches as $match) {
+                                if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
+                                    $askPeers[] = (string) $match->matched_user_id;
+                                }
+                            }
+                        }
+                        if ($askPeers !== []) {
+                            $askPeerIdsByPostId[$postId] = array_values(array_unique($askPeers));
+                        }
+                    }
+                }
             }
         }
 
-        $referralSourceIds = $pageRows
-            ->filter(fn ($row) => (string) ($row->post_source_type ?? '') === 'referral' || (string) ($row->source_type ?? '') === 'referral')
-            ->map(fn ($row) => (string) ($row->post_source_id ?? $row->id))
+        $allAskPeerIds = [];
+        foreach ($askPeerIdsByPostId as $pIds) {
+            foreach ($pIds as $pId) {
+                $allAskPeerIds[] = $pId;
+            }
+        }
+
+        $storedMentionPeerIds = [];
+        foreach ($postMentionsByPostId as $pms) {
+            foreach ($pms as $pm) {
+                $storedMentionPeerIds[] = (string) $pm->peer_id;
+            }
+        }
+
+        $allMentionPeerIds = collect(array_merge(
+            $creativePeerIds,
+            $impactedPeerIds,
+            $acceptedByIds,
+            array_values($counterpartPeerIdByPostId),
+            $allAskPeerIds,
+            $storedMentionPeerIds
+        ))
             ->filter()
             ->unique()
             ->values()
             ->all();
 
-        $referralsById = $referralSourceIds !== []
-            ? Referral::query()
-                ->whereIn('id', $referralSourceIds)
-                ->with(['status', 'toUser'])
-                ->get()
-                ->keyBy(fn (Referral $r) => (string) $r->id)
+        $mentionedPeers = $allMentionPeerIds !== []
+            ? User::query()
+                ->whereIn('id', $allMentionPeerIds)
+                ->get([
+                    'id',
+                    'display_name',
+                    'first_name',
+                    'last_name',
+                    'profile_photo_file_id',
+                    'profile_photo_url',
+                    'is_online',
+                ])
+                ->keyBy(fn (User $u) => (string) $u->id)
             : collect();
 
         $isDownloadable = CircleMember::where('user_id', $user->id)
@@ -643,7 +994,7 @@ class PostController extends BaseApiController
             ->map(fn ($id) => (string) $id)
             ->toArray();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $mentionedPeers, $postMentionsByPostId, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $counterpartPeerIdByPostId, $askPeerIdsByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds, $asksById, $asksByPostId, $referralsById, $request, $creativeSourceTypes, $creativePostTypes) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -658,13 +1009,17 @@ class PostController extends BaseApiController
 
             $mentions = [];
 
-            // 1. Stored post mentions from post_mentions table
+            // 1. Stored post mentions from post_mentions table (excluding author)
             $dbMentions = $postMentionsByPostId->get((string) $row->id);
             if ($dbMentions && $dbMentions->isNotEmpty()) {
                 foreach ($dbMentions as $dm) {
+                    $peerId = (string) $dm->peer_id;
+                    if ($peerId === $authorId) {
+                        continue;
+                    }
                     $mName = $dm->display_name ?: trim((($dm->first_name ?? '').' '.($dm->last_name ?? '')));
                     $mentions[] = [
-                        'id' => (string) $dm->peer_id,
+                        'id' => $peerId,
                         'name' => $mName !== '' ? $mName : 'Peer Member',
                         'profile_photo_url' => $dm->profile_photo_file_id
                             ? url('/api/v1/files/'.$dm->profile_photo_file_id)
@@ -674,33 +1029,50 @@ class PostController extends BaseApiController
                 }
             }
 
-            // 2. Creative, recognition, celebration, and announcement candidate peers
+            // 2. Candidate peers: counterpart peer, ask matched peers/responders, creative, recognition, tags, inline mentions
             $candidatePeerIds = [];
+
+            $counterpartId = $counterpartPeerIdByPostId[(string) $row->id] ?? null;
+            if ($counterpartId && (string) $counterpartId !== $authorId) {
+                $candidatePeerIds[] = (string) $counterpartId;
+            }
+
+            if (isset($askPeerIdsByPostId[(string) $row->id])) {
+                foreach ($askPeerIdsByPostId[(string) $row->id] as $askPeerId) {
+                    if ($askPeerId !== $authorId) {
+                        $candidatePeerIds[] = $askPeerId;
+                    }
+                }
+            }
+
             $postSourceType = (string) ($row->post_source_type ?? '');
             $postType = (string) ($row->post_type ?? '');
             $isCreative = in_array($postSourceType, $creativeSourceTypes, true)
                 || in_array($postType, $creativePostTypes, true);
 
-            if ($isCreative && ! empty($row->post_source_id)) {
+            if ($isCreative && ! empty($row->post_source_id) && (string) $row->post_source_id !== $authorId) {
                 $candidatePeerIds[] = (string) $row->post_source_id;
             }
 
             $decodedRowTags = $this->decodeJsonColumn($row->tags ?? null);
             foreach ($decodedRowTags as $t) {
-                if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+                if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t) && (string) $t !== $authorId) {
                     $candidatePeerIds[] = $t;
                 }
             }
 
-            if ($activityCreative && ! empty($activityCreative->user_id)) {
-                $candidatePeerIds[] = (string) $activityCreative->user_id;
+            if ($activityCreative && ! empty($activityCreative->user_id) && (string) $activityCreative->user_id !== $authorId) {
+                $actType = strtolower((string) $activityCreative->activity_type);
+                if (! in_array($actType, ['p2p_meeting', 'p2pmeeting', 'business_deal', 'testimonial', 'referral'], true)) {
+                    $candidatePeerIds[] = (string) $activityCreative->user_id;
+                }
             }
 
-            if ((string) $row->source_type === 'impact' && ! empty($row->impacted_peer_id)) {
+            if ((string) $row->source_type === 'impact' && ! empty($row->impacted_peer_id) && (string) $row->impacted_peer_id !== $authorId) {
                 $candidatePeerIds[] = (string) $row->impacted_peer_id;
             }
 
-            if (! empty($row->accepted_by_id)) {
+            if (! empty($row->accepted_by_id) && (string) $row->accepted_by_id !== $authorId) {
                 $candidatePeerIds[] = (string) $row->accepted_by_id;
             }
 
@@ -708,12 +1080,17 @@ class PostController extends BaseApiController
             $inlineNamedMatches = [];
             if (! empty($row->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $row->content_text, $inlineMatches)) {
                 foreach ($inlineMatches[2] as $idx => $matchedUuid) {
-                    $candidatePeerIds[] = $matchedUuid;
-                    $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                    if ((string) $matchedUuid !== $authorId) {
+                        $candidatePeerIds[] = $matchedUuid;
+                        $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                    }
                 }
             }
 
             foreach (array_unique($candidatePeerIds) as $cPeerId) {
+                if ((string) $cPeerId === $authorId) {
+                    continue;
+                }
                 if (! collect($mentions)->contains('id', $cPeerId)) {
                     $recPeer = $mentionedPeers->get($cPeerId);
                     if ($recPeer) {
@@ -735,6 +1112,11 @@ class PostController extends BaseApiController
                     }
                 }
             }
+
+            // Safety filter: author must NEVER be in mentions
+            $mentions = array_values(array_filter($mentions, function ($m) use ($authorId) {
+                return ! empty($m['id']) && (string) $m['id'] !== $authorId;
+            }));
 
             $isSystemCreative = Post::isSystemPostRow(
                 $row->post_source_type ?? $row->source_type ?? null,
@@ -1001,7 +1383,7 @@ class PostController extends BaseApiController
 
     private function isP2pMeetingPostRow(object $row): bool
     {
-        $sourceType = (string) ($row->post_source_type ?? '');
+        $sourceType = (string) ($row->post_source_type ?? $row->source_type ?? '');
         if ($sourceType === 'p2p_meeting') {
             return true;
         }
@@ -1009,6 +1391,30 @@ class PostController extends BaseApiController
         $tags = $this->decodeJsonColumn($row->tags ?? null);
 
         return in_array('p2p_meeting', $tags, true);
+    }
+
+    private function isBusinessDealPostRow(object $row): bool
+    {
+        $sourceType = (string) ($row->post_source_type ?? $row->source_type ?? '');
+        if ($sourceType === 'business_deal') {
+            return true;
+        }
+
+        $tags = $this->decodeJsonColumn($row->tags ?? null);
+
+        return in_array('business_deal', $tags, true);
+    }
+
+    private function isTestimonialPostRow(object $row): bool
+    {
+        $sourceType = (string) ($row->post_source_type ?? $row->source_type ?? '');
+        if ($sourceType === 'testimonial') {
+            return true;
+        }
+
+        $tags = $this->decodeJsonColumn($row->tags ?? null);
+
+        return in_array('testimonial', $tags, true);
     }
 
     /**
@@ -1721,13 +2127,14 @@ class PostController extends BaseApiController
 
     private function formatPostMentions(Post $post): array
     {
+        $authorId = (string) ($post->user_id ?? '');
         $mentions = [];
 
-        // 1. Check post_mentions table
+        // 1. Check post_mentions table (excluding author)
         $postMentions = PostMention::where('post_id', $post->id)->with('peer')->get();
         foreach ($postMentions as $pm) {
             $peer = $pm->peer;
-            if ($peer) {
+            if ($peer && (string) $peer->id !== $authorId) {
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                 $mentions[] = [
                     'id' => (string) $peer->id,
@@ -1760,27 +2167,167 @@ class PostController extends BaseApiController
 
         $sourceType = (string) ($post->source_type ?? '');
         $postType = (string) ($post->post_type ?? '');
-        if ((in_array($sourceType, $creativeTypes, true) || in_array($postType, $creativeTypes, true)) && ! empty($post->source_id)) {
+        $tags = is_array($post->tags) ? $post->tags : $this->decodeJsonColumn($post->tags ?? null);
+        $activityCreative = ActivityCreative::where('post_id', $post->id)->where('status', 'active')->first();
+
+        // Resolve counterpart peer for P2P Meeting
+        if ($sourceType === 'p2p_meeting' || in_array('p2p_meeting', $tags, true) || ($activityCreative && in_array(strtolower((string) $activityCreative->activity_type), ['p2p_meeting', 'p2pmeeting'], true))) {
+            $meetingId = $post->source_id ?? $activityCreative?->activity_id;
+            $meeting = $meetingId ? P2pMeeting::find($meetingId) : null;
+            if (! $meeting && $authorId !== '' && $post->created_at) {
+                $meeting = P2pMeeting::where(function ($q) use ($authorId) {
+                    $q->where('initiator_user_id', $authorId)->orWhere('peer_user_id', $authorId);
+                })
+                ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
+                ->latest('created_at')
+                ->first();
+            }
+            if ($meeting) {
+                $counterpart = (string) $meeting->initiator_user_id === $authorId ? (string) $meeting->peer_user_id : (string) $meeting->initiator_user_id;
+                if ($counterpart !== '' && $counterpart !== $authorId) {
+                    $candidatePeerIds[] = $counterpart;
+                }
+            }
+        }
+
+        // Resolve counterpart peer for Business Deal
+        if ($sourceType === 'business_deal' || in_array('business_deal', $tags, true) || ($activityCreative && strtolower((string) $activityCreative->activity_type) === 'business_deal')) {
+            $dealId = $post->source_id ?? $activityCreative?->activity_id;
+            $deal = $dealId ? BusinessDeal::find($dealId) : null;
+            if (! $deal && $authorId !== '' && $post->created_at) {
+                $deal = BusinessDeal::where(function ($q) use ($authorId) {
+                    $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
+                })
+                ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
+                ->latest('created_at')
+                ->first();
+            }
+            if ($deal) {
+                $counterpart = (string) $deal->from_user_id === $authorId ? (string) $deal->to_user_id : (string) $deal->from_user_id;
+                if ($counterpart !== '' && $counterpart !== $authorId) {
+                    $candidatePeerIds[] = $counterpart;
+                }
+            }
+        }
+
+        // Resolve counterpart peer for Testimonial
+        if ($sourceType === 'testimonial' || in_array('testimonial', $tags, true) || ($activityCreative && strtolower((string) $activityCreative->activity_type) === 'testimonial')) {
+            $testId = $post->source_id ?? $activityCreative?->activity_id;
+            $test = $testId ? Testimonial::find($testId) : null;
+            if (! $test && $authorId !== '' && $post->created_at) {
+                $test = Testimonial::where(function ($q) use ($authorId) {
+                    $q->where('from_user_id', $authorId)->orWhere('to_user_id', $authorId);
+                })
+                ->whereBetween('created_at', [$post->created_at->copy()->subMinutes(5), $post->created_at->copy()->addMinutes(5)])
+                ->latest('created_at')
+                ->first();
+            }
+            if ($test) {
+                $counterpart = (string) $test->from_user_id === $authorId ? (string) $test->to_user_id : (string) $test->from_user_id;
+                if ($counterpart !== '' && $counterpart !== $authorId) {
+                    $candidatePeerIds[] = $counterpart;
+                }
+            }
+        }
+
+        // Resolve counterpart peer for Referral
+        if ($sourceType === 'referral' || in_array('referral', $tags, true) || $postType === 'referral') {
+            $refId = $post->source_id ?? $post->id;
+            $ref = $refId ? Referral::find($refId) : null;
+            if ($ref && ! empty($ref->to_user_id) && (string) $ref->to_user_id !== $authorId) {
+                $candidatePeerIds[] = (string) $ref->to_user_id;
+            }
+        }
+
+        // Resolve matched peers and responders for Ask
+        if ($sourceType === 'ask' || in_array('ask', $tags, true) || $postType === 'ask') {
+            $askId = $post->source_id;
+            if (! $askId) {
+                $link = AskTimelineLink::query()->where('post_id', $post->id)->first();
+                $askId = $link?->ask_id;
+            }
+            if ($askId) {
+                $ask = Ask::query()
+                    ->with([
+                        'matches:id,ask_id,matched_user_id',
+                        'responses:id,ask_id,responder_user_id,introduced_user_id,status',
+                    ])
+                    ->find($askId);
+
+                if ($ask) {
+                    if ($ask->relationLoaded('responses') && $ask->responses) {
+                        foreach ($ask->responses as $resp) {
+                            if (! empty($resp->responder_user_id) && (string) $resp->responder_user_id !== $authorId) {
+                                $candidatePeerIds[] = (string) $resp->responder_user_id;
+                            }
+                            if (! empty($resp->introduced_user_id) && (string) $resp->introduced_user_id !== $authorId) {
+                                $candidatePeerIds[] = (string) $resp->introduced_user_id;
+                            }
+                        }
+                    }
+                    if ($ask->relationLoaded('matches') && $ask->matches) {
+                        foreach ($ask->matches as $match) {
+                            if (! empty($match->matched_user_id) && (string) $match->matched_user_id !== $authorId) {
+                                $candidatePeerIds[] = (string) $match->matched_user_id;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Text regex name match fallback
+        if (! empty($post->content_text)) {
+            $text = (string) $post->content_text;
+            $matchedName = null;
+            if (preg_match('/sharing a moment of gratitude to\s+([^.]+?)(?:\.|$)/i', $text, $m)) {
+                $matchedName = trim($m[1]);
+            } elseif (preg_match('/made a deal with\s+(.+?)\s+of amount/i', $text, $m)) {
+                $matchedName = trim($m[1]);
+            } elseif (preg_match('/connected with\s+([^,]+?),/i', $text, $m)) {
+                $matchedName = trim($m[1]);
+            } elseif (preg_match('/referral for\s+.+?\s+to\s+([^.\n]+?)(?:\.|\n|$)/i', $text, $m)) {
+                $matchedName = trim($m[1]);
+            }
+
+            if ($matchedName !== null && $matchedName !== '' && strtolower($matchedName) !== 'peer') {
+                $matchedUser = User::query()
+                    ->where(function ($q) use ($matchedName) {
+                        $q->where('display_name', $matchedName)
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) = ?", [$matchedName]);
+                    })
+                    ->first(['id', 'display_name', 'first_name', 'last_name', 'profile_photo_file_id', 'profile_photo_url', 'is_online']);
+
+                if ($matchedUser && (string) $matchedUser->id !== $authorId) {
+                    $candidatePeerIds[] = (string) $matchedUser->id;
+                }
+            }
+        }
+
+        if ((in_array($sourceType, $creativeTypes, true) || in_array($postType, $creativeTypes, true)) && ! empty($post->source_id) && (string) $post->source_id !== $authorId) {
             $candidatePeerIds[] = (string) $post->source_id;
         }
 
-        $tags = is_array($post->tags) ? $post->tags : $this->decodeJsonColumn($post->tags ?? null);
         foreach ($tags as $t) {
-            if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t)) {
+            if (is_string($t) && preg_match('/^[0-9a-fA-F-]{36}$/', $t) && (string) $t !== $authorId) {
                 $candidatePeerIds[] = $t;
             }
         }
 
-        $activityCreative = ActivityCreative::where('post_id', $post->id)->where('status', 'active')->first();
-        if ($activityCreative && ! empty($activityCreative->user_id)) {
-            $candidatePeerIds[] = (string) $activityCreative->user_id;
+        if ($activityCreative && ! empty($activityCreative->user_id) && (string) $activityCreative->user_id !== $authorId) {
+            $actType = strtolower((string) $activityCreative->activity_type);
+            if (! in_array($actType, ['p2p_meeting', 'p2pmeeting', 'business_deal', 'testimonial', 'referral'], true)) {
+                $candidatePeerIds[] = (string) $activityCreative->user_id;
+            }
         }
 
         // Inline markdown mentions @[Name](uuid)
         if (! empty($post->content_text) && preg_match_all('/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/', (string) $post->content_text, $inlineMatches)) {
             foreach ($inlineMatches[2] as $idx => $matchedUuid) {
-                $candidatePeerIds[] = $matchedUuid;
-                $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                if ((string) $matchedUuid !== $authorId) {
+                    $candidatePeerIds[] = $matchedUuid;
+                    $inlineNamedMatches[$matchedUuid] = $inlineMatches[1][$idx] ?? null;
+                }
             }
         }
 
@@ -1790,6 +2337,9 @@ class PostController extends BaseApiController
         if (! empty($unresolvedPeerIds)) {
             $users = User::whereIn('id', $unresolvedPeerIds)->get();
             foreach ($users as $peer) {
+                if ((string) $peer->id === $authorId) {
+                    continue;
+                }
                 $name = $peer->display_name ?: trim(($peer->first_name ?? '').' '.($peer->last_name ?? ''));
                 $fallbackName = $inlineNamedMatches[(string) $peer->id] ?? null;
                 $finalName = $name !== '' ? $name : ($fallbackName ?: 'Peer Member');
@@ -1804,7 +2354,7 @@ class PostController extends BaseApiController
             }
         }
 
-        return $mentions;
+        return array_values(array_filter($mentions, fn ($m) => (string) ($m['id'] ?? '') !== $authorId));
     }
 
     private function postPreview(Post $post): string

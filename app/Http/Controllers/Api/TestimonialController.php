@@ -6,6 +6,7 @@ use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreTestimonialRequest;
 use App\Models\Ask\Ask;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\Referral;
 use App\Models\Testimonial;
 use App\Models\User;
@@ -51,7 +52,7 @@ class TestimonialController extends BaseApiController
                 'testimonial_message' => $testimonial->content ?? '',
             ]);
 
-            Post::create([
+            $post = Post::create([
                 'user_id' => $testimonial->from_user_id,
                 'circle_id' => null,
                 'content_text' => $contentText,
@@ -61,7 +62,16 @@ class TestimonialController extends BaseApiController
                 'moderation_status' => 'pending',
                 'sponsored' => false,
                 'is_deleted' => false,
+                'source_type' => 'testimonial',
+                'source_id' => $testimonial->id,
             ]);
+
+            if (! empty($testimonial->to_user_id)) {
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $testimonial->to_user_id,
+                ]);
+            }
         } catch (Throwable $e) {
             Log::error('Failed to create post for testimonial', [
                 'testimonial_id' => $testimonial->id,

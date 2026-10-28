@@ -88,7 +88,7 @@ class AdvertiserSubscription extends Model
 
     public function latestPayment(): HasOne
     {
-        return $this->hasOne(AdvertiserPayment::class, 'subscription_id')->latestOfMany();
+        return $this->hasOne(AdvertiserPayment::class, 'subscription_id')->latestOfMany('created_at');
     }
 
     public function scopeActive(Builder $query): Builder

@@ -18,9 +18,14 @@ use Illuminate\Support\Str;
 
 class SpeedNetworkingService
 {
+    protected SpeedNetworkingP2pService $p2pService;
+
     public function __construct(
-        protected AgoraTokenService $agoraTokenService
-    ) {}
+        protected AgoraTokenService $agoraTokenService,
+        ?SpeedNetworkingP2pService $p2pService = null
+    ) {
+        $this->p2pService = $p2pService ?? app(SpeedNetworkingP2pService::class);
+    }
 
     /**
      * Get paginated list of Speed Networking events for Admin panel.
@@ -368,6 +373,12 @@ class SpeedNetworkingService
                 $event->status = SpeedNetworkingEvent::STATUS_COMPLETED;
                 $event->save();
 
+                try {
+                    $this->p2pService->completeAllMatchesForEvent($event);
+                } catch (\Throwable $p2pEx) {
+                    Log::warning('[SpeedNetworkingService] Could not process P2P meetings on round completion: '.$p2pEx->getMessage());
+                }
+
                 return $event;
             }
 
@@ -395,6 +406,12 @@ class SpeedNetworkingService
                     'status' => SpeedNetworkingMatch::STATUS_COMPLETED,
                     'ended_at' => Carbon::now(),
                 ]);
+
+            try {
+                $this->p2pService->completeAllMatchesForEvent($event);
+            } catch (\Throwable $p2pEx) {
+                Log::warning('[SpeedNetworkingService] Could not process P2P meetings on endEvent: '.$p2pEx->getMessage());
+            }
 
             return $event;
         });
@@ -1452,6 +1469,18 @@ class SpeedNetworkingService
                 $duration = (int) $event->round_duration_seconds;
             }
 
+            // Automatically process P2P meeting and creative for this match
+            $p2pMeeting = null;
+            $creativeUrl = null;
+            try {
+                $p2pMeeting = $this->p2pService->completeMatchAsP2pMeeting($match, $event);
+                if ($p2pMeeting) {
+                    $creativeUrl = $this->p2pService->getCreativeUrlForMatch($match);
+                }
+            } catch (\Throwable $p2pEx) {
+                Log::warning('[SpeedNetworkingService] Could not complete match as P2P meeting in summary: '.$p2pEx->getMessage());
+            }
+
             $interactedPeers[] = [
                 'id' => (string) $peer->id,
                 'name' => (string) $peerName,
@@ -1463,6 +1492,9 @@ class SpeedNetworkingService
                 'round' => (int) $match->round_number,
                 'interaction_duration_seconds' => $duration,
                 'connection_status' => $connectionStatus,
+                'p2p_meeting_id' => $p2pMeeting?->id ? (string) $p2pMeeting->id : null,
+                'creative_url' => $creativeUrl,
+                'p2p_logged' => $p2pMeeting !== null,
             ];
         }
 

@@ -12,7 +12,9 @@ use App\Services\BrandPartners\BrandPartnerAnalyticsService;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -106,15 +108,13 @@ class BrandPartnerController extends Controller
     {
         $data = $request->validated();
 
-        // Image uploads reusing existing FileUploadService
+        // Image uploads using standard public storage
         if ($request->hasFile('logo')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo'), null);
-            $data['logo'] = $logoModel->id;
+            $data['logo'] = $request->file('logo')->store('brand-partners/logos', 'public');
         }
 
         if ($request->hasFile('cover_image')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
-            $data['cover_image'] = $coverModel->id;
+            $data['cover_image'] = $request->file('cover_image')->store('brand-partners/covers', 'public');
         }
 
         // Track who created it
@@ -187,20 +187,22 @@ class BrandPartnerController extends Controller
     {
         $data = $request->validated();
 
-        // Image uploads reusing existing FileUploadService
+        // Image uploads using standard public storage
         if ($request->hasFile('logo')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo'), null);
-            $data['logo'] = $logoModel->id;
+            $data['logo'] = $request->file('logo')->store('brand-partners/logos', 'public');
         }
 
         if ($request->hasFile('cover_image')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
-            $data['cover_image'] = $coverModel->id;
+            $data['cover_image'] = $request->file('cover_image')->store('brand-partners/covers', 'public');
         }
 
         // Track who updated it
         $adminUser = Auth::guard('admin')->user();
-        $data['updated_by'] = $adminUser?->id;
+        $adminUserId = $adminUser?->id;
+        if (! $adminUserId) {
+            $adminUserId = DB::table('admin_users')->value('id');
+        }
+        $data['updated_by'] = $adminUserId;
 
         // Assign explicit columns
         $data['whatsapp'] = $request->input('whatsapp');
@@ -242,7 +244,7 @@ class BrandPartnerController extends Controller
             Log::error('Failed to update brand partner: '.$e->getMessage());
 
             return redirect()->back()
-                ->withInput()
+                ->withInput($request->except(['logo', 'cover_image']))
                 ->withErrors(['database' => 'Failed to update brand partner. Database error: '.$e->getMessage()]);
         }
 

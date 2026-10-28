@@ -1475,6 +1475,9 @@ Route::prefix('v1')->group(function () {
             // Payment Order & Verification
             Route::post('/subscriptions/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
             Route::post('/applications/{id}/payment-order', [AdvertiserPaymentApiController::class, 'createOrder'])->whereUuid('id');
+            Route::post('/subscriptions/{id}/extend', [AdvertiserPaymentApiController::class, 'extendSubscription'])->whereUuid('id');
+            Route::post('/subscriptions/{subscription_id}/extend', [AdvertiserPaymentApiController::class, 'extendSubscription'])->whereUuid('subscription_id');
+            Route::post('/partners/{id}/renew', [AdvertiserPaymentApiController::class, 'renewPartner'])->whereUuid('id');
             Route::post('/payments/verify', [AdvertiserPaymentApiController::class, 'verify']);
             Route::get('/payments/{id}', [AdvertiserPaymentApiController::class, 'paymentStatus'])->whereUuid('id');
         });
@@ -1519,6 +1522,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/brand-partners/home', [BrandPartnerApiController::class, 'home']);
     Route::get('/brand-partners/search', [BrandPartnerApiController::class, 'search']);
     Route::get('/brand-partners/offers', [BrandPartnerApiController::class, 'offers']);
+    Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
+    Route::get('/brand-partners/{id}/analytics', [BrandPartnerApiController::class, 'partnerAnalytics'])->whereUuid('id');
+    Route::get('/brand-partners/{id}/stats', [BrandPartnerApiController::class, 'partnerAnalytics'])->whereUuid('id');
     Route::get('/brand-partners/{id}', [BrandPartnerApiController::class, 'show'])->whereUuid('id');
     Route::get('/brand-partner-categories', [BrandPartnerApiController::class, 'categories']);
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
@@ -1535,6 +1541,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/applications/{id}/assets/upload-url', [AdvertiserPublicApiController::class, 'uploadUrl'])->whereUuid('id');
         Route::post('/applications/{id}/assets', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
         Route::post('/applications/{id}/assets/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
+        Route::post('/applications/{id}/direct-upload', [AdvertiserPublicApiController::class, 'confirmAsset'])->whereUuid('id');
         Route::post('/identity/resolve', [AdvertiserPublicApiController::class, 'resolveIdentity']);
         Route::get('/banner-config', [AdvertiserPublicApiController::class, 'bannerConfig']);
         Route::get('/guest/applications/{id}', [AdvertiserPublicApiController::class, 'guestShow'])->whereUuid('id');
@@ -1853,6 +1860,7 @@ foreach (['speed-networking', 'v1/speed-networking'] as $prefix) {
         Route::post('events/{eventId}/leave', [SpeedNetworkingApiController::class, 'leave'])->whereUuid('eventId');
         Route::post('events/{eventId}/heartbeat', [SpeedNetworkingApiController::class, 'heartbeat'])->whereUuid('eventId');
         Route::get('events/{eventId}/summary', [SpeedNetworkingApiController::class, 'summary'])->whereUuid('eventId');
+        Route::post('events/{eventId}/complete-p2p', [SpeedNetworkingApiController::class, 'completeP2p'])->whereUuid('eventId');
     });
 }
 
@@ -1865,6 +1873,7 @@ foreach (['events/{eventId}/speed-networking', 'v1/events/{eventId}/speed-networ
         Route::post('leave', [SpeedNetworkingApiController::class, 'leave']);
         Route::post('heartbeat', [SpeedNetworkingApiController::class, 'heartbeat']);
         Route::get('summary', [SpeedNetworkingApiController::class, 'summary']);
+        Route::post('complete-p2p', [SpeedNetworkingApiController::class, 'completeP2p']);
     });
 }
 

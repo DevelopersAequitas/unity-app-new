@@ -10,6 +10,7 @@ use App\Models\FileModel;
 use App\Models\P2pMeeting;
 use App\Models\P2PMeetingRequest;
 use App\Models\Post;
+use App\Models\PostMention;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
@@ -32,7 +33,7 @@ class P2pMeetingController extends BaseApiController
             $peerUser = $meeting->peer_user_id ? User::find($meeting->peer_user_id) : null;
             $contentText = $this->buildActivityPostMessage('p2p_meeting', $peerUser);
 
-            Post::create([
+            $post = Post::create([
                 'user_id' => $meeting->initiator_user_id,
                 'circle_id' => null,
                 'content_text' => $contentText,
@@ -46,6 +47,13 @@ class P2pMeetingController extends BaseApiController
                 'sponsored' => false,
                 'is_deleted' => false,
             ]);
+
+            if (! empty($meeting->peer_user_id)) {
+                PostMention::firstOrCreate([
+                    'post_id' => $post->id,
+                    'peer_id' => $meeting->peer_user_id,
+                ]);
+            }
         } catch (Throwable $e) {
             Log::error('Failed to create post for P2P meeting', [
                 'p2p_meeting_id' => $meeting->id,
@@ -566,6 +574,7 @@ class P2pMeetingController extends BaseApiController
                 'initiated_to' => $formattedInitiatedTo,
                 'given_by' => $formattedInitiatedBy,
                 'given_to' => $formattedInitiatedTo,
+                'media' => $this->expandP2pMedia($meeting->media),
             ];
         })->values()->all();
 
